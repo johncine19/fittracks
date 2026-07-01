@@ -66,6 +66,7 @@ function qr_attendance_page(): void
     const userId = <?= json_encode((string) $user['user_id']) ?>;
     const initialToken = <?= json_encode($initialToken, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP) ?>;
     const initialSecondsRemaining = <?= (int) $initialSecondsRemaining ?>;
+    const csrfToken = <?= json_encode(csrf_token()) ?>;
 
     function generateQR(text) {
         const container = document.getElementById('qr-container');
@@ -159,7 +160,7 @@ function qr_attendance_page(): void
         fetch('index.php?page=qr_attendance', {
             method: 'POST',
             headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-            body: 'action=refresh_token'
+            body: 'action=refresh_token&csrf_token=' + encodeURIComponent(csrfToken)
         })
         .then(r => r.json())
         .then(data => {
