@@ -18,30 +18,10 @@ function plans_page(): void
                 <h1>Membership Plans</h1>
                 <p>Define the subscription tiers available to members.</p>
             </div>
+            <button onclick="addPlan()" class="btn" style="background: var(--lime); color: var(--bg); font-weight: bold;">+ New Plan</button>
         </div>
 
-        <div class="form-card">
-            <h3>Add Plan</h3>
-            <form method="post" class="form inline-form">
-                <?= csrf_field() ?>
-                <label>Plan name <input name="plan_name" placeholder="e.g. Monthly Basic" required></label>
-                <label>Type
-                    <select name="plan_type">
-                        <option>monthly</option>
-                        <option>quarterly</option>
-                        <option>annual</option>
-                        <option>custom</option>
-                    </select>
-                </label>
-                <label>Duration (days) <input name="duration_days" type="number" placeholder="30" required></label>
-                <label>Price (PHP) <input name="price" type="number" step="0.01" placeholder="0.00" required></label>
-                <label>Description <input name="description" placeholder="Optional description"></label>
-                <label class="check" style="align-self:end;padding-bottom:10px">
-                    <input type="checkbox" name="is_active" value="1" checked> Active
-                </label>
-                <label>&nbsp;<button>Add plan</button></label>
-            </form>
-        </div>
+
 
         <p class="section-label">Plans (<?= count($plans) ?>)</p>
         <?php if (!$plans): ?>
@@ -77,6 +57,63 @@ function plans_page(): void
         </div>
         <?php endif; ?>
     </section>
+    
+    <script>
+    function addPlan() {
+        Swal.fire({
+            title: 'Add Plan',
+            html: `
+                <form id="addPlanForm" method="post" style="text-align: left; display: flex; flex-direction: column; gap: 12px; margin-top: 15px;">
+                    <?= csrf_field() ?>
+                    
+                    <label style="display:block; color: var(--muted); font-size: 14px;">Plan name *
+                        <input name="plan_name" class="form-control" placeholder="e.g. Monthly Basic" style="width: 100%; box-sizing: border-box;" required>
+                    </label>
+                    
+                    <div style="display:flex;gap:12px;">
+                        <label style="display:block; flex:1; color: var(--muted); font-size: 14px;">Type *
+                            <select name="plan_type" class="form-control" style="width: 100%; box-sizing: border-box;" required>
+                                <option value="monthly">Monthly</option>
+                                <option value="quarterly">Quarterly</option>
+                                <option value="annual">Annual</option>
+                                <option value="custom">Custom</option>
+                            </select>
+                        </label>
+                        <label style="display:block; flex:1; color: var(--muted); font-size: 14px;">Duration (days) *
+                            <input name="duration_days" type="number" class="form-control" placeholder="30" style="width: 100%; box-sizing: border-box;" required>
+                        </label>
+                    </div>
+                    
+                    <label style="display:block; color: var(--muted); font-size: 14px;">Price (PHP) *
+                        <input name="price" type="number" step="0.01" class="form-control" placeholder="0.00" style="width: 100%; box-sizing: border-box;" required>
+                    </label>
+                    
+                    <label style="display:block; color: var(--muted); font-size: 14px;">Description
+                        <input name="description" class="form-control" placeholder="Optional description" style="width: 100%; box-sizing: border-box;">
+                    </label>
+                    
+                    <label class="check" style="display:flex; align-items:center; gap:8px; color: var(--muted); font-size: 14px;">
+                        <input type="checkbox" name="is_active" value="1" checked> Active
+                    </label>
+                </form>
+            `,
+            showCancelButton: true,
+            confirmButtonText: 'Add Plan',
+            confirmButtonColor: 'var(--lime-dark)',
+            cancelButtonColor: 'var(--line)',
+            background: 'var(--bg)',
+            color: 'var(--ink)',
+            preConfirm: () => {
+                const form = document.getElementById('addPlanForm');
+                if (!form.plan_name.value || !form.duration_days.value || !form.price.value) {
+                    Swal.showValidationMessage('Please fill all required fields');
+                    return false;
+                }
+                form.submit();
+            }
+        });
+    }
+    </script>
     <?php
     render_footer();
 }
