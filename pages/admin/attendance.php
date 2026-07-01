@@ -123,7 +123,6 @@ function attendance_page(): void
                         <select name="check_in_method" class="form-control" style="width: 100%; box-sizing: border-box;" required>
                             <option value="manual">Manual</option>
                             <option value="qr_code">QR Code</option>
-                            <option value="rfid">RFID</option>
                         </select>
                     </label>
                 </form>
