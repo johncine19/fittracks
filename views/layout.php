@@ -110,6 +110,17 @@ function render_header(string $title, ?array $user = null): void
                         </div>
                     </div>
                     <div class="user-chip">
+                        <?php if ($user && ($user['role'] ?? '') === 'member'): ?>
+                            <?php $activeCheckinId = scalar('SELECT attendance_id FROM attendance WHERE user_id = ? AND check_out_time IS NULL ORDER BY check_in_time DESC LIMIT 1', [$user['user_id']]); ?>
+                            <?php if ($activeCheckinId): ?>
+                                <form method="post" action="index.php?page=profile" style="margin:0;">
+                                    <?= csrf_field() ?>
+                                    <input type="hidden" name="self_checkout" value="1">
+                                    <input type="hidden" name="attendance_id" value="<?= (int) $activeCheckinId ?>">
+                                    <button class="btn" data-confirm="Are you sure you want to check out?" style="background: var(--lime); color: var(--bg); font-weight: bold; padding: 0 12px; font-size: 13px; border-radius: 20px; height: 34px; display: flex; align-items: center; border: none; cursor: pointer; white-space: nowrap;" title="Check Out">Check Out</button>
+                                </form>
+                            <?php endif; ?>
+                        <?php endif; ?>
                         <?php render_notification_bell($user, $page); ?>
                         <button class="theme-toggle" id="theme-toggle-btn" title="Toggle Light/Dark Mode" type="button">
                             <!-- icon injected by JS -->
