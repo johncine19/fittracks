@@ -76,10 +76,17 @@ function scanner_page(): void
     const csrfToken = <?= json_encode(csrf_token()) ?>;
     document.addEventListener('DOMContentLoaded', function() {
         let isProcessing = false;
+        const scannedTokens = new Set();
         
         function onScanSuccess(decodedText, decodedResult) {
             if (isProcessing) return;
+            
+            // Prevent duplicate scans of the exact same QR code in one session
+            // since the token is single-use and will throw an error the second time.
+            if (scannedTokens.has(decodedText)) return;
+            
             isProcessing = true;
+            scannedTokens.add(decodedText);
             
             const resultEl = document.getElementById('scan-result');
             resultEl.textContent = 'Processing...';
@@ -102,13 +109,15 @@ function scanner_page(): void
                 
                 setTimeout(() => {
                     isProcessing = false;
-                    resultEl.textContent = '';
+                    // Don't clear the message immediately so they can read it, 
+                    // but allow new distinct scans
                 }, 3000);
             })
             .catch(err => {
                 console.error(err);
                 resultEl.textContent = 'Error processing request.';
                 isProcessing = false;
+                scannedTokens.delete(decodedText); // allow retry on network error
             });
         }
 
@@ -118,7 +127,11 @@ function scanner_page(): void
 
         let html5QrcodeScanner = new Html5QrcodeScanner(
             "reader",
-            { fps: 10, qrbox: {width: 250, height: 250} },
+            { 
+                fps: 10,
+                useBarCodeDetectorIfSupported: true,
+                rememberLastUsedCamera: true
+            },
             /* verbose= */ false);
         html5QrcodeScanner.render(onScanSuccess, onScanFailure);
     });

@@ -73,37 +73,21 @@ function qr_attendance_page(): void
         container.innerHTML = '';
         container.style.opacity = '1';
 
-        const qr = qrcode(0, 'Q');
+        const qr = qrcode(0, 'M'); // Error correction level M (15%) - produces cleaner, less dense QR codes
         qr.addData(text);
         qr.make();
 
-        const moduleCount = qr.getModuleCount();
-        const quietZone = 4;
-        const targetSize = 280;
-        const totalModules = moduleCount + quietZone * 2;
-        const cellSize = Math.max(4, Math.floor(targetSize / totalModules));
-        const canvasSize = cellSize * totalModules;
-        const canvas = document.createElement('canvas');
-        canvas.width = canvasSize;
-        canvas.height = canvasSize;
-        canvas.style.width = canvasSize + 'px';
-        canvas.style.height = canvasSize + 'px';
-        canvas.style.imageRendering = 'pixelated';
-
-        const ctx = canvas.getContext('2d');
-        ctx.fillStyle = '#ffffff';
-        ctx.fillRect(0, 0, canvasSize, canvasSize);
-        ctx.fillStyle = '#000000';
-
-        for (let row = 0; row < moduleCount; row++) {
-            for (let col = 0; col < moduleCount; col++) {
-                if (qr.isDark(row, col)) {
-                    ctx.fillRect((col + quietZone) * cellSize, (row + quietZone) * cellSize, cellSize, cellSize);
-                }
-            }
+        // Use built-in function to create a highly compatible img element (cellSize=8, margin=4)
+        container.innerHTML = qr.createImgTag(8, 4);
+        
+        // Ensure the generated image is responsive
+        const img = container.querySelector('img');
+        if (img) {
+            img.style.maxWidth = '100%';
+            img.style.height = 'auto';
+            img.style.display = 'block';
+            img.style.margin = '0 auto';
         }
-
-        container.appendChild(canvas);
     }
 
     function showQR(token, secondsRemaining) {
