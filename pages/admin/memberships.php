@@ -33,42 +33,12 @@ function memberships_page(): void
                 <h1>Memberships</h1>
                 <p>Manage member subscription plans and their validity periods.</p>
             </div>
+            <?php if ($user['role'] === 'admin'): ?>
+                <button onclick="addMembership()" class="btn" style="background: var(--lime); color: var(--bg); font-weight: bold;">+ New Membership</button>
+            <?php endif; ?>
         </div>
 
-        <?php if ($user['role'] === 'admin'): ?>
-        <div class="form-card">
-            <h3>Create Membership</h3>
-            <form method="post" class="form inline-form">
-                <?= csrf_field() ?>
-                <label>Member
-                    <select name="user_id">
-                        <?php foreach ($members as $member): ?>
-                            <option value="<?= (int) $member['user_id'] ?>"><?= h($member['name']) ?></option>
-                        <?php endforeach; ?>
-                    </select>
-                </label>
-                <label>Plan
-                    <select name="plan_id">
-                        <?php foreach ($plans as $plan): ?>
-                            <option value="<?= (int) $plan['plan_id'] ?>"><?= h($plan['plan_name']) ?> — <?= h(money($plan['price'])) ?></option>
-                        <?php endforeach; ?>
-                    </select>
-                </label>
-                <label>Start date
-                    <input name="start_date" type="date" required value="<?= h(date('Y-m-d')) ?>">
-                </label>
-                <label>Status
-                    <select name="status">
-                        <option>active</option>
-                        <option>pending</option>
-                        <option>expired</option>
-                        <option>cancelled</option>
-                    </select>
-                </label>
-                <label>&nbsp;<button>Create</button></label>
-            </form>
-        </div>
-        <?php endif; ?>
+
         
         <?php if ($user['role'] !== 'member'): 
             $expiring = db()->query('SELECT m.end_date, CONCAT(u.first_name, " ", u.last_name) AS member, u.first_name, u.last_name FROM memberships m JOIN users u ON u.user_id = m.user_id WHERE m.status = "active" AND m.end_date BETWEEN CURDATE() AND DATE_ADD(CURDATE(), INTERVAL 7 DAY) ORDER BY m.end_date ASC LIMIT 5')->fetchAll();
@@ -129,6 +99,67 @@ function memberships_page(): void
         </div>
         <?php endif; ?>
     </section>
+    
+    <?php if ($user['role'] === 'admin'): ?>
+    <script>
+    function addMembership() {
+        Swal.fire({
+            title: 'Create Membership',
+            html: `
+                <form id="addMembershipForm" method="post" style="text-align: left; display: flex; flex-direction: column; gap: 12px; margin-top: 15px;">
+                    <?= csrf_field() ?>
+                    
+                    <label style="display:block; color: var(--muted); font-size: 14px;">Member *
+                        <select name="user_id" class="form-control" style="width: 100%; box-sizing: border-box;" required>
+                            <option value="">Select Member...</option>
+                            <?php foreach ($members as $member): ?>
+                                <option value="<?= (int) $member['user_id'] ?>"><?= h($member['name']) ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                    </label>
+                    
+                    <label style="display:block; color: var(--muted); font-size: 14px;">Plan *
+                        <select name="plan_id" class="form-control" style="width: 100%; box-sizing: border-box;" required>
+                            <option value="">Select Plan...</option>
+                            <?php foreach ($plans as $plan): ?>
+                                <option value="<?= (int) $plan['plan_id'] ?>"><?= h($plan['plan_name']) ?> — <?= h(money($plan['price'])) ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                    </label>
+                    
+                    <div style="display:flex;gap:12px;">
+                        <label style="display:block; flex:1; color: var(--muted); font-size: 14px;">Start date *
+                            <input name="start_date" type="date" class="form-control" value="<?= h(date('Y-m-d')) ?>" style="width: 100%; box-sizing: border-box;" required>
+                        </label>
+                        <label style="display:block; flex:1; color: var(--muted); font-size: 14px;">Status *
+                            <select name="status" class="form-control" style="width: 100%; box-sizing: border-box;" required>
+                                <option value="active">Active</option>
+                                <option value="pending">Pending</option>
+                                <option value="expired">Expired</option>
+                                <option value="cancelled">Cancelled</option>
+                            </select>
+                        </label>
+                    </div>
+                </form>
+            `,
+            showCancelButton: true,
+            confirmButtonText: 'Create',
+            confirmButtonColor: 'var(--lime-dark)',
+            cancelButtonColor: 'var(--line)',
+            background: 'var(--bg)',
+            color: 'var(--ink)',
+            preConfirm: () => {
+                const form = document.getElementById('addMembershipForm');
+                if (!form.user_id.value || !form.plan_id.value || !form.start_date.value) {
+                    Swal.showValidationMessage('Please fill all required fields');
+                    return false;
+                }
+                form.submit();
+            }
+        });
+    }
+    </script>
+    <?php endif; ?>
     <?php
     render_footer();
 }
