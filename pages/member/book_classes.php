@@ -1,0 +1,93 @@
+<?php
+declare(strict_types=1);
+
+function book_classes_page(): void
+{
+    $user = require_roles(['member']);
+    if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+        db()->prepare('INSERT INTO class_bookings (schedule_id, user_id) VALUES (?, ?) ON DUPLICATE KEY UPDATE booking_status = "booked"')->execute([post('schedule_id'), $user['user_id']]);
+        flash('Class booked successfully!');
+        redirect('book_classes');
+    }
+    $page = max(1, (int)($_GET['p'] ?? 1));
+    $limit = 12;
+    $offset = ($page - 1) * $limit;
+
+    $totalSql = 'SELECT COUNT(*) FROM class_schedules s WHERE DATE(s.start_datetime) >= CURDATE()';
+    $total = (int) scalar($totalSql);
+    $totalPages = (int) ceil($total / $limit);
+
+    $sql = 'SELECT s.*, c.class_name, c.description, c.capacity, COALESCE(CONCAT(u.first_name, " ", u.last_name), "Open trainer") AS instructor, (SELECT COUNT(*) FROM class_bookings b WHERE b.schedule_id = s.schedule_id AND b.booking_status = "booked") AS booked FROM class_schedules s JOIN classes c ON c.class_id = s.class_id LEFT JOIN users u ON u.user_id = c.instructor_id WHERE DATE(s.start_datetime) >= CURDATE() ORDER BY s.start_datetime LIMIT ' . $limit . ' OFFSET ' . $offset;
+    $rows = db()->query($sql)->fetchAll();
+    render_header('Book a Class', $user);
+    ?>
+    <section class="panel">
+        <div class="page-header">
+            <div>
+                <h1>Classes</h1>
+                <p>Browse upcoming sessions and reserve your spot.</p>
+            </div>
+        </div>
+
+        <?php if (!$rows): ?>
+            <div class="empty-state">
+                <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+                <p>No upcoming classes scheduled yet.<br>Check back soon or contact your gym.</p>
+            </div>
+        <?php else: ?>
+            <div class="class-card-grid">
+                <?php
+                $colors = ['#c7ff22', '#42dba5', '#ff9548', '#ff4d5d', '#a78bfa', '#38bdf8', '#f472b6', '#facc15'];
+                $ci = 0;
+                foreach ($rows as $row):
+                    $booked   = (int) $row['booked'];
+                    $capacity = (int) $row['capacity'];
+                    $pct      = $capacity > 0 ? min(100, round($booked / $capacity * 100)) : 0;
+                    $full     = $booked >= $capacity;
+                    $barColor = $full ? '#ff4d5d' : ($pct >= 75 ? '#ff9548' : $colors[$ci % count($colors)]);
+                    $startDt  = new DateTime($row['start_datetime']);
+                    $endDt    = new DateTime($row['end_datetime']);
+                ?>
+                    <div class="cc-card">
+                        <div class="cc-header">
+                            <span class="cc-category" style="color:<?= $colors[$ci % count($colors)] ?>;border-color:<?= $colors[$ci % count($colors)] ?>"><?= h(strtoupper(substr($row['class_name'], 0, 8))) ?></span>
+                            <?php if ($full): ?>
+                                <span class="cc-full">Full</span>
+                            <?php endif; ?>
+                        </div>
+                        <h3 class="cc-name"><?= h($row['class_name']) ?></h3>
+                        <div class="cc-meta">
+                            <div class="cc-meta-row">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                                <?= h($startDt->format('g:i A')) ?> · <?= h($startDt->format('D, M j')) ?>
+                            </div>
+                            <div class="cc-meta-row">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                                <?= h($row['instructor']) ?>
+                            </div>
+                        </div>
+                        <div class="cc-capacity">
+                            <div class="cc-cap-header">
+                                <span>Capacity</span>
+                                <span class="cc-cap-nums"><?= $booked ?>/<?= $capacity ?></span>
+                            </div>
+                            <div class="cc-bar-track">
+                                <div class="cc-bar-fill" style="width:<?= $pct ?>%;background:<?= $barColor ?>"></div>
+                            </div>
+                        </div>
+                        <form method="post">
+                            <?= csrf_field() ?>
+                            <input type="hidden" name="schedule_id" value="<?= (int) $row['schedule_id'] ?>">
+                            <button class="cc-book-btn" <?= $full ? 'disabled' : '' ?>>
+                                <?= $full ? 'Class Full' : 'Book Slot' ?>
+                            </button>
+                        </form>
+                    </div>
+                <?php $ci++; endforeach; ?>
+            </div>
+        <?php endif; ?>
+        <?php render_pagination($page, $totalPages, '?page=book_classes'); ?>
+    </section>
+    <?php
+    render_footer();
+}

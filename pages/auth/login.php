@@ -1,0 +1,86 @@
+<?php
+declare(strict_types=1);
+
+function handle_login(): void
+{
+    if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+        $email = (string) post('email');
+
+        if (RateLimiter::tooManyAttempts($email, 5, 300)) {
+            $wait = (int) ceil(RateLimiter::secondsRemaining($email, 300) / 60);
+            flash("Too many login attempts. Please try again in about $wait minute(s).", 'danger');
+            render_header('Sign in');
+            ?>
+            <section style="padding: 40px 0;"><div class="auth-card"><div class="auth-card-header"><h1 class="auth-title">FITTRACKS</h1></div><p class="auth-subtitle">Please wait before trying again.</p></div></section>
+            <?php
+            render_footer();
+            return;
+        }
+
+        $stmt = db()->prepare('SELECT * FROM users WHERE email = ? AND status = "active"');
+        $stmt->execute([$email]);
+        $user = $stmt->fetch();
+        if ($user && password_verify((string) post('password'), $user['password_hash'])) {
+            RateLimiter::clear($email);
+            session_regenerate_id(true);
+            $_SESSION['user_id'] = $user['user_id'];
+            flash('Welcome back, ' . $user['first_name'] . '!', 'success');
+            redirect('dashboard');
+        }
+        RateLimiter::hit($email, 300);
+        flash('Invalid email or password.', 'danger');
+    }
+
+    render_header('Sign in');
+    ?>
+    <section style="padding: 40px 0;">
+        <div class="auth-card">
+            <div class="auth-card-header">
+                <h1 class="auth-title">FITTRACKS</h1>
+                <p class="auth-subtitle">Sign in to your account</p>
+            </div>
+            <form method="post" class="auth-form" novalidate>
+                <?= csrf_field() ?>
+                <div class="auth-field">
+                    <label>EMAIL ADDRESS</label>
+                    <div class="auth-input-group">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path><polyline points="22,6 12,13 2,6"></polyline></svg>
+                        <input type="email" name="email" required placeholder="Enter your email"
+                               oninvalid="this.setCustomValidity('Please enter a valid email address.')"
+                               oninput="this.setCustomValidity('')">
+                    </div>
+                </div>
+
+                <div class="auth-field">
+                    <label>PASSWORD</label>
+                    <div class="auth-input-group">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
+                        <input type="password" name="password" required placeholder="Enter your password"
+                               oninvalid="this.setCustomValidity('Please enter your password.')"
+                               oninput="this.setCustomValidity('')">
+                    </div>
+                </div>
+
+                <div style="display: flex; justify-content: space-between; align-items: center; font-size: 13px; color: var(--muted); margin-top: -5px;">
+                    <label style="display: flex; align-items: center; gap: 8px; font-weight: normal; text-transform: none; letter-spacing: normal;">
+                        <input type="checkbox" name="remember" style="width: auto;"> Keep me signed in
+                    </label>
+                    <a href="index.php?page=forgot_password" style="color: var(--lime); text-decoration: none;">Forgot password?</a>
+                </div>
+
+                <button type="submit" class="auth-submit-btn">SIGN IN <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14"></path><path d="M12 5l7 7-7 7"></path></svg></button>
+
+                <div class="auth-form-footer" style="margin-top: 15px; display: flex; flex-direction: column; gap: 10px;">
+                    <div>New here? <a href="index.php?page=register">Create an account</a></div>
+                    <div>Interested in joining our team? <a href="index.php?page=staff_apply">Apply as Staff</a></div>
+                </div>
+            </form>
+            <div class="corner corner-tl"></div>
+            <div class="corner corner-tr"></div>
+            <div class="corner corner-bl"></div>
+            <div class="corner corner-br"></div>
+        </div>
+    </section>
+    <?php
+    render_footer();
+}
