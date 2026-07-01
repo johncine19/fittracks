@@ -269,6 +269,137 @@ document.addEventListener('DOMContentLoaded', function() {
 </script>
 HTML;
 
+    $passwordScript = <<<HTML
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    function setupPasswordToggle(input) {
+        if (input.dataset.hasToggle) return;
+        input.dataset.hasToggle = 'true';
+
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'password-toggle-btn';
+        btn.style.cssText = 'background: none; border: none; padding: 0; margin-left: 8px; cursor: pointer; display: flex; align-items: center; color: var(--muted);';
+        
+        btn.innerHTML = `
+            <svg class="eye-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18" style="display: none; position: static !important; left: auto !important; pointer-events: none;">
+                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                <circle cx="12" cy="12" r="3"></circle>
+            </svg>
+            <svg class="eye-off-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18" style="position: static !important; left: auto !important; pointer-events: none;">
+                <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path>
+                <line x1="1" y1="1" x2="23" y2="23"></line>
+            </svg>
+        `;
+        
+        const parent = input.parentElement;
+        if (parent.classList.contains('auth-input-group')) {
+            parent.appendChild(btn);
+            btn.style.position = 'absolute';
+            btn.style.right = '12px';
+            input.style.paddingRight = '35px';
+        } else {
+            const wrapper = document.createElement('div');
+            wrapper.style.position = 'relative';
+            const computedStyle = window.getComputedStyle(input);
+            wrapper.style.display = input.style.display === 'block' || computedStyle.display === 'block' ? 'block' : 'inline-block';
+            wrapper.style.width = input.style.width || '100%';
+            
+            if (input.classList.contains('form-control') || input.style.width === '100%') {
+                 wrapper.style.display = 'block';
+            }
+
+            if (input.classList.contains('swal2-input')) {
+                // Do not wrap SweetAlert inputs as it breaks Swal.getInput()
+                input.parentNode.insertBefore(btn, input.nextSibling);
+                btn.style.position = 'absolute';
+                
+                const container = input.parentElement;
+                if (window.getComputedStyle(container).position === 'static') {
+                    container.style.position = 'relative';
+                }
+                
+                input.style.paddingRight = '35px';
+                
+                const updatePosition = () => {
+                    if (!input.offsetWidth) return;
+                    btn.style.top = (input.offsetTop + input.offsetHeight / 2) + 'px';
+                    btn.style.left = (input.offsetLeft + input.offsetWidth - 35) + 'px';
+                    btn.style.transform = 'translateY(-50%)';
+                };
+                
+                updatePosition();
+                
+                const ro = new ResizeObserver(updatePosition);
+                ro.observe(input);
+                if (container) ro.observe(container);
+            } else {
+                const wrapper = document.createElement('div');
+                wrapper.style.position = 'relative';
+                const computedStyle = window.getComputedStyle(input);
+                wrapper.style.display = input.style.display === 'block' || computedStyle.display === 'block' ? 'block' : 'inline-block';
+                wrapper.style.width = input.style.width || '100%';
+                
+                if (input.classList.contains('form-control') || input.style.width === '100%') {
+                     wrapper.style.display = 'block';
+                }
+
+                if (computedStyle.margin !== '0px') {
+                    wrapper.style.margin = computedStyle.margin;
+                    input.style.margin = '0';
+                }
+                
+                input.parentNode.insertBefore(wrapper, input);
+                wrapper.appendChild(input);
+                
+                btn.style.position = 'absolute';
+                btn.style.right = '10px';
+                btn.style.top = '50%';
+                btn.style.transform = 'translateY(-50%)';
+                btn.style.marginLeft = '0';
+                
+                input.style.paddingRight = '35px';
+                wrapper.appendChild(btn);
+            }
+        }
+        
+        btn.addEventListener('click', (e) => {
+            e.preventDefault();
+            if (input.type === 'password') {
+                input.type = 'text';
+                btn.querySelector('.eye-icon').style.display = 'block';
+                btn.querySelector('.eye-off-icon').style.display = 'none';
+            } else {
+                input.type = 'password';
+                btn.querySelector('.eye-icon').style.display = 'none';
+                btn.querySelector('.eye-off-icon').style.display = 'block';
+            }
+        });
+    }
+
+    // Initialize existing ones
+    document.querySelectorAll('input[type="password"]').forEach(setupPasswordToggle);
+
+    // Watch for new ones being added dynamically
+    const observer = new MutationObserver((mutations) => {
+        for (const mutation of mutations) {
+            for (const node of mutation.addedNodes) {
+                if (node.nodeType === 1) { // Element node
+                    if (node.matches && node.matches('input[type="password"]')) {
+                        setupPasswordToggle(node);
+                    }
+                    if (node.querySelectorAll) {
+                        node.querySelectorAll('input[type="password"]').forEach(setupPasswordToggle);
+                    }
+                }
+            }
+        }
+    });
+    observer.observe(document.body, { childList: true, subtree: true });
+});
+</script>
+HTML;
+
     $isAuthPage = defined('AUTH_PAGE') && AUTH_PAGE;
 
     if (!$isAuthPage && current_user()) {
@@ -276,11 +407,13 @@ HTML;
         echo $navScript;
         echo $themeScript;
         echo $confirmScript;
+        echo $passwordScript;
         echo '</body></html>';
         return;
     }
     echo '</main>';
     echo $confirmScript;
+    echo $passwordScript;
     echo '</body></html>';
 }
 
