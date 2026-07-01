@@ -10,10 +10,20 @@ function render_header(string $title, ?array $user = null): void
     if ($user) {
         $nav['dashboard'] = 'Dashboard';
         if ($role === 'admin') {
-            $nav += ['users' => 'Users', 'trainer_assignments' => 'Trainers', 'plans' => 'Plans', 'payments' => 'Payments', 'walk_ins' => 'Walk-ins', 'classes' => 'Classes', 'scanner' => 'Scan QR', 'reports' => 'Reports', 'notifications' => 'Notifications'];
-        }
-        if ($role === 'staff') {
-            $nav += ['members' => 'Members', 'trainer_assignments' => 'Trainers', 'memberships' => 'Memberships', 'payments' => 'Payments', 'walk_ins' => 'Walk-ins', 'scanner' => 'Scan QR', 'attendance' => 'Attendance', 'classes' => 'Classes', 'notifications' => 'Notifications'];
+            $nav += [
+                'users' => 'Users',
+                'members' => 'Members',
+                'trainer_assignments' => 'Trainers',
+                'plans' => 'Plans',
+                'memberships' => 'Memberships',
+                'payments' => 'Payments',
+                'walk_ins' => 'Walk-ins',
+                'classes' => 'Classes',
+                'attendance' => 'Attendance',
+                'scanner' => 'Scan QR',
+                'reports' => 'Reports',
+                'notifications' => 'Notifications'
+            ];
         }
         if ($role === 'trainer') {
             $nav += ['trainer_members' => 'Clients', 'training' => 'Training', 'messages' => 'Messages', 'notifications' => 'Notifications'];

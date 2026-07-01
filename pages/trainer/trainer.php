@@ -45,7 +45,7 @@ function trainer_members_page(): void
     foreach ($members as $member) {
         echo '<article class="mini-card"><h3>' . h($member['first_name'] . ' ' . $member['last_name']) . '</h3><p>' . h($member['email']) . '</p><p>' . h($member['primary_goal'] ?? 'No goal') . ' / ' . h($member['weight_kg'] ?? '-') . ' kg</p><form method="post">' . csrf_field() . '<input type="hidden" name="action" value="workout"><input type="hidden" name="member_user_id" value="' . (int) $member['member_user_id'] . '"><button>Generate workout</button></form><a class="button-link" href="index.php?page=training&member_user_id=' . (int) $member['member_user_id'] . '">Training plan</a><a class="button-link" href="index.php?page=progress&member_user_id=' . (int) $member['member_user_id'] . '">Progress</a><form method="post" class="form">' . csrf_field() . '<input type="hidden" name="action" value="message"><input type="hidden" name="member_user_id" value="' . (int) $member['member_user_id'] . '"><input name="message_text" placeholder="Message client"><button>Send</button></form></article>';
     }
-    if (!$members) echo '<p class="muted">No assigned clients yet. Admin or staff can assign coaches from the Coaches page.</p>';
+    if (!$members) echo '<p class="muted">No assigned clients yet. Admins can assign coaches from the Coaches page.</p>';
     echo '</div></section>';
     render_footer();
 }

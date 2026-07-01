@@ -1,6 +1,22 @@
 <?php
 declare(strict_types=1);
 
+function get_setting(string $key, string $default = ''): string
+{
+    static $cache = null;
+    if ($cache === null) {
+        $cache = [];
+        try {
+            $rows = db()->query('SELECT setting_key, setting_value FROM system_settings')->fetchAll();
+            foreach ($rows as $row) {
+                $cache[$row['setting_key']] = $row['setting_value'];
+            }
+        } catch (Throwable) {
+        }
+    }
+    return $cache[$key] ?? $default;
+}
+
 function h(mixed $value): string
 {
     return htmlspecialchars((string) $value, ENT_QUOTES, 'UTF-8');

@@ -32,10 +32,10 @@ require __DIR__ . '/../pages/auth/forgot_password.php';
 require __DIR__ . '/../pages/auth/reset_password.php';
 require __DIR__ . '/../pages/auth/verify_email.php';
 require __DIR__ . '/../pages/auth/setup_profile.php';
-require __DIR__ . '/../pages/auth/staff_apply.php';
+
 
 // --- Shared (used by multiple roles) ---
-require __DIR__ . '/../pages/shared/nutrition.php';
+require __DIR__ . '/../pages/shared/exercise.php';
 require __DIR__ . '/../pages/shared/workouts.php';
 require __DIR__ . '/../pages/shared/messages.php';
 require __DIR__ . '/../pages/shared/notifications.php';

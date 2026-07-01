@@ -219,7 +219,7 @@ CREATE TABLE `member_profiles` (
   `user_id` int UNSIGNED NOT NULL,
   `height_cm` decimal(5,2) NOT NULL,
   `weight_kg` decimal(5,2) NOT NULL,
-  `date_of_birth` date NOT NULL,
+  `age` int UNSIGNED NOT NULL,
   `biological_sex` enum('male','female') NOT NULL,
   `activity_level` enum('sedentary','lightly_active','moderately_active','very_active','extra_active') NOT NULL,
   `primary_goal` enum('fat_loss','muscle_gain','maintenance','general_health') NOT NULL,
@@ -342,29 +342,12 @@ CREATE TABLE `system_settings` (
 --
 
 INSERT INTO `system_settings` (`setting_key`, `setting_value`, `description`, `updated_by`, `updated_at`) VALUES
-('activity_extra_active', '1.9', 'Activity multiplier: extra active.', NULL, '2026-06-26 06:05:13'),
-('activity_lightly_active', '1.375', 'Activity multiplier: lightly active.', NULL, '2026-06-26 06:05:13'),
-('activity_moderately_active', '1.55', 'Activity multiplier: moderately active.', NULL, '2026-06-26 06:05:13'),
-('activity_sedentary', '1.2', 'Activity multiplier: sedentary.', NULL, '2026-06-26 06:05:13'),
-('activity_very_active', '1.725', 'Activity multiplier: very active.', NULL, '2026-06-26 06:05:13'),
-('bmr_age_factor', '5', 'BMR multiplier for age in years.', NULL, '2026-06-26 06:05:13'),
-('bmr_female_adjustment', '-161', 'BMR sex adjustment for female members.', NULL, '2026-06-26 06:05:13'),
-('bmr_height_factor', '6.25', 'BMR multiplier for height in centimeters.', NULL, '2026-06-26 06:05:13'),
-('bmr_male_adjustment', '5', 'BMR sex adjustment for male members.', NULL, '2026-06-26 06:05:13'),
-('bmr_weight_factor', '10', 'BMR multiplier for weight in kilograms.', NULL, '2026-06-26 06:05:13'),
-('goal_fat_loss_adjustment', '-0.15', 'Calorie adjustment for fat loss.', NULL, '2026-06-26 06:05:13'),
-('goal_general_health_adjustment', '0', 'Calorie adjustment for general health.', NULL, '2026-06-26 06:05:13'),
-('goal_maintenance_adjustment', '0', 'Calorie adjustment for maintenance.', NULL, '2026-06-26 06:05:13'),
-('goal_muscle_gain_adjustment', '0.10', 'Calorie adjustment for muscle gain.', NULL, '2026-06-26 06:05:13'),
-('macro_default_carbs', '0.45', 'Default carb calorie split.', NULL, '2026-06-26 06:05:13'),
-('macro_default_fats', '0.30', 'Default fat calorie split.', NULL, '2026-06-26 06:05:13'),
-('macro_default_protein', '0.25', 'Default protein calorie split.', NULL, '2026-06-26 06:05:13'),
-('macro_fat_loss_carbs', '0.35', 'Fat loss carb calorie split.', NULL, '2026-06-26 06:05:13'),
-('macro_fat_loss_fats', '0.30', 'Fat loss fat calorie split.', NULL, '2026-06-26 06:05:13'),
-('macro_fat_loss_protein', '0.35', 'Fat loss protein calorie split.', NULL, '2026-06-26 06:05:13'),
-('macro_muscle_gain_carbs', '0.45', 'Muscle gain carb calorie split.', NULL, '2026-06-26 06:05:13'),
-('macro_muscle_gain_fats', '0.25', 'Muscle gain fat calorie split.', NULL, '2026-06-26 06:05:13'),
-('macro_muscle_gain_protein', '0.30', 'Muscle gain protein calorie split.', NULL, '2026-06-26 06:05:13');
+('engagement_weight_attendance', '40', 'Max points for attendance frequency (30 days).', NULL, '2026-07-01 06:05:13'),
+('engagement_weight_classes', '30', 'Max points for class participation (30 days).', NULL, '2026-07-01 06:05:13'),
+('engagement_weight_consistency', '20', 'Max points for weekly consistency (30 days).', NULL, '2026-07-01 06:05:13'),
+('engagement_weight_progress', '10', 'Max points for progress log updates (60 days).', NULL, '2026-07-01 06:05:13'),
+('engagement_threshold_high', '75', 'Score at or above = Highly Engaged.', NULL, '2026-07-01 06:05:13'),
+('engagement_threshold_moderate', '40', 'Score at or above = Moderately Engaged. Below = At-Risk.', NULL, '2026-07-01 06:05:13');
 
 -- --------------------------------------------------------
 
@@ -464,7 +447,7 @@ CREATE TABLE `training_plan_exercises` (
 
 CREATE TABLE `users` (
   `user_id` int UNSIGNED NOT NULL,
-  `role` enum('admin','staff','trainer','member') NOT NULL,
+  `role` enum('admin','trainer','member') NOT NULL,
   `first_name` varchar(50) NOT NULL,
   `last_name` varchar(50) NOT NULL,
   `email` varchar(100) NOT NULL,
@@ -476,7 +459,9 @@ CREATE TABLE `users` (
   `qr_expires_at` datetime DEFAULT NULL,
   `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  `profile_picture` varchar(255) DEFAULT NULL
+  `profile_picture` varchar(255) DEFAULT NULL,
+  `engagement_score` tinyint UNSIGNED DEFAULT NULL,
+  `engagement_computed_at` datetime DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 --
@@ -500,7 +485,8 @@ CREATE TABLE `walk_in_transactions` (
   `contact_info` varchar(100) DEFAULT NULL,
   `amount_paid` decimal(10,2) NOT NULL,
   `visit_date` datetime NOT NULL,
-  `processed_by` int UNSIGNED DEFAULT NULL
+  `processed_by` int UNSIGNED DEFAULT NULL,
+  `converted_to_member_id` int UNSIGNED DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 --
@@ -931,6 +917,7 @@ ALTER TABLE `training_plan_exercises`
 -- Constraints for table `walk_in_transactions`
 --
 ALTER TABLE `walk_in_transactions`
+  ADD CONSTRAINT `fk_walkin_member` FOREIGN KEY (`converted_to_member_id`) REFERENCES `users` (`user_id`) ON DELETE SET NULL,
   ADD CONSTRAINT `fk_walkin_staff` FOREIGN KEY (`processed_by`) REFERENCES `users` (`user_id`) ON DELETE SET NULL;
 COMMIT;
 

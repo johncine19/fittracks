@@ -3,7 +3,7 @@ declare(strict_types=1);
 
 function classes_page(): void
 {
-    $user = require_roles(['admin', 'staff']);
+    $user = require_roles(['admin']);
     if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if (post('action') === 'class') {
             db()->prepare('INSERT INTO classes (class_name, description, instructor_id, capacity) VALUES (?, ?, ?, ?)')->execute([post('class_name'), post('description'), post('instructor_id') ?: null, post('capacity')]);

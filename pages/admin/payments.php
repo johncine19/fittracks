@@ -3,8 +3,8 @@ declare(strict_types=1);
 
 function payments_page(): void
 {
-    $user = require_roles(['admin', 'staff', 'member']);
-    if (can($user, ['admin', 'staff']) && $_SERVER['REQUEST_METHOD'] === 'POST') {
+    $user = require_roles(['admin', 'member']);
+    if (can($user, ['admin']) && $_SERVER['REQUEST_METHOD'] === 'POST') {
         $receipt = post('receipt_number') ?: 'RCPT-' . date('Ymd') . '-' . random_int(1000, 9999);
         $membershipId = (int) post('membership_id');
         db()->prepare('INSERT INTO payments (membership_id, amount, payment_date, payment_method, status, receipt_number, processed_by) VALUES (?, ?, ?, ?, ?, ?, ?)')
@@ -55,7 +55,7 @@ function payments_page(): void
             </div>
         </div>
 
-        <?php if (can($user, ['admin', 'staff'])): ?>
+        <?php if (can($user, ['admin'])): ?>
         <div class="form-card">
             <h3>Record Payment</h3>
             <form method="post" class="form inline-form">

@@ -17,7 +17,7 @@ try {
         'reset_password' => 'handle_reset_password',
         'verify_email' => 'verify_email_page',
         'setup_profile' => 'setup_profile_page',
-        'staff_apply' => 'handle_staff_apply',
+
         'notification_action' => 'handle_notification_actions',
         'notifications' => 'notifications_page',
         'dashboard' => 'dashboard',

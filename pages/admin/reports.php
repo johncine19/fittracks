@@ -1,6 +1,78 @@
 <?php
 declare(strict_types=1);
 
+function handle_export(string $type, string $format, array $data): void
+{
+    if ($format === 'csv') {
+        header('Content-Type: text/csv');
+        header('Content-Disposition: attachment; filename="' . $type . '_report_' . date('Ymd') . '.csv"');
+        $out = fopen('php://output', 'w');
+        if (!empty($data)) {
+            // Write headers
+            fputcsv($out, array_keys($data[0]));
+            // Write rows
+            foreach ($data as $row) {
+                fputcsv($out, array_values($row));
+            }
+        }
+        fclose($out);
+        exit;
+    }
+
+    if ($format === 'print') {
+        ?>
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title><?= h(ucfirst($type)) ?> Report</title>
+            <style>
+                body { font-family: sans-serif; padding: 20px; }
+                table { border-collapse: collapse; width: 100%; margin-top: 20px; }
+                th, td { border: 1px solid #ccc; padding: 8px; text-align: left; }
+                th { background: #f4f4f4; }
+                @media print {
+                    .no-print { display: none; }
+                }
+            </style>
+        </head>
+        <body>
+            <div class="no-print" style="margin-bottom: 20px;">
+                <button onclick="window.print()">Print / Save as PDF</button>
+                <button onclick="window.close()">Close</button>
+            </div>
+            <h2><?= h(ucfirst($type)) ?> Report - <?= h(date('Y-m-d')) ?></h2>
+            <table>
+                <?php if (!empty($data)): ?>
+                    <thead>
+                        <tr>
+                            <?php foreach (array_keys($data[0]) as $col): ?>
+                                <th><?= h(ucfirst((string)$col)) ?></th>
+                            <?php endforeach; ?>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <?php foreach ($data as $row): ?>
+                            <tr>
+                                <?php foreach ($row as $val): ?>
+                                    <td><?= h((string)$val) ?></td>
+                                <?php endforeach; ?>
+                            </tr>
+                        <?php endforeach; ?>
+                    </tbody>
+                <?php else: ?>
+                    <tr><td>No data available.</td></tr>
+                <?php endif; ?>
+            </table>
+            <script>
+                window.onload = function() { window.print(); }
+            </script>
+        </body>
+        </html>
+        <?php
+        exit;
+    }
+}
+
 function reports_page(): void
 {
     $user = require_roles(['admin']);
@@ -11,7 +83,7 @@ function reports_page(): void
     $members = query_all('SELECT user_id FROM users WHERE role = "member" AND status = "active"');
     $categories = ['Highly Engaged' => 0, 'Moderately Engaged' => 0, 'At-Risk' => 0];
     foreach ($members as $m) {
-        $score = calculate_engagement_score((int) $m['user_id']);
+        $score = get_cached_engagement_score((int) $m['user_id']);
         $cat = get_engagement_category($score);
         $categories[$cat]++;
     }
@@ -21,6 +93,15 @@ function reports_page(): void
         ['category' => 'Moderately Engaged', 'count' => $categories['Moderately Engaged']],
         ['category' => 'At-Risk', 'count' => $categories['At-Risk']],
     ];
+
+    // Handle exports
+    if (isset($_GET['export']) && isset($_GET['type'])) {
+        $format = $_GET['export'];
+        $type = $_GET['type'];
+        if ($type === 'engagement') handle_export($type, $format, $engagementData);
+        if ($type === 'revenue') handle_export($type, $format, $revenue);
+        if ($type === 'attendance') handle_export($type, $format, $attendance);
+    }
 
     $engagementJson = json_encode(array_column($engagementData, 'count'));
     $engagementLabels = json_encode(array_column($engagementData, 'category'));
@@ -41,20 +122,41 @@ function reports_page(): void
         <button class="tab-btn" onclick="showTab(\'attendance-tab\')" style="padding: 0.5rem 1rem; cursor: pointer; background: transparent; color: #64748b; border: 1px solid transparent;">Attendance</button>
     </div>';
 
+    // Engagement Tab
     echo '<div id="engagement-tab" class="tab-content">';
+    echo '<div style="display:flex; justify-content:space-between; align-items:flex-start;">';
     echo '<h2>Member Engagement Analytics</h2>';
+    echo '<div>
+            <a href="index.php?page=reports&type=engagement&export=csv" class="btn-sm btn-ghost">Export CSV</a>
+            <a href="index.php?page=reports&type=engagement&export=print" target="_blank" class="btn-sm btn-ghost">Print / PDF</a>
+          </div>';
+    echo '</div>';
     echo '<div style="max-width: 400px; margin-bottom: 2rem;"><canvas id="engagementChart"></canvas></div>';
     echo render_simple_table($engagementData, ['category', 'count']);
     echo '</div>';
     
+    // Revenue Tab
     echo '<div id="revenue-tab" class="tab-content" style="display: none;">';
+    echo '<div style="display:flex; justify-content:space-between; align-items:flex-start;">';
     echo '<h2>Revenue</h2>';
+    echo '<div>
+            <a href="index.php?page=reports&type=revenue&export=csv" class="btn-sm btn-ghost">Export CSV</a>
+            <a href="index.php?page=reports&type=revenue&export=print" target="_blank" class="btn-sm btn-ghost">Print / PDF</a>
+          </div>';
+    echo '</div>';
     echo '<div style="max-width: 800px; margin-bottom: 2rem;"><canvas id="revenueChart"></canvas></div>';
     echo render_simple_table($revenue, ['month', 'revenue']);
     echo '</div>';
     
+    // Attendance Tab
     echo '<div id="attendance-tab" class="tab-content" style="display: none;">';
+    echo '<div style="display:flex; justify-content:space-between; align-items:flex-start;">';
     echo '<h2>Attendance</h2>';
+    echo '<div>
+            <a href="index.php?page=reports&type=attendance&export=csv" class="btn-sm btn-ghost">Export CSV</a>
+            <a href="index.php?page=reports&type=attendance&export=print" target="_blank" class="btn-sm btn-ghost">Print / PDF</a>
+          </div>';
+    echo '</div>';
     echo '<div style="max-width: 800px; margin-bottom: 2rem;"><canvas id="attendanceChart"></canvas></div>';
     echo render_simple_table($attendance, ['day', 'visits']);
     echo '</div>';
@@ -133,4 +235,3 @@ function reports_page(): void
     echo '</section>';
     render_footer();
 }
-

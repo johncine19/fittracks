@@ -3,7 +3,7 @@ declare(strict_types=1);
 
 function members_page(): void
 {
-    $user = require_roles(['staff']);
+    $user = require_roles(['admin']);
     if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $pdo = db();
         $pdo->beginTransaction();
@@ -67,7 +67,7 @@ function members_page(): void
                 </button>
             </div>
             <div class="modal-body">
-                <?php render_member_form('staff'); ?>
+                <?php render_member_form('admin'); ?>
             </div>
         </dialog>
 

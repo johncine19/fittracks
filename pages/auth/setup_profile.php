@@ -47,8 +47,8 @@ function setup_profile_page(): void
                 <label>Weight (kg)
                     <input name="weight_kg" type="number" step="0.01" min="1" required placeholder="e.g. 65">
                 </label>
-                <label>Date of birth
-                    <input name="date_of_birth" type="date" required>
+                <label>Age
+                    <input name="age" type="number" min="16" max="120" required>
                 </label>
                 <label>Biological sex
                     <select name="biological_sex" required>

@@ -97,7 +97,7 @@ function handle_login(): void
 
                 <div class="auth-form-footer" style="margin-top: 15px; display: flex; flex-direction: column; gap: 10px;">
                     <div>New here? <a href="index.php?page=register">Create an account</a></div>
-                    <div>Interested in joining our team? <a href="index.php?page=staff_apply">Apply as Staff</a></div>
+
                 </div>
             </form>
 

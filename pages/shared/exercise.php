@@ -9,14 +9,14 @@ declare(strict_types=1);
 function save_member_profile(int $userId): void
 {
     $pdo = db();
-    $stmt = $pdo->prepare('INSERT INTO member_profiles (user_id, height_cm, weight_kg, date_of_birth, biological_sex, activity_level, primary_goal)
+    $stmt = $pdo->prepare('INSERT INTO member_profiles (user_id, height_cm, weight_kg, age, biological_sex, activity_level, primary_goal)
         VALUES (?, ?, ?, ?, ?, ?, ?)
-        ON DUPLICATE KEY UPDATE height_cm = VALUES(height_cm), weight_kg = VALUES(weight_kg), date_of_birth = VALUES(date_of_birth), biological_sex = VALUES(biological_sex), activity_level = VALUES(activity_level), primary_goal = VALUES(primary_goal)');
+        ON DUPLICATE KEY UPDATE height_cm = VALUES(height_cm), weight_kg = VALUES(weight_kg), age = VALUES(age), biological_sex = VALUES(biological_sex), activity_level = VALUES(activity_level), primary_goal = VALUES(primary_goal)');
     $stmt->execute([
         $userId,
         post('height_cm'),
         post('weight_kg'),
-        post('date_of_birth'),
+        (int) post('age'),
         post('biological_sex'),
         post('activity_level'),
         post('primary_goal'),
@@ -56,9 +56,8 @@ function get_exercise_recommendations(int $userId): array
     $sex           = $profile['biological_sex'];
     $weight        = (float) $profile['weight_kg'];
 
-    // Calculate age
-    $dob = new DateTime($profile['date_of_birth']);
-    $age = (int) $dob->diff(new DateTime())->y;
+    // Use age directly from profile
+    $age = (int) $profile['age'];
 
     // Fetch all exercises
     $exercises = db()->query('SELECT * FROM exercises ORDER BY category, name')->fetchAll();

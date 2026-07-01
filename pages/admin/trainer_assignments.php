@@ -3,7 +3,7 @@ declare(strict_types=1);
 
 function trainer_assignments_page(): void
 {
-    $user = require_roles(['admin', 'staff']);
+    $user = require_roles(['admin']);
     if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if (post('action') === 'end') {
             db()->prepare('UPDATE trainer_assignments SET status = "ended", ended_date = CURDATE() WHERE assignment_id = ?')->execute([post('assignment_id')]);

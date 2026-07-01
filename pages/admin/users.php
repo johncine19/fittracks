@@ -132,7 +132,7 @@ function users_page(): void
                     </label>
                     <label>Role
                         <select name="role">
-                            <?php foreach (['admin', 'staff', 'trainer', 'member'] as $role): ?>
+                            <?php foreach (['admin', 'trainer', 'member'] as $role): ?>
                                 <option value="<?= h($role) ?>"><?= h(ucfirst($role)) ?></option>
                             <?php endforeach; ?>
                         </select>

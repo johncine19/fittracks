@@ -37,8 +37,8 @@ function messages_page(): void
     // Get list of users this person can message
     $roleFilter = match($user['role']) {
         'member'  => '"trainer"',
-        'trainer' => '"member","admin","staff"',
-        default   => '"trainer","member","admin","staff"',
+        'trainer' => '"member","admin"',
+        default   => '"trainer","member","admin"',
     };
     $contacts = db()->query(
         'SELECT user_id, first_name, last_name, role FROM users
@@ -54,7 +54,7 @@ function messages_page(): void
         <div class="page-header">
             <div>
                 <h1>Messages</h1>
-                <p>Send and receive messages with your trainer or gym staff.</p>
+                <p>Send and receive messages with your trainer or gym admin.</p>
             </div>
             <button onclick="document.getElementById('composeModal').showModal()">+ New Message</button>
         </div>

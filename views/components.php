@@ -52,10 +52,10 @@ function render_member_form(string $context, ?array $user = null, ?array $profil
                    <?= $context !== 'profile' ? 'required' : '' ?>
                    value="<?= h($profile['weight_kg'] ?? '') ?>">
         </label>
-        <label>Date of birth
-            <input name="date_of_birth" type="date"
-                   <?= $context !== 'profile' ? 'required' : '' ?>
-                   value="<?= h($profile['date_of_birth'] ?? '') ?>">
+        <label>Age
+            <input name="age" type="number" min="16" max="120"
+                   class="input <?= isset($errors['age']) ? 'input-error' : '' ?>"
+                   value="<?= h($profile['age'] ?? '') ?>">
         </label>
         <label>Biological sex
             <select name="biological_sex" <?= $context !== 'profile' ? 'required' : '' ?>>
@@ -419,7 +419,7 @@ function render_pagination(int $page, int $totalPages, string $baseUrl, string $
 function render_registration_form(): void
 {
     // Kept for backward compatibility — register.php now renders inline
-    // but staff_apply or other callers may still reference this
+    // but other callers may still reference this
     ?>
     <div class="auth-card">
         <div class="auth-card-header">

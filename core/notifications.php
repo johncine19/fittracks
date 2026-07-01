@@ -17,16 +17,10 @@ function notify_user(int $userId, string $type, string $title, string $message):
     }
 }
 
+
 function notify_admins(string $type, string $title, string $message): void
 {
-    foreach (query_all('SELECT user_id FROM users WHERE role = "admin" AND status = "active"') as $admin) {
-        notify_user((int) $admin['user_id'], $type, $title, $message);
-    }
-}
-
-function notify_staff(string $type, string $title, string $message): void
-{
-    foreach (query_all('SELECT user_id FROM users WHERE role IN ("admin", "staff") AND status = "active"') as $user) {
+    foreach (query_all('SELECT user_id FROM users WHERE role IN ("admin") AND status = "active"') as $user) {
         notify_user((int) $user['user_id'], $type, $title, $message);
     }
 }

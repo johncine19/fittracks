@@ -3,7 +3,7 @@ declare(strict_types=1);
 
 function scanner_page(): void
 {
-    $user = require_roles(['admin', 'staff']);
+    $user = require_roles(['admin']);
     
     // Handle AJAX check-in request
     if ($_SERVER['REQUEST_METHOD'] === 'POST' && post('action') === 'process_qr') {

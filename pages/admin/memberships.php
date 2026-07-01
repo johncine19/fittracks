@@ -3,8 +3,8 @@ declare(strict_types=1);
 
 function memberships_page(): void
 {
-    $user = require_roles(['staff', 'member']);
-    if ($user['role'] === 'staff' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+    $user = require_roles(['admin', 'member']);
+    if ($user['role'] === 'admin' && $_SERVER['REQUEST_METHOD'] === 'POST') {
         $start = new DateTime((string) post('start_date'));
         $duration = (int) scalar('SELECT duration_days FROM membership_plans WHERE plan_id = ?', [post('plan_id')]);
         $end = (clone $start)->modify('+' . $duration . ' days')->format('Y-m-d');
@@ -35,7 +35,7 @@ function memberships_page(): void
             </div>
         </div>
 
-        <?php if ($user['role'] === 'staff'): ?>
+        <?php if ($user['role'] === 'admin'): ?>
         <div class="form-card">
             <h3>Create Membership</h3>
             <form method="post" class="form inline-form">

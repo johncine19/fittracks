@@ -204,12 +204,6 @@ function dashboard(): void
     $pdo = db();
     if ($user['role'] === 'admin') {
         admin_dashboard($pdo);
-    } elseif ($user['role'] === 'staff') {
-        metric_cards([
-            'Today check-ins'    => $pdo->query('SELECT COUNT(*) FROM attendance WHERE DATE(check_in_time) = CURDATE()')->fetchColumn(),
-            'Pending payments'   => $pdo->query('SELECT COUNT(*) FROM payments WHERE status IN ("pending", "overdue")')->fetchColumn(),
-            'Active memberships' => $pdo->query('SELECT COUNT(*) FROM memberships WHERE status = "active"')->fetchColumn(),
-        ]);
     } elseif ($user['role'] === 'trainer') {
         $stmt = $pdo->prepare('SELECT trainer_id FROM trainer_profiles WHERE user_id = ?');
         $stmt->execute([$user['user_id']]);
@@ -218,7 +212,7 @@ function dashboard(): void
         $stmt->execute([$coachId]);
         metric_cards(['Assigned clients' => $stmt->fetchColumn(), 'Active training plans' => trainer_plan_count($coachId)]);
     } else {
-        $score    = calculate_engagement_score((int) $user['user_id']);
+        $score    = get_cached_engagement_score((int) $user['user_id']);
         $category = get_engagement_category($score);
         metric_cards([
             'Engagement Score'  => $score . '/100 (' . $category . ')',
