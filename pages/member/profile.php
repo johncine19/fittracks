@@ -103,8 +103,9 @@ function profile_page(): void
     
     render_header('Settings', $user);
 ?>
-    <section class="panel wide">
-        <h1>Settings</h1>
+    <h1 style="margin-bottom: 1.5rem;">Settings</h1>
+    <div style="display: flex; flex-wrap: wrap; gap: 2rem; align-items: flex-start;">
+        <section class="panel" style="flex: 1; min-width: 350px; max-width: 650px; margin: 0;">
 
 
         <!-- Account details display -->
@@ -188,15 +189,62 @@ function profile_page(): void
                 </form>
             </div>
         </dialog>
-
-        <?php if ($is_member): ?>
-            <h2 style="margin-top:2rem;">Physical Profile</h2>
-            <p class="muted" style="margin-bottom:1rem;font-size:13px;">
-                Keeping your physical profile up to date lets FITTRACKS generate an accurate workout plan for you.
-            </p>
-            <?php render_member_form('profile', $user, $profile); ?>
-        <?php endif; ?>
     </section>
+
+    <?php if ($is_member): ?>
+        <section class="panel" style="flex: 1; min-width: 350px; max-width: 650px; margin: 0;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;">
+            <h2 style="margin:0;">Physical Profile</h2>
+            <button type="button" onclick="document.getElementById('physicalProfileModal').showModal()">Edit Profile</button>
+        </div>
+        <p class="muted" style="margin-bottom:1.5rem;font-size:13px;">
+            Keeping your physical profile up to date lets FITTRACKS generate an accurate workout plan for you.
+        </p>
+            
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 2rem;">
+                <div class="panel plan-card-glow" style="padding: 1rem; background: var(--panel-soft); margin-top: 0;">
+                    <p class="muted" style="margin: 0 0 4px; font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em;">Height</p>
+                    <strong style="font-size: 1.2rem;"><?= h($profile['height_cm'] ?? 'N/A') ?> cm</strong>
+                </div>
+                <div class="panel plan-card-glow" style="padding: 1rem; background: var(--panel-soft); margin-top: 0;">
+                    <p class="muted" style="margin: 0 0 4px; font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em;">Weight</p>
+                    <strong style="font-size: 1.2rem;"><?= h($profile['weight_kg'] ?? 'N/A') ?> kg</strong>
+                </div>
+                <div class="panel plan-card-glow" style="padding: 1rem; background: var(--panel-soft); margin-top: 0;">
+                    <p class="muted" style="margin: 0 0 4px; font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em;">Age</p>
+                    <strong style="font-size: 1.2rem;"><?= h($profile['age'] ?? 'N/A') ?></strong>
+                </div>
+                <div class="panel plan-card-glow" style="padding: 1rem; background: var(--panel-soft); margin-top: 0;">
+                    <p class="muted" style="margin: 0 0 4px; font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em;">Sex</p>
+                    <strong style="font-size: 1.2rem;"><?= h(ucwords(str_replace('_', ' ', $profile['biological_sex'] ?? 'N/A'))) ?></strong>
+                </div>
+                <div class="panel plan-card-glow" style="padding: 1rem; background: var(--panel-soft); margin-top: 0;">
+                    <p class="muted" style="margin: 0 0 4px; font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em;">Activity</p>
+                    <strong style="font-size: 1.2rem;"><?= h(ucwords(str_replace('_', ' ', $profile['activity_level'] ?? 'N/A'))) ?></strong>
+                </div>
+                <div class="panel plan-card-glow" style="padding: 1rem; background: var(--panel-soft); margin-top: 0;">
+                    <p class="muted" style="margin: 0 0 4px; font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em;">Goal</p>
+                    <strong style="font-size: 1.2rem;"><?= h(ucwords(str_replace('_', ' ', $profile['primary_goal'] ?? 'N/A'))) ?></strong>
+                </div>
+            </div>
+
+            <dialog id="physicalProfileModal" class="modal">
+                <div class="modal-header">
+                    <h3>Edit Physical Profile</h3>
+                    <button class="modal-close" onclick="this.closest('dialog').close()" aria-label="Close">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <line x1="18" y1="6" x2="6" y2="18" />
+                            <line x1="6" y1="6" x2="18" y2="18" />
+                        </svg>
+                    </button>
+                </div>
+                <div class="modal-body">
+                    <?php render_member_form('profile', $user, $profile); ?>
+                </div>
+            </dialog>
+        </section>
+        <?php endif; ?>
+    </div>
 
     <style>
         .profile-card {

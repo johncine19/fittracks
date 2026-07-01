@@ -21,6 +21,36 @@ function memberships_page(): void
         flash('Membership created.');
         redirect('memberships');
     }
+    
+    if ($user['role'] === 'member' && $_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['subscribe_plan_id'])) {
+        $planId = (int) post('subscribe_plan_id');
+        $paymentMethod = post('payment_method') === 'gcash' ? 'gcash' : 'cash';
+        
+        $stmt = db()->prepare('SELECT * FROM membership_plans WHERE plan_id = ?');
+        $stmt->execute([$planId]);
+        $plan = $stmt->fetch();
+        if ($plan) {
+            $start = new DateTime();
+            $end = (clone $start)->modify('+' . $plan['duration_days'] . ' days')->format('Y-m-d');
+            
+            db()->prepare('INSERT INTO memberships (user_id, plan_id, start_date, end_date, status) VALUES (?, ?, ?, ?, ?)')
+                ->execute([$user['user_id'], $planId, $start->format('Y-m-d'), $end, 'pending']);
+            $membershipId = (int) db()->lastInsertId();
+            
+            $receipt = 'REQ-' . date('Ymd') . '-' . random_int(1000, 9999);
+            db()->prepare('INSERT INTO payments (membership_id, amount, payment_date, payment_method, status, receipt_number) VALUES (?, ?, ?, ?, ?, ?)')
+                ->execute([$membershipId, $plan['price'], $start->format('Y-m-d'), $paymentMethod, 'pending', $receipt]);
+                
+            $admins = query_all('SELECT user_id FROM users WHERE role = "admin"');
+            foreach ($admins as $admin) {
+                notify_user((int) $admin['user_id'], 'system', 'New Subscription Request', $user['first_name'] . ' ' . $user['last_name'] . ' requested a ' . $plan['plan_name'] . ' membership. Payment method: ' . strtoupper($paymentMethod) . '.');
+            }
+            
+            flash('Subscription requested. Please proceed with payment.');
+            redirect('memberships');
+        }
+    }
+
     $members = db()->query('SELECT user_id, CONCAT(first_name, " ", last_name) AS name FROM users WHERE role = "member" AND status = "active" ORDER BY first_name')->fetchAll();
     $plans   = db()->query('SELECT * FROM membership_plans WHERE is_active = 1 ORDER BY price')->fetchAll();
     $where   = $user['role'] === 'member' ? 'WHERE m.user_id = ' . (int) $user['user_id'] : '';
@@ -54,7 +84,65 @@ function memberships_page(): void
         </div>
         <?php endif; endif; ?>
 
-        <p class="section-label">Membership records</p>
+        <?php if ($user['role'] === 'member'): ?>
+            <h2 style="margin-bottom: 12px;">Available Plans</h2>
+            <div style="display: flex; flex-wrap: wrap; gap: 1.5rem; margin-bottom: 2.5rem;">
+                <?php foreach ($plans as $plan): ?>
+                    <div class="panel plan-card-glow" style="width: 280px; flex-shrink: 0; padding: 1.5rem; display: flex; flex-direction: column; gap: 1rem; background: var(--surface);">
+                        <div>
+                            <h3 style="margin: 0; font-size: 1.2rem;"><?= h($plan['plan_name']) ?></h3>
+                            <p style="color: var(--muted); font-size: 0.9rem; margin-top: 4px;"><?= h($plan['duration_days']) ?> Days</p>
+                        </div>
+                        <div style="font-size: 1.5rem; font-weight: bold; color: var(--lime);">
+                            <?= h(money($plan['price'])) ?>
+                        </div>
+                        <?php if (!empty($plan['description'])): ?>
+                            <p style="font-size: 0.9rem; color: var(--muted); flex: 1;"><?= nl2br(h($plan['description'])) ?></p>
+                        <?php else: ?>
+                            <div style="flex: 1;"></div>
+                        <?php endif; ?>
+                        <button class="btn" style="background: var(--lime); color: var(--bg); font-weight: bold; width: 100%; border: none; cursor: pointer; padding: 10px;" onclick="subscribePlan(<?= (int)$plan['plan_id'] ?>, '<?= htmlspecialchars($plan['plan_name'], ENT_QUOTES) ?>', '<?= htmlspecialchars(money($plan['price']), ENT_QUOTES) ?>')">Subscribe</button>
+                    </div>
+                <?php endforeach; ?>
+            </div>
+            
+            <script>
+            function subscribePlan(planId, planName, planPrice) {
+                Swal.fire({
+                    title: 'Subscribe to ' + planName,
+                    html: `
+                        <p style="margin-bottom: 15px;">You are about to subscribe to the <strong>\${planName}</strong> plan for <strong>\${planPrice}</strong>.</p>
+                        <form id="subscribeForm" method="post" action="index.php?page=memberships" style="text-align: left; display: flex; flex-direction: column; gap: 12px;">
+                            <?= csrf_field() ?>
+                            <input type="hidden" name="subscribe_plan_id" value="\${planId}">
+                            
+                            <label style="display:block; color: var(--muted); font-size: 14px;">Payment Method *
+                                <select name="payment_method" class="form-control" style="width: 100%; box-sizing: border-box;" required>
+                                    <option value="cash" selected>Cash</option>
+                                    <option value="gcash">GCash</option>
+                                </select>
+                            </label>
+                            
+                            <p style="font-size: 13px; color: var(--muted); margin-top: 8px;">
+                                Your subscription will be created as <strong>Pending</strong>. You can finalize the payment at the front desk or via GCash.
+                            </p>
+                        </form>
+                    `,
+                    showCancelButton: true,
+                    confirmButtonText: 'Confirm Subscription',
+                    confirmButtonColor: 'var(--lime-dark)',
+                    cancelButtonColor: 'var(--line)',
+                    background: 'var(--bg)',
+                    color: 'var(--ink)',
+                    preConfirm: () => {
+                        document.getElementById('subscribeForm').submit();
+                    }
+                });
+            }
+            </script>
+        <?php endif; ?>
+
+        <h2 style="margin-bottom: 12px;">Membership records</h2>
         <?php if (!$rows): ?>
             <div class="empty-state">
                 <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>

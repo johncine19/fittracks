@@ -12,22 +12,46 @@
     --teal: #42dba5;
     --orange: #ff9548;
     --danger: #ff4d5d;
+    --shadow: 0 8px 30px rgba(0, 0, 0, 0.25);
 }
 
 [data-theme="light"] {
     color-scheme: light;
-    --bg: #f0f2f5;
+    --bg: #f8fafc;
     --sidebar: #ffffff;
     --panel: #ffffff;
-    --panel-soft: #f5f6f8;
-    --line: #e2e5eb;
-    --ink: #0d1117;
-    --muted: #5a6577;
-    --lime: #5a9400;
-    --lime-dark: #477500;
-    --teal: #0e9068;
-    --orange: #d47000;
-    --danger: #d42b3a;
+    --panel-soft: #f1f5f9;
+    --line: #e2e8f0;
+    --ink: #0f172a;
+    --muted: #64748b;
+    --lime: #84cc16;
+    --lime-dark: #65a30d;
+    --teal: #10b981;
+    --orange: #f59e0b;
+    --danger: #ef4444;
+    --shadow: 0 4px 20px rgba(0, 0, 0, 0.04);
+}
+
+/* Plan Card Glow */
+.plan-card-glow {
+    border: 1px solid color-mix(in srgb, var(--lime) 15%, transparent);
+    box-shadow: 0 0 20px color-mix(in srgb, var(--lime) 5%, transparent);
+    border-radius: 12px;
+    transition: all 0.3s ease;
+}
+.plan-card-glow:hover {
+    box-shadow: 0 0 30px color-mix(in srgb, var(--lime) 25%, transparent);
+    transform: translateY(-5px);
+    border-color: color-mix(in srgb, var(--lime) 40%, transparent);
+}
+
+/* Hover Lift Animation for static cards */
+.hover-lift {
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+.hover-lift:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 12px 30px rgba(0, 0, 0, 0.15);
 }
 
 /* Theme toggle button */
@@ -375,7 +399,7 @@ input[type="radio"] {
     background: var(--panel);
     border: 1px solid var(--line);
     border-radius: 10px;
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+    box-shadow: var(--shadow);
     backdrop-filter: blur(16px);
     -webkit-backdrop-filter: blur(16px);
 }
