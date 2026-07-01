@@ -8,16 +8,44 @@ function handle_login(): void
         $email = (string) post('email');
 
         if (RateLimiter::tooManyAttempts($email, 5, 300)) {
-            $wait = (int) ceil(RateLimiter::secondsRemaining($email, 300) / 60);
+            $secondsLeft = RateLimiter::secondsRemaining($email, 300);
+            $wait = (int) ceil($secondsLeft / 60);
             flash("Too many login attempts. Please try again in about $wait minute(s).", 'danger');
             render_header('Sign in');
 ?>
             <section style="padding: 40px 0;">
-                <div class="auth-card">
+                <div class="auth-card" style="text-align: center;">
                     <div class="auth-card-header">
                         <h1 class="auth-title">FITTRACKS</h1>
+                        <p class="auth-subtitle">Please wait before trying again.</p>
                     </div>
-                    <p class="auth-subtitle">Please wait before trying again.</p>
+                    
+                    <div style="margin: 30px 0;">
+                        <div id="lockout-timer" style="font-size: 2.5rem; font-weight: bold; color: var(--lime); font-variant-numeric: tabular-nums; letter-spacing: 2px;">--:--</div>
+                        <p style="color: var(--muted); font-size: 14px; margin-top: 15px;">
+                            For your security, your account is temporarily locked due to too many failed attempts.
+                        </p>
+                    </div>
+
+                    <script>
+                        let secondsLeft = <?= (int) $secondsLeft ?>;
+                        const timerEl = document.getElementById('lockout-timer');
+                        
+                        function updateTimer() {
+                            if (secondsLeft <= 0) {
+                                timerEl.textContent = "0:00";
+                                window.location.href = 'index.php?page=login';
+                                return;
+                            }
+                            const m = Math.floor(secondsLeft / 60);
+                            const s = secondsLeft % 60;
+                            timerEl.textContent = m + ':' + (s < 10 ? '0' : '') + s;
+                            secondsLeft--;
+                        }
+                        
+                        updateTimer();
+                        setInterval(updateTimer, 1000);
+                    </script>
                 </div>
             </section>
     <?php
