@@ -19,6 +19,7 @@ require __DIR__ . '/rate_limiter.php';
 require __DIR__ . '/file_handler.php';
 require __DIR__ . '/email_verification.php';
 require __DIR__ . '/engagement_engine.php';
+require __DIR__ . '/notifications.php';
 require __DIR__ . '/../views/layout.php';
 require __DIR__ . '/auth.php';
 require __DIR__ . '/seeds.php';
@@ -30,10 +31,14 @@ require __DIR__ . '/../pages/auth/register.php';
 require __DIR__ . '/../pages/auth/forgot_password.php';
 require __DIR__ . '/../pages/auth/reset_password.php';
 require __DIR__ . '/../pages/auth/verify_email.php';
+require __DIR__ . '/../pages/auth/setup_profile.php';
+require __DIR__ . '/../pages/auth/staff_apply.php';
 
 // --- Shared (used by multiple roles) ---
 require __DIR__ . '/../pages/shared/nutrition.php';
+require __DIR__ . '/../pages/shared/workouts.php';
 require __DIR__ . '/../pages/shared/messages.php';
+require __DIR__ . '/../pages/shared/notifications.php';
 
 // --- Dashboard ---
 require __DIR__ . '/../pages/admin/dashboard.php';
@@ -63,8 +68,7 @@ require __DIR__ . '/../pages/trainer/training.php';
 
 // --- Member portal ---
 require __DIR__ . '/../pages/member/profile.php';
-require __DIR__ . '/../pages/member/my_diet.php';
+require __DIR__ . '/../pages/member/my_workout.php';
 require __DIR__ . '/../pages/member/progress.php';
 require __DIR__ . '/../pages/member/book_classes.php';
 require __DIR__ . '/../pages/member/qr_attendance.php';
-

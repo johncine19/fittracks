@@ -8,7 +8,16 @@ function memberships_page(): void
         $start = new DateTime((string) post('start_date'));
         $duration = (int) scalar('SELECT duration_days FROM membership_plans WHERE plan_id = ?', [post('plan_id')]);
         $end = (clone $start)->modify('+' . $duration . ' days')->format('Y-m-d');
-        db()->prepare('INSERT INTO memberships (user_id, plan_id, start_date, end_date, status) VALUES (?, ?, ?, ?, ?)')->execute([post('user_id'), post('plan_id'), post('start_date'), $end, post('status')]);
+        $memberUserId = (int) post('user_id');
+        $planId = (int) post('plan_id');
+        db()->prepare('INSERT INTO memberships (user_id, plan_id, start_date, end_date, status) VALUES (?, ?, ?, ?, ?)')->execute([$memberUserId, $planId, post('start_date'), $end, post('status')]);
+        $planName = (string) scalar('SELECT plan_name FROM membership_plans WHERE plan_id = ?', [$planId]);
+        notify_user(
+            $memberUserId,
+            'system',
+            'Membership updated',
+            'Your ' . $planName . ' membership is active from ' . date('M j, Y', strtotime((string) post('start_date'))) . ' to ' . date('M j, Y', strtotime($end)) . '.'
+        );
         flash('Membership created.');
         redirect('memberships');
     }

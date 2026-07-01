@@ -7,7 +7,12 @@ function training_page(): void
     $coachId = ensure_coach_profile((int) $user['user_id']);
     $memberId = (int) ($_GET['member_user_id'] ?? post('member_user_id', 0));
     if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-        db()->prepare('INSERT INTO training_plans (member_user_id, trainer_id, title, goal, start_date, end_date) VALUES (?, ?, ?, ?, ?, ?)')->execute([$memberId, $coachId, post('title'), post('goal'), post('start_date'), post('end_date') ?: null]);
+        $title = trim((string) post('title'));
+        db()->prepare('INSERT INTO training_plans (member_user_id, trainer_id, title, goal, start_date, end_date) VALUES (?, ?, ?, ?, ?, ?)')->execute([$memberId, $coachId, $title, post('goal'), post('start_date'), post('end_date') ?: null]);
+        if ($memberId) {
+            $trainerName = $user['first_name'] . ' ' . $user['last_name'];
+            notify_user($memberId, 'system', 'Training plan created', $trainerName . ' created a training plan: ' . $title . '.');
+        }
         flash('Training plan created.');
         redirect('training');
     }

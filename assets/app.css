@@ -1518,3 +1518,184 @@ dialog.modal .modal-body {
         grid-template-columns: 1fr;
     }
 }
+
+/* Notifications */
+.notif-wrap {
+    position: relative;
+}
+
+.notif-bell {
+    position: relative;
+    display: grid;
+    place-items: center;
+    width: 38px;
+    height: 38px;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    background: var(--panel-soft);
+    color: var(--ink);
+    cursor: pointer;
+}
+
+.notif-badge {
+    position: absolute;
+    top: -4px;
+    right: -4px;
+    min-width: 18px;
+    height: 18px;
+    padding: 0 4px;
+    border-radius: 999px;
+    background: var(--lime);
+    color: #000;
+    font-size: 10px;
+    font-weight: 800;
+    line-height: 18px;
+    text-align: center;
+}
+
+.notif-dropdown {
+    position: absolute;
+    top: calc(100% + 8px);
+    right: 0;
+    width: min(360px, calc(100vw - 24px));
+    max-height: 420px;
+    overflow: auto;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    background: var(--panel);
+    box-shadow: 0 16px 40px rgba(0, 0, 0, .35);
+    z-index: 120;
+}
+
+.notif-dropdown-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 12px 14px;
+    border-bottom: 1px solid var(--line);
+}
+
+.notif-mark-all {
+    margin: 0;
+}
+
+.notif-mark-all button,
+.notif-menu form button {
+    border: 0;
+    background: transparent;
+    color: var(--lime);
+    font-size: 12px;
+    cursor: pointer;
+    padding: 0;
+}
+
+.notif-empty {
+    padding: 18px 14px;
+    margin: 0;
+    color: var(--muted);
+    font-size: 13px;
+}
+
+.notif-menu {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+
+.notif-menu li {
+    padding: 12px 14px;
+    border-bottom: 1px solid var(--line);
+}
+
+.notif-menu li.unread {
+    background: rgba(199, 255, 34, .06);
+}
+
+.notif-menu-meta {
+    display: flex;
+    justify-content: space-between;
+    gap: 8px;
+    margin-bottom: 4px;
+    font-size: 11px;
+    color: var(--muted);
+}
+
+.notif-menu strong {
+    display: block;
+    font-size: 13px;
+    margin-bottom: 4px;
+}
+
+.notif-menu p {
+    margin: 0 0 6px;
+    font-size: 12px;
+    line-height: 1.45;
+    color: var(--muted);
+}
+
+.notif-view-all {
+    display: block;
+    padding: 12px 14px;
+    text-align: center;
+    font-size: 13px;
+    font-weight: 600;
+    border-top: 1px solid var(--line);
+}
+
+.notif-type {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 999px;
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .04em;
+}
+
+.notif-type-system { background: rgba(56, 189, 248, .15); color: #38bdf8; }
+.notif-type-coach_message { background: rgba(167, 139, 250, .15); color: #a78bfa; }
+.notif-type-class_reminder { background: rgba(255, 149, 72, .15); color: #ff9548; }
+.notif-type-renewal_reminder { background: rgba(255, 77, 93, .15); color: #ff4d5d; }
+.notif-type-milestone { background: rgba(199, 255, 34, .15); color: var(--lime); }
+
+.notif-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.notif-item {
+    padding: 16px;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    background: var(--panel-soft);
+}
+
+.notif-item.unread {
+    border-color: rgba(199, 255, 34, .35);
+}
+
+.notif-item-head {
+    display: flex;
+    justify-content: space-between;
+    gap: 10px;
+    margin-bottom: 8px;
+    font-size: 12px;
+    color: var(--muted);
+}
+
+.notif-item h3 {
+    margin: 0 0 6px;
+    font-size: 15px;
+}
+
+.notif-item p {
+    margin: 0;
+    color: var(--muted);
+    line-height: 1.5;
+}
+
+.notif-item-action {
+    margin: 10px 0 0;
+}

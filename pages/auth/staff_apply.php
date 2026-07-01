@@ -32,7 +32,7 @@ function handle_staff_apply(): void
         if ($phone !== '') {
             $summary .= ' · ' . $phone;
         }
-        notify_admins('system', 'Staff application received', $summary . ': ' . mb_substr($message, 0, 400));
+        notify_staff('system', 'Staff application received', $summary . ': ' . mb_substr($message, 0, 400));
 
         flash('Thank you! Your application has been submitted. We will contact you soon.', 'success');
         redirect('login');

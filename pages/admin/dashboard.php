@@ -216,7 +216,7 @@ function dashboard(): void
         $coachId = (int) ($stmt->fetchColumn() ?: 0);
         $stmt = $pdo->prepare('SELECT COUNT(*) FROM trainer_assignments WHERE trainer_id = ? AND status = "active"');
         $stmt->execute([$coachId]);
-        metric_cards(['Assigned clients' => $stmt->fetchColumn(), 'Open diet reviews' => diet_review_count($coachId)]);
+        metric_cards(['Assigned clients' => $stmt->fetchColumn(), 'Active training plans' => trainer_plan_count($coachId)]);
     } else {
         $score    = calculate_engagement_score((int) $user['user_id']);
         $category = get_engagement_category($score);
@@ -230,7 +230,8 @@ function dashboard(): void
             Your engagement score is calculated from your recent check-ins, class bookings, and progress logs.
             The higher the score, the more active your gym routine.
         </p>';
-        render_current_diet($user['user_id'], false);
+        render_current_workout($user['user_id'], false);
+        render_exercise_recommendations((int) $user['user_id'], true);
     }
     render_footer();
 }

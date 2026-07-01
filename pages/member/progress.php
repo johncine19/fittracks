@@ -28,7 +28,9 @@ function progress_page(): void
         if ($user['role'] === 'member') {
             db()->prepare('UPDATE member_profiles SET weight_kg = ? WHERE user_id = ?')
                ->execute([post('weight_kg'), $memberId]);
-            generate_diet_plan($memberId);
+            generate_workout_plan($memberId);
+            notify_user($memberId, 'system', 'Workout plan updated', 'Your workout plan was refreshed after logging new progress.');
+            notify_user($memberId, 'milestone', 'Progress logged', 'Nice work — your latest measurements were saved.');
         }
         flash('Progress logged.', 'success');
         redirect($user['role'] === 'trainer' ? 'trainer_members' : 'progress');

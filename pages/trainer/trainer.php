@@ -1,10 +1,10 @@
 <?php
 declare(strict_types=1);
 
-// Helper: count diet plans awaiting trainer review for a given trainer.
-function diet_review_count(int $coachId): int
+// Helper: count active training plans created by a trainer.
+function trainer_plan_count(int $coachId): int
 {
-    return (int) scalar('SELECT COUNT(*) FROM diet_plans WHERE trainer_id = ? AND status = "system_generated"', [$coachId]);
+    return (int) scalar('SELECT COUNT(*) FROM training_plans WHERE trainer_id = ? AND status = "active"', [$coachId]);
 }
 
 // Helper: ensure a trainer_profiles row exists for the given user and return trainer_id.
@@ -23,14 +23,18 @@ function trainer_members_page(): void
     $user = require_roles(['trainer']);
     $coachId = ensure_coach_profile((int) $user['user_id']);
     if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-        if (post('action') === 'diet') {
-            generate_diet_plan((int) post('member_user_id'), $coachId);
-            flash('Diet plan generated for client.');
-        } elseif (post('action') === 'finalize') {
-            db()->prepare('UPDATE diet_plans SET calorie_target = ?, protein_target_g = ?, carbs_target_g = ?, fats_target_g = ?, trainer_notes = ?, status = "finalized", finalized_at = NOW() WHERE diet_plan_id = ? AND trainer_id = ?')->execute([post('calorie_target'), post('protein_target_g'), post('carbs_target_g'), post('fats_target_g'), post('trainer_notes'), post('diet_plan_id'), $coachId]);
-            flash('Diet plan finalized.');
+        if (post('action') === 'workout') {
+            $memberUserId = (int) post('member_user_id');
+            generate_workout_plan($memberUserId, $coachId);
+            $trainerName = $user['first_name'] . ' ' . $user['last_name'];
+            notify_user($memberUserId, 'system', 'New workout plan', $trainerName . ' generated a personalised workout plan for you.');
+            flash('Workout plan generated for client.');
         } else {
-            db()->prepare('INSERT INTO trainer_messages (sender_id, recipient_id, message_text) VALUES (?, ?, ?)')->execute([$user['user_id'], post('member_user_id'), post('message_text')]);
+            $memberUserId = (int) post('member_user_id');
+            $text = trim((string) post('message_text'));
+            db()->prepare('INSERT INTO trainer_messages (sender_id, recipient_id, message_text) VALUES (?, ?, ?)')->execute([$user['user_id'], $memberUserId, $text]);
+            $trainerName = $user['first_name'] . ' ' . $user['last_name'];
+            notify_user($memberUserId, 'coach_message', 'Message from your trainer', $trainerName . ': ' . $text);
             flash('Message sent.');
         }
         redirect('trainer_members');
@@ -39,10 +43,9 @@ function trainer_members_page(): void
     render_header('Clients', $user);
     echo '<section class="panel"><h1>Assigned clients</h1><div class="cards">';
     foreach ($members as $member) {
-        echo '<article class="mini-card"><h3>' . h($member['first_name'] . ' ' . $member['last_name']) . '</h3><p>' . h($member['email']) . '</p><p>' . h($member['primary_goal'] ?? 'No goal') . ' / ' . h($member['weight_kg'] ?? '-') . ' kg</p><form method="post">' . csrf_field() . '<input type="hidden" name="action" value="diet"><input type="hidden" name="member_user_id" value="' . (int) $member['member_user_id'] . '"><button>Generate diet</button></form><a class="button-link" href="index.php?page=training&member_user_id=' . (int) $member['member_user_id'] . '">Training plan</a><a class="button-link" href="index.php?page=progress&member_user_id=' . (int) $member['member_user_id'] . '">Progress</a><form method="post" class="form">' . csrf_field() . '<input type="hidden" name="action" value="message"><input type="hidden" name="member_user_id" value="' . (int) $member['member_user_id'] . '"><input name="message_text" placeholder="Message client"><button>Send</button></form></article>';
+        echo '<article class="mini-card"><h3>' . h($member['first_name'] . ' ' . $member['last_name']) . '</h3><p>' . h($member['email']) . '</p><p>' . h($member['primary_goal'] ?? 'No goal') . ' / ' . h($member['weight_kg'] ?? '-') . ' kg</p><form method="post">' . csrf_field() . '<input type="hidden" name="action" value="workout"><input type="hidden" name="member_user_id" value="' . (int) $member['member_user_id'] . '"><button>Generate workout</button></form><a class="button-link" href="index.php?page=training&member_user_id=' . (int) $member['member_user_id'] . '">Training plan</a><a class="button-link" href="index.php?page=progress&member_user_id=' . (int) $member['member_user_id'] . '">Progress</a><form method="post" class="form">' . csrf_field() . '<input type="hidden" name="action" value="message"><input type="hidden" name="member_user_id" value="' . (int) $member['member_user_id'] . '"><input name="message_text" placeholder="Message client"><button>Send</button></form></article>';
     }
     if (!$members) echo '<p class="muted">No assigned clients yet. Admin or staff can assign coaches from the Coaches page.</p>';
     echo '</div></section>';
-    render_diet_reviews($coachId);
     render_footer();
 }

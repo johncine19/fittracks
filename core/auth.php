@@ -19,6 +19,16 @@ function require_login(): array
     if (!$user) {
         redirect('login');
     }
+
+    $page = $_GET['page'] ?? 'dashboard';
+    
+    // Globally enforce physical profile setup for members
+    if ($user['role'] === 'member' && $page !== 'setup_profile' && $page !== 'logout') {
+        if (member_profile((int) $user['user_id']) === null) {
+            redirect('setup_profile');
+        }
+    }
+
     return $user;
 }
 

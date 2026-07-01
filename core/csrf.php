@@ -1,15 +1,6 @@
 <?php
 declare(strict_types=1);
 
-/**
- * CSRF protection.
- *
- * - csrf_token()  returns (and lazily creates) the token for this session.
- * - csrf_field()  echoes a hidden <input> to embed in every <form method="post">.
- * - verify_csrf() is called once, globally, for every POST request before
- *   routing (see index.php). It aborts the request with 403 if the token is
- *   missing or does not match.
- */
 function csrf_token(): string
 {
     if (empty($_SESSION['csrf_token'])) {

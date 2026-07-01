@@ -5,7 +5,28 @@ function book_classes_page(): void
 {
     $user = require_roles(['member']);
     if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-        db()->prepare('INSERT INTO class_bookings (schedule_id, user_id) VALUES (?, ?) ON DUPLICATE KEY UPDATE booking_status = "booked"')->execute([post('schedule_id'), $user['user_id']]);
+        $scheduleId = (int) post('schedule_id');
+        db()->prepare('INSERT INTO class_bookings (schedule_id, user_id) VALUES (?, ?) ON DUPLICATE KEY UPDATE booking_status = "booked"')->execute([$scheduleId, $user['user_id']]);
+
+        $classRows = query_all(
+            'SELECT c.class_name, s.start_datetime, s.room_location
+             FROM class_schedules s
+             JOIN classes c ON c.class_id = s.class_id
+             WHERE s.schedule_id = ?',
+            [$scheduleId]
+        );
+        if ($classRows) {
+            $class = $classRows[0];
+            $when = date('D, M j \a\t g:i A', strtotime($class['start_datetime']));
+            $location = $class['room_location'] ? ' in ' . $class['room_location'] : '';
+            notify_user(
+                (int) $user['user_id'],
+                'class_reminder',
+                'Class booked',
+                $class['class_name'] . ' on ' . $when . $location . '.'
+            );
+        }
+
         flash('Class booked successfully!');
         redirect('book_classes');
     }

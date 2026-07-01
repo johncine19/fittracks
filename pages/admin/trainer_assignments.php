@@ -9,7 +9,25 @@ function trainer_assignments_page(): void
             db()->prepare('UPDATE trainer_assignments SET status = "ended", ended_date = CURDATE() WHERE assignment_id = ?')->execute([post('assignment_id')]);
             flash('Trainer assignment ended.');
         } else {
-            db()->prepare('INSERT INTO trainer_assignments (trainer_id, member_user_id, assigned_date, status, assigned_by) VALUES (?, ?, ?, "active", ?)')->execute([post('trainer_id'), post('member_user_id'), post('assigned_date'), $user['user_id']]);
+            $trainerId = (int) post('trainer_id');
+            $memberUserId = (int) post('member_user_id');
+            db()->prepare('INSERT INTO trainer_assignments (trainer_id, member_user_id, assigned_date, status, assigned_by) VALUES (?, ?, ?, "active", ?)')->execute([$trainerId, $memberUserId, post('assigned_date'), $user['user_id']]);
+
+            $names = query_all(
+                'SELECT CONCAT(tu.first_name, " ", tu.last_name) AS trainer_name, tu.user_id AS trainer_user_id,
+                        CONCAT(mu.first_name, " ", mu.last_name) AS member_name
+                 FROM trainer_profiles tp
+                 JOIN users tu ON tu.user_id = tp.user_id
+                 JOIN users mu ON mu.user_id = ?
+                 WHERE tp.trainer_id = ?',
+                [$memberUserId, $trainerId]
+            );
+            if ($names) {
+                $pair = $names[0];
+                notify_user($memberUserId, 'system', 'Trainer assigned', 'You have been assigned to ' . $pair['trainer_name'] . '.');
+                notify_user((int) $pair['trainer_user_id'], 'system', 'New client assigned', $pair['member_name'] . ' has been assigned to you.');
+            }
+
             flash('Trainer assigned to member.');
         }
         redirect('trainer_assignments');

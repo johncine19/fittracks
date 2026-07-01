@@ -87,8 +87,9 @@ function profile_page(): void
             redirect('profile');
         } elseif (isset($_POST['height_cm']) && $is_member) {
             save_member_profile((int) $user['user_id']);
-            generate_diet_plan((int) $user['user_id']);
-            flash('Physical profile and nutrition targets updated.', 'success');
+            generate_workout_plan((int) $user['user_id']);
+            notify_user((int) $user['user_id'], 'system', 'Workout plan updated', 'Your workout plan was recalculated from your updated physical profile.');
+            flash('Physical profile and workout plan updated.', 'success');
             redirect('profile');
         }
     }
@@ -184,7 +185,7 @@ function profile_page(): void
         <?php if ($is_member): ?>
             <h2 style="margin-top:2rem;">Physical Profile</h2>
             <p class="muted" style="margin-bottom:1rem;font-size:13px;">
-                Keeping your physical profile up to date lets FITTRACKS generate accurate nutrition targets for you.
+                Keeping your physical profile up to date lets FITTRACKS generate an accurate workout plan for you.
             </p>
             <?php render_member_form('profile', $user, $profile); ?>
         <?php endif; ?>

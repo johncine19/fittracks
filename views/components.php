@@ -27,13 +27,6 @@ function render_simple_table(array $rows, array $columns): string
 
 function render_member_form(string $context, ?array $user = null, ?array $profile = null): void
 {
-    $restrictions = db()->query('SELECT * FROM dietary_restrictions ORDER BY name')->fetchAll();
-    $current = [];
-    if ($profile) {
-        $stmt = db()->prepare('SELECT restriction_id FROM member_dietary_restrictions WHERE profile_id = ?');
-        $stmt->execute([$profile['profile_id']]);
-        $current = array_map('intval', array_column($stmt->fetchAll(), 'restriction_id'));
-    }
     ?>
     <form method="post" class="form grid-form">
         <?= csrf_field() ?>
@@ -88,19 +81,6 @@ function render_member_form(string $context, ?array $user = null, ?array $profil
                 <?php endforeach; ?>
             </select>
         </label>
-        <fieldset class="full-width">
-            <legend>Dietary restrictions</legend>
-            <div class="check-grid">
-                <?php foreach ($restrictions as $restriction): ?>
-                    <label class="check">
-                        <input type="checkbox" name="restrictions[]"
-                               value="<?= (int) $restriction['restriction_id'] ?>"
-                               <?= checked(in_array((int) $restriction['restriction_id'], $current, true)) ?>>
-                        <span><?= h($restriction['name']) ?></span>
-                    </label>
-                <?php endforeach; ?>
-            </div>
-        </fieldset>
         <button type="submit" class="full-width btn-primary" style="margin-top:10px;">Save</button>
     </form>
     <?php
@@ -116,43 +96,279 @@ function dashboard_stat(string $label, string $value, string $subtext, string $t
     echo '</article>';
 }
 
-function render_current_diet(int $memberUserId, bool $withActions = true): void
+function render_current_workout(int $memberUserId, bool $withActions = true): void
 {
-    $stmt = db()->prepare('SELECT * FROM diet_plans WHERE member_user_id = ? ORDER BY generated_at DESC LIMIT 1');
+    $stmt = db()->prepare(
+        'SELECT * FROM training_plans
+         WHERE member_user_id = ? AND trainer_id IS NULL
+         ORDER BY created_at DESC LIMIT 1'
+    );
     $stmt->execute([$memberUserId]);
     $plan = $stmt->fetch();
-    echo '<section class="panel"><h2>Current nutrition targets</h2>';
+
+    echo '<section class="panel"><h2>Your workout plan</h2>';
     if (!$plan) {
-        echo '<p class="muted">No diet plan generated yet. Save your profile to create one.</p></section>';
+        echo '<p class="muted">No workout plan generated yet. Save your physical profile to create one.</p></section>';
         return;
     }
+
     metric_cards([
-        'BMR'      => $plan['bmr'],
-        'TDEE'     => $plan['tdee'],
-        'Calories' => $plan['calorie_target'],
-        'Protein'  => $plan['protein_target_g'] . ' g',
-        'Carbs'    => $plan['carbs_target_g'] . ' g',
-        'Fats'     => $plan['fats_target_g'] . ' g',
-        'Status'   => $plan['status'],
+        'Goal'       => ucwords(str_replace('_', ' ', (string) $plan['goal'])),
+        'Status'     => $plan['status'],
+        'Started'    => $plan['start_date'],
+        'Training days' => workout_day_count((int) $plan['plan_id']),
     ]);
-    $stmt = db()->prepare('SELECT dpm.meal_type, dpm.servings, f.* FROM diet_plan_meals dpm JOIN food_items f ON f.food_id = dpm.food_id WHERE dpm.diet_plan_id = ? ORDER BY FIELD(dpm.meal_type, "breakfast", "lunch", "dinner", "snack")');
-    $stmt->execute([$plan['diet_plan_id']]);
-    echo render_simple_table($stmt->fetchAll(), ['meal_type', 'name', 'serving_size', 'calories', 'protein_g', 'carbs_g', 'fats_g']);
-    if ($plan['trainer_notes']) {
-        echo '<p><strong>Trainer notes:</strong> ' . h($plan['trainer_notes']) . '</p>';
+
+    $stmt = db()->prepare(
+        'SELECT tpe.day_of_week, tpe.sequence_order, tpe.sets, tpe.reps, tpe.rest_seconds,
+                e.name, e.category, e.muscle_group
+         FROM training_plan_exercises tpe
+         JOIN exercises e ON e.exercise_id = tpe.exercise_id
+         WHERE tpe.plan_id = ?
+         ORDER BY tpe.day_of_week, tpe.sequence_order'
+    );
+    $stmt->execute([(int) $plan['plan_id']]);
+    $rows = $stmt->fetchAll();
+
+    $grouped = [];
+    foreach ($rows as $row) {
+        $day = workout_day_name((int) $row['day_of_week']);
+        $grouped[$day][] = $row;
+    }
+
+    foreach ($grouped as $day => $exercises) {
+        echo '<h3 style="margin:1.25rem 0 0.5rem;">' . h($day) . '</h3>';
+        $tableRows = array_map(static fn(array $ex): array => [
+            'name'         => $ex['name'],
+            'category'     => $ex['category'],
+            'muscle_group' => $ex['muscle_group'],
+            'sets'         => $ex['sets'],
+            'reps'         => $ex['reps'],
+            'rest_seconds' => $ex['rest_seconds'] . ' s',
+        ], $exercises);
+        echo render_simple_table($tableRows, ['name', 'category', 'muscle_group', 'sets', 'reps', 'rest_seconds']);
+    }
+
+    if (!$rows) {
+        echo '<p class="muted">No exercises assigned to this plan yet.</p>';
+    }
+
+    if ($withActions) {
+        echo '<p style="margin-top:1rem;"><a href="index.php?page=my_workout">View full workout plan →</a></p>';
     }
     echo '</section>';
 }
 
-function render_diet_reviews(int $coachId): void
+function render_exercise_recommendations(int $userId, bool $compact = false): void
 {
-    $plans = query_all('SELECT dp.*, CONCAT(u.first_name, " ", u.last_name) AS member FROM diet_plans dp JOIN users u ON u.user_id = dp.member_user_id WHERE dp.trainer_id = ? ORDER BY dp.generated_at DESC LIMIT 10', [$coachId]);
-    echo '<section class="panel"><h2>Diet reviews</h2>';
-    foreach ($plans as $plan) {
-        echo '<form method="post" class="review-card">' . csrf_field() . '<input type="hidden" name="action" value="finalize"><input type="hidden" name="diet_plan_id" value="' . (int) $plan['diet_plan_id'] . '"><h3>' . h($plan['member']) . ' <small>' . h($plan['status']) . '</small></h3><label>Calories <input name="calorie_target" type="number" value="' . h($plan['calorie_target']) . '"></label><label>Protein <input name="protein_target_g" type="number" step="0.01" value="' . h($plan['protein_target_g']) . '"></label><label>Carbs <input name="carbs_target_g" type="number" step="0.01" value="' . h($plan['carbs_target_g']) . '"></label><label>Fats <input name="fats_target_g" type="number" step="0.01" value="' . h($plan['fats_target_g']) . '"></label><label>Notes <textarea name="trainer_notes">' . h($plan['trainer_notes']) . '</textarea></label><button>Finalize</button></form>';
+    $recs = get_exercise_recommendations($userId);
+    $profile = member_profile($userId);
+
+    echo '<section class="panel exercise-recs">';
+    echo '<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:0.5rem;">';
+    echo '<h2>Recommended Exercises</h2>';
+    if ($profile) {
+        $goalLabel = ucwords(str_replace('_', ' ', $profile['primary_goal']));
+        echo '<span class="badge badge-accent" style="font-size:12px;">' . h($goalLabel) . '</span>';
     }
-    if (!$plans) echo '<p class="muted">No generated diet plans to review yet.</p>';
+    echo '</div>';
+
+    if (!$recs) {
+        echo '<p class="muted">Complete your physical profile to get personalised exercise recommendations.</p>';
+        echo '</section>';
+        return;
+    }
+
+    echo '<p class="muted" style="font-size:13px;margin-bottom:1rem;">Based on your profile, activity level, and fitness goal.</p>';
+
+    if ($compact) {
+        // Compact card grid for dashboard
+        echo '<div class="rec-grid">';
+        foreach (array_slice($recs, 0, 4) as $rec) {
+            $ex = $rec['exercise'];
+            $priorityClass = $rec['priority'] === 'high' ? 'rec-high' : '';
+            echo '<div class="rec-card ' . $priorityClass . '">';
+            echo '<div class="rec-card-head">';
+            echo '<strong>' . h($ex['name']) . '</strong>';
+            echo '<span class="badge badge-cat badge-' . h($rec['category']) . '">' . h(ucfirst($rec['category'])) . '</span>';
+            echo '</div>';
+            echo '<p class="rec-muscle">' . h(ucfirst($ex['muscle_group'])) . '</p>';
+            echo '<div class="rec-params">';
+            echo '<span>' . (int) $rec['sets'] . ' sets</span>';
+            echo '<span>' . h($rec['reps']) . '</span>';
+            if ($rec['rest_seconds'] > 0) {
+                echo '<span>' . (int) $rec['rest_seconds'] . 's rest</span>';
+            }
+            echo '</div>';
+            echo '</div>';
+        }
+        echo '</div>';
+        echo '<p style="margin-top:0.75rem;"><a href="index.php?page=my_workout">View all recommendations →</a></p>';
+    } else {
+        // Full table view for workout page
+        echo '<div class="table-wrap"><table>';
+        echo '<thead><tr><th>Exercise</th><th>Category</th><th>Muscle Group</th><th>Sets</th><th>Reps</th><th>Rest</th><th>Why Recommended</th></tr></thead>';
+        echo '<tbody>';
+        foreach ($recs as $rec) {
+            $ex = $rec['exercise'];
+            $priorityClass = $rec['priority'] === 'high' ? 'style="border-left:3px solid var(--accent);"' : '';
+            echo '<tr ' . $priorityClass . '>';
+            echo '<td><strong>' . h($ex['name']) . '</strong></td>';
+            echo '<td><span class="badge badge-cat badge-' . h($rec['category']) . '">' . h(ucfirst($rec['category'])) . '</span></td>';
+            echo '<td>' . h(ucfirst($ex['muscle_group'])) . '</td>';
+            echo '<td>' . (int) $rec['sets'] . '</td>';
+            echo '<td>' . h($rec['reps']) . '</td>';
+            echo '<td>' . ($rec['rest_seconds'] > 0 ? (int) $rec['rest_seconds'] . 's' : '—') . '</td>';
+            echo '<td class="rec-reason">' . h($rec['recommendation']) . '</td>';
+            echo '</tr>';
+        }
+        echo '</tbody></table></div>';
+    }
+
     echo '</section>';
+    ?>
+    <style>
+        .exercise-recs .badge-accent {
+            background: var(--accent, #7c5cfc);
+            color: #fff;
+            padding: 3px 10px;
+            border-radius: 20px;
+            font-weight: 600;
+        }
+        .badge-cat {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+        }
+        .badge-strength { background: rgba(99,102,241,0.15); color: #6366f1; }
+        .badge-cardio   { background: rgba(239,68,68,0.15);  color: #ef4444; }
+        .badge-core     { background: rgba(34,197,94,0.15);  color: #22c55e; }
+
+        .rec-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+            gap: 0.75rem;
+        }
+        .rec-card {
+            background: var(--panel-soft, #1a1a2e);
+            border: 1px solid var(--line, #2a2a3e);
+            border-radius: 10px;
+            padding: 1rem;
+            transition: transform 0.15s, box-shadow 0.15s;
+        }
+        .rec-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 16px rgba(0,0,0,0.2);
+        }
+        .rec-card.rec-high {
+            border-left: 3px solid var(--accent, #7c5cfc);
+        }
+        .rec-card-head {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 0.5rem;
+            margin-bottom: 0.4rem;
+        }
+        .rec-card-head strong { font-size: 14px; }
+        .rec-muscle {
+            font-size: 12px;
+            color: var(--muted);
+            margin: 0 0 0.6rem;
+        }
+        .rec-params {
+            display: flex;
+            gap: 0.75rem;
+            font-size: 12px;
+            color: var(--muted);
+        }
+        .rec-params span {
+            background: var(--surface-1, rgba(255,255,255,0.05));
+            padding: 2px 8px;
+            border-radius: 6px;
+        }
+        .rec-reason {
+            font-size: 12px;
+            color: var(--muted);
+            max-width: 320px;
+            line-height: 1.4;
+        }
+    </style>
+    <?php
+}
+
+
+function workout_day_name(int $dayOfWeek): string
+{
+    return ['', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'][$dayOfWeek] ?? 'Day ' . $dayOfWeek;
+}
+
+function workout_day_count(int $planId): int
+{
+    return (int) scalar(
+        'SELECT COUNT(DISTINCT day_of_week) FROM training_plan_exercises WHERE plan_id = ?',
+        [$planId]
+    );
+}
+
+function render_notification_bell(array $user, string $currentPage): void
+{
+    $userId = (int) $user['user_id'];
+    $unread = unread_notification_count($userId);
+    $items  = get_notifications($userId, 8);
+    ?>
+    <div class="notif-wrap" id="notif-wrap">
+        <button type="button" class="notif-bell" id="notif-toggle" aria-label="Notifications" aria-expanded="false">
+            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+            <?php if ($unread > 0): ?>
+                <span class="notif-badge"><?= $unread > 9 ? '9+' : (int) $unread ?></span>
+            <?php endif; ?>
+        </button>
+        <div class="notif-dropdown" id="notif-dropdown" hidden>
+            <div class="notif-dropdown-head">
+                <strong>Notifications</strong>
+                <?php if ($unread > 0): ?>
+                    <form method="post" action="index.php?page=notification_action" class="notif-mark-all">
+                        <?= csrf_field() ?>
+                        <input type="hidden" name="notification_action" value="mark_all_read">
+                        <input type="hidden" name="return_page" value="<?= h($currentPage) ?>">
+                        <button type="submit">Mark all read</button>
+                    </form>
+                <?php endif; ?>
+            </div>
+            <?php if (!$items): ?>
+                <p class="notif-empty">No notifications yet.</p>
+            <?php else: ?>
+                <ul class="notif-menu">
+                    <?php foreach ($items as $item): ?>
+                        <li class="<?= $item['is_read'] ? '' : 'unread' ?>">
+                            <div class="notif-menu-meta">
+                                <span class="notif-type notif-type-<?= h($item['type']) ?>"><?= h(notification_type_label($item['type'])) ?></span>
+                                <time><?= h(notification_time_ago($item['created_at'])) ?></time>
+                            </div>
+                            <strong><?= h($item['title']) ?></strong>
+                            <p><?= h($item['message']) ?></p>
+                            <?php if (!$item['is_read']): ?>
+                                <form method="post" action="index.php?page=notification_action">
+                                    <?= csrf_field() ?>
+                                    <input type="hidden" name="notification_action" value="mark_read">
+                                    <input type="hidden" name="notification_id" value="<?= (int) $item['notification_id'] ?>">
+                                    <input type="hidden" name="return_page" value="<?= h($currentPage) ?>">
+                                    <button type="submit">Mark read</button>
+                                </form>
+                            <?php endif; ?>
+                        </li>
+                    <?php endforeach; ?>
+                </ul>
+            <?php endif; ?>
+            <a class="notif-view-all" href="index.php?page=notifications">View all notifications</a>
+        </div>
+    </div>
+    <?php
 }
 
 function render_pagination(int $page, int $totalPages, string $baseUrl, string $paramName = 'p'): void
@@ -204,7 +420,6 @@ function render_registration_form(): void
 {
     // Kept for backward compatibility — register.php now renders inline
     // but staff_apply or other callers may still reference this
-    $restrictions = db()->query('SELECT * FROM dietary_restrictions ORDER BY name')->fetchAll();
     ?>
     <div class="auth-card">
         <div class="auth-card-header">

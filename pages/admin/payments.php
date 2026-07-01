@@ -6,8 +6,27 @@ function payments_page(): void
     $user = require_roles(['admin', 'staff', 'member']);
     if (can($user, ['admin', 'staff']) && $_SERVER['REQUEST_METHOD'] === 'POST') {
         $receipt = post('receipt_number') ?: 'RCPT-' . date('Ymd') . '-' . random_int(1000, 9999);
+        $membershipId = (int) post('membership_id');
         db()->prepare('INSERT INTO payments (membership_id, amount, payment_date, payment_method, status, receipt_number, processed_by) VALUES (?, ?, ?, ?, ?, ?, ?)')
-            ->execute([post('membership_id'), post('amount'), post('payment_date'), post('payment_method'), post('status'), $receipt, $user['user_id']]);
+            ->execute([$membershipId, post('amount'), post('payment_date'), post('payment_method'), post('status'), $receipt, $user['user_id']]);
+
+        $paymentInfo = query_all(
+            'SELECT m.user_id, p.plan_name
+             FROM memberships m
+             JOIN membership_plans p ON p.plan_id = m.plan_id
+             WHERE m.membership_id = ?',
+            [$membershipId]
+        );
+        if ($paymentInfo) {
+            $info = $paymentInfo[0];
+            notify_user(
+                (int) $info['user_id'],
+                'system',
+                'Payment recorded',
+                money(post('amount')) . ' received for ' . $info['plan_name'] . '. Receipt: ' . $receipt . '.'
+            );
+        }
+
         flash('Payment recorded.');
         redirect('payments');
     }

@@ -3,26 +3,30 @@ declare(strict_types=1);
 
 function render_header(string $title, ?array $user = null): void
 {
-    $user = $user ?? current_user();
+    $isAuthPage = defined('AUTH_PAGE') && AUTH_PAGE;
+    $user = $isAuthPage ? null : ($user ?? current_user());
     $role = $user['role'] ?? null;
     $nav = [];
     if ($user) {
         $nav['dashboard'] = 'Dashboard';
         if ($role === 'admin') {
-            $nav += ['users' => 'Users', 'trainer_assignments' => 'Trainers', 'plans' => 'Plans', 'payments' => 'Payments', 'walk_ins' => 'Walk-ins', 'classes' => 'Classes', 'scanner' => 'Scan QR', 'reports' => 'Reports'];
+            $nav += ['users' => 'Users', 'trainer_assignments' => 'Trainers', 'plans' => 'Plans', 'payments' => 'Payments', 'walk_ins' => 'Walk-ins', 'classes' => 'Classes', 'scanner' => 'Scan QR', 'reports' => 'Reports', 'notifications' => 'Notifications'];
         }
         if ($role === 'staff') {
-            $nav += ['members' => 'Members', 'trainer_assignments' => 'Trainers', 'memberships' => 'Memberships', 'payments' => 'Payments', 'walk_ins' => 'Walk-ins', 'scanner' => 'Scan QR', 'attendance' => 'Attendance', 'classes' => 'Classes'];
+            $nav += ['members' => 'Members', 'trainer_assignments' => 'Trainers', 'memberships' => 'Memberships', 'payments' => 'Payments', 'walk_ins' => 'Walk-ins', 'scanner' => 'Scan QR', 'attendance' => 'Attendance', 'classes' => 'Classes', 'notifications' => 'Notifications'];
         }
         if ($role === 'trainer') {
-            $nav += ['trainer_members' => 'Clients', 'training' => 'Training', 'messages' => 'Messages'];
+            $nav += ['trainer_members' => 'Clients', 'training' => 'Training', 'messages' => 'Messages', 'notifications' => 'Notifications'];
         }
         if ($role === 'member') {
-            $nav += ['profile' => 'Profile', 'qr_attendance' => 'My QR', 'my_diet' => 'Nutrition', 'memberships' => 'Membership', 'payments' => 'Payments', 'book_classes' => 'Classes', 'progress' => 'Progress', 'messages' => 'Messages'];
+            $nav += ['profile' => 'Profile', 'qr_attendance' => 'My QR', 'my_workout' => 'Workouts', 'memberships' => 'Membership', 'payments' => 'Payments', 'book_classes' => 'Classes', 'progress' => 'Progress', 'messages' => 'Messages', 'notifications' => 'Notifications'];
         }
     }
     $page = $_GET['page'] ?? 'dashboard';
     $flash = flash();
+    if ($user && ($user['role'] ?? '') === 'member') {
+        maybe_notify_membership_renewal((int) $user['user_id']);
+    }
     ?>
     <!doctype html>
     <html lang="en">
@@ -96,6 +100,7 @@ function render_header(string $title, ?array $user = null): void
                         </div>
                     </div>
                     <div class="user-chip">
+                        <?php render_notification_bell($user, $page); ?>
                         <button class="theme-toggle" id="theme-toggle-btn" title="Toggle Light/Dark Mode" type="button">
                             <!-- icon injected by JS -->
                         </button>
@@ -217,11 +222,35 @@ document.addEventListener('DOMContentLoaded', function() {
             if (window.innerWidth <= 980) closeSidebar();
         });
     });
+
+    const notifToggle = document.getElementById('notif-toggle');
+    const notifDropdown = document.getElementById('notif-dropdown');
+    const notifWrap = document.getElementById('notif-wrap');
+    notifToggle?.addEventListener('click', function(e) {
+        e.stopPropagation();
+        const open = !notifDropdown?.hasAttribute('hidden');
+        if (open) {
+            notifDropdown?.setAttribute('hidden', '');
+            notifToggle.setAttribute('aria-expanded', 'false');
+        } else {
+            notifDropdown?.removeAttribute('hidden');
+            notifToggle.setAttribute('aria-expanded', 'true');
+        }
+    });
+    document.addEventListener('click', function(e) {
+        if (!notifWrap || notifDropdown?.hasAttribute('hidden')) return;
+        if (!notifWrap.contains(e.target)) {
+            notifDropdown.setAttribute('hidden', '');
+            notifToggle?.setAttribute('aria-expanded', 'false');
+        }
+    });
 });
 </script>
 HTML;
 
-    if (current_user()) {
+    $isAuthPage = defined('AUTH_PAGE') && AUTH_PAGE;
+
+    if (!$isAuthPage && current_user()) {
         echo '</main></section></div>';
         echo $navScript;
         echo $themeScript;

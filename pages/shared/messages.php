@@ -12,6 +12,8 @@ function messages_page(): void
         if ($recipientId && $text !== '') {
             db()->prepare('INSERT INTO trainer_messages (sender_id, recipient_id, message_text) VALUES (?, ?, ?)')
                ->execute([$user['user_id'], $recipientId, $text]);
+            $senderName = $user['first_name'] . ' ' . $user['last_name'];
+            notify_user($recipientId, 'coach_message', 'New message from ' . $senderName, $text);
             flash('Message sent.', 'success');
         }
         redirect('messages');
