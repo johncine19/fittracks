@@ -20,6 +20,12 @@ function handle_forgot_password(): void
         $user = $stmt->fetch();
 
         if ($user) {
+            // Block password reset for unverified members
+            if ($user['role'] === 'member' && empty($user['email_verified_at'])) {
+                flash('Please verify your email address before resetting your password. Check your inbox or sign in to request a new verification email.', 'danger');
+                redirect('forgot_password');
+            }
+
             $token = sprintf('%06d', random_int(0, 999999));
             db()->prepare('REPLACE INTO password_resets (email, token) VALUES (?, ?)')->execute([$email, $token]);
 

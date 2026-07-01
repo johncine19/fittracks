@@ -1,4 +1,5 @@
 <?php
+
 declare(strict_types=1);
 
 function calc_revenue_trend(PDO $pdo): string
@@ -77,8 +78,13 @@ function admin_dashboard(PDO $pdo): void
         $weekMap[(int) $row['weekday']] = (int) $row['total'];
     }
     $week = [
-        'Mon' => $weekMap[2], 'Tue' => $weekMap[3], 'Wed' => $weekMap[4],
-        'Thu' => $weekMap[5], 'Fri' => $weekMap[6], 'Sat' => $weekMap[7], 'Sun' => $weekMap[1],
+        'Mon' => $weekMap[2],
+        'Tue' => $weekMap[3],
+        'Wed' => $weekMap[4],
+        'Thu' => $weekMap[5],
+        'Fri' => $weekMap[6],
+        'Sat' => $weekMap[7],
+        'Sun' => $weekMap[1],
     ];
     $todayClasses = $pdo->query('SELECT c.class_name, c.capacity, s.start_datetime, COALESCE(CONCAT(u.first_name, " ", u.last_name), "Open trainer") AS trainer, (SELECT COUNT(*) FROM class_bookings b WHERE b.schedule_id = s.schedule_id AND b.booking_status = "booked") AS booked FROM class_schedules s JOIN classes c ON c.class_id = s.class_id LEFT JOIN users u ON u.user_id = c.instructor_id WHERE DATE(s.start_datetime) = CURDATE() ORDER BY s.start_datetime LIMIT 4')->fetchAll();
     $recent = $pdo->query('SELECT a.check_in_time, CONCAT(u.first_name, " ", u.last_name) AS member, u.first_name, u.last_name, u.profile_picture FROM attendance a JOIN users u ON u.user_id = a.user_id ORDER BY a.check_in_time DESC LIMIT 5')->fetchAll();
@@ -97,7 +103,7 @@ function admin_dashboard(PDO $pdo): void
         'revenue'  => ['labels' => $monthLabels, 'values' => $monthlyValues],
         'checkins' => ['labels' => array_keys($week), 'values' => array_values($week)],
     ];
-    ?>
+?>
     <section class="dash-grid stats-row">
         <?php dashboard_stat('Total members',    (string) $members,    'Active subscriptions',        $memberTrend,   'MB', true); ?>
         <?php dashboard_stat('Monthly revenue',  money($revenue),      'Billed this month',           $revenueTrend,  '$'); ?>
@@ -106,11 +112,21 @@ function admin_dashboard(PDO $pdo): void
     </section>
     <section class="dash-grid chart-row">
         <article class="panel chart-panel revenue-panel">
-            <div class="panel-title"><div><h2>Revenue Trend</h2><p>Last 6 months</p></div><span><?= h($revPctLabel) ?></span></div>
+            <div class="panel-title">
+                <div>
+                    <h2>Revenue Trend</h2>
+                    <p>Last 6 months</p>
+                </div><span><?= h($revPctLabel) ?></span>
+            </div>
             <div class="chart-canvas"><canvas id="revenueTrendChart"></canvas></div>
         </article>
         <article class="panel chart-panel">
-            <div class="panel-title"><div><h2>Weekly Check-ins</h2><p>This week</p></div></div>
+            <div class="panel-title">
+                <div>
+                    <h2>Weekly Check-ins</h2>
+                    <p>This week</p>
+                </div>
+            </div>
             <div class="chart-canvas compact"><canvas id="weeklyCheckinsChart"></canvas></div>
         </article>
     </section>
@@ -129,7 +145,8 @@ function admin_dashboard(PDO $pdo): void
                         <b><?= (int) $class['booked'] ?>/<?= (int) $class['capacity'] ?><small>booked</small></b>
                         <i><span style="width: <?= (int) $pct ?>%"></span></i>
                     </div>
-                <?php endforeach; if (!$todayClasses): ?><p class="muted">No classes scheduled today.</p><?php endif; ?>
+                <?php endforeach;
+                if (!$todayClasses): ?><p class="muted">No classes scheduled today.</p><?php endif; ?>
             </div>
         </article>
         <article class="panel">
@@ -141,7 +158,8 @@ function admin_dashboard(PDO $pdo): void
                         <div><strong><?= h($row['member']) ?></strong><small>Check-in</small></div>
                         <time><?= h(date('M d, h:i A', strtotime($row['check_in_time']))) ?></time>
                     </div>
-                <?php endforeach; if (!$recent): ?><p class="muted">No check-ins yet.</p><?php endif; ?>
+                <?php endforeach;
+                if (!$recent): ?><p class="muted">No check-ins yet.</p><?php endif; ?>
             </div>
         </article>
         <article class="panel">
@@ -155,7 +173,8 @@ function admin_dashboard(PDO $pdo): void
                         <div><strong><?= h($row['member']) ?></strong><small>Expires</small></div>
                         <time style="color:var(--danger)"><?= h(date('M d, Y', strtotime($row['end_date']))) ?></time>
                     </div>
-                <?php endforeach; if (!$expiring): ?><p class="muted">No upcoming expirations in the next 7 days.</p><?php endif; ?>
+                <?php endforeach;
+                if (!$expiring): ?><p class="muted">No upcoming expirations in the next 7 days.</p><?php endif; ?>
             </div>
         </article>
         <article class="panel">
@@ -169,11 +188,12 @@ function admin_dashboard(PDO $pdo): void
                         <div><strong><?= h($row['first_name'] . ' ' . $row['last_name']) ?></strong><small><?= $row['last_checkin'] ? date('M j', strtotime($row['last_checkin'])) : 'Never' ?></small></div>
                         <time style="color:var(--danger)"><?= (int)$row['days_inactive'] ?> days</time>
                     </div>
-                <?php endforeach; if (!$inactive): ?><p class="muted">All members are actively checking in.</p><?php endif; ?>
+                <?php endforeach;
+                if (!$inactive): ?><p class="muted">All members are actively checking in.</p><?php endif; ?>
             </div>
         </article>
     </section>
-    <?php
+<?php
 }
 
 function dashboard(): void

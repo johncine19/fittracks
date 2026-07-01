@@ -1,4 +1,5 @@
 <?php
+
 declare(strict_types=1);
 
 function profile_page(): void
@@ -43,10 +44,22 @@ function profile_page(): void
             $updates = [];
             $params  = [];
 
-            if ($fname !== $user['first_name']) { $updates[] = 'first_name = ?'; $params[] = $fname; }
-            if ($lname !== $user['last_name'])  { $updates[] = 'last_name = ?';  $params[] = $lname; }
-            if ($email !== $user['email'])       { $updates[] = 'email = ?';      $params[] = $email; }
-            if ($phone !== ($user['phone'] ?? '')) { $updates[] = 'phone = ?';   $params[] = $phone; }
+            if ($fname !== $user['first_name']) {
+                $updates[] = 'first_name = ?';
+                $params[] = $fname;
+            }
+            if ($lname !== $user['last_name']) {
+                $updates[] = 'last_name = ?';
+                $params[] = $lname;
+            }
+            if ($email !== $user['email']) {
+                $updates[] = 'email = ?';
+                $params[] = $email;
+            }
+            if ($phone !== ($user['phone'] ?? '')) {
+                $updates[] = 'phone = ?';
+                $params[] = $phone;
+            }
             if (!empty($password)) {
                 $updates[] = 'password_hash = ?';
                 $params[]  = password_hash($password, PASSWORD_DEFAULT);
@@ -66,13 +79,12 @@ function profile_page(): void
             if ($updates) {
                 $params[] = $user['user_id'];
                 db()->prepare('UPDATE users SET ' . implode(', ', $updates) . ' WHERE user_id = ?')
-                   ->execute($params);
+                    ->execute($params);
                 flash('Account details updated.', 'success');
             } else {
                 flash('No changes made to account.', 'info');
             }
             redirect('profile');
-
         } elseif (isset($_POST['height_cm']) && $is_member) {
             save_member_profile((int) $user['user_id']);
             generate_diet_plan((int) $user['user_id']);
@@ -83,7 +95,7 @@ function profile_page(): void
 
     $user = current_user();
     render_header('Settings', $user);
-    ?>
+?>
     <section class="panel wide">
         <h1>Settings</h1>
 
@@ -96,8 +108,8 @@ function profile_page(): void
         <div class="profile-card">
             <?php if (!empty($user['profile_picture'])): ?>
                 <img src="assets/uploads/<?= h($user['profile_picture']) ?>"
-                     alt="Profile picture"
-                     class="profile-avatar">
+                    alt="Profile picture"
+                    class="profile-avatar">
             <?php else: ?>
                 <div class="profile-avatar profile-avatar-initials"><?= h(initials($user)) ?></div>
             <?php endif; ?>
@@ -115,8 +127,9 @@ function profile_page(): void
                 <h3>Edit Account Details</h3>
                 <button class="modal-close" onclick="this.closest('dialog').close()" aria-label="Close">
                     <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24"
-                         fill="none" stroke="currentColor" stroke-width="2">
-                        <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+                        fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="18" y1="6" x2="6" y2="18" />
+                        <line x1="6" y1="6" x2="18" y2="18" />
                     </svg>
                 </button>
             </div>
@@ -128,8 +141,8 @@ function profile_page(): void
                     <div style="grid-column:1/-1;display:flex;align-items:center;gap:1rem;margin-bottom:0.5rem;">
                         <?php if (!empty($user['profile_picture'])): ?>
                             <img src="assets/uploads/<?= h($user['profile_picture']) ?>"
-                                 alt="Profile picture"
-                                 style="width:60px;height:60px;border-radius:50%;object-fit:cover;">
+                                alt="Profile picture"
+                                style="width:60px;height:60px;border-radius:50%;object-fit:cover;">
                         <?php else: ?>
                             <div style="width:60px;height:60px;border-radius:50%;background:var(--panel-soft);display:flex;align-items:center;justify-content:center;font-size:1.5rem;color:var(--muted);">
                                 <?= h(initials($user)) ?>
@@ -151,9 +164,9 @@ function profile_page(): void
                     </label>
                     <label>Phone
                         <input name="phone" type="tel" maxlength="11"
-                               placeholder="09xxxxxxxxx"
-                               value="<?= h($user['phone'] ?? '') ?>"
-                               oninput="this.value=this.value.replace(/[^0-9]/g,'').slice(0,11)">
+                            placeholder="09xxxxxxxxx"
+                            value="<?= h($user['phone'] ?? '') ?>"
+                            oninput="this.value=this.value.replace(/[^0-9]/g,'').slice(0,11)">
                     </label>
                     <label style="grid-column:1/-1">New password
                         <input type="password" name="password" placeholder="Leave blank to keep current">
@@ -178,37 +191,47 @@ function profile_page(): void
     </section>
 
     <style>
-    .profile-card {
-        display: flex;
-        gap: 1.5rem;
-        align-items: center;
-        padding: 1.5rem;
-        border-radius: 10px;
-        border: 0.5px solid var(--line);
-        background: var(--panel-soft);
-        margin-bottom: 2.5rem;
-    }
-    .profile-avatar {
-        width: 90px;
-        height: 90px;
-        border-radius: 50%;
-        object-fit: cover;
-        flex-shrink: 0;
-    }
-    .profile-avatar-initials {
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-size: 2rem;
-        color: var(--muted);
-        background: var(--surface-1, var(--panel-soft));
-        border: 0.5px solid var(--line);
-    }
-    .profile-info p { margin: 0 0 4px; font-size: 14px; }
-    @media (max-width: 600px) {
-        .profile-card { flex-direction: column; align-items: flex-start; }
-    }
+        .profile-card {
+            display: flex;
+            gap: 1.5rem;
+            align-items: center;
+            padding: 1.5rem;
+            border-radius: 10px;
+            border: 0.5px solid var(--line);
+            background: var(--panel-soft);
+            margin-bottom: 2.5rem;
+        }
+
+        .profile-avatar {
+            width: 90px;
+            height: 90px;
+            border-radius: 50%;
+            object-fit: cover;
+            flex-shrink: 0;
+        }
+
+        .profile-avatar-initials {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 2rem;
+            color: var(--muted);
+            background: var(--surface-1, var(--panel-soft));
+            border: 0.5px solid var(--line);
+        }
+
+        .profile-info p {
+            margin: 0 0 4px;
+            font-size: 14px;
+        }
+
+        @media (max-width: 600px) {
+            .profile-card {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+        }
     </style>
-    <?php
+<?php
     render_footer();
 }

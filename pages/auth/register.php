@@ -58,33 +58,24 @@ function handle_register(): void
             ]);
             $userId = (int) $pdo->lastInsertId();
 
-            // Note: we deliberately do NOT pre-create an empty member_profiles
-            // row here. member_profiles' physical-stat columns (height_cm,
-            // weight_kg, date_of_birth, biological_sex, activity_level,
-            // primary_goal) are NOT NULL with no defaults, so an empty insert
-            // only succeeds under MySQL's permissive (non-strict) sql_mode —
-            // it fails outright on standard strict-mode MySQL/MariaDB
-            // ("Field 'height_cm' doesn't have a default value"). member_profile()
-            // already returns null gracefully when no row exists yet, and
-            // save_member_profile() creates the real row once the member
-            // submits their physical profile — so no placeholder is needed.
+
 
             $pdo->commit();
 
-            // Best-effort: send a verification email. Account creation and
-            // login are never blocked on this — see core/email_verification.php.
+            // Send a verification email. Login is blocked until the member verifies.
+            $emailSent = false;
             try {
                 $token = create_email_verification_token($userId);
-                send_verification_email((string) post('email'), (string) post('first_name'), $token);
+                $emailSent = send_verification_email((string) post('email'), (string) post('first_name'), $token);
             } catch (Throwable) {
-                // Non-blocking — the user can resend from their Settings page.
+                // ignore — user can request a resend from the login page
             }
 
-            // Log in immediately and redirect to profile setup
-            session_regenerate_id(true);
-            $_SESSION['user_id'] = $userId;
-            flash('Account created! Please complete your fitness profile below.', 'success');
-            redirect('profile');
+            $msg = $emailSent
+                ? 'Account created! Please check your email (' . post('email') . ') to verify your address before signing in.'
+                : 'Account created! We could not send a verification email right now — use the resend option on the login page.';
+            flash($msg, 'success');
+            redirect('login');
         } catch (Throwable $e) {
             $pdo->rollBack();
             flash('Registration failed: ' . $e->getMessage(), 'danger');
