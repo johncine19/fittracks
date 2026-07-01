@@ -56,37 +56,10 @@ function progress_page(): void
                 <h1>Progress logs</h1>
                 <p>Track your weight, measurements, and body composition over time.</p>
             </div>
+            <button onclick="logProgress()" class="btn" style="background: var(--lime); color: var(--bg); font-weight: bold;">+ Log Progress</button>
         </div>
 
-        <!-- Log form -->
-        <form method="post" class="form grid-form" style="margin-bottom:2rem;">
-            <?= csrf_field() ?>
-            <?php if ($user['role'] === 'trainer'): ?>
-                <input type="hidden" name="member_user_id" value="<?= (int) $memberId ?>">
-            <?php endif; ?>
-            <label>Date
-                <input name="log_date" type="date" required value="<?= h(date('Y-m-d')) ?>">
-            </label>
-            <label>Weight (kg)
-                <input name="weight_kg" type="number" step="0.01" placeholder="e.g. 72.5" required>
-            </label>
-            <label>Body fat %
-                <input name="body_fat_percent" type="number" step="0.01" placeholder="optional">
-            </label>
-            <label>Waist (cm)
-                <input name="waist_cm" type="number" step="0.01" placeholder="optional">
-            </label>
-            <label>Chest (cm)
-                <input name="chest_cm" type="number" step="0.01" placeholder="optional">
-            </label>
-            <label>Arms (cm)
-                <input name="arm_cm" type="number" step="0.01" placeholder="optional">
-            </label>
-            <label class="full-width">Notes
-                <input name="notes" placeholder="Any notes about this entry">
-            </label>
-            <button type="submit" class="full-width btn-primary" style="margin-top:4px;">Log progress</button>
-        </form>
+
 
         <!-- Weight trend chart -->
         <?php if (count($chartWeights) >= 2): ?>
@@ -134,6 +107,67 @@ function progress_page(): void
         <h2 style="margin-bottom:12px;">History</h2>
         <?= render_simple_table($rows, ['log_date', 'weight_kg', 'body_fat_percent', 'waist_cm', 'chest_cm', 'arm_cm', 'notes']) ?>
     </section>
+    
+    <script>
+    function logProgress() {
+        Swal.fire({
+            title: 'Log Progress',
+            html: `
+                <form id="progressForm" method="post" style="text-align: left; display: flex; flex-direction: column; gap: 12px; margin-top: 15px;">
+                    <?= csrf_field() ?>
+                    <?php if ($user['role'] === 'trainer'): ?>
+                        <input type="hidden" name="member_user_id" value="<?= (int) $memberId ?>">
+                    <?php endif; ?>
+                    
+                    <div style="display:flex;gap:12px;">
+                        <label style="display:block; flex:1; color: var(--muted); font-size: 14px;">Date *
+                            <input name="log_date" type="date" class="form-control" required value="<?= h(date('Y-m-d')) ?>" style="width: 100%; box-sizing: border-box;">
+                        </label>
+                        <label style="display:block; flex:1; color: var(--muted); font-size: 14px;">Weight (kg) *
+                            <input name="weight_kg" type="number" step="0.01" class="form-control" placeholder="e.g. 72.5" required style="width: 100%; box-sizing: border-box;">
+                        </label>
+                    </div>
+                    
+                    <div style="display:flex;gap:12px;">
+                        <label style="display:block; flex:1; color: var(--muted); font-size: 14px;">Body fat %
+                            <input name="body_fat_percent" type="number" step="0.01" class="form-control" placeholder="optional" style="width: 100%; box-sizing: border-box;">
+                        </label>
+                        <label style="display:block; flex:1; color: var(--muted); font-size: 14px;">Waist (cm)
+                            <input name="waist_cm" type="number" step="0.01" class="form-control" placeholder="optional" style="width: 100%; box-sizing: border-box;">
+                        </label>
+                    </div>
+                    
+                    <div style="display:flex;gap:12px;">
+                        <label style="display:block; flex:1; color: var(--muted); font-size: 14px;">Chest (cm)
+                            <input name="chest_cm" type="number" step="0.01" class="form-control" placeholder="optional" style="width: 100%; box-sizing: border-box;">
+                        </label>
+                        <label style="display:block; flex:1; color: var(--muted); font-size: 14px;">Arms (cm)
+                            <input name="arm_cm" type="number" step="0.01" class="form-control" placeholder="optional" style="width: 100%; box-sizing: border-box;">
+                        </label>
+                    </div>
+                    
+                    <label style="display:block; color: var(--muted); font-size: 14px;">Notes
+                        <input name="notes" class="form-control" placeholder="Any notes about this entry" style="width: 100%; box-sizing: border-box;">
+                    </label>
+                </form>
+            `,
+            showCancelButton: true,
+            confirmButtonText: 'Log progress',
+            confirmButtonColor: 'var(--lime-dark)',
+            cancelButtonColor: 'var(--line)',
+            background: 'var(--bg)',
+            color: 'var(--ink)',
+            preConfirm: () => {
+                const form = document.getElementById('progressForm');
+                if (!form.log_date.value || !form.weight_kg.value) {
+                    Swal.showValidationMessage('Please fill all required fields (Date & Weight)');
+                    return false;
+                }
+                form.submit();
+            }
+        });
+    }
+    </script>
     <?php
     render_footer();
 }
