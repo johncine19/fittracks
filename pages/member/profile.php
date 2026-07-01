@@ -91,14 +91,40 @@ function profile_page(): void
             notify_user((int) $user['user_id'], 'system', 'Workout plan updated', 'Your workout plan was recalculated from your updated physical profile.');
             flash('Physical profile and workout plan updated.', 'success');
             redirect('profile');
+        } elseif (isset($_POST['self_checkout'])) {
+            $attendanceId = (int) $_POST['attendance_id'];
+            db()->prepare('UPDATE attendance SET check_out_time = NOW() WHERE attendance_id = ? AND user_id = ?')->execute([$attendanceId, $user['user_id']]);
+            flash('You have successfully checked out.', 'success');
+            redirect('profile');
         }
     }
 
     $user = current_user();
+    
+    // Check for active check-in
+    $stmt = db()->prepare('SELECT attendance_id, check_in_time FROM attendance WHERE user_id = ? AND check_out_time IS NULL ORDER BY check_in_time DESC LIMIT 1');
+    $stmt->execute([$user['user_id']]);
+    $activeCheckin = $stmt->fetch();
+    
     render_header('Settings', $user);
 ?>
     <section class="panel wide">
         <h1>Settings</h1>
+
+        <?php if ($activeCheckin): ?>
+        <div class="flash" style="max-width: 500px; margin: 0 auto 2rem; border-color: var(--lime); background: rgba(200, 255, 0, 0.05); display: flex; justify-content: space-between; align-items: center; border-radius: 10px;">
+            <div>
+                <strong>You are currently checked in!</strong>
+                <div style="font-size: 13px; color: var(--muted); margin-top: 4px;">Checked in at <?= h(date('h:i A', strtotime($activeCheckin['check_in_time']))) ?></div>
+            </div>
+            <form method="post" style="margin:0;">
+                <?= csrf_field() ?>
+                <input type="hidden" name="self_checkout" value="1">
+                <input type="hidden" name="attendance_id" value="<?= (int) $activeCheckin['attendance_id'] ?>">
+                <button class="btn" style="background: var(--lime-dark); color: var(--bg); font-weight: bold; padding: 8px 16px;">Check Out</button>
+            </form>
+        </div>
+        <?php endif; ?>
 
         <!-- Account details display -->
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;">

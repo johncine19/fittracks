@@ -32,14 +32,26 @@ function scanner_page(): void
             exit;
         }
         
-        // Log attendance
-        $stmt = $pdo->prepare('INSERT INTO attendance (user_id, check_in_time, check_in_method, recorded_by) VALUES (?, NOW(), "qr_code", ?)');
-        $stmt->execute([$userId, $user['user_id']]);
+        // Check for open attendance record
+        $stmt = $pdo->prepare('SELECT attendance_id FROM attendance WHERE user_id = ? AND check_out_time IS NULL ORDER BY check_in_time DESC LIMIT 1');
+        $stmt->execute([$userId]);
+        $openRecord = $stmt->fetch();
+
+        if ($openRecord) {
+            // Check out
+            $pdo->prepare('UPDATE attendance SET check_out_time = NOW() WHERE attendance_id = ?')->execute([$openRecord['attendance_id']]);
+            $message = 'Check-out successful for ' . $member['first_name'] . ' ' . $member['last_name'];
+        } else {
+            // Check in
+            $stmt = $pdo->prepare('INSERT INTO attendance (user_id, check_in_time, check_in_method, recorded_by) VALUES (?, NOW(), "qr_code", ?)');
+            $stmt->execute([$userId, $user['user_id']]);
+            $message = 'Check-in successful for ' . $member['first_name'] . ' ' . $member['last_name'];
+        }
         
         // Invalidate token after single use
         $pdo->prepare('UPDATE users SET qr_token = NULL, qr_expires_at = NULL WHERE user_id = ?')->execute([$userId]);
         
-        echo json_encode(['success' => true, 'message' => 'Check-in successful for ' . $member['first_name'] . ' ' . $member['last_name']]);
+        echo json_encode(['success' => true, 'message' => $message]);
         exit;
     }
 

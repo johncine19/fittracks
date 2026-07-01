@@ -26,38 +26,10 @@ function attendance_page(): void
                 <h1>Attendance</h1>
                 <p>Record member check-ins and check-outs for gym visits and classes.</p>
             </div>
+            <button onclick="recordCheckin()" class="btn" style="background: var(--lime); color: var(--bg); font-weight: bold;">+ New Check-in</button>
         </div>
 
-        <div class="form-card">
-            <h3>Record Check-in</h3>
-            <form method="post" class="form inline-form">
-                <?= csrf_field() ?>
-                <input type="hidden" name="action" value="checkin">
-                <label>Member
-                    <select name="user_id">
-                        <?php foreach ($members as $member): ?>
-                            <option value="<?= (int) $member['user_id'] ?>"><?= h($member['name']) ?></option>
-                        <?php endforeach; ?>
-                    </select>
-                </label>
-                <label>Session
-                    <select name="schedule_id">
-                        <option value="">— Gym visit (no class) —</option>
-                        <?php foreach ($schedules as $schedule): ?>
-                            <option value="<?= (int) $schedule['schedule_id'] ?>"><?= h($schedule['label']) ?></option>
-                        <?php endforeach; ?>
-                    </select>
-                </label>
-                <label>Method
-                    <select name="check_in_method">
-                        <option>manual</option>
-                        <option>qr_code</option>
-                        <option>rfid</option>
-                    </select>
-                </label>
-                <label>&nbsp;<button>Check in</button></label>
-            </form>
-        </div>
+
 
         <p class="section-label">Recent attendance (last 100)</p>
         <?php if (!$rows): ?>
@@ -119,6 +91,60 @@ function attendance_page(): void
         </div>
         <?php endif; ?>
     </section>
+    
+    <script>
+    function recordCheckin() {
+        Swal.fire({
+            title: 'Record Check-in',
+            html: `
+                <form id="recordCheckinForm" method="post" style="text-align: left; display: flex; flex-direction: column; gap: 12px; margin-top: 15px;">
+                    <?= csrf_field() ?>
+                    <input type="hidden" name="action" value="checkin">
+                    
+                    <label style="display:block; color: var(--muted); font-size: 14px;">Member *
+                        <select name="user_id" class="form-control" style="width: 100%; box-sizing: border-box;" required>
+                            <option value="">Select Member...</option>
+                            <?php foreach ($members as $member): ?>
+                                <option value="<?= (int) $member['user_id'] ?>"><?= h($member['name']) ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                    </label>
+                    
+                    <label style="display:block; color: var(--muted); font-size: 14px;">Session
+                        <select name="schedule_id" class="form-control" style="width: 100%; box-sizing: border-box;">
+                            <option value="">— Gym visit (no class) —</option>
+                            <?php foreach ($schedules as $schedule): ?>
+                                <option value="<?= (int) $schedule['schedule_id'] ?>"><?= h($schedule['label']) ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                    </label>
+                    
+                    <label style="display:block; color: var(--muted); font-size: 14px;">Method *
+                        <select name="check_in_method" class="form-control" style="width: 100%; box-sizing: border-box;" required>
+                            <option value="manual">Manual</option>
+                            <option value="qr_code">QR Code</option>
+                            <option value="rfid">RFID</option>
+                        </select>
+                    </label>
+                </form>
+            `,
+            showCancelButton: true,
+            confirmButtonText: 'Check in',
+            confirmButtonColor: 'var(--lime-dark)',
+            cancelButtonColor: 'var(--line)',
+            background: 'var(--bg)',
+            color: 'var(--ink)',
+            preConfirm: () => {
+                const form = document.getElementById('recordCheckinForm');
+                if (!form.user_id.value || !form.check_in_method.value) {
+                    Swal.showValidationMessage('Please fill all required fields');
+                    return false;
+                }
+                form.submit();
+            }
+        });
+    }
+    </script>
     <?php
     render_footer();
 }
