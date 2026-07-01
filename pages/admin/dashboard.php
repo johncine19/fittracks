@@ -214,18 +214,44 @@ function dashboard(): void
     } else {
         $score    = get_cached_engagement_score((int) $user['user_id']);
         $category = get_engagement_category($score);
-        metric_cards([
-            'Engagement Score'  => $score . '/100 (' . $category . ')',
-            'Attendance records' => scalar('SELECT COUNT(*) FROM attendance WHERE user_id = ?', [$user['user_id']]),
-            'Progress logs'     => scalar('SELECT COUNT(*) FROM progress_logs WHERE user_id = ?', [$user['user_id']]),
-            'Class bookings'    => scalar('SELECT COUNT(*) FROM class_bookings WHERE user_id = ?', [$user['user_id']]),
-        ]);
-        echo '<p class="muted" style="font-size:13px;margin-top:-8px;margin-bottom:1.5rem;">
-            Your engagement score is calculated from your recent check-ins, class bookings, and progress logs.
-            The higher the score, the more active your gym routine.
-        </p>';
+        $attendance = scalar('SELECT COUNT(*) FROM attendance WHERE user_id = ?', [$user['user_id']]);
+        $progressLogs = scalar('SELECT COUNT(*) FROM progress_logs WHERE user_id = ?', [$user['user_id']]);
+        $classBookings = scalar('SELECT COUNT(*) FROM class_bookings WHERE user_id = ?', [$user['user_id']]);
+
+        // Welcome Banner
+        echo '<div class="animate-fade-in" style="background: linear-gradient(135deg, rgba(199,255,34,0.1) 0%, rgba(66,219,165,0.05) 100%); border: 1px solid rgba(199,255,34,0.3); border-radius: 12px; padding: 24px; margin-bottom: 24px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 16px; box-shadow: 0 4px 20px rgba(0,0,0,0.15); backdrop-filter: blur(16px);">';
+        echo '<div><h2 style="margin: 0 0 4px; font-size: 24px; color: var(--ink);">Welcome back, ' . h($user['first_name']) . '!</h2>';
+        echo '<p style="margin: 0; color: var(--muted); font-size: 14px;">Let\'s crush today\'s fitness goals. Here\'s your progress at a glance.</p></div>';
+        
+        // Hero Engagement Score
+        echo '<div style="background: var(--panel-soft); padding: 12px 20px; border-radius: 10px; border: 1px solid rgba(255,255,255,0.05); text-align: center;">';
+        echo '<span style="display: block; font-size: 11px; text-transform: uppercase; letter-spacing: 0.1em; color: var(--muted); margin-bottom: 4px;">Engagement Score</span>';
+        echo '<strong style="display: block; font-size: 32px; color: var(--lime); line-height: 1;">' . $score . '<span style="font-size: 16px; color: var(--muted);">/100</span></strong>';
+        echo '<span style="display: inline-block; margin-top: 6px; font-size: 11px; background: rgba(199,255,34,0.15); color: var(--lime); padding: 2px 8px; border-radius: 12px; font-weight: bold;">' . h(ucfirst(str_replace('_', ' ', $category))) . '</span>';
+        echo '</div></div>';
+
+        // Animated Metric Cards
+        echo '<div class="metrics animate-fade-in delay-1" style="margin-bottom: 24px; display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px;">';
+        $metrics = [
+            'Attendance Records' => $attendance,
+            'Progress Logs' => $progressLogs,
+            'Class Bookings' => $classBookings,
+        ];
+        foreach ($metrics as $k => $v) {
+            echo '<div class="metric" style="transition: transform 0.2s; cursor: default;" onmouseover="this.style.transform=\'translateY(-4px)\'" onmouseout="this.style.transform=\'translateY(0)\'">';
+            echo '<span style="font-size: 12px; text-transform: uppercase; letter-spacing: 0.1em;">' . h($k) . '</span>';
+            echo '<strong style="font-size: 28px; color: var(--ink);">' . h((string)$v) . '</strong>';
+            echo '</div>';
+        }
+        echo '</div>';
+
+        echo '<div class="animate-fade-in delay-2">';
         render_current_workout($user['user_id'], false);
+        echo '</div>';
+        
+        echo '<div class="animate-fade-in delay-3">';
         render_exercise_recommendations((int) $user['user_id'], true);
+        echo '</div>';
     }
     render_footer();
 }

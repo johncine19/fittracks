@@ -254,18 +254,23 @@ function render_exercise_recommendations(int $userId, bool $compact = false): vo
             gap: 0.75rem;
         }
         .rec-card {
-            background: var(--panel-soft, #1a1a2e);
-            border: 1px solid var(--line, #2a2a3e);
-            border-radius: 10px;
+            background: var(--panel-soft);
+            border: 1px solid var(--line);
+            border-radius: 12px;
             padding: 1rem;
-            transition: transform 0.15s, box-shadow 0.15s;
+            transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
         }
         .rec-card:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 4px 16px rgba(0,0,0,0.2);
+            transform: translateY(-4px);
+            box-shadow: 0 8px 30px rgba(199, 255, 34, 0.12);
+            border-color: rgba(199, 255, 34, 0.3);
         }
         .rec-card.rec-high {
             border-left: 3px solid var(--accent, #7c5cfc);
+            background: linear-gradient(90deg, rgba(124,92,252,0.05) 0%, transparent 100%);
         }
         .rec-card-head {
             display: flex;

@@ -1,10 +1,10 @@
 :root {
     color-scheme: dark;
     --bg: #090b10;
-    --sidebar: #0d1017;
-    --panel: #10131b;
-    --panel-soft: #1a1e28;
-    --line: #242936;
+    --sidebar: rgba(13, 16, 23, 0.85);
+    --panel: rgba(16, 19, 27, 0.65);
+    --panel-soft: rgba(26, 30, 40, 0.65);
+    --line: rgba(255, 255, 255, 0.08);
     --ink: #f8fafc;
     --muted: #8792ad;
     --lime: #c7ff22;
@@ -61,6 +61,44 @@ body {
     line-height: 1.45;
 }
 
+body.app-body::before {
+    content: "";
+    position: fixed;
+    top: -20%;
+    left: -10%;
+    width: 50vw;
+    height: 50vh;
+    background: radial-gradient(circle, rgba(199, 255, 34, 0.08) 0%, transparent 60%);
+    z-index: -1;
+    pointer-events: none;
+}
+
+body.app-body::after {
+    content: "";
+    position: fixed;
+    bottom: -20%;
+    right: -10%;
+    width: 60vw;
+    height: 60vh;
+    background: radial-gradient(circle, rgba(66, 219, 165, 0.05) 0%, transparent 60%);
+    z-index: -1;
+    pointer-events: none;
+}
+
+@keyframes fadeInUp {
+    from { opacity: 0; transform: translateY(15px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.animate-fade-in {
+    opacity: 0;
+    animation: fadeInUp 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+.delay-1 { animation-delay: 0.1s; }
+.delay-2 { animation-delay: 0.2s; }
+.delay-3 { animation-delay: 0.3s; }
+
+
 a {
     color: inherit;
 }
@@ -81,6 +119,8 @@ a {
     border-right: 1px solid var(--line);
     background: var(--sidebar);
     padding: 22px 12px;
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
 }
 
 .brand {
@@ -322,7 +362,9 @@ input[type="radio"] {
     background: var(--panel);
     border: 1px solid var(--line);
     border-radius: 10px;
-    box-shadow: none;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
 }
 
 .panel {
