@@ -61,6 +61,7 @@ function scanner_page(): void
 
     <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
     <script>
+    const csrfToken = <?= json_encode(csrf_token()) ?>;
     document.addEventListener('DOMContentLoaded', function() {
         let isProcessing = false;
         
@@ -75,7 +76,7 @@ function scanner_page(): void
             fetch('index.php?page=scanner', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                body: 'action=process_qr&qr_data=' + encodeURIComponent(decodedText)
+                body: 'action=process_qr&qr_data=' + encodeURIComponent(decodedText) + '&csrf_token=' + encodeURIComponent(csrfToken)
             })
             .then(r => r.json())
             .then(data => {
