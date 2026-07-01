@@ -154,17 +154,31 @@ HTML;
         echo '</form>';
         
         $sql = 'SELECT * FROM exercises WHERE 1=1';
+        $countSql = 'SELECT COUNT(*) FROM exercises WHERE 1=1';
         $params = [];
         
         if ($q !== '') {
             $sql .= ' AND name LIKE ?';
+            $countSql .= ' AND name LIKE ?';
             $params[] = '%' . $q . '%';
         }
         if ($cat !== '') {
             $sql .= ' AND category = ?';
+            $countSql .= ' AND category = ?';
             $params[] = $cat;
         }
-        $sql .= ' ORDER BY name ASC';
+        
+        // Count total for pagination
+        $stmtCount = $pdo->prepare($countSql);
+        $stmtCount->execute($params);
+        $total = (int) $stmtCount->fetchColumn();
+        
+        $pageNum = max(1, (int)($_GET['p'] ?? 1));
+        $limit = 10;
+        $offset = ($pageNum - 1) * $limit;
+        $totalPages = (int) ceil($total / $limit);
+
+        $sql .= ' ORDER BY name ASC LIMIT ' . $limit . ' OFFSET ' . $offset;
         
         $stmt = $pdo->prepare($sql);
         $stmt->execute($params);
@@ -183,6 +197,9 @@ HTML;
         ], $exercises);
         
         echo render_simple_table($tableRows, ['name', 'category', 'muscle_group', 'description', 'actions']);
+        
+        $queryString = '&q=' . urlencode($q) . '&cat=' . urlencode($cat);
+        render_pagination($pageNum, $totalPages, '?page=exercises' . $queryString);
     }
     
     echo '</section>';
