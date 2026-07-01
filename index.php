@@ -2,6 +2,7 @@
 declare(strict_types=1);
 
 require __DIR__ . '/core/bootstrap.php';
+require __DIR__ . '/pages/member/complete_exercise.php';
 
 try {
     seed_reference_data_if_empty();
@@ -40,6 +41,7 @@ try {
         'walk_ins' => 'walk_ins_page',
         'qr_attendance' => 'qr_attendance_page',
         'scanner' => 'scanner_page',
+        'complete_exercise' => 'complete_exercise_action',
     ];
 
     ($routes[$page] ?? $routes['dashboard'])();

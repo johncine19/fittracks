@@ -218,9 +218,14 @@ function dashboard(): void
         $progressLogs = scalar('SELECT COUNT(*) FROM progress_logs WHERE user_id = ?', [$user['user_id']]);
         $classBookings = scalar('SELECT COUNT(*) FROM class_bookings WHERE user_id = ?', [$user['user_id']]);
 
+        $stmt = db()->prepare('SELECT fitness_tier FROM member_profiles WHERE user_id = ?');
+        $stmt->execute([$user['user_id']]);
+        $tier = (int) ($stmt->fetchColumn() ?: 1);
+        $tierName = get_fitness_tier_name($tier);
+
         // Welcome Banner
         echo '<div class="animate-fade-in" style="background: linear-gradient(135deg, rgba(199,255,34,0.1) 0%, rgba(66,219,165,0.05) 100%); border: 1px solid rgba(199,255,34,0.3); border-radius: 12px; padding: 24px; margin-bottom: 24px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 16px; box-shadow: 0 4px 20px rgba(0,0,0,0.15); backdrop-filter: blur(16px);">';
-        echo '<div><h2 style="margin: 0 0 4px; font-size: 24px; color: var(--ink);">Welcome back, ' . h($user['first_name']) . '!</h2>';
+        echo '<div><div style="display:flex; align-items:center; gap: 12px; margin-bottom: 4px;"><h2 style="margin: 0; font-size: 24px; color: var(--ink);">Welcome back, ' . h($user['first_name']) . '!</h2><span style="background: var(--accent, #7c5cfc); color: #fff; padding: 3px 10px; border-radius: 12px; font-size: 12px; font-weight: bold; box-shadow: 0 2px 10px rgba(124,92,252,0.3);">' . h($tierName) . ' Tier</span></div>';
         echo '<p style="margin: 0; color: var(--muted); font-size: 14px;">Let\'s crush today\'s fitness goals. Here\'s your progress at a glance.</p></div>';
         
         // Hero Engagement Score
@@ -246,7 +251,7 @@ function dashboard(): void
         echo '</div>';
 
         echo '<div class="animate-fade-in delay-2">';
-        render_current_workout($user['user_id'], false);
+        render_current_workout($user['user_id'], true);
         echo '</div>';
         
         echo '<div class="animate-fade-in delay-3">';

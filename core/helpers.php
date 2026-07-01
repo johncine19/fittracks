@@ -131,3 +131,45 @@ function render_avatar(array $row, string $size = 'small'): string
     }
     return '<span class="avatar ' . $size . '">' . h($ini) . '</span>';
 }
+
+function get_fitness_tier_name(int $tier): string {
+    return match ($tier) {
+        1 => 'Newbie',
+        2 => 'Iron Recruit',
+        3 => 'Bronze Beast',
+        4 => 'Silver Spartan',
+        5 => 'Gold Gladiator',
+        default => 'Apex Legend',
+    };
+}
+
+function check_and_upgrade_tier(int $userId, int $planId): ?array {
+    $pdo = db();
+    $stmt = $pdo->prepare('SELECT COUNT(*) FROM exercise_completions WHERE user_id = ?');
+    $stmt->execute([$userId]);
+    $totalCompleted = (int) $stmt->fetchColumn();
+    
+    $stmt = $pdo->prepare('SELECT COUNT(*) FROM training_plan_exercises WHERE plan_id = ?');
+    $stmt->execute([$planId]);
+    $exercisesPerWeek = (int) $stmt->fetchColumn();
+    if ($exercisesPerWeek === 0) return null;
+    
+    $completedWeeks = (int) floor($totalCompleted / $exercisesPerWeek);
+    $newTier = 1;
+    if ($completedWeeks >= 24) $newTier = 5;
+    elseif ($completedWeeks >= 12) $newTier = 4;
+    elseif ($completedWeeks >= 4) $newTier = 3;
+    elseif ($completedWeeks >= 1) $newTier = 2;
+    
+    $stmt = $pdo->prepare('SELECT fitness_tier, completed_weeks FROM member_profiles WHERE user_id = ?');
+    $stmt->execute([$userId]);
+    $profile = $stmt->fetch();
+    
+    if ($profile && ((int)$profile['fitness_tier'] !== $newTier || (int)$profile['completed_weeks'] !== $completedWeeks)) {
+        $pdo->prepare('UPDATE member_profiles SET fitness_tier = ?, completed_weeks = ? WHERE user_id = ?')->execute([$newTier, $completedWeeks, $userId]);
+        if ($profile['fitness_tier'] < $newTier) {
+            return ['old_tier' => (int)$profile['fitness_tier'], 'new_tier' => $newTier, 'new_tier_name' => get_fitness_tier_name($newTier)];
+        }
+    }
+    return null;
+}

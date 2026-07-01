@@ -17,7 +17,11 @@ function render_simple_table(array $rows, array $columns): string
         foreach ($columns as $column) {
             $value = $row[$column] ?? '';
             if ($column === 'price') $value = money($value);
-            echo '<td>' . h((string) $value) . '</td>';
+            if ($column === 'action' || $column === 'actions') {
+                echo '<td>' . (string) $value . '</td>';
+            } else {
+                echo '<td>' . h((string) $value) . '</td>';
+            }
         }
         echo '</tr>';
     }
@@ -96,7 +100,7 @@ function dashboard_stat(string $label, string $value, string $subtext, string $t
     echo '</article>';
 }
 
-function render_current_workout(int $memberUserId, bool $withActions = true): void
+function render_current_workout(int $memberUserId, bool $dashboardMode = false): void
 {
     $stmt = db()->prepare(
         'SELECT * FROM training_plans
@@ -112,15 +116,17 @@ function render_current_workout(int $memberUserId, bool $withActions = true): vo
         return;
     }
 
-    metric_cards([
-        'Goal'       => ucwords(str_replace('_', ' ', (string) $plan['goal'])),
-        'Status'     => $plan['status'],
-        'Started'    => $plan['start_date'],
-        'Training days' => workout_day_count((int) $plan['plan_id']),
-    ]);
+    if (!$dashboardMode) {
+        metric_cards([
+            'Goal'       => ucwords(str_replace('_', ' ', (string) $plan['goal'])),
+            'Status'     => $plan['status'],
+            'Started'    => $plan['start_date'],
+            'Training days' => workout_day_count((int) $plan['plan_id']),
+        ]);
+    }
 
     $stmt = db()->prepare(
-        'SELECT tpe.day_of_week, tpe.sequence_order, tpe.sets, tpe.reps, tpe.rest_seconds,
+        'SELECT tpe.exercise_id, tpe.day_of_week, tpe.sequence_order, tpe.sets, tpe.reps, tpe.rest_seconds,
                 e.name, e.category, e.muscle_group
          FROM training_plan_exercises tpe
          JOIN exercises e ON e.exercise_id = tpe.exercise_id
@@ -136,26 +142,119 @@ function render_current_workout(int $memberUserId, bool $withActions = true): vo
         $grouped[$day][] = $row;
     }
 
-    foreach ($grouped as $day => $exercises) {
-        echo '<h3 style="margin:1.25rem 0 0.5rem;">' . h($day) . '</h3>';
-        $tableRows = array_map(static fn(array $ex): array => [
-            'name'         => $ex['name'],
-            'category'     => $ex['category'],
-            'muscle_group' => $ex['muscle_group'],
-            'sets'         => $ex['sets'],
-            'reps'         => $ex['reps'],
-            'rest_seconds' => $ex['rest_seconds'] . ' s',
-        ], $exercises);
-        echo render_simple_table($tableRows, ['name', 'category', 'muscle_group', 'sets', 'reps', 'rest_seconds']);
+    if ($dashboardMode) {
+        $todayNum = (int) date('N');
+        $todayName = workout_day_name($todayNum);
+        
+        echo '<h3 style="margin:1.25rem 0 0.5rem; color: var(--lime);">Today: ' . h($todayName) . '</h3>';
+        
+        if (isset($grouped[$todayName])) {
+            $exercises = $grouped[$todayName];
+            $tableRows = [];
+
+            $stmt = db()->prepare('SELECT exercise_id FROM exercise_completions WHERE user_id = ? AND plan_id = ? AND completed_date = ?');
+            $stmt->execute([$memberUserId, $plan['plan_id'], date('Y-m-d')]);
+            $completedIds = $stmt->fetchAll(PDO::FETCH_COLUMN);
+
+            foreach ($exercises as $ex) {
+                if (in_array($ex['exercise_id'], $completedIds)) continue;
+
+                $tableRows[] = [
+                    'name'         => $ex['name'],
+                    'category'     => $ex['category'],
+                    'muscle_group' => $ex['muscle_group'],
+                    'sets'         => $ex['sets'],
+                    'reps'         => $ex['reps'],
+                    'rest_seconds' => $ex['rest_seconds'] . ' s',
+                    'action'       => '<button type="button" class="btn btn-primary" style="padding: 4px 10px; font-size: 12px; background: var(--lime); color: var(--bg);" onclick="completeExercise(' . $plan['plan_id'] . ', ' . $ex['exercise_id'] . ')">Complete</button>'
+                ];
+            }
+
+            if ($tableRows) {
+                echo render_simple_table($tableRows, ['name', 'category', 'muscle_group', 'sets', 'reps', 'rest_seconds', 'action']);
+            } else if (count($exercises) > 0) {
+                echo '<div style="text-align:center; padding: 2rem; background: rgba(199,255,34,0.1); border-radius: 12px; border: 1px solid rgba(199,255,34,0.3); margin-bottom: 2rem;"><h3 style="color: var(--lime); margin: 0 0 8px;">🎉 All Done!</h3><p style="margin:0; color: var(--muted);">Great job! You\'ve crushed all your exercises for today!</p></div>';
+            } else {
+                echo '<p class="muted" style="margin-bottom: 2rem;">No workout scheduled for today. Enjoy your rest day!</p>';
+            }
+        } else {
+            echo '<p class="muted" style="margin-bottom: 2rem;">No workout scheduled for today. Enjoy your rest day!</p>';
+        }
+
+        echo '<p style="margin-top:1.5rem;"><a href="index.php?page=my_workout" class="btn btn-primary" style="display:inline-block; padding:8px 16px; text-decoration: none; border-radius: 6px;">View full workout plan &rarr;</a></p>';
+    } else {
+        foreach ($grouped as $day => $exercises) {
+            echo '<h3 style="margin:1.25rem 0 0.5rem;">' . h($day) . '</h3>';
+            $tableRows = array_map(static fn(array $ex): array => [
+                'name'         => $ex['name'],
+                'category'     => $ex['category'],
+                'muscle_group' => $ex['muscle_group'],
+                'sets'         => $ex['sets'],
+                'reps'         => $ex['reps'],
+                'rest_seconds' => $ex['rest_seconds'] . ' s',
+            ], $exercises);
+            echo render_simple_table($tableRows, ['name', 'category', 'muscle_group', 'sets', 'reps', 'rest_seconds']);
+        }
+
+        if (!$rows) {
+            echo '<p class="muted">No exercises assigned to this plan yet.</p>';
+        }
     }
 
-    if (!$rows) {
-        echo '<p class="muted">No exercises assigned to this plan yet.</p>';
+    if ($dashboardMode) {
+        $csrfToken = csrf_token();
+        echo <<<HTML
+        <script>
+        function completeExercise(planId, exerciseId) {
+            Swal.fire({
+                title: 'Completed already?',
+                text: "Are you sure you want to mark this exercise as finished?",
+                icon: 'question',
+                showCancelButton: true,
+                confirmButtonColor: 'var(--lime-dark)',
+                cancelButtonColor: 'var(--line)',
+                confirmButtonText: 'Yes, I crushed it!',
+                cancelButtonText: 'No',
+                background: 'var(--bg)',
+                color: 'var(--ink)'
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    fetch('index.php?page=complete_exercise', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                        body: 'plan_id=' + planId + '&exercise_id=' + exerciseId + '&csrf_token=' + encodeURIComponent('{$csrfToken}')
+                    })
+                    .then(r => r.json())
+                    .then(data => {
+                        if (data.success) {
+                            if (data.tier_upgraded) {
+                                Swal.fire({
+                                    title: 'Level Up!',
+                                    text: 'You have been promoted to ' + data.tier_upgraded.new_tier_name + '!',
+                                    icon: 'success',
+                                    background: 'var(--bg)',
+                                    color: 'var(--ink)'
+                                }).then(() => {
+                                    window.location.reload();
+                                });
+                            } else {
+                                window.location.reload();
+                            }
+                        } else {
+                            Swal.fire('Error', data.message, 'error');
+                        }
+                    })
+                    .catch(err => {
+                        console.error(err);
+                        Swal.fire('Error', 'Failed to complete exercise.', 'error');
+                    });
+                }
+            });
+        }
+        </script>
+HTML;
     }
 
-    if ($withActions) {
-        echo '<p style="margin-top:1rem;"><a href="index.php?page=my_workout">View full workout plan →</a></p>';
-    }
     echo '</section>';
 }
 
