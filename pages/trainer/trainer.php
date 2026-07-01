@@ -29,13 +29,6 @@ function trainer_members_page(): void
             $trainerName = $user['first_name'] . ' ' . $user['last_name'];
             notify_user($memberUserId, 'system', 'New workout plan', $trainerName . ' generated a personalised workout plan for you.');
             flash('Workout plan generated for client.');
-        } else {
-            $memberUserId = (int) post('member_user_id');
-            $text = trim((string) post('message_text'));
-            db()->prepare('INSERT INTO trainer_messages (sender_id, recipient_id, message_text) VALUES (?, ?, ?)')->execute([$user['user_id'], $memberUserId, $text]);
-            $trainerName = $user['first_name'] . ' ' . $user['last_name'];
-            notify_user($memberUserId, 'coach_message', 'Message from your trainer', $trainerName . ': ' . $text);
-            flash('Message sent.');
         }
         redirect('trainer_members');
     }
@@ -101,15 +94,12 @@ HTML;
                     </a>
                 </div>
                 
-                <form method="post" style="margin: 0; display: flex; gap: 10px; align-items: center; background: color-mix(in srgb, var(--bg) 50%, transparent); padding: 6px; border-radius: 6px; border: 1px solid var(--line);">
-                    {$csrf}
-                    <input type="hidden" name="action" value="message">
-                    <input type="hidden" name="member_user_id" value="{$memberId}">
-                    <input name="message_text" placeholder="Message client..." style="margin: 0; flex-grow: 1; border: none; background: transparent; padding: 4px; color: var(--ink); font-size: 13px; outline: none;" required>
-                    <button type="submit" class="btn t-btn-send">
-                        Send
-                    </button>
-                </form>
+                <a class="btn t-btn-secondary" href="index.php?page=messages&chat={$memberId}" style="display: flex; gap: 8px; justify-content: center; align-items: center; border-color: transparent; background: color-mix(in srgb, var(--bg) 80%, transparent);">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+                        <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+                    </svg>
+                    Message Client
+                </a>
             </div>
         </article>
 HTML;
