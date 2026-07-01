@@ -176,8 +176,21 @@ input[type="radio"] {
 }
 
 .side-nav {
-    display: grid;
+    display: flex;
+    flex-direction: column;
     gap: 5px;
+    flex: 1;
+    overflow-y: auto;
+    padding-right: 4px;
+}
+
+.side-nav::-webkit-scrollbar {
+    width: 4px;
+}
+
+.side-nav::-webkit-scrollbar-thumb {
+    background: var(--line);
+    border-radius: 4px;
 }
 
 .side-nav a,

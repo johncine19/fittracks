@@ -21,6 +21,7 @@ function render_header(string $title, ?array $user = null): void
                 'classes' => 'Classes',
                 'attendance' => 'Attendance',
                 'scanner' => 'Scan QR',
+                'exercises' => 'Exercises',
                 'reports' => 'Reports',
                 'notifications' => 'Notifications'
             ];
