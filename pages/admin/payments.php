@@ -53,50 +53,12 @@ function payments_page(): void
                 <h1>Payments</h1>
                 <p>Record and track membership payment transactions.</p>
             </div>
+            <?php if (can($user, ['admin'])): ?>
+                <button onclick="recordPayment()" class="btn" style="background: var(--lime); color: var(--bg); font-weight: bold;">+ New Payment</button>
+            <?php endif; ?>
         </div>
 
-        <?php if (can($user, ['admin'])): ?>
-        <div class="form-card">
-            <h3>Record Payment</h3>
-            <form method="post" class="form inline-form">
-                <?= csrf_field() ?>
-                <label>Membership
-                    <select name="membership_id">
-                        <?php foreach ($memberships as $membership): ?>
-                            <option value="<?= (int) $membership['membership_id'] ?>"><?= h($membership['label']) ?></option>
-                        <?php endforeach; ?>
-                    </select>
-                </label>
-                <label>Amount
-                    <input name="amount" type="number" step="0.01" placeholder="0.00" required>
-                </label>
-                <label>Payment date
-                    <input name="payment_date" type="date" required value="<?= h(date('Y-m-d')) ?>">
-                </label>
-                <label>Method
-                    <select name="payment_method">
-                        <option>cash</option>
-                        <option>card</option>
-                        <option>bank_transfer</option>
-                        <option>online</option>
-                        <option>other</option>
-                    </select>
-                </label>
-                <label>Status
-                    <select name="status">
-                        <option>paid</option>
-                        <option>pending</option>
-                        <option>overdue</option>
-                        <option>refunded</option>
-                    </select>
-                </label>
-                <label>Receipt #
-                    <input name="receipt_number" placeholder="Auto-generated">
-                </label>
-                <label>&nbsp;<button>Save payment</button></label>
-            </form>
-        </div>
-        <?php endif; ?>
+
 
         <p class="section-label">Payment history</p>
         <?php if (!$rows): ?>
@@ -145,6 +107,77 @@ function payments_page(): void
         <?php render_pagination($page, $totalPages, '?page=payments'); ?>
         <?php endif; ?>
     </section>
+    
+    <?php if (can($user, ['admin'])): ?>
+    <script>
+    function recordPayment() {
+        Swal.fire({
+            title: 'Record Payment',
+            html: `
+                <form id="recordPaymentForm" method="post" style="text-align: left; display: flex; flex-direction: column; gap: 12px; margin-top: 15px;">
+                    <?= csrf_field() ?>
+                    
+                    <label style="display:block; color: var(--muted); font-size: 14px;">Membership *
+                        <select name="membership_id" class="form-control" style="width: 100%; box-sizing: border-box;" required>
+                            <option value="">Select Membership...</option>
+                            <?php foreach ($memberships as $membership): ?>
+                                <option value="<?= (int) $membership['membership_id'] ?>"><?= h($membership['label']) ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                    </label>
+                    
+                    <div style="display:flex;gap:12px;">
+                        <label style="display:block; flex:1; color: var(--muted); font-size: 14px;">Amount *
+                            <input name="amount" type="number" step="0.01" class="form-control" placeholder="0.00" style="width: 100%; box-sizing: border-box;" required>
+                        </label>
+                        <label style="display:block; flex:1; color: var(--muted); font-size: 14px;">Payment date *
+                            <input name="payment_date" type="date" class="form-control" value="<?= h(date('Y-m-d')) ?>" style="width: 100%; box-sizing: border-box;" required>
+                        </label>
+                    </div>
+                    
+                    <div style="display:flex;gap:12px;">
+                        <label style="display:block; flex:1; color: var(--muted); font-size: 14px;">Method *
+                            <select name="payment_method" class="form-control" style="width: 100%; box-sizing: border-box;" required>
+                                <option value="cash">Cash</option>
+                                <option value="card">Card</option>
+                                <option value="bank_transfer">Bank Transfer</option>
+                                <option value="online">Online</option>
+                                <option value="other">Other</option>
+                            </select>
+                        </label>
+                        <label style="display:block; flex:1; color: var(--muted); font-size: 14px;">Status *
+                            <select name="status" class="form-control" style="width: 100%; box-sizing: border-box;" required>
+                                <option value="paid">Paid</option>
+                                <option value="pending">Pending</option>
+                                <option value="overdue">Overdue</option>
+                                <option value="refunded">Refunded</option>
+                            </select>
+                        </label>
+                    </div>
+                    
+                    <label style="display:block; color: var(--muted); font-size: 14px;">Receipt #
+                        <input name="receipt_number" class="form-control" placeholder="Auto-generated" style="width: 100%; box-sizing: border-box;">
+                    </label>
+                </form>
+            `,
+            showCancelButton: true,
+            confirmButtonText: 'Save Payment',
+            confirmButtonColor: 'var(--lime-dark)',
+            cancelButtonColor: 'var(--line)',
+            background: 'var(--bg)',
+            color: 'var(--ink)',
+            preConfirm: () => {
+                const form = document.getElementById('recordPaymentForm');
+                if (!form.membership_id.value || !form.amount.value || !form.payment_date.value) {
+                    Swal.showValidationMessage('Please fill all required fields');
+                    return false;
+                }
+                form.submit();
+            }
+        });
+    }
+    </script>
+    <?php endif; ?>
     <?php
     render_footer();
 }
