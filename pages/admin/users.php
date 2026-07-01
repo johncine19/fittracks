@@ -122,10 +122,21 @@ function users_page(): void
     $limit = 10;
     $offset = ($page - 1) * $limit;
 
-    $total = (int) scalar('SELECT COUNT(*) FROM users');
-    $totalPages = (int) ceil($total / $limit);
+    $tab = $_GET['tab'] ?? 'all';
+    $where = '1=1';
+    $params = [];
+    if (in_array($tab, ['admin', 'trainer', 'member'], true)) {
+        $where = 'role = ?';
+        $params[] = $tab;
+    }
 
-    $rows = db()->query('SELECT * FROM users ORDER BY created_at DESC LIMIT ' . $limit . ' OFFSET ' . $offset)->fetchAll();
+    $total = (int) scalar('SELECT COUNT(*) FROM users WHERE ' . $where, $params);
+    $totalPages = max(1, (int) ceil($total / $limit));
+
+    $stmt = db()->prepare('SELECT * FROM users WHERE ' . $where . ' ORDER BY created_at DESC LIMIT ' . (int)$limit . ' OFFSET ' . (int)$offset);
+    $stmt->execute($params);
+    $rows = $stmt->fetchAll();
+    
     render_header('Users', $user);
     ?>
     <section class="panel">
@@ -181,7 +192,16 @@ function users_page(): void
             </div>
         </dialog>
 
-        <p class="section-label">All users (<?= $total ?>)</p>
+        <div style="display:flex; justify-content:space-between; align-items:flex-end; margin-bottom: 12px; border-bottom: 1px solid var(--line); padding-bottom: 8px;">
+            <div style="display:flex; gap:16px;">
+                <a href="?page=users&tab=all" style="color: <?= $tab === 'all' ? 'var(--lime)' : 'var(--muted)' ?>; font-weight: <?= $tab === 'all' ? '700' : '400' ?>; text-decoration:none; padding-bottom:4px; border-bottom: 2px solid <?= $tab === 'all' ? 'var(--lime)' : 'transparent' ?>;">All Users</a>
+                <a href="?page=users&tab=admin" style="color: <?= $tab === 'admin' ? 'var(--lime)' : 'var(--muted)' ?>; font-weight: <?= $tab === 'admin' ? '700' : '400' ?>; text-decoration:none; padding-bottom:4px; border-bottom: 2px solid <?= $tab === 'admin' ? 'var(--lime)' : 'transparent' ?>;">Admins</a>
+                <a href="?page=users&tab=trainer" style="color: <?= $tab === 'trainer' ? 'var(--lime)' : 'var(--muted)' ?>; font-weight: <?= $tab === 'trainer' ? '700' : '400' ?>; text-decoration:none; padding-bottom:4px; border-bottom: 2px solid <?= $tab === 'trainer' ? 'var(--lime)' : 'transparent' ?>;">Trainers</a>
+                <a href="?page=users&tab=member" style="color: <?= $tab === 'member' ? 'var(--lime)' : 'var(--muted)' ?>; font-weight: <?= $tab === 'member' ? '700' : '400' ?>; text-decoration:none; padding-bottom:4px; border-bottom: 2px solid <?= $tab === 'member' ? 'var(--lime)' : 'transparent' ?>;">Members</a>
+            </div>
+            <p class="section-label" style="margin:0; border:none; padding:0;"><?= $total ?> found</p>
+        </div>
+        
         <?php if (!$rows): ?>
             <div class="empty-state">
                 <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
@@ -246,7 +266,7 @@ function users_page(): void
                 </tbody>
             </table>
         </div>
-        <?php render_pagination($page, $totalPages, '?page=users'); ?>
+        <?php render_pagination($page, $totalPages, '?page=users&tab=' . urlencode($tab)); ?>
         <?php endif; ?>
     </section>
 

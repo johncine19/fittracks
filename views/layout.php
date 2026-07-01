@@ -11,8 +11,7 @@ function render_header(string $title, ?array $user = null): void
         $nav['dashboard'] = 'Dashboard';
         if ($role === 'admin') {
             $nav += [
-                'users' => 'Users',
-                'members' => 'Members',
+                'users' => 'Users Accounts',
                 'trainer_assignments' => 'Trainers',
                 'plans' => 'Plans',
                 'memberships' => 'Memberships',

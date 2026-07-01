@@ -26,7 +26,6 @@ try {
         'users' => 'users_page',
         'trainer_assignments' => 'trainer_assignments_page',
         'plans' => 'plans_page',
-        'members' => 'members_page',
         'memberships' => 'memberships_page',
         'payments' => 'payments_page',
         'classes' => 'classes_page',

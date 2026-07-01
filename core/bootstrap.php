@@ -48,7 +48,6 @@ require __DIR__ . '/../pages/admin/users.php';
 require __DIR__ . '/../pages/admin/plans.php';
 
 // --- Admin: Members & Finance ---
-require __DIR__ . '/../pages/admin/members.php';
 require __DIR__ . '/../pages/admin/memberships.php';
 require __DIR__ . '/../pages/admin/payments.php';
 
