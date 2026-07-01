@@ -81,6 +81,39 @@ function users_page(): void
         } elseif (post('action') === 'status') {
             db()->prepare('UPDATE users SET status = ? WHERE user_id = ?')->execute([post('status'), post('user_id')]);
             flash('User status updated.');
+        } elseif (post('action') === 'edit_user') {
+            $adminPassword = (string) post('admin_password');
+            $stmt = db()->prepare('SELECT password_hash FROM users WHERE user_id = ?');
+            $stmt->execute([$user['user_id']]);
+            $adminData = $stmt->fetch();
+            
+            if (!password_verify($adminPassword, $adminData['password_hash'])) {
+                flash('Incorrect Admin password. Changes aborted.', 'danger');
+                redirect('users');
+                return;
+            }
+
+            $editUserId = (int) post('user_id');
+            $newPassword = (string) post('new_password');
+            $phone = post('phone') !== '' ? preg_replace('/[^0-9]/', '', (string)post('phone')) : null;
+            
+            if ($newPassword !== '') {
+                if (!is_acceptable_password($newPassword)) {
+                    flash('New password must be at least 8 characters, with a letter and a number.', 'danger');
+                    redirect('users');
+                    return;
+                }
+                $hash = password_hash($newPassword, PASSWORD_DEFAULT);
+                db()->prepare('UPDATE users SET first_name=?, last_name=?, email=?, phone=?, role=?, password_hash=? WHERE user_id=?')
+                    ->execute([post('first_name'), post('last_name'), post('email'), $phone, post('role'), $hash, $editUserId]);
+            } else {
+                db()->prepare('UPDATE users SET first_name=?, last_name=?, email=?, phone=?, role=? WHERE user_id=?')
+                    ->execute([post('first_name'), post('last_name'), post('email'), $phone, post('role'), $editUserId]);
+            }
+            flash('User updated successfully.');
+        } elseif (post('action') === 'delete_user') {
+            db()->prepare('DELETE FROM users WHERE user_id=?')->execute([post('user_id')]);
+            flash('User deleted.');
         }
         redirect('users');
     }
@@ -187,17 +220,26 @@ function users_page(): void
                         <td><span class="<?= $statusClass ?>"><?= h($row['status']) ?></span></td>
                         <td style="color:var(--muted);font-size:12px"><?= h(date('M j, Y', strtotime($row['created_at']))) ?></td>
                         <td>
-                            <form method="post" class="row-actions">
-                                <?= csrf_field() ?>
-                                <input type="hidden" name="action" value="status">
-                                <input type="hidden" name="user_id" value="<?= (int) $row['user_id'] ?>">
-                                <select name="status" style="width:auto;padding:6px 10px;font-size:12px">
-                                    <option <?= selected('active', $row['status']) ?>>active</option>
-                                    <option <?= selected('inactive', $row['status']) ?>>inactive</option>
-                                    <option <?= selected('suspended', $row['status']) ?>>suspended</option>
-                                </select>
-                                <button class="btn-sm btn-ghost">Update</button>
-                            </form>
+                            <div style="display:flex;gap:4px;align-items:center;">
+                                <form method="post" class="row-actions" style="margin:0;">
+                                    <?= csrf_field() ?>
+                                    <input type="hidden" name="action" value="status">
+                                    <input type="hidden" name="user_id" value="<?= (int) $row['user_id'] ?>">
+                                    <select name="status" style="width:auto;padding:6px 10px;font-size:12px;margin:0">
+                                        <option <?= selected('active', $row['status']) ?>>active</option>
+                                        <option <?= selected('inactive', $row['status']) ?>>inactive</option>
+                                        <option <?= selected('suspended', $row['status']) ?>>suspended</option>
+                                    </select>
+                                    <button type="submit" class="btn-sm btn-ghost">Update</button>
+                                </form>
+                                <button onclick="editUser(<?= htmlspecialchars(json_encode($row)) ?>)" class="btn btn-secondary" style="padding:4px 8px;font-size:12px;margin-left:8px;">Edit</button>
+                                <form method="post" style="margin:0;" onsubmit="return confirm('Delete this user? This cannot be undone.');">
+                                    <?= csrf_field() ?>
+                                    <input type="hidden" name="action" value="delete_user">
+                                    <input type="hidden" name="user_id" value="<?= (int) $row['user_id'] ?>">
+                                    <button type="submit" class="btn btn-danger" style="padding:4px 8px;font-size:12px;">Delete</button>
+                                </form>
+                            </div>
                         </td>
                     </tr>
                 <?php endforeach; ?>
@@ -207,6 +249,101 @@ function users_page(): void
         <?php render_pagination($page, $totalPages, '?page=users'); ?>
         <?php endif; ?>
     </section>
+
+    <script>
+    function editUser(u) {
+        Swal.fire({
+            title: 'Edit User',
+            html: `
+                <form id="editUserForm" method="post" style="text-align: left; display: flex; flex-direction: column; gap: 12px; margin-top: 15px;">
+                    <?= csrf_field() ?>
+                    <input type="hidden" name="action" value="edit_user">
+                    <input type="hidden" name="user_id" id="eu_id">
+                    <input type="hidden" name="admin_password" id="eu_admin_pass">
+                    <div style="display:flex;gap:12px;">
+                        <label style="display:block; flex:1; color: var(--muted); font-size: 14px;">First name * <input name="first_name" id="eu_fn" class="form-control" required style="width: 100%; box-sizing: border-box;"></label>
+                        <label style="display:block; flex:1; color: var(--muted); font-size: 14px;">Last name * <input name="last_name" id="eu_ln" class="form-control" required style="width: 100%; box-sizing: border-box;"></label>
+                    </div>
+                    <label style="display:block; color: var(--muted); font-size: 14px;">Email * <input type="email" name="email" id="eu_email" class="form-control" required style="width: 100%; box-sizing: border-box;"></label>
+                    <label style="display:block; color: var(--muted); font-size: 14px;">Phone <input type="tel" name="phone" id="eu_phone" class="form-control" style="width: 100%; box-sizing: border-box;"></label>
+                    <label style="display:block; color: var(--muted); font-size: 14px;">Role *
+                        <select name="role" id="eu_role" class="form-control" style="width: 100%; box-sizing: border-box;">
+                            <option value="admin">Admin</option>
+                            <option value="trainer">Trainer</option>
+                            <option value="member">Member</option>
+                        </select>
+                    </label>
+                    <label style="display:block; color: var(--muted); font-size: 14px;">New Password <small>(leave blank to keep current)</small> <input type="password" name="new_password" id="eu_pass" class="form-control" style="width: 100%; box-sizing: border-box;"></label>
+                </form>
+            `,
+            didOpen: () => {
+                document.getElementById('eu_id').value = u.user_id;
+                document.getElementById('eu_fn').value = u.first_name;
+                document.getElementById('eu_ln').value = u.last_name;
+                document.getElementById('eu_email').value = u.email;
+                document.getElementById('eu_phone').value = u.phone || '';
+                document.getElementById('eu_role').value = u.role;
+            },
+            showCancelButton: true,
+            confirmButtonText: 'Save Changes',
+            confirmButtonColor: 'var(--lime-dark)',
+            cancelButtonColor: 'var(--line)',
+            background: 'var(--bg)',
+            color: 'var(--ink)',
+            preConfirm: () => {
+                const form = document.getElementById('editUserForm');
+                if (!form.first_name.value || !form.last_name.value || !form.email.value) {
+                    Swal.showValidationMessage('Name and email are required');
+                    return false;
+                }
+                
+                // Capture data before the first modal is destroyed
+                const formData = new FormData(form);
+                
+                // Return a Promise that resolves when the nested Swal finishes
+                return new Promise((resolve) => {
+                    Swal.fire({
+                        title: 'Confirm Admin Password',
+                        text: 'Please enter your password to save these changes.',
+                        input: 'password',
+                        inputAttributes: {
+                            autocapitalize: 'off',
+                            autocorrect: 'off'
+                        },
+                        showCancelButton: true,
+                        confirmButtonText: 'Confirm',
+                        confirmButtonColor: 'var(--lime-dark)',
+                        cancelButtonColor: 'var(--line)',
+                        background: 'var(--bg)',
+                        color: 'var(--ink)',
+                        preConfirm: (password) => {
+                            if (!password) {
+                                Swal.showValidationMessage('Admin password is required');
+                                return false;
+                            }
+                            
+                            formData.set('admin_password', password);
+                            
+                            // Create a temporary form to submit the data
+                            const tempForm = document.createElement('form');
+                            tempForm.method = 'post';
+                            tempForm.style.display = 'none';
+                            for (let [key, value] of formData.entries()) {
+                                const input = document.createElement('input');
+                                input.type = 'hidden';
+                                input.name = key;
+                                input.value = value;
+                                tempForm.appendChild(input);
+                            }
+                            document.body.appendChild(tempForm);
+                            tempForm.submit();
+                        }
+                    });
+                });
+            }
+        });
+    }
+    </script>
     <?php
     render_footer();
 }
