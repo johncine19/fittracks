@@ -53,6 +53,13 @@ function qr_attendance_page(): void
         <div id="qr-display" style="display: none;">
             <div id="qr-container" style="margin: 20px auto; padding: 20px; background: white; display: inline-block; border-radius: 8px; position: relative;"></div>
             <p class="muted" id="qr-timer"></p>
+            
+            <div id="qr-manual-refresh" style="display: none; margin-top: 15px;">
+                <button type="button" class="btn" style="background: var(--panel-soft); border: 1px solid var(--line); color: var(--muted); font-size: 13px; padding: 6px 16px;" onclick="manualRefresh()">
+                    Regenerate (<span id="qr-refreshes-left">2</span> left)
+                </button>
+            </div>
+            
             <div id="qr-expired" style="display: none; margin-top: 12px;">
                 <p style="color: var(--danger); font-weight: 700; margin-bottom: 12px;">This QR code has expired</p>
                 <button type="button" class="btn btn-primary" onclick="refreshQR()">Regenerate QR Code</button>
@@ -90,11 +97,20 @@ function qr_attendance_page(): void
         }
     }
 
+    let manualRegeneratesLeft = 2;
+
     function showQR(token, secondsRemaining) {
         document.getElementById('qr-prompt').style.display = 'none';
         document.getElementById('qr-display').style.display = 'block';
         document.getElementById('qr-expired').style.display = 'none';
         document.getElementById('qr-timer').style.display = 'block';
+        
+        if (manualRegeneratesLeft > 0) {
+            document.getElementById('qr-manual-refresh').style.display = 'block';
+            document.getElementById('qr-refreshes-left').textContent = manualRegeneratesLeft;
+        } else {
+            document.getElementById('qr-manual-refresh').style.display = 'none';
+        }
 
         generateQR(userId + ':' + token);
         startTimer(secondsRemaining);
@@ -116,6 +132,7 @@ function qr_attendance_page(): void
                 clearInterval(window.qrInterval);
                 document.getElementById('qr-container').style.opacity = '0.25';
                 timerEl.style.display = 'none';
+                document.getElementById('qr-manual-refresh').style.display = 'none';
                 expiredEl.style.display = 'block';
                 return;
             }
@@ -130,6 +147,12 @@ function qr_attendance_page(): void
             timeLeft--;
             renderTimer();
         }, 1000);
+    }
+    
+    function manualRefresh() {
+        if (manualRegeneratesLeft <= 0) return;
+        manualRegeneratesLeft--;
+        refreshQR();
     }
 
     function refreshQR() {
