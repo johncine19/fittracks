@@ -45,32 +45,7 @@ function trainer_assignments_page(): void
                 <h1>Trainer Assignments</h1>
                 <p>Link coaches to members and manage active pairings.</p>
             </div>
-        </div>
-
-        <div class="form-card">
-            <h3>New Assignment</h3>
-            <form method="post" class="form inline-form">
-                <?= csrf_field() ?>
-                <input type="hidden" name="action" value="create">
-                <label>Trainer
-                    <select name="trainer_id">
-                        <?php foreach ($coaches as $trainer): ?>
-                            <option value="<?= (int) $trainer['trainer_id'] ?>"><?= h($trainer['name']) ?></option>
-                        <?php endforeach; ?>
-                    </select>
-                </label>
-                <label>Member
-                    <select name="member_user_id">
-                        <?php foreach ($members as $member): ?>
-                            <option value="<?= (int) $member['user_id'] ?>"><?= h($member['name']) ?></option>
-                        <?php endforeach; ?>
-                    </select>
-                </label>
-                <label>Assigned date
-                    <input name="assigned_date" type="date" value="<?= h(date('Y-m-d')) ?>" required>
-                </label>
-                <label>&nbsp;<button>Assign</button></label>
-            </form>
+            <button onclick="addAssignment()" class="btn" style="background: var(--lime); color: var(--bg); font-weight: bold;">+ New Assignment</button>
         </div>
 
         <p class="section-label">All assignments</p>
@@ -131,6 +106,56 @@ function trainer_assignments_page(): void
         </div>
         <?php endif; ?>
     </section>
+    
+    <script>
+    function addAssignment() {
+        Swal.fire({
+            title: 'New Assignment',
+            html: `
+                <form id="addAssignmentForm" method="post" style="text-align: left; display: flex; flex-direction: column; gap: 12px; margin-top: 15px;">
+                    <?= csrf_field() ?>
+                    <input type="hidden" name="action" value="create">
+                    
+                    <label style="display:block; color: var(--muted); font-size: 14px;">Trainer *
+                        <select name="trainer_id" class="form-control" style="width: 100%; box-sizing: border-box;" required>
+                            <option value="">Select Trainer...</option>
+                            <?php foreach ($coaches as $trainer): ?>
+                                <option value="<?= (int) $trainer['trainer_id'] ?>"><?= h($trainer['name']) ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                    </label>
+                    
+                    <label style="display:block; color: var(--muted); font-size: 14px;">Member *
+                        <select name="member_user_id" class="form-control" style="width: 100%; box-sizing: border-box;" required>
+                            <option value="">Select Member...</option>
+                            <?php foreach ($members as $member): ?>
+                                <option value="<?= (int) $member['user_id'] ?>"><?= h($member['name']) ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                    </label>
+                    
+                    <label style="display:block; color: var(--muted); font-size: 14px;">Assigned date *
+                        <input type="date" name="assigned_date" class="form-control" value="<?= h(date('Y-m-d')) ?>" style="width: 100%; box-sizing: border-box;" required>
+                    </label>
+                </form>
+            `,
+            showCancelButton: true,
+            confirmButtonText: 'Assign',
+            confirmButtonColor: 'var(--lime-dark)',
+            cancelButtonColor: 'var(--line)',
+            background: 'var(--bg)',
+            color: 'var(--ink)',
+            preConfirm: () => {
+                const form = document.getElementById('addAssignmentForm');
+                if (!form.trainer_id.value || !form.member_user_id.value || !form.assigned_date.value) {
+                    Swal.showValidationMessage('Please fill all required fields');
+                    return false;
+                }
+                form.submit();
+            }
+        });
+    }
+    </script>
     <?php
     render_footer();
 }
