@@ -113,12 +113,74 @@ function render_header(string $title, ?array $user = null): void
                         <?php if ($user && ($user['role'] ?? '') === 'member'): ?>
                             <?php $activeCheckinId = scalar('SELECT attendance_id FROM attendance WHERE user_id = ? AND check_out_time IS NULL ORDER BY check_in_time DESC LIMIT 1', [$user['user_id']]); ?>
                             <?php if ($activeCheckinId): ?>
-                                <form method="post" action="index.php?page=profile" style="margin:0;">
+                                <!-- Hidden checkout form — submitted via JS after optional rating -->
+                                <form id="checkout-form" method="post" action="index.php?page=profile" style="display:none;">
                                     <?= csrf_field() ?>
                                     <input type="hidden" name="self_checkout" value="1">
                                     <input type="hidden" name="attendance_id" value="<?= (int) $activeCheckinId ?>">
-                                    <button class="btn" data-confirm="Are you sure you want to check out?" style="background: var(--lime); color: var(--bg); font-weight: bold; padding: 0 12px; font-size: 13px; border-radius: 20px; height: 34px; display: flex; align-items: center; border: none; cursor: pointer; white-space: nowrap;" title="Check Out">Check Out</button>
+                                    <input type="hidden" name="rating"  id="checkout-rating-val"  value="">
+                                    <input type="hidden" name="comment" id="checkout-comment-val" value="">
                                 </form>
+                                <button type="button" id="checkout-btn" style="background: var(--lime); color: var(--bg); font-weight: bold; padding: 0 12px; font-size: 13px; border-radius: 20px; height: 34px; display: flex; align-items: center; border: none; cursor: pointer; white-space: nowrap;">Check Out</button>
+                                <script>
+                                (function() {
+                                    var btn = document.getElementById('checkout-btn');
+                                    if (!btn) return;
+                                    btn.addEventListener('click', function() {
+                                        var selectedRating = 0;
+
+                                        var starHtml = '<div style="display:flex;justify-content:center;gap:10px;margin:12px 0 16px;" id="swal-star-row">'
+                                            + [1,2,3,4,5].map(function(v){
+                                                return '<span class="co-star" data-val="' + v + '" style="font-size:2rem;cursor:pointer;color:rgba(255,255,255,0.15);transition:color .15s;line-height:1;">★</span>';
+                                              }).join('')
+                                            + '</div>';
+
+                                        Swal.fire({
+                                            title: ' How was your session?',
+                                            html: '<p style="color:var(--muted,#8792ad);font-size:13px;margin:0 0 4px;">Rate your experience (optional)</p>'
+                                                + starHtml
+                                                + '<textarea id="swal-comment" placeholder="Any comments? (optional)" rows="3" style="width:100%;padding:10px 12px;border-radius:8px;border:1px solid rgba(255,255,255,0.1);background:rgba(255,255,255,0.05);color:var(--ink,#f8fafc);font-size:14px;resize:vertical;box-sizing:border-box;"></textarea>',
+                                            background: 'var(--surface-color, #18251eff)',
+                                            color: 'var(--ink, #46ab5dff)',
+                                            showCancelButton: true,
+                                            confirmButtonText: 'Submit & Check Out',
+                                            cancelButtonText: 'Skip & Check Out',
+                                            confirmButtonColor: 'var(--lime, #c7ff22)',
+                                            cancelButtonColor: 'transparent',
+                                            customClass: { cancelButton: 'swal-skip-btn' },
+                                            didOpen: function() {
+                                                var stars = document.querySelectorAll('.co-star');
+                                                stars.forEach(function(star) {
+                                                    star.addEventListener('mouseover', function() {
+                                                        var val = parseInt(star.dataset.val);
+                                                        stars.forEach(function(s,i){ s.style.color = i < val ? '#c7ff22' : 'rgba(255,255,255,0.15)'; });
+                                                    });
+                                                    star.addEventListener('mouseout', function() {
+                                                        stars.forEach(function(s,i){ s.style.color = i < selectedRating ? '#c7ff22' : 'rgba(255,255,255,0.15)'; });
+                                                    });
+                                                    star.addEventListener('click', function() {
+                                                        selectedRating = parseInt(star.dataset.val);
+                                                        stars.forEach(function(s,i){ s.style.color = i < selectedRating ? '#c7ff22' : 'rgba(255,255,255,0.15)'; });
+                                                    });
+                                                });
+                                            },
+                                            preConfirm: function() {
+                                                document.getElementById('checkout-rating-val').value  = selectedRating || '';
+                                                document.getElementById('checkout-comment-val').value = (document.getElementById('swal-comment').value || '').trim();
+                                            }
+                                        }).then(function(result) {
+                                            if (result.isConfirmed) {
+                                                document.getElementById('checkout-form').submit();
+                                            } else if (result.dismiss === Swal.DismissReason.cancel) {
+                                                // Skip — clear rating fields then submit
+                                                document.getElementById('checkout-rating-val').value  = '';
+                                                document.getElementById('checkout-comment-val').value = '';
+                                                document.getElementById('checkout-form').submit();
+                                            }
+                                        });
+                                    });
+                                })();
+                                </script>
                             <?php endif; ?>
                         <?php endif; ?>
                         <?php render_notification_bell($user, $page); ?>

@@ -7,6 +7,38 @@ function landing_page(): void
     if (current_user()) {
         redirect('dashboard');
     }
+    // ── Live landing-page stats ──────────────────────────────────────────
+    $stat_members  = (int) scalar('SELECT COUNT(*) FROM users WHERE role = "member" AND status = "active"');
+    $stat_trainers = (int) scalar('SELECT COUNT(*) FROM users WHERE role = "trainer" AND status = "active"');
+    $stat_classes  = (int) scalar(
+        'SELECT COUNT(*) FROM class_schedules
+         WHERE YEARWEEK(start_datetime, 1) = YEARWEEK(NOW(), 1)'
+    );
+
+    // Satisfaction rate from checkout_ratings (requires table to exist)
+    $stat_satisfaction     = null;   // null = show "--"
+    $live_testimonials     = [];
+    try {
+        $ratingRow = db()->query(
+            'SELECT COUNT(*) AS total, SUM(rating >= 4) AS positive FROM checkout_ratings'
+        )->fetch(PDO::FETCH_ASSOC);
+        $totalRatings = (int) ($ratingRow['total'] ?? 0);
+        if ($totalRatings >= 5) {
+            $stat_satisfaction = (int) round(((int) $ratingRow['positive']) / $totalRatings * 100);
+        }
+
+        // Real testimonials: 4★ or 5★, with a non-empty comment
+        $live_testimonials = query_all(
+            'SELECT r.rating, r.comment, u.first_name, u.last_name, u.profile_picture
+             FROM checkout_ratings r
+             JOIN users u ON u.user_id = r.user_id
+             WHERE r.rating >= 4 AND r.comment IS NOT NULL AND r.comment != ""
+             ORDER BY r.created_at DESC
+             LIMIT 8'
+        );
+    } catch (Throwable) {
+        // Table doesn't exist yet — fall back to placeholders below
+    }
 ?>
 <!doctype html>
 <html lang="en">
@@ -251,23 +283,28 @@ function landing_page(): void
 <section class="landing-stats" id="stats">
     <div class="stats-grid">
         <div class="stat-item gs-reveal">
-            <div class="stat-number"><span data-count="500">0</span><span class="suffix">+</span></div>
+            <div class="stat-number"><span data-count="<?= $stat_members ?>"><?= $stat_members ?></span><span class="suffix">+</span></div>
             <div class="stat-label">Active Members</div>
         </div>
         <div class="stat-item gs-reveal">
-            <div class="stat-number"><span data-count="50">0</span><span class="suffix">+</span></div>
+            <div class="stat-number"><span data-count="<?= $stat_classes ?>"><?= $stat_classes ?></span><span class="suffix">+</span></div>
             <div class="stat-label">Weekly Classes</div>
         </div>
         <div class="stat-item gs-reveal">
-            <div class="stat-number"><span data-count="20">0</span><span class="suffix">+</span></div>
+            <div class="stat-number"><span data-count="<?= $stat_trainers ?>"><?= $stat_trainers ?></span><span class="suffix">+</span></div>
             <div class="stat-label">Expert Trainers</div>
         </div>
         <div class="stat-item gs-reveal">
-            <div class="stat-number"><span data-count="98">0</span><span class="suffix">%</span></div>
+            <?php if ($stat_satisfaction !== null): ?>
+                <div class="stat-number"><span data-count="<?= $stat_satisfaction ?>"><?= $stat_satisfaction ?></span><span class="suffix">%</span></div>
+            <?php else: ?>
+                <div class="stat-number" style="font-size:clamp(1.8rem,3vw,2.6rem);color:var(--muted)">--</div>
+            <?php endif; ?>
             <div class="stat-label">Satisfaction Rate</div>
         </div>
     </div>
 </section>
+
 
 <!-- ═══════════════ HOW IT WORKS ═══════════════ -->
 <section class="landing-steps" id="how-it-works">
@@ -306,52 +343,47 @@ function landing_page(): void
     <div class="fade-edge left"></div>
     <div class="fade-edge right"></div>
     <div class="testimonials-marquee" id="testimonials-track">
+        <?php
+        // Use live testimonials if we have at least 3 real comments, otherwise show placeholders
+        $placeholders = [
+            ['quote' => 'The QR check-in alone saved me so much time. I actually look forward to logging my workouts now.', 'name' => 'Mika R.', 'role' => 'Member since 2024', 'rating' => 5, 'avatar' => null],
+            ['quote' => 'My coach messages me directly through the app. It genuinely feels like personal training, not a gym membership.', 'name' => 'Josh T.', 'role' => 'Strength Program', 'rating' => 5, 'avatar' => null],
+            ['quote' => 'Booking classes used to be a headache. Now it takes ten seconds and I never lose my spot.', 'name' => 'Anna L.', 'role' => 'Group Fitness', 'rating' => 5, 'avatar' => null],
+            ['quote' => 'Watching the progress chart climb every week keeps me way more motivated than a paper logbook ever did.', 'name' => 'Carlo D.', 'role' => 'Member since 2023', 'rating' => 5, 'avatar' => null],
+        ];
+        $cards = count($live_testimonials) >= 3 ? $live_testimonials : $placeholders;
+        foreach ($cards as $t):
+            $isLive   = isset($t['first_name']);
+            $name     = $isLive ? h($t['first_name'] . ' ' . mb_substr($t['last_name'], 0, 1) . '.') : h($t['name']);
+            $quote    = $isLive ? h($t['comment']) : h($t['quote']);
+            $roleText = $isLive ? 'FitTrack Member' : h($t['role']);
+            $rating   = (int) $t['rating'];
+            $stars    = str_repeat('★', $rating) . str_repeat('☆', 5 - $rating);
+            $avatarSrc = ($isLive && !empty($t['profile_picture']))
+                ? 'assets/uploads/' . h($t['profile_picture'])
+                : null;
+        ?>
         <div class="testimonial-card">
-            <div class="testimonial-stars">★★★★★</div>
-            <p class="testimonial-quote">"The QR check-in alone saved me so much time. I actually look forward to logging my workouts now."</p>
+            <div class="testimonial-stars"><?= $stars ?></div>
+            <p class="testimonial-quote">"<?= $quote ?>"</p>
             <div class="testimonial-person">
-                <img src="https://i.pravatar.cc/150?img=12" alt="Member avatar" loading="lazy">
+                <?php if ($avatarSrc): ?>
+                    <img src="<?= $avatarSrc ?>" alt="Member avatar" loading="lazy">
+                <?php else: ?>
+                    <div style="width:42px;height:42px;border-radius:50%;background:rgba(199,255,34,0.12);border:1px solid rgba(199,255,34,0.3);display:grid;place-items:center;font-weight:800;font-size:15px;color:var(--lime);flex-shrink:0;">
+                        <?= mb_strtoupper(mb_substr($isLive ? $t['first_name'] : $t['name'], 0, 1)) ?>
+                    </div>
+                <?php endif; ?>
                 <div>
-                    <div class="name">Mika R.</div>
-                    <div class="role">Member since 2024</div>
+                    <div class="name"><?= $name ?></div>
+                    <div class="role"><?= $roleText ?></div>
                 </div>
             </div>
         </div>
-        <div class="testimonial-card">
-            <div class="testimonial-stars">★★★★★</div>
-            <p class="testimonial-quote">"My coach messages me directly through the app. It genuinely feels like personal training, not a gym membership."</p>
-            <div class="testimonial-person">
-                <img src="https://i.pravatar.cc/150?img=32" alt="Member avatar" loading="lazy">
-                <div>
-                    <div class="name">Josh T.</div>
-                    <div class="role">Strength Program</div>
-                </div>
-            </div>
-        </div>
-        <div class="testimonial-card">
-            <div class="testimonial-stars">★★★★★</div>
-            <p class="testimonial-quote">"Booking classes used to be a headache. Now it takes ten seconds and I never lose my spot."</p>
-            <div class="testimonial-person">
-                <img src="https://i.pravatar.cc/150?img=45" alt="Member avatar" loading="lazy">
-                <div>
-                    <div class="name">Anna L.</div>
-                    <div class="role">Group Fitness</div>
-                </div>
-            </div>
-        </div>
-        <div class="testimonial-card">
-            <div class="testimonial-stars">★★★★★</div>
-            <p class="testimonial-quote">"Watching the progress chart climb every week keeps me way more motivated than a paper logbook ever did."</p>
-            <div class="testimonial-person">
-                <img src="https://i.pravatar.cc/150?img=5" alt="Member avatar" loading="lazy">
-                <div>
-                    <div class="name">Carlo D.</div>
-                    <div class="role">Member since 2023</div>
-                </div>
-            </div>
-        </div>
+        <?php endforeach; ?>
     </div>
 </section>
+
 
 <!-- ═══════════════ CTA ═══════════════ -->
 <section class="landing-cta" id="cta">
