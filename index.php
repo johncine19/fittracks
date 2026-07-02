@@ -21,6 +21,7 @@ try {
         'setup_profile' => 'setup_profile_page',
 
         'notification_action' => 'handle_notification_actions',
+        'notification_click'  => 'handle_notification_click',
         'notifications' => 'notifications_page',
         'dashboard' => 'dashboard',
         'users' => 'users_page',

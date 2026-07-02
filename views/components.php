@@ -448,14 +448,24 @@ function render_notification_bell(array $user, string $currentPage): void
                 <p class="notif-empty">No notifications yet.</p>
             <?php else: ?>
                 <ul class="notif-menu">
-                    <?php foreach ($items as $item): ?>
+                    <?php foreach ($items as $item):
+                        $hasLink = in_array($item['type'], ['coach_message', 'class_reminder', 'renewal_reminder', 'milestone'], true);
+                        $clickUrl = $hasLink ? 'index.php?page=notification_click&nid=' . (int) $item['notification_id'] : null;
+                    ?>
                         <li class="<?= $item['is_read'] ? '' : 'unread' ?>">
                             <div class="notif-menu-meta">
                                 <span class="notif-type notif-type-<?= h($item['type']) ?>"><?= h(notification_type_label($item['type'])) ?></span>
                                 <time><?= h(notification_time_ago($item['created_at'])) ?></time>
                             </div>
-                            <strong><?= h($item['title']) ?></strong>
-                            <p><?= h($item['message']) ?></p>
+                            <?php if ($clickUrl): ?>
+                                <a href="<?= h($clickUrl) ?>" class="notif-menu-link">
+                                    <strong><?= h($item['title']) ?></strong>
+                                    <p><?= h($item['message']) ?></p>
+                                </a>
+                            <?php else: ?>
+                                <strong><?= h($item['title']) ?></strong>
+                                <p><?= h($item['message']) ?></p>
+                            <?php endif; ?>
                             <?php if (!$item['is_read']): ?>
                                 <form method="post" action="index.php?page=notification_action">
                                     <?= csrf_field() ?>

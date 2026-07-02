@@ -1713,6 +1713,21 @@ dialog.modal .modal-body {
     color: var(--muted);
 }
 
+.notif-menu-link {
+    display: block;
+    text-decoration: none;
+    color: inherit;
+    border-radius: 6px;
+    padding: 4px 6px;
+    margin: -4px -6px 2px;
+    transition: background 0.2s;
+    cursor: pointer;
+}
+
+.notif-menu-link:hover {
+    background: rgba(199, 255, 34, .1);
+}
+
 .notif-view-all {
     display: block;
     padding: 12px 14px;

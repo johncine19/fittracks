@@ -13,7 +13,18 @@ function messages_page(): void
             db()->prepare('INSERT INTO trainer_messages (sender_id, recipient_id, message_text) VALUES (?, ?, ?)')
                ->execute([$user['user_id'], $recipientId, $text]);
             $senderName = $user['first_name'] . ' ' . $user['last_name'];
-            notify_user($recipientId, 'coach_message', 'New message from ' . $senderName, $text);
+            $title = 'New message from ' . $senderName;
+            
+            $unreadCount = (int) scalar('SELECT COUNT(*) FROM trainer_messages WHERE sender_id = ? AND recipient_id = ? AND is_read = 0', [$user['user_id'], $recipientId]);
+            
+            if ($unreadCount > 1) {
+                $msgText = 'You have ' . $unreadCount . ' new messages.';
+                ensure_notifications_reference_id();
+                db()->prepare('UPDATE notifications SET message = ?, reference_id = ?, created_at = CURRENT_TIMESTAMP WHERE user_id = ? AND title = ? AND type = "coach_message" AND is_read = 0')
+                  ->execute([$msgText, $user['user_id'], $recipientId, $title]);
+            } else {
+                notify_user($recipientId, 'coach_message', $title, $text, (int) $user['user_id']);
+            }
         }
         header('Location: index.php?page=messages&chat=' . $recipientId);
         exit;

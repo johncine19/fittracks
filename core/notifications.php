@@ -3,15 +3,36 @@ declare(strict_types=1);
 
 const NOTIFICATION_TYPES = ['renewal_reminder', 'class_reminder', 'coach_message', 'milestone', 'system'];
 
-function notify_user(int $userId, string $type, string $title, string $message): void
+/**
+ * Auto-migrate: add reference_id column to notifications if missing.
+ * Called once per request; uses a static flag to avoid repeated checks.
+ */
+function ensure_notifications_reference_id(): void
+{
+    static $checked = false;
+    if ($checked) return;
+    $checked = true;
+
+    try {
+        $cols = db()->query('SHOW COLUMNS FROM notifications LIKE "reference_id"')->fetchAll();
+        if (!$cols) {
+            db()->exec('ALTER TABLE notifications ADD COLUMN reference_id INT UNSIGNED DEFAULT NULL AFTER message');
+        }
+    } catch (Throwable) {
+        // Non-blocking — column may already exist.
+    }
+}
+
+function notify_user(int $userId, string $type, string $title, string $message, ?int $referenceId = null): void
 {
     if ($userId <= 0 || !in_array($type, NOTIFICATION_TYPES, true)) {
         return;
     }
 
     try {
-        db()->prepare('INSERT INTO notifications (user_id, type, title, message) VALUES (?, ?, ?, ?)')
-            ->execute([$userId, $type, mb_substr(trim($title), 0, 100), mb_substr(trim($message), 0, 500)]);
+        ensure_notifications_reference_id();
+        db()->prepare('INSERT INTO notifications (user_id, type, title, message, reference_id) VALUES (?, ?, ?, ?, ?)')
+            ->execute([$userId, $type, mb_substr(trim($title), 0, 100), mb_substr(trim($message), 0, 500), $referenceId]);
     } catch (Throwable) {
         // Non-blocking.
     }
@@ -138,4 +159,97 @@ function handle_notification_actions(): void
     }
 
     redirect(post('return_page', 'dashboard'));
+}
+
+/**
+ * Handle clicking a notification: atomically mark the notification + related
+ * chat messages as read, then redirect to the appropriate page.
+ */
+function handle_notification_click(): void
+{
+    $user = require_login();
+    $userId = (int) $user['user_id'];
+    $notifId = isset($_GET['nid']) ? (int) $_GET['nid'] : 0;
+
+    if ($notifId <= 0) {
+        redirect('notifications');
+    }
+
+    // Fetch the notification (must belong to this user)
+    $notif = query_all(
+        'SELECT * FROM notifications WHERE notification_id = ? AND user_id = ? LIMIT 1',
+        [$notifId, $userId]
+    );
+
+    if (!$notif) {
+        redirect('notifications');
+    }
+
+    $notif = $notif[0];
+    $pdo = db();
+
+    // Begin transaction for atomicity
+    $pdo->beginTransaction();
+    try {
+        // 1. Mark the notification as read
+        $pdo->prepare('UPDATE notifications SET is_read = 1 WHERE notification_id = ? AND user_id = ?')
+            ->execute([$notifId, $userId]);
+
+        // 2. For coach_message notifications, also mark all chat messages from that sender as read
+        $senderId = null;
+        if ($notif['type'] === 'coach_message') {
+            $refId = $notif['reference_id'] ?? null;
+
+            if ($refId) {
+                $senderId = (int) $refId;
+            } else {
+                // Fallback: extract sender name from title "New message from {Name}"
+                $prefix = 'New message from ';
+                if (str_starts_with($notif['title'], $prefix)) {
+                    $senderName = substr($notif['title'], strlen($prefix));
+                    $parts = explode(' ', $senderName, 2);
+                    if (count($parts) === 2) {
+                        $row = $pdo->prepare('SELECT user_id FROM users WHERE first_name = ? AND last_name = ? LIMIT 1');
+                        $row->execute([$parts[0], $parts[1]]);
+                        $found = $row->fetch();
+                        if ($found) {
+                            $senderId = (int) $found['user_id'];
+                        }
+                    }
+                }
+            }
+
+            if ($senderId) {
+                // Mark all unread chat messages from this sender to the current user as read
+                $pdo->prepare('UPDATE trainer_messages SET is_read = 1 WHERE sender_id = ? AND recipient_id = ? AND is_read = 0')
+                    ->execute([$senderId, $userId]);
+
+                // Also mark any other unread coach_message notifications from the same sender
+                if ($refId) {
+                    $pdo->prepare('UPDATE notifications SET is_read = 1 WHERE user_id = ? AND type = "coach_message" AND reference_id = ? AND is_read = 0')
+                        ->execute([$userId, $senderId]);
+                }
+            }
+        }
+
+        $pdo->commit();
+    } catch (Throwable) {
+        $pdo->rollBack();
+    }
+
+    // Redirect to the appropriate page
+    if ($notif['type'] === 'coach_message' && $senderId) {
+        header('Location: index.php?page=messages&chat=' . $senderId);
+        exit;
+    } elseif ($notif['type'] === 'coach_message') {
+        redirect('messages');
+    } elseif ($notif['type'] === 'class_reminder') {
+        redirect($user['role'] === 'member' ? 'member_classes' : 'schedule');
+    } elseif ($notif['type'] === 'renewal_reminder') {
+        redirect('member_membership');
+    } elseif ($notif['type'] === 'milestone') {
+        redirect('member_progress');
+    } else {
+        redirect('notifications');
+    }
 }

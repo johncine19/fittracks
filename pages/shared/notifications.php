@@ -50,8 +50,19 @@ function notifications_page(): void
                             <span class="notif-type notif-type-<?= h($row['type']) ?>"><?= h(notification_type_label($row['type'])) ?></span>
                             <time><?= h(notification_time_ago($row['created_at'])) ?></time>
                         </div>
-                        <h3><?= h($row['title']) ?></h3>
-                        <p><?= h($row['message']) ?></p>
+                        <?php
+                            $hasLink = in_array($row['type'], ['coach_message', 'class_reminder', 'renewal_reminder', 'milestone'], true);
+                            $clickUrl = $hasLink ? 'index.php?page=notification_click&nid=' . (int) $row['notification_id'] : null;
+                        ?>
+                        <?php if ($clickUrl): ?>
+                            <a href="<?= h($clickUrl) ?>" style="text-decoration: none; color: inherit; display: block;">
+                                <h3><?= h($row['title']) ?></h3>
+                                <p><?= h($row['message']) ?></p>
+                            </a>
+                        <?php else: ?>
+                            <h3><?= h($row['title']) ?></h3>
+                            <p><?= h($row['message']) ?></p>
+                        <?php endif; ?>
                         <?php if (!$row['is_read']): ?>
                             <form method="post" class="notif-item-action">
                                 <?= csrf_field() ?>
