@@ -157,33 +157,6 @@ function landing_page(): void
             </a>
         </div>
 
-        <div class="hero-visual gs-reveal">
-            <div class="hero-visual-glow"></div>
-            <div class="swiper hero-swiper" id="hero-carousel">
-                <div class="swiper-wrapper" style="padding: 40px 0;">
-                    <div class="swiper-slide hero-visual-frame">
-                        <img src="assets/images/gym.avif" alt="assets/images/gym.avif" loading="lazy">
-                        <div class="hero-visual-overlay"></div>
-                    </div>
-                    <div class="swiper-slide hero-visual-frame">
-                        <img src="assets/images/guts.png" alt="assets/images/gym.avif" loading="lazy">
-                        <div class="hero-visual-overlay"></div>
-                    </div>
-                    <div class="swiper-slide hero-visual-frame">
-                        <img src="assets/images/green.png" alt="assets/images/gym.avif" loading="lazy">
-                        <div class="hero-visual-overlay"></div>
-                    </div>
-                    <div class="swiper-slide hero-visual-frame">
-                        <img src="assets/images/ichigo.png" alt="assets/images/gym.avif" loading="lazy">
-                        <div class="hero-visual-overlay"></div>
-                    </div>
-                    <div class="swiper-slide hero-visual-frame">
-                        <img src="assets/images/reze.png" alt="assets/images/gym.avif" loading="lazy">
-                        <div class="hero-visual-overlay"></div>
-                    </div>
-                </div>
-            </div>
-        </div>  
     </div>
 
     
@@ -199,6 +172,39 @@ function landing_page(): void
     <div class="scroll-indicator gs-reveal">
         <span>Scroll</span>
         <div class="scroll-line"></div>
+    </div>
+</section>
+
+<!-- ═══════════════ CAROUSEL SHOWCASE ═══════════════ -->
+<section class="landing-carousel-section" style="padding: 60px 0 120px; background: var(--bg-body); position: relative; z-index: 10; overflow: hidden;">
+    <div class="carousel-aura"></div>
+    <div class="carousel-grid-overlay"></div>
+    <div class="hero-visual gs-reveal" style="margin-top: 0;">
+        <div class="hero-visual-glow"></div>
+        <div class="swiper hero-swiper" id="hero-carousel">
+            <div class="swiper-wrapper" style="padding: 40px 0;">
+                <div class="swiper-slide hero-visual-frame">
+                    <img src="assets/images/gym.avif" alt="Gym 1" loading="lazy">
+                    <div class="hero-visual-overlay"></div>
+                </div>
+                <div class="swiper-slide hero-visual-frame">
+                    <img src="assets/images/guts.png" alt="Gym 2" loading="lazy">
+                    <div class="hero-visual-overlay"></div>
+                </div>
+                <div class="swiper-slide hero-visual-frame">
+                    <img src="assets/images/green.png" alt="Gym 3" loading="lazy">
+                    <div class="hero-visual-overlay"></div>
+                </div>
+                <div class="swiper-slide hero-visual-frame">
+                    <img src="assets/images/ichigo.png" alt="Gym 4" loading="lazy">
+                    <div class="hero-visual-overlay"></div>
+                </div>
+                <div class="swiper-slide hero-visual-frame">
+                    <img src="assets/images/reze.png" alt="Gym 5" loading="lazy">
+                    <div class="hero-visual-overlay"></div>
+                </div>
+            </div>
+        </div>
     </div>
 </section>
 

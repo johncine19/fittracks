@@ -476,6 +476,36 @@
 }
 
 /* Swiper container adjustments */
+.carousel-aura {
+    position: absolute;
+    width: 100vw;
+    height: 100vh;
+    max-width: 900px;
+    max-height: 900px;
+    border-radius: 50%;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background-color: var(--lime);
+    opacity: 0.1;
+    filter: blur(150px);
+    pointer-events: none;
+    z-index: 0;
+}
+
+.carousel-grid-overlay {
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    background-image:
+        linear-gradient(var(--line-soft) 1px, transparent 1px),
+        linear-gradient(90deg, var(--line-soft) 1px, transparent 1px);
+    background-size: 80px 80px;
+    mask-image: radial-gradient(ellipse at center, black 40%, transparent 80%);
+    -webkit-mask-image: radial-gradient(ellipse at center, black 40%, transparent 80%);
+    pointer-events: none;
+}
+
 .hero-swiper {
     width: 100%;
     padding-top: 50px;
