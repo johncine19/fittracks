@@ -3,33 +3,72 @@ declare(strict_types=1);
 
 function classes_page(): void
 {
-    $user = require_roles(['admin']);
+    $user = require_roles(['admin', 'trainer']);
+    $isAdmin = $user['role'] === 'admin';
     if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $action = post('action');
         if ($action === 'class') {
-            db()->prepare('INSERT INTO classes (class_name, description, instructor_id, capacity) VALUES (?, ?, ?, ?)')->execute([post('class_name'), post('description'), post('instructor_id') ?: null, post('capacity')]);
+            $instructor_id = $isAdmin ? (post('instructor_id') ?: null) : $user['user_id'];
+            db()->prepare('INSERT INTO classes (class_name, description, instructor_id, capacity) VALUES (?, ?, ?, ?)')->execute([post('class_name'), post('description'), $instructor_id, post('capacity')]);
             flash('Class created.');
+        } elseif ($action === 'schedule') {
+            $class_id = post('class_id');
+            if (!$isAdmin) {
+                $c = db()->prepare('SELECT instructor_id FROM classes WHERE class_id=?');
+                $c->execute([$class_id]);
+                if ($c->fetchColumn() != $user['user_id']) redirect('classes');
+            }
+            db()->prepare('INSERT INTO class_schedules (class_id, room_location, start_datetime, end_datetime) VALUES (?, ?, ?, ?)')->execute([$class_id, post('room_location'), post('start_datetime'), post('end_datetime')]);
+            flash('Schedule created.');
         } elseif ($action === 'edit_class') {
-            db()->prepare('UPDATE classes SET class_name=?, description=?, instructor_id=?, capacity=? WHERE class_id=?')->execute([post('class_name'), post('description'), post('instructor_id') ?: null, post('capacity'), post('class_id')]);
+            if ($isAdmin) {
+                db()->prepare('UPDATE classes SET class_name=?, description=?, instructor_id=?, capacity=? WHERE class_id=?')->execute([post('class_name'), post('description'), post('instructor_id') ?: null, post('capacity'), post('class_id')]);
+            } else {
+                db()->prepare('UPDATE classes SET class_name=?, description=?, capacity=? WHERE class_id=? AND instructor_id=?')->execute([post('class_name'), post('description'), post('capacity'), post('class_id'), $user['user_id']]);
+            }
             flash('Class updated.');
         } elseif ($action === 'delete_class') {
-            db()->prepare('DELETE FROM classes WHERE class_id=?')->execute([post('class_id')]);
+            if ($isAdmin) {
+                db()->prepare('DELETE FROM classes WHERE class_id=?')->execute([post('class_id')]);
+            } else {
+                db()->prepare('DELETE FROM classes WHERE class_id=? AND instructor_id=?')->execute([post('class_id'), $user['user_id']]);
+            }
             flash('Class deleted.');
-        } elseif ($action === 'schedule') {
-            db()->prepare('INSERT INTO class_schedules (class_id, room_location, start_datetime, end_datetime) VALUES (?, ?, ?, ?)')->execute([post('class_id'), post('room_location'), post('start_datetime'), post('end_datetime')]);
-            flash('Schedule created.');
         } elseif ($action === 'edit_schedule') {
-            db()->prepare('UPDATE class_schedules SET class_id=?, room_location=?, start_datetime=?, end_datetime=? WHERE schedule_id=?')->execute([post('class_id'), post('room_location'), post('start_datetime'), post('end_datetime'), post('schedule_id')]);
+            $schedule_id = post('schedule_id');
+            $class_id = post('class_id');
+            if (!$isAdmin) {
+                $c = db()->prepare('SELECT instructor_id FROM classes WHERE class_id=?');
+                $c->execute([$class_id]);
+                if ($c->fetchColumn() != $user['user_id']) redirect('classes');
+            }
+            db()->prepare('UPDATE class_schedules SET class_id=?, room_location=?, start_datetime=?, end_datetime=? WHERE schedule_id=?')->execute([$class_id, post('room_location'), post('start_datetime'), post('end_datetime'), $schedule_id]);
             flash('Schedule updated.');
         } elseif ($action === 'delete_schedule') {
-            db()->prepare('DELETE FROM class_schedules WHERE schedule_id=?')->execute([post('schedule_id')]);
+            $schedule_id = post('schedule_id');
+            if (!$isAdmin) {
+                $c = db()->prepare('SELECT c.instructor_id FROM classes c JOIN class_schedules s ON c.class_id = s.class_id WHERE s.schedule_id=?');
+                $c->execute([$schedule_id]);
+                if ($c->fetchColumn() != $user['user_id']) redirect('classes');
+            }
+            db()->prepare('DELETE FROM class_schedules WHERE schedule_id=?')->execute([$schedule_id]);
             flash('Schedule deleted.');
         }
         redirect('classes');
     }
     $coaches   = db()->query('SELECT user_id, CONCAT(first_name, " ", last_name) AS name FROM users WHERE role = "trainer" AND status = "active"')->fetchAll();
-    $classes   = db()->query('SELECT c.*, CONCAT(u.first_name, " ", u.last_name) AS instructor FROM classes c LEFT JOIN users u ON u.user_id = c.instructor_id ORDER BY c.created_at DESC')->fetchAll();
-    $schedules = db()->query('SELECT s.*, c.class_name, (SELECT COUNT(*) FROM class_bookings b WHERE b.schedule_id = s.schedule_id AND b.booking_status = "booked") AS booked FROM class_schedules s JOIN classes c ON c.class_id = s.class_id ORDER BY s.start_datetime DESC')->fetchAll();
+    if ($isAdmin) {
+        $classes   = db()->query('SELECT c.*, CONCAT(u.first_name, " ", u.last_name) AS instructor FROM classes c LEFT JOIN users u ON u.user_id = c.instructor_id ORDER BY c.created_at DESC')->fetchAll();
+        $schedules = db()->query('SELECT s.*, c.class_name, (SELECT COUNT(*) FROM class_bookings b WHERE b.schedule_id = s.schedule_id AND b.booking_status = "booked") AS booked FROM class_schedules s JOIN classes c ON c.class_id = s.class_id ORDER BY s.start_datetime DESC')->fetchAll();
+    } else {
+        $stmt = db()->prepare('SELECT c.*, CONCAT(u.first_name, " ", u.last_name) AS instructor FROM classes c LEFT JOIN users u ON u.user_id = c.instructor_id WHERE c.instructor_id = ? ORDER BY c.created_at DESC');
+        $stmt->execute([$user['user_id']]);
+        $classes = $stmt->fetchAll();
+        
+        $stmt2 = db()->prepare('SELECT s.*, c.class_name, (SELECT COUNT(*) FROM class_bookings b WHERE b.schedule_id = s.schedule_id AND b.booking_status = "booked") AS booked FROM class_schedules s JOIN classes c ON c.class_id = s.class_id WHERE c.instructor_id = ? ORDER BY s.start_datetime DESC');
+        $stmt2->execute([$user['user_id']]);
+        $schedules = $stmt2->fetchAll();
+    }
     
     $csrfStr = csrf_field();
     $instructorOptions = '<option value="">— None assigned —</option>';
@@ -49,26 +88,26 @@ function classes_page(): void
             <h1 style="margin:0 0 4px">Classes & Schedules</h1>
             <p style="color:var(--muted);font-size:13px;margin:0">Create class types and schedule sessions with rooms and instructors.</p>
         </div>
-        <button type="button" onclick="document.getElementById('classModal').style.display='flex'">+ Add Class</button>
+        <div style="display:flex;gap:10px;">
+            <button type="button" onclick="document.getElementById('classModal').style.display='flex'">+ Add Class</button>
+            <button type="button" onclick="document.getElementById('scheduleModal').style.display='flex'" style="background:transparent;border:1px solid #475569;color:var(--ink)">+ Schedule Session</button>
+        </div>
     </div>
 
     <!-- Combined Modal -->
+    <!-- Add Class Modal -->
     <div id="classModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.6);align-items:center;justify-content:center;z-index:1000;padding:1rem">
         <div style="background:#0f172a;padding:2rem;border-radius:8px;width:100%;max-width:520px;box-shadow:0 20px 25px -5px rgba(0,0,0,0.5);border:1px solid #334155">
             <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1.5rem">
-                <div style="display:flex;gap:0;border-radius:8px;overflow:hidden;border:1px solid #334155">
-                    <button type="button" id="tabClassBtn" onclick="switchClassTab('class')" style="border-radius:0;border:none;padding:8px 18px;font-size:13px;font-weight:700">Add Class</button>
-                    <button type="button" id="tabSchedBtn" onclick="switchClassTab('schedule')" style="border-radius:0;border:none;padding:8px 18px;font-size:13px;font-weight:700;background:transparent;color:var(--muted)">Schedule Session</button>
-                </div>
+                <h2 style="margin:0; font-size:1.5rem; color:var(--ink)">Add Class</h2>
                 <button type="button" onclick="document.getElementById('classModal').style.display='none'" style="background:transparent;border:none;color:#94a3b8;font-size:1.5rem;cursor:pointer;padding:0">&times;</button>
             </div>
-
-            <!-- Add Class Form -->
-            <form method="post" class="form" id="classForm">
+            <form method="post" class="form">
                 <?= csrf_field() ?>
                 <input type="hidden" name="action" value="class">
                 <label>Class name <input name="class_name" placeholder="e.g. HIIT Training" required></label>
                 <label>Description <input name="description" placeholder="Short description"></label>
+                <?php if ($isAdmin): ?>
                 <label>Instructor
                     <select name="instructor_id">
                         <option value="">— None assigned —</option>
@@ -77,19 +116,29 @@ function classes_page(): void
                         <?php endforeach; ?>
                     </select>
                 </label>
+                <?php endif; ?>
                 <label>Capacity <input name="capacity" type="number" min="1" placeholder="e.g. 20" required></label>
                 <div style="display:flex;justify-content:flex-end;gap:1rem;margin-top:0.5rem">
                     <button type="button" onclick="document.getElementById('classModal').style.display='none'" style="background:transparent;color:#94a3b8;border:1px solid #475569">Cancel</button>
                     <button>Save Class</button>
                 </div>
             </form>
+        </div>
+    </div>
 
-            <!-- Schedule Session Form -->
-            <form method="post" class="form" id="scheduleForm" style="display:none">
+    <!-- Schedule Session Modal -->
+    <div id="scheduleModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.6);align-items:center;justify-content:center;z-index:1000;padding:1rem">
+        <div style="background:#0f172a;padding:2rem;border-radius:8px;width:100%;max-width:520px;box-shadow:0 20px 25px -5px rgba(0,0,0,0.5);border:1px solid #334155">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1.5rem">
+                <h2 style="margin:0; font-size:1.5rem; color:var(--ink)">Schedule Session</h2>
+                <button type="button" onclick="document.getElementById('scheduleModal').style.display='none'" style="background:transparent;border:none;color:#94a3b8;font-size:1.5rem;cursor:pointer;padding:0">&times;</button>
+            </div>
+            <form method="post" class="form">
                 <?= csrf_field() ?>
                 <input type="hidden" name="action" value="schedule">
                 <label>Class
-                    <select name="class_id">
+                    <select name="class_id" required>
+                        <option value="">-- Select Class --</option>
                         <?php foreach ($classes as $class): ?>
                             <option value="<?= (int) $class['class_id'] ?>"><?= h($class['class_name']) ?></option>
                         <?php endforeach; ?>
@@ -99,21 +148,13 @@ function classes_page(): void
                 <label>Start <input name="start_datetime" type="datetime-local" required></label>
                 <label>End <input name="end_datetime" type="datetime-local" required></label>
                 <div style="display:flex;justify-content:flex-end;gap:1rem;margin-top:0.5rem">
-                    <button type="button" onclick="document.getElementById('classModal').style.display='none'" style="background:transparent;color:#94a3b8;border:1px solid #475569">Cancel</button>
+                    <button type="button" onclick="document.getElementById('scheduleModal').style.display='none'" style="background:transparent;color:#94a3b8;border:1px solid #475569">Cancel</button>
                     <button>Save Schedule</button>
                 </div>
             </form>
         </div>
     </div>
     <script>
-    function switchClassTab(tab) {
-        document.getElementById('classForm').style.display = tab === 'class' ? 'grid' : 'none';
-        document.getElementById('scheduleForm').style.display = tab === 'schedule' ? 'grid' : 'none';
-        document.getElementById('tabClassBtn').style.background = tab === 'class' ? 'var(--lime)' : 'transparent';
-        document.getElementById('tabClassBtn').style.color = tab === 'class' ? '#080b0d' : 'var(--muted)';
-        document.getElementById('tabSchedBtn').style.background = tab === 'schedule' ? 'var(--lime)' : 'transparent';
-        document.getElementById('tabSchedBtn').style.color = tab === 'schedule' ? '#080b0d' : 'var(--muted)';
-    }
 
     function editClass(c) {
         Swal.fire({
