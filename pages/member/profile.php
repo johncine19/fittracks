@@ -124,7 +124,7 @@ function profile_page(): void
             }
 
             flash('You have successfully checked out.', 'success');
-            redirect('profile');
+            redirect('dashboard');
         }
     }
 
