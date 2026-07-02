@@ -52,6 +52,7 @@ function landing_page(): void
     <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400..800&family=IBM+Plex+Mono:wght@400;500&family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="assets/app.css">
     <link rel="stylesheet" href="assets/landing.css?v=<?= time() ?>">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.css" />
 </head>
 <body class="landing-page">
 
@@ -156,15 +157,36 @@ function landing_page(): void
             </a>
         </div>
 
-        <!-- Hero visual — app preview card -->
         <div class="hero-visual gs-reveal">
             <div class="hero-visual-glow"></div>
-            <div class="hero-visual-frame">
-                <img src="assets/images/gym.avif" alt="Members training at FitTrack" loading="lazy">
-                <div class="hero-visual-overlay"></div>
+            <div class="swiper hero-swiper" id="hero-carousel">
+                <div class="swiper-wrapper" style="padding: 40px 0;">
+                    <div class="swiper-slide hero-visual-frame">
+                        <img src="assets/images/gym.avif" alt="assets/images/gym.avif" loading="lazy">
+                        <div class="hero-visual-overlay"></div>
+                    </div>
+                    <div class="swiper-slide hero-visual-frame">
+                        <img src="assets/images/guts.png" alt="assets/images/gym.avif" loading="lazy">
+                        <div class="hero-visual-overlay"></div>
+                    </div>
+                    <div class="swiper-slide hero-visual-frame">
+                        <img src="assets/images/green.png" alt="assets/images/gym.avif" loading="lazy">
+                        <div class="hero-visual-overlay"></div>
+                    </div>
+                    <div class="swiper-slide hero-visual-frame">
+                        <img src="assets/images/ichigo.png" alt="assets/images/gym.avif" loading="lazy">
+                        <div class="hero-visual-overlay"></div>
+                    </div>
+                    <div class="swiper-slide hero-visual-frame">
+                        <img src="assets/images/reze.png" alt="assets/images/gym.avif" loading="lazy">
+                        <div class="hero-visual-overlay"></div>
+                    </div>
+                </div>
             </div>
-        </div>
+        </div>  
     </div>
+
+    
 
     <!-- Accent line -->
     <div class="hero-accent-line gs-reveal">
@@ -244,7 +266,7 @@ function landing_page(): void
     <div class="showcase-grid">
         <div class="showcase-item tall">
             <div class="img-wrap">
-                <img src="assets/images/sky.png" alt="Member weight training" loading="lazy">
+                <img src="assets/images/sky.png" alt="assets/images/gym.avif" loading="lazy">
             </div>
             <div class="showcase-caption">
                 <span class="tag">Strength</span>
@@ -253,7 +275,7 @@ function landing_page(): void
         </div>
         <div class="showcase-item short">
             <div class="img-wrap">
-                <img src="assets/images/violet.png" alt="Group fitness class" loading="lazy">
+                <img src="assets/images/violet.png" alt="assets/images/gym.avif" loading="lazy">
             </div>
             <div class="showcase-caption">
                 <span class="tag">Group Classes</span>
@@ -262,7 +284,7 @@ function landing_page(): void
         </div>
         <div class="showcase-item short">
             <div class="img-wrap">
-                <img src="assets/images/green.png" alt="Cardio training session" loading="lazy">
+                <img src="assets/images/green.png" alt="assets/images/gym.avif" loading="lazy">
             </div>
             <div class="showcase-caption">
                 <span class="tag">Cardio</span>
@@ -410,6 +432,7 @@ function landing_page(): void
 <script src="https://cdn.jsdelivr.net/npm/gsap@3/dist/ScrollTrigger.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/gsap@3/dist/ScrollToPlugin.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/lenis@1/dist/lenis.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.js"></script>
 <script>
 document.addEventListener('DOMContentLoaded', () => {
     gsap.registerPlugin(ScrollTrigger, ScrollToPlugin);
@@ -738,8 +761,28 @@ document.addEventListener('DOMContentLoaded', () => {
                 gsap.to(window, { duration: 1, scrollTo: { y: target, offsetY: 60 }, ease: 'power2.inOut' });
             }
         });
+        // ─── HERO CAROUSEL (SWIPER) ───
+        if (typeof Swiper !== 'undefined') {
+            new Swiper('.hero-swiper', {
+                effect: 'coverflow',
+                grabCursor: true,
+                centeredSlides: true,
+                slidesPerView: 'auto',
+                loop: true,
+                autoplay: {
+                    delay: 3500,
+                    disableOnInteraction: false,
+                },
+                coverflowEffect: {
+                    rotate: 15,
+                    stretch: 0,
+                    depth: 250,
+                    modifier: 1,
+                    slideShadows: true,
+                },
+            });
+        }
     });
-
 });
 
 </script>
