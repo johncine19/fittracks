@@ -43,7 +43,7 @@ function render_header(string $title, ?array $user = null): void
     <head>
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1">
-        <title><?= h($title) ?> - APEX GYM</title>
+        <title><?= h($title) ?> - FitTrack</title>
         <link rel="stylesheet" href="assets/app.css">
         <script>
             (function() {
@@ -80,8 +80,8 @@ function render_header(string $title, ?array $user = null): void
         <div class="app-frame">
             <aside class="sidebar" id="main-sidebar">
                 <a class="brand" href="index.php">
-                    <span class="brand-mark">AG</span>
-                    <span>APEX GYM</span>
+                    <span class="brand-mark">FT</span>
+                    <span>FitTrack</span>
                 </a>
                 <!-- Role badge (replaces non-functional role-switch select) -->
                 <div class="role-badge"><?= h(ucfirst($user['role'])) ?></div>
