@@ -15,19 +15,55 @@ function qr_attendance_page(): void
         }
     }
     
-    // Check for AJAX request to refresh token
-    if ($_SERVER['REQUEST_METHOD'] === 'POST' && post('action') === 'refresh_token') {
-        $token = bin2hex(random_bytes(16));
-        $expiresAt = (new DateTimeImmutable())->modify('+5 minutes');
-        $expires = $expiresAt->format('Y-m-d H:i:s');
-        db()->prepare('UPDATE users SET qr_token = ?, qr_expires_at = ? WHERE user_id = ?')->execute([$token, $expires, $user['user_id']]);
-        header('Content-Type: application/json');
-        echo json_encode([
-            'token' => $token,
-            'expires' => $expires,
-            'seconds_remaining' => max(0, $expiresAt->getTimestamp() - time()),
-        ]);
-        exit;
+    // Handle AJAX actions
+    if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+        $action = post('action');
+        if ($action === 'refresh_token') {
+            $token = bin2hex(random_bytes(16));
+            $expiresAt = (new DateTimeImmutable())->modify('+5 minutes');
+            $expires = $expiresAt->format('Y-m-d H:i:s');
+            db()->prepare('UPDATE users SET qr_token = ?, qr_expires_at = ? WHERE user_id = ?')->execute([$token, $expires, $user['user_id']]);
+            header('Content-Type: application/json');
+            echo json_encode([
+                'token' => $token,
+                'expires' => $expires,
+                'seconds_remaining' => max(0, $expiresAt->getTimestamp() - time()),
+            ]);
+            exit;
+        } elseif ($action === 'poll_status') {
+            $tokenRaw = scalar('SELECT qr_token FROM users WHERE user_id = ?', [$user['user_id']]);
+            // If token is null, it means the scanner just invalidated it
+            if ($tokenRaw === null) {
+                // Find latest attendance
+                $row = db()->query('SELECT attendance_id, check_in_time, check_out_time FROM attendance WHERE user_id = ' . (int)$user['user_id'] . ' ORDER BY attendance_id DESC LIMIT 1')->fetch();
+                if ($row) {
+                    $isCheckout = ($row['check_out_time'] !== null && strtotime($row['check_out_time']) >= strtotime($row['check_in_time']));
+                    header('Content-Type: application/json');
+                    echo json_encode([
+                        'scanned' => true,
+                        'type' => $isCheckout ? 'checkout' : 'checkin',
+                        'attendance_id' => $row['attendance_id']
+                    ]);
+                    exit;
+                }
+            }
+            header('Content-Type: application/json');
+            echo json_encode(['scanned' => false]);
+            exit;
+        } elseif ($action === 'submit_rating') {
+            $attendanceId = (int) post('attendance_id');
+            $rating = (int) post('rating');
+            $comment = mb_substr(trim((string) post('comment')), 0, 1000) ?: null;
+            if ($rating >= 1 && $rating <= 5) {
+                try {
+                    db()->prepare('INSERT IGNORE INTO checkout_ratings (attendance_id, user_id, rating, comment) VALUES (?, ?, ?, ?)')
+                       ->execute([$attendanceId, $user['user_id'], $rating, $comment]);
+                } catch (Throwable) {}
+            }
+            header('Content-Type: application/json');
+            echo json_encode(['success' => true]);
+            exit;
+        }
     }
 
     render_header('My QR Code', $user);
@@ -126,10 +162,12 @@ function qr_attendance_page(): void
         let timeLeft = Math.max(0, Number(secondsRemaining) || 0);
 
         clearInterval(window.qrInterval);
+        clearInterval(window.qrPollInterval);
 
         function renderTimer() {
             if (timeLeft <= 0) {
                 clearInterval(window.qrInterval);
+                clearInterval(window.qrPollInterval);
                 document.getElementById('qr-container').style.opacity = '0.25';
                 timerEl.style.display = 'none';
                 document.getElementById('qr-manual-refresh').style.display = 'none';
@@ -147,6 +185,94 @@ function qr_attendance_page(): void
             timeLeft--;
             renderTimer();
         }, 1000);
+
+        // Poll server to check if admin scanned the QR
+        window.qrPollInterval = setInterval(pollScanStatus, 3000);
+    }
+    
+    function pollScanStatus() {
+        fetch('index.php?page=qr_attendance', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: 'action=poll_status&csrf_token=' + encodeURIComponent(csrfToken)
+        })
+        .then(r => r.json())
+        .then(data => {
+            if (data.scanned) {
+                clearInterval(window.qrInterval);
+                clearInterval(window.qrPollInterval);
+                document.getElementById('qr-display').style.display = 'none';
+                
+                if (data.type === 'checkout') {
+                    promptRating(data.attendance_id);
+                } else {
+                    Swal.fire({
+                        icon: 'success',
+                        title: 'Checked In!',
+                        text: 'Enjoy your workout.',
+                        background: 'var(--surface-color, #090b10)',
+                        color: 'var(--ink, #ffffff)',
+                        confirmButtonColor: 'var(--lime, #c7ff22)'
+                    });
+                }
+            }
+        }).catch(() => {});
+    }
+
+    function promptRating(attendanceId) {
+        let selectedRating = 0;
+        let starHtml = '<div style="display:flex;justify-content:center;gap:10px;margin:12px 0 16px;" id="swal-star-row">'
+            + [1,2,3,4,5].map(v => '<span class="co-star" data-val="' + v + '" style="font-size:2rem;cursor:pointer;color:rgba(255,255,255,0.15);transition:color .15s;line-height:1;">★</span>').join('')
+            + '</div>';
+
+        Swal.fire({
+            title: '💪 How was your session?',
+            html: '<p style="color:var(--muted,#8792ad);font-size:13px;margin:0 0 4px;">Rate your experience (optional)</p>'
+                + starHtml
+                + '<textarea id="swal-comment" placeholder="Any comments? (optional)" rows="3" style="width:100%;padding:10px 12px;border-radius:8px;border:1px solid rgba(255,255,255,0.1);background:rgba(255,255,255,0.05);color:var(--ink,#f8fafc);font-size:14px;resize:vertical;box-sizing:border-box;"></textarea>',
+            background: 'var(--surface-color, #090b10)',
+            color: 'var(--ink, #ffffff)',
+            showCancelButton: true,
+            confirmButtonText: 'Submit',
+            cancelButtonText: 'Skip',
+            confirmButtonColor: 'var(--lime, #c7ff22)',
+            cancelButtonColor: 'transparent',
+            didOpen: () => {
+                const stars = document.querySelectorAll('.co-star');
+                stars.forEach(star => {
+                    star.addEventListener('mouseover', () => {
+                        let val = parseInt(star.dataset.val);
+                        stars.forEach((s,i) => s.style.color = i < val ? '#c7ff22' : 'rgba(255,255,255,0.15)');
+                    });
+                    star.addEventListener('mouseout', () => {
+                        stars.forEach((s,i) => s.style.color = i < selectedRating ? '#c7ff22' : 'rgba(255,255,255,0.15)');
+                    });
+                    star.addEventListener('click', () => {
+                        selectedRating = parseInt(star.dataset.val);
+                        stars.forEach((s,i) => s.style.color = i < selectedRating ? '#c7ff22' : 'rgba(255,255,255,0.15)');
+                    });
+                });
+            },
+            preConfirm: () => {
+                if (selectedRating > 0) {
+                    let comment = document.getElementById('swal-comment').value || '';
+                    fetch('index.php?page=qr_attendance', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                        body: `action=submit_rating&attendance_id=${attendanceId}&rating=${selectedRating}&comment=${encodeURIComponent(comment)}&csrf_token=${encodeURIComponent(csrfToken)}`
+                    });
+                }
+            }
+        }).then(() => {
+            Swal.fire({
+                icon: 'success',
+                title: 'Checked Out!',
+                text: 'See you next time.',
+                background: 'var(--surface-color, #090b10)',
+                color: 'var(--ink, #ffffff)',
+                confirmButtonColor: 'var(--lime, #c7ff22)'
+            });
+        });
     }
     
     function manualRefresh() {
