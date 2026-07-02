@@ -4,14 +4,16 @@ declare(strict_types=1);
 require __DIR__ . '/core/bootstrap.php';
 require __DIR__ . '/pages/member/complete_exercise.php';
 require __DIR__ . '/pages/admin/exercises.php';
+require __DIR__ . '/pages/landing.php';
 
 try {
     seed_reference_data_if_empty();
     verify_csrf();
 
-    $page = $_GET['page'] ?? (current_user() ? 'dashboard' : 'login');
+    $page = $_GET['page'] ?? (current_user() ? 'dashboard' : 'landing');
 
     $routes = [
+        'landing' => 'landing_page',
         'login' => 'handle_login',
         'logout' => 'handle_logout',
         'register' => 'handle_register',
