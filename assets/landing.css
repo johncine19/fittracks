@@ -1060,7 +1060,8 @@
 
 .testimonials-marquee {
     display: flex;
-    gap: 1px;
+    gap: 24px;
+    padding: 24px 0;
     width: max-content;
 }
 
@@ -1068,9 +1069,16 @@
     width: 340px;
     flex: 0 0 auto;
     background: var(--bg-elev);
-    border: none;
-    border-radius: 0;
+    border: 1px solid rgba(199, 255, 34, 0.2);
+    box-shadow: 0 0 20px rgba(199, 255, 34, 0.08), inset 0 0 10px rgba(199, 255, 34, 0.03);
+    border-radius: 16px;
     padding: 32px;
+    transition: box-shadow 0.3s ease, border-color 0.3s ease;
+}
+
+.testimonial-card:hover {
+    border-color: rgba(199, 255, 34, 0.4);
+    box-shadow: 0 0 30px rgba(199, 255, 34, 0.15), inset 0 0 15px rgba(199, 255, 34, 0.05);
 }
 
 .testimonial-stars {

@@ -51,7 +51,7 @@ function landing_page(): void
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400..800&family=IBM+Plex+Mono:wght@400;500&family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="assets/app.css">
-    <link rel="stylesheet" href="assets/landing.css">
+    <link rel="stylesheet" href="assets/landing.css?v=<?= time() ?>">
 </head>
 <body class="landing-page">
 
@@ -363,10 +363,8 @@ function landing_page(): void
                 ? 'assets/uploads/' . h($t['profile_picture'])
                 : null;
         ?>
-        <div class="testimonial-card">
-            <div class="testimonial-stars"><?= $stars ?></div>
-            <p class="testimonial-quote">"<?= $quote ?>"</p>
-            <div class="testimonial-person">
+        <div class="testimonial-card" style="display: flex; flex-direction: column;">
+            <div class="testimonial-person" style="margin-bottom: 20px;">
                 <?php if ($avatarSrc): ?>
                     <img src="<?= $avatarSrc ?>" alt="Member avatar" loading="lazy">
                 <?php else: ?>
@@ -379,6 +377,8 @@ function landing_page(): void
                     <div class="role"><?= $roleText ?></div>
                 </div>
             </div>
+            <div class="testimonial-stars" style="margin-bottom: 12px;"><?= $stars ?></div>
+            <p class="testimonial-quote" style="margin: 0;">"<?= $quote ?>"</p>
         </div>
         <?php endforeach; ?>
     </div>
