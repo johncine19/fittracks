@@ -123,13 +123,6 @@ function landing_page(): void
         </div>
     </div>
 
-    <!-- Interactive 3D scene -->
-    <div class="hero-3d-scene" id="hero-3d-scene">
-        <div class="hero-3d-hint">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M9 12l-4 0m0 0l3-3m-3 3l3 3"/><path d="M15 12l4 0m0 0l-3-3m3 3l-3 3"/></svg>
-            <span>Drag to rotate</span>
-        </div>
-    </div>
 
     <!-- Hero content -->
     <div class="hero-content">
@@ -417,7 +410,6 @@ function landing_page(): void
 <script src="https://cdn.jsdelivr.net/npm/gsap@3/dist/ScrollTrigger.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/gsap@3/dist/ScrollToPlugin.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/lenis@1/dist/lenis.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
 <script>
 document.addEventListener('DOMContentLoaded', () => {
     gsap.registerPlugin(ScrollTrigger, ScrollToPlugin);
@@ -748,149 +740,8 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
 
-    // ─── HERO 3D SCENE — interactive low-poly shape, drag to rotate ───
-    initHero3D();
 });
 
-function initHero3D() {
-    const container = document.getElementById('hero-3d-scene');
-    if (!container || typeof THREE === 'undefined') return;
-
-    // Skip the WebGL scene on small screens and reduced-motion — keep the hero light
-    const isSmallScreen = window.matchMedia('(max-width: 900px)').matches;
-    const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    if (isSmallScreen) { container.style.display = 'none'; return; }
-
-    const LIME = 0xff4d24; // ember accent, kept var name for minimal diff
-    let width = container.clientWidth;
-    let height = container.clientHeight;
-
-    const scene = new THREE.Scene();
-    const camera = new THREE.PerspectiveCamera(42, width / height, 0.1, 100);
-    camera.position.set(0, 0, 7);
-
-    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-    renderer.setSize(width, height);
-    container.appendChild(renderer.domElement);
-
-    // Lighting — dark scene, single lime key light for that "gym at night" feel
-    scene.add(new THREE.AmbientLight(0x404050, 1.2));
-    const keyLight = new THREE.PointLight(LIME, 14, 20);
-    keyLight.position.set(3, 3, 4);
-    scene.add(keyLight);
-    const fillLight = new THREE.PointLight(0x4a4038, 4, 20);
-    fillLight.position.set(-4, -2, -3);
-    scene.add(fillLight);
-
-    // Rig — everything rotates together
-    const rig = new THREE.Group();
-    scene.add(rig);
-
-    // Outer wireframe icosahedron — the "energy shell"
-    const outerGeo = new THREE.IcosahedronGeometry(2.1, 1);
-    const outerEdges = new THREE.EdgesGeometry(outerGeo);
-    const outerWire = new THREE.LineSegments(
-        outerEdges,
-        new THREE.LineBasicMaterial({ color: LIME, transparent: true, opacity: 0.55 })
-    );
-    rig.add(outerWire);
-
-    // Inner solid core
-    const coreGeo = new THREE.IcosahedronGeometry(1.15, 1);
-    const coreMat = new THREE.MeshStandardMaterial({
-        color: 0x10131b,
-        emissive: LIME,
-        emissiveIntensity: 0.15,
-        roughness: 0.35,
-        metalness: 0.6,
-        flatShading: true
-    });
-    const core = new THREE.Mesh(coreGeo, coreMat);
-    rig.add(core);
-
-    // Orbiting particles — reps / progress dots
-    const particleCount = 60;
-    const particlePositions = new Float32Array(particleCount * 3);
-    for (let i = 0; i < particleCount; i++) {
-        const r = 2.6 + Math.random() * 0.6;
-        const theta = Math.random() * Math.PI * 2;
-        const phi = Math.acos((Math.random() * 2) - 1);
-        particlePositions[i * 3] = r * Math.sin(phi) * Math.cos(theta);
-        particlePositions[i * 3 + 1] = r * Math.sin(phi) * Math.sin(theta);
-        particlePositions[i * 3 + 2] = r * Math.cos(phi);
-    }
-    const particleGeo = new THREE.BufferGeometry();
-    particleGeo.setAttribute('position', new THREE.BufferAttribute(particlePositions, 3));
-    const particles = new THREE.Points(particleGeo, new THREE.PointsMaterial({
-        color: LIME, size: 0.035, transparent: true, opacity: 0.7
-    }));
-    rig.add(particles);
-
-    // ─── Interaction: drag to rotate, momentum on release, gentle auto-spin when idle ───
-    let isDragging = false;
-    let prevX = 0, prevY = 0;
-    let velX = 0, velY = 0;
-    let idleSpin = prefersReducedMotion ? 0 : 0.0022;
-
-    const onPointerDown = e => {
-        isDragging = true;
-        prevX = e.clientX; prevY = e.clientY;
-        container.classList.add('dragging');
-    };
-    const onPointerMove = e => {
-        if (!isDragging) return;
-        const dx = e.clientX - prevX;
-        const dy = e.clientY - prevY;
-        velX = dx * 0.005;
-        velY = dy * 0.005;
-        rig.rotation.y += velX;
-        rig.rotation.x += velY;
-        prevX = e.clientX; prevY = e.clientY;
-    };
-    const onPointerUp = () => {
-        isDragging = false;
-        container.classList.remove('dragging');
-    };
-
-    container.addEventListener('pointerdown', onPointerDown);
-    window.addEventListener('pointermove', onPointerMove);
-    window.addEventListener('pointerup', onPointerUp);
-    container.style.touchAction = 'none';
-
-    // ─── Pause rendering when off-screen or tab hidden — saves battery ───
-    let isVisible = true;
-    new IntersectionObserver(entries => {
-        isVisible = entries[0].isIntersecting;
-    }, { threshold: 0.05 }).observe(container);
-
-    function animate() {
-        requestAnimationFrame(animate);
-        if (!isVisible || document.hidden) return;
-
-        if (!isDragging) {
-            rig.rotation.y += idleSpin + Math.abs(velX) * 0.02;
-            rig.rotation.x += velY * 0.02;
-            velX *= 0.92;
-            velY *= 0.92;
-        }
-        particles.rotation.y -= 0.0009;
-
-        renderer.render(scene, camera);
-    }
-    animate();
-
-    // ─── Resize handling ───
-    const resizeObserver = new ResizeObserver(() => {
-        width = container.clientWidth;
-        height = container.clientHeight;
-        if (!width || !height) return;
-        camera.aspect = width / height;
-        camera.updateProjectionMatrix();
-        renderer.setSize(width, height);
-    });
-    resizeObserver.observe(container);
-}
 </script>
 </body>
 </html>
