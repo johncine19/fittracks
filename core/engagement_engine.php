@@ -17,9 +17,9 @@ function calculate_engagement_score(int $userId): int
     $wConsistency = (int) get_setting('engagement_weight_consistency', '20');
     $wProgress = (int) get_setting('engagement_weight_progress', '10');
     
-    // 1. Attendance Frequency (Max wAttendance points for 12+ visits in 30 days)
+    // 1. Attendance Frequency (Max wAttendance points for 7+ visits in 30 days)
     $attendanceCount = (int) scalar('SELECT COUNT(*) FROM attendance WHERE user_id = ? AND check_in_time >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)', [$userId]);
-    $attendanceScore = min($wAttendance, ($attendanceCount / 12) * $wAttendance);
+    $attendanceScore = min($wAttendance, ($attendanceCount / 7) * $wAttendance);
     
     // 2. Class Participation (Max wClasses points for 4+ classes in 30 days)
     $classCount = (int) scalar('SELECT COUNT(*) FROM class_bookings WHERE user_id = ? AND booking_status = "attended" AND booked_at >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)', [$userId]);
