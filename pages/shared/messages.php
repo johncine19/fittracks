@@ -186,6 +186,9 @@ function messages_page(): void
                             $time   = date('g:i A', strtotime($msg['sent_at']));
                         ?>
                             <div style="display: flex; flex-direction: column; max-width: 75%; <?= $isMine ? 'align-self: flex-end; align-items: flex-end;' : 'align-self: flex-start; align-items: flex-start;' ?>">
+                                <?php if (!$isMine): ?>
+                                    <span style="font-size: 0.8rem; color: #3b82f6; margin-bottom: 4px; padding-left: 2px;"><?= h($msg['sender_name']) ?></span>
+                                <?php endif; ?>
                                 <div style="padding: 10px 14px; border-radius: 14px; font-size: 0.95rem; line-height: 1.4; word-break: break-word; <?= $isMine ? 'background: var(--lime); color: #000; border-bottom-right-radius: 4px;' : 'background: var(--surface); color: var(--ink); border-bottom-left-radius: 4px; border: 1px solid var(--line);' ?>">
                                     <?= nl2br(h($msg['message_text'])) ?>
                                 </div>
