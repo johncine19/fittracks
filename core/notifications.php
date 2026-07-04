@@ -244,7 +244,7 @@ function handle_notification_click(): void
     } elseif ($notif['type'] === 'coach_message') {
         redirect('messages');
     } elseif ($notif['type'] === 'class_reminder') {
-        redirect($user['role'] === 'member' ? 'member_classes' : 'schedule');
+        redirect($user['role'] === 'member' ? 'book_classes' : 'classes');
     } elseif ($notif['type'] === 'renewal_reminder') {
         redirect('member_membership');
     } elseif ($notif['type'] === 'milestone') {
