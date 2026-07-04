@@ -297,6 +297,7 @@ function memberships_page(): void
                 background: '#0f172a',
                 color: 'var(--ink)',
                 preConfirm: () => {
+                    Swal.showLoading();
                     document.getElementById('editStatusForm').submit();
                 }
             });
