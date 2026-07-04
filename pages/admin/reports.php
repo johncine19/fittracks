@@ -131,6 +131,48 @@ function reports_page(): void
         ['category' => 'At-Risk', 'count' => $categories['At-Risk']],
     ];
 
+    // Helper to pad time series data
+    $pad_time_series = function(array $data, string $key, string $valKey, string $tf): array {
+        $padded = [];
+        $today = new DateTime();
+        $limit = ($tf === 'daily') ? 14 : (($tf === 'monthly') ? 12 : 5);
+        $modifier = ($tf === 'daily') ? '-1 day' : (($tf === 'monthly') ? '-1 month' : '-1 year');
+        $format = ($tf === 'daily') ? 'Y-m-d' : (($tf === 'monthly') ? 'Y-m' : 'Y');
+
+        $dataMap = [];
+        foreach ($data as $row) {
+            $dataMap[$row[$key]] = $row[$valKey];
+        }
+
+        $current = clone $today;
+        for ($i = 0; $i < $limit; $i++) {
+            $dateStr = $current->format($format);
+            $padded[] = [
+                $key => $dateStr,
+                $valKey => $dataMap[$dateStr] ?? 0
+            ];
+            $current->modify($modifier);
+        }
+        return $padded;
+    };
+
+    // Format dates according to user preference
+    foreach (['daily', 'monthly', 'yearly'] as $tf) {
+        $revenue[$tf] = $pad_time_series($revenue[$tf], 'month', 'revenue', $tf);
+        $attendance[$tf] = $pad_time_series($attendance[$tf], 'day', 'visits', $tf);
+
+        foreach ($revenue[$tf] as &$row) {
+            if ($tf === 'daily') $row['month'] = date('d-m-Y', strtotime($row['month']));
+            elseif ($tf === 'monthly') $row['month'] = date('m-Y', strtotime($row['month'] . '-01'));
+        }
+        unset($row);
+        foreach ($attendance[$tf] as &$row) {
+            if ($tf === 'daily') $row['day'] = date('d-m-Y', strtotime($row['day']));
+            elseif ($tf === 'monthly') $row['day'] = date('m-Y', strtotime($row['day'] . '-01'));
+        }
+        unset($row);
+    }
+
     // Handle exports
     if (isset($_GET['export']) && isset($_GET['type'])) {
         $format = $_GET['export'];
