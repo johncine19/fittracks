@@ -76,16 +76,53 @@ function handle_export(string $type, string $format, array $data): void
 function reports_page(): void
 {
     $user = require_roles(['admin']);
-    $revenue = query_all('SELECT DATE_FORMAT(payment_date, "%Y-%m") AS month, SUM(amount) AS revenue FROM payments WHERE status = "paid" GROUP BY month ORDER BY month DESC LIMIT 12');
-    $attendance = query_all('SELECT DATE(check_in_time) AS day, COUNT(*) AS visits FROM attendance GROUP BY day ORDER BY day DESC LIMIT 14');
+    $revenue = [
+        'daily' => query_all('
+            SELECT month, SUM(revenue) AS revenue FROM (
+                SELECT DATE(payment_date) AS month, amount AS revenue 
+                FROM payments WHERE status = "paid"
+                UNION ALL
+                SELECT DATE(visit_date) AS month, amount_paid AS revenue 
+                FROM walk_in_transactions
+            ) AS combined_revenue
+            GROUP BY month ORDER BY month DESC LIMIT 14
+        '),
+        'monthly' => query_all('
+            SELECT month, SUM(revenue) AS revenue FROM (
+                SELECT DATE_FORMAT(payment_date, "%Y-%m") AS month, amount AS revenue 
+                FROM payments WHERE status = "paid"
+                UNION ALL
+                SELECT DATE_FORMAT(visit_date, "%Y-%m") AS month, amount_paid AS revenue 
+                FROM walk_in_transactions
+            ) AS combined_revenue
+            GROUP BY month ORDER BY month DESC LIMIT 12
+        '),
+        'yearly' => query_all('
+            SELECT month, SUM(revenue) AS revenue FROM (
+                SELECT YEAR(payment_date) AS month, amount AS revenue 
+                FROM payments WHERE status = "paid"
+                UNION ALL
+                SELECT YEAR(visit_date) AS month, amount_paid AS revenue 
+                FROM walk_in_transactions
+            ) AS combined_revenue
+            GROUP BY month ORDER BY month DESC LIMIT 5
+        ')
+    ];
+    $attendance = [
+        'daily' => query_all('SELECT DATE(check_in_time) AS day, COUNT(*) AS visits FROM attendance GROUP BY day ORDER BY day DESC LIMIT 14'),
+        'monthly' => query_all('SELECT DATE_FORMAT(check_in_time, "%Y-%m") AS day, COUNT(*) AS visits FROM attendance GROUP BY day ORDER BY day DESC LIMIT 12'),
+        'yearly' => query_all('SELECT YEAR(check_in_time) AS day, COUNT(*) AS visits FROM attendance GROUP BY day ORDER BY day DESC LIMIT 5')
+    ];
     
     // Engagement Analytics
-    $members = query_all('SELECT user_id FROM users WHERE role = "member" AND status = "active"');
+    $members = query_all('SELECT user_id, first_name, last_name, email, profile_picture FROM users WHERE role = "member" AND status = "active"');
     $categories = ['Highly Engaged' => 0, 'Moderately Engaged' => 0, 'At-Risk' => 0];
+    $memberLists = ['Highly Engaged' => [], 'Moderately Engaged' => [], 'At-Risk' => []];
     foreach ($members as $m) {
         $score = get_cached_engagement_score((int) $m['user_id']);
         $cat = get_engagement_category($score);
         $categories[$cat]++;
+        $memberLists[$cat][] = $m;
     }
     
     $engagementData = [
@@ -98,21 +135,34 @@ function reports_page(): void
     if (isset($_GET['export']) && isset($_GET['type'])) {
         $format = $_GET['export'];
         $type = $_GET['type'];
+        $timeframe = $_GET['timeframe'] ?? 'monthly';
+        
         if ($type === 'engagement') handle_export($type, $format, $engagementData);
-        if ($type === 'revenue') handle_export($type, $format, $revenue);
-        if ($type === 'attendance') handle_export($type, $format, $attendance);
+        if ($type === 'revenue') handle_export($type . '_' . $timeframe, $format, $revenue[$timeframe] ?? $revenue['monthly']);
+        if ($type === 'attendance') handle_export($type . '_' . $timeframe, $format, $attendance[$timeframe] ?? $attendance['daily']);
     }
 
     $engagementJson = json_encode(array_column($engagementData, 'count'));
     $engagementLabels = json_encode(array_column($engagementData, 'category'));
     
-    $revReversed = array_reverse($revenue);
-    $revenueJson = json_encode(array_map(fn($r) => (float)$r['revenue'], $revReversed));
-    $revenueLabels = json_encode(array_column($revReversed, 'month'));
-
-    $attReversed = array_reverse($attendance);
-    $attendanceJson = json_encode(array_map(fn($a) => (int)$a['visits'], $attReversed));
-    $attendanceLabels = json_encode(array_column($attReversed, 'day'));
+    $chartsData = [
+        'revenue' => [],
+        'attendance' => []
+    ];
+    foreach (['daily', 'monthly', 'yearly'] as $tf) {
+        $rRev = array_reverse($revenue[$tf]);
+        $chartsData['revenue'][$tf] = [
+            'labels' => array_column($rRev, 'month'),
+            'data' => array_map(fn($r) => (float)$r['revenue'], $rRev)
+        ];
+        
+        $aRev = array_reverse($attendance[$tf]);
+        $chartsData['attendance'][$tf] = [
+            'labels' => array_column($aRev, 'day'),
+            'data' => array_map(fn($a) => (int)$a['visits'], $aRev)
+        ];
+    }
+    $chartsDataJson = json_encode($chartsData);
 
     render_header('Reports', $user);
     ?>
@@ -155,7 +205,31 @@ function reports_page(): void
           </div>';
     echo '</div>';
     echo '<div style="max-width: 400px; margin-bottom: 2rem;"><canvas id="engagementChart"></canvas></div>';
-    echo render_simple_table($engagementData, ['category', 'count']);
+    
+    foreach ($categories as $catName => $count) {
+        echo '<div style="margin-bottom: 1.5rem; background: var(--surface); padding: 1.5rem; border-radius: 8px; border: 1px solid var(--line);">';
+        echo '<h3 style="margin-top:0; margin-bottom: 1rem; color: var(--ink); border-bottom: 1px solid var(--line); padding-bottom: 0.5rem;">' . h($catName) . ' <span style="background:var(--panel-soft); padding:2px 8px; border-radius:12px; font-size:12px; font-weight:normal; margin-left:8px; color:var(--muted);">' . $count . ' Members</span></h3>';
+        if ($count > 0) {
+            echo '<div class="table-wrap"><table><thead><tr><th>Name</th><th>Email</th></tr></thead><tbody>';
+            foreach ($memberLists[$catName] as $m) {
+                echo '<tr>';
+                echo '<td style="display:flex;align-items:center;gap:12px;">';
+                if (!empty($m['profile_picture'])) {
+                    echo '<img src="assets/uploads/' . h($m['profile_picture']) . '" alt="Avatar" class="avatar" style="width:32px;height:32px;">';
+                } else {
+                    echo '<div class="avatar avatar-initials" style="width:32px;height:32px;font-size:12px;">' . h(initials($m)) . '</div>';
+                }
+                echo '<strong>' . h($m['first_name'] . ' ' . $m['last_name']) . '</strong></td>';
+                echo '<td style="color:var(--muted)">' . h($m['email']) . '</td>';
+                echo '</tr>';
+            }
+            echo '</tbody></table></div>';
+        } else {
+            echo '<p style="color:var(--muted); font-size: 14px; margin: 0;">No members in this category.</p>';
+        }
+        echo '</div>';
+    }
+
     echo '</div>';
     
     // Revenue Tab
@@ -163,12 +237,19 @@ function reports_page(): void
     echo '<div style="display:flex; justify-content:space-between; align-items:flex-start;">';
     echo '<h2>Revenue</h2>';
     echo '<div>
-            <a href="index.php?page=reports&type=revenue&export=csv" class="btn-sm btn-ghost">Export CSV</a>
-            <a href="index.php?page=reports&type=revenue&export=print" target="_blank" class="btn-sm btn-ghost">Print / PDF</a>
+            <a href="index.php?page=reports&type=revenue&timeframe=monthly&export=csv" id="btn-export-revenue-csv" class="btn-sm btn-ghost">Export CSV</a>
+            <a href="index.php?page=reports&type=revenue&timeframe=monthly&export=print" id="btn-export-revenue-print" target="_blank" class="btn-sm btn-ghost">Print / PDF</a>
           </div>';
     echo '</div>';
+    echo '<div style="margin-bottom: 1rem; display: flex; gap: 0.5rem;">
+            <button class="btn-sm btn-secondary tf-btn-revenue" onclick="setTimeframe(\'revenue\', \'daily\')" id="tf-revenue-daily">Daily</button>
+            <button class="btn-sm btn-primary tf-btn-revenue" onclick="setTimeframe(\'revenue\', \'monthly\')" id="tf-revenue-monthly">Monthly</button>
+            <button class="btn-sm btn-secondary tf-btn-revenue" onclick="setTimeframe(\'revenue\', \'yearly\')" id="tf-revenue-yearly">Yearly</button>
+          </div>';
     echo '<div style="max-width: 800px; margin-bottom: 2rem;"><canvas id="revenueChart"></canvas></div>';
-    echo render_simple_table($revenue, ['month', 'revenue']);
+    echo '<div id="revenue-table-daily" style="display:none;">' . render_simple_table($revenue['daily'], ['month', 'revenue']) . '</div>';
+    echo '<div id="revenue-table-monthly" style="display:block;">' . render_simple_table($revenue['monthly'], ['month', 'revenue']) . '</div>';
+    echo '<div id="revenue-table-yearly" style="display:none;">' . render_simple_table($revenue['yearly'], ['month', 'revenue']) . '</div>';
     echo '</div>';
     
     // Attendance Tab
@@ -176,12 +257,19 @@ function reports_page(): void
     echo '<div style="display:flex; justify-content:space-between; align-items:flex-start;">';
     echo '<h2>Attendance</h2>';
     echo '<div>
-            <a href="index.php?page=reports&type=attendance&export=csv" class="btn-sm btn-ghost">Export CSV</a>
-            <a href="index.php?page=reports&type=attendance&export=print" target="_blank" class="btn-sm btn-ghost">Print / PDF</a>
+            <a href="index.php?page=reports&type=attendance&timeframe=daily&export=csv" id="btn-export-attendance-csv" class="btn-sm btn-ghost">Export CSV</a>
+            <a href="index.php?page=reports&type=attendance&timeframe=daily&export=print" id="btn-export-attendance-print" target="_blank" class="btn-sm btn-ghost">Print / PDF</a>
           </div>';
     echo '</div>';
+    echo '<div style="margin-bottom: 1rem; display: flex; gap: 0.5rem;">
+            <button class="btn-sm btn-primary tf-btn-attendance" onclick="setTimeframe(\'attendance\', \'daily\')" id="tf-attendance-daily">Daily</button>
+            <button class="btn-sm btn-secondary tf-btn-attendance" onclick="setTimeframe(\'attendance\', \'monthly\')" id="tf-attendance-monthly">Monthly</button>
+            <button class="btn-sm btn-secondary tf-btn-attendance" onclick="setTimeframe(\'attendance\', \'yearly\')" id="tf-attendance-yearly">Yearly</button>
+          </div>';
     echo '<div style="max-width: 800px; margin-bottom: 2rem;"><canvas id="attendanceChart"></canvas></div>';
-    echo render_simple_table($attendance, ['day', 'visits']);
+    echo '<div id="attendance-table-daily" style="display:block;">' . render_simple_table($attendance['daily'], ['day', 'visits']) . '</div>';
+    echo '<div id="attendance-table-monthly" style="display:none;">' . render_simple_table($attendance['monthly'], ['day', 'visits']) . '</div>';
+    echo '<div id="attendance-table-yearly" style="display:none;">' . render_simple_table($attendance['yearly'], ['day', 'visits']) . '</div>';
     echo '</div>';
     
     echo <<<HTML
@@ -206,6 +294,43 @@ function reports_page(): void
             btn.style.borderRadius = '4px';
         }
     };
+    
+    const chartsData = {$chartsDataJson};
+    let revenueChartInstance = null;
+    let attendanceChartInstance = null;
+
+    window.setTimeframe = function(type, timeframe) {
+        document.querySelectorAll('.tf-btn-' + type).forEach(el => {
+            el.classList.remove('btn-primary');
+            el.classList.add('btn-secondary');
+        });
+        const btn = document.getElementById('tf-' + type + '-' + timeframe);
+        if (btn) {
+            btn.classList.remove('btn-secondary');
+            btn.classList.add('btn-primary');
+        }
+
+        ['daily', 'monthly', 'yearly'].forEach(tf => {
+            const table = document.getElementById(type + '-table-' + tf);
+            if (table) table.style.display = (tf === timeframe) ? 'block' : 'none';
+        });
+
+        const csvBtn = document.getElementById('btn-export-' + type + '-csv');
+        const printBtn = document.getElementById('btn-export-' + type + '-print');
+        if (csvBtn) csvBtn.href = 'index.php?page=reports&type=' + type + '&timeframe=' + timeframe + '&export=csv';
+        if (printBtn) printBtn.href = 'index.php?page=reports&type=' + type + '&timeframe=' + timeframe + '&export=print';
+
+        if (type === 'revenue' && revenueChartInstance) {
+            revenueChartInstance.data.labels = chartsData.revenue[timeframe].labels;
+            revenueChartInstance.data.datasets[0].data = chartsData.revenue[timeframe].data;
+            revenueChartInstance.update();
+        }
+        if (type === 'attendance' && attendanceChartInstance) {
+            attendanceChartInstance.data.labels = chartsData.attendance[timeframe].labels;
+            attendanceChartInstance.data.datasets[0].data = chartsData.attendance[timeframe].data;
+            attendanceChartInstance.update();
+        }
+    };
 
     document.addEventListener('DOMContentLoaded', function() {
         if (typeof Chart !== 'undefined') {
@@ -218,16 +343,27 @@ function reports_page(): void
                         backgroundColor: ['#10b981', '#f59e0b', '#ef4444'],
                         borderWidth: 0
                     }]
+                },
+                options: {
+                    plugins: {
+                        legend: {
+                            position: 'bottom',
+                            labels: {
+                                padding: 20,
+                                usePointStyle: true
+                            }
+                        }
+                    }
                 }
             });
 
-            new Chart(document.getElementById('revenueChart'), {
+            revenueChartInstance = new Chart(document.getElementById('revenueChart'), {
                 type: 'bar',
                 data: {
-                    labels: $revenueLabels,
+                    labels: chartsData.revenue.monthly.labels,
                     datasets: [{
                         label: 'Revenue',
-                        data: $revenueJson,
+                        data: chartsData.revenue.monthly.data,
                         backgroundColor: '#3b82f6',
                         borderRadius: 4
                     }]
@@ -235,13 +371,13 @@ function reports_page(): void
                 options: { scales: { y: { beginAtZero: true } }, plugins: { legend: { display: false } } }
             });
 
-            new Chart(document.getElementById('attendanceChart'), {
+            attendanceChartInstance = new Chart(document.getElementById('attendanceChart'), {
                 type: 'line',
                 data: {
-                    labels: $attendanceLabels,
+                    labels: chartsData.attendance.daily.labels,
                     datasets: [{
                         label: 'Visits',
-                        data: $attendanceJson,
+                        data: chartsData.attendance.daily.data,
                         borderColor: '#8b5cf6',
                         backgroundColor: 'rgba(139, 92, 246, 0.1)',
                         fill: true,
