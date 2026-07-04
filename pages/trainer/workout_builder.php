@@ -47,7 +47,8 @@ function workout_builder_page(): void
         if ($action === 'auto_generate') {
             auto_populate_plan($planId, $memberId);
             flash('Plan auto-generated. Review before publishing.', 'success');
-            redirect('workout_builder&member_user_id=' . $memberId);
+            header('Location: index.php?page=workout_builder&member_user_id=' . $memberId);
+            exit;
         }
         
         if ($action === 'publish') {
@@ -74,14 +75,16 @@ function workout_builder_page(): void
             $stmt = $pdo->prepare('INSERT INTO training_plan_exercises (plan_id, exercise_id, day_of_week, sequence_order, sets, reps, rest_seconds) VALUES (?, ?, ?, ?, ?, ?, ?)');
             $stmt->execute([$planId, $exerciseId, $dayOfWeek, $order, $sets, $reps, $rest]);
             flash('Exercise added.', 'success');
-            redirect('workout_builder&member_user_id=' . $memberId);
+            header('Location: index.php?page=workout_builder&member_user_id=' . $memberId);
+            exit;
         }
 
         if ($action === 'remove_exercise') {
             $planExId = (int) post('plan_exercise_id');
             $pdo->prepare('DELETE FROM training_plan_exercises WHERE plan_exercise_id = ? AND plan_id = ?')->execute([$planExId, $planId]);
             flash('Exercise removed.', 'success');
-            redirect('workout_builder&member_user_id=' . $memberId);
+            header('Location: index.php?page=workout_builder&member_user_id=' . $memberId);
+            exit;
         }
         
         // API endpoint for drag & drop
@@ -228,7 +231,9 @@ function workout_builder_page(): void
             icon: 'warning',
             showCancelButton: true,
             confirmButtonColor: 'var(--lime-dark)',
-            cancelButtonColor: 'var(--line)',
+            cancelButtonColor: '#6c757d',
+            background: 'var(--bg)',
+            color: 'var(--ink)',
             confirmButtonText: 'Yes, generate it!'
         }).then((result) => {
             if (result.isConfirmed) {
@@ -279,7 +284,7 @@ function workout_builder_page(): void
             showCancelButton: true,
             confirmButtonText: 'Add Exercise',
             confirmButtonColor: 'var(--lime-dark)',
-            cancelButtonColor: 'var(--line)',
+            cancelButtonColor: '#6c757d',
             background: 'var(--bg)',
             color: 'var(--ink)',
             preConfirm: () => {
@@ -336,4 +341,5 @@ function workout_builder_page(): void
         .sortable-ghost { opacity: 0.4; background-color: var(--line); }
     </style>
     <?php
+    render_footer();
 }
