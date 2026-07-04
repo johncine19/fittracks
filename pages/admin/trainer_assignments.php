@@ -35,7 +35,7 @@ function trainer_assignments_page(): void
 
     $coaches = db()->query('SELECT cp.trainer_id, CONCAT(u.first_name, " ", u.last_name, " - ", COALESCE(cp.specialization, "trainer")) AS name FROM trainer_profiles cp JOIN users u ON u.user_id = cp.user_id WHERE u.status = "active" ORDER BY u.first_name')->fetchAll();
     $members = db()->query('SELECT user_id, CONCAT(first_name, " ", last_name) AS name FROM users WHERE role = "member" AND status = "active" ORDER BY first_name')->fetchAll();
-    $rows = db()->query('SELECT ca.*, CONCAT(cu.first_name, " ", cu.last_name) AS trainer, CONCAT(mu.first_name, " ", mu.last_name) AS member, SUBSTRING_INDEX(CONCAT(cu.first_name, " ", cu.last_name), " ", 1) AS coach_fn, SUBSTRING_INDEX(CONCAT(cu.first_name, " ", cu.last_name), " ", -1) AS coach_ln, SUBSTRING_INDEX(CONCAT(mu.first_name, " ", mu.last_name), " ", 1) AS member_fn, SUBSTRING_INDEX(CONCAT(mu.first_name, " ", mu.last_name), " ", -1) AS member_ln FROM trainer_assignments ca JOIN trainer_profiles cp ON cp.trainer_id = ca.trainer_id JOIN users cu ON cu.user_id = cp.user_id JOIN users mu ON mu.user_id = ca.member_user_id ORDER BY ca.assigned_date DESC')->fetchAll();
+    $rows = db()->query('SELECT ca.*, CONCAT(cu.first_name, " ", cu.last_name) AS trainer, CONCAT(mu.first_name, " ", mu.last_name) AS member, cu.first_name AS coach_fn, cu.last_name AS coach_ln, cu.profile_picture AS coach_picture, mu.first_name AS member_fn, mu.last_name AS member_ln, mu.profile_picture AS member_picture FROM trainer_assignments ca JOIN trainer_profiles cp ON cp.trainer_id = ca.trainer_id JOIN users cu ON cu.user_id = cp.user_id JOIN users mu ON mu.user_id = ca.member_user_id ORDER BY ca.assigned_date DESC')->fetchAll();
 
     render_header('Trainer Assignments', $user);
     ?>
@@ -69,20 +69,20 @@ function trainer_assignments_page(): void
                 </thead>
                 <tbody>
                 <?php foreach ($rows as $row):
-                    $coachInit = strtoupper(substr($row['coach_fn'], 0, 1) . substr($row['coach_ln'], 0, 1));
-                    $memberInit = strtoupper(substr($row['member_fn'], 0, 1) . substr($row['member_ln'], 0, 1));
                     $statusClass = 'badge badge-' . str_replace(' ', '_', $row['status']);
+                    $coachData = ['first_name' => $row['coach_fn'], 'last_name' => $row['coach_ln'], 'profile_picture' => $row['coach_picture']];
+                    $memberData = ['first_name' => $row['member_fn'], 'last_name' => $row['member_ln'], 'profile_picture' => $row['member_picture']];
                 ?>
                     <tr>
                         <td>
                             <div class="user-cell">
-                                <span class="avatar small"><?= h($coachInit) ?></span>
+                                <?= render_avatar($coachData) ?>
                                 <span><?= h($row['trainer']) ?></span>
                             </div>
                         </td>
                         <td>
                             <div class="user-cell">
-                                <span class="avatar small"><?= h($memberInit) ?></span>
+                                <?= render_avatar($memberData) ?>
                                 <span><?= h($row['member']) ?></span>
                             </div>
                         </td>
