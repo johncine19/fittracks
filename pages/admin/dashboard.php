@@ -146,7 +146,7 @@ function admin_dashboard(PDO $pdo): void
                 <div>
                     <h2>Revenue Trend</h2>
                     <p>Last 6 months</p>
-                </div><span><?= h($revPctLabel) ?></span>
+                </div><span<?= ($revPct !== null && $revPct < 0) ? ' class="trend-down-bg"' : '' ?>><?= h($revPctLabel) ?></span>
             </div>
             <div class="chart-canvas"><canvas id="revenueTrendChart"></canvas></div>
         </article>
