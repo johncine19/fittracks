@@ -41,6 +41,7 @@ function messages_page(): void
             UNION
             SELECT recipient_id FROM trainer_messages WHERE sender_id = ?
          )
+         ' . ($user['role'] === 'admin' ? ' OR (u.role = "trainer" AND u.status = "active") ' : '') . '
          ORDER BY last_time DESC',
         [$user['user_id'], $user['user_id'], $user['user_id'], $user['user_id'], $user['user_id'], $user['user_id']]
     );
@@ -95,7 +96,7 @@ function messages_page(): void
         default   => '"trainer","member","admin"',
     };
     $contacts = db()->query(
-        'SELECT user_id, first_name, last_name, role FROM users
+        'SELECT user_id, first_name, last_name, profile_picture, role FROM users
          WHERE user_id != ' . (int)$user['user_id'] . '
            AND status = "active"
            AND role IN (' . $roleFilter . ')
@@ -222,24 +223,21 @@ function messages_page(): void
                 </svg>
             </button>
         </div>
-        <div class="modal-body">
-            <form method="get" class="form grid-form">
-                <input type="hidden" name="page" value="messages">
-                <label style="grid-column:1/-1">To
-                    <select name="chat" required>
-                        <option value="">— select contact —</option>
-                        <?php foreach ($contacts as $c): ?>
-                            <option value="<?= (int) $c['user_id'] ?>">
-                                <?= h($c['first_name'] . ' ' . $c['last_name']) ?> (<?= h(ucfirst($c['role'])) ?>)
-                            </option>
-                        <?php endforeach; ?>
-                    </select>
-                </label>
-                <div style="grid-column:1/-1;display:flex;justify-content:flex-end;gap:10px;">
-                    <button type="button" onclick="this.closest('dialog').close()">Cancel</button>
-                    <button type="submit" class="btn-primary">Message</button>
-                </div>
-            </form>
+        <div class="modal-body" style="padding: 0;">
+            <div style="max-height: 400px; overflow-y: auto;">
+                <?php foreach ($contacts as $c): ?>
+                    <a href="index.php?page=messages&chat=<?= (int) $c['user_id'] ?>" style="display: flex; align-items: center; gap: 12px; padding: 12px 20px; border-bottom: 1px solid var(--line); text-decoration: none; color: inherit; transition: background 0.2s;" onmouseover="this.style.background='var(--panel-hover)'" onmouseout="this.style.background='transparent'">
+                        <?= render_avatar($c) ?>
+                        <div>
+                            <strong style="display: block; color: var(--ink);"><?= h($c['first_name'] . ' ' . $c['last_name']) ?></strong>
+                            <small style="color: var(--muted); text-transform: capitalize;"><?= h($c['role']) ?></small>
+                        </div>
+                    </a>
+                <?php endforeach; ?>
+                <?php if (!$contacts): ?>
+                    <div style="padding: 20px; text-align: center; color: var(--muted);">No contacts available.</div>
+                <?php endif; ?>
+            </div>
         </div>
     </dialog>
     <?php

@@ -22,6 +22,7 @@ function render_header(string $title, ?array $user = null): void
                 'scanner' => 'Scan QR',
                 'exercises' => 'Exercises',
                 'reports' => 'Reports',
+                'messages' => 'Messages',
                 'notifications' => 'Notifications'
             ];
         }
