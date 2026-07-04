@@ -30,7 +30,7 @@ function training_page(): void
         }
         redirect('training');
     }
-    $members = query_all('SELECT ca.member_user_id, CONCAT(u.first_name, " ", u.last_name) AS name FROM trainer_assignments ca JOIN users u ON u.user_id = ca.member_user_id WHERE ca.trainer_id = ? AND ca.status = "active"', [$coachId]);
+    $members = query_all('SELECT ca.member_user_id, CONCAT(u.first_name, " ", u.last_name) AS name, mp.primary_goal FROM trainer_assignments ca JOIN users u ON u.user_id = ca.member_user_id LEFT JOIN member_profiles mp ON mp.user_id = u.user_id WHERE ca.trainer_id = ? AND ca.status = "active"', [$coachId]);
     $plans = query_all('SELECT tp.*, CONCAT(u.first_name, " ", u.last_name) AS member FROM training_plans tp JOIN users u ON u.user_id = tp.member_user_id WHERE tp.trainer_id = ? ORDER BY tp.created_at DESC', [$coachId]);
     render_header('Training', $user);
     ?>
@@ -73,9 +73,10 @@ function training_page(): void
                 <?= csrf_field() ?>
                 <input type="hidden" name="action" value="add_plan">
                 <label style="display:block; color:var(--muted); font-size:14px">Member
-                    <select name="member_user_id" class="form-control" style="width:100%;box-sizing:border-box" required>
+                    <select name="member_user_id" class="form-control" style="width:100%;box-sizing:border-box" required onchange="updateGoalField(this)">
+                        <option value="" data-goal="">-- Select Member --</option>
                         <?php foreach ($members as $member): ?>
-                            <option value="<?= (int) $member['member_user_id'] ?>" <?= $memberId === (int) $member['member_user_id'] ? 'selected' : '' ?>><?= h($member['name']) ?></option>
+                            <option value="<?= (int) $member['member_user_id'] ?>" data-goal="<?= h($member['primary_goal'] ?? '') ?>" <?= $memberId === (int) $member['member_user_id'] ? 'selected' : '' ?>><?= h($member['name']) ?></option>
                         <?php endforeach; ?>
                     </select>
                 </label>
@@ -98,12 +99,67 @@ function training_page(): void
             </form>
         </div>
     </div>
+    
+    <!-- Edit Training Plan Modal -->
+    <div id="editModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.6);align-items:center;justify-content:center;z-index:1000;padding:1rem">
+        <div style="background:#0f172a;padding:2rem;border-radius:8px;width:100%;max-width:400px;box-shadow:0 20px 25px -5px rgba(0,0,0,0.5);border:1px solid #334155">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1.5rem">
+                <h2 style="margin:0; font-size:1.5rem; color:var(--ink)">Edit Training Plan</h2>
+                <button type="button" onclick="document.getElementById('editModal').style.display='none'" style="background:transparent;border:none;color:#94a3b8;font-size:1.5rem;cursor:pointer;padding:0">&times;</button>
+            </div>
+            <form id="editForm" method="post" style="display:flex;flex-direction:column;gap:12px">
+                <?= csrf_field() ?>
+                <input type="hidden" name="action" value="edit_plan">
+                <input type="hidden" name="plan_id" id="edit_plan_id">
+                <label style="display:block; color:var(--muted); font-size:14px">Member
+                    <select name="member_user_id" id="edit_member_id" class="form-control" style="width:100%;box-sizing:border-box" required onchange="updateGoalField(this)">
+                        <?php foreach ($members as $member): ?>
+                            <option value="<?= (int) $member['member_user_id'] ?>" data-goal="<?= h($member['primary_goal'] ?? '') ?>"><?= h($member['name']) ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                </label>
+                <label style="display:block; color:var(--muted); font-size:14px">Title 
+                    <input name="title" id="edit_title" class="form-control" style="width:100%;box-sizing:border-box" required>
+                </label>
+                <label style="display:block; color:var(--muted); font-size:14px">Goal 
+                    <input name="goal" id="edit_goal" class="form-control" style="width:100%;box-sizing:border-box">
+                </label>
+                <label style="display:block; color:var(--muted); font-size:14px">Start Date 
+                    <input name="start_date" id="edit_start_date" type="date" class="form-control" style="width:100%;box-sizing:border-box" required>
+                </label>
+                <label style="display:block; color:var(--muted); font-size:14px">End Date 
+                    <input name="end_date" id="edit_end_date" type="date" class="form-control" style="width:100%;box-sizing:border-box">
+                </label>
+                <div style="display:flex;justify-content:flex-end;gap:1rem;margin-top:1rem">
+                    <button type="button" onclick="document.getElementById('editModal').style.display='none'" style="background:transparent;color:#94a3b8;border:1px solid #475569">Cancel</button>
+                    <button class="btn-primary">Save Changes</button>
+                </div>
+            </form>
+        </div>
+    </div>
     <script>
+    function updateGoalField(selectElement) {
+        const selectedOption = selectElement.options[selectElement.selectedIndex];
+        const goalInput = selectElement.closest('form').querySelector('input[name="goal"]');
+        if (goalInput && selectedOption && selectedOption.dataset.goal) {
+            goalInput.value = selectedOption.dataset.goal;
+        }
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+        const select = document.querySelector('select[name="member_user_id"]');
+        if (select && select.value) {
+            updateGoalField(select);
+        }
+    });
+
     function editPlan(p) {
         let membersOptions = '';
         <?php foreach ($members as $member): ?>
             membersOptions += `<option value="<?= (int) $member['member_user_id'] ?>"><?= h($member['name']) ?></option>`;
         <?php endforeach; ?>
+        
+        <?php $csrfStr = csrf_field(); ?>
 
         Swal.fire({
             title: 'Edit Training Plan',
@@ -141,9 +197,9 @@ function training_page(): void
             },
             showCancelButton: true,
             confirmButtonText: 'Save Changes',
-            confirmButtonColor: 'var(--lime-dark)',
-            cancelButtonColor: 'var(--line)',
-            background: 'var(--bg)',
+            confirmButtonColor: 'var(--lime)',
+            cancelButtonColor: '#334155',
+            background: '#0f172a',
             color: 'var(--ink)',
             preConfirm: () => {
                 const form = document.getElementById('editPlanForm');
