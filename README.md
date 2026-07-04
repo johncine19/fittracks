@@ -1,11 +1,11 @@
 # FITTRACK Gym Management System
 
-Simple PHP 8.2 + MySQL implementation based on `gym-management-system.md` and the provided `gym_management.sql` schema.
+Simple PHP 8.2 + MySQL implementation based on `gym-management-system.md` and the provided `fitracks.sql` schema.
 
 ## Setup
 
 1. Start Apache and MySQL in XAMPP.
-2. Create/import the database from `gym_management.sql` into MySQL as `gym_management`.
+2. Create/import the database from `fitracks.sql` into MySQL as `fitracks`.
 3. Open `http://localhost/FITTRACK/`.
 
 If the `users` table is empty, the app creates a default admin account:
