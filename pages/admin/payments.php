@@ -7,8 +7,14 @@ function payments_page(): void
     if (can($user, ['admin']) && $_SERVER['REQUEST_METHOD'] === 'POST') {
         $receipt = post('receipt_number') ?: 'RCPT-' . date('Ymd') . '-' . random_int(1000, 9999);
         $membershipId = (int) post('membership_id');
+        $status = post('status');
         db()->prepare('INSERT INTO payments (membership_id, amount, payment_date, payment_method, status, receipt_number, processed_by) VALUES (?, ?, ?, ?, ?, ?, ?)')
-            ->execute([$membershipId, post('amount'), post('payment_date'), post('payment_method'), post('status'), $receipt, $user['user_id']]);
+            ->execute([$membershipId, post('amount'), post('payment_date'), post('payment_method'), $status, $receipt, $user['user_id']]);
+
+        // If the payment is marked as paid, automatically activate the membership
+        if ($status === 'paid') {
+            db()->prepare('UPDATE memberships SET status = "active" WHERE membership_id = ? AND status = "pending"')->execute([$membershipId]);
+        }
 
         $paymentInfo = query_all(
             'SELECT m.user_id, p.plan_name
@@ -133,17 +139,17 @@ function payments_page(): void
                     <?= csrf_field() ?>
                     
                     <label style="display:block; color: var(--muted); font-size: 14px;">Membership *
-                        <select name="membership_id" class="form-control" style="width: 100%; box-sizing: border-box;" required>
-                            <option value="">Select Membership...</option>
+                        <select name="membership_id" class="form-control" style="width: 100%; box-sizing: border-box;" required onchange="document.getElementById(\'modalPaymentAmount\').value = this.options[this.selectedIndex].getAttribute(\'data-price\') || \'\';">
+                            <option value="" data-price="">Select Membership...</option>
                             <?php foreach ($memberships as $membership): ?>
-                                <option value="<?= (int) $membership['membership_id'] ?>"><?= h($membership['label']) ?></option>
+                                <option value="<?= (int) $membership['membership_id'] ?>" data-price="<?= h((string)$membership['price']) ?>"><?= h($membership['label']) ?></option>
                             <?php endforeach; ?>
                         </select>
                     </label>
                     
                     <div style="display:flex;gap:12px;">
                         <label style="display:block; flex:1; color: var(--muted); font-size: 14px;">Amount *
-                            <input name="amount" type="number" step="0.01" class="form-control" placeholder="0.00" style="width: 100%; box-sizing: border-box;" required>
+                            <input id="modalPaymentAmount" name="amount" type="number" step="0.01" class="form-control" placeholder="0.00" style="width: 100%; box-sizing: border-box;" required>
                         </label>
                         <label style="display:block; flex:1; color: var(--muted); font-size: 14px;">Payment date *
                             <input name="payment_date" type="date" class="form-control" value="<?= h(date('Y-m-d')) ?>" style="width: 100%; box-sizing: border-box;" required>
