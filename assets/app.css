@@ -465,10 +465,15 @@ input[type="radio"] {
     display: grid;
     place-items: center;
     border-radius: 8px;
-    background: #1b202c;
+    background: color-mix(in srgb, var(--lime) 15%, transparent);
     color: var(--lime);
     font-style: normal;
     letter-spacing: 0;
+}
+
+.stat-head i svg {
+    width: 18px;
+    height: 18px;
 }
 
 .featured .stat-head i {

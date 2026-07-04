@@ -93,7 +93,7 @@ function render_member_form(string $context, ?array $user = null, ?array $profil
 function dashboard_stat(string $label, string $value, string $subtext, string $trend, string $icon, bool $featured = false): void
 {
     echo '<article class="dash-stat ' . ($featured ? 'featured' : '') . '">';
-    echo '<div class="stat-head"><span>' . h($label) . '</span><i>' . h($icon) . '</i></div>';
+    echo '<div class="stat-head"><span>' . h($label) . '</span><i>' . $icon . '</i></div>';
     echo '<strong>' . h($value) . '</strong>';
     echo '<p>' . h($subtext) . '</p>';
     echo '<em>' . h($trend) . '</em>';
