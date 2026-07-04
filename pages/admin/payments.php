@@ -47,7 +47,22 @@ function payments_page(): void
 
     render_header('Payments', $user);
     ?>
-    <section class="panel">
+    <div class="skeleton-wrapper">
+        <section class="panel">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:24px">
+                <div>
+                    <div class="sk sk-title" style="width:140px;margin-bottom:8px"></div>
+                    <div class="sk sk-text" style="width:280px;height:12px"></div>
+                </div>
+                <?php if (can($user, ['admin'])): ?>
+                    <div class="sk sk-rect" style="width:140px;height:36px;border-radius:18px"></div>
+                <?php endif; ?>
+            </div>
+            <div class="sk sk-text short" style="margin-bottom:12px;height:14px;width:120px"></div>
+            <?php render_skeleton_table(7, 8); ?>
+        </section>
+    </div>
+    <section class="panel skeleton-content sk-display-block">
         <div class="page-header">
             <div>
                 <h1>Payments</h1>

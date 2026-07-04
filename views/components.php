@@ -605,3 +605,208 @@ function render_registration_form(): void
     </div>
     <?php
 }
+
+// ═══════════════════════════════════════════════════════════════
+// SKELETON LOADING HELPERS
+// ═══════════════════════════════════════════════════════════════
+
+/**
+ * Renders skeleton stat cards (dashboard KPI cards)
+ */
+function render_skeleton_stats(int $count = 4): void
+{
+    echo '<div class="skeleton-wrapper"><section class="dash-grid stats-row">';
+    for ($i = 0; $i < $count; $i++) {
+        echo '<div class="sk-card sk-rect stat sk">';
+        echo '<div class="sk sk-text short" style="margin-bottom:18px"></div>';
+        echo '<div class="sk sk-title" style="height:32px;width:40%;margin-bottom:8px"></div>';
+        echo '<div class="sk sk-text medium" style="height:12px"></div>';
+        echo '<div class="sk sk-text short" style="height:12px;margin-top:12px"></div>';
+        echo '</div>';
+    }
+    echo '</section></div>';
+}
+
+/**
+ * Renders a skeleton table with header bar + rows
+ */
+function render_skeleton_table(int $cols = 6, int $rows = 8): void
+{
+    echo '<div class="skeleton-wrapper">';
+    // Header bar
+    echo '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;padding:8px 0">';
+    echo '<div class="sk sk-title" style="width:120px;margin:0"></div>';
+    echo '<div class="sk sk-text short" style="width:60px;margin:0;height:12px"></div>';
+    echo '</div>';
+    // Table header
+    echo '<div class="sk-table-row" style="border-bottom:2px solid var(--line)">';
+    for ($c = 0; $c < $cols; $c++) {
+        $cls = $c === 0 ? 'wide' : ($c === $cols - 1 ? 'narrow' : '');
+        echo '<div class="sk sk-cell ' . $cls . '"></div>';
+    }
+    echo '</div>';
+    // Table rows
+    for ($r = 0; $r < $rows; $r++) {
+        echo '<div class="sk-table-row">';
+        for ($c = 0; $c < $cols; $c++) {
+            $cls = $c === 0 ? 'wide' : ($c === $cols - 1 ? 'narrow' : '');
+            echo '<div class="sk sk-cell ' . $cls . '"></div>';
+        }
+        echo '</div>';
+    }
+    echo '</div>';
+}
+
+/**
+ * Renders skeleton list items with avatar + text lines
+ */
+function render_skeleton_list(int $rows = 5, string $title = ''): void
+{
+    echo '<div class="skeleton-wrapper">';
+    if ($title) {
+        echo '<div class="sk sk-title" style="width:160px;margin-bottom:14px"></div>';
+    }
+    echo '<div class="list-stack" style="gap:10px">';
+    for ($i = 0; $i < $rows; $i++) {
+        echo '<div class="sk-list-item">';
+        echo '<div class="sk sk-circle"></div>';
+        echo '<div class="sk-list-item-lines">';
+        echo '<div class="sk sk-text medium" style="margin:0"></div>';
+        echo '<div class="sk sk-text short" style="margin:0;height:11px"></div>';
+        echo '</div>';
+        echo '<div class="sk sk-text" style="width:60px;margin:0;height:11px"></div>';
+        echo '</div>';
+    }
+    echo '</div></div>';
+}
+
+/**
+ * Renders a skeleton chart placeholder
+ */
+function render_skeleton_chart(): void
+{
+    echo '<div class="skeleton-wrapper">';
+    echo '<div class="sk-card" style="min-height:308px">';
+    echo '<div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:18px">';
+    echo '<div><div class="sk sk-title" style="width:140px;margin-bottom:6px"></div>';
+    echo '<div class="sk sk-text short" style="height:11px"></div></div>';
+    echo '<div class="sk sk-text" style="width:50px;height:24px;border-radius:999px;margin:0"></div>';
+    echo '</div>';
+    echo '<div class="sk sk-rect chart"></div>';
+    echo '</div></div>';
+}
+
+/**
+ * Renders skeleton cards in a grid
+ */
+function render_skeleton_cards(int $count = 6): void
+{
+    echo '<div class="skeleton-wrapper"><div class="sk-card-grid">';
+    for ($i = 0; $i < $count; $i++) {
+        echo '<div class="sk-card">';
+        echo '<div style="display:flex;justify-content:space-between;margin-bottom:14px">';
+        echo '<div class="sk sk-text" style="width:60px;height:20px;margin:0;border-radius:99px"></div>';
+        echo '</div>';
+        echo '<div class="sk sk-title" style="width:70%;margin-bottom:14px"></div>';
+        echo '<div class="sk sk-text full" style="height:12px"></div>';
+        echo '<div class="sk sk-text medium" style="height:12px"></div>';
+        echo '<div class="sk sk-text full" style="height:12px;margin-top:14px"></div>';
+        echo '<div style="margin-top:16px"><div class="sk sk-rect" style="height:38px;border-radius:8px"></div></div>';
+        echo '</div>';
+    }
+    echo '</div></div>';
+}
+
+/**
+ * Renders a chat skeleton (sidebar + messages)
+ */
+function render_skeleton_chat(): void
+{
+    echo '<div class="skeleton-wrapper">';
+    echo '<section class="panel wide" style="padding:0;display:flex;height:calc(100vh - 120px);min-height:500px;overflow:hidden;border:1px solid var(--line)">';
+    // Sidebar
+    echo '<div style="width:300px;border-right:1px solid var(--line);display:flex;flex-direction:column">';
+    echo '<div style="padding:20px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center">';
+    echo '<div class="sk sk-title" style="width:100px;margin:0"></div>';
+    echo '<div class="sk sk-circle" style="width:24px;height:24px"></div>';
+    echo '</div>';
+    for ($i = 0; $i < 5; $i++) {
+        echo '<div style="display:flex;gap:12px;padding:15px 20px;border-bottom:1px solid var(--line);align-items:center">';
+        echo '<div class="sk sk-circle"></div>';
+        echo '<div style="flex:1"><div class="sk sk-text medium" style="margin:0 0 6px"></div>';
+        echo '<div class="sk sk-text short" style="height:11px;margin:0"></div></div>';
+        echo '</div>';
+    }
+    echo '</div>';
+    // Chat area
+    echo '<div style="flex:1;display:flex;flex-direction:column">';
+    echo '<div style="padding:15px 20px;border-bottom:1px solid var(--line);display:flex;gap:12px;align-items:center">';
+    echo '<div class="sk sk-circle"></div>';
+    echo '<div><div class="sk sk-text" style="width:120px;margin:0 0 4px"></div>';
+    echo '<div class="sk sk-text" style="width:60px;height:11px;margin:0"></div></div>';
+    echo '</div>';
+    echo '<div style="flex:1;padding:20px;display:flex;flex-direction:column;gap:16px">';
+    $bubbles = [
+        ['left', '180px', '36px'],
+        ['right', '220px', '48px'],
+        ['left', '260px', '36px'],
+        ['right', '140px', '36px'],
+        ['left', '200px', '48px'],
+        ['right', '180px', '36px'],
+    ];
+    foreach ($bubbles as $b) {
+        echo '<div class="sk sk-chat-bubble ' . $b[0] . '" style="width:' . $b[1] . ';height:' . $b[2] . '"></div>';
+    }
+    echo '</div>';
+    echo '<div style="padding:15px 20px;border-top:1px solid var(--line)">';
+    echo '<div class="sk sk-rect" style="height:44px;border-radius:22px"></div>';
+    echo '</div>';
+    echo '</div>';
+    echo '</section></div>';
+}
+
+/**
+ * Renders skeleton notification items
+ */
+function render_skeleton_notifications(int $count = 5): void
+{
+    echo '<div class="skeleton-wrapper"><div class="notif-list">';
+    for ($i = 0; $i < $count; $i++) {
+        echo '<div class="sk-notif-item">';
+        echo '<div style="display:flex;justify-content:space-between;margin-bottom:10px">';
+        echo '<div class="sk sk-text" style="width:70px;height:20px;margin:0;border-radius:99px"></div>';
+        echo '<div class="sk sk-text" style="width:50px;height:12px;margin:0"></div>';
+        echo '</div>';
+        echo '<div class="sk sk-text medium" style="height:15px;margin-bottom:8px"></div>';
+        echo '<div class="sk sk-text full" style="height:12px"></div>';
+        echo '</div>';
+    }
+    echo '</div></div>';
+}
+
+/**
+ * Renders skeleton for profile page
+ */
+function render_skeleton_profile(): void
+{
+    echo '<div class="skeleton-wrapper"><div class="sk-card" style="text-align:center;padding:32px">';
+    echo '<div class="sk sk-circle lg" style="margin:0 auto 16px"></div>';
+    echo '<div class="sk sk-title" style="width:40%;margin:0 auto 8px"></div>';
+    echo '<div class="sk sk-text short" style="margin:0 auto 20px"></div>';
+    echo '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;max-width:400px;margin:0 auto">';
+    for ($i = 0; $i < 4; $i++) {
+        echo '<div class="sk sk-rect" style="height:42px;border-radius:7px"></div>';
+    }
+    echo '</div></div></div>';
+}
+
+/**
+ * Renders a skeleton banner (welcome section)
+ */
+function render_skeleton_banner(): void
+{
+    echo '<div class="skeleton-wrapper">';
+    echo '<div class="sk sk-rect banner" style="margin-bottom:24px"></div>';
+    echo '</div>';
+}
+

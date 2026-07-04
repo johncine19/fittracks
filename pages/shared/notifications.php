@@ -22,7 +22,21 @@ function notifications_page(): void
 
     render_header('Notifications', $user);
     ?>
-    <section class="panel wide">
+    <div class="skeleton-wrapper">
+        <section class="panel wide">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:24px">
+                <div>
+                    <div class="sk sk-title" style="width:140px;margin-bottom:8px"></div>
+                    <div class="sk sk-text" style="width:200px;height:12px"></div>
+                </div>
+                <?php if ($unread): ?>
+                    <div class="sk sk-rect" style="width:120px;height:36px;border-radius:18px"></div>
+                <?php endif; ?>
+            </div>
+            <?php render_skeleton_notifications(5); ?>
+        </section>
+    </div>
+    <section class="panel wide skeleton-content sk-display-block">
         <div class="page-header">
             <div>
                 <h1>Notifications</h1>

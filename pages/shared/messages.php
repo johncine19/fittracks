@@ -104,7 +104,8 @@ function messages_page(): void
 
     render_header('Messages', $user);
     ?>
-    <section class="panel wide" style="padding: 0; display: flex; height: calc(100vh - 120px); min-height: 500px; overflow: hidden; background: var(--surface); border: 1px solid var(--line);">
+    <?php render_skeleton_chat(); ?>
+    <section class="panel wide skeleton-content sk-display-flex" style="padding: 0; height: calc(100vh - 120px); min-height: 500px; overflow: hidden; background: var(--surface); border: 1px solid var(--line);">
         
         <!-- Sidebar -->
         <div style="width: 300px; border-right: 1px solid var(--line); display: flex; flex-direction: column; background: var(--surface);">

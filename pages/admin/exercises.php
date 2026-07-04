@@ -57,7 +57,12 @@ function exercises_page(): void
     foreach ($allMuscleGroups as $mg) echo '<option value="' . h($mg) . '">';
     echo '</datalist>';
 
-    echo '<section class="panel">';
+    echo '<div class="skeleton-wrapper"><section class="panel">';
+    echo '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:24px"><div class="sk sk-title" style="width:180px"></div><div class="sk sk-rect" style="width:120px;height:36px;border-radius:6px"></div></div>';
+    echo '<div style="display:flex;gap:10px;margin-bottom:24px"><div class="sk sk-rect" style="width:200px;height:36px;border-radius:4px"></div><div class="sk sk-rect" style="width:150px;height:36px;border-radius:4px"></div><div class="sk sk-rect" style="width:80px;height:36px;border-radius:4px"></div></div>';
+    render_skeleton_table(5, 5);
+    echo '</section></div>';
+    echo '<section class="panel skeleton-content sk-display-block">';
     
     if ($action === 'create' || $action === 'edit') {
         $ex = null;

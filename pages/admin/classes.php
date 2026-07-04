@@ -83,6 +83,27 @@ function classes_page(): void
 
     render_header('Classes', $user);
     ?>
+    <div class="skeleton-wrapper">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:24px;padding-top:12px">
+            <div>
+                <div class="sk sk-title" style="width:200px;margin-bottom:8px"></div>
+                <div class="sk sk-text" style="width:300px;height:12px"></div>
+            </div>
+            <div style="display:flex;gap:10px;">
+                <div class="sk sk-rect" style="width:100px;height:36px;border-radius:18px"></div>
+                <div class="sk sk-rect" style="width:140px;height:36px;border-radius:18px"></div>
+            </div>
+        </div>
+        <section class="panel">
+            <div class="sk sk-text short" style="margin-bottom:12px;height:14px;width:120px"></div>
+            <?php render_skeleton_table(5, 4); ?>
+        </section>
+        <section class="panel">
+            <div class="sk sk-text short" style="margin-bottom:12px;height:14px;width:180px"></div>
+            <?php render_skeleton_table(6, 4); ?>
+        </section>
+    </div>
+    <div class="skeleton-content sk-display-block">
     <div class="page-header" style="padding:0 0 4px">
         <div>
             <h1 style="margin:0 0 4px">Classes & Schedules</h1>
@@ -298,6 +319,7 @@ function classes_page(): void
         </div>
         <?php endif; ?>
     </section>
+    </div>
     <?php
     render_footer();
 }

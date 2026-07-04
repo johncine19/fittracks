@@ -139,7 +139,25 @@ function users_page(): void
     
     render_header('Users', $user);
     ?>
-    <section class="panel">
+    <div class="skeleton-wrapper">
+        <section class="panel">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:24px">
+                <div>
+                    <div class="sk sk-title" style="width:140px;margin-bottom:8px"></div>
+                    <div class="sk sk-text" style="width:200px;height:12px"></div>
+                </div>
+                <div class="sk sk-rect" style="width:120px;height:36px;border-radius:18px"></div>
+            </div>
+            <div style="display:flex;justify-content:space-between;margin-bottom:12px;padding-bottom:8px;border-bottom:1px solid var(--line)">
+                <div style="display:flex;gap:16px">
+                    <?php for($i=0;$i<4;$i++) echo '<div class="sk sk-text" style="width:60px;height:14px;margin:0"></div>'; ?>
+                </div>
+                <div class="sk sk-text" style="width:50px;height:12px;margin:0"></div>
+            </div>
+            <?php render_skeleton_table(6, 8); ?>
+        </section>
+    </div>
+    <section class="panel skeleton-content sk-display-block">
         <div class="page-header">
             <div>
                 <h1>User Accounts</h1>

@@ -104,13 +104,18 @@ function admin_dashboard(PDO $pdo): void
         'checkins' => ['labels' => array_keys($week), 'values' => array_values($week)],
     ];
 ?>
-    <section class="dash-grid stats-row">
+    <?php render_skeleton_stats(4); ?>
+    <section class="dash-grid stats-row skeleton-content sk-display-grid">
         <?php dashboard_stat('Total members',    (string) $members,    'Active subscriptions',        $memberTrend,   'MB', true); ?>
         <?php dashboard_stat('Monthly revenue',  money($revenue),      'Billed this month',           $revenueTrend,  '$'); ?>
         <?php dashboard_stat('Classes today',    (string) $classesToday, 'With open schedules',       'Calendar updated', 'CL'); ?>
         <?php dashboard_stat('Check-ins today',  (string) $checkinsToday, 'Updated from attendance logs', $checkinTrend, 'AT'); ?>
     </section>
-    <section class="dash-grid chart-row">
+    <div class="skeleton-wrapper"><section class="dash-grid chart-row" style="margin-top:24px">
+        <div class="sk-card" style="min-height:308px"><div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:18px"><div><div class="sk sk-title" style="width:140px;margin-bottom:6px"></div><div class="sk sk-text short" style="height:11px"></div></div><div class="sk sk-text" style="width:50px;height:24px;border-radius:999px;margin:0"></div></div><div class="sk sk-rect chart"></div></div>
+        <div class="sk-card" style="min-height:308px"><div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:18px"><div><div class="sk sk-title" style="width:140px;margin-bottom:6px"></div><div class="sk sk-text short" style="height:11px"></div></div></div><div class="sk sk-rect chart"></div></div>
+    </section></div>
+    <section class="dash-grid chart-row skeleton-content sk-display-grid">
         <article class="panel chart-panel revenue-panel">
             <div class="panel-title">
                 <div>
@@ -134,7 +139,13 @@ function admin_dashboard(PDO $pdo): void
         window.apexDashboardCharts = <?= json_encode($chartPayload, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT) ?>;
     </script>
     <script src="assets/dashboard-charts.js" defer></script>
-    <section class="dash-grid lower-row">
+    <div class="skeleton-wrapper"><section class="dash-grid lower-row" style="margin-top:24px">
+        <div class="sk-card"><div class="sk sk-title" style="width:130px;margin-bottom:14px"></div><div class="list-stack" style="gap:10px"><?php for($s=0;$s<4;$s++): ?><div class="sk-list-item"><div class="sk" style="width:8px;height:8px;border-radius:50%"></div><div class="sk-list-item-lines"><div class="sk sk-text medium" style="margin:0"></div><div class="sk sk-text short" style="margin:0;height:11px"></div></div><div class="sk sk-text" style="width:40px;margin:0;height:11px"></div></div><?php endfor; ?></div></div>
+        <div class="sk-card"><div class="sk sk-title" style="width:130px;margin-bottom:14px"></div><div class="list-stack" style="gap:10px"><?php for($s=0;$s<4;$s++): ?><div class="sk-list-item"><div class="sk sk-circle"></div><div class="sk-list-item-lines"><div class="sk sk-text medium" style="margin:0"></div><div class="sk sk-text short" style="margin:0;height:11px"></div></div><div class="sk sk-text" style="width:60px;margin:0;height:11px"></div></div><?php endfor; ?></div></div>
+        <div class="sk-card"><div class="sk sk-title" style="width:150px;margin-bottom:14px"></div><div class="list-stack" style="gap:10px"><?php for($s=0;$s<4;$s++): ?><div class="sk-list-item"><div class="sk sk-circle"></div><div class="sk-list-item-lines"><div class="sk sk-text medium" style="margin:0"></div><div class="sk sk-text short" style="margin:0;height:11px"></div></div><div class="sk sk-text" style="width:60px;margin:0;height:11px"></div></div><?php endfor; ?></div></div>
+        <div class="sk-card"><div class="sk sk-title" style="width:180px;margin-bottom:14px"></div><div class="list-stack" style="gap:10px"><?php for($s=0;$s<4;$s++): ?><div class="sk-list-item"><div class="sk sk-circle"></div><div class="sk-list-item-lines"><div class="sk sk-text medium" style="margin:0"></div><div class="sk sk-text short" style="margin:0;height:11px"></div></div><div class="sk sk-text" style="width:40px;margin:0;height:11px"></div></div><?php endfor; ?></div></div>
+    </section></div>
+    <section class="dash-grid lower-row skeleton-content sk-display-grid">
         <article class="panel">
             <h2>Today's Classes</h2>
             <div class="list-stack">
@@ -205,12 +216,15 @@ function dashboard(): void
     if ($user['role'] === 'admin') {
         admin_dashboard($pdo);
     } elseif ($user['role'] === 'trainer') {
+        render_skeleton_stats(2);
+        echo '<div class="skeleton-content">';
         $stmt = $pdo->prepare('SELECT trainer_id FROM trainer_profiles WHERE user_id = ?');
         $stmt->execute([$user['user_id']]);
         $coachId = (int) ($stmt->fetchColumn() ?: 0);
         $stmt = $pdo->prepare('SELECT COUNT(*) FROM trainer_assignments WHERE trainer_id = ? AND status = "active"');
         $stmt->execute([$coachId]);
         metric_cards(['Assigned clients' => $stmt->fetchColumn(), 'Active training plans' => trainer_plan_count($coachId)]);
+        echo '</div>';
     } else {
         $score    = get_cached_engagement_score((int) $user['user_id']);
         $category = get_engagement_category($score);
@@ -223,8 +237,12 @@ function dashboard(): void
         $tier = (int) ($stmt->fetchColumn() ?: 1);
         $tierName = get_fitness_tier_name($tier);
 
+        // Skeleton for member dashboard
+        render_skeleton_banner();
+        render_skeleton_stats(3);
+
         // Welcome Banner
-        echo '<div class="animate-fade-in" style="background: linear-gradient(135deg, rgba(199,255,34,0.1) 0%, rgba(66,219,165,0.05) 100%); border: 1px solid rgba(199,255,34,0.3); border-radius: 12px; padding: 24px; margin-bottom: 24px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 16px; box-shadow: 0 4px 20px rgba(0,0,0,0.15); backdrop-filter: blur(16px);">';
+        echo '<div class="skeleton-content animate-fade-in" style="background: linear-gradient(135deg, rgba(199,255,34,0.1) 0%, rgba(66,219,165,0.05) 100%); border: 1px solid rgba(199,255,34,0.3); border-radius: 12px; padding: 24px; margin-bottom: 24px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 16px; box-shadow: 0 4px 20px rgba(0,0,0,0.15); backdrop-filter: blur(16px);">';
         echo '<div><div style="display:flex; align-items:center; gap: 12px; margin-bottom: 4px;"><h2 style="margin: 0; font-size: 24px; color: var(--ink);">Welcome back, ' . h($user['first_name']) . '!</h2><span style="background: var(--accent, #7c5cfc); color: #fff; padding: 3px 10px; border-radius: 12px; font-size: 12px; font-weight: bold; box-shadow: 0 2px 10px rgba(124,92,252,0.3);">' . h($tierName) . ' Tier</span></div>';
         echo '<p style="margin: 0; color: var(--muted); font-size: 14px;">Let\'s crush today\'s fitness goals. Here\'s your progress at a glance.</p></div>';
         
@@ -236,7 +254,7 @@ function dashboard(): void
         echo '</div></div>';
 
         // Animated Metric Cards
-        echo '<div class="metrics animate-fade-in delay-1" style="margin-bottom: 24px; display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px;">';
+        echo '<div class="skeleton-content metrics animate-fade-in delay-1" style="margin-bottom: 24px; display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px;">';
         $metrics = [
             'Attendance Records' => $attendance,
             'Progress Logs' => $progressLogs,
@@ -250,11 +268,11 @@ function dashboard(): void
         }
         echo '</div>';
 
-        echo '<div class="animate-fade-in delay-2">';
+        echo '<div class="skeleton-content animate-fade-in delay-2">';
         render_current_workout($user['user_id'], true);
         echo '</div>';
         
-        echo '<div class="animate-fade-in delay-3">';
+        echo '<div class="skeleton-content animate-fade-in delay-3">';
         render_exercise_recommendations((int) $user['user_id'], true);
         echo '</div>';
     }

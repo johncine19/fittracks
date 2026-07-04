@@ -115,7 +115,30 @@ function reports_page(): void
     $attendanceLabels = json_encode(array_column($attReversed, 'day'));
 
     render_header('Reports', $user);
-    echo '<section class="panel"><h1>Reports</h1>';
+    ?>
+    <div class="skeleton-wrapper">
+        <section class="panel">
+            <div class="sk sk-title" style="width:140px;margin-bottom:24px"></div>
+            <div style="display:flex;gap:16px;margin-bottom:32px;border-bottom:1px solid var(--line);padding-bottom:16px">
+                <div class="sk sk-rect" style="width:100px;height:36px;border-radius:4px"></div>
+                <div class="sk sk-text" style="width:80px;height:24px;margin-top:6px"></div>
+                <div class="sk sk-text" style="width:80px;height:24px;margin-top:6px"></div>
+            </div>
+            <div style="display:flex;justify-content:space-between;margin-bottom:24px">
+                <div class="sk sk-title" style="width:200px"></div>
+                <div style="display:flex;gap:8px">
+                    <div class="sk sk-rect" style="width:80px;height:28px;border-radius:4px"></div>
+                    <div class="sk sk-rect" style="width:80px;height:28px;border-radius:4px"></div>
+                </div>
+            </div>
+            <?php render_skeleton_chart(); ?>
+            <div style="margin-top:24px">
+                <?php render_skeleton_table(2, 4); ?>
+            </div>
+        </section>
+    </div>
+    <?php
+    echo '<section class="panel skeleton-content sk-display-block"><h1>Reports</h1>';
     echo '<div class="report-tabs" style="margin-bottom: 2rem; display: flex; gap: 1rem; border-bottom: 1px solid #e2e8f0; padding-bottom: 1rem;">
         <button class="tab-btn active" onclick="showTab(\'engagement-tab\')" style="padding: 0.5rem 1rem; cursor: pointer; background: #3b82f6; color: white; border: none; border-radius: 4px;">Engagement</button>
         <button class="tab-btn" onclick="showTab(\'revenue-tab\')" style="padding: 0.5rem 1rem; cursor: pointer; background: transparent; color: #64748b; border: 1px solid transparent;">Revenue</button>

@@ -57,7 +57,38 @@ function memberships_page(): void
     $rows    = db()->query('SELECT m.*, CONCAT(u.first_name, " ", u.last_name) AS member, u.first_name, u.last_name, p.plan_name, p.price FROM memberships m JOIN users u ON u.user_id = m.user_id JOIN membership_plans p ON p.plan_id = m.plan_id ' . $where . ' ORDER BY m.created_at DESC')->fetchAll();
     render_header('Memberships', $user);
     ?>
-    <section class="panel">
+    <div class="skeleton-wrapper">
+        <section class="panel">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:24px">
+                <div>
+                    <div class="sk sk-title" style="width:180px;margin-bottom:8px"></div>
+                    <div class="sk sk-text" style="width:280px;height:12px"></div>
+                </div>
+                <?php if ($user['role'] === 'admin'): ?>
+                    <div class="sk sk-rect" style="width:140px;height:36px;border-radius:18px"></div>
+                <?php endif; ?>
+            </div>
+            
+            <?php if ($user['role'] === 'member'): ?>
+                <div class="sk sk-title" style="width:160px;margin-bottom:12px"></div>
+                <div style="display:flex;gap:24px;margin-bottom:40px;overflow:hidden">
+                    <?php for($i=0;$i<3;$i++): ?>
+                        <div class="sk-card" style="width:280px;flex-shrink:0;min-height:220px">
+                            <div class="sk sk-title" style="width:70%;margin-bottom:6px"></div>
+                            <div class="sk sk-text short" style="height:12px;margin-bottom:16px"></div>
+                            <div class="sk sk-text" style="width:50%;height:24px;margin-bottom:24px"></div>
+                            <div class="sk sk-text full"></div>
+                            <div class="sk sk-rect" style="height:38px;border-radius:6px;margin-top:20px"></div>
+                        </div>
+                    <?php endfor; ?>
+                </div>
+            <?php endif; ?>
+            
+            <div class="sk sk-title" style="width:180px;margin-bottom:12px"></div>
+            <?php render_skeleton_table(6, 6); ?>
+        </section>
+    </div>
+    <section class="panel skeleton-content sk-display-block">
         <div class="page-header">
             <div>
                 <h1>Memberships</h1>

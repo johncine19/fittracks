@@ -34,7 +34,16 @@ function training_page(): void
     $plans = query_all('SELECT tp.*, CONCAT(u.first_name, " ", u.last_name) AS member FROM training_plans tp JOIN users u ON u.user_id = tp.member_user_id WHERE tp.trainer_id = ? ORDER BY tp.created_at DESC', [$coachId]);
     render_header('Training', $user);
     ?>
-    <section class="panel">
+    <div class="skeleton-wrapper">
+        <section class="panel">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:24px">
+                <div class="sk sk-title" style="width:200px;margin-bottom:8px"></div>
+                <div class="sk sk-rect" style="width:100px;height:36px;border-radius:18px"></div>
+            </div>
+            <?php render_skeleton_table(7, 4); ?>
+        </section>
+    </div>
+    <section class="panel skeleton-content sk-display-block">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem">
             <h1 style="margin:0">Training plans</h1>
             <button type="button" onclick="document.getElementById('planModal').style.display='flex'">+ Add Plan</button>

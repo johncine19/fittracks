@@ -68,7 +68,18 @@ function qr_attendance_page(): void
 
     render_header('My QR Code', $user);
     ?>
-    <section class="panel" style="text-align: center;">
+    <div class="skeleton-wrapper">
+        <section class="panel" style="text-align: center; display:flex; flex-direction:column; align-items:center; padding: 40px 20px;">
+            <div class="sk sk-title" style="width:200px;margin-bottom:12px"></div>
+            <div class="sk sk-text" style="width:240px;height:12px;margin-bottom:40px"></div>
+            
+            <div class="sk-qr" style="margin-bottom:24px"></div>
+            
+            <div class="sk sk-text short" style="width:160px;margin-bottom:20px"></div>
+            <div class="sk sk-rect" style="width:200px;height:44px;border-radius:6px"></div>
+        </section>
+    </div>
+    <section class="panel skeleton-content sk-display-block" style="text-align: center;">
         <div class="page-header" style="justify-content: center;">
             <div>
                 <h1>Dynamic QR Code</h1>

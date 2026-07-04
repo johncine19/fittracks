@@ -132,6 +132,8 @@ function profile_page(): void
     
     render_header('Settings', $user);
 ?>
+    <?php render_skeleton_profile(); ?>
+    <div class="skeleton-content sk-display-block">
     <h1 style="margin-bottom: 1.5rem;">Settings</h1>
     <div style="display: flex; flex-wrap: wrap; gap: 2rem; align-items: flex-start;">
         <section class="panel" style="flex: 1; min-width: 350px; max-width: 650px; margin: 0;">
@@ -317,6 +319,8 @@ function profile_page(): void
             }
         }
     </style>
+    </div>
+    </div>
 <?php
     render_footer();
 }

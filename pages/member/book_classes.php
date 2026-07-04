@@ -42,7 +42,16 @@ function book_classes_page(): void
     $rows = db()->query($sql)->fetchAll();
     render_header('Book a Class', $user);
     ?>
-    <section class="panel">
+    <div class="skeleton-wrapper">
+        <section class="panel">
+            <div style="margin-bottom:24px">
+                <div class="sk sk-title" style="width:140px;margin-bottom:8px"></div>
+                <div class="sk sk-text" style="width:280px;height:12px"></div>
+            </div>
+            <?php render_skeleton_cards(6); ?>
+        </section>
+    </div>
+    <section class="panel skeleton-content sk-display-block">
         <div class="page-header">
             <div>
                 <h1>Classes</h1>

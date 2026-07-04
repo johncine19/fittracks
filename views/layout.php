@@ -462,6 +462,14 @@ document.addEventListener('DOMContentLoaded', function() {
 </script>
 HTML;
 
+    $skeletonScript = <<<HTML
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    document.body.classList.add('loaded');
+});
+</script>
+HTML;
+
     $isAuthPage = defined('AUTH_PAGE') && AUTH_PAGE;
 
     if (!$isAuthPage && current_user()) {
@@ -470,12 +478,14 @@ HTML;
         echo $themeScript;
         echo $confirmScript;
         echo $passwordScript;
+        echo $skeletonScript;
         echo '</body></html>';
         return;
     }
     echo '</main>';
     echo $confirmScript;
     echo $passwordScript;
+    echo $skeletonScript;
     echo '</body></html>';
 }
 
