@@ -4,6 +4,7 @@ declare(strict_types=1);
 require __DIR__ . '/core/bootstrap.php';
 require __DIR__ . '/pages/member/complete_exercise.php';
 require __DIR__ . '/pages/admin/exercises.php';
+require __DIR__ . '/pages/admin/workout_plans.php';
 require __DIR__ . '/pages/landing.php';
 
 try {
@@ -47,6 +48,7 @@ try {
         'complete_exercise' => 'complete_exercise_action',
         'exercises' => 'exercises_page',
         'workout_builder' => 'workout_builder_page',
+        'admin_workouts' => 'admin_workouts_page',
     ];
 
     ($routes[$page] ?? $routes['dashboard'])();

@@ -101,15 +101,24 @@ function dashboard_stat(string $label, string $value, string $subtext, string $t
     echo '</article>';
 }
 
-function render_current_workout(int $memberUserId, bool $dashboardMode = false): void
+function render_current_workout(int $memberUserId, bool $dashboardMode = false, ?int $forcePlanId = null): void
 {
-    $stmt = db()->prepare(
-        'SELECT * FROM training_plans
-         WHERE member_user_id = ? AND trainer_id IS NULL
-         ORDER BY created_at DESC LIMIT 1'
-    );
-    $stmt->execute([$memberUserId]);
-    $plan = $stmt->fetch();
+    if ($forcePlanId) {
+        $stmt = db()->prepare('SELECT * FROM training_plans WHERE plan_id = ?');
+        $stmt->execute([$forcePlanId]);
+        $plan = $stmt->fetch();
+        if ($plan) {
+            $memberUserId = (int) $plan['member_user_id'];
+        }
+    } else {
+        $stmt = db()->prepare(
+            'SELECT * FROM training_plans
+             WHERE member_user_id = ? AND status = "active"
+             ORDER BY plan_id DESC LIMIT 1'
+        );
+        $stmt->execute([$memberUserId]);
+        $plan = $stmt->fetch();
+    }
 
     echo '<section class="panel"><h2>Your workout plan</h2>';
     if (!$plan) {

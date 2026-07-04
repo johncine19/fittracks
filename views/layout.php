@@ -14,6 +14,7 @@ function render_header(string $title, ?array $user = null): void
                 'users' => 'Users Accounts',
                 'trainer_assignments' => 'Trainers',
                 'plans' => 'Plans',
+                'admin_workouts' => 'Workout Plans',
                 'memberships' => 'Memberships',
                 'payments' => 'Payments',
                 'walk_ins' => 'Walk-ins',
