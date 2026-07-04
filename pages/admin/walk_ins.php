@@ -83,6 +83,15 @@ function walk_ins_page(): void
     if ($_SERVER['REQUEST_METHOD'] === 'POST' && post('action') === 'member_checkin') {
         db()->prepare('INSERT INTO attendance (user_id, schedule_id, check_in_time, check_in_method, recorded_by) VALUES (?, ?, NOW(), "manual", ?)')
             ->execute([post('user_id'), post('schedule_id') ?: null, $user['user_id']]);
+            
+        $amount = (float) post('amount_paid');
+        if ($amount > 0) {
+            $memberInfo = db()->query('SELECT first_name, last_name, phone FROM users WHERE user_id = ' . (int)post('user_id'))->fetch();
+            $guestName = $memberInfo['first_name'] . ' ' . $memberInfo['last_name'];
+            $contactInfo = $memberInfo['phone'] ?: 'N/A';
+            db()->prepare('INSERT INTO walk_in_transactions (guest_name, contact_info, amount_paid, payment_method, visit_date, processed_by, converted_to_member_id) VALUES (?, ?, ?, ?, NOW(), ?, ?)')
+                ->execute([$guestName, $contactInfo, $amount, post('payment_method'), $user['user_id'], post('user_id')]);
+        }
         flash('Member check-in recorded successfully as attendance.', 'success');
         redirect('attendance');
     }
@@ -95,11 +104,12 @@ function walk_ins_page(): void
             redirect('walk_ins');
         }
 
-        $stmt = db()->prepare('INSERT INTO walk_in_transactions (guest_name, contact_info, amount_paid, visit_date, processed_by) VALUES (?, ?, ?, NOW(), ?)');
+        $stmt = db()->prepare('INSERT INTO walk_in_transactions (guest_name, contact_info, amount_paid, payment_method, visit_date, processed_by) VALUES (?, ?, ?, ?, NOW(), ?)');
         $stmt->execute([
             post('guest_name'),
             $contact_info,
             post('amount_paid'),
+            post('payment_method') ?: 'cash',
             $user['user_id']
         ]);
         flash('Walk-in transaction recorded successfully.', 'success');
@@ -156,6 +166,15 @@ function walk_ins_page(): void
                             <?php endforeach; ?>
                         </select>
                     </label>
+                    <label>Amount Paid (Optional)
+                        <input name="amount_paid" type="number" step="0.01" min="0" placeholder="0.00">
+                    </label>
+                    <label>Payment Method
+                        <select name="payment_method">
+                            <option value="cash">Cash</option>
+                            <option value="gcash">GCash</option>
+                        </select>
+                    </label>
                     <button style="grid-column: 1 / -1; margin-top: 10px; background: var(--lime); color: var(--bg);">Record Attendance</button>
                 </form>
             </div>
@@ -179,6 +198,12 @@ function walk_ins_page(): void
                     </label>
                     <label>Amount Paid
                         <input name="amount_paid" type="number" step="0.01" min="0" placeholder="0.00" required>
+                    </label>
+                    <label>Payment Method
+                        <select name="payment_method">
+                            <option value="cash">Cash</option>
+                            <option value="gcash">GCash</option>
+                        </select>
                     </label>
                     <button style="grid-column: 1 / -1; margin-top: 10px;">Record Transaction</button>
                 </form>

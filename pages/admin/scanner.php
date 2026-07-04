@@ -43,9 +43,23 @@ function scanner_page(): void
             $message = 'Check-out successful for ' . $member['first_name'] . ' ' . $member['last_name'];
         } else {
             // Check in
+            $hasMembership = scalar('SELECT 1 FROM memberships WHERE user_id = ? AND status = "active" AND end_date >= CURDATE()', [$userId]);
+            if (!$hasMembership && !isset($_POST['amount_paid'])) {
+                echo json_encode(['success' => false, 'requires_payment' => true, 'qr_data' => $qrData, 'message' => 'No active membership. Please collect payment for this session.']);
+                exit;
+            }
+            
             $stmt = $pdo->prepare('INSERT INTO attendance (user_id, check_in_time, check_in_method, recorded_by) VALUES (?, NOW(), "qr_code", ?)');
             $stmt->execute([$userId, $user['user_id']]);
             $message = 'Check-in successful for ' . $member['first_name'] . ' ' . $member['last_name'];
+            
+            $amount = (float) (post('amount_paid') ?: 0);
+            if ($amount > 0) {
+                $guestName = $member['first_name'] . ' ' . $member['last_name'];
+                $contactInfo = scalar('SELECT phone FROM users WHERE user_id = ?', [$userId]) ?: 'N/A';
+                $pdo->prepare('INSERT INTO walk_in_transactions (guest_name, contact_info, amount_paid, payment_method, visit_date, processed_by, converted_to_member_id) VALUES (?, ?, ?, ?, NOW(), ?, ?)')
+                    ->execute([$guestName, $contactInfo, $amount, post('payment_method') ?: 'cash', $user['user_id'], $userId]);
+            }
         }
         
         // Invalidate token after single use
@@ -99,6 +113,56 @@ function scanner_page(): void
             })
             .then(r => r.json())
             .then(data => {
+                if (data.requires_payment) {
+                    Swal.fire({
+                        title: 'Payment Required',
+                        html: `
+                            <p style="margin-bottom: 15px; color: var(--danger); font-weight: bold;">${data.message}</p>
+                            <input type="number" id="swal-amount" class="swal2-input" placeholder="Amount Paid (PHP)" step="0.01" min="0" style="background: color-mix(in srgb, var(--ink) 5%, transparent); color: var(--ink); border: 1px solid color-mix(in srgb, var(--ink) 10%, transparent);">
+                            <select id="swal-method" class="swal2-select" style="display: flex; margin: 15px auto; background: color-mix(in srgb, var(--ink) 5%, transparent); color: var(--ink); border: 1px solid color-mix(in srgb, var(--ink) 10%, transparent);">
+                                <option style="background:var(--bg);color:var(--ink);" value="cash">Cash</option>
+                                <option style="background:var(--bg);color:var(--ink);" value="gcash">GCash</option>
+                            </select>
+                        `,
+                        background: 'var(--bg)',
+                        color: 'var(--ink)',
+                        confirmButtonColor: 'var(--lime)',
+                        cancelButtonColor: 'color-mix(in srgb, var(--ink) 10%, transparent)',
+                        showCancelButton: true,
+                        confirmButtonText: '<span style="color:var(--bg); font-weight:600;">Record Payment & Check-in</span>',
+                        cancelButtonText: '<span style="color:var(--ink);">Cancel</span>',
+                        preConfirm: () => {
+                            const amt = document.getElementById('swal-amount').value;
+                            const method = document.getElementById('swal-method').value;
+                            return { amount: amt || 0, method: method };
+                        }
+                    }).then((result) => {
+                        if (result.isConfirmed) {
+                            fetch('index.php?page=scanner', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                                body: 'action=process_qr&qr_data=' + encodeURIComponent(decodedText) + '&amount_paid=' + encodeURIComponent(result.value.amount) + '&payment_method=' + encodeURIComponent(result.value.method) + '&csrf_token=' + encodeURIComponent(csrfToken)
+                            })
+                            .then(r => r.json())
+                            .then(data2 => {
+                                if (data2.success) {
+                                    resultEl.textContent = '✅ ' + data2.message;
+                                    resultEl.style.color = 'var(--success)';
+                                } else {
+                                    resultEl.textContent = '❌ ' + data2.message;
+                                    resultEl.style.color = 'var(--danger)';
+                                }
+                                setTimeout(() => { isProcessing = false; }, 3000);
+                            });
+                        } else {
+                            isProcessing = false;
+                            scannedTokens.delete(decodedText);
+                            resultEl.textContent = 'Check-in cancelled.';
+                        }
+                    });
+                    return;
+                }
+
                 if (data.success) {
                     resultEl.textContent = '✅ ' + data.message;
                     resultEl.style.color = 'var(--success)';
@@ -109,8 +173,6 @@ function scanner_page(): void
                 
                 setTimeout(() => {
                     isProcessing = false;
-                    // Don't clear the message immediately so they can read it, 
-                    // but allow new distinct scans
                 }, 3000);
             })
             .catch(err => {
