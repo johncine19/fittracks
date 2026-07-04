@@ -13,6 +13,11 @@ function memberships_page(): void
             // Also update payment status if it exists and status is active
             if ($status === 'active') {
                 db()->prepare('UPDATE payments SET status = "paid" WHERE membership_id = ? AND status = "pending"')->execute([$membershipId]);
+                
+                $mInfo = db()->query('SELECT m.user_id, p.plan_name FROM memberships m JOIN membership_plans p ON p.plan_id = m.plan_id WHERE m.membership_id = ' . $membershipId)->fetch();
+                if ($mInfo) {
+                    notify_user((int) $mInfo['user_id'], 'system', 'Payment Received', 'Your payment for the ' . $mInfo['plan_name'] . ' membership was successful and your plan is now active!');
+                }
             }
             
             flash('Membership status updated.');

@@ -271,7 +271,7 @@ function admin_dashboard(PDO $pdo): void
             <h2>Expiring Memberships</h2>
             <div class="list-stack">
                 <?php
-                $expiring = $pdo->query('SELECT m.end_date, CONCAT(u.first_name, " ", u.last_name) AS member, u.first_name, u.last_name, u.profile_picture FROM memberships m JOIN users u ON u.user_id = m.user_id WHERE m.status = "active" AND m.end_date BETWEEN CURDATE() AND DATE_ADD(CURDATE(), INTERVAL 7 DAY) ORDER BY m.end_date ASC LIMIT 5')->fetchAll();
+                $expiring = $pdo->query('SELECT m.end_date, CONCAT(u.first_name, " ", u.last_name) AS member, u.first_name, u.last_name, u.profile_picture FROM memberships m JOIN users u ON u.user_id = m.user_id WHERE m.status = "active" AND m.end_date BETWEEN CURDATE() AND DATE_ADD(CURDATE(), INTERVAL 3 DAY) ORDER BY m.end_date ASC LIMIT 5')->fetchAll();
                 foreach ($expiring as $row): ?>
                     <div class="checkin-row">
                         <?= render_avatar($row) ?>
@@ -279,7 +279,7 @@ function admin_dashboard(PDO $pdo): void
                         <time style="color:var(--danger)"><?= h(date('M d, Y', strtotime($row['end_date']))) ?></time>
                     </div>
                 <?php endforeach;
-                if (!$expiring): ?><p class="muted">No upcoming expirations in the next 7 days.</p><?php endif; ?>
+                if (!$expiring): ?><p class="muted">No upcoming expirations in the next 3 days.</p><?php endif; ?>
             </div>
         </article>
         <article class="panel">

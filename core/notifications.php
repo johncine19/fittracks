@@ -119,7 +119,7 @@ function maybe_notify_membership_renewal(int $userId): void
          FROM memberships m
          JOIN membership_plans p ON p.plan_id = m.plan_id
          WHERE m.user_id = ? AND m.status = "active"
-           AND m.end_date BETWEEN CURDATE() AND DATE_ADD(CURDATE(), INTERVAL 7 DAY)
+           AND m.end_date BETWEEN CURDATE() AND DATE_ADD(CURDATE(), INTERVAL 3 DAY)
          ORDER BY m.end_date ASC
          LIMIT 1',
         [$userId]
@@ -137,7 +137,7 @@ function maybe_notify_membership_renewal(int $userId): void
 
     $alreadySent = (int) scalar(
         'SELECT COUNT(*) FROM notifications
-         WHERE user_id = ? AND type = "renewal_reminder" AND message = ? AND created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)',
+         WHERE user_id = ? AND type = "renewal_reminder" AND message = ? AND created_at >= DATE_SUB(NOW(), INTERVAL 3 DAY)',
         [$userId, $message]
     );
     if ($alreadySent) {
