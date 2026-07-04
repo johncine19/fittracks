@@ -275,7 +275,47 @@ function profile_page(): void
             </dialog>
         </section>
         <?php endif; ?>
+
+        <section class="panel" style="flex: 1; min-width: 350px; max-width: 650px; margin: 0;">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;">
+                <h2 style="margin:0;">Preferences</h2>
+            </div>
+            <p class="muted" style="margin-bottom:1.5rem;font-size:13px;">
+                Customize your app experience.
+            </p>
+            
+            <div style="display: flex; align-items: center; justify-content: space-between; padding: 1rem; background: var(--panel-soft); border-radius: 12px; border: 1px solid color-mix(in srgb, var(--line) 50%, transparent);">
+                <div>
+                    <strong style="display: block; margin-bottom: 4px;">Video Background</strong>
+                    <span class="muted" style="font-size: 13px;">Show an animated video instead of a static image.</span>
+                </div>
+                <label class="toggle-switch">
+                    <input type="checkbox" id="toggleVideoBg" <?= (!isset($_COOKIE['fittracks_video_bg']) || $_COOKIE['fittracks_video_bg'] !== 'off') ? 'checked' : '' ?>>
+                    <span class="toggle-slider"></span>
+                </label>
+            </div>
+        </section>
     </div>
+
+    <script>
+    document.getElementById('toggleVideoBg').addEventListener('change', function(e) {
+        const isEnabled = e.target.checked;
+        document.cookie = "fittracks_video_bg=" + (isEnabled ? "on" : "off") + "; path=/; max-age=31536000";
+        
+        const video = document.getElementById('app-bg-video');
+        if (!isEnabled && video) {
+            video.pause();
+            video.style.display = 'none';
+        } else if (isEnabled) {
+            if (video) {
+                video.style.display = 'block';
+                video.play();
+            } else {
+                location.reload();
+            }
+        }
+    });
+    </script>
 
     <style>
         .profile-card {
@@ -317,6 +357,45 @@ function profile_page(): void
                 flex-direction: column;
                 align-items: flex-start;
             }
+        }
+
+        .toggle-switch {
+            position: relative;
+            display: inline-block;
+            width: 48px;
+            height: 24px;
+            flex-shrink: 0;
+        }
+        .toggle-switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+        .toggle-slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background-color: color-mix(in srgb, var(--muted) 50%, transparent);
+            transition: .4s;
+            border-radius: 24px;
+        }
+        .toggle-slider:before {
+            position: absolute;
+            content: "";
+            height: 18px;
+            width: 18px;
+            left: 3px;
+            bottom: 3px;
+            background-color: var(--ink);
+            transition: .4s cubic-bezier(0.16, 1, 0.3, 1);
+            border-radius: 50%;
+        }
+        input:checked + .toggle-slider {
+            background-color: var(--lime);
+        }
+        input:checked + .toggle-slider:before {
+            transform: translateX(24px);
+            background-color: var(--bg);
         }
     </style>
     </div>
