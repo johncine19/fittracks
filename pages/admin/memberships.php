@@ -5,6 +5,20 @@ function memberships_page(): void
 {
     $user = require_roles(['admin', 'member']);
     if ($user['role'] === 'admin' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+        if (isset($_POST['update_status_id'])) {
+            $membershipId = (int) post('update_status_id');
+            $status = post('status');
+            db()->prepare('UPDATE memberships SET status = ? WHERE membership_id = ?')->execute([$status, $membershipId]);
+            
+            // Also update payment status if it exists and status is active
+            if ($status === 'active') {
+                db()->prepare('UPDATE payments SET status = "paid" WHERE membership_id = ? AND status = "pending"')->execute([$membershipId]);
+            }
+            
+            flash('Membership status updated.');
+            redirect('memberships');
+        }
+
         $start = new DateTime((string) post('start_date'));
         $duration = (int) scalar('SELECT duration_days FROM membership_plans WHERE plan_id = ?', [post('plan_id')]);
         $end = (clone $start)->modify('+' . $duration . ' days')->format('Y-m-d');
@@ -142,10 +156,10 @@ function memberships_page(): void
                 Swal.fire({
                     title: 'Subscribe to ' + planName,
                     html: `
-                        <p style="margin-bottom: 15px;">You are about to subscribe to the <strong>\${planName}</strong> plan for <strong>\${planPrice}</strong>.</p>
+                        <p style="margin-bottom: 15px;">You are about to subscribe to the <strong>${planName}</strong> plan for <strong>${planPrice}</strong>.</p>
                         <form id="subscribeForm" method="post" action="index.php?page=memberships" style="text-align: left; display: flex; flex-direction: column; gap: 12px;">
                             <?= csrf_field() ?>
-                            <input type="hidden" name="subscribe_plan_id" value="\${planId}">
+                            <input type="hidden" name="subscribe_plan_id" value="${planId}">
                             
                             <label style="display:block; color: var(--muted); font-size: 14px;">Payment Method *
                                 <select name="payment_method" class="form-control" style="width: 100%; box-sizing: border-box;" required>
@@ -190,6 +204,7 @@ function memberships_page(): void
                         <th>Start</th>
                         <th>End</th>
                         <th>Status</th>
+                        <?php if ($user['role'] === 'admin'): ?><th>Action</th><?php endif; ?>
                     </tr>
                 </thead>
                 <tbody>
@@ -211,6 +226,11 @@ function memberships_page(): void
                         <td><?= h(date('M j, Y', strtotime($row['start_date']))) ?></td>
                         <td><?= h(date('M j, Y', strtotime($row['end_date']))) ?></td>
                         <td><span class="<?= $statusClass ?>"><?= h($row['status']) ?></span></td>
+                        <?php if ($user['role'] === 'admin'): ?>
+                        <td>
+                            <button onclick="editStatus(<?= $row['membership_id'] ?>, '<?= h($row['status']) ?>')" class="btn btn-secondary" style="padding:4px 8px;font-size:12px;" title="Edit Status">Update</button>
+                        </td>
+                        <?php endif; ?>
                     </tr>
                 <?php endforeach; ?>
                 </tbody>
@@ -218,6 +238,40 @@ function memberships_page(): void
         </div>
         <?php endif; ?>
     </section>
+    
+    <?php if ($user['role'] === 'admin'): ?>
+    <script>
+        function editStatus(membershipId, currentStatus) {
+            Swal.fire({
+                title: 'Update Status',
+                html: `
+                    <form id="editStatusForm" method="post" style="text-align:left;display:flex;flex-direction:column;gap:12px;margin-top:15px;">
+                        <?= csrf_field() ?>
+                        <input type="hidden" name="update_status_id" value="${membershipId}">
+                        <label style="display:block;color:var(--muted);font-size:14px;">Status
+                            <select name="status" class="form-control" style="width:100%;box-sizing:border-box;">
+                                <option value="pending" ${currentStatus === 'pending' ? 'selected' : ''}>Pending</option>
+                                <option value="active" ${currentStatus === 'active' ? 'selected' : ''}>Active</option>
+                                <option value="expired" ${currentStatus === 'expired' ? 'selected' : ''}>Expired</option>
+                                <option value="cancelled" ${currentStatus === 'cancelled' ? 'selected' : ''}>Cancelled</option>
+                            </select>
+                        </label>
+                    </form>
+                `,
+                showCancelButton: true,
+                confirmButtonText: 'Save',
+                confirmButtonColor: 'var(--lime)',
+                cancelButtonColor: '#334155',
+                background: '#0f172a',
+                color: 'var(--ink)',
+                preConfirm: () => {
+                    document.getElementById('editStatusForm').submit();
+                }
+            });
+        }
+    </script>
+    <?php endif; ?>
+
     
     <?php if ($user['role'] === 'admin'): ?>
     <script>
