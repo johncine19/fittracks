@@ -16,7 +16,7 @@ function render_simple_table(array $rows, array $columns): string
         echo '<tr>';
         foreach ($columns as $column) {
             $value = $row[$column] ?? '';
-            if ($column === 'price') $value = money($value);
+            if ($column === 'price' || $column === 'revenue' || $column === 'amount') $value = money($value);
             if ($column === 'action' || $column === 'actions') {
                 echo '<td>' . (string) $value . '</td>';
             } else {

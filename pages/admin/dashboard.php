@@ -5,12 +5,18 @@ declare(strict_types=1);
 function calc_revenue_trend(PDO $pdo): string
 {
     $thisMonth = (float) $pdo->query(
-        'SELECT COALESCE(SUM(amount),0) FROM payments WHERE status="paid"
-         AND DATE_FORMAT(payment_date,"%Y-%m")=DATE_FORMAT(CURDATE(),"%Y-%m")'
+        'SELECT SUM(revenue) FROM (
+            SELECT amount AS revenue FROM payments WHERE status="paid" AND DATE_FORMAT(payment_date,"%Y-%m")=DATE_FORMAT(CURDATE(),"%Y-%m")
+            UNION ALL
+            SELECT amount_paid AS revenue FROM walk_in_transactions WHERE DATE_FORMAT(visit_date,"%Y-%m")=DATE_FORMAT(CURDATE(),"%Y-%m")
+        ) AS combined'
     )->fetchColumn();
     $lastMonth = (float) $pdo->query(
-        'SELECT COALESCE(SUM(amount),0) FROM payments WHERE status="paid"
-         AND DATE_FORMAT(payment_date,"%Y-%m")=DATE_FORMAT(DATE_SUB(CURDATE(),INTERVAL 1 MONTH),"%Y-%m")'
+        'SELECT SUM(revenue) FROM (
+            SELECT amount AS revenue FROM payments WHERE status="paid" AND DATE_FORMAT(payment_date,"%Y-%m")=DATE_FORMAT(DATE_SUB(CURDATE(),INTERVAL 1 MONTH),"%Y-%m")
+            UNION ALL
+            SELECT amount_paid AS revenue FROM walk_in_transactions WHERE DATE_FORMAT(visit_date,"%Y-%m")=DATE_FORMAT(DATE_SUB(CURDATE(),INTERVAL 1 MONTH),"%Y-%m")
+        ) AS combined'
     )->fetchColumn();
     if ($lastMonth == 0) return 'No data last month';
     $pct = round((($thisMonth - $lastMonth) / $lastMonth) * 100, 1);
@@ -48,7 +54,13 @@ function calc_checkin_trend(PDO $pdo): string
 function admin_dashboard(PDO $pdo): void
 {
     $members      = (int) $pdo->query('SELECT COUNT(*) FROM users WHERE role = "member" AND status = "active"')->fetchColumn();
-    $revenue      = (float) $pdo->query('SELECT COALESCE(SUM(amount), 0) FROM payments WHERE status = "paid" AND payment_date >= DATE_FORMAT(CURDATE(), "%Y-%m-01")')->fetchColumn();
+    $revenue = (float) $pdo->query(
+        'SELECT SUM(revenue) FROM (
+            SELECT amount AS revenue FROM payments WHERE status = "paid" AND payment_date >= DATE_FORMAT(CURDATE(), "%Y-%m-01")
+            UNION ALL
+            SELECT amount_paid AS revenue FROM walk_in_transactions WHERE visit_date >= DATE_FORMAT(CURDATE(), "%Y-%m-01")
+        ) AS combined'
+    )->fetchColumn();
     $classesToday = (int) $pdo->query('SELECT COUNT(*) FROM class_schedules WHERE DATE(start_datetime) = CURDATE()')->fetchColumn();
     $checkinsToday = (int) $pdo->query('SELECT COUNT(*) FROM attendance WHERE DATE(check_in_time) = CURDATE()')->fetchColumn();
 
@@ -58,9 +70,12 @@ function admin_dashboard(PDO $pdo): void
 
     $monthStart = (new DateTime('first day of this month'))->modify('-5 months');
     $monthlyRows = query_all(
-        'SELECT DATE_FORMAT(payment_date, "%Y-%m") AS month_key, COALESCE(SUM(amount), 0) AS total
-         FROM payments WHERE status = "paid" AND payment_date >= ? GROUP BY month_key',
-        [$monthStart->format('Y-m-01')]
+        'SELECT month_key, COALESCE(SUM(total), 0) AS total FROM (
+            SELECT DATE_FORMAT(payment_date, "%Y-%m") AS month_key, amount AS total FROM payments WHERE status = "paid" AND payment_date >= ?
+            UNION ALL
+            SELECT DATE_FORMAT(visit_date, "%Y-%m") AS month_key, amount_paid AS total FROM walk_in_transactions WHERE visit_date >= ?
+        ) AS combined GROUP BY month_key',
+        [$monthStart->format('Y-m-01'), $monthStart->format('Y-m-01')]
     );
     $monthlyTotals = [];
     foreach ($monthlyRows as $row) {
@@ -91,8 +106,11 @@ function admin_dashboard(PDO $pdo): void
 
     // Revenue trend % for chart panel label
     $lastMonthRevenue = (float) $pdo->query(
-        'SELECT COALESCE(SUM(amount),0) FROM payments WHERE status="paid"
-         AND DATE_FORMAT(payment_date,"%Y-%m")=DATE_FORMAT(DATE_SUB(CURDATE(),INTERVAL 1 MONTH),"%Y-%m")'
+        'SELECT SUM(revenue) FROM (
+            SELECT amount AS revenue FROM payments WHERE status="paid" AND DATE_FORMAT(payment_date,"%Y-%m")=DATE_FORMAT(DATE_SUB(CURDATE(),INTERVAL 1 MONTH),"%Y-%m")
+            UNION ALL
+            SELECT amount_paid AS revenue FROM walk_in_transactions WHERE DATE_FORMAT(visit_date,"%Y-%m")=DATE_FORMAT(DATE_SUB(CURDATE(),INTERVAL 1 MONTH),"%Y-%m")
+        ) AS combined'
     )->fetchColumn();
     $revPct = $lastMonthRevenue > 0
         ? round((($revenue - $lastMonthRevenue) / $lastMonthRevenue) * 100, 1)
