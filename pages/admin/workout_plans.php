@@ -45,8 +45,8 @@ function admin_workouts_page(): void
 
     $sql = '
         SELECT p.plan_id, p.title, p.goal, p.start_date, p.status, 
-               m.first_name as member_first, m.last_name as member_last,
-               t.first_name as trainer_first, t.last_name as trainer_last
+               m.first_name as member_first, m.last_name as member_last, m.profile_picture as member_pic,
+               t.first_name as trainer_first, t.last_name as trainer_last, t.profile_picture as trainer_pic
         FROM training_plans p
         JOIN users m ON p.member_user_id = m.user_id
         JOIN trainer_profiles tp ON p.trainer_id = tp.trainer_id
@@ -84,8 +84,26 @@ function admin_workouts_page(): void
                         <?php foreach ($rows as $row): ?>
                             <tr>
                                 <td>#<?= h((string)$row['plan_id']) ?></td>
-                                <td style="font-weight:bold;"><?= h($row['member_first'] . ' ' . $row['member_last']) ?></td>
-                                <td><?= h($row['trainer_first'] . ' ' . $row['trainer_last']) ?></td>
+                                <td style="font-weight:bold;">
+                                    <div style="display: flex; align-items: center; gap: 8px;">
+                                        <?php if ($row['member_pic']): ?>
+                                            <img src="assets/uploads/<?= h($row['member_pic']) ?>" alt="Member" style="width: 24px; height: 24px; border-radius: 50%; object-fit: cover;">
+                                        <?php else: ?>
+                                            <div style="width: 24px; height: 24px; border-radius: 50%; background: var(--line); display: flex; align-items: center; justify-content: center; font-size: 10px; color: var(--muted);"><?= h(substr($row['member_first'], 0, 1)) ?></div>
+                                        <?php endif; ?>
+                                        <?= h($row['member_first'] . ' ' . $row['member_last']) ?>
+                                    </div>
+                                </td>
+                                <td>
+                                    <div style="display: flex; align-items: center; gap: 8px;">
+                                        <?php if ($row['trainer_pic']): ?>
+                                            <img src="assets/uploads/<?= h($row['trainer_pic']) ?>" alt="Trainer" style="width: 24px; height: 24px; border-radius: 50%; object-fit: cover;">
+                                        <?php else: ?>
+                                            <div style="width: 24px; height: 24px; border-radius: 50%; background: var(--line); display: flex; align-items: center; justify-content: center; font-size: 10px; color: var(--muted);"><?= h(substr($row['trainer_first'], 0, 1)) ?></div>
+                                        <?php endif; ?>
+                                        <?= h($row['trainer_first'] . ' ' . $row['trainer_last']) ?>
+                                    </div>
+                                </td>
                                 <td><?= h(ucwords(str_replace('_', ' ', $row['goal']))) ?></td>
                                 <td>
                                     <?php if ($row['status'] === 'active'): ?>
