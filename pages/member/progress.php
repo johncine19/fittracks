@@ -125,7 +125,138 @@ function progress_page(): void
     </section>
     
     <script>
-    function logProgress() {
+    <?php
+    $recent = $rows[0] ?? [];
+    $recentWeight = $recent['weight_kg'] ?? '';
+    $recentBf = $recent['body_fat_percent'] ?? '';
+    $recentWaist = $recent['waist_cm'] ?? '';
+    $recentChest = $recent['chest_cm'] ?? '';
+    $recentArm = $recent['arm_cm'] ?? '';
+    ?>
+    function calculateBodyFat(e) {
+        if (e) e.preventDefault();
+        
+        // Capture current form state to restore it later
+        const currentForm = document.getElementById('progressForm');
+        let savedState = null;
+        if (currentForm) {
+            savedState = {
+                log_date: currentForm.log_date.value,
+                weight_kg: currentForm.weight_kg.value,
+                body_fat_percent: currentForm.body_fat_percent.value,
+                waist_cm: currentForm.waist_cm.value,
+                chest_cm: currentForm.chest_cm.value,
+                arm_cm: currentForm.arm_cm.value,
+                notes: currentForm.notes.value
+            };
+        }
+        
+        Swal.fire({
+            title: 'Estimate Body Fat %',
+            html: `
+                <div style="text-align: left; font-size: 14px; color: var(--muted); margin-bottom: 15px;">
+                    This estimate uses the U.S. Navy Method. You will need a tape measure.
+                </div>
+                <form id="bfCalcForm" style="text-align: left; display: flex; flex-direction: column; gap: 12px;">
+                    <div style="display:flex;gap:12px;">
+                        <label style="display:block; flex:1; color: var(--muted); font-size: 14px;">Gender *
+                            <select name="gender" class="form-control" style="width: 100%; box-sizing: border-box;" required>
+                                <option value="male">Male</option>
+                                <option value="female">Female</option>
+                            </select>
+                        </label>
+                        <label style="display:block; flex:1; color: var(--muted); font-size: 14px;">Height (cm) *
+                            <input name="height" type="number" step="0.1" class="form-control" placeholder="e.g. 175" required style="width: 100%; box-sizing: border-box;">
+                        </label>
+                    </div>
+                    
+                    <div style="display:flex;gap:12px;">
+                        <label style="display:block; flex:1; color: var(--muted); font-size: 14px;">Neck (cm) *
+                            <input name="neck" type="number" step="0.1" class="form-control" placeholder="e.g. 38" required style="width: 100%; box-sizing: border-box;">
+                        </label>
+                        <label style="display:block; flex:1; color: var(--muted); font-size: 14px;">Waist (cm) *
+                            <input name="waist" type="number" step="0.1" class="form-control" placeholder="e.g. 85" value="${savedState ? savedState.waist_cm : '<?= h((string)$recentWaist) ?>'}" required style="width: 100%; box-sizing: border-box;">
+                        </label>
+                    </div>
+                    
+                    <div id="hipContainer" style="display:none; gap:12px;">
+                        <label style="display:block; flex:1; color: var(--muted); font-size: 14px;">Hip (cm) *
+                            <input name="hip" type="number" step="0.1" class="form-control" placeholder="Widest part (for females)" style="width: 100%; box-sizing: border-box;">
+                        </label>
+                    </div>
+                </form>
+            `,
+            showCancelButton: true,
+            confirmButtonText: 'Calculate',
+            confirmButtonColor: 'var(--lime-dark)',
+            cancelButtonColor: 'var(--line)',
+            background: 'var(--bg)',
+            color: 'var(--ink)',
+            didOpen: () => {
+                const form = document.getElementById('bfCalcForm');
+                form.gender.addEventListener('change', (e) => {
+                    document.getElementById('hipContainer').style.display = e.target.value === 'female' ? 'flex' : 'none';
+                });
+            },
+            preConfirm: () => {
+                const form = document.getElementById('bfCalcForm');
+                const gender = form.gender.value;
+                const height = parseFloat(form.height.value);
+                const neck = parseFloat(form.neck.value);
+                const waist = parseFloat(form.waist.value);
+                const hip = parseFloat(form.hip.value);
+                
+                if (!height || !neck || !waist || (gender === 'female' && !hip)) {
+                    Swal.showValidationMessage('Please fill all required measurements');
+                    return false;
+                }
+                
+                if (gender === 'male' && waist <= neck) {
+                    Swal.showValidationMessage('Waist measurement must be greater than neck measurement.');
+                    return false;
+                }
+                
+                if (gender === 'female' && (waist + hip) <= neck) {
+                    Swal.showValidationMessage('Waist + Hip measurement must be greater than neck measurement.');
+                    return false;
+                }
+                
+                let bodyFat = 0;
+                // U.S. Navy Method formulas (using cm)
+                if (gender === 'male') {
+                    bodyFat = 495 / (1.0324 - 0.19077 * Math.log10(waist - neck) + 0.15456 * Math.log10(height)) - 450;
+                } else {
+                    bodyFat = 495 / (1.29579 - 0.35004 * Math.log10(waist + hip - neck) + 0.22100 * Math.log10(height)) - 450;
+                }
+                
+                if (isNaN(bodyFat) || bodyFat < 2 || bodyFat > 60) {
+                    Swal.showValidationMessage('Invalid measurements. Please check your inputs (ensure they are in cm).');
+                    return false;
+                }
+                
+                return bodyFat.toFixed(1);
+            }
+        }).then((result) => {
+            if (result.isConfirmed) {
+                // Return to log progress modal and populate with calculation
+                if (savedState) savedState.body_fat_percent = result.value;
+                logProgress(savedState || { body_fat_percent: result.value });
+            } else if (result.dismiss === Swal.DismissReason.cancel || result.dismiss === Swal.DismissReason.backdrop) {
+                // Go back to the log progress modal restoring the exact previous state
+                logProgress(savedState);
+            }
+        });
+    }
+
+    function logProgress(savedState = null) {
+        const defaultDate = savedState && savedState.log_date !== undefined ? savedState.log_date : '<?= h(date('Y-m-d')) ?>';
+        const defaultWeight = savedState && savedState.weight_kg !== undefined ? savedState.weight_kg : '<?= h((string)$recentWeight) ?>';
+        const defaultBf = savedState && savedState.body_fat_percent !== undefined ? savedState.body_fat_percent : '<?= h((string)$recentBf) ?>';
+        const defaultWaist = savedState && savedState.waist_cm !== undefined ? savedState.waist_cm : '<?= h((string)$recentWaist) ?>';
+        const defaultChest = savedState && savedState.chest_cm !== undefined ? savedState.chest_cm : '<?= h((string)$recentChest) ?>';
+        const defaultArm = savedState && savedState.arm_cm !== undefined ? savedState.arm_cm : '<?= h((string)$recentArm) ?>';
+        const defaultNotes = savedState && savedState.notes !== undefined ? savedState.notes : '';
+
         Swal.fire({
             title: 'Log Progress',
             html: `
@@ -137,33 +268,34 @@ function progress_page(): void
                     
                     <div style="display:flex;gap:12px;">
                         <label style="display:block; flex:1; color: var(--muted); font-size: 14px;">Date *
-                            <input name="log_date" type="date" class="form-control" required value="<?= h(date('Y-m-d')) ?>" style="width: 100%; box-sizing: border-box;">
+                            <input name="log_date" type="date" class="form-control" required value="${defaultDate}" style="width: 100%; box-sizing: border-box;">
                         </label>
                         <label style="display:block; flex:1; color: var(--muted); font-size: 14px;">Weight (kg) *
-                            <input name="weight_kg" type="number" step="0.01" class="form-control" placeholder="e.g. 72.5" required style="width: 100%; box-sizing: border-box;">
+                            <input name="weight_kg" type="number" step="0.01" class="form-control" placeholder="e.g. 72.5" value="${defaultWeight}" required style="width: 100%; box-sizing: border-box;">
                         </label>
                     </div>
                     
                     <div style="display:flex;gap:12px;">
-                        <label style="display:block; flex:1; color: var(--muted); font-size: 14px;">Body fat %
-                            <input name="body_fat_percent" type="number" step="0.01" class="form-control" placeholder="optional" style="width: 100%; box-sizing: border-box;">
+                        <label style="display:block; flex:1; color: var(--muted); font-size: 14px;">
+                            Body fat % <a href="#" onclick="calculateBodyFat(event)" style="float:right; color:var(--lime); text-decoration:none;">Calculate</a>
+                            <input name="body_fat_percent" type="number" step="0.01" class="form-control" placeholder="optional" value="${defaultBf}" style="width: 100%; box-sizing: border-box;">
                         </label>
                         <label style="display:block; flex:1; color: var(--muted); font-size: 14px;">Waist (cm)
-                            <input name="waist_cm" type="number" step="0.01" class="form-control" placeholder="optional" style="width: 100%; box-sizing: border-box;">
+                            <input name="waist_cm" type="number" step="0.01" class="form-control" placeholder="optional" value="${defaultWaist}" style="width: 100%; box-sizing: border-box;">
                         </label>
                     </div>
                     
                     <div style="display:flex;gap:12px;">
                         <label style="display:block; flex:1; color: var(--muted); font-size: 14px;">Chest (cm)
-                            <input name="chest_cm" type="number" step="0.01" class="form-control" placeholder="optional" style="width: 100%; box-sizing: border-box;">
+                            <input name="chest_cm" type="number" step="0.01" class="form-control" placeholder="optional" value="${defaultChest}" style="width: 100%; box-sizing: border-box;">
                         </label>
                         <label style="display:block; flex:1; color: var(--muted); font-size: 14px;">Arms (cm)
-                            <input name="arm_cm" type="number" step="0.01" class="form-control" placeholder="optional" style="width: 100%; box-sizing: border-box;">
+                            <input name="arm_cm" type="number" step="0.01" class="form-control" placeholder="optional" value="${defaultArm}" style="width: 100%; box-sizing: border-box;">
                         </label>
                     </div>
                     
                     <label style="display:block; color: var(--muted); font-size: 14px;">Notes
-                        <input name="notes" class="form-control" placeholder="Any notes about this entry" style="width: 100%; box-sizing: border-box;">
+                        <input name="notes" class="form-control" placeholder="Any notes about this entry" value="${defaultNotes}" style="width: 100%; box-sizing: border-box;">
                     </label>
                 </form>
             `,
@@ -179,6 +311,27 @@ function progress_page(): void
                     Swal.showValidationMessage('Please fill all required fields (Date & Weight)');
                     return false;
                 }
+                
+                // Validate that measurements are likely in cm, not inches
+                const waist = parseFloat(form.waist_cm.value);
+                const chest = parseFloat(form.chest_cm.value);
+                const arm = parseFloat(form.arm_cm.value);
+                
+                if (!isNaN(waist) && waist > 0 && waist < 45) {
+                    Swal.showValidationMessage('Waist measurement seems too small. Please ensure you entered it in centimeters (cm), not inches.');
+                    return false;
+                }
+                
+                if (!isNaN(chest) && chest > 0 && chest < 55) {
+                    Swal.showValidationMessage('Chest measurement seems too small. Please ensure you entered it in centimeters (cm), not inches.');
+                    return false;
+                }
+                
+                if (!isNaN(arm) && arm > 0 && arm < 18) {
+                    Swal.showValidationMessage('Arm measurement seems too small. Please ensure you entered it in centimeters (cm), not inches.');
+                    return false;
+                }
+                
                 form.submit();
             }
         });
