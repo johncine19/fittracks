@@ -194,7 +194,7 @@ HTML;
             'category'     => $ex['category'],
             'muscle_group' => $ex['muscle_group'],
             'description'  => $ex['description'],
-            'actions'      => '<a href="index.php?page=exercises&action=edit&id=' . $ex['exercise_id'] . '" class="btn btn-secondary" style="padding:4px 8px;font-size:12px;">Edit</a> ' . 
+            'actions'      => '<a href="index.php?page=exercises&action=edit&id=' . $ex['exercise_id'] . '" class="btn" style="background:var(--lime);color:var(--bg);font-weight:bold;padding:4px 8px;font-size:12px;border:1px solid var(--lime);border-radius:4px;text-decoration:none;display:inline-block;margin-right:4px;">Edit</a> ' . 
                               '<form method="post" style="display:inline;" onsubmit="return confirm(\'Delete this exercise?\');">' . 
                               csrf_field() . 
                               '<input type="hidden" name="action" value="delete">' . 
