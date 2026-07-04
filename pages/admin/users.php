@@ -112,8 +112,12 @@ function users_page(): void
             }
             flash('User updated successfully.');
         } elseif (post('action') === 'delete_user') {
-            db()->prepare('DELETE FROM users WHERE user_id=?')->execute([post('user_id')]);
-            flash('User deleted.');
+            if ((int) post('user_id') === (int) $user['user_id']) {
+                flash('You cannot delete your own account.', 'danger');
+            } else {
+                db()->prepare('DELETE FROM users WHERE user_id=?')->execute([post('user_id')]);
+                flash('User deleted.');
+            }
         }
         redirect('users');
     }
@@ -133,7 +137,7 @@ function users_page(): void
     $total = (int) scalar('SELECT COUNT(*) FROM users WHERE ' . $where, $params);
     $totalPages = max(1, (int) ceil($total / $limit));
 
-    $stmt = db()->prepare('SELECT * FROM users WHERE ' . $where . ' ORDER BY created_at DESC LIMIT ' . (int)$limit . ' OFFSET ' . (int)$offset);
+    $stmt = db()->prepare('SELECT * FROM users WHERE ' . $where . ' ORDER BY first_name ASC, last_name ASC LIMIT ' . (int)$limit . ' OFFSET ' . (int)$offset);
     $stmt->execute($params);
     $rows = $stmt->fetchAll();
     
@@ -271,12 +275,14 @@ function users_page(): void
                                     <button type="submit" class="btn-sm btn-ghost">Update</button>
                                 </form>
                                 <button onclick="editUser(<?= htmlspecialchars(json_encode($row)) ?>)" class="btn btn-secondary" style="padding:4px 8px;font-size:12px;margin-left:8px;">Edit</button>
+                                <?php if ((int) $row['user_id'] !== (int) $user['user_id']): ?>
                                 <form method="post" style="margin:0;" onsubmit="return confirm('Delete this user? This cannot be undone.');">
                                     <?= csrf_field() ?>
                                     <input type="hidden" name="action" value="delete_user">
                                     <input type="hidden" name="user_id" value="<?= (int) $row['user_id'] ?>">
                                     <button type="submit" class="btn btn-danger" style="padding:4px 8px;font-size:12px;">Delete</button>
                                 </form>
+                                <?php endif; ?>
                             </div>
                         </td>
                     </tr>
