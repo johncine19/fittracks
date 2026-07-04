@@ -42,6 +42,7 @@ function messages_page(): void
             SELECT recipient_id FROM trainer_messages WHERE sender_id = ?
          )
          ' . ($user['role'] === 'admin' ? ' OR (u.role = "trainer" AND u.status = "active") ' : '') . '
+         ' . ($user['role'] === 'trainer' ? ' OR (u.role = "admin" AND u.status = "active") OR u.user_id IN (SELECT ta.member_user_id FROM trainer_assignments ta JOIN trainer_profiles tp ON tp.trainer_id = ta.trainer_id WHERE tp.user_id = ' . (int)$user['user_id'] . ' AND ta.status = "active") ' : '') . '
          ORDER BY last_time DESC',
         [$user['user_id'], $user['user_id'], $user['user_id'], $user['user_id'], $user['user_id'], $user['user_id']]
     );
@@ -90,18 +91,33 @@ function messages_page(): void
     }
 
     // Get list of users this person can message for the New Message modal
-    $roleFilter = match($user['role']) {
-        'member'  => '"trainer"',
-        'trainer' => '"member","admin"',
-        default   => '"trainer","member","admin"',
-    };
-    $contacts = db()->query(
-        'SELECT user_id, first_name, last_name, profile_picture, role FROM users
-         WHERE user_id != ' . (int)$user['user_id'] . '
-           AND status = "active"
-           AND role IN (' . $roleFilter . ')
-         ORDER BY first_name'
-    )->fetchAll();
+    if ($user['role'] === 'trainer') {
+        $contacts = query_all(
+            'SELECT u.user_id, u.first_name, u.last_name, u.profile_picture, u.role FROM users u
+             WHERE u.user_id != ?
+               AND u.status = "active"
+               AND (u.role = "admin" OR u.user_id IN (
+                   SELECT ta.member_user_id FROM trainer_assignments ta 
+                   JOIN trainer_profiles tp ON tp.trainer_id = ta.trainer_id 
+                   WHERE tp.user_id = ? AND ta.status = "active"
+               ))
+             ORDER BY u.first_name',
+            [$user['user_id'], $user['user_id']]
+        );
+    } else {
+        $roleFilter = match($user['role']) {
+            'member'  => '"trainer"',
+            default   => '"trainer","member","admin"',
+        };
+        $contacts = query_all(
+            'SELECT user_id, first_name, last_name, profile_picture, role FROM users
+             WHERE user_id != ?
+               AND status = "active"
+               AND role IN (' . $roleFilter . ')
+             ORDER BY first_name',
+            [$user['user_id']]
+        );
+    }
 
     render_header('Messages', $user);
     ?>
