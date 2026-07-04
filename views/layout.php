@@ -76,6 +76,11 @@ function render_header(string $title, ?array $user = null): void
         </script>
     <?php endif; ?>
     <?php if ($user): ?>
+        <!-- Background Video -->
+        <video autoplay loop muted playsinline class="bg-video">
+            <source src="assets/images/miles.mp4" type="video/mp4">
+        </video>
+        
         <!-- Mobile sidebar overlay -->
         <div class="sidebar-overlay" id="sidebar-overlay"></div>
         <div class="app-frame">
