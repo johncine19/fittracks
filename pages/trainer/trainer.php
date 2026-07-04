@@ -104,7 +104,7 @@ HTML;
         </article>
 HTML;
     }
-    if (!$members) echo '<p class="muted">No assigned clients yet. Admins can assign coaches from the Coaches page.</p>';
+    if (!$members) echo '<p class="muted">No assigned clients yet. Admins can assign trainers from the Trainers page.</p>';
     echo '</div></section>';
     render_footer();
 }
