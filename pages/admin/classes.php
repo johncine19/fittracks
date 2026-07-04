@@ -301,7 +301,7 @@ function classes_page(): void
                         <td><strong><?= h($s['class_name']) ?></strong></td>
                         <td style="color:var(--muted)"><?= h($s['room_location'] ?: '—') ?></td>
                         <td><?= h(date('M j, Y · g:i A', strtotime($s['start_datetime']))) ?></td>
-                        <td><?= h(date('g:i A', strtotime($s['end_datetime']))) ?></td>
+                        <td><?= h(date('M j, Y · g:i A', strtotime($s['end_datetime']))) ?></td>
                         <td><span style="color:var(--lime);font-weight:700"><?= (int) $s['booked'] ?></span></td>
                         <td>
                             <button onclick="editSchedule(<?= htmlspecialchars(json_encode($s)) ?>)" class="btn btn-secondary" style="padding:4px 8px;font-size:12px;">Edit</button>
