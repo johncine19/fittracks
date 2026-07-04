@@ -172,10 +172,17 @@ function admin_dashboard(PDO $pdo): void
     </section></div>
     <section class="dash-grid lower-row skeleton-content sk-display-grid">
         <article class="panel">
-            <h2>Today's Classes</h2>
-            <div class="list-stack">
-                <?php foreach ($todayClasses as $class): $pct = min(100, ((int) $class['booked'] / max(1, (int) $class['capacity'])) * 100); ?>
-                    <div class="class-row">
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+                <h2>Today's Classes</h2>
+                <div id="class-nav" style="display:none; gap:4px; align-items:center;">
+                    <button class="btn btn-secondary" onclick="prevClassSlide()" style="padding:2px 8px; font-size:12px;">&#8592;</button>
+                    <span id="class-page-indicator" style="font-size:12px; color:var(--muted); margin:0 4px;"></span>
+                    <button class="btn btn-secondary" onclick="nextClassSlide()" style="padding:2px 8px; font-size:12px;">&#8594;</button>
+                </div>
+            </div>
+            <div class="list-stack" id="class-carousel">
+                <?php foreach ($todayClasses as $index => $class): $pct = min(100, ((int) $class['booked'] / max(1, (int) $class['capacity'])) * 100); ?>
+                    <div class="class-row class-slide" style="display: <?= $index < 3 ? 'flex' : 'none' ?>;">
                         <span class="dot"></span>
                         <div><strong><?= h($class['class_name']) ?></strong><small><?= h($class['trainer']) ?> - <?= h(date('h:i A', strtotime($class['start_datetime']))) ?></small></div>
                         <b><?= (int) $class['booked'] ?>/<?= (int) $class['capacity'] ?><small>booked</small></b>
@@ -184,6 +191,33 @@ function admin_dashboard(PDO $pdo): void
                 <?php endforeach;
                 if (!$todayClasses): ?><p class="muted">No classes scheduled today.</p><?php endif; ?>
             </div>
+            <?php if (count($todayClasses) > 3): ?>
+            <script>
+                document.getElementById('class-nav').style.display = 'flex';
+                let classPage = 0;
+                const classRows = document.querySelectorAll('.class-slide');
+                const classMaxPage = Math.ceil(classRows.length / 3) - 1;
+                const classIndicator = document.getElementById('class-page-indicator');
+                
+                function updateClassCarousel() {
+                    classRows.forEach((row, i) => {
+                        row.style.display = (i >= classPage * 3 && i < (classPage + 1) * 3) ? 'flex' : 'none';
+                    });
+                    if (classIndicator) {
+                        classIndicator.textContent = (classPage + 1) + ' / ' + (classMaxPage + 1);
+                    }
+                }
+                
+                updateClassCarousel();
+
+                function nextClassSlide() {
+                    if (classPage < classMaxPage) { classPage++; updateClassCarousel(); }
+                }
+                function prevClassSlide() {
+                    if (classPage > 0) { classPage--; updateClassCarousel(); }
+                }
+            </script>
+            <?php endif; ?>
         </article>
         <article class="panel">
             <div style="display:flex; justify-content:space-between; align-items:center;">
