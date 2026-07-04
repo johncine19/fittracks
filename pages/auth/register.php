@@ -90,7 +90,7 @@ function handle_register(): void
                 <h1 class="auth-title">FITTRACKS</h1>
                 <p class="auth-subtitle">Create your account</p>
             </div>
-            <form method="post" class="auth-form" novalidate>
+            <form method="post" class="auth-form" novalidate onsubmit="const btn = this.querySelector('button[type=submit]'); btn.disabled = true; btn.innerHTML = '<span class=\'loader\' style=\'width:16px;height:16px;border:2px solid var(--bg);border-bottom-color:transparent;border-radius:50%;display:inline-block;box-sizing:border-box;animation:rotation 1s linear infinite;margin-right:8px;\'></span> CREATING ACCOUNT...';">
                 <?= csrf_field() ?>
                 <div class="auth-form-row">
                     <div class="auth-field">

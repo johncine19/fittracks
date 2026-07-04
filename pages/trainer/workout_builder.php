@@ -271,6 +271,7 @@ function workout_builder_page(): void
             confirmButtonText: 'Yes, generate it!'
         }).then((result) => {
             if (result.isConfirmed) {
+                Swal.showLoading();
                 document.getElementById('autoGenDayInput').value = dayNum;
                 document.getElementById('autoGenDayForm').submit();
             }
@@ -290,6 +291,7 @@ function workout_builder_page(): void
             confirmButtonText: 'Yes, publish it!'
         }).then((result) => {
             if (result.isConfirmed) {
+                Swal.showLoading();
                 document.getElementById('publishForm').submit();
             }
         });
@@ -298,8 +300,8 @@ function workout_builder_page(): void
     function promptAutoGenerate() {
         Swal.fire({
             title: 'Auto-Generate Plan?',
-            text: "This will overwrite your current draft. Are you sure you want to proceed?",
-            icon: 'warning',
+            text: "This will replace all current exercises with a newly generated plan based on the member's profile. Proceed?",
+            icon: 'question',
             showCancelButton: true,
             confirmButtonColor: 'var(--lime-dark)',
             cancelButtonColor: '#6c757d',
@@ -308,6 +310,7 @@ function workout_builder_page(): void
             confirmButtonText: 'Yes, generate it!'
         }).then((result) => {
             if (result.isConfirmed) {
+                Swal.showLoading();
                 document.getElementById('autoGenForm').submit();
             }
         });

@@ -68,7 +68,7 @@ function handle_forgot_password(): void
                 <h1 class="gilded-title">FITTRACKS</h1>
                 <p class="gilded-subtitle">Reset your passcode</p>
             </div>
-            <form method="post" class="gilded-form">
+            <form method="post" class="gilded-form" onsubmit="const btn = this.querySelector('button[type=submit]'); btn.disabled = true; btn.innerHTML = '<span class=\'loader\' style=\'width:16px;height:16px;border:2px solid var(--bg);border-bottom-color:transparent;border-radius:50%;display:inline-block;box-sizing:border-box;animation:rotation 1s linear infinite;margin-right:8px;\'></span> SENDING LINK...';">
                 <?= csrf_field() ?>
                 <div class="gilded-field">
                     <label>EMAIL ADDRESS</label>

@@ -32,7 +32,7 @@ function render_simple_table(array $rows, array $columns): string
 function render_member_form(string $context, ?array $user = null, ?array $profile = null): void
 {
     ?>
-    <form method="post" class="form grid-form">
+    <form method="post" class="form grid-form" onsubmit="const btn = this.querySelector('button[type=submit]'); btn.disabled = true; btn.innerHTML = '<span class=\'loader\' style=\'width:16px;height:16px;border:2px solid var(--bg);border-bottom-color:transparent;border-radius:50%;display:inline-block;box-sizing:border-box;animation:rotation 1s linear infinite;margin-right:8px;vertical-align:-2px;\'></span> Saving...';">
         <?= csrf_field() ?>
         <?php if ($context !== 'profile'): ?>
             <label>First name <input name="first_name" required value="<?= h($user['first_name'] ?? '') ?>"></label>

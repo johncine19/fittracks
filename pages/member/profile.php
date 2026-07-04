@@ -174,7 +174,7 @@ function profile_page(): void
                 </button>
             </div>
             <div class="modal-body">
-                <form method="post" enctype="multipart/form-data" class="form grid-form" style="margin-bottom:0;">
+                <form method="post" enctype="multipart/form-data" class="form grid-form" style="margin-bottom:0;" onsubmit="const btn = this.querySelector('button[type=submit]'); btn.disabled = true; btn.innerHTML = '<span class=\'loader\' style=\'width:16px;height:16px;border:2px solid var(--bg);border-bottom-color:transparent;border-radius:50%;display:inline-block;box-sizing:border-box;animation:rotation 1s linear infinite;margin-right:8px;vertical-align:-2px;\'></span> Saving...';">
                     <?= csrf_field() ?>
                     <input type="hidden" name="update_account" value="1">
 
