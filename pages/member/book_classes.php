@@ -6,6 +6,14 @@ function book_classes_page(): void
     $user = require_roles(['member']);
     if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $scheduleId = (int) post('schedule_id');
+        
+        $existing = db()->prepare('SELECT booking_status FROM class_bookings WHERE schedule_id = ? AND user_id = ?');
+        $existing->execute([$scheduleId, $user['user_id']]);
+        if ($existing->fetchColumn() === 'booked') {
+            flash('You have already booked this class!', 'error');
+            redirect('book_classes');
+        }
+
         db()->prepare('INSERT INTO class_bookings (schedule_id, user_id) VALUES (?, ?) ON DUPLICATE KEY UPDATE booking_status = "booked"')->execute([$scheduleId, $user['user_id']]);
 
         $classRows = query_all(
@@ -38,7 +46,7 @@ function book_classes_page(): void
     $total = (int) scalar($totalSql);
     $totalPages = (int) ceil($total / $limit);
 
-    $sql = 'SELECT s.*, c.class_name, c.description, c.capacity, COALESCE(CONCAT(u.first_name, " ", u.last_name), "Open trainer") AS instructor, (SELECT COUNT(*) FROM class_bookings b WHERE b.schedule_id = s.schedule_id AND b.booking_status = "booked") AS booked FROM class_schedules s JOIN classes c ON c.class_id = s.class_id LEFT JOIN users u ON u.user_id = c.instructor_id WHERE DATE(s.start_datetime) >= CURDATE() ORDER BY s.start_datetime LIMIT ' . $limit . ' OFFSET ' . $offset;
+    $sql = 'SELECT s.*, c.class_name, c.description, c.capacity, COALESCE(CONCAT(u.first_name, " ", u.last_name), "Open trainer") AS instructor, (SELECT COUNT(*) FROM class_bookings b WHERE b.schedule_id = s.schedule_id AND b.booking_status = "booked") AS booked, (SELECT COUNT(*) FROM class_bookings b2 WHERE b2.schedule_id = s.schedule_id AND b2.user_id = ' . (int)$user['user_id'] . ' AND b2.booking_status = "booked") AS is_booked FROM class_schedules s JOIN classes c ON c.class_id = s.class_id LEFT JOIN users u ON u.user_id = c.instructor_id WHERE DATE(s.start_datetime) >= CURDATE() ORDER BY s.start_datetime LIMIT ' . $limit . ' OFFSET ' . $offset;
     $rows = db()->query($sql)->fetchAll();
     render_header('Book a Class', $user);
     ?>
@@ -108,8 +116,9 @@ function book_classes_page(): void
                         <form method="post">
                             <?= csrf_field() ?>
                             <input type="hidden" name="schedule_id" value="<?= (int) $row['schedule_id'] ?>">
-                            <button class="cc-book-btn" <?= $full ? 'disabled' : '' ?>>
-                                <?= $full ? 'Class Full' : 'Book Slot' ?>
+                            <?php $isAlreadyBooked = $row['is_booked'] > 0; ?>
+                            <button class="cc-book-btn" <?= ($full || $isAlreadyBooked) ? 'disabled' : 'data-confirm="Are you sure you want to book this class?" data-confirm-btn="Yes, book"' ?> style="<?= $isAlreadyBooked ? 'background:transparent;color:var(--lime);border:1px solid var(--lime);' : '' ?>">
+                                <?= $isAlreadyBooked ? 'Already Booked' : ($full ? 'Class Full' : 'Book Slot') ?>
                             </button>
                         </form>
                     </div>

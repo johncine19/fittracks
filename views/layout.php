@@ -229,6 +229,7 @@ document.addEventListener('click', function(e) {
             text: confirmEl.getAttribute('data-confirm'),
             icon: 'warning',
             showCancelButton: true,
+            confirmButtonText: confirmEl.getAttribute('data-confirm-btn') || 'OK',
             confirmButtonColor: 'var(--lime, #ccff00)',
             cancelButtonColor: '#d33',
             background: 'var(--surface-color, #090b10)',
