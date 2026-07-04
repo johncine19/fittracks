@@ -19,6 +19,14 @@ function classes_page(): void
                 if ($c->fetchColumn() != $user['user_id']) redirect('classes');
             }
             db()->prepare('INSERT INTO class_schedules (class_id, room_location, start_datetime, end_datetime) VALUES (?, ?, ?, ?)')->execute([$class_id, post('room_location'), post('start_datetime'), post('end_datetime')]);
+            
+            $className = db()->query('SELECT class_name FROM classes WHERE class_id = ' . (int)$class_id)->fetchColumn();
+            $startTime = date('M j, Y g:i A', strtotime(post('start_datetime')));
+            $activeMembers = db()->query('SELECT user_id FROM users WHERE role="member" AND status="active"')->fetchAll();
+            foreach ($activeMembers as $member) {
+                notify_user((int) $member['user_id'], 'class_reminder', 'New Class Session', 'A new session for ' . $className . ' has been scheduled on ' . $startTime . '.');
+            }
+            
             flash('Schedule created.');
         } elseif ($action === 'edit_class') {
             if ($isAdmin) {
