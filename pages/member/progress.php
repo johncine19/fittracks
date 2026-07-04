@@ -8,7 +8,12 @@ function progress_page(): void
         ? (int) post('member_user_id', $_GET['member_user_id'] ?? 0)
         : (int) $user['user_id'];
 
-    if ($_SERVER['REQUEST_METHOD'] === 'POST' && $memberId) {
+    // Fetch member details
+    $stmt = db()->prepare('SELECT first_name, last_name, profile_picture FROM users WHERE user_id = ?');
+    $stmt->execute([$memberId]);
+    $member = $stmt->fetch();
+
+    if ($_SERVER['REQUEST_METHOD'] === 'POST' && $user['role'] === 'member') {
         db()->prepare(
             'INSERT INTO progress_logs
              (user_id, log_date, weight_kg, body_fat_percent, chest_cm, waist_cm, hips_cm, arm_cm, notes, recorded_by)
@@ -25,15 +30,13 @@ function progress_page(): void
             post('notes'),
             $user['user_id'],
         ]);
-        if ($user['role'] === 'member') {
-            db()->prepare('UPDATE member_profiles SET weight_kg = ? WHERE user_id = ?')
-               ->execute([post('weight_kg'), $memberId]);
-            generate_workout_plan($memberId);
-            notify_user($memberId, 'system', 'Workout plan updated', 'Your workout plan was refreshed after logging new progress.');
-            notify_user($memberId, 'milestone', 'Progress logged', 'Nice work — your latest measurements were saved.');
-        }
+        db()->prepare('UPDATE member_profiles SET weight_kg = ? WHERE user_id = ?')
+           ->execute([post('weight_kg'), $memberId]);
+        generate_workout_plan($memberId);
+        notify_user($memberId, 'system', 'Workout plan updated', 'Your workout plan was refreshed after logging new progress.');
+        notify_user($memberId, 'milestone', 'Progress logged', 'Nice work — your latest measurements were saved.');
         flash('Progress logged.', 'success');
-        redirect($user['role'] === 'trainer' ? 'trainer_members' : 'progress');
+        redirect('progress');
     }
 
     // Fetch in DESC order for the table; reverse for the chart
@@ -67,15 +70,87 @@ function progress_page(): void
         </section>
     </div>
     <section class="panel skeleton-content sk-display-block">
-        <div class="page-header">
-            <div>
-                <h1>Progress logs</h1>
-                <p>Track your weight, measurements, and body composition over time.</p>
+        <div class="page-header" style="align-items: center;">
+            <div style="display: flex; gap: 15px; align-items: center;">
+                <?php if ($user['role'] === 'trainer' && $member): ?>
+                    <?= render_avatar($member, 'large') ?>
+                    <div>
+                        <h1><?= h($member['first_name'] . ' ' . $member['last_name']) ?>'s Progress</h1>
+                        <p>Track their weight, measurements, and body composition over time.</p>
+                    </div>
+                <?php else: ?>
+                    <div>
+                        <h1>Progress logs</h1>
+                        <p>Track your weight, measurements, and body composition over time.</p>
+                    </div>
+                <?php endif; ?>
             </div>
-            <button onclick="logProgress()" class="btn" style="background: var(--lime); color: var(--bg); font-weight: bold;">+ Log Progress</button>
+            <?php if ($user['role'] === 'member'): ?>
+                <button onclick="logProgress()" class="btn" style="background: var(--lime); color: var(--bg); font-weight: bold;">+ Log Progress</button>
+            <?php endif; ?>
         </div>
 
 
+
+        <?php if (count($rows) >= 2): 
+            $current = $rows[0];
+            $baseline = $rows[count($rows) - 1];
+            
+            $weightStart = (float) $baseline['weight_kg'];
+            $weightCurr = (float) $current['weight_kg'];
+            $weightDelta = $weightCurr - $weightStart;
+            $weightSign = $weightDelta > 0 ? '+' : '';
+            $weightColor = $weightDelta > 0 ? 'var(--danger)' : 'var(--lime)'; // Assuming weight loss is good. Adjust if needed.
+
+            $bfStart = $baseline['body_fat_percent'] ? (float) $baseline['body_fat_percent'] : null;
+            $bfCurr = $current['body_fat_percent'] ? (float) $current['body_fat_percent'] : null;
+        ?>
+        <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin-bottom: 2rem;">
+            <div style="background: var(--bg); padding: 15px; border-radius: 8px; border: 1px solid var(--line);">
+                <div style="color: var(--muted); font-size: 13px; font-weight: 600; text-transform: uppercase; margin-bottom: 8px;">Weight</div>
+                <div style="display: flex; justify-content: space-between; align-items: baseline;">
+                    <div>
+                        <div style="font-size: 24px; font-weight: bold; color: var(--ink);"><?= h(number_format($weightCurr, 1)) ?> <span style="font-size: 14px; font-weight: normal; color: var(--muted);">kg</span></div>
+                        <div style="font-size: 13px; color: var(--muted);">Start: <?= h(number_format($weightStart, 1)) ?> kg</div>
+                    </div>
+                    <?php if ($weightDelta !== 0.0): ?>
+                        <div style="padding: 4px 8px; border-radius: 4px; font-size: 13px; font-weight: bold; background: <?= $weightColor ?>20; color: <?= $weightColor ?>;">
+                            <?= $weightSign ?><?= h(number_format($weightDelta, 1)) ?>
+                        </div>
+                    <?php else: ?>
+                        <div style="padding: 4px 8px; border-radius: 4px; font-size: 13px; font-weight: bold; background: var(--line); color: var(--muted);">
+                            No change
+                        </div>
+                    <?php endif; ?>
+                </div>
+            </div>
+
+            <?php if ($bfStart !== null && $bfCurr !== null): 
+                $bfDelta = $bfCurr - $bfStart;
+                $bfSign = $bfDelta > 0 ? '+' : '';
+                $bfColor = $bfDelta > 0 ? 'var(--danger)' : 'var(--lime)';
+            ?>
+            <div style="background: var(--bg); padding: 15px; border-radius: 8px; border: 1px solid var(--line);">
+                <div style="color: var(--muted); font-size: 13px; font-weight: 600; text-transform: uppercase; margin-bottom: 8px;">Body Fat</div>
+                <div style="display: flex; justify-content: space-between; align-items: baseline;">
+                    <div>
+                        <div style="font-size: 24px; font-weight: bold; color: var(--ink);"><?= h(number_format($bfCurr, 1)) ?> <span style="font-size: 14px; font-weight: normal; color: var(--muted);">%</span></div>
+                        <div style="font-size: 13px; color: var(--muted);">Start: <?= h(number_format($bfStart, 1)) ?> %</div>
+                    </div>
+                    <?php if ($bfDelta !== 0.0): ?>
+                        <div style="padding: 4px 8px; border-radius: 4px; font-size: 13px; font-weight: bold; background: <?= $bfColor ?>20; color: <?= $bfColor ?>;">
+                            <?= $bfSign ?><?= h(number_format($bfDelta, 1)) ?>
+                        </div>
+                    <?php else: ?>
+                        <div style="padding: 4px 8px; border-radius: 4px; font-size: 13px; font-weight: bold; background: var(--line); color: var(--muted);">
+                            No change
+                        </div>
+                    <?php endif; ?>
+                </div>
+            </div>
+            <?php endif; ?>
+        </div>
+        <?php endif; ?>
 
         <!-- Weight trend chart -->
         <?php if (count($chartWeights) >= 2): ?>
@@ -151,6 +226,11 @@ function progress_page(): void
             };
         }
         
+        const savedBfSettings = JSON.parse(localStorage.getItem('fittracks_bf_settings') || '{}');
+        const defaultGender = savedBfSettings.gender || 'male';
+        const defaultHeight = savedBfSettings.height || '';
+        const defaultNeck = savedBfSettings.neck || '';
+        
         Swal.fire({
             title: 'Estimate Body Fat %',
             html: `
@@ -161,18 +241,18 @@ function progress_page(): void
                     <div style="display:flex;gap:12px;">
                         <label style="display:block; flex:1; color: var(--muted); font-size: 14px;">Gender *
                             <select name="gender" class="form-control" style="width: 100%; box-sizing: border-box;" required>
-                                <option value="male">Male</option>
-                                <option value="female">Female</option>
+                                <option value="male" ${defaultGender === 'male' ? 'selected' : ''}>Male</option>
+                                <option value="female" ${defaultGender === 'female' ? 'selected' : ''}>Female</option>
                             </select>
                         </label>
                         <label style="display:block; flex:1; color: var(--muted); font-size: 14px;">Height (cm) *
-                            <input name="height" type="number" step="0.1" class="form-control" placeholder="e.g. 175" required style="width: 100%; box-sizing: border-box;">
+                            <input name="height" type="number" step="0.1" class="form-control" placeholder="e.g. 175" value="${defaultHeight}" required style="width: 100%; box-sizing: border-box;">
                         </label>
                     </div>
                     
                     <div style="display:flex;gap:12px;">
                         <label style="display:block; flex:1; color: var(--muted); font-size: 14px;">Neck (cm) *
-                            <input name="neck" type="number" step="0.1" class="form-control" placeholder="e.g. 38" required style="width: 100%; box-sizing: border-box;">
+                            <input name="neck" type="number" step="0.1" class="form-control" placeholder="e.g. 38" value="${defaultNeck}" required style="width: 100%; box-sizing: border-box;">
                         </label>
                         <label style="display:block; flex:1; color: var(--muted); font-size: 14px;">Waist (cm) *
                             <input name="waist" type="number" step="0.1" class="form-control" placeholder="e.g. 85" value="${savedState ? savedState.waist_cm : '<?= h((string)$recentWaist) ?>'}" required style="width: 100%; box-sizing: border-box;">
@@ -210,6 +290,9 @@ function progress_page(): void
                     Swal.showValidationMessage('Please fill all required measurements');
                     return false;
                 }
+                
+                // Save settings for next time
+                localStorage.setItem('fittracks_bf_settings', JSON.stringify({ gender, height, neck }));
                 
                 if (gender === 'male' && waist <= neck) {
                     Swal.showValidationMessage('Waist measurement must be greater than neck measurement.');
