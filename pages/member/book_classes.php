@@ -17,7 +17,7 @@ function book_classes_page(): void
         db()->prepare('INSERT INTO class_bookings (schedule_id, user_id) VALUES (?, ?) ON DUPLICATE KEY UPDATE booking_status = "booked"')->execute([$scheduleId, $user['user_id']]);
 
         $classRows = query_all(
-            'SELECT c.class_name, s.start_datetime, s.room_location
+            'SELECT c.class_name, s.start_datetime, s.room_location, c.instructor_id
              FROM class_schedules s
              JOIN classes c ON c.class_id = s.class_id
              WHERE s.schedule_id = ?',
@@ -25,6 +25,23 @@ function book_classes_page(): void
         );
         if ($classRows) {
             $class = $classRows[0];
+            
+            // Auto-assign member to the trainer if an instructor exists
+            if ($class['instructor_id']) {
+                $trainerProfile = db()->prepare('SELECT trainer_id FROM trainer_profiles WHERE user_id = ?');
+                $trainerProfile->execute([$class['instructor_id']]);
+                $trainerId = $trainerProfile->fetchColumn();
+                
+                if ($trainerId) {
+                    $existingAssignment = db()->prepare('SELECT assignment_id FROM trainer_assignments WHERE trainer_id = ? AND member_user_id = ? AND status = "active"');
+                    $existingAssignment->execute([$trainerId, $user['user_id']]);
+                    if (!$existingAssignment->fetch()) {
+                        db()->prepare('INSERT INTO trainer_assignments (trainer_id, member_user_id, assigned_date, status, assigned_by) VALUES (?, ?, CURDATE(), "active", ?)')
+                            ->execute([$trainerId, $user['user_id'], $user['user_id']]);
+                    }
+                }
+            }
+            
             $when = date('D, M j \a\t g:i A', strtotime($class['start_datetime']));
             $location = $class['room_location'] ? ' in ' . $class['room_location'] : '';
             notify_user(
