@@ -79,8 +79,16 @@ function walk_ins_page(): void
         redirect('walk_ins');
     }
 
+    // Handle manual member check-in
+    if ($_SERVER['REQUEST_METHOD'] === 'POST' && post('action') === 'member_checkin') {
+        db()->prepare('INSERT INTO attendance (user_id, schedule_id, check_in_time, check_in_method, recorded_by) VALUES (?, ?, NOW(), "manual", ?)')
+            ->execute([post('user_id'), post('schedule_id') ?: null, $user['user_id']]);
+        flash('Member check-in recorded successfully as attendance.', 'success');
+        redirect('attendance');
+    }
+
     // Handle new walk-in recording
-    if ($_SERVER['REQUEST_METHOD'] === 'POST' && post('action') !== 'convert') {
+    if ($_SERVER['REQUEST_METHOD'] === 'POST' && post('action') !== 'convert' && post('action') !== 'member_checkin') {
         $contact_info = preg_replace('/[^0-9]/', '', (string)post('contact_info'));
         if (strlen($contact_info) !== 11) {
             flash('Phone number must be exactly 11 digits.', 'danger');
@@ -104,6 +112,8 @@ function walk_ins_page(): void
          LEFT JOIN users u ON u.user_id = w.converted_to_member_id
          ORDER BY w.visit_date DESC'
     )->fetchAll();
+    $activeMembers = db()->query('SELECT user_id, CONCAT(first_name, " ", last_name) AS name FROM users WHERE role = "member" AND status = "active" ORDER BY first_name')->fetchAll();
+    $todaySchedules = db()->query('SELECT s.schedule_id, CONCAT(c.class_name, " - ", DATE_FORMAT(s.start_datetime, "%h:%i %p")) AS label FROM class_schedules s JOIN classes c ON c.class_id = s.class_id WHERE DATE(s.start_datetime) = CURDATE() ORDER BY s.start_datetime')->fetchAll();
     
     render_header('Walk-in Transactions', $user);
     ?>
@@ -113,8 +123,43 @@ function walk_ins_page(): void
                 <h1>Walk-in Transactions</h1>
                 <p>Record visits and payments for non-members.</p>
             </div>
-            <button onclick="document.getElementById('recordWalkInModal').showModal()">+ Record Walk-in</button>
+            <div style="display: flex; gap: 10px;">
+                <button onclick="document.getElementById('memberCheckInModal').showModal()" class="btn btn-secondary">Member Check-in</button>
+                <button onclick="document.getElementById('recordWalkInModal').showModal()">+ Record Walk-in</button>
+            </div>
         </div>
+
+        <dialog id="memberCheckInModal" class="modal">
+            <div class="modal-header">
+                <h3>Member Check-in</h3>
+                <button class="modal-close" onclick="this.closest('dialog').close()" aria-label="Close">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                </button>
+            </div>
+            <div class="modal-body">
+                <form method="post" class="form grid-form">
+                    <?= csrf_field() ?>
+                    <input type="hidden" name="action" value="member_checkin">
+                    <label>Member
+                        <select name="user_id" required>
+                            <option value="">Select a member...</option>
+                            <?php foreach ($activeMembers as $m): ?>
+                                <option value="<?= $m['user_id'] ?>"><?= h($m['name']) ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                    </label>
+                    <label>Class Session (Optional)
+                        <select name="schedule_id">
+                            <option value="">None (Gym Visit)</option>
+                            <?php foreach ($todaySchedules as $s): ?>
+                                <option value="<?= $s['schedule_id'] ?>"><?= h($s['label']) ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                    </label>
+                    <button style="grid-column: 1 / -1; margin-top: 10px; background: var(--lime); color: var(--bg);">Record Attendance</button>
+                </form>
+            </div>
+        </dialog>
 
         <dialog id="recordWalkInModal" class="modal">
             <div class="modal-header">
