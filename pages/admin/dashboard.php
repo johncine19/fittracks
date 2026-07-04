@@ -102,7 +102,7 @@ function admin_dashboard(PDO $pdo): void
         'Sun' => $weekMap[1],
     ];
     $todayClasses = $pdo->query('SELECT c.class_name, c.capacity, s.start_datetime, COALESCE(CONCAT(u.first_name, " ", u.last_name), "Open trainer") AS trainer, (SELECT COUNT(*) FROM class_bookings b WHERE b.schedule_id = s.schedule_id AND b.booking_status = "booked") AS booked FROM class_schedules s JOIN classes c ON c.class_id = s.class_id LEFT JOIN users u ON u.user_id = c.instructor_id WHERE DATE(s.start_datetime) = CURDATE() ORDER BY s.start_datetime LIMIT 4')->fetchAll();
-    $recent = $pdo->query('SELECT a.check_in_time, CONCAT(u.first_name, " ", u.last_name) AS member, u.first_name, u.last_name, u.profile_picture FROM attendance a JOIN users u ON u.user_id = a.user_id ORDER BY a.check_in_time DESC LIMIT 5')->fetchAll();
+    $recent = $pdo->query('SELECT a.check_in_time, CONCAT(u.first_name, " ", u.last_name) AS member, u.first_name, u.last_name, u.profile_picture FROM attendance a JOIN users u ON u.user_id = a.user_id ORDER BY a.check_in_time DESC LIMIT 15')->fetchAll();
 
     // Revenue trend % for chart panel label
     $lastMonthRevenue = (float) $pdo->query(
@@ -186,10 +186,17 @@ function admin_dashboard(PDO $pdo): void
             </div>
         </article>
         <article class="panel">
-            <h2>Recent Check-ins</h2>
-            <div class="list-stack">
-                <?php foreach ($recent as $row): ?>
-                    <div class="checkin-row">
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+                <h2>Recent Check-ins</h2>
+                <div id="checkin-nav" style="display:none; gap:4px; align-items:center;">
+                    <button class="btn btn-secondary" onclick="prevCheckinSlide()" style="padding:2px 8px; font-size:12px;">&#8592;</button>
+                    <span id="checkin-page-indicator" style="font-size:12px; color:var(--muted); margin:0 4px;"></span>
+                    <button class="btn btn-secondary" onclick="nextCheckinSlide()" style="padding:2px 8px; font-size:12px;">&#8594;</button>
+                </div>
+            </div>
+            <div class="list-stack" id="checkin-carousel">
+                <?php foreach ($recent as $index => $row): ?>
+                    <div class="checkin-row checkin-slide" style="display: <?= $index < 3 ? 'flex' : 'none' ?>;">
                         <?= render_avatar($row) ?>
                         <div><strong><?= h($row['member']) ?></strong><small>Check-in</small></div>
                         <time><?= h(date('M d, h:i A', strtotime($row['check_in_time']))) ?></time>
@@ -197,6 +204,34 @@ function admin_dashboard(PDO $pdo): void
                 <?php endforeach;
                 if (!$recent): ?><p class="muted">No check-ins yet.</p><?php endif; ?>
             </div>
+            <?php if (count($recent) > 3): ?>
+            <script>
+                document.getElementById('checkin-nav').style.display = 'flex';
+                let checkinPage = 0;
+                const checkinRows = document.querySelectorAll('.checkin-slide');
+                const checkinMaxPage = Math.ceil(checkinRows.length / 3) - 1;
+                const checkinIndicator = document.getElementById('checkin-page-indicator');
+                
+                function updateCheckinCarousel() {
+                    checkinRows.forEach((row, i) => {
+                        row.style.display = (i >= checkinPage * 3 && i < (checkinPage + 1) * 3) ? 'flex' : 'none';
+                    });
+                    if (checkinIndicator) {
+                        checkinIndicator.textContent = (checkinPage + 1) + ' / ' + (checkinMaxPage + 1);
+                    }
+                }
+                
+                // Initialize indicator
+                updateCheckinCarousel();
+
+                function nextCheckinSlide() {
+                    if (checkinPage < checkinMaxPage) { checkinPage++; updateCheckinCarousel(); }
+                }
+                function prevCheckinSlide() {
+                    if (checkinPage > 0) { checkinPage--; updateCheckinCarousel(); }
+                }
+            </script>
+            <?php endif; ?>
         </article>
         <article class="panel">
             <h2>Expiring Memberships</h2>
@@ -214,12 +249,19 @@ function admin_dashboard(PDO $pdo): void
             </div>
         </article>
         <article class="panel">
-            <h2>Inactive Members (At-Risk)</h2>
-            <div class="list-stack">
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+                <h2>Inactive Members (At-Risk)</h2>
+                <div id="inactive-nav" style="display:none; gap:4px; align-items:center;">
+                    <button class="btn btn-secondary" onclick="prevInactiveSlide()" style="padding:2px 8px; font-size:12px;">&#8592;</button>
+                    <span id="inactive-page-indicator" style="font-size:12px; color:var(--muted); margin:0 4px;"></span>
+                    <button class="btn btn-secondary" onclick="nextInactiveSlide()" style="padding:2px 8px; font-size:12px;">&#8594;</button>
+                </div>
+            </div>
+            <div class="list-stack" id="inactive-carousel">
                 <?php
-                $inactive = get_inactive_members(14);
-                foreach ($inactive as $row): ?>
-                    <div class="checkin-row">
+                $inactive = get_inactive_members(15);
+                foreach ($inactive as $index => $row): ?>
+                    <div class="checkin-row inactive-slide" style="display: <?= $index < 3 ? 'flex' : 'none' ?>;">
                         <?= render_avatar($row) ?>
                         <div><strong><?= h($row['first_name'] . ' ' . $row['last_name']) ?></strong><small><?= $row['last_checkin'] ? date('M j', strtotime($row['last_checkin'])) : 'Never' ?></small></div>
                         <time style="color:var(--danger)"><?= (int)$row['days_inactive'] ?> days</time>
@@ -227,6 +269,33 @@ function admin_dashboard(PDO $pdo): void
                 <?php endforeach;
                 if (!$inactive): ?><p class="muted">All members are actively checking in.</p><?php endif; ?>
             </div>
+            <?php if (count($inactive) > 3): ?>
+            <script>
+                document.getElementById('inactive-nav').style.display = 'flex';
+                let inactivePage = 0;
+                const inactiveRows = document.querySelectorAll('.inactive-slide');
+                const inactiveMaxPage = Math.ceil(inactiveRows.length / 3) - 1;
+                const inactiveIndicator = document.getElementById('inactive-page-indicator');
+                
+                function updateInactiveCarousel() {
+                    inactiveRows.forEach((row, i) => {
+                        row.style.display = (i >= inactivePage * 3 && i < (inactivePage + 1) * 3) ? 'flex' : 'none';
+                    });
+                    if (inactiveIndicator) {
+                        inactiveIndicator.textContent = (inactivePage + 1) + ' / ' + (inactiveMaxPage + 1);
+                    }
+                }
+                
+                updateInactiveCarousel();
+
+                function nextInactiveSlide() {
+                    if (inactivePage < inactiveMaxPage) { inactivePage++; updateInactiveCarousel(); }
+                }
+                function prevInactiveSlide() {
+                    if (inactivePage > 0) { inactivePage--; updateInactiveCarousel(); }
+                }
+            </script>
+            <?php endif; ?>
         </article>
     </section>
 <?php

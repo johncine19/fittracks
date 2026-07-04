@@ -506,6 +506,14 @@ input[type="radio"] {
     font-weight: 800;
 }
 
+.dash-stat em.trend-down {
+    color: var(--danger);
+}
+
+.dash-stat.featured em.trend-down {
+    color: #b91c1c; /* darker red for better contrast on the lime background */
+}
+
 .chart-panel {
     min-height: 308px;
     overflow: hidden;

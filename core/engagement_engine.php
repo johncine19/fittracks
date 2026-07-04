@@ -74,20 +74,27 @@ function get_engagement_category(int $score): string
     return 'At-Risk';
 }
 
-function get_inactive_members(int $daysInactive = 14): array
+function get_inactive_members(int $limit = 5): array
 {
     $pdo = db();
-    return query_all(
-        'SELECT u.user_id, u.first_name, u.last_name, u.email, 
+    $users = query_all(
+        'SELECT u.user_id, u.first_name, u.last_name, u.email, u.profile_picture,
                 MAX(a.check_in_time) as last_checkin, 
                 DATEDIFF(CURDATE(), MAX(a.check_in_time)) as days_inactive
          FROM users u
          LEFT JOIN attendance a ON u.user_id = a.user_id
          WHERE u.role = "member" AND u.status = "active"
-         GROUP BY u.user_id
-         HAVING (last_checkin IS NULL OR days_inactive >= ?)
-         ORDER BY days_inactive DESC
-         LIMIT 10',
-        [$daysInactive]
+         GROUP BY u.user_id'
     );
+
+    $atRisk = [];
+    foreach ($users as $u) {
+        $score = get_cached_engagement_score((int) $u['user_id']);
+        if (get_engagement_category($score) === 'At-Risk') {
+            $atRisk[] = $u;
+        }
+    }
+
+    usort($atRisk, fn($a, $b) => ($b['days_inactive'] ?? 9999) <=> ($a['days_inactive'] ?? 9999));
+    return array_slice($atRisk, 0, $limit);
 }
