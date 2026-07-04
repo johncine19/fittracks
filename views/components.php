@@ -184,18 +184,38 @@ function render_current_workout(int $memberUserId, bool $dashboardMode = false):
 
         echo '<p style="margin-top:1.5rem;"><a href="index.php?page=my_workout" class="btn btn-primary" style="display:inline-block; padding:8px 16px; text-decoration: none; border-radius: 6px;">View full workout plan &rarr;</a></p>';
     } else {
-        foreach ($grouped as $day => $exercises) {
-            echo '<h3 style="margin:1.25rem 0 0.5rem;">' . h($day) . '</h3>';
-            $tableRows = array_map(static fn(array $ex): array => [
-                'name'         => $ex['name'],
-                'category'     => $ex['category'],
-                'muscle_group' => $ex['muscle_group'],
-                'sets'         => $ex['sets'],
-                'reps'         => $ex['reps'],
-                'rest_seconds' => $ex['rest_seconds'] . ' s',
-            ], $exercises);
-            echo render_simple_table($tableRows, ['name', 'category', 'muscle_group', 'sets', 'reps', 'rest_seconds']);
+        $daysArray = [
+            'Monday' => 1, 'Tuesday' => 2, 'Wednesday' => 3,
+            'Thursday' => 4, 'Friday' => 5, 'Saturday' => 6, 'Sunday' => 7
+        ];
+        
+        echo '<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; margin-top: 2rem;">';
+        foreach ($daysArray as $dayName => $dayNum) {
+            $exercises = $grouped[$dayName] ?? [];
+            echo '<div class="panel" style="display: flex; flex-direction: column;">';
+            echo '<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; padding-bottom: 10px; border-bottom: 1px solid var(--line);">';
+            echo '<h3 style="margin: 0; color: var(--lime);">' . h($dayName) . '</h3>';
+            echo '</div>';
+            
+            echo '<div style="flex: 1; display: flex; flex-direction: column; gap: 10px; min-height: 50px;">';
+            if (empty($exercises)) {
+                echo '<div class="empty-state" style="text-align: center; color: var(--muted); padding: 20px 0; font-size: 13px; font-style: italic;">Rest day. No exercises assigned.</div>';
+            } else {
+                foreach ($exercises as $ex) {
+                    echo '<div style="background: color-mix(in srgb, var(--bg) 50%, transparent); border: 1px solid var(--line); border-radius: 6px; padding: 10px;">';
+                    echo '<div style="font-weight: bold; font-size: 14px; color: var(--ink);">' . h($ex['name']) . '</div>';
+                    echo '<div style="font-size: 12px; color: var(--muted); margin-top: 4px;">';
+                    echo $ex['sets'] . ' sets &times; ' . h($ex['reps']);
+                    echo '<span style="margin: 0 5px;">|</span>';
+                    echo 'Rest: ' . $ex['rest_seconds'] . 's';
+                    echo '</div>';
+                    echo '</div>';
+                }
+            }
+            echo '</div>';
+            echo '</div>';
         }
+        echo '</div>';
 
         if (!$rows) {
             echo '<p class="muted">No exercises assigned to this plan yet.</p>';
