@@ -37,6 +37,20 @@ function workout_builder_page(): void
         $stmt = $pdo->prepare('INSERT INTO training_plans (member_user_id, trainer_id, title, goal, start_date, status) VALUES (?, ?, ?, ?, CURDATE(), "draft")');
         $stmt->execute([$memberId, $trainerId, $title, $goal]);
         $planId = (int) $pdo->lastInsertId();
+        
+        // Copy exercises from the most recent active plan (if one exists)
+        $activePlan = $pdo->prepare('SELECT plan_id FROM training_plans WHERE member_user_id = ? AND trainer_id = ? AND status = "active" ORDER BY plan_id DESC LIMIT 1');
+        $activePlan->execute([$memberId, $trainerId]);
+        $lastActivePlanId = $activePlan->fetchColumn();
+        
+        if ($lastActivePlanId) {
+            $pdo->prepare('
+                INSERT INTO training_plan_exercises (plan_id, exercise_id, day_of_week, sequence_order, sets, reps, rest_seconds)
+                SELECT ?, exercise_id, day_of_week, sequence_order, sets, reps, rest_seconds
+                FROM training_plan_exercises
+                WHERE plan_id = ?
+            ')->execute([$planId, $lastActivePlanId]);
+        }
     } else {
         $planId = (int) $draft['plan_id'];
     }
@@ -146,10 +160,10 @@ function workout_builder_page(): void
             <button onclick="promptAutoGenerate()" class="btn t-btn-secondary" style="background: transparent; border: 1px solid var(--lime); color: var(--lime);">
                 Auto-Generate
             </button>
-            <form method="post" style="margin:0;">
+            <form id="publishForm" method="post" style="margin:0;">
                 <?= csrf_field() ?>
                 <input type="hidden" name="action" value="publish">
-                <button class="btn t-btn-primary" style="background: var(--lime); color: var(--bg);">
+                <button type="button" onclick="promptPublish()" class="btn t-btn-primary" style="background: var(--lime); color: var(--bg);">
                     Publish Plan
                 </button>
             </form>
@@ -224,6 +238,24 @@ function workout_builder_page(): void
     </div>
 
     <script>
+    function promptPublish() {
+        Swal.fire({
+            title: 'Publish Plan?',
+            text: "This will make the workout plan active and notify the member. Proceed?",
+            icon: 'question',
+            showCancelButton: true,
+            confirmButtonColor: 'var(--lime-dark)',
+            cancelButtonColor: '#6c757d',
+            background: 'var(--bg)',
+            color: 'var(--ink)',
+            confirmButtonText: 'Yes, publish it!'
+        }).then((result) => {
+            if (result.isConfirmed) {
+                document.getElementById('publishForm').submit();
+            }
+        });
+    }
+
     function promptAutoGenerate() {
         Swal.fire({
             title: 'Auto-Generate Plan?',
