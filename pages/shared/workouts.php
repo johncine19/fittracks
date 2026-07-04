@@ -85,3 +85,69 @@ function generate_workout_plan(int $memberUserId, ?int $coachId = null): int
 
     return $planId;
 }
+
+function auto_populate_plan(int $planId, int $memberUserId): void
+{
+    $pdo = db();
+    
+    $stmt = $pdo->prepare('SELECT * FROM member_profiles WHERE user_id = ?');
+    $stmt->execute([$memberUserId]);
+    $profile = $stmt->fetch();
+    if (!$profile) return;
+
+    $goal = $profile['primary_goal'];
+
+    $pdo->prepare('DELETE FROM training_plan_exercises WHERE plan_id = ?')->execute([$planId]);
+
+    $exercises = $pdo->query('SELECT * FROM exercises')->fetchAll();
+    if (!$exercises) return;
+
+    if ($goal === 'muscle_gain') {
+        usort($exercises, fn($a, $b) => ($a['category'] === 'strength' ? 0 : 1) <=> ($b['category'] === 'strength' ? 0 : 1));
+    } elseif ($goal === 'fat_loss') {
+        usort($exercises, fn($a, $b) => ($a['category'] === 'cardio' ? 0 : 1) <=> ($b['category'] === 'cardio' ? 0 : 1));
+    } else {
+        shuffle($exercises);
+    }
+
+    $days = match($profile['activity_level']) {
+        'sedentary' => [1, 3],
+        'lightly_active' => [1, 3, 5],
+        'moderately_active' => [1, 2, 4, 5],
+        'very_active', 'extra_active' => [1, 2, 3, 5, 6],
+        default => [1, 3, 5]
+    };
+
+    foreach ($days as $dayOfWeek) {
+        $dayExercises = $exercises;
+        if ($goal !== 'muscle_gain' && $goal !== 'fat_loss') {
+            shuffle($dayExercises);
+        }
+
+        $numExercises = min(count($dayExercises), rand(3, 5));
+        $assigned = array_slice($dayExercises, 0, $numExercises);
+        
+        $order = 1;
+        foreach ($assigned as $ex) {
+            $sets = 3;
+            $reps = '10-12';
+            $rest = 60;
+
+            if ($goal === 'muscle_gain') {
+                $sets = 4;
+                $reps = '8-10';
+                $rest = 90;
+            } elseif ($goal === 'fat_loss' || $ex['category'] === 'cardio') {
+                $sets = 3;
+                $reps = '15-20';
+                $rest = 45;
+                if ($ex['category'] === 'cardio') {
+                    $reps = '15 mins';
+                }
+            }
+
+            $stmt = $pdo->prepare('INSERT INTO training_plan_exercises (plan_id, exercise_id, day_of_week, sequence_order, sets, reps, rest_seconds) VALUES (?, ?, ?, ?, ?, ?, ?)');
+            $stmt->execute([$planId, (int) $ex['exercise_id'], $dayOfWeek, $order++, $sets, $reps, $rest]);
+        }
+    }
+}

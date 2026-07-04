@@ -64,6 +64,7 @@ require __DIR__ . '/../pages/admin/scanner.php';
 // --- Trainer portal ---
 require __DIR__ . '/../pages/trainer/trainer.php';
 require __DIR__ . '/../pages/trainer/training.php';
+require __DIR__ . '/../pages/trainer/workout_builder.php';
 
 // --- Member portal ---
 require __DIR__ . '/../pages/member/profile.php';

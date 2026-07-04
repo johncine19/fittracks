@@ -46,6 +46,7 @@ try {
         'scanner' => 'scanner_page',
         'complete_exercise' => 'complete_exercise_action',
         'exercises' => 'exercises_page',
+        'workout_builder' => 'workout_builder_page',
     ];
 
     ($routes[$page] ?? $routes['dashboard'])();

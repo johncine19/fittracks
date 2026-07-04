@@ -76,14 +76,9 @@ HTML;
             </p>
             
             <div style="display: flex; flex-direction: column; gap: 10px; margin-top: 0.5rem;">
-                <form method="post" style="margin: 0;">
-                    {$csrf}
-                    <input type="hidden" name="action" value="workout">
-                    <input type="hidden" name="member_user_id" value="{$memberId}">
-                    <button class="btn t-btn-primary">
-                        Generate Plan
-                    </button>
-                </form>
+                <a href="index.php?page=workout_builder&member_user_id={$memberId}" class="btn t-btn-primary" style="text-align:center; text-decoration:none;">
+                    Generate Plan
+                </a>
                 
                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
                     <a class="btn t-btn-secondary" href="index.php?page=training&member_user_id={$memberId}">
