@@ -23,40 +23,37 @@ function handle_forgot_password(): void
             // Block password reset for unverified members
             if ($user['role'] === 'member' && empty($user['email_verified_at'])) {
                 flash('Please verify your email address before resetting your password. Check your inbox or sign in to request a new verification email.', 'danger');
-                redirect('forgot_password');
-            }
+            } else {
+                $token = sprintf('%06d', random_int(0, 999999));
+                db()->prepare('REPLACE INTO password_resets (email, token) VALUES (?, ?)')->execute([$email, $token]);
 
-            $token = sprintf('%06d', random_int(0, 999999));
-            db()->prepare('REPLACE INTO password_resets (email, token) VALUES (?, ?)')->execute([$email, $token]);
+                $mail = new PHPMailer(true);
+                try {
+                    $mail->isSMTP();
+                    $mail->Host       = $_ENV['SMTP_HOST'] ?? 'smtp.gmail.com';
+                    $mail->SMTPAuth   = true;
+                    $mail->Username   = $_ENV['SMTP_USER'] ?? '';
+                    $mail->Password   = $_ENV['SMTP_PASS'] ?? '';
+                    $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
+                    $mail->Port       = (int) ($_ENV['SMTP_PORT'] ?? 587);
 
-            $mail = new PHPMailer(true);
-            try {
-                $mail->isSMTP();
-                $mail->Host       = $_ENV['SMTP_HOST'] ?? 'smtp.gmail.com';
-                $mail->SMTPAuth   = true;
-                $mail->Username   = $_ENV['SMTP_USER'] ?? '';
-                $mail->Password   = $_ENV['SMTP_PASS'] ?? '';
-                $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
-                $mail->Port       = (int) ($_ENV['SMTP_PORT'] ?? 587);
+                    $mail->setFrom($_ENV['SMTP_FROM'] ?? 'no-reply@fittracks.com', $_ENV['SMTP_FROM_NAME'] ?? 'FITTRACKS');
+                    $mail->addAddress($email);
 
-                $mail->setFrom($_ENV['SMTP_FROM'] ?? 'no-reply@fittracks.com', $_ENV['SMTP_FROM_NAME'] ?? 'FITTRACKS');
-                $mail->addAddress($email);
+                    $mail->isHTML(true);
+                    $mail->Subject = 'Password Reset OTP';
+                    $mail->Body    = "Your password reset OTP is <strong>$token</strong>. Please enter this code on the reset page.";
 
-                $mail->isHTML(true);
-                $mail->Subject = 'Password Reset OTP';
-                $mail->Body    = "Your password reset OTP is <strong>$token</strong>. Please enter this code on the reset page.";
-
-                $mail->send();
-                $_SESSION['reset_email'] = $email;
-                flash('An OTP has been sent to your email address.', 'success');
-                redirect('reset_password');
-            } catch (Exception $e) {
-                flash("Message could not be sent. Mailer Error: {$mail->ErrorInfo}", 'danger');
-                redirect('forgot_password');
+                    $mail->send();
+                    $_SESSION['reset_email'] = $email;
+                    flash('An OTP has been sent to your email address.', 'success');
+                    redirect('reset_password');
+                } catch (Exception $e) {
+                    flash("Message could not be sent. Mailer Error: {$mail->ErrorInfo}", 'danger');
+                }
             }
         } else {
             flash('No account found with that email address. Please register first.', 'danger');
-            redirect('forgot_password');
         }
     }
 
@@ -74,7 +71,7 @@ function handle_forgot_password(): void
                     <label>EMAIL ADDRESS</label>
                     <div class="auth-input-group">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path><polyline points="22,6 12,13 2,6"></polyline></svg>
-                        <input type="email" name="email" required placeholder="Enter your registered email">
+                        <input type="email" name="email" required placeholder="Enter your registered email" value="<?= h(post('email')) ?>">
                     </div>
                 </div>
 
