@@ -375,10 +375,20 @@ function dashboard(): void
         echo '<p style="margin: 0; color: var(--muted); font-size: 14px;">Let\'s crush today\'s fitness goals. Here\'s your progress at a glance.</p></div>';
         
         // Hero Engagement Score
+        $catColor = 'var(--lime)';
+        $catBg = 'rgba(199,255,34,0.15)';
+        if ($category === 'Moderately Engaged') {
+            $catColor = '#f59e0b';
+            $catBg = 'rgba(245, 158, 11, 0.15)';
+        } elseif ($category === 'At-Risk') {
+            $catColor = '#ef4444';
+            $catBg = 'rgba(239, 68, 68, 0.15)';
+        }
+        
         echo '<div style="background: var(--panel-soft); padding: 12px 20px; border-radius: 10px; border: 1px solid rgba(255,255,255,0.05); text-align: center;">';
-        echo '<span style="display: block; font-size: 11px; text-transform: uppercase; letter-spacing: 0.1em; color: var(--muted); margin-bottom: 4px;">Engagement Score <a href="#" onclick="event.preventDefault(); document.getElementById(\'guide-modal\').showModal();" style="color:var(--lime); margin-left: 4px; text-decoration: none;" title="How it works">&#9468;</a></span>';
-        echo '<strong style="display: block; font-size: 32px; color: var(--lime); line-height: 1;">' . $score . '<span style="font-size: 16px; color: var(--muted);">/100</span></strong>';
-        echo '<span style="display: inline-block; margin-top: 6px; font-size: 11px; background: rgba(199,255,34,0.15); color: var(--lime); padding: 2px 8px; border-radius: 12px; font-weight: bold;">' . h(ucfirst(str_replace('_', ' ', $category))) . '</span>';
+        echo '<span style="display: block; font-size: 11px; text-transform: uppercase; letter-spacing: 0.1em; color: var(--muted); margin-bottom: 4px;">Engagement Score <a href="#" onclick="event.preventDefault(); document.getElementById(\'guide-modal\').showModal();" style="color:' . $catColor . '; margin-left: 4px; text-decoration: none;" title="How it works">&#9468;</a></span>';
+        echo '<strong style="display: block; font-size: 32px; color: ' . $catColor . '; line-height: 1;">' . $score . '<span style="font-size: 16px; color: var(--muted);">/100</span></strong>';
+        echo '<span style="display: inline-block; margin-top: 6px; font-size: 11px; background: ' . $catBg . '; color: ' . $catColor . '; padding: 2px 8px; border-radius: 12px; font-weight: bold;">' . h(ucfirst(str_replace('_', ' ', $category))) . '</span>';
         echo '</div></div>';
 
         // Animated Metric Cards
@@ -425,6 +435,15 @@ function dashboard(): void
                     <li><strong>20% Consistency:</strong> Stay active every week. We look at your weekly streaks!</li>
                     <li><strong>10% Progress:</strong> Log your workout progress at least once every 60 days.</li>
                 </ul>
+                
+                <p style="color:var(--muted); font-size:14px; margin-bottom:12px; line-height:1.6;">
+                    <strong>Engagement Categories:</strong>
+                </p>
+                <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(150px, 1fr)); gap:12px; font-size:13px; margin-bottom: 24px;">
+                    <div style="background:rgba(255,255,255,0.03); padding:10px; border-radius:8px; border-left: 3px solid var(--lime);"><strong>75 - 100:</strong> Highly Engaged</div>
+                    <div style="background:rgba(255,255,255,0.03); padding:10px; border-radius:8px; border-left: 3px solid #f59e0b;"><strong>40 - 74:</strong> Moderately Engaged</div>
+                    <div style="background:rgba(255,255,255,0.03); padding:10px; border-radius:8px; border-left: 3px solid #ef4444;"><strong>0 - 39:</strong> At-Risk</div>
+                </div>
                 
                 <h3 style="color:var(--ink); margin:0 0 12px; display:flex; align-items:center; gap:8px;">
                     <svg viewBox="0 0 24 24" fill="none" stroke="var(--accent, #7c5cfc)" stroke-width="2" style="width:20px;height:20px;"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg>
