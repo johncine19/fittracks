@@ -882,10 +882,17 @@ code {
         margin-top: 14px;
     }
 
-    .topbar,
-    .user-chip {
-        align-items: flex-start;
-        flex-direction: column;
+    .topbar {
+        gap: 12px;
+        padding: 10px 16px;
+    }
+    
+    .topbar-title {
+        gap: 12px;
+    }
+    
+    .user-chip > div {
+        display: none;
     }
 
     .class-row {
