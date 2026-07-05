@@ -371,12 +371,12 @@ function dashboard(): void
 
         // Welcome Banner
         echo '<div class="skeleton-content animate-fade-in" style="background: linear-gradient(135deg, rgba(199,255,34,0.1) 0%, rgba(66,219,165,0.05) 100%); border: 1px solid rgba(199,255,34,0.3); border-radius: 12px; padding: 24px; margin-bottom: 24px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 16px; box-shadow: 0 4px 20px rgba(0,0,0,0.15); backdrop-filter: blur(16px);">';
-        echo '<div><div style="display:flex; align-items:center; gap: 12px; margin-bottom: 4px;"><h2 style="margin: 0; font-size: 24px; color: var(--ink);">Welcome back, ' . h($user['first_name']) . '!</h2><span style="background: var(--accent, #7c5cfc); color: #fff; padding: 3px 10px; border-radius: 12px; font-size: 12px; font-weight: bold; box-shadow: 0 2px 10px rgba(124,92,252,0.3);">' . h($tierName) . ' Tier</span></div>';
+        echo '<div><div style="display:flex; align-items:center; gap: 12px; margin-bottom: 4px;"><h2 style="margin: 0; font-size: 24px; color: var(--ink);">Welcome back, ' . h($user['first_name']) . '!</h2><span style="background: var(--accent, #7c5cfc); color: #fff; padding: 3px 10px; border-radius: 12px; font-size: 12px; font-weight: bold; box-shadow: 0 2px 10px rgba(124,92,252,0.3); display: flex; align-items: center; gap: 4px;">' . h($tierName) . ' Tier <a href="#" onclick="event.preventDefault(); document.getElementById(\'guide-modal\').showModal();" style="color:rgba(255,255,255,0.8); text-decoration: none;" title="How it works">&#9468;</a></span></div>';
         echo '<p style="margin: 0; color: var(--muted); font-size: 14px;">Let\'s crush today\'s fitness goals. Here\'s your progress at a glance.</p></div>';
         
         // Hero Engagement Score
         echo '<div style="background: var(--panel-soft); padding: 12px 20px; border-radius: 10px; border: 1px solid rgba(255,255,255,0.05); text-align: center;">';
-        echo '<span style="display: block; font-size: 11px; text-transform: uppercase; letter-spacing: 0.1em; color: var(--muted); margin-bottom: 4px;">Engagement Score</span>';
+        echo '<span style="display: block; font-size: 11px; text-transform: uppercase; letter-spacing: 0.1em; color: var(--muted); margin-bottom: 4px;">Engagement Score <a href="#" onclick="event.preventDefault(); document.getElementById(\'guide-modal\').showModal();" style="color:var(--lime); margin-left: 4px; text-decoration: none;" title="How it works">&#9468;</a></span>';
         echo '<strong style="display: block; font-size: 32px; color: var(--lime); line-height: 1;">' . $score . '<span style="font-size: 16px; color: var(--muted);">/100</span></strong>';
         echo '<span style="display: inline-block; margin-top: 6px; font-size: 11px; background: rgba(199,255,34,0.15); color: var(--lime); padding: 2px 8px; border-radius: 12px; font-weight: bold;">' . h(ucfirst(str_replace('_', ' ', $category))) . '</span>';
         echo '</div></div>';
@@ -403,6 +403,50 @@ function dashboard(): void
         echo '<div class="skeleton-content animate-fade-in delay-3">';
         render_exercise_recommendations((int) $user['user_id'], true);
         echo '</div>';
+        
+        // Engagement & Tiers Guide Modal
+        echo <<<HTML
+        <dialog id="guide-modal" class="panel animate-fade-in" style="border:1px solid rgba(255,255,255,0.1); border-radius:16px; background:var(--panel); color:var(--ink); padding:0; max-width:600px; width:100%; box-shadow:0 20px 40px rgba(0,0,0,0.5); margin:auto;">
+            <div style="padding:24px 24px 16px; border-bottom:1px solid rgba(255,255,255,0.05); display:flex; justify-content:space-between; align-items:center;">
+                <h2 style="margin:0; font-size:20px; color:var(--lime);">How it Works</h2>
+                <button type="button" onclick="document.getElementById('guide-modal').close()" style="background:none; border:none; color:var(--muted); font-size:24px; cursor:pointer; line-height:1;">&times;</button>
+            </div>
+            <div style="padding:24px; max-height:60vh; overflow-y:auto;">
+                <h3 style="color:var(--ink); margin:0 0 12px; display:flex; align-items:center; gap:8px;">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="var(--lime)" stroke-width="2" style="width:20px;height:20px;"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
+                    Engagement Score (0 - 100)
+                </h3>
+                <p style="color:var(--muted); font-size:14px; margin-bottom:16px; line-height:1.6;">
+                    Your Engagement Score measures how actively you use FITTRACKS over the last 30-60 days. It updates automatically based on your habits!
+                </p>
+                <ul style="color:var(--muted); font-size:14px; line-height:1.6; margin-bottom:24px; padding-left:20px;">
+                    <li><strong>40% Attendance:</strong> Check into the gym regularly (up to 7 visits / 30 days).</li>
+                    <li><strong>30% Classes:</strong> Participate in group fitness classes (up to 4 classes / 30 days).</li>
+                    <li><strong>20% Consistency:</strong> Stay active every week. We look at your weekly streaks!</li>
+                    <li><strong>10% Progress:</strong> Log your workout progress at least once every 60 days.</li>
+                </ul>
+                
+                <h3 style="color:var(--ink); margin:0 0 12px; display:flex; align-items:center; gap:8px;">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="var(--accent, #7c5cfc)" stroke-width="2" style="width:20px;height:20px;"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg>
+                    Fitness Tiers
+                </h3>
+                <p style="color:var(--muted); font-size:14px; margin-bottom:16px; line-height:1.6;">
+                    Tiers represent your lifetime workout experience! They are completely based on completing your assigned workout plans. Every time you log all exercises in a week's plan, you earn a "Completed Week".
+                </p>
+                <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; font-size:13px;">
+                    <div style="background:rgba(255,255,255,0.03); padding:10px; border-radius:8px;"><strong>Tier 1:</strong> Newbie <em>(&lt; 1 week)</em></div>
+                    <div style="background:rgba(255,255,255,0.03); padding:10px; border-radius:8px;"><strong>Tier 2:</strong> Iron Recruit <em>(1+ weeks)</em></div>
+                    <div style="background:rgba(255,255,255,0.03); padding:10px; border-radius:8px;"><strong>Tier 3:</strong> Bronze Beast <em>(4+ weeks)</em></div>
+                    <div style="background:rgba(255,255,255,0.03); padding:10px; border-radius:8px;"><strong>Tier 4:</strong> Silver Spartan <em>(12+ weeks)</em></div>
+                    <div style="background:rgba(255,255,255,0.03); padding:10px; border-radius:8px; border:1px solid rgba(199,255,34,0.3);"><strong>Tier 5:</strong> Gold Gladiator <em>(24+ weeks)</em></div>
+                    <div style="background:rgba(124,92,252,0.1); padding:10px; border-radius:8px; border:1px solid rgba(124,92,252,0.3); color:var(--accent, #7c5cfc); font-weight:bold;"><strong>Tier 6:</strong> Apex Legend</div>
+                </div>
+            </div>
+            <div style="padding:16px 24px; border-top:1px solid rgba(255,255,255,0.05); text-align:right;">
+                <button type="button" class="btn btn-secondary" onclick="document.getElementById('guide-modal').close()">Got it</button>
+            </div>
+        </dialog>
+HTML;
     }
     render_footer();
 }
