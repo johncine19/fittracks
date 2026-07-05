@@ -50,8 +50,17 @@ function setup_profile_page(): void
                 <label>Age
                     <input name="age" type="number" min="16" max="120" required>
                 </label>
+                <label>Neck (cm)
+                    <input name="neck_cm" type="number" step="0.01" min="1" required placeholder="e.g. 38">
+                </label>
+                <label>Waist (cm)
+                    <input name="waist_cm" type="number" step="0.01" min="1" required placeholder="e.g. 85">
+                </label>
+                <label id="hipContainer" style="display: none;">Hip (cm)
+                    <input name="hip_cm" type="number" step="0.01" min="1" placeholder="Widest part (required for females)">
+                </label>
                 <label>Biological sex
-                    <select name="biological_sex" required>
+                    <select name="biological_sex" id="biological_sex" required>
                         <option value="male">Male</option>
                         <option value="female">Female</option>
                     </select>
@@ -92,6 +101,25 @@ function setup_profile_page(): void
                 e.returnValue = '';
             }
         });
+        
+        // Handle biological sex change to show/hide Hip measurement
+        const sexSelect = document.getElementById('biological_sex');
+        const hipContainer = document.getElementById('hipContainer');
+        const hipInput = document.querySelector('input[name="hip_cm"]');
+        
+        sexSelect.addEventListener('change', function() {
+            if (this.value === 'female') {
+                hipContainer.style.display = 'block';
+                hipInput.required = true;
+            } else {
+                hipContainer.style.display = 'none';
+                hipInput.required = false;
+                hipInput.value = '';
+            }
+        });
+        
+        // Trigger change event on page load to set initial state
+        sexSelect.dispatchEvent(new Event('change'));
     })();
     </script>
     <?php

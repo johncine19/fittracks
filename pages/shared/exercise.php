@@ -9,13 +9,16 @@ declare(strict_types=1);
 function save_member_profile(int $userId): void
 {
     $pdo = db();
-    $stmt = $pdo->prepare('INSERT INTO member_profiles (user_id, height_cm, weight_kg, age, biological_sex, activity_level, primary_goal)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
-        ON DUPLICATE KEY UPDATE height_cm = VALUES(height_cm), weight_kg = VALUES(weight_kg), age = VALUES(age), biological_sex = VALUES(biological_sex), activity_level = VALUES(activity_level), primary_goal = VALUES(primary_goal)');
+    $stmt = $pdo->prepare('INSERT INTO member_profiles (user_id, height_cm, weight_kg, neck_cm, waist_cm, hip_cm, age, biological_sex, activity_level, primary_goal)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON DUPLICATE KEY UPDATE height_cm = VALUES(height_cm), weight_kg = VALUES(weight_kg), neck_cm = VALUES(neck_cm), waist_cm = VALUES(waist_cm), hip_cm = VALUES(hip_cm), age = VALUES(age), biological_sex = VALUES(biological_sex), activity_level = VALUES(activity_level), primary_goal = VALUES(primary_goal)');
     $stmt->execute([
         $userId,
         post('height_cm'),
         post('weight_kg'),
+        post('neck_cm') ?: null,
+        post('waist_cm') ?: null,
+        post('biological_sex') === 'female' ? (post('hip_cm') ?: null) : null,
         (int) post('age'),
         post('biological_sex'),
         post('activity_level'),
