@@ -98,3 +98,23 @@ function get_inactive_members(int $limit = 5): array
     usort($atRisk, fn($a, $b) => ($b['days_inactive'] ?? 9999) <=> ($a['days_inactive'] ?? 9999));
     return array_slice($atRisk, 0, $limit);
 }
+
+function process_automated_at_risk_notifications(): void
+{
+    $pdo = db();
+    $atRiskMembers = get_inactive_members(99999);
+    
+    foreach ($atRiskMembers as $member) {
+        if (($member['days_inactive'] ?? 0) >= 3) {
+            $userId = (int) $member['user_id'];
+            
+            $stmt = $pdo->prepare("SELECT COUNT(*) FROM notifications WHERE user_id = ? AND type = 'system' AND title = 'We miss you at the gym! 💪' AND created_at >= DATE_SUB(NOW(), INTERVAL 14 DAY)");
+            $stmt->execute([$userId]);
+            $recentNotifs = (int) $stmt->fetchColumn();
+            
+            if ($recentNotifs === 0) {
+                notify_user($userId, 'system', 'We miss you at the gym! 💪', 'It\'s been a few days since your last activity. Check out this week\'s classes or your new workout plan to get back on track!');
+            }
+        }
+    }
+}
