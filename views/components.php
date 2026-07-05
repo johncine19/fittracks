@@ -198,9 +198,23 @@ function render_current_workout(int $memberUserId, bool $dashboardMode = false, 
             'Thursday' => 4, 'Friday' => 5, 'Saturday' => 6, 'Sunday' => 7
         ];
         
+        $startOfWeek = date('Y-m-d', strtotime('monday this week'));
+        $endOfWeek = date('Y-m-d', strtotime('sunday this week'));
+        $stmt = db()->prepare('SELECT exercise_id, completed_date FROM exercise_completions WHERE user_id = ? AND plan_id = ? AND completed_date >= ? AND completed_date <= ?');
+        $stmt->execute([$memberUserId, $plan['plan_id'], $startOfWeek, $endOfWeek]);
+        $completionsRaw = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        
+        $completions = [];
+        foreach ($completionsRaw as $c) {
+            $completions[$c['completed_date']][] = $c['exercise_id'];
+        }
+
         echo '<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; margin-top: 2rem;">';
         foreach ($daysArray as $dayName => $dayNum) {
             $exercises = $grouped[$dayName] ?? [];
+            $dateForThisDay = date('Y-m-d', strtotime($dayName . ' this week'));
+            $completedExIds = $completions[$dateForThisDay] ?? [];
+            
             echo '<div class="panel" style="display: flex; flex-direction: column;">';
             echo '<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; padding-bottom: 10px; border-bottom: 1px solid var(--line);">';
             echo '<h3 style="margin: 0; color: var(--lime);">' . h($dayName) . '</h3>';
@@ -211,9 +225,19 @@ function render_current_workout(int $memberUserId, bool $dashboardMode = false, 
                 echo '<div class="empty-state" style="text-align: center; color: var(--muted); padding: 20px 0; font-size: 13px; font-style: italic;">Rest day. No exercises assigned.</div>';
             } else {
                 foreach ($exercises as $ex) {
+                    $isCompleted = in_array($ex['exercise_id'], $completedExIds);
                     echo '<div style="background: color-mix(in srgb, var(--bg) 50%, transparent); border: 1px solid var(--line); border-radius: 6px; padding: 10px;">';
-                    echo '<div style="font-weight: bold; font-size: 14px; color: var(--ink);">' . h($ex['name']) . '</div>';
-                    echo '<div style="font-size: 12px; color: var(--muted); margin-top: 4px;">';
+                    
+                    if ($isCompleted) {
+                        echo '<div style="display: flex; justify-content: space-between; align-items: flex-start;">';
+                        echo '<div style="font-weight: bold; font-size: 14px; color: var(--ink); text-decoration: line-through; opacity: 0.7;">' . h($ex['name']) . '</div>';
+                        echo '<svg viewBox="0 0 24 24" fill="none" stroke="var(--lime)" stroke-width="3" style="width: 18px; height: 18px; flex-shrink: 0;"><polyline points="20 6 9 17 4 12"></polyline></svg>';
+                        echo '</div>';
+                    } else {
+                        echo '<div style="font-weight: bold; font-size: 14px; color: var(--ink);">' . h($ex['name']) . '</div>';
+                    }
+                    
+                    echo '<div style="font-size: 12px; color: var(--muted); margin-top: 4px;' . ($isCompleted ? ' opacity: 0.7;' : '') . '">';
                     echo $ex['sets'] . ' sets &times; ' . h($ex['reps']);
                     echo '<span style="margin: 0 5px;">|</span>';
                     echo 'Rest: ' . $ex['rest_seconds'] . 's';
