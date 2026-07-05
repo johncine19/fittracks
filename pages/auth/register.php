@@ -27,58 +27,53 @@ function handle_register(): void
             }
         }
 
-        if (!$valid) {
-            render_header('Create account');
-            echo '<section class="panel"><p><a href="index.php?page=register">Go back to the registration form</a></p></section>';
-            render_footer();
-            return;
-        }
-
-        $pdo = db();
-        $pdo->beginTransaction();
-        try {
-            $phone = (string) post('phone');
-            if ($phone !== '') {
-                $phone = preg_replace('/[^0-9]/', '', $phone);
-                if (strlen($phone) !== 11) {
-                    throw new Exception('Phone number must be exactly 11 digits.');
-                }
-            }
-
-            $stmt = $pdo->prepare(
-                'INSERT INTO users (role, first_name, last_name, email, password_hash, phone, status)
-                 VALUES ("member", ?, ?, ?, ?, ?, "active")'
-            );
-            $stmt->execute([
-                post('first_name'),
-                post('last_name'),
-                post('email'),
-                password_hash((string) post('password'), PASSWORD_DEFAULT),
-                $phone ?: null,
-            ]);
-            $userId = (int) $pdo->lastInsertId();
 
 
-
-            $pdo->commit();
-
-            // Send a verification email. Login is blocked until the member verifies.
-            $emailSent = false;
+        if ($valid) {
+            $pdo = db();
+            $pdo->beginTransaction();
             try {
-                $token = create_email_verification_token($userId);
-                $emailSent = send_verification_email((string) post('email'), (string) post('first_name'), $token);
-            } catch (Throwable) {
-                // ignore — user can request a resend from the login page
-            }
+                $phone = (string) post('phone');
+                if ($phone !== '') {
+                    $phone = preg_replace('/[^0-9]/', '', $phone);
+                    if (strlen($phone) !== 11) {
+                        throw new Exception('Phone number must be exactly 11 digits.');
+                    }
+                }
 
-            $msg = $emailSent
-                ? 'Account created! Please check your email (' . post('email') . ') to verify your address before signing in.'
-                : 'Account created! We could not send a verification email right now — use the resend option on the login page.';
-            flash($msg, 'success');
-            redirect('login');
-        } catch (Throwable $e) {
-            $pdo->rollBack();
-            flash('Registration failed: ' . $e->getMessage(), 'danger');
+                $stmt = $pdo->prepare(
+                    'INSERT INTO users (role, first_name, last_name, email, password_hash, phone, status)
+                     VALUES ("member", ?, ?, ?, ?, ?, "active")'
+                );
+                $stmt->execute([
+                    post('first_name'),
+                    post('last_name'),
+                    post('email'),
+                    password_hash((string) post('password'), PASSWORD_DEFAULT),
+                    $phone ?: null,
+                ]);
+                $userId = (int) $pdo->lastInsertId();
+
+                $pdo->commit();
+
+                // Send a verification email. Login is blocked until the member verifies.
+                $emailSent = false;
+                try {
+                    $token = create_email_verification_token($userId);
+                    $emailSent = send_verification_email((string) post('email'), (string) post('first_name'), $token);
+                } catch (Throwable) {
+                    // ignore — user can request a resend from the login page
+                }
+
+                $msg = $emailSent
+                    ? 'Account created! Please check your email (' . post('email') . ') to verify your address before signing in.'
+                    : 'Account created! We could not send a verification email right now — use the resend option on the login page.';
+                flash($msg, 'success');
+                redirect('login');
+            } catch (Throwable $e) {
+                $pdo->rollBack();
+                flash('Registration failed: ' . $e->getMessage(), 'danger');
+            }
         }
     }
 
@@ -98,6 +93,7 @@ function handle_register(): void
                         <div class="auth-input-group">
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
                             <input name="first_name" required placeholder="First name"
+                                   value="<?= h(post('first_name')) ?>"
                                    oninvalid="this.setCustomValidity('Please enter your first name.')"
                                    oninput="this.setCustomValidity('')">
                         </div>
@@ -107,6 +103,7 @@ function handle_register(): void
                         <div class="auth-input-group">
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
                             <input name="last_name" required placeholder="Last name"
+                                   value="<?= h(post('last_name')) ?>"
                                    oninvalid="this.setCustomValidity('Please enter your last name.')"
                                    oninput="this.setCustomValidity('')">
                         </div>
@@ -118,6 +115,7 @@ function handle_register(): void
                     <div class="auth-input-group">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path><polyline points="22,6 12,13 2,6"></polyline></svg>
                         <input type="email" name="email" required placeholder="Enter your email"
+                               value="<?= h(post('email')) ?>"
                                oninvalid="this.setCustomValidity('Please enter a valid email address.')"
                                oninput="this.setCustomValidity('')">
                     </div>
@@ -128,6 +126,7 @@ function handle_register(): void
                     <div class="auth-input-group">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"></path></svg>
                         <input name="phone" type="tel" maxlength="11" placeholder="09xxxxxxxxx"
+                               value="<?= h(post('phone')) ?>"
                                oninput="this.value=this.value.replace(/[^0-9]/g,'').slice(0,11)">
                     </div>
                 </div>
