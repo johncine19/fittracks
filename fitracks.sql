@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: 127.0.0.1
--- Generation Time: Jul 03, 2026 at 05:09 AM
+-- Generation Time: Jul 05, 2026 at 11:56 PM
 -- Server version: 8.0.42
 -- PHP Version: 8.2.12
 
@@ -18,7 +18,7 @@ SET time_zone = "+00:00";
 /*!40101 SET NAMES utf8mb4 */;
 
 --
--- Database: `fittrack_db`
+-- Database: `fitracks`
 --
 
 -- --------------------------------------------------------
