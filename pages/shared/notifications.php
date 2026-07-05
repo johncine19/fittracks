@@ -17,7 +17,14 @@ function notifications_page(): void
         redirect('notifications');
     }
 
-    $rows = get_notifications((int) $user['user_id'], 50);
+    $page = max(1, (int)($_GET['p'] ?? 1));
+    $limit = 10;
+    $offset = ($page - 1) * $limit;
+    
+    $total = get_notification_count((int) $user['user_id']);
+    $totalPages = max(1, (int) ceil($total / $limit));
+
+    $rows = get_notifications((int) $user['user_id'], $limit, $offset);
     $unread = unread_notification_count((int) $user['user_id']);
 
     render_header('Notifications', $user);
@@ -88,6 +95,12 @@ function notifications_page(): void
                     </article>
                 <?php endforeach; ?>
             </div>
+            
+            <?php if ($totalPages > 1): ?>
+                <div style="margin-top: 2rem;">
+                    <?php render_pagination($page, $totalPages, 'index.php?page=notifications&p='); ?>
+                </div>
+            <?php endif; ?>
         <?php endif; ?>
     </section>
     <?php

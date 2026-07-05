@@ -55,11 +55,20 @@ function unread_notification_count(int $userId): int
     }
 }
 
-function get_notifications(int $userId, int $limit = 8): array
+function get_notification_count(int $userId): int
+{
+    try {
+        return (int) scalar('SELECT COUNT(*) FROM notifications WHERE user_id = ?', [$userId]);
+    } catch (Throwable) {
+        return 0;
+    }
+}
+
+function get_notifications(int $userId, int $limit = 8, int $offset = 0): array
 {
     try {
         return query_all(
-            'SELECT * FROM notifications WHERE user_id = ? ORDER BY created_at DESC LIMIT ' . max(1, min($limit, 50)),
+            'SELECT * FROM notifications WHERE user_id = ? ORDER BY created_at DESC LIMIT ' . (int)$limit . ' OFFSET ' . (int)$offset,
             [$userId]
         );
     } catch (Throwable) {
