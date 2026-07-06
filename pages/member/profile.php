@@ -246,6 +246,20 @@ function profile_page(): void
                     <strong style="font-size: 1.2rem;"><?= h($profile['age'] ?? 'N/A') ?></strong>
                 </div>
                 <div class="panel plan-card-glow" style="padding: 1rem; background: var(--panel-soft); margin-top: 0;">
+                    <p class="muted" style="margin: 0 0 4px; font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em;">Neck</p>
+                    <strong style="font-size: 1.2rem;"><?= !empty($profile['neck_cm']) ? h($profile['neck_cm']) . ' cm' : 'N/A' ?></strong>
+                </div>
+                <div class="panel plan-card-glow" style="padding: 1rem; background: var(--panel-soft); margin-top: 0;">
+                    <p class="muted" style="margin: 0 0 4px; font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em;">Waist</p>
+                    <strong style="font-size: 1.2rem;"><?= !empty($profile['waist_cm']) ? h($profile['waist_cm']) . ' cm' : 'N/A' ?></strong>
+                </div>
+                <?php if (($profile['biological_sex'] ?? '') === 'female'): ?>
+                <div class="panel plan-card-glow" style="padding: 1rem; background: var(--panel-soft); margin-top: 0;">
+                    <p class="muted" style="margin: 0 0 4px; font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em;">Hip</p>
+                    <strong style="font-size: 1.2rem;"><?= !empty($profile['hip_cm']) ? h($profile['hip_cm']) . ' cm' : 'N/A' ?></strong>
+                </div>
+                <?php endif; ?>
+                <div class="panel plan-card-glow" style="padding: 1rem; background: var(--panel-soft); margin-top: 0;">
                     <p class="muted" style="margin: 0 0 4px; font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em;">Sex</p>
                     <strong style="font-size: 1.2rem;"><?= h(ucwords(str_replace('_', ' ', $profile['biological_sex'] ?? 'N/A'))) ?></strong>
                 </div>

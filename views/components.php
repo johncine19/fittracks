@@ -61,8 +61,20 @@ function render_member_form(string $context, ?array $user = null, ?array $profil
                    class="input <?= isset($errors['age']) ? 'input-error' : '' ?>"
                    value="<?= h($profile['age'] ?? '') ?>">
         </label>
+        <label>Neck (cm)
+            <input name="neck_cm" type="number" step="0.01" min="1"
+                   value="<?= h($profile['neck_cm'] ?? '') ?>">
+        </label>
+        <label>Waist (cm)
+            <input name="waist_cm" type="number" step="0.01" min="1"
+                   value="<?= h($profile['waist_cm'] ?? '') ?>">
+        </label>
+        <label id="hipContainer_<?= h($context) ?>" style="display: <?= ($profile['biological_sex'] ?? 'male') === 'female' ? 'block' : 'none' ?>;">Hip (cm)
+            <input name="hip_cm" type="number" step="0.01" min="1"
+                   value="<?= h($profile['hip_cm'] ?? '') ?>">
+        </label>
         <label>Biological sex
-            <select name="biological_sex" <?= $context !== 'profile' ? 'required' : '' ?>>
+            <select name="biological_sex" onchange="document.getElementById('hipContainer_<?= h($context) ?>').style.display = this.value === 'female' ? 'block' : 'none';" <?= $context !== 'profile' ? 'required' : '' ?>>
                 <option value="male"   <?= selected('male',   $profile['biological_sex'] ?? null) ?>>Male</option>
                 <option value="female" <?= selected('female', $profile['biological_sex'] ?? null) ?>>Female</option>
             </select>
