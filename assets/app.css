@@ -716,6 +716,58 @@ button:disabled {
     opacity: .55;
 }
 
+/* Button Variants */
+button.btn-sm,
+.button-link.btn-sm,
+a.btn-sm {
+    min-height: 32px;
+    padding: 6px 12px;
+    font-size: 13px;
+    border-radius: 5px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    text-decoration: none;
+    font-weight: 700;
+}
+
+button.btn-primary,
+.button-link.btn-primary,
+a.btn-primary {
+    background: var(--lime);
+    color: #080b0d;
+    border: 1px solid transparent;
+}
+
+button.btn-secondary,
+.button-link.btn-secondary,
+a.btn-secondary {
+    background: transparent;
+    color: var(--muted);
+    border: 1px solid var(--line);
+}
+
+button.btn-secondary:hover,
+.button-link.btn-secondary:hover,
+a.btn-secondary:hover {
+    background: var(--panel-soft);
+    color: var(--ink);
+}
+
+button.btn-ghost,
+.button-link.btn-ghost,
+a.btn-ghost {
+    background: transparent;
+    color: var(--ink);
+    border: 1px solid var(--line);
+}
+
+button.btn-ghost:hover,
+.button-link.btn-ghost:hover,
+a.btn-ghost:hover {
+    background: rgba(255,255,255,0.05);
+}
+
 .metrics {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
@@ -791,6 +843,10 @@ td {
 }
 
 th {
+    position: sticky;
+    top: 0;
+    background: var(--panel);
+    z-index: 10;
     color: var(--muted);
     font-size: 11px;
     letter-spacing: .12em;

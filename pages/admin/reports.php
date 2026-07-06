@@ -246,11 +246,14 @@ function reports_page(): void
             <a href="index.php?page=reports&type=engagement&export=print" target="_blank" class="btn-sm btn-ghost">Print / PDF</a>
           </div>';
     echo '</div>';
-    echo '<div style="max-width: 400px; margin-bottom: 2rem;"><canvas id="engagementChart"></canvas></div>';
+    echo '<div style="display: flex; flex-wrap: wrap; gap: 4rem; align-items: flex-start; margin-top: 1.5rem;">';
     
+    echo '<div style="flex: 1; min-width: 300px; max-width: 550px; margin-bottom: 2rem;"><canvas id="engagementChart"></canvas></div>';
+    
+    echo '<div style="flex: 1; min-width: 300px;">';
     foreach ($categories as $catName => $count) {
-        echo '<div style="margin-bottom: 1.5rem; background: var(--surface); padding: 1.5rem; border-radius: 8px; border: 1px solid var(--line);">';
-        echo '<h3 style="margin-top:0; margin-bottom: 1rem; color: var(--ink); border-bottom: 1px solid var(--line); padding-bottom: 0.5rem;">' . h($catName) . ' <span style="background:var(--panel-soft); padding:2px 8px; border-radius:12px; font-size:12px; font-weight:normal; margin-left:8px; color:var(--muted);">' . $count . ' Members</span></h3>';
+        echo '<div style="margin-bottom: 1.25rem; background: var(--surface); padding: 1.25rem; border-radius: 8px; border: 1px solid var(--line);">';
+        echo '<h3 style="margin-top:0; margin-bottom: 0.75rem; color: var(--ink); border-bottom: 1px solid var(--line); padding-bottom: 0.5rem; font-size: 1.1rem;">' . h($catName) . ' <span style="background:var(--panel-soft); padding:2px 8px; border-radius:12px; font-size:11px; font-weight:normal; margin-left:8px; color:var(--muted);">' . $count . ' Members</span></h3>';
         if ($count > 0) {
             echo '<div class="table-wrap"><table><thead><tr><th>Name</th><th>Email</th></tr></thead><tbody>';
             foreach ($memberLists[$catName] as $m) {
@@ -271,8 +274,10 @@ function reports_page(): void
         }
         echo '</div>';
     }
-
     echo '</div>';
+    
+    echo '</div>'; // closes the flex layout
+    echo '</div>'; // closes the engagement-tab
     
     // Revenue Tab
     echo '<div id="revenue-tab" class="tab-content" style="display: none;">';
@@ -288,10 +293,14 @@ function reports_page(): void
             <button class="btn-sm btn-primary tf-btn-revenue" onclick="setTimeframe(\'revenue\', \'monthly\')" id="tf-revenue-monthly">Monthly</button>
             <button class="btn-sm btn-secondary tf-btn-revenue" onclick="setTimeframe(\'revenue\', \'yearly\')" id="tf-revenue-yearly">Yearly</button>
           </div>';
-    echo '<div style="max-width: 800px; margin-bottom: 2rem;"><canvas id="revenueChart"></canvas></div>';
+    echo '<div style="display: flex; flex-wrap: wrap; gap: 4rem; align-items: flex-start; margin-top: 1.5rem;">';
+    echo '<div style="flex: 1.5; min-width: 300px; margin-bottom: 2rem;"><canvas id="revenueChart"></canvas></div>';
+    echo '<div style="flex: 1; min-width: 300px; max-height: 400px; overflow-y: auto; padding-right: 8px;">';
     echo '<div id="revenue-table-daily" style="display:none;">' . render_simple_table($revenue['daily'], ['month', 'revenue']) . '</div>';
     echo '<div id="revenue-table-monthly" style="display:block;">' . render_simple_table($revenue['monthly'], ['month', 'revenue']) . '</div>';
     echo '<div id="revenue-table-yearly" style="display:none;">' . render_simple_table($revenue['yearly'], ['month', 'revenue']) . '</div>';
+    echo '</div>';
+    echo '</div>';
     echo '</div>';
     
     // Attendance Tab
@@ -308,10 +317,14 @@ function reports_page(): void
             <button class="btn-sm btn-secondary tf-btn-attendance" onclick="setTimeframe(\'attendance\', \'monthly\')" id="tf-attendance-monthly">Monthly</button>
             <button class="btn-sm btn-secondary tf-btn-attendance" onclick="setTimeframe(\'attendance\', \'yearly\')" id="tf-attendance-yearly">Yearly</button>
           </div>';
-    echo '<div style="max-width: 800px; margin-bottom: 2rem;"><canvas id="attendanceChart"></canvas></div>';
+    echo '<div style="display: flex; flex-wrap: wrap; gap: 4rem; align-items: flex-start; margin-top: 1.5rem;">';
+    echo '<div style="flex: 1.5; min-width: 300px; margin-bottom: 2rem;"><canvas id="attendanceChart"></canvas></div>';
+    echo '<div style="flex: 1; min-width: 300px; max-height: 400px; overflow-y: auto; padding-right: 8px;">';
     echo '<div id="attendance-table-daily" style="display:block;">' . render_simple_table($attendance['daily'], ['day', 'visits']) . '</div>';
     echo '<div id="attendance-table-monthly" style="display:none;">' . render_simple_table($attendance['monthly'], ['day', 'visits']) . '</div>';
     echo '<div id="attendance-table-yearly" style="display:none;">' . render_simple_table($attendance['yearly'], ['day', 'visits']) . '</div>';
+    echo '</div>';
+    echo '</div>';
     echo '</div>';
     
     echo <<<HTML
