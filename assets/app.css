@@ -1391,15 +1391,30 @@ dialog.modal .modal-body {
 }
 
 /* =====================================================
-   AUTH FORM (LIME & BLACK)
+   AUTH FORM (PREMIUM MODERN AESTHETIC)
    ===================================================== */
+.auth-body {
+    background-color: var(--bg);
+    background-image: 
+        radial-gradient(circle at 15% 50%, rgba(39, 242, 70, 0.05), transparent 40%),
+        radial-gradient(circle at 85% 30%, rgba(39, 152, 47, 0.05), transparent 40%);
+    background-size: cover;
+    background-attachment: fixed;
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+}
+
 .auth-card {
-    background: var(--panel);
-    border: 1px solid var(--line);
-    border-radius: 12px;
-    padding: 40px;
+    background: rgba(255, 255, 255, 0.02);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    border-radius: 16px;
+    box-shadow: 0 24px 48px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.05);
+    padding: 48px;
     position: relative;
-    max-width: 560px;
+    max-width: 500px;
     margin: 0 auto;
 }
 
@@ -1408,11 +1423,14 @@ dialog.modal .modal-body {
     margin-bottom: 32px;
 }
 .auth-title {
-    font-family: serif;
-    font-size: 32px;
-    color: var(--lime);
+    font-family: 'Bricolage Grotesque', Inter, sans-serif;
+    font-size: 2.2rem;
+    font-weight: 800;
+    background: linear-gradient(90deg, var(--ink), var(--lime));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
     margin: 0 0 8px;
-    letter-spacing: 0.05em;
+    letter-spacing: -0.02em;
 }
 .auth-subtitle {
     color: var(--muted);

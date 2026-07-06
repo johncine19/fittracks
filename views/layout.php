@@ -57,6 +57,15 @@ function render_header(string $title, ?array $user = null): void
         <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     </head>
     <body class="<?= $user ? 'app-body' : 'auth-body' ?>">
+    
+    <?php if (!$user): ?>
+    <!-- Grain texture overlay for auth pages -->
+    <svg style="position:fixed;inset:0;width:100%;height:100%;z-index:190;pointer-events:none;opacity:0.045;mix-blend-mode:overlay;" aria-hidden="true">
+        <filter id="grain-filter"><feTurbulence type="fractalNoise" baseFrequency="0.85" numOctaves="3" stitchTiles="stitch"></feTurbulence><feColorMatrix type="saturate" values="0"></feColorMatrix></filter>
+        <rect width="100%" height="100%" filter="url(#grain-filter)"></rect>
+    </svg>
+    <?php endif; ?>
+
     <?php if ($flash): ?>
         <script>
             document.addEventListener('DOMContentLoaded', function() {
