@@ -14,12 +14,12 @@ function save_member_profile(int $userId): void
         ON DUPLICATE KEY UPDATE height_cm = VALUES(height_cm), weight_kg = VALUES(weight_kg), neck_cm = VALUES(neck_cm), waist_cm = VALUES(waist_cm), hip_cm = VALUES(hip_cm), age = VALUES(age), biological_sex = VALUES(biological_sex), activity_level = VALUES(activity_level), primary_goal = VALUES(primary_goal)');
     $stmt->execute([
         $userId,
-        post('height_cm'),
-        post('weight_kg'),
+        post('height_cm') ?: 0.0,
+        post('weight_kg') ?: 0.0,
         post('neck_cm') ?: null,
         post('waist_cm') ?: null,
         post('biological_sex') === 'female' ? (post('hip_cm') ?: null) : null,
-        (int) post('age'),
+        (int) (post('age') ?: 0),
         post('biological_sex'),
         post('activity_level'),
         post('primary_goal'),

@@ -24,8 +24,13 @@ function setup_profile_page(): void
     if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         save_member_profile((int) $user['user_id']);
         generate_workout_plan((int) $user['user_id']);
-        notify_user((int) $user['user_id'], 'system', 'Welcome to FITTRACKS', 'Your profile is set up and your personalised workout plan is ready.');
-        flash('Physical profile saved! Welcome to FITTRACKS.', 'success');
+        if (empty(post('height_cm')) || empty(post('weight_kg'))) {
+            notify_user((int) $user['user_id'], 'system', 'Welcome to FITTRACKS', 'Welcome! Don\'t forget to complete your physical profile later so we can build your personalised workout plan.');
+            flash('Welcome to FITTRACKS! Please add your measurements later.', 'success');
+        } else {
+            notify_user((int) $user['user_id'], 'system', 'Welcome to FITTRACKS', 'Your profile is set up and your personalised workout plan is ready.');
+            flash('Physical profile saved! Welcome to FITTRACKS.', 'success');
+        }
         redirect('dashboard');
     }
 
@@ -41,22 +46,22 @@ function setup_profile_page(): void
             </div>
             <form method="post" action="index.php?page=setup_profile" class="form grid-form" style="padding:0 0 8px;">
                 <?= csrf_field() ?>
-                <label>Height (cm)
-                    <input name="height_cm" type="number" step="0.01" min="1" required placeholder="e.g. 170">
+                <label>Height (cm) <small style="color:var(--muted);font-weight:normal;">(Optional)</small>
+                    <input name="height_cm" type="number" step="0.01" min="1" placeholder="Leave blank if unknown">
                 </label>
-                <label>Weight (kg)
-                    <input name="weight_kg" type="number" step="0.01" min="1" required placeholder="e.g. 65">
+                <label>Weight (kg) <small style="color:var(--muted);font-weight:normal;">(Optional)</small>
+                    <input name="weight_kg" type="number" step="0.01" min="1" placeholder="Leave blank if unknown">
                 </label>
-                <label>Age
-                    <input name="age" type="number" min="16" max="120" required>
+                <label>Age <small style="color:var(--muted);font-weight:normal;">(Optional)</small>
+                    <input name="age" type="number" min="16" max="120" placeholder="e.g. 30">
                 </label>
-                <label>Neck (cm)
-                    <input name="neck_cm" type="number" step="0.01" min="1" required placeholder="e.g. 38">
+                <label>Neck (cm) <small style="color:var(--muted);font-weight:normal;">(Optional)</small>
+                    <input name="neck_cm" type="number" step="0.01" min="1" placeholder="Leave blank if unknown">
                 </label>
-                <label>Waist (cm)
-                    <input name="waist_cm" type="number" step="0.01" min="1" required placeholder="e.g. 85">
+                <label>Waist (cm) <small style="color:var(--muted);font-weight:normal;">(Optional)</small>
+                    <input name="waist_cm" type="number" step="0.01" min="1" placeholder="Leave blank if unknown">
                 </label>
-                <label id="hipContainer" style="display: none;">Hip (cm)
+                <label id="hipContainer" style="display: none;">Hip (cm) <small style="color:var(--muted);font-weight:normal;">(Optional)</small>
                     <input name="hip_cm" type="number" step="0.01" min="1" placeholder="Widest part (required for females)">
                 </label>
                 <label>Biological sex

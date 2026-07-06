@@ -407,7 +407,18 @@ function dashboard(): void
         echo '</div>';
 
         echo '<div class="skeleton-content animate-fade-in delay-2">';
-        render_current_workout($user['user_id'], true);
+        
+        $profile = db()->query('SELECT height_cm, weight_kg FROM member_profiles WHERE user_id = ' . (int)$user['user_id'])->fetch();
+        if ($profile && ((float)$profile['height_cm'] == 0 || (float)$profile['weight_kg'] == 0)) {
+            echo '<div style="background: rgba(255,165,0,0.1); border: 1px solid orange; border-radius: 12px; padding: 24px; text-align: center; margin-bottom: 24px;">';
+            echo '<h3 style="color: orange; margin: 0 0 12px 0;">We need a little more info!</h3>';
+            echo '<p style="color: var(--muted); margin: 0 0 16px 0;">To build your personalized workout plan, we need your accurate height and weight.</p>';
+            echo '<a href="index.php?page=profile" class="btn" style="background: orange; color: #111; font-weight: bold; padding: 10px 20px; text-decoration: none; border-radius: 6px; display: inline-block;">Complete Profile</a>';
+            echo '</div>';
+        } else {
+            render_current_workout($user['user_id'], true);
+        }
+        
         echo '</div>';
         
         echo '<div class="skeleton-content animate-fade-in delay-3">';

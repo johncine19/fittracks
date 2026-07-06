@@ -12,6 +12,11 @@ function generate_workout_plan(int $memberUserId, ?int $coachId = null): int
     if (!$profile) {
         throw new RuntimeException('Cannot generate workout plan: member profile missing.');
     }
+    
+    if ((float)$profile['height_cm'] == 0 || (float)$profile['weight_kg'] == 0) {
+        // Skip generating if they haven't provided measurements
+        return 0;
+    }
 
     $goal = $profile['primary_goal'];
 
