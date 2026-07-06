@@ -35,9 +35,9 @@ function walk_ins_page(): void
         )->execute([$firstName, $lastName, $email, password_hash($plainPassword, PASSWORD_DEFAULT)]);
         $newUserId = (int) $pdo->lastInsertId();
 
-        // Link walk-in record to the new member
-        $pdo->prepare('UPDATE walk_in_transactions SET converted_to_member_id = ? WHERE transaction_id = ?')
-            ->execute([$newUserId, $transactionId]);
+        // Link walk-in record to the new member and update guest name
+        $pdo->prepare('UPDATE walk_in_transactions SET converted_to_member_id = ?, guest_name = ? WHERE transaction_id = ?')
+            ->execute([$newUserId, $firstName . ' ' . $lastName, $transactionId]);
 
         // Send credentials via PHPMailer
         $credMailSent = false;
