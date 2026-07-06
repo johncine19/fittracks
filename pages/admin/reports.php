@@ -78,14 +78,14 @@ function reports_page(): void
     $user = require_roles(['admin']);
     $revenue = [
         'daily' => query_all('
-            SELECT month, SUM(revenue) AS revenue FROM (
-                SELECT DATE(payment_date) AS month, amount AS revenue 
+            SELECT day, SUM(revenue) AS revenue FROM (
+                SELECT DATE(payment_date) AS day, amount AS revenue 
                 FROM payments WHERE status = "paid"
                 UNION ALL
-                SELECT DATE(visit_date) AS month, amount_paid AS revenue 
+                SELECT DATE(visit_date) AS day, amount_paid AS revenue 
                 FROM walk_in_transactions
             ) AS combined_revenue
-            GROUP BY month ORDER BY month DESC LIMIT 14
+            GROUP BY day ORDER BY day DESC LIMIT 14
         '),
         'monthly' => query_all('
             SELECT month, SUM(revenue) AS revenue FROM (
@@ -98,20 +98,20 @@ function reports_page(): void
             GROUP BY month ORDER BY month DESC LIMIT 12
         '),
         'yearly' => query_all('
-            SELECT month, SUM(revenue) AS revenue FROM (
-                SELECT YEAR(payment_date) AS month, amount AS revenue 
+            SELECT year, SUM(revenue) AS revenue FROM (
+                SELECT YEAR(payment_date) AS year, amount AS revenue 
                 FROM payments WHERE status = "paid"
                 UNION ALL
-                SELECT YEAR(visit_date) AS month, amount_paid AS revenue 
+                SELECT YEAR(visit_date) AS year, amount_paid AS revenue 
                 FROM walk_in_transactions
             ) AS combined_revenue
-            GROUP BY month ORDER BY month DESC LIMIT 5
+            GROUP BY year ORDER BY year DESC LIMIT 5
         ')
     ];
     $attendance = [
         'daily' => query_all('SELECT DATE(check_in_time) AS day, COUNT(*) AS visits FROM attendance GROUP BY day ORDER BY day DESC LIMIT 14'),
-        'monthly' => query_all('SELECT DATE_FORMAT(check_in_time, "%Y-%m") AS day, COUNT(*) AS visits FROM attendance GROUP BY day ORDER BY day DESC LIMIT 12'),
-        'yearly' => query_all('SELECT YEAR(check_in_time) AS day, COUNT(*) AS visits FROM attendance GROUP BY day ORDER BY day DESC LIMIT 5')
+        'monthly' => query_all('SELECT DATE_FORMAT(check_in_time, "%Y-%m") AS month, COUNT(*) AS visits FROM attendance GROUP BY month ORDER BY month DESC LIMIT 12'),
+        'yearly' => query_all('SELECT YEAR(check_in_time) AS year, COUNT(*) AS visits FROM attendance GROUP BY year ORDER BY year DESC LIMIT 5')
     ];
     
     // Engagement Analytics
@@ -158,17 +158,18 @@ function reports_page(): void
 
     // Format dates according to user preference
     foreach (['daily', 'monthly', 'yearly'] as $tf) {
-        $revenue[$tf] = $pad_time_series($revenue[$tf], 'month', 'revenue', $tf);
-        $attendance[$tf] = $pad_time_series($attendance[$tf], 'day', 'visits', $tf);
+        $key = ($tf === 'daily') ? 'day' : (($tf === 'monthly') ? 'month' : 'year');
+        $revenue[$tf] = $pad_time_series($revenue[$tf], $key, 'revenue', $tf);
+        $attendance[$tf] = $pad_time_series($attendance[$tf], $key, 'visits', $tf);
 
         foreach ($revenue[$tf] as &$row) {
-            if ($tf === 'daily') $row['month'] = date('d-m-Y', strtotime($row['month']));
-            elseif ($tf === 'monthly') $row['month'] = date('m-Y', strtotime($row['month'] . '-01'));
+            if ($tf === 'daily') $row[$key] = date('d-m-Y', strtotime($row[$key]));
+            elseif ($tf === 'monthly') $row[$key] = date('m-Y', strtotime($row[$key] . '-01'));
         }
         unset($row);
         foreach ($attendance[$tf] as &$row) {
-            if ($tf === 'daily') $row['day'] = date('d-m-Y', strtotime($row['day']));
-            elseif ($tf === 'monthly') $row['day'] = date('m-Y', strtotime($row['day'] . '-01'));
+            if ($tf === 'daily') $row[$key] = date('d-m-Y', strtotime($row[$key]));
+            elseif ($tf === 'monthly') $row[$key] = date('m-Y', strtotime($row[$key] . '-01'));
         }
         unset($row);
     }
@@ -192,15 +193,16 @@ function reports_page(): void
         'attendance' => []
     ];
     foreach (['daily', 'monthly', 'yearly'] as $tf) {
+        $key = ($tf === 'daily') ? 'day' : (($tf === 'monthly') ? 'month' : 'year');
         $rRev = array_reverse($revenue[$tf]);
         $chartsData['revenue'][$tf] = [
-            'labels' => array_column($rRev, 'month'),
+            'labels' => array_column($rRev, $key),
             'data' => array_map(fn($r) => (float)$r['revenue'], $rRev)
         ];
         
         $aRev = array_reverse($attendance[$tf]);
         $chartsData['attendance'][$tf] = [
-            'labels' => array_column($aRev, 'day'),
+            'labels' => array_column($aRev, $key),
             'data' => array_map(fn($a) => (int)$a['visits'], $aRev)
         ];
     }
@@ -296,9 +298,9 @@ function reports_page(): void
     echo '<div style="display: flex; flex-wrap: wrap; gap: 4rem; align-items: flex-start; margin-top: 1.5rem;">';
     echo '<div style="flex: 1.5; min-width: 300px; margin-bottom: 2rem;"><canvas id="revenueChart"></canvas></div>';
     echo '<div style="flex: 1; min-width: 300px; max-height: 400px; overflow-y: auto; padding-right: 8px;">';
-    echo '<div id="revenue-table-daily" style="display:none;">' . render_simple_table($revenue['daily'], ['month', 'revenue']) . '</div>';
+    echo '<div id="revenue-table-daily" style="display:none;">' . render_simple_table($revenue['daily'], ['day', 'revenue']) . '</div>';
     echo '<div id="revenue-table-monthly" style="display:block;">' . render_simple_table($revenue['monthly'], ['month', 'revenue']) . '</div>';
-    echo '<div id="revenue-table-yearly" style="display:none;">' . render_simple_table($revenue['yearly'], ['month', 'revenue']) . '</div>';
+    echo '<div id="revenue-table-yearly" style="display:none;">' . render_simple_table($revenue['yearly'], ['year', 'revenue']) . '</div>';
     echo '</div>';
     echo '</div>';
     echo '</div>';
@@ -321,8 +323,8 @@ function reports_page(): void
     echo '<div style="flex: 1.5; min-width: 300px; margin-bottom: 2rem;"><canvas id="attendanceChart"></canvas></div>';
     echo '<div style="flex: 1; min-width: 300px; max-height: 400px; overflow-y: auto; padding-right: 8px;">';
     echo '<div id="attendance-table-daily" style="display:block;">' . render_simple_table($attendance['daily'], ['day', 'visits']) . '</div>';
-    echo '<div id="attendance-table-monthly" style="display:none;">' . render_simple_table($attendance['monthly'], ['day', 'visits']) . '</div>';
-    echo '<div id="attendance-table-yearly" style="display:none;">' . render_simple_table($attendance['yearly'], ['day', 'visits']) . '</div>';
+    echo '<div id="attendance-table-monthly" style="display:none;">' . render_simple_table($attendance['monthly'], ['month', 'visits']) . '</div>';
+    echo '<div id="attendance-table-yearly" style="display:none;">' . render_simple_table($attendance['yearly'], ['year', 'visits']) . '</div>';
     echo '</div>';
     echo '</div>';
     echo '</div>';
