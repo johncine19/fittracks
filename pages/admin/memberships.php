@@ -118,7 +118,7 @@ function memberships_page(): void
     $members = db()->query('SELECT user_id, CONCAT(first_name, " ", last_name) AS name FROM users WHERE role = "member" AND status = "active" ORDER BY first_name')->fetchAll();
     $plans   = db()->query('SELECT * FROM membership_plans WHERE is_active = 1 ORDER BY price')->fetchAll();
     $where   = $user['role'] === 'member' ? 'WHERE m.user_id = ' . (int) $user['user_id'] : '';
-    $rows    = db()->query('SELECT m.*, CONCAT(u.first_name, " ", u.last_name) AS member, u.first_name, u.last_name, p.plan_name, p.price FROM memberships m JOIN users u ON u.user_id = m.user_id JOIN membership_plans p ON p.plan_id = m.plan_id ' . $where . ' ORDER BY m.created_at DESC')->fetchAll();
+    $rows    = db()->query('SELECT m.*, CONCAT(u.first_name, " ", u.last_name) AS member, u.first_name, u.last_name, u.profile_picture, p.plan_name, p.price FROM memberships m JOIN users u ON u.user_id = m.user_id JOIN membership_plans p ON p.plan_id = m.plan_id ' . $where . ' ORDER BY m.created_at DESC')->fetchAll();
     render_header('Memberships', $user);
     ?>
     <div class="skeleton-wrapper">
@@ -274,14 +274,13 @@ function memberships_page(): void
                 </thead>
                 <tbody>
                 <?php foreach ($rows as $row):
-                    $initials = strtoupper(substr($row['first_name'], 0, 1) . substr($row['last_name'], 0, 1));
                     $statusClass = 'badge badge-' . $row['status'];
                 ?>
                     <tr>
                         <?php if ($user['role'] !== 'member'): ?>
                         <td>
                             <div class="user-cell">
-                                <span class="avatar small"><?= h($initials) ?></span>
+                                <?= render_avatar($row) ?>
                                 <span><?= h($row['member']) ?></span>
                             </div>
                         </td>
