@@ -135,7 +135,7 @@ function render_avatar(array $row, string $size = 'small'): string
 }
 
 
-//TIERS Logic
+//TIERS LOGIC
 function get_fitness_tier_name(int $tier): string {
     return match ($tier) {
         1 => 'Newbie',
