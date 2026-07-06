@@ -161,11 +161,21 @@ function memberships_page(): void
         </div>
         <?php endif; endif; ?>
 
-        <?php if ($user['role'] === 'member'): ?>
+        <?php if ($user['role'] === 'member'): 
+            $activePlanId = null;
+            foreach ($rows as $r) {
+                if ($r['status'] === 'active') {
+                    $activePlanId = (int)$r['plan_id'];
+                    break;
+                }
+            }
+        ?>
             <h2 style="margin-bottom: 12px;">Available Plans</h2>
             <div style="display: flex; flex-wrap: wrap; gap: 1.5rem; margin-bottom: 2.5rem;">
-                <?php foreach ($plans as $plan): ?>
-                    <div class="panel plan-card-glow" style="width: 280px; flex-shrink: 0; padding: 1.5rem; display: flex; flex-direction: column; gap: 1rem; background: var(--surface);">
+                <?php foreach ($plans as $plan): 
+                    $isActive = $activePlanId === (int)$plan['plan_id'];
+                ?>
+                    <div class="panel plan-card-glow" style="width: 280px; flex-shrink: 0; padding: 1.5rem; display: flex; flex-direction: column; gap: 1rem; background: var(--surface); <?= $isActive ? 'border: 2px solid var(--lime); box-shadow: 0 0 15px rgba(204,255,0,0.1);' : '' ?>">
                         <div>
                             <h3 style="margin: 0; font-size: 1.2rem;"><?= h($plan['plan_name']) ?></h3>
                             <p style="color: var(--muted); font-size: 0.9rem; margin-top: 4px;"><?= h($plan['duration_days']) ?> Days</p>
@@ -178,7 +188,12 @@ function memberships_page(): void
                         <?php else: ?>
                             <div style="flex: 1;"></div>
                         <?php endif; ?>
-                        <button class="btn" style="background: var(--lime); color: var(--bg); font-weight: bold; width: 100%; border: none; cursor: pointer; padding: 10px;" onclick="subscribePlan(<?= (int)$plan['plan_id'] ?>, '<?= htmlspecialchars($plan['plan_name'], ENT_QUOTES) ?>', '<?= htmlspecialchars(money($plan['price']), ENT_QUOTES) ?>')">Subscribe</button>
+                        
+                        <?php if ($isActive): ?>
+                            <button class="btn" style="background: transparent; color: var(--lime); font-weight: bold; width: 100%; border: 1px solid var(--lime); cursor: default; padding: 10px;" disabled>Active Plan</button>
+                        <?php else: ?>
+                            <button class="btn" style="background: var(--lime); color: var(--bg); font-weight: bold; width: 100%; border: none; cursor: pointer; padding: 10px;" onclick="subscribePlan(<?= (int)$plan['plan_id'] ?>, '<?= htmlspecialchars($plan['plan_name'], ENT_QUOTES) ?>', '<?= htmlspecialchars(money($plan['price']), ENT_QUOTES) ?>')">Subscribe</button>
+                        <?php endif; ?>
                     </div>
                 <?php endforeach; ?>
             </div>
