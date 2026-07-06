@@ -148,8 +148,14 @@ function handle_register(): void
 
                 <button type="submit" class="auth-submit-btn">CREATE ACCOUNT <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14"></path><path d="M12 5l7 7-7 7"></path></svg></button>
 
-                <div class="auth-form-footer">
-                    Already have an account? <a href="index.php?page=login">Sign in</a>
+                <div class="auth-form-footer" style="display: flex; flex-direction: column; gap: 10px;">
+                    <div>Already have an account? <a href="index.php?page=login">Sign in</a></div>
+                    <div style="margin-top: 5px;">
+                        <a href="index.php" style="color: var(--muted); text-decoration: none; font-size: 13px; display: inline-flex; align-items: center; gap: 5px; transition: color 0.2s;" onmouseover="this.style.color='var(--lime)'" onmouseout="this.style.color='var(--muted)'">
+                            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>
+                            Back to Home
+                        </a>
+                    </div>
                 </div>
             </form>
             <div class="corner corner-tl"></div>
