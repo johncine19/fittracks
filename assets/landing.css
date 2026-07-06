@@ -783,6 +783,10 @@
     letter-spacing: -0.02em;
     font-variant-numeric: tabular-nums;
     line-height: 1;
+    display: flex;
+    align-items: baseline;
+    flex-wrap: nowrap;
+    gap: 2px;
 }
 
 .stat-number .suffix {
@@ -1295,11 +1299,17 @@
 
     .stats-grid {
         grid-template-columns: repeat(2, 1fr);
-        gap: 24px 0;
+        gap: 32px 0;
     }
 
-    .stat-item:nth-child(3) {
+    .stat-item, .stat-item:first-child {
+        padding: 0 12px;
+        align-items: center;
         border-left: none;
+    }
+
+    .stat-label {
+        text-align: center;
     }
 
     .landing-features,
