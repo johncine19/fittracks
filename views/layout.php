@@ -210,7 +210,7 @@ function render_header(string $title, ?array $user = null): void
                         <?php else: ?>
                             <span class="avatar"><?= h(initials($user)) ?></span>
                         <?php endif; ?>
-                        <div>
+                        <div class="user-details">
                             <strong><?= h($user['first_name'] . ' ' . $user['last_name']) ?></strong>
                             <small><?= h(ucfirst($user['role'])) ?></small>
                         </div>

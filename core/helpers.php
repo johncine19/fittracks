@@ -24,7 +24,7 @@ function h(mixed $value): string
 
 function money(float|string|null $value): string
 {
-    return 'PHP ' . number_format((float) $value, 2);
+    return '₱' . number_format((float) $value, 2);
 }
 
 function flash(?string $message = null, string $type = 'success'): ?array
