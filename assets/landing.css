@@ -292,7 +292,7 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    padding: 140px 48px 80px;
+    padding: 140px 48px 160px; /* Increased bottom padding to 160px to push content up away from scroll indicator */
     overflow: hidden;
 }
 
@@ -576,6 +576,12 @@
     opacity: 1;
 }
 
+/* Ensure hero content stays above absolute elements */
+.hero-content {
+    position: relative;
+    z-index: 10;
+}
+
 /* Scroll indicator */
 .scroll-indicator {
     position: absolute;
@@ -599,6 +605,12 @@
     height: 40px;
     background: linear-gradient(to bottom, var(--lime), transparent);
     animation: scroll-pulse 2s ease-in-out infinite;
+}
+
+@media (max-height: 700px) {
+    .scroll-indicator {
+        display: none;
+    }
 }
 
 @keyframes scroll-pulse {
