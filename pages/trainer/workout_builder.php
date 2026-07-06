@@ -18,6 +18,11 @@ function workout_builder_page(): void
     $member = $pdo->query('SELECT first_name, last_name, profile_picture FROM users WHERE user_id = ' . $memberId)->fetch();
     $profile = $pdo->query('SELECT primary_goal, weight_kg FROM member_profiles WHERE user_id = ' . $memberId)->fetch();
     
+    // Fetch active membership to sync dates
+    $membership = $pdo->query('SELECT start_date, end_date FROM memberships WHERE user_id = ' . $memberId . ' AND status = "active" ORDER BY end_date DESC LIMIT 1')->fetch();
+    $defaultStart = $membership ? $membership['start_date'] : date('Y-m-d');
+    $defaultEnd = $membership ? $membership['end_date'] : date('Y-m-d', strtotime('+4 weeks'));
+    
     // Fetch trainer ID
     $trainerProfile = $pdo->query('SELECT trainer_id FROM trainer_profiles WHERE user_id = ' . (int)$user['user_id'])->fetch();
     if (!$trainerProfile) {
@@ -34,8 +39,8 @@ function workout_builder_page(): void
         // Create an empty draft
         $goal = $profile['primary_goal'] ?? 'general_health';
         $title = 'Workout Plan for ' . $member['first_name'];
-        $stmt = $pdo->prepare('INSERT INTO training_plans (member_user_id, trainer_id, title, goal, start_date, end_date, status) VALUES (?, ?, ?, ?, CURDATE(), DATE_ADD(CURDATE(), INTERVAL 4 WEEK), "draft")');
-        $stmt->execute([$memberId, $trainerId, $title, $goal]);
+        $stmt = $pdo->prepare('INSERT INTO training_plans (member_user_id, trainer_id, title, goal, start_date, end_date, status) VALUES (?, ?, ?, ?, ?, ?, "draft")');
+        $stmt->execute([$memberId, $trainerId, $title, $goal, $defaultStart, $defaultEnd]);
         $planId = (int) $pdo->lastInsertId();
         
         // Copy exercises from the most recent active plan (if one exists)
@@ -74,10 +79,13 @@ function workout_builder_page(): void
         }
 
         if ($action === 'publish') {
+            $startDate = post('start_date') ?: date('Y-m-d');
+            $endDate = post('end_date') ?: date('Y-m-d', strtotime('+4 weeks'));
+            
             // Archive old active plans
             $pdo->prepare('UPDATE training_plans SET status = "archived" WHERE member_user_id = ? AND status = "active"')->execute([$memberId]);
-            // Set draft to active
-            $pdo->prepare('UPDATE training_plans SET status = "active" WHERE plan_id = ?')->execute([$planId]);
+            // Set draft to active with the selected dates
+            $pdo->prepare('UPDATE training_plans SET status = "active", start_date = ?, end_date = ? WHERE plan_id = ?')->execute([$startDate, $endDate, $planId]);
             
             notify_user($memberId, 'system', 'New Workout Plan!', 'Your trainer has published a new workout plan for you.');
             flash('Workout plan published successfully!', 'success');
@@ -280,19 +288,57 @@ function workout_builder_page(): void
 
     function promptPublish() {
         Swal.fire({
-            title: 'Publish Plan?',
-            text: "This will make the workout plan active and notify the member. Proceed?",
-            icon: 'question',
+            title: 'Publish Plan',
+            html: `
+                <div style="text-align: left; display: flex; flex-direction: column; gap: 15px;">
+                    <p style="margin:0; color:var(--ink);">This will make the workout plan active and notify the member.</p>
+                    <div style="display:flex; gap:10px;">
+                        <label style="display:block; flex:1; color: var(--muted); font-size: 14px;">Start Date
+                            <input type="date" id="swal-start" class="form-control" style="width:100%; margin-top:5px;" value="<?= $defaultStart ?>">
+                        </label>
+                        <label style="display:block; flex:1; color: var(--muted); font-size: 14px;">End Date
+                            <input type="date" id="swal-end" class="form-control" style="width:100%; margin-top:5px;" value="<?= $defaultEnd ?>">
+                        </label>
+                    </div>
+                </div>
+            `,
             showCancelButton: true,
             confirmButtonColor: 'var(--lime-dark)',
             cancelButtonColor: '#6c757d',
             background: 'var(--bg)',
             color: 'var(--ink)',
-            confirmButtonText: 'Yes, publish it!'
+            confirmButtonText: 'Yes, publish it!',
+            preConfirm: () => {
+                const start = document.getElementById('swal-start').value;
+                const end = document.getElementById('swal-end').value;
+                if (!start || !end) {
+                    Swal.showValidationMessage('Please select both start and end dates');
+                    return false;
+                }
+                if (end < start) {
+                    Swal.showValidationMessage('End date cannot be before start date');
+                    return false;
+                }
+                return { start, end };
+            }
         }).then((result) => {
             if (result.isConfirmed) {
                 Swal.showLoading();
-                document.getElementById('publishForm').submit();
+                const form = document.getElementById('publishForm');
+                
+                let startInput = document.createElement('input');
+                startInput.type = 'hidden';
+                startInput.name = 'start_date';
+                startInput.value = result.value.start;
+                form.appendChild(startInput);
+
+                let endInput = document.createElement('input');
+                endInput.type = 'hidden';
+                endInput.name = 'end_date';
+                endInput.value = result.value.end;
+                form.appendChild(endInput);
+                
+                form.submit();
             }
         });
     }
