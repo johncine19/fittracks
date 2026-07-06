@@ -122,7 +122,13 @@ function walk_ins_page(): void
          LEFT JOIN users u ON u.user_id = w.converted_to_member_id
          ORDER BY w.visit_date DESC'
     )->fetchAll();
-    $activeMembers = db()->query('SELECT user_id, CONCAT(first_name, " ", last_name) AS name FROM users WHERE role = "member" AND status = "active" ORDER BY first_name')->fetchAll();
+    $activeMembers = db()->query('
+        SELECT u.user_id, CONCAT(u.first_name, " ", u.last_name) AS name,
+               EXISTS(SELECT 1 FROM memberships m WHERE m.user_id = u.user_id AND m.status = "active" AND m.end_date >= CURDATE()) AS has_active_membership
+        FROM users u 
+        WHERE u.role = "member" AND u.status = "active" 
+        ORDER BY u.first_name
+    ')->fetchAll();
     $todaySchedules = db()->query('SELECT s.schedule_id, CONCAT(c.class_name, " - ", DATE_FORMAT(s.start_datetime, "%h:%i %p")) AS label FROM class_schedules s JOIN classes c ON c.class_id = s.class_id WHERE DATE(s.start_datetime) = CURDATE() ORDER BY s.start_datetime')->fetchAll();
     
     render_header('Walk-in Transactions', $user);
@@ -151,13 +157,16 @@ function walk_ins_page(): void
                     <?= csrf_field() ?>
                     <input type="hidden" name="action" value="member_checkin">
                     <label>Member
-                        <select name="user_id" required>
-                            <option value="">Select a member...</option>
+                        <select name="user_id" id="member_select" required onchange="handleMemberSelection()">
+                            <option value="" data-has-membership="0">Select a member...</option>
                             <?php foreach ($activeMembers as $m): ?>
-                                <option value="<?= $m['user_id'] ?>"><?= h($m['name']) ?></option>
+                                <option value="<?= $m['user_id'] ?>" data-has-membership="<?= $m['has_active_membership'] ? 1 : 0 ?>">
+                                    <?= h($m['name']) ?>
+                                </option>
                             <?php endforeach; ?>
                         </select>
                     </label>
+                    <div id="membership_status_badge" style="margin-bottom: 15px; font-size: 13px; grid-column: 1 / -1; display: none;"></div>
                     <label>Class Session (Optional)
                         <select name="schedule_id">
                             <option value="">None (Gym Visit)</option>
@@ -166,18 +175,55 @@ function walk_ins_page(): void
                             <?php endforeach; ?>
                         </select>
                     </label>
-                    <label>Amount Paid (Optional)
-                        <input name="amount_paid" type="number" step="0.01" min="0" placeholder="0.00">
-                    </label>
-                    <label>Payment Method
-                        <select name="payment_method">
-                            <option value="cash">Cash</option>
-                            <option value="gcash">GCash</option>
-                        </select>
-                    </label>
+                    <div id="payment_fields_container" style="display: contents;">
+                        <label>Amount Paid
+                            <input name="amount_paid" id="amount_paid" type="number" step="0.01" min="0" placeholder="0.00">
+                        </label>
+                        <label>Payment Method
+                            <select name="payment_method" id="payment_method">
+                                <option value="cash">Cash</option>
+                                <option value="gcash">GCash</option>
+                            </select>
+                        </label>
+                    </div>
                     <button style="grid-column: 1 / -1; margin-top: 10px; background: var(--lime); color: var(--bg);">Record Attendance</button>
                 </form>
             </div>
+            <script>
+            function handleMemberSelection() {
+                const select = document.getElementById('member_select');
+                const selectedOption = select.options[select.selectedIndex];
+                const hasMembership = selectedOption.getAttribute('data-has-membership') === '1';
+                const badge = document.getElementById('membership_status_badge');
+                const paymentFields = document.getElementById('payment_fields_container');
+                const amountInput = document.getElementById('amount_paid');
+                const paymentMethod = document.getElementById('payment_method');
+
+                if (select.value === '') {
+                    badge.style.display = 'none';
+                    badge.innerHTML = '';
+                    paymentFields.style.display = 'contents';
+                    amountInput.value = '';
+                    amountInput.required = false;
+                    return;
+                }
+
+                badge.style.display = 'block';
+
+                if (hasMembership) {
+                    badge.innerHTML = '<span style="color: var(--lime); font-weight: bold;">✔ Active Membership</span> - No payment required.';
+                    paymentFields.style.display = 'none';
+                    amountInput.value = ''; // Will default to 0 on backend
+                    amountInput.required = false;
+                    paymentMethod.disabled = true;
+                } else {
+                    badge.innerHTML = '<span style="color: var(--danger); font-weight: bold;">⚠ No Active Membership</span> - Walk-in fee required.';
+                    paymentFields.style.display = 'contents';
+                    amountInput.required = true;
+                    paymentMethod.disabled = false;
+                }
+            }
+            </script>
         </dialog>
 
         <dialog id="recordWalkInModal" class="modal">
