@@ -118,6 +118,7 @@ function nav_icon(string $key): string
     return $icons[$key] ?? '<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/></svg>';
 }
 
+
 function initials(array $user): string
 {
     return strtoupper(substr((string) $user['first_name'], 0, 1) . substr((string) $user['last_name'], 0, 1));
@@ -133,6 +134,8 @@ function render_avatar(array $row, string $size = 'small'): string
     return '<span class="avatar ' . $size . '">' . h($ini) . '</span>';
 }
 
+
+//TIERS Logic
 function get_fitness_tier_name(int $tier): string {
     return match ($tier) {
         1 => 'Newbie',
