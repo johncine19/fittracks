@@ -269,10 +269,7 @@ function walk_ins_page(): void
                         <td style="color:var(--muted);font-size:12px"><?= h(date('M j, Y g:i A', strtotime($row['visit_date']))) ?></td>
                         <td>
                             <?php if ($row['converted_to_member_id']): ?>
-                                <span class="badge badge-active">Converted</span>
-                                <small style="display:block;color:var(--muted);font-size:11px;margin-top:2px;">
-                                    <?= h($row['member_first'] . ' ' . $row['member_last']) ?>
-                                </small>
+                                <span class="badge badge-active">MEMBER</span>
                             <?php else: ?>
                                 <span class="badge badge-pending">Walk-in</span>
                             <?php endif; ?>
