@@ -81,6 +81,7 @@ function landing_page(): void
     <div class="landing-nav-links">
         <a href="#features" class="nav-link">Features</a>
         <a href="#how-it-works" class="nav-link">How It Works</a>
+        <a href="#faq" class="nav-link">FAQ</a>
         <a href="index.php?page=login" class="btn-landing btn-landing-outline">Sign In</a>
         <a href="index.php?page=register" class="btn-landing btn-landing-primary">Get Started</a>
     </div>
@@ -405,6 +406,56 @@ function landing_page(): void
     </div>
 </section>
 
+<!-- ═══════════════ FAQ ═══════════════ -->
+<section class="landing-faq" id="faq" style="padding: 100px 5%; max-width: 1200px; margin: 0 auto;">
+    <div class="section-header" style="text-align: center; margin-bottom: 50px;">
+        <div class="section-label">FAQ</div>
+        <h2 class="section-title">Frequently Asked <span style="color:var(--lime)">Questions</span></h2>
+    </div>
+
+    <div class="faq-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 30px;">
+        <div class="faq-card" style="background: rgba(255, 255, 255, 0.03); border: 1px solid var(--line); border-radius: 16px; padding: 30px;">
+            <h3 style="font-size: 1.25rem; margin-bottom: 12px; color: var(--ink);">How does the Engagement Score work?</h3>
+            <p style="color: var(--muted); line-height: 1.6; font-size: 0.95rem; margin: 0;">
+                Your Engagement Score (0-100) measures your gym activity using four factors: 
+                <strong>Attendance Frequency</strong> (last 30 days, 40%), 
+                <strong>Class Participation</strong> (last 30 days, 30%), 
+                <strong>Consistency</strong> (active weeks in the past month, 20%), and 
+                <strong>Progress Updates</strong> (logging workouts in the last 60 days, 10%).
+            </p>
+        </div>
+        <div class="faq-card" style="background: rgba(255, 255, 255, 0.03); border: 1px solid var(--line); border-radius: 16px; padding: 30px;">
+            <h3 style="font-size: 1.25rem; margin-bottom: 12px; color: var(--ink);">What are the engagement categories?</h3>
+            <p style="color: var(--muted); line-height: 1.6; font-size: 0.95rem; margin: 0;">
+                Based on your score, you are placed into one of three categories:
+                <br>• <strong>Highly Engaged:</strong> Score of 75 or higher.
+                <br>• <strong>Moderately Engaged:</strong> Score between 40 and 74.
+                <br>• <strong>At-Risk:</strong> Score below 40. We will reach out to help you get back on track!
+            </p>
+        </div>
+        <div class="faq-card" style="background: rgba(255, 255, 255, 0.03); border: 1px solid var(--line); border-radius: 16px; padding: 30px;">
+            <h3 style="font-size: 1.25rem; margin-bottom: 12px; color: var(--ink);">What are the fitness tiers?</h3>
+            <p style="color: var(--muted); line-height: 1.6; font-size: 0.95rem; margin: 0;">
+                Fitness Tiers reflect your long-term dedication to completing workout plans. You level up based on completed weeks:
+                <br>• Level 1: <strong>Newbie</strong>
+                <br>• Level 2: <strong>Iron Recruit</strong> (1+ weeks)
+                <br>• Level 3: <strong>Bronze Beast</strong> (4+ weeks)
+                <br>• Level 4: <strong>Silver Spartan</strong> (12+ weeks)
+                <br>• Level 5: <strong>Gold Gladiator</strong> (24+ weeks)
+                <br>• Level 6: <strong>Apex Legend</strong> (52+ weeks)
+            </p>
+        </div>
+        <div class="faq-card" style="background: rgba(255, 255, 255, 0.03); border: 1px solid var(--line); border-radius: 16px; padding: 30px;">
+            <h3 style="font-size: 1.25rem; margin-bottom: 12px; color: var(--ink);">How do you calculate body fat?</h3>
+            <p style="color: var(--muted); line-height: 1.6; font-size: 0.95rem; margin: 0;">
+                We use the standard <strong>U.S. Navy Method</strong>. When you log your progress, you provide measurements for your height, neck, waist (and hip for females) in centimeters. Our system calculates an estimated body fat percentage using these values.
+                <br><br>
+                <em style="font-size: 0.85rem; opacity: 0.8;">Note: This method provides a practical estimate with a general accuracy margin of <strong>±3% to 4%</strong>. These results are not clinical and should be used primarily to track your body fat trend over time. (<a href="https://en.wikipedia.org/wiki/Body_fat_percentage#U.S._Navy_circumference_method" target="_blank" style="color: var(--lime); text-decoration: underline;">Source: U.S. Navy Circumference Method</a>) (<a href="https://pmc.ncbi.nlm.nih.gov/articles/PMC6650177/" target="_blank" style="color: var(--lime); text-decoration: underline;">Source: National Library of Medicine</a>)</em>
+
+            </p>
+        </div>
+    </div>
+</section>
 
 <!-- ═══════════════ CTA ═══════════════ -->
 <section class="landing-cta" id="cta">

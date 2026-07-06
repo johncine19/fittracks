@@ -157,7 +157,8 @@ function check_and_upgrade_tier(int $userId, int $planId): ?array {
     
     $completedWeeks = (int) floor($totalCompleted / $exercisesPerWeek);
     $newTier = 1;
-    if ($completedWeeks >= 24) $newTier = 5;
+    if ($completedWeeks >= 52) $newTier = 6;
+    elseif ($completedWeeks >= 24) $newTier = 5;
     elseif ($completedWeeks >= 12) $newTier = 4;
     elseif ($completedWeeks >= 4) $newTier = 3;
     elseif ($completedWeeks >= 1) $newTier = 2;
