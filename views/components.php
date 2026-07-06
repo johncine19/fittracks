@@ -17,7 +17,7 @@ function render_simple_table(array $rows, array $columns): string
         foreach ($columns as $column) {
             $value = $row[$column] ?? '';
             if ($column === 'price' || $column === 'revenue' || $column === 'amount') $value = money($value);
-            if ($column === 'action' || $column === 'actions') {
+            if (in_array($column, ['action', 'actions', 'progress', 'adherence', 'feedback', 'end_date'])) {
                 echo '<td>' . (string) $value . '</td>';
             } else {
                 echo '<td>' . h((string) $value) . '</td>';
