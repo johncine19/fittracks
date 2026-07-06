@@ -56,14 +56,32 @@ function memberships_page(): void
         $end = (clone $start)->modify('+' . $duration . ' days')->format('Y-m-d');
         $memberUserId = (int) post('user_id');
         $planId = (int) post('plan_id');
+        
         db()->prepare('INSERT INTO memberships (user_id, plan_id, start_date, end_date, status) VALUES (?, ?, ?, ?, ?)')->execute([$memberUserId, $planId, post('start_date'), $end, post('status')]);
-        $planName = (string) scalar('SELECT plan_name FROM membership_plans WHERE plan_id = ?', [$planId]);
+        $membershipId = db()->lastInsertId();
+        
+        $plan = db()->query('SELECT plan_name, price FROM membership_plans WHERE plan_id = ' . $planId)->fetch();
+        
+        $receipt = 'RCPT-' . date('Ymd') . '-' . random_int(1000, 9999);
+        $paymentStatus = post('status') === 'active' ? 'paid' : 'pending';
+        db()->prepare('INSERT INTO payments (membership_id, amount, payment_date, payment_method, status, receipt_number) VALUES (?, ?, ?, ?, ?, ?)')
+            ->execute([$membershipId, $plan['price'], post('start_date'), 'cash', $paymentStatus, $receipt]);
+
         notify_user(
             $memberUserId,
             'system',
             'Membership updated',
-            'Your ' . $planName . ' membership is active from ' . date('M j, Y', strtotime((string) post('start_date'))) . ' to ' . date('M j, Y', strtotime($end)) . '.'
+            'Your ' . $plan['plan_name'] . ' membership is ' . post('status') . ' from ' . date('M j, Y', strtotime((string) post('start_date'))) . ' to ' . date('M j, Y', strtotime($end)) . '.'
         );
+        
+        if ($paymentStatus === 'paid') {
+            notify_user(
+                $memberUserId,
+                'system',
+                'Payment recorded',
+                'PHP ' . number_format((float)$plan['price'], 2) . ' received for ' . $plan['plan_name'] . '. Receipt: ' . $receipt . '.'
+            );
+        }
         flash('Membership created.');
         redirect('memberships');
     }
