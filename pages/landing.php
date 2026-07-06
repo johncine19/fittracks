@@ -142,7 +142,7 @@ function landing_page(): void
         </h1>
 
         <p class="hero-subtitle gs-reveal">
-            Track workouts, connect with expert coaches, and watch your progress unfold — all in one powerful platform built to push your limits.
+            Track workouts, connect with expert trainers, and watch your progress unfold — all in one powerful platform built to push your limits.
         </p>
 
         <div class="hero-cta gs-reveal">
@@ -235,7 +235,7 @@ function landing_page(): void
             </div>
             <div class="fs-panel" data-i="1" data-color="#e8622c">
                 <span class="fs-count">02</span>
-                <h2 class="fs-title">A Coach In<br><span class="fs-highlight">Your Pocket.</span></h2>
+                <h2 class="fs-title">A Trainer In<br><span class="fs-highlight">Your Pocket.</span></h2>
                 <p class="fs-desc">Message certified trainers in real time. Get guidance, feedback, and plans built around you.</p>
             </div>
             <div class="fs-panel" data-i="2" data-color="#d1712f">
