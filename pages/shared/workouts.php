@@ -18,9 +18,14 @@ function generate_workout_plan(int $memberUserId, ?int $coachId = null): int
     // Delete any existing system_generated plans to replace them
     $pdo->prepare('DELETE FROM training_plans WHERE member_user_id = ? AND trainer_id IS NULL')->execute([$memberUserId]);
 
+    // Get member name for title
+    $stmt = $pdo->prepare('SELECT first_name FROM users WHERE user_id = ?');
+    $stmt->execute([$memberUserId]);
+    $firstName = $stmt->fetchColumn() ?: 'Member';
+
     // Create a new training plan
-    $title = 'Personalised Workout Plan';
-    $stmt = $pdo->prepare('INSERT INTO training_plans (member_user_id, trainer_id, title, goal, start_date, status) VALUES (?, ?, ?, ?, CURDATE(), "active")');
+    $title = 'Workout Plan for ' . $firstName;
+    $stmt = $pdo->prepare('INSERT INTO training_plans (member_user_id, trainer_id, title, goal, start_date, end_date, status) VALUES (?, ?, ?, ?, CURDATE(), DATE_ADD(CURDATE(), INTERVAL 4 WEEK), "active")');
     $stmt->execute([$memberUserId, $coachId, $title, $goal]);
     $planId = (int) $pdo->lastInsertId();
 

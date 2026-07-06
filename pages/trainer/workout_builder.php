@@ -33,8 +33,8 @@ function workout_builder_page(): void
     if (!$draft) {
         // Create an empty draft
         $goal = $profile['primary_goal'] ?? 'general_health';
-        $title = 'Personalised Workout Plan';
-        $stmt = $pdo->prepare('INSERT INTO training_plans (member_user_id, trainer_id, title, goal, start_date, status) VALUES (?, ?, ?, ?, CURDATE(), "draft")');
+        $title = 'Workout Plan for ' . $member['first_name'];
+        $stmt = $pdo->prepare('INSERT INTO training_plans (member_user_id, trainer_id, title, goal, start_date, end_date, status) VALUES (?, ?, ?, ?, CURDATE(), DATE_ADD(CURDATE(), INTERVAL 4 WEEK), "draft")');
         $stmt->execute([$memberId, $trainerId, $title, $goal]);
         $planId = (int) $pdo->lastInsertId();
         
