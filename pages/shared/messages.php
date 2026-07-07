@@ -67,9 +67,6 @@ function messages_page(): void
                 array_unshift($conversations, $activeUser);
             }
         }
-    } else if (count($conversations) > 0) {
-        $activeChatId = (int)$conversations[0]['user_id'];
-        $activeUser = $conversations[0];
     }
 
     $rows = [];
