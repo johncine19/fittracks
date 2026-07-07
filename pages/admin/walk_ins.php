@@ -99,10 +99,11 @@ function walk_ins_page(): void
     // Handle new walk-in recording
     if ($_SERVER['REQUEST_METHOD'] === 'POST' && post('action') !== 'convert' && post('action') !== 'member_checkin') {
         $contact_info = preg_replace('/[^0-9]/', '', (string)post('contact_info'));
-        if (strlen($contact_info) !== 11) {
+        if ($contact_info !== '' && strlen($contact_info) !== 11) {
             flash('Phone number must be exactly 11 digits.', 'danger');
             redirect('walk_ins');
         }
+        $contact_info = $contact_info ?: 'N/A';
 
         $stmt = db()->prepare('INSERT INTO walk_in_transactions (guest_name, contact_info, amount_paid, payment_method, visit_date, processed_by) VALUES (?, ?, ?, ?, NOW(), ?)');
         $stmt->execute([
@@ -239,8 +240,8 @@ function walk_ins_page(): void
                     <label>Guest Name
                         <input name="guest_name" placeholder="John Doe" required>
                     </label>
-                    <label>Contact Info
-                        <input name="contact_info" type="tel" pattern="[0-9]{11}" maxlength="11" title="Please enter exactly 11 digits" placeholder="09123456789" required>
+                    <label>Contact Info (Optional)
+                        <input name="contact_info" type="tel" pattern="[0-9]{11}" maxlength="11" title="Please enter exactly 11 digits" placeholder="09123456789">
                     </label>
                     <label>Amount Paid
                         <input name="amount_paid" type="number" step="0.01" min="0" placeholder="0.00" required>
