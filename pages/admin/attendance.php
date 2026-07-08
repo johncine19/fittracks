@@ -14,9 +14,9 @@ function attendance_page(): void
         }
         redirect('attendance');
     }
-    $members  = db()->query('SELECT user_id, CONCAT(first_name, " ", last_name) AS name FROM users WHERE role = "member" AND status = "active" ORDER BY first_name')->fetchAll();
+    $members  = db()->query('SELECT user_id, CONCAT(first_name, " ", last_name, " (", role, ")") AS name FROM users WHERE role IN ("member", "trainer") AND status = "active" ORDER BY role, first_name')->fetchAll();
     $schedules = db()->query('SELECT s.schedule_id, CONCAT(c.class_name, " - ", DATE_FORMAT(s.start_datetime, "%b %d %h:%i %p")) AS label FROM class_schedules s JOIN classes c ON c.class_id = s.class_id WHERE s.start_datetime >= DATE_SUB(NOW(), INTERVAL 1 DAY) ORDER BY s.start_datetime')->fetchAll();
-    $rows     = db()->query('SELECT a.*, CONCAT(u.first_name, " ", u.last_name) AS member, u.first_name, u.last_name, c.class_name FROM attendance a JOIN users u ON u.user_id = a.user_id LEFT JOIN class_schedules s ON s.schedule_id = a.schedule_id LEFT JOIN classes c ON c.class_id = s.class_id ORDER BY a.check_in_time DESC LIMIT 100')->fetchAll();
+    $rows     = db()->query('SELECT a.*, CONCAT(u.first_name, " ", u.last_name) AS member, u.first_name, u.last_name, u.role, c.class_name FROM attendance a JOIN users u ON u.user_id = a.user_id LEFT JOIN class_schedules s ON s.schedule_id = a.schedule_id LEFT JOIN classes c ON c.class_id = s.class_id ORDER BY a.check_in_time DESC LIMIT 100')->fetchAll();
 
     render_header('Attendance', $user);
     ?>
@@ -24,7 +24,7 @@ function attendance_page(): void
         <div class="page-header">
             <div>
                 <h1>Attendance</h1>
-                <p>Record member check-ins and check-outs for gym visits and classes.</p>
+                <p>Record user check-ins and check-outs for gym visits and classes.</p>
             </div>
             <button onclick="recordCheckin()" class="btn" style="background: var(--lime); color: var(--bg); font-weight: bold;">+ New Check-in</button>
         </div>
@@ -42,7 +42,7 @@ function attendance_page(): void
             <table>
                 <thead>
                     <tr>
-                        <th>Member</th>
+                        <th>User</th>
                         <th>Session</th>
                         <th>Check-in</th>
                         <th>Check-out</th>
@@ -63,7 +63,15 @@ function attendance_page(): void
                                 <span><?= h($row['member']) ?></span>
                             </div>
                         </td>
-                        <td><?= h($row['class_name'] ?? 'Gym visit') ?></td>
+                        <td>
+                            <?php if ($row['class_name']): ?>
+                                <?= h($row['class_name']) ?>
+                            <?php elseif ($row['role'] === 'trainer'): ?>
+                                <span style="color:var(--muted);font-size:12px;">Shift</span>
+                            <?php else: ?>
+                                <span style="color:var(--muted);font-size:12px;">Gym visit</span>
+                            <?php endif; ?>
+                        </td>
                         <td><?= h(date('M j, h:i A', strtotime($row['check_in_time']))) ?></td>
                         <td><?= $checkedOut ? h(date('M j, h:i A', strtotime($row['check_out_time']))) : '<span class="muted">—</span>' ?></td>
                         <td><span style="color:var(--muted);font-size:12px"><?= h($row['check_in_method']) ?></span></td>
@@ -101,30 +109,25 @@ function attendance_page(): void
                     <?= csrf_field() ?>
                     <input type="hidden" name="action" value="checkin">
                     
-                    <label style="display:block; color: var(--muted); font-size: 14px;">Member *
-                        <select name="user_id" class="form-control" style="width: 100%; box-sizing: border-box;" required>
-                            <option value="">Select Member...</option>
+                    <label style="display:block; color: var(--muted); font-size: 14px;">User *
+                        <select name="user_id" class="form-control" style="width: 100%; box-sizing: border-box;" required onchange="document.getElementById('sessionLabel').style.display = this.options[this.selectedIndex].text.includes('(trainer)') ? 'none' : 'block';">
+                            <option value="">Select User...</option>
                             <?php foreach ($members as $member): ?>
                                 <option value="<?= (int) $member['user_id'] ?>"><?= h($member['name']) ?></option>
                             <?php endforeach; ?>
                         </select>
                     </label>
                     
-                    <label style="display:block; color: var(--muted); font-size: 14px;">Session
+                    <label id="sessionLabel" style="display:block; color: var(--muted); font-size: 14px;">Session
                         <select name="schedule_id" class="form-control" style="width: 100%; box-sizing: border-box;">
-                            <option value="">— Gym visit (no class) —</option>
+                            <option value="">— General Check-in —</option>
                             <?php foreach ($schedules as $schedule): ?>
                                 <option value="<?= (int) $schedule['schedule_id'] ?>"><?= h($schedule['label']) ?></option>
                             <?php endforeach; ?>
                         </select>
                     </label>
                     
-                    <label style="display:block; color: var(--muted); font-size: 14px;">Method *
-                        <select name="check_in_method" class="form-control" style="width: 100%; box-sizing: border-box;" required>
-                            <option value="manual">Manual</option>
-                            <option value="qr_code">QR Code</option>
-                        </select>
-                    </label>
+                    <input type="hidden" name="check_in_method" value="manual">
                 </form>
             `,
             showCancelButton: true,
@@ -135,7 +138,7 @@ function attendance_page(): void
             color: 'var(--ink)',
             preConfirm: () => {
                 const form = document.getElementById('recordCheckinForm');
-                if (!form.user_id.value || !form.check_in_method.value) {
+                if (!form.user_id.value) {
                     Swal.showValidationMessage('Please fill all required fields');
                     return false;
                 }

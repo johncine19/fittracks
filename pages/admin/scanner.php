@@ -18,7 +18,7 @@ function scanner_page(): void
         list($userId, $token) = explode(':', (string) $qrData, 2);
         
         $pdo = db();
-        $stmt = $pdo->prepare('SELECT user_id, first_name, last_name, qr_token, qr_expires_at FROM users WHERE user_id = ?');
+        $stmt = $pdo->prepare('SELECT user_id, first_name, last_name, role, qr_token, qr_expires_at FROM users WHERE user_id = ?');
         $stmt->execute([$userId]);
         $member = $stmt->fetch();
         
@@ -43,10 +43,12 @@ function scanner_page(): void
             $message = 'Check-out successful for ' . $member['first_name'] . ' ' . $member['last_name'];
         } else {
             // Check in
-            $hasMembership = scalar('SELECT 1 FROM memberships WHERE user_id = ? AND status = "active" AND end_date >= CURDATE()', [$userId]);
-            if (!$hasMembership && !isset($_POST['amount_paid'])) {
-                echo json_encode(['success' => false, 'requires_payment' => true, 'qr_data' => $qrData, 'message' => 'No active membership. Please collect payment for this session.']);
-                exit;
+            if ($member['role'] !== 'trainer' && $member['role'] !== 'admin') {
+                $hasMembership = scalar('SELECT 1 FROM memberships WHERE user_id = ? AND status = "active" AND end_date >= CURDATE()', [$userId]);
+                if (!$hasMembership && !isset($_POST['amount_paid'])) {
+                    echo json_encode(['success' => false, 'requires_payment' => true, 'qr_data' => $qrData, 'message' => 'No active membership. Please collect payment for this session.']);
+                    exit;
+                }
             }
             
             $stmt = $pdo->prepare('INSERT INTO attendance (user_id, check_in_time, check_in_method, recorded_by) VALUES (?, NOW(), "qr_code", ?)');

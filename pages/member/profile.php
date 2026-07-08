@@ -114,40 +114,6 @@ function profile_page(): void
                 flash('Physical profile updated.', 'success');
             }
             redirect('profile');
-        } elseif (isset($_POST['self_checkout'])) {
-            // Auto-create checkout_ratings table once
-            static $ratingTableChecked = false;
-            if (!$ratingTableChecked) {
-                $ratingTableChecked = true;
-                try {
-                    db()->exec("CREATE TABLE IF NOT EXISTS checkout_ratings (
-                        rating_id     INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-                        attendance_id INT UNSIGNED NOT NULL,
-                        user_id       INT UNSIGNED NOT NULL,
-                        rating        TINYINT UNSIGNED NOT NULL,
-                        comment       TEXT DEFAULT NULL,
-                        created_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                        UNIQUE KEY uq_attendance (attendance_id)
-                    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci");
-                } catch (Throwable) {}
-            }
-
-            $attendanceId = (int) $_POST['attendance_id'];
-            db()->prepare('UPDATE attendance SET check_out_time = NOW() WHERE attendance_id = ? AND user_id = ?')
-               ->execute([$attendanceId, $user['user_id']]);
-
-            // Save optional satisfaction rating
-            $rating = isset($_POST['rating']) ? (int) $_POST['rating'] : 0;
-            if ($rating >= 1 && $rating <= 5) {
-                $comment = mb_substr(trim((string) ($_POST['comment'] ?? '')), 0, 1000) ?: null;
-                try {
-                    db()->prepare('INSERT IGNORE INTO checkout_ratings (attendance_id, user_id, rating, comment) VALUES (?, ?, ?, ?)')
-                       ->execute([$attendanceId, $user['user_id'], $rating, $comment]);
-                } catch (Throwable) {}
-            }
-
-            flash('You have successfully checked out.', 'success');
-            redirect('dashboard');
         }
     }
 

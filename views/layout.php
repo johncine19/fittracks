@@ -28,7 +28,7 @@ function render_header(string $title, ?array $user = null): void
             ];
         }
         if ($role === 'trainer') {
-            $nav += ['trainer_members' => 'Clients', 'training' => 'Training', 'classes' => 'My Classes', 'messages' => 'Messages', 'notifications' => 'Notifications'];
+            $nav += ['qr_attendance' => 'My QR', 'trainer_members' => 'Clients', 'training' => 'Training', 'classes' => 'My Classes', 'messages' => 'Messages', 'notifications' => 'Notifications'];
         }
         if ($role === 'member') {
             $nav += ['qr_attendance' => 'My QR', 'my_workout' => 'Workouts', 'trainers' => 'Trainers', 'memberships' => 'Membership', 'payments' => 'Payments', 'book_classes' => 'Classes', 'progress' => 'Progress', 'messages' => 'Messages', 'notifications' => 'Notifications'];
@@ -128,11 +128,11 @@ function render_header(string $title, ?array $user = null): void
                         </div>
                     </div>
                     <div class="user-chip">
-                        <?php if ($user && ($user['role'] ?? '') === 'member'): ?>
+                        <?php if ($user && in_array($user['role'] ?? '', ['member', 'trainer'])): ?>
                             <?php $activeCheckinId = scalar('SELECT attendance_id FROM attendance WHERE user_id = ? AND check_out_time IS NULL ORDER BY check_in_time DESC LIMIT 1', [$user['user_id']]); ?>
                             <?php if ($activeCheckinId): ?>
                                 <!-- Hidden checkout form — submitted via JS after optional rating -->
-                                <form id="checkout-form" method="post" action="index.php?page=profile" style="display:none;">
+                                <form id="checkout-form" method="post" action="" style="display:none;">
                                     <?= csrf_field() ?>
                                     <input type="hidden" name="self_checkout" value="1">
                                     <input type="hidden" name="attendance_id" value="<?= (int) $activeCheckinId ?>">

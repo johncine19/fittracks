@@ -3,7 +3,7 @@ declare(strict_types=1);
 
 function qr_attendance_page(): void
 {
-    $user = require_roles(['member']);
+    $user = require_roles(['member', 'trainer']);
     $initialToken = null;
     $initialSecondsRemaining = 0;
 
