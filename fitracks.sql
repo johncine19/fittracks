@@ -570,8 +570,9 @@ CREATE TABLE `trainer_assignments` (
   `member_user_id` int UNSIGNED NOT NULL,
   `assigned_date` date NOT NULL,
   `ended_date` date DEFAULT NULL,
-  `status` enum('active','ended') NOT NULL DEFAULT 'active',
-  `assigned_by` int UNSIGNED DEFAULT NULL
+  `status` enum('pending_admin','pending_trainer','active','rejected','ended') NOT NULL DEFAULT 'pending_admin',
+  `assigned_by` int UNSIGNED DEFAULT NULL,
+  `rejection_reason` text DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 --

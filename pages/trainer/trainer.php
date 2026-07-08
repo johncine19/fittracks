@@ -29,11 +29,82 @@ function trainer_members_page(): void
             $trainerName = $user['first_name'] . ' ' . $user['last_name'];
             notify_user($memberUserId, 'system', 'New workout plan', $trainerName . ' generated a personalised workout plan for you.');
             flash('Workout plan generated for client.');
+        } elseif (post('action') === 'accept_appointment') {
+            $assignmentId = (int) post('assignment_id');
+            db()->prepare('UPDATE trainer_assignments SET status = "active", assigned_date = CURDATE() WHERE assignment_id = ?')->execute([$assignmentId]);
+            $stmt = db()->prepare('SELECT member_user_id, assigned_by FROM trainer_assignments WHERE assignment_id = ?');
+            $stmt->execute([$assignmentId]);
+            $assignment = $stmt->fetch();
+            if ($assignment) {
+                notify_user((int)$assignment['member_user_id'], 'system', 'Appointment Accepted', 'Your trainer appointment request was accepted by the trainer.');
+                if ($assignment['assigned_by']) {
+                    notify_user((int)$assignment['assigned_by'], 'system', 'Appointment Accepted', 'Trainer ' . $user['first_name'] . ' accepted the appointment request.');
+                }
+            }
+            flash('Appointment accepted.');
+        } elseif (post('action') === 'reject_appointment') {
+            $assignmentId = (int) post('assignment_id');
+            $reason = post('rejection_reason');
+            db()->prepare('UPDATE trainer_assignments SET status = "rejected", rejection_reason = ? WHERE assignment_id = ?')->execute([$reason, $assignmentId]);
+            $stmt = db()->prepare('SELECT member_user_id, assigned_by FROM trainer_assignments WHERE assignment_id = ?');
+            $stmt->execute([$assignmentId]);
+            $assignment = $stmt->fetch();
+            if ($assignment) {
+                $reasonText = $reason ? ' Reason: ' . $reason : '';
+                notify_user((int)$assignment['member_user_id'], 'system', 'Appointment Rejected', 'Your trainer appointment request was rejected by the trainer.' . $reasonText);
+                
+                // Notify all admins (or just the one who assigned if available)
+                $admins = query_all('SELECT user_id FROM users WHERE role = "admin" AND status = "active"');
+                foreach ($admins as $admin) {
+                    notify_user((int)$admin['user_id'], 'system', 'Appointment Rejected', 'Trainer ' . $user['first_name'] . ' rejected the appointment request.' . $reasonText);
+                }
+            }
+            flash('Appointment rejected.');
         }
         redirect('trainer_members');
     }
     $members = query_all('SELECT ca.*, u.first_name, u.last_name, u.email, u.profile_picture, mp.weight_kg, mp.primary_goal FROM trainer_assignments ca JOIN users u ON u.user_id = ca.member_user_id LEFT JOIN member_profiles mp ON mp.user_id = u.user_id WHERE ca.trainer_id = ? AND ca.status = "active"', [$coachId]);
+    $pending_requests = query_all('SELECT ca.*, u.first_name, u.last_name, u.email, u.profile_picture, mp.weight_kg, mp.primary_goal FROM trainer_assignments ca JOIN users u ON u.user_id = ca.member_user_id LEFT JOIN member_profiles mp ON mp.user_id = u.user_id WHERE ca.trainer_id = ? AND ca.status = "pending_trainer"', [$coachId]);
+    
     render_header('Clients', $user);
+    
+    if ($pending_requests) {
+        echo '<section class="panel"><h1>Pending Appointments</h1><div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 20px; margin-bottom: 30px;">';
+        foreach ($pending_requests as $req) {
+            $name = h($req['first_name'] . ' ' . $req['last_name']);
+            $email = h($req['email']);
+            $goal = h(ucwords(str_replace('_', ' ', $req['primary_goal'] ?? 'No goal')));
+            $weight = h($req['weight_kg'] ?? '-');
+            $assignmentId = (int) $req['assignment_id'];
+            $avatarHtml = render_avatar($req, 'large');
+            $csrf = csrf_field();
+
+            echo <<<HTML
+            <article class="panel plan-card-glow" style="display: flex; flex-direction: column; gap: 1rem; background: var(--surface); padding: 1.5rem; border: 1px solid var(--lime);">
+                <div style="display: flex; gap: 15px; align-items: center;">
+                    <div>{$avatarHtml}</div>
+                    <div>
+                        <h3 style="margin: 0; font-size: 1.2rem; color: var(--ink);">{$name}</h3>
+                        <p style="color: var(--muted); font-size: 0.9rem; margin-top: 4px;">{$email}</p>
+                    </div>
+                </div>
+                <div style="font-size: 1.1rem; font-weight: bold; color: var(--lime); margin-top: 0.5rem;">Goal: {$goal}</div>
+                <p style="font-size: 0.9rem; color: var(--muted); flex: 1;">Current weight: {$weight} kg</p>
+                <div style="display: flex; gap: 10px; margin-top: 0.5rem;">
+                    <form method="post" style="flex: 1;">
+                        {$csrf}
+                        <input type="hidden" name="action" value="accept_appointment">
+                        <input type="hidden" name="assignment_id" value="{$assignmentId}">
+                        <button class="btn" style="width: 100%; background: var(--lime); color: var(--bg); font-weight: bold;">Accept</button>
+                    </form>
+                    <button class="btn btn-danger" style="flex: 1;" onclick="rejectAppointment({$assignmentId})">Reject</button>
+                </div>
+            </article>
+HTML;
+        }
+        echo '</div></section>';
+    }
+
     echo '<section class="panel"><h1>Assigned clients</h1><div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 20px;">';
     echo <<<HTML
     <style>
@@ -101,5 +172,35 @@ HTML;
     }
     if (!$members) echo '<p class="muted">No assigned clients yet. Admins can assign trainers from the Trainers page.</p>';
     echo '</div></section>';
+    ?>
+    <script>
+    function rejectAppointment(assignmentId) {
+        Swal.fire({
+            title: 'Reject Appointment',
+            input: 'textarea',
+            inputLabel: 'Reason for rejection (optional)',
+            inputPlaceholder: 'Please state your reason...',
+            showCancelButton: true,
+            confirmButtonText: 'Reject',
+            confirmButtonColor: 'var(--danger)',
+            background: 'var(--surface)',
+            color: 'var(--ink)'
+        }).then((result) => {
+            if (result.isConfirmed) {
+                const form = document.createElement('form');
+                form.method = 'POST';
+                form.innerHTML = `
+                    <?= csrf_field() ?>
+                    <input type="hidden" name="action" value="reject_appointment">
+                    <input type="hidden" name="assignment_id" value="${assignmentId}">
+                    <input type="hidden" name="rejection_reason" value="${result.value || ''}">
+                `;
+                document.body.appendChild(form);
+                form.submit();
+            }
+        });
+    }
+    </script>
+    <?php
     render_footer();
 }

@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 require __DIR__ . '/core/bootstrap.php';
 require __DIR__ . '/pages/member/complete_exercise.php';
+require __DIR__ . '/pages/member/trainers.php';
 require __DIR__ . '/pages/admin/exercises.php';
 require __DIR__ . '/pages/admin/workout_plans.php';
 require __DIR__ . '/pages/landing.php';
@@ -43,6 +44,7 @@ try {
         'attendance' => 'attendance_page',
         'profile' => 'profile_page',
         'my_workout' => 'my_workout_page',
+        'trainers' => 'trainers_page',
         'book_classes' => 'book_classes_page',
         'progress' => 'progress_page',
         'trainer_members' => 'trainer_members_page',

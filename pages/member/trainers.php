@@ -1,0 +1,68 @@
+<?php
+declare(strict_types=1);
+
+function trainers_page(): void
+{
+    $user = require_roles(['member']);
+    
+    if ($_SERVER['REQUEST_METHOD'] === 'POST' && post('action') === 'request_appointment') {
+        $trainerId = (int) post('trainer_id');
+        
+        // Check if there is already an active or pending assignment
+        $existing = scalar("SELECT assignment_id FROM trainer_assignments WHERE member_user_id = ? AND trainer_id = ? AND status IN ('active', 'pending_admin', 'pending_trainer')", [$user['user_id'], $trainerId]);
+        
+        if ($existing) {
+            flash('You already have an active or pending appointment with this trainer.', 'danger');
+        } else {
+            db()->prepare('INSERT INTO trainer_assignments (trainer_id, member_user_id, assigned_date, status) VALUES (?, ?, CURDATE(), "pending_admin")')->execute([$trainerId, $user['user_id']]);
+            
+            // Notify admins
+            $admins = query_all('SELECT user_id FROM users WHERE role = "admin" AND status = "active"');
+            foreach ($admins as $admin) {
+                notify_user((int) $admin['user_id'], 'system', 'Trainer Appointment Request', $user['first_name'] . ' ' . $user['last_name'] . ' has requested an appointment.');
+            }
+            
+            flash('Your appointment request has been sent to the admin for approval.');
+        }
+        redirect('trainers');
+    }
+
+    $trainers = query_all('SELECT tp.trainer_id, u.first_name, u.last_name, u.profile_picture, tp.specialization, tp.bio FROM trainer_profiles tp JOIN users u ON u.user_id = tp.user_id WHERE u.status = "active"');
+    
+    render_header('Trainers', $user);
+    ?>
+    <section class="panel">
+        <div class="page-header">
+            <div>
+                <h1>Trainers</h1>
+                <p>Browse our list of professional trainers and request an appointment.</p>
+            </div>
+        </div>
+
+        <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 20px; margin-top: 20px;">
+            <?php foreach ($trainers as $trainer): ?>
+                <div class="card" style="padding: 20px; border-radius: 12px; background: var(--bg); border: 1px solid var(--line); display: flex; flex-direction: column; align-items: center; text-align: center;">
+                    <?= render_avatar(['first_name' => $trainer['first_name'], 'last_name' => $trainer['last_name'], 'profile_picture' => $trainer['profile_picture']], 'large') ?>
+                    <h3 style="margin: 15px 0 5px;"><?= h($trainer['first_name'] . ' ' . $trainer['last_name']) ?></h3>
+                    <div style="color: var(--lime); font-size: 14px; font-weight: 500; margin-bottom: 15px;"><?= h($trainer['specialization'] ?? 'General Trainer') ?></div>
+                    <p style="color: var(--muted); font-size: 14px; flex-grow: 1; margin-bottom: 20px;"><?= h($trainer['bio'] ?? 'No bio available.') ?></p>
+                    
+                    <form method="post" style="width: 100%;">
+                        <?= csrf_field() ?>
+                        <input type="hidden" name="action" value="request_appointment">
+                        <input type="hidden" name="trainer_id" value="<?= (int) $trainer['trainer_id'] ?>">
+                        <button type="submit" class="btn" style="width: 100%; background: var(--surface); color: var(--ink); border: 1px solid var(--line);">Request Appointment</button>
+                    </form>
+                </div>
+            <?php endforeach; ?>
+        </div>
+        
+        <?php if (!$trainers): ?>
+            <div class="empty-state">
+                <p>No trainers available at the moment.</p>
+            </div>
+        <?php endif; ?>
+    </section>
+    <?php
+    render_footer();
+}
