@@ -112,11 +112,37 @@ function users_page(): void
             }
             flash('User updated successfully.');
         } elseif (post('action') === 'delete_user') {
-            if ((int) post('user_id') === (int) $user['user_id']) {
+            $targetUserId = (int) post('user_id');
+            if ($targetUserId === (int) $user['user_id']) {
                 flash('You cannot delete your own account.', 'danger');
             } else {
-                db()->prepare('DELETE FROM users WHERE user_id=?')->execute([post('user_id')]);
-                flash('User deleted.');
+                $targetUser = db()->prepare('SELECT role FROM users WHERE user_id = ?');
+                $targetUser->execute([$targetUserId]);
+                $targetUser = $targetUser->fetch();
+                
+                if ($targetUser) {
+                    if ($targetUser['role'] === 'member') {
+                        $hasActiveMembership = (bool) scalar('SELECT 1 FROM memberships WHERE user_id = ? AND status = "active"', [$targetUserId]);
+                        if ($hasActiveMembership) {
+                            flash('Cannot delete member: They have an active membership plan.', 'danger');
+                            redirect('users');
+                            return;
+                        }
+                    } elseif ($targetUser['role'] === 'trainer') {
+                        $trainerId = scalar('SELECT trainer_id FROM trainer_profiles WHERE user_id = ?', [$targetUserId]);
+                        if ($trainerId) {
+                            $hasActiveClient = (bool) scalar('SELECT 1 FROM trainer_assignments WHERE trainer_id = ? AND status = "active"', [$trainerId]);
+                            if ($hasActiveClient) {
+                                flash('Cannot delete trainer: They have actively assigned clients.', 'danger');
+                                redirect('users');
+                                return;
+                            }
+                        }
+                    }
+                    
+                    db()->prepare('DELETE FROM users WHERE user_id=?')->execute([$targetUserId]);
+                    flash('User deleted.');
+                }
             }
         }
         redirect('users');
