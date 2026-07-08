@@ -18,6 +18,7 @@ function render_header(string $title, ?array $user = null): void
                 'admin_workouts' => 'Workout Plans',
                 'memberships' => 'Memberships',
                 'payments' => 'Payments',
+                'commissions' => 'Commissions',
                 'walk_ins' => 'Walk-ins',
                 'classes' => 'Classes',
                 'attendance' => 'Attendance',
@@ -28,7 +29,7 @@ function render_header(string $title, ?array $user = null): void
             ];
         }
         if ($role === 'trainer') {
-            $nav += ['qr_attendance' => 'My QR', 'trainer_members' => 'Clients', 'training' => 'Training', 'classes' => 'My Classes', 'messages' => 'Messages', 'notifications' => 'Notifications'];
+            $nav += ['qr_attendance' => 'My QR', 'my_commissions' => 'Commissions', 'trainer_members' => 'Clients', 'training' => 'Training', 'classes' => 'My Classes', 'messages' => 'Messages', 'notifications' => 'Notifications'];
         }
         if ($role === 'member') {
             $nav += ['qr_attendance' => 'My QR', 'my_workout' => 'Workouts', 'trainers' => 'Trainers', 'memberships' => 'Membership', 'payments' => 'Payments', 'book_classes' => 'Classes', 'progress' => 'Progress', 'messages' => 'Messages', 'notifications' => 'Notifications'];

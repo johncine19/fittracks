@@ -7,13 +7,25 @@ function plans_page(): void
     if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $action = post('action', 'add');
         if ($action === 'delete') {
-            db()->prepare('DELETE FROM membership_plans WHERE id = ?')->execute([post('id')]);
+            db()->prepare('DELETE FROM membership_plans WHERE plan_id = ?')->execute([post('id')]);
             flash('Membership plan deleted.');
         } elseif ($action === 'edit') {
-            db()->prepare('UPDATE membership_plans SET plan_name = ?, plan_type = ?, duration_days = ?, price = ?, description = ?, is_active = ? WHERE id = ?')->execute([post('plan_name'), post('plan_type'), post('duration_days'), post('price'), post('description'), post('is_active', 0) ? 1 : 0, post('id')]);
+            db()->prepare('UPDATE membership_plans SET plan_name = ?, plan_type = ?, duration_days = ?, price = ?, description = ?, is_active = ?, commission_rate = ? WHERE plan_id = ?')->execute([post('plan_name'), post('plan_type'), post('duration_days'), post('price'), post('description'), post('is_active', 0) ? 1 : 0, post('commission_rate', 5.0), post('id')]);
+            
+            // Recalculate pending commissions for this plan
+            $newRate = (float)post('commission_rate', 5.0);
+            $planId = (int)post('id');
+            db()->prepare("
+                UPDATE trainer_commissions tc
+                JOIN payments p ON p.payment_id = tc.payment_id
+                JOIN memberships m ON m.membership_id = p.membership_id
+                SET tc.amount = p.amount * (? / 100)
+                WHERE m.plan_id = ? AND tc.status = 'pending'
+            ")->execute([$newRate, $planId]);
+
             flash('Membership plan updated.');
         } else {
-            db()->prepare('INSERT INTO membership_plans (plan_name, plan_type, duration_days, price, description, is_active) VALUES (?, ?, ?, ?, ?, ?)')->execute([post('plan_name'), post('plan_type'), post('duration_days'), post('price'), post('description'), post('is_active', 0) ? 1 : 0]);
+            db()->prepare('INSERT INTO membership_plans (plan_name, plan_type, duration_days, price, description, is_active, commission_rate) VALUES (?, ?, ?, ?, ?, ?, ?)')->execute([post('plan_name'), post('plan_type'), post('duration_days'), post('price'), post('description'), post('is_active', 0) ? 1 : 0, post('commission_rate', 5.0)]);
             flash('Membership plan saved.');
         }
         redirect('plans');
@@ -42,7 +54,7 @@ function plans_page(): void
         <div class="table-wrap">
             <table>
                 <thead>
-                    <tr><th>Name</th><th>Type</th><th>Duration</th><th>Price</th><th>Status</th><th>Description</th><th style="text-align:right">Actions</th></tr>
+                    <tr><th>Name</th><th>Type</th><th>Duration</th><th>Price</th><th>Comm. Rate</th><th>Status</th><th>Description</th><th style="text-align:right">Actions</th></tr>
                 </thead>
                 <tbody>
                 <?php foreach ($plans as $plan): ?>
@@ -51,6 +63,7 @@ function plans_page(): void
                         <td style="font-size:13px;color:var(--muted)"><?= h(ucfirst($plan['plan_type'])) ?></td>
                         <td style="font-size:13px"><?= (int) $plan['duration_days'] ?> days</td>
                         <td><strong style="color:var(--lime)"><?= h(money($plan['price'])) ?></strong></td>
+                        <td><?= (float) $plan['commission_rate'] ?>%</td>
                         <td>
                             <?php if ($plan['is_active']): ?>
                                 <span class="badge badge-active">Active</span>
@@ -61,7 +74,7 @@ function plans_page(): void
                         <td style="color:var(--muted);font-size:13px"><?= h($plan['description'] ?: '—') ?></td>
                         <td style="text-align:right">
                             <button class="btn btn-sm" onclick='editPlan(<?= htmlspecialchars(json_encode($plan), ENT_QUOTES, "UTF-8") ?>)' style="padding:4px 8px; font-size:12px; background:transparent; color:#3b82f6; border:1px solid #3b82f6; border-radius:4px; cursor:pointer;">Edit</button>
-                            <button class="btn btn-sm" onclick='deletePlan(<?= $plan['id'] ?>)' style="padding:4px 8px; font-size:12px; background:#ef4444; color:#fff; border:none; border-radius:4px; cursor:pointer; margin-left:4px;">Delete</button>
+                            <button class="btn btn-sm" onclick='deletePlan(<?= $plan['plan_id'] ?>)' style="padding:4px 8px; font-size:12px; background:#ef4444; color:#fff; border:none; border-radius:4px; cursor:pointer; margin-left:4px;">Delete</button>
                         </td>
                     </tr>
                 <?php endforeach; ?>
@@ -79,7 +92,7 @@ function plans_page(): void
                 <form id="editPlanForm" method="post" style="text-align: left; display: flex; flex-direction: column; gap: 12px; margin-top: 15px;">
                     <?= csrf_field() ?>
                     <input type="hidden" name="action" value="edit">
-                    <input type="hidden" name="id" value="${plan.id}">
+                    <input type="hidden" name="id" value="${plan.plan_id}">
                     
                     <label style="display:block; color: var(--muted); font-size: 14px;">Plan name *
                         <input name="plan_name" class="form-control" value="${plan.plan_name}" style="width: 100%; box-sizing: border-box;" required>
@@ -99,9 +112,14 @@ function plans_page(): void
                         </label>
                     </div>
                     
-                    <label style="display:block; color: var(--muted); font-size: 14px;">Price (PHP) *
-                        <input name="price" type="number" step="0.01" class="form-control" value="${plan.price}" style="width: 100%; box-sizing: border-box;" required>
-                    </label>
+                    <div style="display:flex;gap:12px;">
+                        <label style="display:block; flex:1; color: var(--muted); font-size: 14px;">Price (PHP) *
+                            <input name="price" type="number" step="0.01" class="form-control" value="${plan.price}" style="width: 100%; box-sizing: border-box;" required>
+                        </label>
+                        <label style="display:block; flex:1; color: var(--muted); font-size: 14px;">Commission Rate (%) *
+                            <input name="commission_rate" type="number" step="0.01" class="form-control" value="${plan.commission_rate}" style="width: 100%; box-sizing: border-box;" required>
+                        </label>
+                    </div>
                     
                     <label style="display:block; color: var(--muted); font-size: 14px;">Description
                         <input name="description" class="form-control" value="${plan.description || ''}" style="width: 100%; box-sizing: border-box;">
@@ -180,9 +198,14 @@ function plans_page(): void
                         </label>
                     </div>
                     
-                    <label style="display:block; color: var(--muted); font-size: 14px;">Price (PHP) *
-                        <input name="price" type="number" step="0.01" class="form-control" placeholder="0.00" style="width: 100%; box-sizing: border-box;" required>
-                    </label>
+                    <div style="display:flex;gap:12px;">
+                        <label style="display:block; flex:1; color: var(--muted); font-size: 14px;">Price (PHP) *
+                            <input name="price" type="number" step="0.01" class="form-control" placeholder="0.00" style="width: 100%; box-sizing: border-box;" required>
+                        </label>
+                        <label style="display:block; flex:1; color: var(--muted); font-size: 14px;">Commission Rate (%) *
+                            <input name="commission_rate" type="number" step="0.01" class="form-control" placeholder="5.00" value="5.00" style="width: 100%; box-sizing: border-box;" required>
+                        </label>
+                    </div>
                     
                     <label style="display:block; color: var(--muted); font-size: 14px;">Description
                         <input name="description" class="form-control" placeholder="Optional description" style="width: 100%; box-sizing: border-box;">

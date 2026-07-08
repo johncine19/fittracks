@@ -40,6 +40,7 @@ function trainer_members_page(): void
                 if ($assignment['assigned_by']) {
                     notify_user((int)$assignment['assigned_by'], 'system', 'Appointment Accepted', 'Trainer ' . $user['first_name'] . ' accepted the appointment request.');
                 }
+                grant_retroactive_commission((int)$assignment['member_user_id']);
             }
             flash('Appointment accepted.');
         } elseif (post('action') === 'reject_appointment') {

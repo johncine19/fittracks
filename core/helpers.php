@@ -119,6 +119,9 @@ function nav_icon(string $key): string
         'walk_ins' => '<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>',
         // QR Code
         'qr_attendance' => '<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="5" height="5" x="3" y="3" rx="1"/><rect width="5" height="5" x="16" y="3" rx="1"/><rect width="5" height="5" x="3" y="16" rx="1"/><path d="M21 16h-3a2 2 0 0 0-2 2v3"/><path d="M21 21v.01"/><path d="M12 7v3a2 2 0 0 1-2 2H7"/><path d="M3 12h.01"/><path d="M12 3h.01"/><path d="M12 16v.01"/><path d="M16 12h1"/><path d="M21 12v.01"/><path d="M12 21v-1"/></svg>',
+        // Commissions (Dollar sign)
+        'commissions' => '<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>',
+        'my_commissions' => '<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>',
         // Scanner
         'scanner' => '<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><line x1="3" y1="12" x2="21" y2="12"/></svg>',
     ];
@@ -184,4 +187,62 @@ function check_and_upgrade_tier(int $userId, int $planId): ?array {
         }
     }
     return null;
+}
+
+function process_trainer_commission(int $paymentId, float $amount): void
+{
+    $pdo = db();
+    // 1. Get the membership ID and plan commission rate from the payment
+    $paymentInfo = $pdo->query("
+        SELECT m.user_id, m.membership_id, mp.commission_rate
+        FROM payments p
+        JOIN memberships m ON m.membership_id = p.membership_id
+        JOIN membership_plans mp ON mp.plan_id = m.plan_id
+        WHERE p.payment_id = " . (int)$paymentId
+    )->fetch();
+
+    if (!$paymentInfo || $paymentInfo['commission_rate'] <= 0) {
+        return;
+    }
+
+    // 2. Check if the member has an active trainer and get the trainer's user_id
+    $trainer = $pdo->query("
+        SELECT tp.user_id 
+        FROM trainer_assignments ta
+        JOIN trainer_profiles tp ON tp.trainer_id = ta.trainer_id
+        WHERE ta.member_user_id = " . (int)$paymentInfo['user_id'] . " 
+        AND ta.status = 'active'
+        LIMIT 1
+    ")->fetch();
+
+    if ($trainer) {
+        // 3. Calculate and insert commission
+        $commissionAmount = $amount * ((float)$paymentInfo['commission_rate'] / 100);
+        if ($commissionAmount > 0) {
+            $pdo->prepare('INSERT INTO trainer_commissions (trainer_id, payment_id, amount, status) VALUES (?, ?, ?, "pending")')
+                ->execute([$trainer['user_id'], $paymentId, $commissionAmount]);
+        }
+    }
+}
+
+function grant_retroactive_commission(int $memberUserId): void
+{
+    $pdo = db();
+    $recentPayment = $pdo->query("
+        SELECT p.payment_id, p.amount 
+        FROM memberships m
+        JOIN payments p ON p.membership_id = m.membership_id
+        WHERE m.user_id = " . (int)$memberUserId . " 
+        AND m.status = 'active' 
+        AND p.status = 'paid'
+        ORDER BY p.payment_date DESC 
+        LIMIT 1
+    ")->fetch();
+
+    if ($recentPayment) {
+        $exists = scalar('SELECT COUNT(*) FROM trainer_commissions WHERE payment_id = ?', [$recentPayment['payment_id']]);
+        if (!$exists) {
+            process_trainer_commission((int)$recentPayment['payment_id'], (float)$recentPayment['amount']);
+        }
+    }
 }

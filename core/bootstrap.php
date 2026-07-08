@@ -50,6 +50,7 @@ require __DIR__ . '/../pages/admin/plans.php';
 // --- Admin: Members & Finance ---
 require __DIR__ . '/../pages/admin/memberships.php';
 require __DIR__ . '/../pages/admin/payments.php';
+require __DIR__ . '/../pages/admin/commissions.php';
 
 // --- Admin: Trainer Assignments ---
 require __DIR__ . '/../pages/admin/trainer_assignments.php';
@@ -72,3 +73,4 @@ require __DIR__ . '/../pages/member/my_workout.php';
 require __DIR__ . '/../pages/member/progress.php';
 require __DIR__ . '/../pages/member/book_classes.php';
 require __DIR__ . '/../pages/member/qr_attendance.php';
+require __DIR__ . '/../pages/member/my_commissions.php';

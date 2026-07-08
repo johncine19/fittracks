@@ -11,9 +11,12 @@ function payments_page(): void
         db()->prepare('INSERT INTO payments (membership_id, amount, payment_date, payment_method, status, receipt_number, processed_by) VALUES (?, ?, ?, ?, ?, ?, ?)')
             ->execute([$membershipId, post('amount'), post('payment_date'), post('payment_method'), $status, $receipt, $user['user_id']]);
 
+        $paymentId = (int) db()->lastInsertId();
+
         // If the payment is marked as paid, automatically activate the membership
         if ($status === 'paid') {
             db()->prepare('UPDATE memberships SET status = "active" WHERE membership_id = ? AND status = "pending"')->execute([$membershipId]);
+            process_trainer_commission($paymentId, (float) post('amount'));
         }
 
         $paymentInfo = query_all(

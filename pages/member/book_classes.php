@@ -76,6 +76,7 @@ function book_classes_page(): void
                 if (!$existingAssignment->fetch()) {
                     db()->prepare('INSERT INTO trainer_assignments (trainer_id, member_user_id, assigned_date, status, assigned_by) VALUES (?, ?, CURDATE(), "active", ?)')
                         ->execute([$trainerId, $user['user_id'], $user['user_id']]);
+                    grant_retroactive_commission((int)$user['user_id']);
                 }
             }
         }

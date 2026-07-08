@@ -43,6 +43,7 @@ function attendance_page(): void
                 <thead>
                     <tr>
                         <th>User</th>
+                        <th>Role</th>
                         <th>Session</th>
                         <th>Check-in</th>
                         <th>Check-out</th>
@@ -62,6 +63,9 @@ function attendance_page(): void
                                 <span class="avatar small"><?= h($initials) ?></span>
                                 <span><?= h($row['member']) ?></span>
                             </div>
+                        </td>
+                        <td>
+                            <span style="font-size:12px; color:var(--muted);"><?= h(ucfirst($row['role'])) ?></span>
                         </td>
                         <td>
                             <?php if ($row['class_name']): ?>

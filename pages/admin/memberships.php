@@ -94,6 +94,7 @@ function memberships_page(): void
         $paymentStatus = $status === 'active' ? 'paid' : 'pending';
         db()->prepare('INSERT INTO payments (membership_id, amount, payment_date, payment_method, status, receipt_number) VALUES (?, ?, ?, ?, ?, ?)')
             ->execute([$membershipId, $finalPrice, $start->format('Y-m-d'), 'cash', $paymentStatus, $receipt]);
+        $paymentId = (int) db()->lastInsertId();
 
         notify_user(
             $memberUserId,
@@ -103,6 +104,7 @@ function memberships_page(): void
         );
         
         if ($paymentStatus === 'paid') {
+            process_trainer_commission($paymentId, (float) $finalPrice);
             notify_user(
                 $memberUserId,
                 'system',
