@@ -79,6 +79,15 @@ function trainer_members_page(): void
             $assignmentId = (int) $req['assignment_id'];
             $avatarHtml = render_avatar($req, 'large');
             $csrf = csrf_field();
+            
+            // Format the date/time
+            $dateTimeText = 'Immediate (Ongoing)';
+            if ($req['assigned_date'] && $req['ended_date']) {
+                // This means it's a 1-day appointment
+                $dateTimeText = date('M j, Y g:i A', strtotime($req['assigned_date']));
+            } else {
+                $dateTimeText = date('M j, Y', strtotime($req['assigned_date'])) . ' (Ongoing)';
+            }
 
             echo <<<HTML
             <article class="panel plan-card-glow" style="display: flex; flex-direction: column; gap: 1rem; background: var(--surface); padding: 1.5rem; border: 1px solid var(--lime);">
@@ -90,7 +99,11 @@ function trainer_members_page(): void
                     </div>
                 </div>
                 <div style="font-size: 1.1rem; font-weight: bold; color: var(--lime); margin-top: 0.5rem;">Goal: {$goal}</div>
-                <p style="font-size: 0.9rem; color: var(--muted); flex: 1;">Current weight: {$weight} kg</p>
+                <p style="font-size: 0.9rem; color: var(--muted); margin-bottom: 0;">Current weight: {$weight} kg</p>
+                <div style="background: rgba(163, 230, 53, 0.1); border-radius: 8px; padding: 10px; border: 1px solid rgba(163, 230, 53, 0.2); flex: 1;">
+                    <div style="font-size: 0.8rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px;">Appointment Date</div>
+                    <div style="font-size: 0.95rem; font-weight: 500; color: var(--ink);">{$dateTimeText}</div>
+                </div>
                 <div style="display: flex; gap: 10px; margin-top: 0.5rem;">
                     <form method="post" style="flex: 1;">
                         {$csrf}

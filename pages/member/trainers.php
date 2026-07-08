@@ -10,7 +10,7 @@ function trainers_page(): void
     if ($_SERVER['REQUEST_METHOD'] === 'POST' && post('action') === 'request_appointment') {
         $trainerId = (int) post('trainer_id');
         
-        $assignedDate = date('Y-m-d');
+        $assignedDate = date('Y-m-d H:i:s');
         $endedDate = null;
         if (!$hasActivePlan) {
             $reqDate = post('appointment_date');
@@ -18,8 +18,8 @@ function trainers_page(): void
                 flash('Please select an appointment date.', 'danger');
                 redirect('trainers');
             }
-            $assignedDate = $reqDate;
-            $endedDate = $reqDate;
+            $assignedDate = date('Y-m-d H:i:s', strtotime($reqDate));
+            $endedDate = $assignedDate;
         }
         
         // Check if there is already an active or pending assignment globally
@@ -28,20 +28,25 @@ function trainers_page(): void
         if ($existing) {
             flash('You already have an active or pending trainer appointment. You must end it before requesting a new one.', 'danger');
         } else {
-            db()->prepare('INSERT INTO trainer_assignments (trainer_id, member_user_id, assigned_date, ended_date, status) VALUES (?, ?, ?, ?, "pending_admin")')->execute([$trainerId, $user['user_id'], $assignedDate, $endedDate]);
+            db()->prepare('INSERT INTO trainer_assignments (trainer_id, member_user_id, assigned_date, ended_date, status) VALUES (?, ?, ?, ?, "pending_trainer")')->execute([$trainerId, $user['user_id'], $assignedDate, $endedDate]);
             
-            // Notify admins
-            $admins = query_all('SELECT user_id FROM users WHERE role = "admin" AND status = "active"');
-            foreach ($admins as $admin) {
-                notify_user((int) $admin['user_id'], 'system', 'Trainer Appointment Request', $user['first_name'] . ' ' . $user['last_name'] . ' has requested an appointment.');
+            // Notify the specific trainer
+            $trainerUserId = scalar('SELECT user_id FROM trainer_profiles WHERE trainer_id = ?', [$trainerId]);
+            if ($trainerUserId) {
+                $dateStr = date('M j, Y g:i A', strtotime($assignedDate));
+                notify_user((int) $trainerUserId, 'system', 'New Appointment Request', $user['first_name'] . ' ' . $user['last_name'] . ' has requested an appointment with you for ' . $dateStr . '.');
             }
             
-            flash('Your appointment request has been sent to the admin for approval.');
+            flash('Your appointment request has been sent directly to the trainer for approval.');
         }
         redirect('trainers');
     }
 
     $trainers = query_all('SELECT tp.trainer_id, u.user_id, u.first_name, u.last_name, u.profile_picture, tp.specialization, tp.bio, (SELECT COUNT(*) FROM attendance WHERE user_id = u.user_id AND check_out_time IS NULL AND DATE(check_in_time) = CURDATE()) as is_present FROM trainer_profiles tp JOIN users u ON u.user_id = tp.user_id WHERE u.status = "active"');
+    
+    $stmt = db()->prepare("SELECT status, trainer_id FROM trainer_assignments WHERE member_user_id = ? AND status IN ('active', 'pending_admin', 'pending_trainer')");
+    $stmt->execute([$user['user_id']]);
+    $existingAssignment = $stmt->fetch();
     
     render_header('Trainers', $user);
     ?>
@@ -70,7 +75,15 @@ function trainers_page(): void
                         <?= csrf_field() ?>
                         <input type="hidden" name="action" value="request_appointment">
                         <input type="hidden" name="trainer_id" value="<?= (int) $trainer['trainer_id'] ?>">
-                        <?php if (!$hasActivePlan): ?>
+                        <?php if ($existingAssignment): ?>
+                            <?php if ($existingAssignment['trainer_id'] == $trainer['trainer_id']): ?>
+                                <button type="button" class="btn" style="width: 100%; background: var(--surface); color: var(--muted); border: 1px solid var(--line); cursor: not-allowed;" disabled>
+                                    <?= $existingAssignment['status'] === 'active' ? 'Currently Assigned' : 'Request Pending' ?>
+                                </button>
+                            <?php else: ?>
+                                <button type="button" class="btn" style="width: 100%; background: var(--surface); color: var(--muted); border: 1px solid var(--line); cursor: not-allowed;" disabled>Request Appointment</button>
+                            <?php endif; ?>
+                        <?php elseif (!$hasActivePlan): ?>
                             <input type="hidden" name="appointment_date" id="date-<?= $trainer['trainer_id'] ?>" value="">
                             <button type="button" onclick="requestTrainerDate(<?= $trainer['trainer_id'] ?>)" class="btn" style="width: 100%; background: var(--surface); color: var(--ink); border: 1px solid var(--line);">Request Appointment</button>
                         <?php else: ?>
@@ -92,7 +105,7 @@ function trainers_page(): void
     function requestTrainerDate(trainerId) {
         Swal.fire({
             title: 'Appointment Date',
-            html: '<div style="text-align:left; margin-top:10px;"><label style="font-size: 14px; color: var(--muted); margin-bottom: 8px; display: block;">Select a date for your appointment:</label><input type="date" id="swal-input-date" class="form-control" style="width:100%; box-sizing: border-box;" min="<?= date('Y-m-d') ?>"></div>',
+            html: '<div style="text-align:left; margin-top:10px;"><label style="font-size: 14px; color: var(--muted); margin-bottom: 8px; display: block;">Select a date and time for your appointment:</label><input type="datetime-local" id="swal-input-date" class="form-control" style="width:100%; box-sizing: border-box;" min="<?= date('Y-m-d\TH:i') ?>"></div>',
             focusConfirm: false,
             showCancelButton: true,
             confirmButtonText: 'Submit Request',
