@@ -22,6 +22,21 @@ function setup_profile_page(): void
     }
 
     if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+        $validator = new Validator();
+        $valid = $validator->validate($_POST, [
+            'height_cm' => 'numeric|min_num:100|max_num:250',
+            'weight_kg' => 'numeric|min_num:20|max_num:300',
+            'age'       => 'numeric|min_num:16|max_num:120',
+            'neck_cm'   => 'numeric|min_num:20|max_num:100',
+            'waist_cm'  => 'numeric|min_num:30|max_num:200',
+            'hip_cm'    => 'numeric|min_num:30|max_num:200',
+        ]);
+        
+        if (!$valid) {
+            flash($validator->firstError() ?? 'Invalid measurements provided.', 'danger');
+            redirect('setup_profile');
+        }
+
         save_member_profile((int) $user['user_id']);
         generate_workout_plan((int) $user['user_id']);
         if (empty(post('height_cm')) || empty(post('weight_kg'))) {

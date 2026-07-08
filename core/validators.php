@@ -72,6 +72,16 @@ final class Validator
                     if (!is_numeric($value)) {
                         $this->fail($field, ucfirst(str_replace('_', ' ', $field)) . ' must be a number.');
                     }
+                } elseif (str_starts_with($rule, 'min_num:')) {
+                    $min = (float) substr($rule, 8);
+                    if ((float)$value < $min) {
+                        $this->fail($field, ucfirst(str_replace('_', ' ', $field)) . " must be at least $min.");
+                    }
+                } elseif (str_starts_with($rule, 'max_num:')) {
+                    $max = (float) substr($rule, 8);
+                    if ((float)$value > $max) {
+                        $this->fail($field, ucfirst(str_replace('_', ' ', $field)) . " must be at most $max.");
+                    }
                 } elseif (str_starts_with($rule, 'in:')) {
                     $allowed = explode(',', substr($rule, 3));
                     if (!in_array((string) $value, $allowed, true)) {

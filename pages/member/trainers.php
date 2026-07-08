@@ -8,11 +8,11 @@ function trainers_page(): void
     if ($_SERVER['REQUEST_METHOD'] === 'POST' && post('action') === 'request_appointment') {
         $trainerId = (int) post('trainer_id');
         
-        // Check if there is already an active or pending assignment
-        $existing = scalar("SELECT assignment_id FROM trainer_assignments WHERE member_user_id = ? AND trainer_id = ? AND status IN ('active', 'pending_admin', 'pending_trainer')", [$user['user_id'], $trainerId]);
+        // Check if there is already an active or pending assignment globally
+        $existing = scalar("SELECT assignment_id FROM trainer_assignments WHERE member_user_id = ? AND status IN ('active', 'pending_admin', 'pending_trainer')", [$user['user_id']]);
         
         if ($existing) {
-            flash('You already have an active or pending appointment with this trainer.', 'danger');
+            flash('You already have an active or pending trainer appointment. You must end it before requesting a new one.', 'danger');
         } else {
             db()->prepare('INSERT INTO trainer_assignments (trainer_id, member_user_id, assigned_date, status) VALUES (?, ?, CURDATE(), "pending_admin")')->execute([$trainerId, $user['user_id']]);
             

@@ -86,6 +86,21 @@ function profile_page(): void
             }
             redirect('profile');
         } elseif (isset($_POST['height_cm']) && $is_member) {
+            $validator = new Validator();
+            $valid = $validator->validate($_POST, [
+                'height_cm' => 'numeric|min_num:100|max_num:250',
+                'weight_kg' => 'numeric|min_num:20|max_num:300',
+                'age'       => 'numeric|min_num:16|max_num:120',
+                'neck_cm'   => 'numeric|min_num:20|max_num:100',
+                'waist_cm'  => 'numeric|min_num:30|max_num:200',
+                'hip_cm'    => 'numeric|min_num:30|max_num:200',
+            ]);
+            
+            if (!$valid) {
+                flash($validator->firstError() ?? 'Invalid measurements provided.', 'danger');
+                redirect('profile');
+            }
+
             $oldGoal = $profile['primary_goal'] ?? '';
             $newGoal = post('primary_goal');
             

@@ -14,22 +14,57 @@ function progress_page(): void
     $member = $stmt->fetch();
 
     if ($_SERVER['REQUEST_METHOD'] === 'POST' && $user['role'] === 'member') {
-        db()->prepare(
-            'INSERT INTO progress_logs
-             (user_id, log_date, weight_kg, body_fat_percent, chest_cm, waist_cm, hips_cm, arm_cm, notes, recorded_by)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
-        )->execute([
-            $memberId,
-            post('log_date'),
-            post('weight_kg'),
-            post('body_fat_percent') ?: null,
-            post('chest_cm')         ?: null,
-            post('waist_cm')         ?: null,
-            post('hips_cm')          ?: null,
-            post('arm_cm')           ?: null,
-            post('notes'),
-            $user['user_id'],
+        $validator = new Validator();
+        $valid = $validator->validate($_POST, [
+            'log_date'         => 'required',
+            'weight_kg'        => 'required|numeric|min_num:20|max_num:300',
+            'body_fat_percent' => 'numeric|min_num:1|max_num:70',
+            'chest_cm'         => 'numeric|min_num:30|max_num:200',
+            'waist_cm'         => 'numeric|min_num:30|max_num:200',
+            'hips_cm'          => 'numeric|min_num:30|max_num:200',
+            'arm_cm'           => 'numeric|min_num:10|max_num:100'
         ]);
+
+        if (!$valid) {
+            flash($validator->firstError() ?? 'Invalid input parameters.', 'danger');
+            redirect('progress');
+        }
+
+        $logDate = post('log_date');
+        $existingLogId = scalar('SELECT log_id FROM progress_logs WHERE user_id = ? AND log_date = ?', [$memberId, $logDate]);
+
+        if ($existingLogId) {
+            db()->prepare(
+                'UPDATE progress_logs SET weight_kg = ?, body_fat_percent = ?, chest_cm = ?, waist_cm = ?, hips_cm = ?, arm_cm = ?, notes = ?, recorded_by = ? WHERE log_id = ?'
+            )->execute([
+                post('weight_kg'),
+                post('body_fat_percent') ?: null,
+                post('chest_cm')         ?: null,
+                post('waist_cm')         ?: null,
+                post('hips_cm')          ?: null,
+                post('arm_cm')           ?: null,
+                post('notes'),
+                $user['user_id'],
+                $existingLogId
+            ]);
+        } else {
+            db()->prepare(
+                'INSERT INTO progress_logs
+                 (user_id, log_date, weight_kg, body_fat_percent, chest_cm, waist_cm, hips_cm, arm_cm, notes, recorded_by)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+            )->execute([
+                $memberId,
+                $logDate,
+                post('weight_kg'),
+                post('body_fat_percent') ?: null,
+                post('chest_cm')         ?: null,
+                post('waist_cm')         ?: null,
+                post('hips_cm')          ?: null,
+                post('arm_cm')           ?: null,
+                post('notes'),
+                $user['user_id'],
+            ]);
+        }
         db()->prepare('UPDATE member_profiles SET weight_kg = ? WHERE user_id = ?')
            ->execute([post('weight_kg'), $memberId]);
 
