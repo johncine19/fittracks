@@ -58,6 +58,8 @@ function workout_builder_page(): void
         }
     } else {
         $planId = (int) $draft['plan_id'];
+        if (!empty($draft['start_date'])) $defaultStart = $draft['start_date'];
+        if (!empty($draft['end_date'])) $defaultEnd = $draft['end_date'];
     }
 
     if ($_SERVER['REQUEST_METHOD'] === 'POST') {

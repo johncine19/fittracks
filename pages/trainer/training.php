@@ -11,13 +11,11 @@ function training_page(): void
         $title = trim((string) post('title'));
         
         if ($action === 'add_plan') {
-            db()->prepare('INSERT INTO training_plans (member_user_id, trainer_id, title, goal, start_date, end_date) VALUES (?, ?, ?, ?, ?, ?)')
+            db()->prepare('INSERT INTO training_plans (member_user_id, trainer_id, title, goal, start_date, end_date, status) VALUES (?, ?, ?, ?, ?, ?, "draft")')
                 ->execute([$memberId, $coachId, $title, post('goal'), post('start_date'), post('end_date') ?: null]);
-            if ($memberId) {
-                $trainerName = $user['first_name'] . ' ' . $user['last_name'];
-                notify_user($memberId, 'system', 'Training plan created', $trainerName . ' created a training plan: ' . $title . '.');
-            }
-            flash('Training plan created.');
+            
+            // Go straight to workout builder
+            redirect('workout_builder&member_user_id=' . $memberId);
         } elseif ($action === 'edit_plan') {
             $plan_id = (int) post('plan_id');
             db()->prepare('UPDATE training_plans SET member_user_id=?, title=?, goal=?, start_date=?, end_date=? WHERE plan_id=? AND trainer_id=?')
