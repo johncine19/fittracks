@@ -19,6 +19,9 @@ function memberships_page(): void
                 
                 $mInfo = db()->query('SELECT m.user_id, p.plan_name, u.email, u.first_name, u.last_name FROM memberships m JOIN membership_plans p ON p.plan_id = m.plan_id JOIN users u ON u.user_id = m.user_id WHERE m.membership_id = ' . $membershipId)->fetch();
                 if ($mInfo) {
+                    // Cancel any other active plans for this user since they now have a new active one
+                    db()->prepare("UPDATE memberships SET status = 'cancelled' WHERE user_id = ? AND membership_id != ? AND status = 'active'")->execute([$mInfo['user_id'], $membershipId]);
+                    
                     notify_user((int) $mInfo['user_id'], 'system', 'Payment Received', 'Your payment for the ' . $mInfo['plan_name'] . ' membership was successful and your plan is now active!');
                     
                     try {
@@ -56,16 +59,41 @@ function memberships_page(): void
         $end = (clone $start)->modify('+' . $duration . ' days')->format('Y-m-d');
         $memberUserId = (int) post('user_id');
         $planId = (int) post('plan_id');
-        
-        db()->prepare('INSERT INTO memberships (user_id, plan_id, start_date, end_date, status) VALUES (?, ?, ?, ?, ?)')->execute([$memberUserId, $planId, post('start_date'), $end, post('status')]);
-        $membershipId = db()->lastInsertId();
+        $status = post('status');
         
         $plan = db()->query('SELECT plan_name, price FROM membership_plans WHERE plan_id = ' . $planId)->fetch();
+        $finalPrice = (float) $plan['price'];
+        
+        // Handle logic for renewals and same-day upgrades
+        $currentActive = db()->query("SELECT m.*, p.price as old_price FROM memberships m JOIN membership_plans p ON p.plan_id = m.plan_id WHERE m.user_id = $memberUserId AND m.status = 'active' ORDER BY m.end_date DESC LIMIT 1")->fetch();
+        if ($currentActive) {
+            if ((int)$currentActive['plan_id'] === $planId) {
+                // Renewal: Queue it
+                $start = new DateTime($currentActive['end_date']);
+                $end = (clone $start)->modify('+' . $duration . ' days')->format('Y-m-d');
+                $status = 'pending';
+            } else {
+                // Upgrade/Downgrade: Cancel old plan immediately if new one is active
+                if ($status === 'active') {
+                    db()->prepare("UPDATE memberships SET status = 'cancelled' WHERE membership_id = ?")->execute([$currentActive['membership_id']]);
+                }
+                
+                // Check if they bought the previous plan today (same-day upgrade pricing)
+                $oldPlanCreatedAt = date('Y-m-d', strtotime($currentActive['created_at']));
+                $todayDate = date('Y-m-d');
+                if ($oldPlanCreatedAt === $todayDate) {
+                    $finalPrice = max(0, $finalPrice - (float)$currentActive['old_price']);
+                }
+            }
+        }
+        
+        db()->prepare('INSERT INTO memberships (user_id, plan_id, start_date, end_date, status) VALUES (?, ?, ?, ?, ?)')->execute([$memberUserId, $planId, $start->format('Y-m-d'), $end, $status]);
+        $membershipId = db()->lastInsertId();
         
         $receipt = 'RCPT-' . date('Ymd') . '-' . random_int(1000, 9999);
-        $paymentStatus = post('status') === 'active' ? 'paid' : 'pending';
+        $paymentStatus = $status === 'active' ? 'paid' : 'pending';
         db()->prepare('INSERT INTO payments (membership_id, amount, payment_date, payment_method, status, receipt_number) VALUES (?, ?, ?, ?, ?, ?)')
-            ->execute([$membershipId, $plan['price'], post('start_date'), 'cash', $paymentStatus, $receipt]);
+            ->execute([$membershipId, $finalPrice, $start->format('Y-m-d'), 'cash', $paymentStatus, $receipt]);
 
         notify_user(
             $memberUserId,
@@ -96,6 +124,25 @@ function memberships_page(): void
         if ($plan) {
             $start = new DateTime();
             $end = (clone $start)->modify('+' . $plan['duration_days'] . ' days')->format('Y-m-d');
+            $finalPrice = (float) $plan['price'];
+            
+            $currentActive = db()->query("SELECT m.*, p.price as old_price FROM memberships m JOIN membership_plans p ON p.plan_id = m.plan_id WHERE m.user_id = {$user['user_id']} AND m.status = 'active' ORDER BY m.end_date DESC LIMIT 1")->fetch();
+            
+            if ($currentActive) {
+                if ((int)$currentActive['plan_id'] === $planId) {
+                    // Renewal: Queue it
+                    $start = new DateTime($currentActive['end_date']);
+                    $end = (clone $start)->modify('+' . $plan['duration_days'] . ' days')->format('Y-m-d');
+                } else {
+                    // Check if they bought the previous plan today (same-day upgrade pricing)
+                    $oldPlanCreatedAt = date('Y-m-d', strtotime($currentActive['created_at']));
+                    $todayDate = date('Y-m-d');
+                    
+                    if ($oldPlanCreatedAt === $todayDate) {
+                        $finalPrice = max(0, $finalPrice - (float)$currentActive['old_price']);
+                    }
+                }
+            }
             
             db()->prepare('INSERT INTO memberships (user_id, plan_id, start_date, end_date, status) VALUES (?, ?, ?, ?, ?)')
                 ->execute([$user['user_id'], $planId, $start->format('Y-m-d'), $end, 'pending']);
@@ -103,7 +150,7 @@ function memberships_page(): void
             
             $receipt = 'REQ-' . date('Ymd') . '-' . random_int(1000, 9999);
             db()->prepare('INSERT INTO payments (membership_id, amount, payment_date, payment_method, status, receipt_number) VALUES (?, ?, ?, ?, ?, ?)')
-                ->execute([$membershipId, $plan['price'], $start->format('Y-m-d'), $paymentMethod, 'pending', $receipt]);
+                ->execute([$membershipId, $finalPrice, $start->format('Y-m-d'), $paymentMethod, 'pending', $receipt]);
                 
             $admins = query_all('SELECT user_id FROM users WHERE role = "admin"');
             foreach ($admins as $admin) {
@@ -181,10 +228,14 @@ function memberships_page(): void
 
         <?php if ($user['role'] === 'member'): 
             $activePlanId = null;
-            foreach ($rows as $r) {
-                if ($r['status'] === 'active') {
-                    $activePlanId = (int)$r['plan_id'];
-                    break;
+            $sameDayDiscount = 0;
+            
+            // Look for an active plan to check if they get a same-day upgrade discount
+            $currentActive = db()->query("SELECT m.*, p.price FROM memberships m JOIN membership_plans p ON p.plan_id = m.plan_id WHERE m.user_id = {$user['user_id']} AND m.status = 'active' ORDER BY m.end_date DESC LIMIT 1")->fetch();
+            if ($currentActive) {
+                $activePlanId = (int)$currentActive['plan_id'];
+                if (date('Y-m-d', strtotime($currentActive['created_at'])) === date('Y-m-d')) {
+                    $sameDayDiscount = (float)$currentActive['price'];
                 }
             }
         ?>
@@ -192,6 +243,11 @@ function memberships_page(): void
             <div style="display: flex; flex-wrap: wrap; gap: 1.5rem; margin-bottom: 2.5rem;">
                 <?php foreach ($plans as $plan): 
                     $isActive = $activePlanId === (int)$plan['plan_id'];
+                    $displayPrice = (float)$plan['price'];
+                    
+                    if (!$isActive && $sameDayDiscount > 0) {
+                        $displayPrice = max(0, $displayPrice - $sameDayDiscount);
+                    }
                 ?>
                     <div class="panel plan-card-glow" style="width: 280px; flex-shrink: 0; padding: 1.5rem; display: flex; flex-direction: column; gap: 1rem; background: var(--surface); <?= $isActive ? 'border: 2px solid var(--lime); box-shadow: 0 0 15px rgba(204,255,0,0.1);' : '' ?>">
                         <div>
@@ -199,7 +255,10 @@ function memberships_page(): void
                             <p style="color: var(--muted); font-size: 0.9rem; margin-top: 4px;"><?= h($plan['duration_days']) ?> Days</p>
                         </div>
                         <div style="font-size: 1.5rem; font-weight: bold; color: var(--lime);">
-                            <?= h(money($plan['price'])) ?>
+                            <?php if (!$isActive && $sameDayDiscount > 0): ?>
+                                <span style="text-decoration: line-through; font-size: 1rem; color: var(--muted); margin-right: 8px;"><?= h(money($plan['price'])) ?></span>
+                            <?php endif; ?>
+                            <?= h(money($displayPrice)) ?>
                         </div>
                         <?php if (!empty($plan['description'])): ?>
                             <p style="font-size: 0.9rem; color: var(--muted); flex: 1;"><?= nl2br(h($plan['description'])) ?></p>
@@ -210,7 +269,7 @@ function memberships_page(): void
                         <?php if ($isActive): ?>
                             <button class="btn" style="background: transparent; color: var(--lime); font-weight: bold; width: 100%; border: 1px solid var(--lime); cursor: default; padding: 10px;" disabled>Active Plan</button>
                         <?php else: ?>
-                            <button class="btn" style="background: var(--lime); color: var(--bg); font-weight: bold; width: 100%; border: none; cursor: pointer; padding: 10px;" onclick="subscribePlan(<?= (int)$plan['plan_id'] ?>, '<?= htmlspecialchars($plan['plan_name'], ENT_QUOTES) ?>', '<?= htmlspecialchars(money($plan['price']), ENT_QUOTES) ?>')">Subscribe</button>
+                            <button class="btn" style="background: var(--lime); color: var(--bg); font-weight: bold; width: 100%; border: none; cursor: pointer; padding: 10px;" onclick="subscribePlan(<?= (int)$plan['plan_id'] ?>, '<?= htmlspecialchars($plan['plan_name'], ENT_QUOTES) ?>', '<?= htmlspecialchars(money($displayPrice), ENT_QUOTES) ?>')">Subscribe</button>
                         <?php endif; ?>
                     </div>
                 <?php endforeach; ?>
