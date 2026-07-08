@@ -269,7 +269,6 @@ function users_page(): void
                                     <input type="hidden" name="user_id" value="<?= (int) $row['user_id'] ?>">
                                     <select name="status" style="width:auto;padding:6px 10px;font-size:12px;margin:0">
                                         <option <?= selected('active', $row['status']) ?>>active</option>
-                                        <option <?= selected('inactive', $row['status']) ?>>inactive</option>
                                         <option <?= selected('suspended', $row['status']) ?>>suspended</option>
                                     </select>
                                     <button type="submit" class="btn-sm btn-ghost">Update</button>

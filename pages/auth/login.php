@@ -53,10 +53,16 @@ function handle_login(): void
             return;
         }
 
-        $stmt = db()->prepare('SELECT * FROM users WHERE email = ? AND status = "active"');
+        $stmt = db()->prepare('SELECT * FROM users WHERE email = ?');
         $stmt->execute([$email]);
         $user = $stmt->fetch();
         if ($user && password_verify((string) post('password'), $user['password_hash'])) {
+            if ($user['status'] === 'suspended' || $user['status'] === 'inactive') {
+                RateLimiter::hit($email, 300);
+                flash('Your account has been suspended. Please contact support.', 'danger');
+                redirect('login');
+            }
+
             // Block unverified members from accessing the app
             if ($user['role'] === 'member' && empty($user['email_verified_at'])) {
                 $_SESSION['pending_verify_uid'] = (int) $user['user_id'];
