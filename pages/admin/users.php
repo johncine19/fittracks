@@ -223,18 +223,33 @@ function users_page(): void
                         <input name="password" type="password" placeholder="Min. 8 characters" required>
                     </label>
                     <label>Role
-                        <select name="role">
+                        <select name="role" id="new_user_role" onchange="toggleTrainerFields(this.value)">
                             <?php foreach (['admin', 'trainer', 'member'] as $role): ?>
                                 <option value="<?= h($role) ?>"><?= h(ucfirst($role)) ?></option>
                             <?php endforeach; ?>
                         </select>
                     </label>
-                    <label>Specialization <small style="font-weight:400">(trainer only)</small>
-                        <input name="specialization" placeholder="e.g. Strength & Conditioning">
-                    </label>
-                    <label>Bio <small style="font-weight:400">(trainer only)</small>
-                        <input name="bio" placeholder="Short bio">
-                    </label>
+                    <div id="trainer_fields" style="display: none; grid-column: 1 / -1; gap: 1rem;">
+                        <label style="width: 100%;">Specialization <small style="font-weight:400">(trainer only)</small>
+                            <input name="specialization" id="new_user_spec" placeholder="e.g. Strength & Conditioning" style="width: 100%; box-sizing: border-box;">
+                        </label>
+                        <label style="width: 100%; margin-top: 1rem;">Bio <small style="font-weight:400">(trainer only)</small>
+                            <input name="bio" placeholder="Short bio" style="width: 100%; box-sizing: border-box;">
+                        </label>
+                    </div>
+                    <script>
+                        function toggleTrainerFields(role) {
+                            const tf = document.getElementById('trainer_fields');
+                            const spec = document.getElementById('new_user_spec');
+                            if (role === 'trainer') {
+                                tf.style.display = 'block';
+                                spec.required = true;
+                            } else {
+                                tf.style.display = 'none';
+                                spec.required = false;
+                            }
+                        }
+                    </script>
                     <button style="grid-column: 1 / -1; margin-top: 10px;">Create user</button>
                 </form>
             </div>
