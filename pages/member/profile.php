@@ -86,10 +86,18 @@ function profile_page(): void
             }
             redirect('profile');
         } elseif (isset($_POST['height_cm']) && $is_member) {
+            $oldGoal = $profile['primary_goal'] ?? '';
+            $newGoal = post('primary_goal');
+            
             save_member_profile((int) $user['user_id']);
-            generate_workout_plan((int) $user['user_id']);
-            notify_user((int) $user['user_id'], 'system', 'Workout plan updated', 'Your workout plan was recalculated from your updated physical profile.');
-            flash('Physical profile and workout plan updated.', 'success');
+            
+            if ($oldGoal !== $newGoal || can_recalculate_workout((int) $user['user_id'])) {
+                generate_workout_plan((int) $user['user_id']);
+                notify_user((int) $user['user_id'], 'system', 'Workout plan updated', 'Your workout plan was recalculated from your updated physical profile.');
+                flash('Physical profile and workout plan updated.', 'success');
+            } else {
+                flash('Physical profile updated.', 'success');
+            }
             redirect('profile');
         } elseif (isset($_POST['self_checkout'])) {
             // Auto-create checkout_ratings table once

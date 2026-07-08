@@ -32,10 +32,17 @@ function progress_page(): void
         ]);
         db()->prepare('UPDATE member_profiles SET weight_kg = ? WHERE user_id = ?')
            ->execute([post('weight_kg'), $memberId]);
-        generate_workout_plan($memberId);
-        notify_user($memberId, 'system', 'Workout plan updated', 'Your workout plan was refreshed after logging new progress.');
+
+        if (can_recalculate_workout($memberId)) {
+            generate_workout_plan($memberId);
+            notify_user($memberId, 'system', 'Workout plan updated', 'Your workout plan was refreshed after logging new progress.');
+            $flashMsg = 'Progress logged and workout plan updated.';
+        } else {
+            $flashMsg = 'Progress logged.';
+        }
+        
         notify_user($memberId, 'milestone', 'Progress logged', 'Nice work — your latest measurements were saved.');
-        flash('Progress logged.', 'success');
+        flash($flashMsg, 'success');
         redirect('progress');
     }
 
