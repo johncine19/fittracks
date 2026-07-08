@@ -237,6 +237,9 @@ function users_page(): void
                         <th>User</th>
                         <th>Email</th>
                         <th>Role</th>
+                        <?php if ($tab === 'member'): ?>
+                            <th>Score</th>
+                        <?php endif; ?>
                         <th>Status</th>
                         <th>Joined</th>
                         <th>Actions</th>
@@ -259,6 +262,15 @@ function users_page(): void
                         </td>
                         <td style="color:var(--muted)"><?= h($row['email']) ?></td>
                         <td><span class="<?= $roleClass ?>"><?= h($row['role']) ?></span></td>
+                        <?php if ($tab === 'member'): ?>
+                        <td>
+                            <?php if ($row['role'] === 'member'): ?>
+                                <strong style="color:var(--lime);"><?= (int)$row['engagement_score'] ?></strong>
+                            <?php else: ?>
+                                <span class="muted">—</span>
+                            <?php endif; ?>
+                        </td>
+                        <?php endif; ?>
                         <td><span class="<?= $statusClass ?>"><?= h($row['status']) ?></span></td>
                         <td style="color:var(--muted);font-size:12px"><?= h(date('M j, Y', strtotime($row['created_at']))) ?></td>
                         <td>
