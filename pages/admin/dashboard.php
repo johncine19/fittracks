@@ -548,7 +548,7 @@ function dashboard(): void
         </style>
         <?php
     } else {
-        $score    = get_cached_engagement_score((int) $user['user_id']);
+        $score    = calculate_engagement_score((int) $user['user_id']);
         $category = get_engagement_category($score);
         $attendance = scalar('SELECT COUNT(*) FROM attendance WHERE user_id = ?', [$user['user_id']]);
         $progressLogs = scalar('SELECT COUNT(*) FROM progress_logs WHERE user_id = ?', [$user['user_id']]);
@@ -599,6 +599,62 @@ function dashboard(): void
             echo '</div>';
         }
         echo '</div>';
+
+        // Engagement Missions
+        $missions = get_engagement_missions((int) $user['user_id']);
+        $completedCount = count(array_filter($missions, fn($m) => $m['completed']));
+        $totalMissions = count($missions);
+        ?>
+        <div class="skeleton-content animate-fade-in delay-2" style="margin-bottom: 24px;">
+            <section class="panel" style="padding: 0; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.08);">
+                <div style="padding: 20px 24px 16px; border-bottom: 1px solid var(--line); display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
+                    <div style="display: flex; align-items: center; gap: 10px;">
+                        <h2 style="margin: 0; font-size: 18px; color: var(--ink);">Monthly Missions</h2>
+                        <span style="font-size: 12px; background: rgba(199,255,34,0.15); color: var(--lime); padding: 3px 10px; border-radius: 12px; font-weight: 600;"><?= $completedCount ?>/<?= $totalMissions ?> Complete</span>
+                    </div>
+                    <span style="font-size: 13px; color: var(--muted);">Complete missions to boost your Engagement Score!</span>
+                </div>
+                <div style="padding: 8px 24px 20px;">
+                    <?php foreach ($missions as $mission): ?>
+                        <?php
+                        $pct = $mission['target'] > 0 ? min(100, round(($mission['current'] / $mission['target']) * 100)) : 0;
+                        $barColor = $mission['completed'] ? '#22c55e' : 'var(--lime)';
+                        $checkColor = $mission['completed'] ? '#22c55e' : 'var(--line)';
+                        $checkBg = $mission['completed'] ? 'rgba(34, 197, 94, 0.15)' : 'rgba(255,255,255,0.03)';
+                        ?>
+                        <div style="display: flex; align-items: center; gap: 16px; padding: 16px 0; border-bottom: 1px solid rgba(255,255,255,0.04); <?= $mission['completed'] ? 'opacity: 0.75;' : '' ?>">
+                            <!-- Check Circle -->
+                            <div style="width: 38px; height: 38px; border-radius: 50%; border: 2px solid <?= $checkColor ?>; background: <?= $checkBg ?>; display: flex; align-items: center; justify-content: center; flex-shrink: 0; transition: all 0.3s;">
+                                <?php if ($mission['completed']): ?>
+                                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#22c55e" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                                <?php else: ?>
+                                    <span style="font-size: 16px;"><?= $mission['icon'] ?></span>
+                                <?php endif; ?>
+                            </div>
+
+                            <!-- Mission Info -->
+                            <div style="flex: 1; min-width: 0;">
+                                <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px;">
+                                    <span style="font-weight: 600; color: var(--ink); font-size: 14px; <?= $mission['completed'] ? 'text-decoration: line-through; color: var(--muted);' : '' ?>"><?= h($mission['title']) ?></span>
+                                    <span style="font-size: 12px; font-weight: 600; color: <?= $mission['completed'] ? '#22c55e' : 'var(--muted)' ?>; white-space: nowrap; margin-left: 8px;">
+                                        +<?= $mission['earnedPoints'] ?>/<?= $mission['maxPoints'] ?> pts
+                                    </span>
+                                </div>
+                                <div style="font-size: 12px; color: var(--muted); margin-bottom: 8px;"><?= h($mission['description']) ?></div>
+                                <!-- Progress Bar -->
+                                <div style="display: flex; align-items: center; gap: 10px;">
+                                    <div style="flex: 1; height: 6px; background: rgba(255,255,255,0.06); border-radius: 3px; overflow: hidden;">
+                                        <div style="width: <?= $pct ?>%; height: 100%; background: <?= $barColor ?>; border-radius: 3px; transition: width 0.5s ease;"></div>
+                                    </div>
+                                    <span style="font-size: 11px; color: var(--muted); font-weight: 500; white-space: nowrap;"><?= $mission['current'] ?>/<?= $mission['target'] ?></span>
+                                </div>
+                            </div>
+                        </div>
+                    <?php endforeach; ?>
+                </div>
+            </section>
+        </div>
+        <?php
 
         echo '<div class="skeleton-content animate-fade-in delay-2">';
         
