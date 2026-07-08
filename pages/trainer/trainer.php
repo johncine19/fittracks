@@ -31,7 +31,7 @@ function trainer_members_page(): void
             flash('Workout plan generated for client.');
         } elseif (post('action') === 'accept_appointment') {
             $assignmentId = (int) post('assignment_id');
-            db()->prepare('UPDATE trainer_assignments SET status = "active", assigned_date = CURDATE() WHERE assignment_id = ?')->execute([$assignmentId]);
+            db()->prepare('UPDATE trainer_assignments SET status = "active" WHERE assignment_id = ?')->execute([$assignmentId]);
             $stmt = db()->prepare('SELECT member_user_id, assigned_by FROM trainer_assignments WHERE assignment_id = ?');
             $stmt->execute([$assignmentId]);
             $assignment = $stmt->fetch();
