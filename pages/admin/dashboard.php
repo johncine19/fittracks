@@ -579,10 +579,11 @@ function dashboard(): void
             $catBg = 'rgba(239, 68, 68, 0.15)';
         }
         
-        echo '<div style="background: var(--panel-soft); padding: 12px 20px; border-radius: 10px; border: 1px solid rgba(255,255,255,0.05); text-align: center;">';
-        echo '<span style="display: block; font-size: 11px; text-transform: uppercase; letter-spacing: 0.1em; color: var(--muted); margin-bottom: 4px;">Engagement Score <a href="#" onclick="event.preventDefault(); document.getElementById(\'guide-modal\').showModal();" style="color:' . $catColor . '; margin-left: 4px; text-decoration: none;" title="How it works">&#9468;</a></span>';
+        echo '<div onclick="document.getElementById(\'missions-section\').scrollIntoView({behavior: \'smooth\'})" style="background: var(--panel-soft); padding: 12px 20px; border-radius: 10px; border: 1px solid rgba(255,255,255,0.05); text-align: center; cursor: pointer; transition: all 0.2s;" onmouseover="this.style.transform=\'scale(1.03)\'; this.style.boxShadow=\'0 4px 16px rgba(0,0,0,0.2)\'" onmouseout="this.style.transform=\'scale(1)\'; this.style.boxShadow=\'none\'" title="Click to view your missions">';
+        echo '<span style="display: block; font-size: 11px; text-transform: uppercase; letter-spacing: 0.1em; color: var(--muted); margin-bottom: 4px;">Engagement Score <a href="#" onclick="event.stopPropagation(); event.preventDefault(); document.getElementById(\'guide-modal\').showModal();" style="color:' . $catColor . '; margin-left: 4px; text-decoration: none;" title="How it works">&#9468;</a></span>';
         echo '<strong style="display: block; font-size: 32px; color: ' . $catColor . '; line-height: 1;">' . $score . '<span style="font-size: 16px; color: var(--muted);">/100</span></strong>';
         echo '<span style="display: inline-block; margin-top: 6px; font-size: 11px; background: ' . $catBg . '; color: ' . $catColor . '; padding: 2px 8px; border-radius: 12px; font-weight: bold;">' . h(ucfirst(str_replace('_', ' ', $category))) . '</span>';
+        echo '<div style="margin-top: 6px; font-size: 10px; color: var(--muted); opacity: 0.7;">Click to view missions ↓</div>';
         echo '</div></div>';
 
         // Animated Metric Cards
@@ -605,7 +606,7 @@ function dashboard(): void
         $completedCount = count(array_filter($missions, fn($m) => $m['completed']));
         $totalMissions = count($missions);
         ?>
-        <div class="skeleton-content animate-fade-in delay-2" style="margin-bottom: 24px;">
+        <div id="missions-section" class="skeleton-content animate-fade-in delay-2" style="margin-bottom: 24px;">
             <section class="panel" style="padding: 0; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.08);">
                 <div style="padding: 20px 24px 16px; border-bottom: 1px solid var(--line); display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
                     <div style="display: flex; align-items: center; gap: 10px;">
@@ -615,14 +616,18 @@ function dashboard(): void
                     <span style="font-size: 13px; color: var(--muted);">Complete missions to boost your Engagement Score!</span>
                 </div>
                 <div style="padding: 8px 24px 20px;">
-                    <?php foreach ($missions as $mission): ?>
-                        <?php
+                    <?php 
+                    $missionIndex = 0;
+                    foreach ($missions as $mission): 
+                        $missionIndex++;
+                        $isHidden = $missionIndex > 2;
+                        
                         $pct = $mission['target'] > 0 ? min(100, round(($mission['current'] / $mission['target']) * 100)) : 0;
                         $barColor = $mission['completed'] ? '#22c55e' : 'var(--lime)';
                         $checkColor = $mission['completed'] ? '#22c55e' : 'var(--line)';
                         $checkBg = $mission['completed'] ? 'rgba(34, 197, 94, 0.15)' : 'rgba(255,255,255,0.03)';
                         ?>
-                        <div style="display: flex; align-items: center; gap: 16px; padding: 16px 0; border-bottom: 1px solid rgba(255,255,255,0.04); <?= $mission['completed'] ? 'opacity: 0.75;' : '' ?>">
+                        <div class="mission-item <?= $isHidden ? 'hidden-mission' : '' ?>" style="display: <?= $isHidden ? 'none' : 'flex' ?>; align-items: center; gap: 16px; padding: 16px 0; border-bottom: 1px solid rgba(255,255,255,0.04); <?= $mission['completed'] ? 'opacity: 0.75;' : '' ?>">
                             <!-- Check Circle -->
                             <div style="width: 38px; height: 38px; border-radius: 50%; border: 2px solid <?= $checkColor ?>; background: <?= $checkBg ?>; display: flex; align-items: center; justify-content: center; flex-shrink: 0; transition: all 0.3s;">
                                 <?php if ($mission['completed']): ?>
@@ -651,6 +656,29 @@ function dashboard(): void
                             </div>
                         </div>
                     <?php endforeach; ?>
+                    
+                    <?php if (count($missions) > 2): ?>
+                        <div style="text-align: center; margin-top: 16px;">
+                            <button id="toggle-missions-btn" onclick="toggleMissions()" style="background: rgba(199,255,34,0.1); border: 1px solid rgba(199,255,34,0.3); color: var(--lime); font-size: 13px; font-weight: 600; cursor: pointer; padding: 6px 16px; border-radius: 20px; transition: all 0.2s;" onmouseover="this.style.background='rgba(199,255,34,0.2)'" onmouseout="this.style.background='rgba(199,255,34,0.1)'">
+                                Show All Missions ↓
+                            </button>
+                        </div>
+                        <script>
+                            function toggleMissions() {
+                                const hiddenMissions = document.querySelectorAll('.hidden-mission');
+                                const btn = document.getElementById('toggle-missions-btn');
+                                if (!hiddenMissions.length) return;
+                                
+                                const isCurrentlyHidden = hiddenMissions[0].style.display === 'none';
+                                
+                                hiddenMissions.forEach(m => {
+                                    m.style.display = isCurrentlyHidden ? 'flex' : 'none';
+                                });
+                                
+                                btn.innerHTML = isCurrentlyHidden ? 'Show Less' : 'Show All Missions';
+                            }
+                        </script>
+                    <?php endif; ?>
                 </div>
             </section>
         </div>

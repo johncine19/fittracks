@@ -9,7 +9,7 @@ function book_classes_page(): void
         $action = post('action', 'book');
         
         $classRows = query_all(
-            'SELECT c.class_name, s.start_datetime, s.room_location, c.instructor_id, s.duration_minutes
+            'SELECT c.class_name, s.start_datetime, s.end_datetime, s.room_location, c.instructor_id
              FROM class_schedules s
              JOIN classes c ON c.class_id = s.class_id
              WHERE s.schedule_id = ?',
@@ -49,11 +49,11 @@ function book_classes_page(): void
             FROM class_bookings b
             JOIN class_schedules s2 ON b.schedule_id = s2.schedule_id
             WHERE b.user_id = ? AND b.booking_status = "booked"
-              AND s2.start_datetime < DATE_ADD(?, INTERVAL ? MINUTE)
-              AND DATE_ADD(s2.start_datetime, INTERVAL s2.duration_minutes MINUTE) > ?
+              AND s2.start_datetime < ?
+              AND s2.end_datetime > ?
         ', [
             $user['user_id'],
-            $class['start_datetime'], $class['duration_minutes'],
+            $class['end_datetime'],
             $class['start_datetime']
         ]);
 
