@@ -11,6 +11,7 @@ function render_header(string $title, ?array $user = null): void
         $nav['dashboard'] = 'Dashboard';
         if ($role === 'admin') {
             $nav += [
+                'scanner' => 'Scan QR',
                 'users' => 'Users Accounts',
                 'trainer_assignments' => 'Trainers',
                 'plans' => 'Plans',
@@ -20,7 +21,6 @@ function render_header(string $title, ?array $user = null): void
                 'walk_ins' => 'Walk-ins',
                 'classes' => 'Classes',
                 'attendance' => 'Attendance',
-                'scanner' => 'Scan QR',
                 'exercises' => 'Exercises',
                 'reports' => 'Reports',
                 'messages' => 'Messages',
