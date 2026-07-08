@@ -79,7 +79,7 @@ function training_page(): void
         }
         redirect('training');
     }
-    $members = query_all('SELECT ca.member_user_id, CONCAT(u.first_name, " ", u.last_name) AS name, mp.primary_goal FROM trainer_assignments ca JOIN users u ON u.user_id = ca.member_user_id LEFT JOIN member_profiles mp ON mp.user_id = u.user_id WHERE ca.trainer_id = ? AND ca.status = "active"', [$coachId]);
+    $members = query_all('SELECT ca.member_user_id, CONCAT(u.first_name, " ", u.last_name) AS name, mp.primary_goal FROM trainer_assignments ca JOIN users u ON u.user_id = ca.member_user_id LEFT JOIN member_profiles mp ON mp.user_id = u.user_id WHERE ca.trainer_id = ? AND ca.status = "active" AND NOT EXISTS (SELECT 1 FROM training_plans tp WHERE tp.member_user_id = ca.member_user_id AND tp.trainer_id = ca.trainer_id AND tp.status IN ("active", "draft"))', [$coachId]);
     $plans = query_all('
         SELECT tp.*, 
                CONCAT(u.first_name, " ", u.last_name) AS member,
