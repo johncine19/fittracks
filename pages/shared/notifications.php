@@ -72,7 +72,8 @@ function notifications_page(): void
                             <time><?= h(notification_time_ago($row['created_at'])) ?></time>
                         </div>
                         <?php
-                            $hasLink = in_array($row['type'], ['coach_message', 'class_reminder', 'renewal_reminder', 'milestone'], true);
+                            $isAppointmentRequest = $row['type'] === 'system' && str_starts_with($row['title'], 'Trainer Appointment Request');
+                            $hasLink = in_array($row['type'], ['coach_message', 'class_reminder', 'renewal_reminder', 'milestone'], true) || $isAppointmentRequest;
                             $clickUrl = $hasLink ? 'index.php?page=notification_click&nid=' . (int) $row['notification_id'] : null;
                         ?>
                         <?php if ($clickUrl): ?>

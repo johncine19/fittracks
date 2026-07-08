@@ -258,6 +258,8 @@ function handle_notification_click(): void
         redirect('member_membership');
     } elseif ($notif['type'] === 'milestone') {
         redirect('member_progress');
+    } elseif ($notif['type'] === 'system' && str_starts_with($notif['title'], 'Trainer Appointment Request')) {
+        redirect('trainer_assignments');
     } else {
         redirect('notifications');
     }
