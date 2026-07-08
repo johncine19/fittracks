@@ -110,6 +110,11 @@ function users_page(): void
                 db()->prepare('UPDATE users SET first_name=?, last_name=?, email=?, phone=?, role=? WHERE user_id=?')
                     ->execute([post('first_name'), post('last_name'), post('email'), $phone, post('role'), $editUserId]);
             }
+            
+            if (post('role') === 'trainer') {
+                db()->prepare('INSERT INTO trainer_profiles (user_id, specialization, bio) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE specialization = VALUES(specialization), bio = VALUES(bio)')
+                    ->execute([$editUserId, post('specialization'), post('bio')]);
+            }
             flash('User updated successfully.');
         } elseif (post('action') === 'delete_user') {
             $targetUserId = (int) post('user_id');
@@ -154,16 +159,18 @@ function users_page(): void
 
     $tab = $_GET['tab'] ?? 'all';
     $where = '1=1';
+    $u_where = '1=1';
     $params = [];
     if (in_array($tab, ['admin', 'trainer', 'member'], true)) {
         $where = 'role = ?';
+        $u_where = 'u.role = ?';
         $params[] = $tab;
     }
 
     $total = (int) scalar('SELECT COUNT(*) FROM users WHERE ' . $where, $params);
     $totalPages = max(1, (int) ceil($total / $limit));
 
-    $stmt = db()->prepare('SELECT * FROM users WHERE ' . $where . ' ORDER BY first_name ASC, last_name ASC LIMIT ' . (int)$limit . ' OFFSET ' . (int)$offset);
+    $stmt = db()->prepare('SELECT u.*, tp.specialization, tp.bio FROM users u LEFT JOIN trainer_profiles tp ON u.user_id = tp.user_id WHERE ' . $u_where . ' ORDER BY u.first_name ASC, u.last_name ASC LIMIT ' . (int)$limit . ' OFFSET ' . (int)$offset);
     $stmt->execute($params);
     $rows = $stmt->fetchAll();
     
@@ -278,6 +285,9 @@ function users_page(): void
                         <th>User</th>
                         <th>Email</th>
                         <th>Role</th>
+                        <?php if ($tab === 'trainer'): ?>
+                            <th>Specialization</th>
+                        <?php endif; ?>
                         <?php if ($tab === 'member'): ?>
                             <th>Score</th>
                         <?php endif; ?>
@@ -303,6 +313,15 @@ function users_page(): void
                         </td>
                         <td style="color:var(--muted)"><?= h($row['email']) ?></td>
                         <td><span class="<?= $roleClass ?>"><?= h($row['role']) ?></span></td>
+                        <?php if ($tab === 'trainer'): ?>
+                        <td>
+                            <?php if ($row['role'] === 'trainer'): ?>
+                                <span style="color:var(--ink);"><?= h($row['specialization'] ?? 'General Trainer') ?></span>
+                            <?php else: ?>
+                                <span class="muted">—</span>
+                            <?php endif; ?>
+                        </td>
+                        <?php endif; ?>
                         <?php if ($tab === 'member'): ?>
                         <td>
                             <?php if ($row['role'] === 'member'): ?>
@@ -347,6 +366,19 @@ function users_page(): void
     </section>
 
     <script>
+    function toggleEditTrainerFields(role) {
+        const tf = document.getElementById('eu_trainer_fields');
+        const spec = document.getElementById('eu_spec');
+        if (!tf || !spec) return;
+        if (role === 'trainer') {
+            tf.style.display = 'flex';
+            spec.required = true;
+        } else {
+            tf.style.display = 'none';
+            spec.required = false;
+        }
+    }
+
     function editUser(u) {
         Swal.fire({
             title: 'Edit User',
@@ -363,12 +395,20 @@ function users_page(): void
                     <label style="display:block; color: var(--muted); font-size: 14px;">Email * <input type="email" name="email" id="eu_email" class="form-control" required style="width: 100%; box-sizing: border-box;"></label>
                     <label style="display:block; color: var(--muted); font-size: 14px;">Phone <input type="tel" name="phone" id="eu_phone" class="form-control" style="width: 100%; box-sizing: border-box;"></label>
                     <label style="display:block; color: var(--muted); font-size: 14px;">Role *
-                        <select name="role" id="eu_role" class="form-control" style="width: 100%; box-sizing: border-box;">
+                        <select name="role" id="eu_role" class="form-control" style="width: 100%; box-sizing: border-box;" onchange="toggleEditTrainerFields(this.value)">
                             <option value="admin">Admin</option>
                             <option value="trainer">Trainer</option>
                             <option value="member">Member</option>
                         </select>
                     </label>
+                    <div id="eu_trainer_fields" style="display: none; flex-direction: column; gap: 12px;">
+                        <label style="display:block; color: var(--muted); font-size: 14px;">Specialization <small style="font-weight:400">(trainer only)</small>
+                            <input name="specialization" id="eu_spec" class="form-control" placeholder="e.g. Strength & Conditioning" style="width: 100%; box-sizing: border-box;">
+                        </label>
+                        <label style="display:block; color: var(--muted); font-size: 14px;">Bio <small style="font-weight:400">(trainer only)</small>
+                            <input name="bio" id="eu_bio" class="form-control" placeholder="Short bio" style="width: 100%; box-sizing: border-box;">
+                        </label>
+                    </div>
                     <label style="display:block; color: var(--muted); font-size: 14px;">New Password <small>(leave blank to keep current)</small> <input type="password" name="new_password" id="eu_pass" class="form-control" style="width: 100%; box-sizing: border-box;"></label>
                 </form>
             `,
@@ -379,6 +419,9 @@ function users_page(): void
                 document.getElementById('eu_email').value = u.email;
                 document.getElementById('eu_phone').value = u.phone || '';
                 document.getElementById('eu_role').value = u.role;
+                document.getElementById('eu_spec').value = u.specialization || '';
+                document.getElementById('eu_bio').value = u.bio || '';
+                toggleEditTrainerFields(u.role);
             },
             showCancelButton: true,
             confirmButtonText: 'Save Changes',
@@ -390,6 +433,10 @@ function users_page(): void
                 const form = document.getElementById('editUserForm');
                 if (!form.first_name.value || !form.last_name.value || !form.email.value) {
                     Swal.showValidationMessage('Name and email are required');
+                    return false;
+                }
+                if (form.role.value === 'trainer' && !form.specialization.value) {
+                    Swal.showValidationMessage('Specialization is required for trainers');
                     return false;
                 }
                 
