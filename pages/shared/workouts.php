@@ -8,6 +8,14 @@ declare(strict_types=1);
 function can_recalculate_workout(int $memberUserId): bool
 {
     $pdo = db();
+    
+    // 1. If the member currently has an active plan created by a trainer, they cannot recalculate.
+    $trainerPlanExists = scalar('SELECT 1 FROM training_plans WHERE member_user_id = ? AND trainer_id IS NOT NULL AND status = "active" LIMIT 1', [$memberUserId]);
+    if ($trainerPlanExists) {
+        return false;
+    }
+
+    // 2. Check if a system-generated plan was created within the last 7 days.
     $stmt = $pdo->prepare('SELECT created_at FROM training_plans WHERE member_user_id = ? AND trainer_id IS NULL ORDER BY created_at DESC LIMIT 1');
     $stmt->execute([$memberUserId]);
     $lastCreated = $stmt->fetchColumn();
