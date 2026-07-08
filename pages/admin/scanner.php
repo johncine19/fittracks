@@ -51,9 +51,29 @@ function scanner_page(): void
                 }
             }
             
-            $stmt = $pdo->prepare('INSERT INTO attendance (user_id, check_in_time, check_in_method, recorded_by) VALUES (?, NOW(), "qr_code", ?)');
-            $stmt->execute([$userId, $user['user_id']]);
-            $message = 'Check-in successful for ' . $member['first_name'] . ' ' . $member['last_name'];
+            // Check if member has a booked class starting soon (within +/- 1 hour)
+            $classBooking = $pdo->prepare('
+                SELECT b.schedule_id 
+                FROM class_bookings b
+                JOIN class_schedules s ON b.schedule_id = s.schedule_id
+                WHERE b.user_id = ? AND b.booking_status = "booked"
+                  AND s.start_datetime >= DATE_SUB(NOW(), INTERVAL 1 HOUR)
+                  AND s.start_datetime <= DATE_ADD(NOW(), INTERVAL 1 HOUR)
+                ORDER BY s.start_datetime ASC LIMIT 1
+            ');
+            $classBooking->execute([$userId]);
+            $bookedClass = $classBooking->fetch();
+            $scheduleId = $bookedClass ? $bookedClass['schedule_id'] : null;
+
+            $stmt = $pdo->prepare('INSERT INTO attendance (user_id, schedule_id, check_in_time, check_in_method, recorded_by) VALUES (?, ?, NOW(), "qr_code", ?)');
+            $stmt->execute([$userId, $scheduleId, $user['user_id']]);
+            
+            if ($scheduleId) {
+                $pdo->prepare('UPDATE class_bookings SET booking_status = "attended" WHERE user_id = ? AND schedule_id = ?')->execute([$userId, $scheduleId]);
+                $message = 'Check-in successful & Class Auto-Attended for ' . $member['first_name'] . ' ' . $member['last_name'];
+            } else {
+                $message = 'Check-in successful for ' . $member['first_name'] . ' ' . $member['last_name'];
+            }
             
             $amount = (float) (post('amount_paid') ?: 0);
             if ($amount > 0) {

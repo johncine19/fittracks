@@ -9,7 +9,16 @@ function attendance_page(): void
             db()->prepare('UPDATE attendance SET check_out_time = NOW() WHERE attendance_id = ?')->execute([post('attendance_id')]);
             flash('Check-out recorded.');
         } else {
-            db()->prepare('INSERT INTO attendance (user_id, schedule_id, check_in_time, check_in_method, recorded_by) VALUES (?, ?, NOW(), ?, ?)')->execute([post('user_id'), post('schedule_id') ?: null, post('check_in_method'), $user['user_id']]);
+            $userId = post('user_id');
+            $scheduleId = post('schedule_id') ?: null;
+            
+            db()->prepare('INSERT INTO attendance (user_id, schedule_id, check_in_time, check_in_method, recorded_by) VALUES (?, ?, NOW(), ?, ?)')->execute([$userId, $scheduleId, post('check_in_method'), $user['user_id']]);
+            
+            if ($scheduleId) {
+                // Automatically mark their class booking as attended so they get Engagement Points
+                db()->prepare('UPDATE class_bookings SET booking_status = "attended" WHERE user_id = ? AND schedule_id = ?')->execute([$userId, $scheduleId]);
+            }
+            
             flash('Check-in recorded.');
         }
         redirect('attendance');
