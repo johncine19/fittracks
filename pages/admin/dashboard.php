@@ -442,8 +442,9 @@ function dashboard(): void
                 </p>
                 <ul style="color:var(--muted); font-size:14px; line-height:1.6; margin-bottom:24px; padding-left:20px;">
                     <li><strong>40% Attendance:</strong> Check into the gym regularly (up to 7 visits / 30 days).</li>
-                    <li><strong>30% Classes:</strong> Participate in group fitness classes (up to 4 classes / 30 days).</li>
+                    <li><strong>20% Classes:</strong> Participate in group fitness classes (up to 4 classes / 30 days).</li>
                     <li><strong>20% Consistency:</strong> Stay active every week. We look at your weekly streaks!</li>
+                    <li><strong>10% Daily Completed Workout:</strong> Complete your scheduled exercises (up to 8 days / 30 days).</li>
                     <li><strong>10% Progress:</strong> Log your workout progress at least once every 60 days.</li>
                 </ul>
                 

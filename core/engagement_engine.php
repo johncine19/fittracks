@@ -7,14 +7,16 @@ declare(strict_types=1);
  * - Class participation (last 30 days) - 30%
  * - Consistency (days active / total days) - 20%
  * - Fitness progress updates (last 60 days) - 10%
+ * - Daily Completed Workout (last 30 days) - 10%
  */
 function calculate_engagement_score(int $userId): int
 {
     $pdo = db();
     
     $wAttendance = (int) get_setting('engagement_weight_attendance', '40');
-    $wClasses = (int) get_setting('engagement_weight_classes', '30');
+    $wClasses = (int) get_setting('engagement_weight_classes', '20');
     $wConsistency = (int) get_setting('engagement_weight_consistency', '20');
+    $wWorkouts = (int) get_setting('engagement_weight_workouts', '10');
     $wProgress = (int) get_setting('engagement_weight_progress', '10');
     
     // 1. Attendance Frequency (Max wAttendance points for 7+ visits in 30 days)
@@ -29,11 +31,15 @@ function calculate_engagement_score(int $userId): int
     $activeWeeks = (int) scalar('SELECT COUNT(DISTINCT WEEK(check_in_time)) FROM attendance WHERE user_id = ? AND check_in_time >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)', [$userId]);
     $consistencyScore = min($wConsistency, ($activeWeeks / 4) * $wConsistency);
     
-    // 4. Progress Updates (Max wProgress points for at least 1 update in 60 days)
+    // 4. Daily Completed Workout (Max wWorkouts points for 8+ distinct days with completed exercises in 30 days)
+    $workoutDays = (int) scalar('SELECT COUNT(DISTINCT completed_date) FROM exercise_completions WHERE user_id = ? AND completed_date >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)', [$userId]);
+    $workoutScore = min($wWorkouts, ($workoutDays / 8) * $wWorkouts);
+    
+    // 5. Progress Updates (Max wProgress points for at least 1 update in 60 days)
     $progressCount = (int) scalar('SELECT COUNT(*) FROM progress_logs WHERE user_id = ? AND log_date >= DATE_SUB(CURDATE(), INTERVAL 60 DAY)', [$userId]);
     $progressScore = min($wProgress, $progressCount > 0 ? $wProgress : 0);
     
-    $score = (int) round($attendanceScore + $classScore + $consistencyScore + $progressScore);
+    $score = (int) round($attendanceScore + $classScore + $consistencyScore + $workoutScore + $progressScore);
     
     $pdo->prepare('UPDATE users SET engagement_score = ?, engagement_computed_at = NOW() WHERE user_id = ?')
         ->execute([$score, $userId]);
