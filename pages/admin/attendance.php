@@ -7,6 +7,7 @@ function attendance_page(): void
     if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if (post('action') === 'checkout') {
             db()->prepare('UPDATE attendance SET check_out_time = NOW() WHERE attendance_id = ?')->execute([post('attendance_id')]);
+            audit_log($user['user_id'], 'checkout', 'attendance', (string) post('attendance_id'));
             flash('Check-out recorded.');
         } else {
             $userId = post('user_id');
@@ -19,6 +20,7 @@ function attendance_page(): void
                 db()->prepare('UPDATE class_bookings SET booking_status = "attended" WHERE user_id = ? AND schedule_id = ?')->execute([$userId, $scheduleId]);
             }
             
+            audit_log($user['user_id'], 'checkin', 'attendance', (string) db()->lastInsertId(), json_encode(['user_id' => $userId, 'method' => post('check_in_method')]));
             flash('Check-in recorded.');
         }
         redirect('attendance');

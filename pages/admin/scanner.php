@@ -40,6 +40,7 @@ function scanner_page(): void
         if ($openRecord) {
             // Check out
             $pdo->prepare('UPDATE attendance SET check_out_time = NOW() WHERE attendance_id = ?')->execute([$openRecord['attendance_id']]);
+            audit_log($user['user_id'], 'qr_checkout', 'attendance', (string) $openRecord['attendance_id'], json_encode(['user_id' => $userId]));
             $message = 'Check-out successful for ' . $member['first_name'] . ' ' . $member['last_name'];
         } else {
             // Check in
@@ -82,6 +83,7 @@ function scanner_page(): void
                 $pdo->prepare('INSERT INTO walk_in_transactions (guest_name, contact_info, amount_paid, payment_method, visit_date, processed_by, converted_to_member_id) VALUES (?, ?, ?, ?, NOW(), ?, ?)')
                     ->execute([$guestName, $contactInfo, $amount, post('payment_method') ?: 'cash', $user['user_id'], $userId]);
             }
+            audit_log($user['user_id'], 'qr_checkin', 'attendance', null, json_encode(['user_id' => $userId, 'schedule_id' => $scheduleId]));
         }
         
         // Invalidate token after single use

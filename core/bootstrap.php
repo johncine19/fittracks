@@ -61,6 +61,7 @@ require __DIR__ . '/../pages/admin/attendance.php';
 require __DIR__ . '/../pages/admin/reports.php';
 require __DIR__ . '/../pages/admin/walk_ins.php';
 require __DIR__ . '/../pages/admin/scanner.php';
+require __DIR__ . '/../pages/admin/audit_logs.php';
 
 // --- Trainer portal ---
 require __DIR__ . '/../pages/trainer/trainer.php';

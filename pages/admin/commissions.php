@@ -11,6 +11,7 @@ function commissions_page(): void
             $commissionId = (int) post('commission_id');
             db()->prepare("UPDATE trainer_commissions SET status = 'paid' WHERE commission_id = ? AND status = 'pending'")
                 ->execute([$commissionId]);
+            audit_log($user['user_id'], 'mark_paid', 'commission', (string) $commissionId);
             flash('Commission marked as paid.');
             redirect('commissions');
         }

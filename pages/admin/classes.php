@@ -10,6 +10,7 @@ function classes_page(): void
         if ($action === 'class') {
             $instructor_id = $isAdmin ? (post('instructor_id') ?: null) : $user['user_id'];
             db()->prepare('INSERT INTO classes (class_name, description, instructor_id, capacity) VALUES (?, ?, ?, ?)')->execute([post('class_name'), post('description'), $instructor_id, post('capacity')]);
+            audit_log($user['user_id'], 'create', 'class', (string) db()->lastInsertId(), json_encode(['class_name' => post('class_name')]));
             flash('Class created.');
         } elseif ($action === 'schedule') {
             $class_id = post('class_id');
@@ -26,6 +27,7 @@ function classes_page(): void
             foreach ($activeMembers as $member) {
                 notify_user((int) $member['user_id'], 'class_reminder', 'New Class Session', 'A new session for ' . $className . ' has been scheduled on ' . $startTime . '.');
             }
+            audit_log($user['user_id'], 'create', 'class_schedule', (string) db()->lastInsertId(), json_encode(['class_id' => $class_id, 'start' => post('start_datetime')]));
             
             flash('Schedule created.');
         } elseif ($action === 'edit_class') {
@@ -35,6 +37,7 @@ function classes_page(): void
                 db()->prepare('UPDATE classes SET class_name=?, description=?, capacity=? WHERE class_id=? AND instructor_id=?')->execute([post('class_name'), post('description'), post('capacity'), post('class_id'), $user['user_id']]);
             }
             flash('Class updated.');
+            audit_log($user['user_id'], 'edit', 'class', (string) post('class_id'), json_encode(['class_name' => post('class_name')]));
         } elseif ($action === 'delete_class') {
             if ($isAdmin) {
                 db()->prepare('DELETE FROM classes WHERE class_id=?')->execute([post('class_id')]);
@@ -42,6 +45,7 @@ function classes_page(): void
                 db()->prepare('DELETE FROM classes WHERE class_id=? AND instructor_id=?')->execute([post('class_id'), $user['user_id']]);
             }
             flash('Class deleted.');
+            audit_log($user['user_id'], 'delete', 'class', (string) post('class_id'));
         } elseif ($action === 'edit_schedule') {
             $schedule_id = post('schedule_id');
             $class_id = post('class_id');
@@ -51,6 +55,7 @@ function classes_page(): void
                 if ($c->fetchColumn() != $user['user_id']) redirect('classes');
             }
             db()->prepare('UPDATE class_schedules SET class_id=?, room_location=?, start_datetime=?, end_datetime=? WHERE schedule_id=?')->execute([$class_id, post('room_location'), post('start_datetime'), post('end_datetime'), $schedule_id]);
+            audit_log($user['user_id'], 'edit', 'class_schedule', (string) $schedule_id, json_encode(['class_id' => $class_id]));
             flash('Schedule updated.');
         } elseif ($action === 'delete_schedule') {
             $schedule_id = post('schedule_id');
@@ -60,6 +65,7 @@ function classes_page(): void
                 if ($c->fetchColumn() != $user['user_id']) redirect('classes');
             }
             db()->prepare('DELETE FROM class_schedules WHERE schedule_id=?')->execute([$schedule_id]);
+            audit_log($user['user_id'], 'delete', 'class_schedule', (string) $schedule_id);
             flash('Schedule deleted.');
         }
         redirect('classes');

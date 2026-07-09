@@ -124,6 +124,8 @@ function nav_icon(string $key): string
         'my_commissions' => '<span style="font-size: 18px; font-weight: bold; line-height: 18px;">₱</span>',
         // Scanner
         'scanner' => '<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><line x1="3" y1="12" x2="21" y2="12"/></svg>',
+        // Audit logs (document icon)
+        'audit_logs' => '<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>',
     ];
     return $icons[$key] ?? '<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/></svg>';
 }
@@ -244,5 +246,15 @@ function grant_retroactive_commission(int $memberUserId): void
         if (!$exists) {
             process_trainer_commission((int)$recentPayment['payment_id'], (float)$recentPayment['amount']);
         }
+    }
+}
+
+function audit_log(int $adminUserId, string $action, string $entityType, ?string $entityId = null, ?string $details = null): void
+{
+    try {
+        db()->prepare('INSERT INTO admin_audit_logs (admin_user_id, action, entity_type, entity_id, details) VALUES (?, ?, ?, ?, ?)')
+            ->execute([$adminUserId, $action, $entityType, $entityId, $details]);
+    } catch (Throwable) {
+        // Non-fatal — audit logging should never break the main flow
     }
 }

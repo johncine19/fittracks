@@ -31,10 +31,12 @@ function exercises_page(): void
                 if ($postAction === 'create') {
                     $stmt = $pdo->prepare('INSERT INTO exercises (name, category, muscle_group, description) VALUES (?, ?, ?, ?)');
                     $stmt->execute([$name, $category, $muscle_group, $description]);
+                    audit_log($user['user_id'], 'create', 'exercise', (string) $pdo->lastInsertId(), json_encode(['name' => $name, 'category' => $category]));
                     flash('Exercise created successfully.');
                 } else {
                     $stmt = $pdo->prepare('UPDATE exercises SET name = ?, category = ?, muscle_group = ?, description = ? WHERE exercise_id = ?');
                     $stmt->execute([$name, $category, $muscle_group, $description, $id]);
+                    audit_log($user['user_id'], 'edit', 'exercise', (string) $id, json_encode(['name' => $name]));
                     flash('Exercise updated successfully.');
                 }
                 redirect('exercises');
@@ -42,6 +44,7 @@ function exercises_page(): void
         } elseif ($postAction === 'delete') {
             $stmt = $pdo->prepare('DELETE FROM exercises WHERE exercise_id = ?');
             $stmt->execute([$id]);
+            audit_log($user['user_id'], 'delete', 'exercise', (string) $id);
             flash('Exercise deleted successfully.');
             redirect('exercises');
         }

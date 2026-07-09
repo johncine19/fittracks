@@ -50,6 +50,7 @@ function memberships_page(): void
                 }
             }
             
+            audit_log($user['user_id'], 'update_status', 'membership', (string) $membershipId, json_encode(['new_status' => $status]));
             flash('Membership status updated.');
             redirect('memberships');
         }
@@ -112,6 +113,7 @@ function memberships_page(): void
                 'PHP ' . number_format((float)$plan['price'], 2) . ' received for ' . $plan['plan_name'] . '. Receipt: ' . $receipt . '.'
             );
         }
+        audit_log($user['user_id'], 'create', 'membership', (string) $membershipId, json_encode(['user_id' => $memberUserId, 'plan_id' => $planId, 'status' => $status, 'amount' => $finalPrice]));
         flash('Membership created.');
         redirect('memberships');
     }

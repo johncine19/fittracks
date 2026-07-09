@@ -43,6 +43,7 @@ function users_page(): void
             if (post('role') === 'trainer') {
                 db()->prepare('INSERT INTO trainer_profiles (user_id, specialization, bio) VALUES (?, ?, ?)')->execute([$newUserId, post('specialization'), post('bio')]);
             }
+            audit_log($user['user_id'], 'create', 'user', (string) $newUserId, json_encode(['role' => post('role'), 'email' => $email, 'name' => post('first_name') . ' ' . post('last_name')]));
 
             // Send credentials email to the newly created user
             $credMailSent = false;
@@ -80,6 +81,7 @@ function users_page(): void
 
         } elseif (post('action') === 'status') {
             db()->prepare('UPDATE users SET status = ? WHERE user_id = ?')->execute([post('status'), post('user_id')]);
+            audit_log($user['user_id'], 'update_status', 'user', (string) post('user_id'), json_encode(['new_status' => post('status')]));
             flash('User status updated.');
         } elseif (post('action') === 'edit_user') {
             $adminPassword = (string) post('admin_password');
@@ -115,6 +117,7 @@ function users_page(): void
                 db()->prepare('INSERT INTO trainer_profiles (user_id, specialization, bio) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE specialization = VALUES(specialization), bio = VALUES(bio)')
                     ->execute([$editUserId, post('specialization'), post('bio')]);
             }
+            audit_log($user['user_id'], 'edit', 'user', (string) $editUserId, json_encode(['email' => post('email'), 'role' => post('role'), 'password_changed' => $newPassword !== '']));
             flash('User updated successfully.');
         } elseif (post('action') === 'delete_user') {
             $targetUserId = (int) post('user_id');
@@ -146,6 +149,7 @@ function users_page(): void
                     }
                     
                     db()->prepare('DELETE FROM users WHERE user_id=?')->execute([$targetUserId]);
+                    audit_log($user['user_id'], 'delete', 'user', (string) $targetUserId, json_encode(['role' => $targetUser['role']]));
                     flash('User deleted.');
                 }
             }

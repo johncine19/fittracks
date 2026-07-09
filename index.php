@@ -79,6 +79,7 @@ try {
         'scanner' => 'scanner_page',
         'complete_exercise' => 'complete_exercise_action',
         'exercises' => 'exercises_page',
+        'audit_logs' => 'audit_logs_page',
         'workout_builder' => 'workout_builder_page',
         'admin_workouts' => 'admin_workouts_page',
     ];

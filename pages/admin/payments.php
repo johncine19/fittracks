@@ -36,6 +36,7 @@ function payments_page(): void
             );
         }
 
+        audit_log($user['user_id'], 'create', 'payment', (string) $paymentId, json_encode(['membership_id' => $membershipId, 'amount' => post('amount'), 'status' => $status, 'receipt' => $receipt]));
         flash('Payment recorded.');
         redirect('payments');
     }

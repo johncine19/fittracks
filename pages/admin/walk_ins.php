@@ -70,6 +70,7 @@ function walk_ins_page(): void
 
         notify_user($newUserId, 'system', 'Welcome to FITTRACKS', 'Your member account has been created. Update your profile to get started.');
 
+        audit_log($user['user_id'], 'convert', 'walk_in', (string) $transactionId, json_encode(['new_user_id' => $newUserId, 'email' => $email]));
         flash(
             $credMailSent
                 ? 'Walk-in converted to member! Credentials sent to ' . $email . '.'
@@ -92,6 +93,7 @@ function walk_ins_page(): void
             db()->prepare('INSERT INTO walk_in_transactions (guest_name, contact_info, amount_paid, payment_method, visit_date, processed_by, converted_to_member_id) VALUES (?, ?, ?, ?, NOW(), ?, ?)')
                 ->execute([$guestName, $contactInfo, $amount, post('payment_method'), $user['user_id'], post('user_id')]);
         }
+        audit_log($user['user_id'], 'member_checkin', 'walk_in', (string) post('user_id'), json_encode(['amount' => $amount]));
         flash('Member check-in recorded successfully as attendance.', 'success');
         redirect('attendance');
     }
@@ -113,6 +115,7 @@ function walk_ins_page(): void
             post('payment_method') ?: 'cash',
             $user['user_id']
         ]);
+        audit_log($user['user_id'], 'create', 'walk_in', (string) db()->lastInsertId(), json_encode(['guest_name' => post('guest_name'), 'amount' => post('amount_paid')]));
         flash('Walk-in transaction recorded successfully.', 'success');
         redirect('walk_ins');
     }

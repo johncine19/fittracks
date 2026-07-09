@@ -7,6 +7,7 @@ function trainer_assignments_page(): void
     if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if (post('action') === 'end') {
             db()->prepare('UPDATE trainer_assignments SET status = "ended", ended_date = CURDATE() WHERE assignment_id = ?')->execute([post('assignment_id')]);
+            audit_log($user['user_id'], 'end', 'trainer_assignment', (string) post('assignment_id'));
             flash('Trainer assignment ended.');
         } elseif (post('action') === 'forward') {
             db()->prepare('UPDATE trainer_assignments SET status = "pending_trainer" WHERE assignment_id = ?')->execute([post('assignment_id')]);
@@ -20,6 +21,7 @@ function trainer_assignments_page(): void
                     notify_user((int)$trainerUserId, 'system', 'New Appointment Request', $memberName . ' has requested an appointment with you.');
                 }
             }
+            audit_log($user['user_id'], 'forward', 'trainer_assignment', (string) post('assignment_id'));
             flash('Request forwarded to trainer.');
         } elseif (post('action') === 'reject_admin') {
             db()->prepare('UPDATE trainer_assignments SET status = "rejected", rejection_reason = "Rejected by admin" WHERE assignment_id = ?')->execute([post('assignment_id')]);
@@ -29,6 +31,7 @@ function trainer_assignments_page(): void
             if ($assignment) {
                 notify_user((int)$assignment['member_user_id'], 'system', 'Appointment Request Rejected', 'Your trainer appointment request was rejected by the admin.');
             }
+            audit_log($user['user_id'], 'reject', 'trainer_assignment', (string) post('assignment_id'));
             flash('Request rejected.');
         } else {
             $trainerId = (int) post('trainer_id');
@@ -57,6 +60,7 @@ function trainer_assignments_page(): void
                 notify_user((int) $pair['trainer_user_id'], 'system', 'New client assigned', $pair['member_name'] . ' has been assigned to you.');
             }
 
+            audit_log($user['user_id'], 'create', 'trainer_assignment', (string) db()->lastInsertId(), json_encode(['trainer_id' => $trainerId, 'member_user_id' => $memberUserId]));
             flash('Trainer assigned to member.');
         }
         redirect('trainer_assignments');

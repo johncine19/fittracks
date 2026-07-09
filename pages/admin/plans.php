@@ -8,6 +8,7 @@ function plans_page(): void
         $action = post('action', 'add');
         if ($action === 'delete') {
             db()->prepare('DELETE FROM membership_plans WHERE plan_id = ?')->execute([post('id')]);
+            audit_log($user['user_id'], 'delete', 'plan', (string) post('id'));
             flash('Membership plan deleted.');
         } elseif ($action === 'edit') {
             db()->prepare('UPDATE membership_plans SET plan_name = ?, plan_type = ?, duration_days = ?, price = ?, description = ?, is_active = ?, commission_rate = ? WHERE plan_id = ?')->execute([post('plan_name'), post('plan_type'), post('duration_days'), post('price'), post('description'), post('is_active', 0) ? 1 : 0, post('commission_rate', 5.0), post('id')]);
@@ -23,9 +24,11 @@ function plans_page(): void
                 WHERE m.plan_id = ? AND tc.status = 'pending'
             ")->execute([$newRate, $planId]);
 
+            audit_log($user['user_id'], 'edit', 'plan', (string) post('id'), json_encode(['plan_name' => post('plan_name'), 'price' => post('price')]));
             flash('Membership plan updated.');
         } else {
             db()->prepare('INSERT INTO membership_plans (plan_name, plan_type, duration_days, price, description, is_active, commission_rate) VALUES (?, ?, ?, ?, ?, ?, ?)')->execute([post('plan_name'), post('plan_type'), post('duration_days'), post('price'), post('description'), post('is_active', 0) ? 1 : 0, post('commission_rate', 5.0)]);
+            audit_log($user['user_id'], 'create', 'plan', (string) db()->lastInsertId(), json_encode(['plan_name' => post('plan_name'), 'price' => post('price')]));
             flash('Membership plan saved.');
         }
         redirect('plans');
