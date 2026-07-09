@@ -703,6 +703,16 @@ function dashboard(): void
         render_exercise_recommendations((int) $user['user_id'], true);
         echo '</div>';
         
+        $wAtt = (int) get_setting('engagement_weight_attendance', '40');
+        $wCls = (int) get_setting('engagement_weight_classes', '20');
+        $wCon = (int) get_setting('engagement_weight_consistency', '20');
+        $wWrk = (int) get_setting('engagement_weight_workouts', '10');
+        $wPrg = (int) get_setting('engagement_weight_progress', '10');
+        $high = (int) get_setting('engagement_threshold_high', '75');
+        $mod = (int) get_setting('engagement_threshold_moderate', '40');
+        $mod_end = $high - 1;
+        $risk_end = $mod - 1;
+
         // Engagement & Tiers Guide Modal
         echo <<<HTML
         <dialog id="guide-modal" class="panel animate-fade-in" style="border:1px solid rgba(255,255,255,0.1); border-radius:16px; background:var(--panel); color:var(--ink); padding:0; max-width:600px; width:100%; box-shadow:0 20px 40px rgba(0,0,0,0.5); margin:auto;">
@@ -719,20 +729,20 @@ function dashboard(): void
                     Your Engagement Score measures how actively you use FITTRACKS over the last 30-60 days. It updates automatically based on your habits!
                 </p>
                 <ul style="color:var(--muted); font-size:14px; line-height:1.6; margin-bottom:24px; padding-left:20px;">
-                    <li><strong>40% Attendance:</strong> Check into the gym regularly (up to 7 visits / 30 days).</li>
-                    <li><strong>20% Classes:</strong> Participate in group fitness classes (up to 4 classes / 30 days).</li>
-                    <li><strong>20% Consistency:</strong> Stay active every week. We look at your weekly streaks!</li>
-                    <li><strong>10% Daily Completed Workout:</strong> Complete your scheduled exercises (up to 8 days / 30 days).</li>
-                    <li><strong>10% Progress:</strong> Log your workout progress at least once every 60 days.</li>
+                    <li><strong>{$wAtt}% Attendance:</strong> Check into the gym regularly (up to 7 visits / 30 days).</li>
+                    <li><strong>{$wCls}% Classes:</strong> Participate in group fitness classes (up to 4 classes / 30 days).</li>
+                    <li><strong>{$wCon}% Consistency:</strong> Stay active every week. We look at your weekly streaks!</li>
+                    <li><strong>{$wWrk}% Daily Completed Workout:</strong> Complete your scheduled exercises (up to 8 days / 30 days).</li>
+                    <li><strong>{$wPrg}% Progress:</strong> Log your workout progress at least once every 60 days.</li>
                 </ul>
                 
                 <p style="color:var(--muted); font-size:14px; margin-bottom:12px; line-height:1.6;">
                     <strong>Engagement Categories:</strong>
                 </p>
                 <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(150px, 1fr)); gap:12px; font-size:13px; margin-bottom: 24px;">
-                    <div style="background:rgba(255,255,255,0.03); padding:10px; border-radius:8px; border-left: 3px solid var(--lime);"><strong>75 - 100:</strong> Highly Engaged</div>
-                    <div style="background:rgba(255,255,255,0.03); padding:10px; border-radius:8px; border-left: 3px solid #f59e0b;"><strong>40 - 74:</strong> Moderately Engaged</div>
-                    <div style="background:rgba(255,255,255,0.03); padding:10px; border-radius:8px; border-left: 3px solid #ef4444;"><strong>0 - 39:</strong> At-Risk</div>
+                    <div style="background:rgba(255,255,255,0.03); padding:10px; border-radius:8px; border-left: 3px solid var(--lime);"><strong>{$high} - 100:</strong> Highly Engaged</div>
+                    <div style="background:rgba(255,255,255,0.03); padding:10px; border-radius:8px; border-left: 3px solid #f59e0b;"><strong>{$mod} - {$mod_end}:</strong> Moderately Engaged</div>
+                    <div style="background:rgba(255,255,255,0.03); padding:10px; border-radius:8px; border-left: 3px solid #ef4444;"><strong>0 - {$risk_end}:</strong> At-Risk</div>
                 </div>
                 
                 <h3 style="color:var(--ink); margin:0 0 12px; display:flex; align-items:center; gap:8px;">

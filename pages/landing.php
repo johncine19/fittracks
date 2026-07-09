@@ -417,20 +417,25 @@ function landing_page(): void
         <div class="faq-card" style="background: rgba(255, 255, 255, 0.03); border: 1px solid var(--line); border-radius: 16px; padding: 30px;">
             <h3 style="font-size: 1.25rem; margin-bottom: 12px; color: var(--ink);">How does the Engagement Score work?</h3>
             <p style="color: var(--muted); line-height: 1.6; font-size: 0.95rem; margin: 0;">
-                Your Engagement Score (0-100) measures your gym activity using four factors: 
-                <strong>Attendance Frequency</strong> (last 30 days, 40%), 
-                <strong>Class Participation</strong> (last 30 days, 30%), 
-                <strong>Consistency</strong> (active weeks in the past month, 20%), and 
-                <strong>Progress Updates</strong> (logging workouts in the last 60 days, 10%).
+                Your Engagement Score (0-100) measures your gym activity using five factors: 
+                <strong>Attendance Frequency</strong> (last 30 days, <?= (int) get_setting('engagement_weight_attendance', '40') ?>%), 
+                <strong>Class Participation</strong> (last 30 days, <?= (int) get_setting('engagement_weight_classes', '20') ?>%), 
+                <strong>Consistency</strong> (active weeks in the past month, <?= (int) get_setting('engagement_weight_consistency', '20') ?>%), 
+                <strong>Daily Completed Workout</strong> (completed exercises, <?= (int) get_setting('engagement_weight_workouts', '10') ?>%), and 
+                <strong>Progress Updates</strong> (logging workouts in the last 60 days, <?= (int) get_setting('engagement_weight_progress', '10') ?>%).
             </p>
         </div>
         <div class="faq-card" style="background: rgba(255, 255, 255, 0.03); border: 1px solid var(--line); border-radius: 16px; padding: 30px;">
             <h3 style="font-size: 1.25rem; margin-bottom: 12px; color: var(--ink);">What are the engagement categories?</h3>
             <p style="color: var(--muted); line-height: 1.6; font-size: 0.95rem; margin: 0;">
+                <?php 
+                $high = (int) get_setting('engagement_threshold_high', '75');
+                $mod = (int) get_setting('engagement_threshold_moderate', '40');
+                ?>
                 Based on your score, you are placed into one of three categories:
-                <br>• <strong>Highly Engaged:</strong> Score of 75 or higher.
-                <br>• <strong>Moderately Engaged:</strong> Score between 40 and 74.
-                <br>• <strong>At-Risk:</strong> Score below 40. We will reach out to help you get back on track!
+                <br>• <strong>Highly Engaged:</strong> Score of <?= $high ?> or higher.
+                <br>• <strong>Moderately Engaged:</strong> Score between <?= $mod ?> and <?= $high - 1 ?>.
+                <br>• <strong>At-Risk:</strong> Score below <?= $mod ?>. We will reach out to help you get back on track!
             </p>
         </div>
         <div class="faq-card" style="background: rgba(255, 255, 255, 0.03); border: 1px solid var(--line); border-radius: 16px; padding: 30px;">
