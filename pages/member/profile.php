@@ -114,10 +114,37 @@ function profile_page(): void
                 flash('Physical profile updated.', 'success');
             }
             redirect('profile');
+        } elseif (isset($_POST['update_system_settings']) && $user['role'] === 'admin') {
+            $settings = $_POST['settings'] ?? [];
+            $totalWeight = 0;
+            if (isset($settings['engagement_weight_attendance'])) {
+                foreach ($settings as $key => $val) {
+                    if (str_starts_with($key, 'engagement_weight_')) {
+                        $totalWeight += (int)$val;
+                    }
+                }
+            }
+            if (isset($settings['engagement_weight_attendance']) && $totalWeight !== 100) {
+                flash("Engagement weights must equal exactly 100%. Currently: {$totalWeight}%", 'danger');
+            } else {
+                $stmt = db()->prepare('UPDATE system_settings SET setting_value = ?, updated_by = ?, updated_at = NOW() WHERE setting_key = ? AND setting_key != "last_at_risk_scan_date"');
+                foreach ($settings as $key => $val) {
+                    $stmt->execute([(string) $val, $user['user_id'], $key]);
+                }
+                audit_log($user['user_id'], 'edit', 'system_settings', null, json_encode($settings));
+                flash('System settings updated successfully.', 'success');
+            }
+            redirect('profile');
         }
     }
 
     $user = current_user();
+
+    $allSettings = query_all('SELECT * FROM system_settings WHERE setting_key != "last_at_risk_scan_date" ORDER BY setting_key');
+    $sysSettings = [];
+    foreach ($allSettings as $s) {
+        $sysSettings[$s['setting_key']] = $s;
+    }
     
     render_header('Settings', $user);
 ?>
@@ -298,25 +325,123 @@ function profile_page(): void
                 </label>
             </div>
         </section>
+
+        <?php if ($user['role'] === 'admin'): ?>
+        <section class="panel" style="flex: 1; min-width: 350px; max-width: 650px; margin: 0;">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;">
+                <h2 style="margin:0;">System Settings</h2>
+                <button type="button" onclick="document.getElementById('systemSettingsModal').showModal()">Configure</button>
+            </div>
+            <p class="muted" style="margin-bottom:0;font-size:13px;">
+                Configure global system behaviors, multipliers, and engagement metrics.
+            </p>
+        </section>
+        <?php endif; ?>
+
     </div>
 
+    <?php if ($user['role'] === 'admin'): ?>
+    <dialog id="systemSettingsModal" class="modal">
+        <div class="modal-header">
+            <h3>Global System Settings</h3>
+            <button class="modal-close" onclick="this.closest('dialog').close()" aria-label="Close">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24"
+                    fill="none" stroke="currentColor" stroke-width="2">
+                    <line x1="18" y1="6" x2="6" y2="18" />
+                    <line x1="6" y1="6" x2="18" y2="18" />
+                </svg>
+            </button>
+        </div>
+        <div class="modal-body" style="max-height: 70vh; overflow-y: auto;">
+            <form method="post" class="form" style="margin-bottom:0;" onsubmit="const btn = this.querySelector('button[type=submit]'); btn.disabled = true; btn.innerHTML = 'Saving...';">
+                <?= csrf_field() ?>
+                <input type="hidden" name="update_system_settings" value="1">
+                
+                <div class="card" style="padding: 15px; background: rgba(255, 255, 255, 0.02); border: 1px solid var(--line); border-radius: 12px; margin-bottom: 20px;">
+                    <h4 style="margin-top: 0; font-size: 1.05rem; color: var(--lime); border-bottom: 1px solid var(--line); padding-bottom: 8px; margin-bottom: 15px;">
+                        Engagement Score
+                    </h4>
+                    
+                    <?php 
+                    $engagementSettings = array_filter($sysSettings, fn($key) => str_starts_with($key, 'engagement_'), ARRAY_FILTER_USE_KEY);
+                    foreach ($engagementSettings as $key => $s): 
+                    ?>
+                        <div style="margin-bottom: 12px;">
+                            <label style="display: block; font-weight: 500; margin-bottom: 4px; color: var(--ink);">
+                                <?= h(ucwords(str_replace('_', ' ', str_replace('engagement_weight_', '', $key)))) ?>
+                            </label>
+                            <input type="number" name="settings[<?= h($key) ?>]" value="<?= h($s['setting_value']) ?>" step="any" class="form-control weight-input" style="width: 100%;" required>
+                            <?php if ($s['description']): ?>
+                                <div style="font-size: 0.8rem; color: var(--muted); margin-top: 2px;"><?= h($s['description']) ?></div>
+                            <?php endif; ?>
+                        </div>
+                    <?php endforeach; ?>
+                    
+                    <div id="weight-total-display" style="margin-top: 15px; font-weight: bold; padding: 10px; border-radius: 6px; text-align: right; background: rgba(0,0,0,0.2);">
+                        Total: <span id="weight-total-val">0</span>%
+                    </div>
+                </div>
+                
+                <div class="form-actions" style="margin-top: 1.5rem;">
+                    <button type="button" class="btn" style="background:transparent;border:1px solid var(--line);color:var(--ink);" onclick="this.closest('dialog').close()">Cancel</button>
+                    <button type="submit" class="btn btn-primary" style="background: var(--lime); color: var(--bg); font-weight: bold;">Save Settings</button>
+                </div>
+            </form>
+        </div>
+    </dialog>
+    <?php endif; ?>
+
     <script>
-    document.getElementById('toggleVideoBg').addEventListener('change', function(e) {
-        const isEnabled = e.target.checked;
-        document.cookie = "fittracks_video_bg=" + (isEnabled ? "on" : "off") + "; path=/; max-age=31536000";
+    document.addEventListener('DOMContentLoaded', function() {
+        // Video BG logic
+        const toggleVideoBg = document.getElementById('toggleVideoBg');
+        if (toggleVideoBg) {
+            toggleVideoBg.addEventListener('change', function(e) {
+                const isEnabled = e.target.checked;
+                document.cookie = "fittracks_video_bg=" + (isEnabled ? "on" : "off") + "; path=/; max-age=31536000";
+                
+                const video = document.getElementById('app-bg-video');
+                if (!isEnabled && video) {
+                    video.pause();
+                    video.style.display = 'none';
+                } else if (isEnabled) {
+                    if (video) {
+                        video.style.display = 'block';
+                        video.play();
+                    } else {
+                        location.reload();
+                    }
+                }
+            });
+        }
+
+        // Weight logic
+        const inputs = document.querySelectorAll('.weight-input');
+        const display = document.getElementById('weight-total-val');
+        const displayContainer = document.getElementById('weight-total-display');
         
-        const video = document.getElementById('app-bg-video');
-        if (!isEnabled && video) {
-            video.pause();
-            video.style.display = 'none';
-        } else if (isEnabled) {
-            if (video) {
-                video.style.display = 'block';
-                video.play();
+        function updateTotal() {
+            if (!display) return;
+            let total = 0;
+            inputs.forEach(input => {
+                total += parseInt(input.value) || 0;
+            });
+            display.textContent = total;
+            
+            if (total === 100) {
+                displayContainer.style.color = 'var(--lime)';
+                displayContainer.style.border = '1px solid rgba(163, 230, 53, 0.3)';
             } else {
-                location.reload();
+                displayContainer.style.color = '#ef4444';
+                displayContainer.style.border = '1px solid rgba(239, 68, 68, 0.3)';
             }
         }
+        
+        inputs.forEach(input => {
+            input.addEventListener('input', updateTotal);
+        });
+        
+        updateTotal();
     });
     </script>
 
