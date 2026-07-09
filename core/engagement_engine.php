@@ -180,9 +180,9 @@ function get_inactive_members(int $limit = 5): array
 {
     $pdo = db();
     $users = query_all(
-        'SELECT u.user_id, u.first_name, u.last_name, u.email, u.profile_picture,
+        'SELECT u.user_id, u.first_name, u.last_name, u.email, u.profile_picture, u.created_at,
                 MAX(a.check_in_time) as last_checkin, 
-                DATEDIFF(CURDATE(), MAX(a.check_in_time)) as days_inactive
+                COALESCE(DATEDIFF(CURDATE(), MAX(a.check_in_time)), DATEDIFF(CURDATE(), u.created_at)) as days_inactive
          FROM users u
          LEFT JOIN attendance a ON u.user_id = a.user_id
          WHERE u.role = "member" AND u.status = "active"
@@ -191,6 +191,9 @@ function get_inactive_members(int $limit = 5): array
 
     $atRisk = [];
     foreach ($users as $u) {
+        if ((int)$u['days_inactive'] < 1) {
+            continue; // Skip members who checked in today (0 days inactive)
+        }
         $score = get_cached_engagement_score((int) $u['user_id']);
         if (get_engagement_category($score) === 'At-Risk') {
             $atRisk[] = $u;
