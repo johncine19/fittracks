@@ -156,6 +156,53 @@ function maybe_notify_membership_renewal(int $userId): void
     notify_user($userId, 'renewal_reminder', 'Membership expiring soon', $message);
 }
 
+function maybe_notify_membership_expired(int $userId): void
+{
+    if ($userId <= 0) {
+        return;
+    }
+
+    $rows = query_all(
+        'SELECT m.end_date, p.plan_name
+         FROM memberships m
+         JOIN membership_plans p ON p.plan_id = m.plan_id
+         WHERE m.user_id = ? AND m.status IN ("active", "expired")
+           AND m.end_date < CURDATE()
+           AND m.end_date >= DATE_SUB(CURDATE(), INTERVAL 14 DAY)
+         ORDER BY m.end_date DESC
+         LIMIT 1',
+        [$userId]
+    );
+    if (!$rows) {
+        return;
+    }
+
+    $membership = $rows[0];
+    $endDate = $membership['end_date'];
+
+    $hasActive = (bool) scalar(
+        'SELECT 1 FROM memberships WHERE user_id = ? AND status = "active" AND end_date >= CURDATE() LIMIT 1',
+        [$userId]
+    );
+    if ($hasActive) {
+        return;
+    }
+
+    $message = 'Your ' . $membership['plan_name'] . ' membership expired on '
+        . date('M j, Y', strtotime($endDate)) . '. Please renew to continue accessing the facility.';
+
+    $alreadySent = (int) scalar(
+        'SELECT COUNT(*) FROM notifications
+         WHERE user_id = ? AND type = "renewal_reminder" AND message = ? AND created_at >= DATE_SUB(NOW(), INTERVAL 14 DAY)',
+        [$userId, $message]
+    );
+    if ($alreadySent) {
+        return;
+    }
+
+    notify_user($userId, 'renewal_reminder', 'Membership expired', $message);
+}
+
 function handle_notification_actions(): void
 {
     $user = require_login();
@@ -199,13 +246,13 @@ function handle_notification_click(): void
 
     // Begin transaction for atomicity
     $pdo->beginTransaction();
+    $senderId = null;
     try {
         // 1. Mark the notification as read
         $pdo->prepare('UPDATE notifications SET is_read = 1 WHERE notification_id = ? AND user_id = ?')
             ->execute([$notifId, $userId]);
 
         // 2. For coach_message notifications, also mark all chat messages from that sender as read
-        $senderId = null;
         if ($notif['type'] === 'coach_message') {
             $refId = $notif['reference_id'] ?? null;
 

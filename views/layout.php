@@ -40,6 +40,7 @@ function render_header(string $title, ?array $user = null): void
     $flash = flash();
     if ($user && ($user['role'] ?? '') === 'member') {
         maybe_notify_membership_renewal((int) $user['user_id']);
+        maybe_notify_membership_expired((int) $user['user_id']);
     }
     ?>
     <!doctype html>
