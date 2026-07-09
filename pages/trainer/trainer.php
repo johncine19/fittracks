@@ -139,6 +139,14 @@ HTML;
         $memberId = (int) $member['member_user_id'];
         $csrf = csrf_field();
         $avatarHtml = render_avatar($member, 'large'); // Using large size for the card
+        
+        // Format the date/time
+        $dateTimeText = 'Immediate (Ongoing)';
+        if ($member['assigned_date'] && $member['ended_date']) {
+            $dateTimeText = date('M j, Y g:i A', strtotime($member['assigned_date']));
+        } elseif ($member['assigned_date']) {
+            $dateTimeText = date('M j, Y', strtotime($member['assigned_date'])) . ' (Ongoing)';
+        }
 
         echo <<<HTML
         <article class="panel plan-card-glow" style="display: flex; flex-direction: column; gap: 1rem; background: var(--surface); padding: 1.5rem;">
@@ -156,9 +164,14 @@ HTML;
                 {$goal}
             </div>
             
-            <p style="font-size: 0.9rem; color: var(--muted); flex: 1;">
+            <p style="font-size: 0.9rem; color: var(--muted); margin-bottom: 0;">
                 Current recorded weight: {$weight} kg
             </p>
+            
+            <div style="background: rgba(163, 230, 53, 0.05); border-radius: 8px; padding: 10px; border: 1px solid rgba(163, 230, 53, 0.1); flex: 1;">
+                <div style="font-size: 0.8rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px;">Assignment Date</div>
+                <div style="font-size: 0.95rem; font-weight: 500; color: var(--ink);">{$dateTimeText}</div>
+            </div>
             
             <div style="display: flex; flex-direction: column; gap: 10px; margin-top: 0.5rem;">
                 <a href="index.php?page=workout_builder&member_user_id={$memberId}" class="btn t-btn-primary" style="text-align:center; text-decoration:none;">

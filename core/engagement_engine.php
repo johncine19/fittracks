@@ -91,7 +91,7 @@ function get_engagement_missions(int $userId): array
 
     return [
         [
-            'icon' => '🏋️',
+            'icon' => '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 4v16"/><path d="M10 4v16"/><path d="M6 12h4"/><path d="M14 4v16"/><path d="M18 4v16"/><path d="M14 12h4"/></svg>',
             'title' => 'Check in to the gym',
             'description' => 'Visit the gym 7 times this month',
             'current' => $attendanceCurrent,
@@ -101,7 +101,7 @@ function get_engagement_missions(int $userId): array
             'completed' => $attendanceCurrent >= $attendanceTarget,
         ],
         [
-            'icon' => '👥',
+            'icon' => '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>',
             'title' => 'Attend group classes',
             'description' => 'Join 4 classes this month',
             'current' => $classCurrent,
@@ -111,7 +111,7 @@ function get_engagement_missions(int $userId): array
             'completed' => $classCurrent >= $classTarget,
         ],
         [
-            'icon' => '🔥',
+            'icon' => '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z"/></svg>',
             'title' => 'Keep your weekly streak',
             'description' => 'Be active in 4 different weeks',
             'current' => $consistencyCurrent,
@@ -121,7 +121,7 @@ function get_engagement_missions(int $userId): array
             'completed' => $consistencyCurrent >= $consistencyTarget,
         ],
         [
-            'icon' => '💪',
+            'icon' => '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>',
             'title' => 'Complete daily workouts',
             'description' => 'Finish workouts on 8 different days',
             'current' => $workoutCurrent,
@@ -131,7 +131,7 @@ function get_engagement_missions(int $userId): array
             'completed' => $workoutCurrent >= $workoutTarget,
         ],
         [
-            'icon' => '📊',
+            'icon' => '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>',
             'title' => 'Log your progress',
             'description' => 'Record your progress at least once (60 days)',
             'current' => $progressCurrent,
