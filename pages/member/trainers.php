@@ -105,7 +105,7 @@ function trainers_page(): void
     function requestTrainerDate(trainerId) {
         Swal.fire({
             title: 'Appointment Date',
-            html: '<div style="text-align:left; margin-top:10px;"><label style="font-size: 14px; color: var(--muted); margin-bottom: 8px; display: block;">Select a date and time for your appointment:</label><input type="datetime-local" id="swal-input-date" class="form-control" style="width:100%; box-sizing: border-box;" min="<?= date('Y-m-d\TH:i') ?>"></div>',
+            html: '<div style="text-align:left; margin-top:10px;"><label style="font-size: 14px; color: var(--muted); margin-bottom: 8px; display: block;">Select a date and time for your appointment:</label><input type="datetime-local" id="swal-input-date" class="form-control" style="width:100%; box-sizing: border-box;" min="<?= date('Y-m-d\TH:i') ?>"><div style="margin-top:14px;padding:10px 14px;border-radius:8px;background:rgba(245,158,11,0.08);border:1px solid rgba(245,158,11,0.2);display:flex;align-items:flex-start;gap:8px;"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;margin-top:1px;"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg><span style="font-size:13px;color:#f59e0b;line-height:1.4;">Please prepare your payment for the session. You will pay the trainer directly at the appointment.</span></div></div>',
             focusConfirm: false,
             showCancelButton: true,
             confirmButtonText: 'Submit Request',
