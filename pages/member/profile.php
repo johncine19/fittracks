@@ -127,12 +127,47 @@ function profile_page(): void
             if (isset($settings['engagement_weight_attendance']) && $totalWeight !== 100) {
                 flash("Engagement weights must equal exactly 100%. Currently: {$totalWeight}%", 'danger');
             } else {
-                $stmt = db()->prepare('UPDATE system_settings SET setting_value = ?, updated_by = ?, updated_at = NOW() WHERE setting_key = ? AND setting_key != "last_at_risk_scan_date"');
-                foreach ($settings as $key => $val) {
-                    $stmt->execute([(string) $val, $user['user_id'], $key]);
+                $currentInactivity = (int)(scalar("SELECT setting_value FROM system_settings WHERE setting_key = 'at_risk_inactivity_days'") ?: 3);
+                $currentCooldown = (int)(scalar("SELECT setting_value FROM system_settings WHERE setting_key = 'at_risk_notification_cooldown'") ?: 14);
+                $hasAtRiskChanges = false;
+                
+                if ((isset($settings['at_risk_inactivity_days']) && (int)$settings['at_risk_inactivity_days'] !== $currentInactivity) ||
+                    (isset($settings['at_risk_notification_cooldown']) && (int)$settings['at_risk_notification_cooldown'] !== $currentCooldown)) {
+                    $hasAtRiskChanges = true;
                 }
-                audit_log($user['user_id'], 'edit', 'system_settings', null, json_encode($settings));
-                flash('System settings updated successfully.', 'success');
+
+                $canUpdateAtRisk = true;
+                $blockedMsg = '';
+                if ($hasAtRiskChanges) {
+                    $lastUpdate = scalar("SELECT setting_value FROM system_settings WHERE setting_key = 'last_at_risk_settings_update'") ?: '2000-01-01 00:00:00';
+                    if (strtotime($lastUpdate) > strtotime('-15 days')) {
+                        $canUpdateAtRisk = false;
+                        $daysLeft = 15 - floor((time() - strtotime($lastUpdate)) / 86400);
+                        $blockedMsg = "Automated Notification settings can only be updated every 15 days. Please wait {$daysLeft} more days.";
+                    } else {
+                        $settings['last_at_risk_settings_update'] = date('Y-m-d H:i:s');
+                    }
+                }
+
+                if ($hasAtRiskChanges && !$canUpdateAtRisk) {
+                    unset($settings['at_risk_inactivity_days']);
+                    unset($settings['at_risk_notification_cooldown']);
+                    if (!empty($settings)) {
+                        flash($blockedMsg . ' Other settings were saved.', 'warning');
+                    } else {
+                        flash($blockedMsg, 'danger');
+                    }
+                } else {
+                    flash('System settings updated successfully.', 'success');
+                }
+
+                if (!empty($settings)) {
+                    $stmt = db()->prepare('UPDATE system_settings SET setting_value = ?, updated_by = ?, updated_at = NOW() WHERE setting_key = ? AND setting_key != "last_at_risk_scan_date"');
+                    foreach ($settings as $key => $val) {
+                        $stmt->execute([(string) $val, $user['user_id'], $key]);
+                    }
+                    audit_log($user['user_id'], 'edit', 'system_settings', null, json_encode($settings));
+                }
             }
             redirect('profile');
         }
@@ -382,6 +417,29 @@ function profile_page(): void
                     </div>
                 </div>
                 
+                <div class="card" style="padding: 15px; background: rgba(255, 255, 255, 0.02); border: 1px solid var(--line); border-radius: 12px; margin-bottom: 20px;">
+                    <h4 style="margin-top: 0; font-size: 1.05rem; color: var(--lime); border-bottom: 1px solid var(--line); padding-bottom: 8px; margin-bottom: 15px;">
+                        Automated Notifications
+                    </h4>
+                    
+                    <?php 
+                    $notificationSettings = ['at_risk_inactivity_days', 'at_risk_notification_cooldown'];
+                    foreach ($notificationSettings as $key):
+                        if (!isset($sysSettings[$key])) continue;
+                        $s = $sysSettings[$key];
+                    ?>
+                        <div style="margin-bottom: 12px;">
+                            <label style="display: block; font-weight: 500; margin-bottom: 4px; color: var(--ink);">
+                                <?= h(ucwords(str_replace('_', ' ', str_replace('at_risk_', '', $key)))) ?>
+                            </label>
+                            <input type="number" name="settings[<?= h($key) ?>]" value="<?= h($s['setting_value']) ?>" step="1" class="form-control" style="width: 100%;" required>
+                            <?php if ($s['description']): ?>
+                                <div style="font-size: 0.8rem; color: var(--muted); margin-top: 2px;"><?= h($s['description']) ?></div>
+                            <?php endif; ?>
+                        </div>
+                    <?php endforeach; ?>
+                </div>
+
                 <div class="form-actions" style="margin-top: 1.5rem;">
                     <button type="button" class="btn" style="background:transparent;border:1px solid var(--line);color:var(--ink);" onclick="this.closest('dialog').close()">Cancel</button>
                     <button type="submit" class="btn btn-primary" style="background: var(--lime); color: var(--bg); font-weight: bold;">Save Settings</button>

@@ -209,12 +209,15 @@ function process_automated_at_risk_notifications(): void
     $pdo = db();
     $atRiskMembers = get_inactive_members(99999);
     
+    $inactivityThreshold = (int) get_setting('at_risk_inactivity_days', '3');
+    $cooldownDays = (int) get_setting('at_risk_notification_cooldown', '14');
+    
     foreach ($atRiskMembers as $member) {
-        if (($member['days_inactive'] ?? 0) >= 3) {
+        if (($member['days_inactive'] ?? 0) >= $inactivityThreshold) {
             $userId = (int) $member['user_id'];
             
-            $stmt = $pdo->prepare("SELECT COUNT(*) FROM notifications WHERE user_id = ? AND type = 'system' AND title = 'We miss you at the gym! 💪' AND created_at >= DATE_SUB(NOW(), INTERVAL 14 DAY)");
-            $stmt->execute([$userId]);
+            $stmt = $pdo->prepare("SELECT COUNT(*) FROM notifications WHERE user_id = ? AND type = 'system' AND title = 'We miss you at the gym! 💪' AND created_at >= DATE_SUB(NOW(), INTERVAL ? DAY)");
+            $stmt->execute([$userId, $cooldownDays]);
             $recentNotifs = (int) $stmt->fetchColumn();
             
             if ($recentNotifs === 0) {
