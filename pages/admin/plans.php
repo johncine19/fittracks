@@ -13,16 +13,17 @@ function plans_page(): void
         } elseif ($action === 'edit') {
             db()->prepare('UPDATE membership_plans SET plan_name = ?, plan_type = ?, duration_days = ?, price = ?, description = ?, is_active = ?, commission_rate = ? WHERE plan_id = ?')->execute([post('plan_name'), post('plan_type'), post('duration_days'), post('price'), post('description'), post('is_active', 0) ? 1 : 0, post('commission_rate', 5.0), post('id')]);
             
-            // Recalculate pending commissions for this plan
+            // Recalculate pending commissions for this plan based on new price and rate
             $newRate = (float)post('commission_rate', 5.0);
+            $newPrice = (float)post('price');
             $planId = (int)post('id');
             db()->prepare("
                 UPDATE trainer_commissions tc
                 JOIN payments p ON p.payment_id = tc.payment_id
                 JOIN memberships m ON m.membership_id = p.membership_id
-                SET tc.amount = p.amount * (? / 100)
+                SET tc.amount = ? * (? / 100)
                 WHERE m.plan_id = ? AND tc.status = 'pending'
-            ")->execute([$newRate, $planId]);
+            ")->execute([$newPrice, $newRate, $planId]);
 
             audit_log($user['user_id'], 'edit', 'plan', (string) post('id'), json_encode(['plan_name' => post('plan_name'), 'price' => post('price')]));
             flash('Membership plan updated.');
