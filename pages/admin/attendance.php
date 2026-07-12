@@ -125,7 +125,7 @@ function attendance_page(): void
                     <input type="hidden" name="action" value="checkin">
                     
                     <label style="display:block; color: var(--muted); font-size: 14px;">User *
-                        <select name="user_id" class="form-control" style="width: 100%; box-sizing: border-box;" required onchange="document.getElementById('sessionLabel').style.display = this.options[this.selectedIndex].text.includes('(trainer)') ? 'none' : 'block';">
+                        <select name="user_id" class="form-control" style="width: 100%; box-sizing: border-box;" required>
                             <option value="">Select User...</option>
                             <?php foreach ($members as $member): ?>
                                 <option value="<?= (int) $member['user_id'] ?>"><?= h($member['name']) ?></option>
