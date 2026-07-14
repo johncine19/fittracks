@@ -131,3 +131,7 @@ CREATE TABLE IF NOT EXISTS `member_transfers` (
   CONSTRAINT `fk_transfer_from_gym` FOREIGN KEY (`from_gym_id`) REFERENCES `gyms` (`gym_id`) ON DELETE CASCADE,
   CONSTRAINT `fk_transfer_to_gym` FOREIGN KEY (`to_gym_id`) REFERENCES `gyms` (`gym_id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+-- 11. Add difficulty_level to exercises
+ALTER TABLE `exercises` 
+ADD COLUMN `difficulty_level` int NOT NULL DEFAULT 1 COMMENT '1=Starter, 2=Intermediate, 3=Advanced';

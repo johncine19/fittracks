@@ -97,6 +97,13 @@ function render_member_form(string $context, ?array $user = null, ?array $profil
                 <?php endforeach; ?>
             </select>
         </label>
+        <label>Experience level
+            <select name="experience_level" <?= $context !== 'profile' ? 'required' : '' ?>>
+                <option value="1" <?= selected(1, isset($profile['fitness_tier']) ? (in_array((int)$profile['fitness_tier'], [1,2]) ? 1 : (in_array((int)$profile['fitness_tier'], [3,4]) ? 2 : 3)) : null) ?>>Starter</option>
+                <option value="2" <?= selected(2, isset($profile['fitness_tier']) ? (in_array((int)$profile['fitness_tier'], [1,2]) ? 1 : (in_array((int)$profile['fitness_tier'], [3,4]) ? 2 : 3)) : null) ?>>Intermediate</option>
+                <option value="3" <?= selected(3, isset($profile['fitness_tier']) ? (in_array((int)$profile['fitness_tier'], [1,2]) ? 1 : (in_array((int)$profile['fitness_tier'], [3,4]) ? 2 : 3)) : null) ?>>Advanced</option>
+            </select>
+        </label>
         <button type="submit" class="full-width btn-primary" style="margin-top:10px;">Save</button>
     </form>
     <?php

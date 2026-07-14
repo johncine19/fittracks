@@ -24,6 +24,16 @@ function save_member_profile(int $userId): void
         post('activity_level'),
         post('primary_goal'),
     ]);
+
+    // Update fitness_tier based on selected experience_level
+    if (isset($_POST['experience_level'])) {
+        $exp = (int) $_POST['experience_level'];
+        $tier = 1;
+        if ($exp === 2) $tier = 3;
+        if ($exp === 3) $tier = 5;
+        $pdo->prepare('UPDATE member_profiles SET fitness_tier = ? WHERE user_id = ?')
+            ->execute([$tier, $userId]);
+    }
 }
 
 function member_profile(int $userId): ?array
