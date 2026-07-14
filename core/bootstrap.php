@@ -67,6 +67,8 @@ require __DIR__ . '/../pages/admin/audit_logs.php';
 require __DIR__ . '/../pages/trainer/trainer.php';
 require __DIR__ . '/../pages/trainer/training.php';
 require __DIR__ . '/../pages/trainer/workout_builder.php';
+require __DIR__ . '/../pages/trainer/trainer_assessment.php';
+require __DIR__ . '/../pages/trainer/diet_builder.php';
 
 // --- Member portal ---
 require __DIR__ . '/../pages/member/profile.php';
@@ -75,3 +77,4 @@ require __DIR__ . '/../pages/member/progress.php';
 require __DIR__ . '/../pages/member/book_classes.php';
 require __DIR__ . '/../pages/member/qr_attendance.php';
 require __DIR__ . '/../pages/member/my_commissions.php';
+require __DIR__ . '/../pages/member/diet.php';

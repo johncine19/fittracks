@@ -174,8 +174,14 @@ HTML;
             </div>
             
             <div style="display: flex; flex-direction: column; gap: 10px; margin-top: 0.5rem;">
+                <a href="index.php?page=trainer_assessment&member_user_id={$memberId}" class="btn t-btn-secondary" style="text-align:center; text-decoration:none; display: block; border-color: var(--lime); color: var(--lime);">
+                    Update Assessment
+                </a>
                 <a href="index.php?page=workout_builder&member_user_id={$memberId}" class="btn t-btn-primary" style="text-align:center; text-decoration:none;">
-                    Generate Plan
+                    Generate Workout
+                </a>
+                <a href="index.php?page=diet_builder&member_user_id={$memberId}" class="btn t-btn-primary" style="text-align:center; text-decoration:none; background: var(--blue);">
+                    Build Diet Plan
                 </a>
                 
                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">

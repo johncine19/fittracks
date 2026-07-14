@@ -135,3 +135,33 @@ CREATE TABLE IF NOT EXISTS `member_transfers` (
 -- 11. Add difficulty_level to exercises
 ALTER TABLE `exercises` 
 ADD COLUMN `difficulty_level` int NOT NULL DEFAULT 1 COMMENT '1=Starter, 2=Intermediate, 3=Advanced';
+
+-- 12. Create dietary_plans table
+CREATE TABLE IF NOT EXISTS `dietary_plans` (
+  `plan_id` int UNSIGNED NOT NULL AUTO_INCREMENT,
+  `member_user_id` int UNSIGNED NOT NULL,
+  `trainer_id` int UNSIGNED NOT NULL,
+  `title` varchar(255) NOT NULL,
+  `goal` varchar(100) NOT NULL,
+  `status` enum('active','completed','cancelled') NOT NULL DEFAULT 'active',
+  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`plan_id`),
+  CONSTRAINT `fk_diet_plan_member` FOREIGN KEY (`member_user_id`) REFERENCES `users` (`user_id`) ON DELETE CASCADE,
+  CONSTRAINT `fk_diet_plan_trainer` FOREIGN KEY (`trainer_id`) REFERENCES `trainer_profiles` (`trainer_id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+-- 13. Create dietary_plan_meals table
+CREATE TABLE IF NOT EXISTS `dietary_plan_meals` (
+  `meal_id` int UNSIGNED NOT NULL AUTO_INCREMENT,
+  `plan_id` int UNSIGNED NOT NULL,
+  `day_of_week` tinyint UNSIGNED NOT NULL COMMENT '1=Monday...7=Sunday',
+  `meal_type` enum('Breakfast','Lunch','Dinner','Snack') NOT NULL,
+  `food_items` text NOT NULL,
+  `calories` int UNSIGNED DEFAULT 0,
+  `protein_g` int UNSIGNED DEFAULT 0,
+  `carbs_g` int UNSIGNED DEFAULT 0,
+  `fat_g` int UNSIGNED DEFAULT 0,
+  PRIMARY KEY (`meal_id`),
+  CONSTRAINT `fk_diet_meal_plan` FOREIGN KEY (`plan_id`) REFERENCES `dietary_plans` (`plan_id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;

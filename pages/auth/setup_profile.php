@@ -131,6 +131,13 @@ function setup_profile_page(): void
                         <?php endforeach; ?>
                     </select>
                 </label>
+                <label>Experience level
+                    <select name="experience_level" required>
+                        <option value="1">Starter</option>
+                        <option value="2">Intermediate</option>
+                        <option value="3">Advanced</option>
+                    </select>
+                </label>
                 <button type="submit" class="auth-submit-btn full-width" style="grid-column:1/-1;margin-top:8px;">
                     SAVE &amp; CONTINUE TO DASHBOARD
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14"></path><path d="M12 5l7 7-7 7"></path></svg>
