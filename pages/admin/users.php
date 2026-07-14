@@ -6,9 +6,33 @@ use PHPMailer\PHPMailer\Exception as PHPMailerException;
 
 function users_page(): void
 {
-    $user = require_roles(['platform_admin']);
+    $user = require_roles(['platform_admin', 'gym_owner']);
+    $isAdmin = $user['role'] === 'platform_admin';
+    $gymId = null;
+    if (!$isAdmin) {
+        $gymId = (int) scalar('SELECT gym_id FROM gyms WHERE owner_user_id = ?', [$user['user_id']]);
+    }
+
+    $canManageUser = function(int $targetUserId) use ($isAdmin, $gymId): bool {
+        if ($isAdmin) return true;
+        $targetRole = scalar('SELECT role FROM users WHERE user_id = ?', [$targetUserId]);
+        if ($targetRole === 'trainer') {
+            return (bool) scalar('SELECT 1 FROM trainer_profiles WHERE user_id = ? AND gym_id = ?', [$targetUserId, $gymId]);
+        } elseif ($targetRole === 'member') {
+            return (bool) scalar('SELECT 1 FROM gym_members WHERE user_id = ? AND gym_id = ?', [$targetUserId, $gymId]);
+        }
+        return false;
+    };
+
     if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if (post('action') === 'create') {
+            $roleToCreate = post('role');
+            if (!$isAdmin && !in_array($roleToCreate, ['trainer', 'member'])) {
+                flash('You do not have permission to create this role.', 'danger');
+                redirect('users');
+                return;
+            }
+
             $phone = (string)post('phone');
             if ($phone !== '') {
                 $phone = preg_replace('/[^0-9]/', '', $phone);
@@ -38,12 +62,15 @@ function users_page(): void
 
             $plainPassword = (string) post('password');
             $stmt = db()->prepare('INSERT INTO users (role, first_name, last_name, email, password_hash, phone, status, email_verified_at) VALUES (?, ?, ?, ?, ?, ?, "active", NOW())');
-            $stmt->execute([post('role'), post('first_name'), post('last_name'), $email, password_hash($plainPassword, PASSWORD_DEFAULT), $phone ?: null]);
+            $stmt->execute([$roleToCreate, post('first_name'), post('last_name'), $email, password_hash($plainPassword, PASSWORD_DEFAULT), $phone ?: null]);
             $newUserId = (int) db()->lastInsertId();
-            if (post('role') === 'trainer') {
-                db()->prepare('INSERT INTO trainer_profiles (user_id, specialization, bio) VALUES (?, ?, ?)')->execute([$newUserId, post('specialization'), post('bio')]);
+            if ($roleToCreate === 'trainer') {
+                $trainerGymId = $isAdmin ? null : $gymId;
+                db()->prepare('INSERT INTO trainer_profiles (user_id, specialization, bio, gym_id) VALUES (?, ?, ?, ?)')->execute([$newUserId, post('specialization'), post('bio'), $trainerGymId]);
+            } elseif ($roleToCreate === 'member' && !$isAdmin) {
+                db()->prepare('INSERT IGNORE INTO gym_members (gym_id, user_id) VALUES (?, ?)')->execute([$gymId, $newUserId]);
             }
-            audit_log($user['user_id'], 'create', 'user', (string) $newUserId, json_encode(['role' => post('role'), 'email' => $email, 'name' => post('first_name') . ' ' . post('last_name')]));
+            audit_log($user['user_id'], 'create', 'user', (string) $newUserId, json_encode(['role' => $roleToCreate, 'email' => $email, 'name' => post('first_name') . ' ' . post('last_name')]));
 
             // Send credentials email to the newly created user
             $credMailSent = false;
@@ -80,8 +107,14 @@ function users_page(): void
                 $credMailSent ? 'success' : 'warning');
 
         } elseif (post('action') === 'status') {
-            db()->prepare('UPDATE users SET status = ? WHERE user_id = ?')->execute([post('status'), post('user_id')]);
-            audit_log($user['user_id'], 'update_status', 'user', (string) post('user_id'), json_encode(['new_status' => post('status')]));
+            $targetUserId = (int) post('user_id');
+            if (!$canManageUser($targetUserId)) {
+                flash('Permission denied.', 'danger');
+                redirect('users');
+                return;
+            }
+            db()->prepare('UPDATE users SET status = ? WHERE user_id = ?')->execute([post('status'), $targetUserId]);
+            audit_log($user['user_id'], 'update_status', 'user', (string) $targetUserId, json_encode(['new_status' => post('status')]));
             flash('User status updated.');
         } elseif (post('action') === 'edit_user') {
             $adminPassword = (string) post('admin_password');
@@ -96,6 +129,19 @@ function users_page(): void
             }
 
             $editUserId = (int) post('user_id');
+            if (!$canManageUser($editUserId)) {
+                flash('Permission denied.', 'danger');
+                redirect('users');
+                return;
+            }
+            
+            $roleToEdit = post('role');
+            if (!$isAdmin && !in_array($roleToEdit, ['trainer', 'member'])) {
+                flash('You do not have permission to assign this role.', 'danger');
+                redirect('users');
+                return;
+            }
+            
             $newPassword = (string) post('new_password');
             $phone = post('phone') !== '' ? preg_replace('/[^0-9]/', '', (string)post('phone')) : null;
             
@@ -121,6 +167,12 @@ function users_page(): void
             flash('User updated successfully.');
         } elseif (post('action') === 'delete_user') {
             $targetUserId = (int) post('user_id');
+            if (!$canManageUser($targetUserId)) {
+                flash('Permission denied.', 'danger');
+                redirect('users');
+                return;
+            }
+            
             if ($targetUserId === (int) $user['user_id']) {
                 flash('You cannot delete your own account.', 'danger');
             } else {
@@ -166,16 +218,26 @@ function users_page(): void
     
     $where = '1=1';
     $params = [];
+    
+    if (!$isAdmin) {
+        $where .= ' AND (
+            (u.role = "trainer" AND EXISTS (SELECT 1 FROM trainer_profiles WHERE user_id = u.user_id AND gym_id = ?)) OR
+            (u.role = "member" AND EXISTS (SELECT 1 FROM gym_members gm WHERE gm.user_id = u.user_id AND gm.gym_id = ?))
+        )';
+        $params[] = $gymId;
+        $params[] = $gymId;
+    }
+    
     if (in_array($tab, ['platform_admin', 'gym_owner', 'trainer', 'member'], true)) {
         $where .= ' AND u.role = ?';
         $params[] = $tab;
     }
     
-    if ($gymFilter) {
+    if ($isAdmin && $gymFilter) {
         $where .= ' AND (
             (u.role = "gym_owner" AND EXISTS (SELECT 1 FROM gyms WHERE owner_user_id = u.user_id AND gym_id = ?)) OR
             (u.role = "trainer" AND EXISTS (SELECT 1 FROM trainer_profiles WHERE user_id = u.user_id AND gym_id = ?)) OR
-            (u.role = "member" AND EXISTS (SELECT 1 FROM memberships m JOIN membership_plans mp ON m.plan_id = mp.plan_id WHERE m.user_id = u.user_id AND mp.gym_id = ?))
+            (u.role = "member" AND EXISTS (SELECT 1 FROM gym_members gm WHERE gm.user_id = u.user_id AND gm.gym_id = ?))
         )';
         $params[] = $gymFilter;
         $params[] = $gymFilter;
@@ -188,7 +250,7 @@ function users_page(): void
     $sql = 'SELECT u.*, tp.specialization, tp.bio, 
             (SELECT g1.name FROM gyms g1 WHERE g1.owner_user_id = u.user_id LIMIT 1) AS owner_gym_name,
             (SELECT g2.name FROM trainer_profiles tp2 JOIN gyms g2 ON tp2.gym_id = g2.gym_id WHERE tp2.user_id = u.user_id LIMIT 1) AS trainer_gym_name,
-            (SELECT g3.name FROM memberships m JOIN membership_plans mp ON m.plan_id = mp.plan_id JOIN gyms g3 ON mp.gym_id = g3.gym_id WHERE m.user_id = u.user_id AND m.status IN ("active","pending") LIMIT 1) AS member_gym_name
+            (SELECT g3.name FROM gym_members gm JOIN gyms g3 ON gm.gym_id = g3.gym_id WHERE gm.user_id = u.user_id LIMIT 1) AS member_gym_name
             FROM users u 
             LEFT JOIN trainer_profiles tp ON u.user_id = tp.user_id 
             WHERE ' . $where . ' 
@@ -258,7 +320,10 @@ function users_page(): void
                     </label>
                     <label>Role
                         <select name="role" id="new_user_role" onchange="toggleTrainerFields(this.value)">
-                            <?php foreach (['platform_admin' => 'Platform Admin', 'gym_owner' => 'Gym Owner', 'trainer' => 'Trainer', 'member' => 'Member'] as $roleValue => $roleLabel): ?>
+                            <?php 
+                                $allowedRoles = $isAdmin ? ['platform_admin' => 'Platform Admin', 'gym_owner' => 'Gym Owner', 'trainer' => 'Trainer', 'member' => 'Member'] : ['trainer' => 'Trainer', 'member' => 'Member'];
+                                foreach ($allowedRoles as $roleValue => $roleLabel): 
+                            ?>
                                 <option value="<?= h($roleValue) ?>"><?= h($roleLabel) ?></option>
                             <?php endforeach; ?>
                         </select>
@@ -292,12 +357,15 @@ function users_page(): void
         <div style="display:flex; justify-content:space-between; align-items:flex-end; margin-bottom: 12px; border-bottom: 1px solid var(--line); padding-bottom: 8px; flex-wrap:wrap; gap:16px;">
             <div style="display:flex; gap:16px; overflow-x:auto;">
                 <a href="?page=users&tab=all<?= $gymFilter ? '&gym_id='.$gymFilter : '' ?>" style="white-space:nowrap; color: <?= $tab === 'all' ? 'var(--lime)' : 'var(--muted)' ?>; font-weight: <?= $tab === 'all' ? '700' : '400' ?>; text-decoration:none; padding-bottom:4px; border-bottom: 2px solid <?= $tab === 'all' ? 'var(--lime)' : 'transparent' ?>;">All Users</a>
-                <a href="?page=users&tab=platform_admin<?= $gymFilter ? '&gym_id='.$gymFilter : '' ?>" style="white-space:nowrap; color: <?= $tab === 'platform_admin' ? 'var(--lime)' : 'var(--muted)' ?>; font-weight: <?= $tab === 'platform_admin' ? '700' : '400' ?>; text-decoration:none; padding-bottom:4px; border-bottom: 2px solid <?= $tab === 'platform_admin' ? 'var(--lime)' : 'transparent' ?>;">Platform Admins</a>
-                <a href="?page=users&tab=gym_owner<?= $gymFilter ? '&gym_id='.$gymFilter : '' ?>" style="white-space:nowrap; color: <?= $tab === 'gym_owner' ? 'var(--lime)' : 'var(--muted)' ?>; font-weight: <?= $tab === 'gym_owner' ? '700' : '400' ?>; text-decoration:none; padding-bottom:4px; border-bottom: 2px solid <?= $tab === 'gym_owner' ? 'var(--lime)' : 'transparent' ?>;">Gym Owners</a>
+                <?php if ($isAdmin): ?>
+                    <a href="?page=users&tab=platform_admin<?= $gymFilter ? '&gym_id='.$gymFilter : '' ?>" style="white-space:nowrap; color: <?= $tab === 'platform_admin' ? 'var(--lime)' : 'var(--muted)' ?>; font-weight: <?= $tab === 'platform_admin' ? '700' : '400' ?>; text-decoration:none; padding-bottom:4px; border-bottom: 2px solid <?= $tab === 'platform_admin' ? 'var(--lime)' : 'transparent' ?>;">Platform Admins</a>
+                    <a href="?page=users&tab=gym_owner<?= $gymFilter ? '&gym_id='.$gymFilter : '' ?>" style="white-space:nowrap; color: <?= $tab === 'gym_owner' ? 'var(--lime)' : 'var(--muted)' ?>; font-weight: <?= $tab === 'gym_owner' ? '700' : '400' ?>; text-decoration:none; padding-bottom:4px; border-bottom: 2px solid <?= $tab === 'gym_owner' ? 'var(--lime)' : 'transparent' ?>;">Gym Owners</a>
+                <?php endif; ?>
                 <a href="?page=users&tab=trainer<?= $gymFilter ? '&gym_id='.$gymFilter : '' ?>" style="white-space:nowrap; color: <?= $tab === 'trainer' ? 'var(--lime)' : 'var(--muted)' ?>; font-weight: <?= $tab === 'trainer' ? '700' : '400' ?>; text-decoration:none; padding-bottom:4px; border-bottom: 2px solid <?= $tab === 'trainer' ? 'var(--lime)' : 'transparent' ?>;">Trainers</a>
                 <a href="?page=users&tab=member<?= $gymFilter ? '&gym_id='.$gymFilter : '' ?>" style="white-space:nowrap; color: <?= $tab === 'member' ? 'var(--lime)' : 'var(--muted)' ?>; font-weight: <?= $tab === 'member' ? '700' : '400' ?>; text-decoration:none; padding-bottom:4px; border-bottom: 2px solid <?= $tab === 'member' ? 'var(--lime)' : 'transparent' ?>;">Members</a>
             </div>
             
+            <?php if ($isAdmin): ?>
             <div style="display:flex; align-items:center; gap: 16px;">
                 <form method="get" style="margin:0; display:flex; gap:8px; align-items:center;">
                     <input type="hidden" name="page" value="users">
@@ -309,6 +377,9 @@ function users_page(): void
                         <?php endforeach; ?>
                     </select>
                 </form>
+            </div>
+            <?php endif; ?>
+            <div style="display:flex; align-items:center;">
                 <p class="section-label" style="margin:0; border:none; padding:0;"><?= $total ?> found</p>
             </div>
         </div>
@@ -437,8 +508,10 @@ function users_page(): void
                     <label style="display:block; color: var(--muted); font-size: 14px;">Phone <input type="tel" name="phone" id="eu_phone" class="form-control" style="width: 100%; box-sizing: border-box;"></label>
                     <label style="display:block; color: var(--muted); font-size: 14px;">Role *
                         <select name="role" id="eu_role" class="form-control" style="width: 100%; box-sizing: border-box;" onchange="toggleEditTrainerFields(this.value)">
-                            <option value="platform_admin">Platform Admin</option>
-                            <option value="gym_owner">Gym Owner</option>
+                            ${<?= $isAdmin ? 'true' : 'false' ?> ? `
+                                <option value="platform_admin">Platform Admin</option>
+                                <option value="gym_owner">Gym Owner</option>
+                            ` : ''}
                             <option value="trainer">Trainer</option>
                             <option value="member">Member</option>
                         </select>

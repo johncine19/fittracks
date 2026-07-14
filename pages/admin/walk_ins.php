@@ -35,6 +35,13 @@ function walk_ins_page(): void
         )->execute([$firstName, $lastName, $email, password_hash($plainPassword, PASSWORD_DEFAULT)]);
         $newUserId = (int) $pdo->lastInsertId();
 
+        $walkInRecord = $pdo->prepare('SELECT gym_id FROM walk_in_transactions WHERE transaction_id = ?');
+        $walkInRecord->execute([$transactionId]);
+        $walkInRecord = $walkInRecord->fetch();
+        if ($walkInRecord && $walkInRecord['gym_id']) {
+            $pdo->prepare('INSERT IGNORE INTO gym_members (gym_id, user_id) VALUES (?, ?)')->execute([$walkInRecord['gym_id'], $newUserId]);
+        }
+
         // Link walk-in record to the new member and update guest name
         $pdo->prepare('UPDATE walk_in_transactions SET converted_to_member_id = ?, guest_name = ? WHERE transaction_id = ?')
             ->execute([$newUserId, $firstName . ' ' . $lastName, $transactionId]);

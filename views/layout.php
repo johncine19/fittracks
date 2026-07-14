@@ -25,6 +25,7 @@ function render_header(string $title, ?array $user = null): void
             $nav += [
                 'gym_profile' => 'Gym Profile',
                 'scanner' => 'Scan QR',
+                'users' => 'Users Accounts',
                 'trainer_assignments' => 'Trainers',
                 'plans' => 'Plans',
                 'admin_workouts' => 'Workout Plans',
