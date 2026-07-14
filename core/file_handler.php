@@ -134,4 +134,33 @@ final class FileUpload
 
         return $filename;
     }
+
+    /**
+     * Validates and stores a gym logo under assets/uploads.
+     *
+     * @param array $file one entry of $_FILES
+     * @throws RuntimeException on invalid/oversized/unreadable file
+     */
+    public static function storeGymLogo(array $file, int $gymId): string
+    {
+        self::validate($file);
+
+        $finfo = finfo_open(FILEINFO_MIME_TYPE);
+        $mime = finfo_file($finfo, $file['tmp_name']);
+        finfo_close($finfo);
+        $ext = self::ALLOWED_MIME[$mime];
+
+        $uploadDir = __DIR__ . '/../assets/uploads/';
+        if (!is_dir($uploadDir)) {
+            mkdir($uploadDir, 0775, true);
+        }
+
+        $filename = 'logo_' . $gymId . '_' . bin2hex(random_bytes(8)) . '.' . $ext;
+
+        if (!move_uploaded_file($file['tmp_name'], $uploadDir . $filename)) {
+            throw new RuntimeException('Could not save the gym logo.');
+        }
+
+        return $filename;
+    }
 }

@@ -18,6 +18,11 @@ function gym_profile_page(): void
         $name = trim((string) post('name'));
         $address = trim((string) post('address'));
         $contact = trim((string) post('contact_info'));
+        $brandColor = trim((string) post('brand_color'));
+
+        if ($brandColor !== '' && !preg_match('/^#[0-9A-Fa-f]{6}$/', $brandColor)) {
+            $brandColor = null;
+        }
 
         $permitUrl = $gym['business_permit_url'];
         if (isset($_FILES['business_permit']) && $_FILES['business_permit']['error'] === UPLOAD_ERR_OK) {
@@ -31,9 +36,22 @@ function gym_profile_page(): void
             }
         }
 
+        $logoUrl = $gym['logo_url'] ?? null;
+        if (isset($_FILES['logo']) && $_FILES['logo']['error'] === UPLOAD_ERR_OK) {
+            try {
+                $uploadedLogo = FileUpload::storeGymLogo($_FILES['logo'], (int) $gym['gym_id']);
+                if ($logoUrl && file_exists(__DIR__ . '/../../assets/uploads/' . $logoUrl)) {
+                    @unlink(__DIR__ . '/../../assets/uploads/' . $logoUrl);
+                }
+                $logoUrl = $uploadedLogo;
+            } catch (RuntimeException $e) {
+                flash($e->getMessage(), 'danger');
+            }
+        }
+
         if ($name && $address) {
-            $pdo->prepare('UPDATE gyms SET name = ?, address = ?, contact_info = ?, business_permit_url = ? WHERE gym_id = ?')
-                ->execute([$name, $address, $contact, $permitUrl, $gym['gym_id']]);
+            $pdo->prepare('UPDATE gyms SET name = ?, address = ?, contact_info = ?, business_permit_url = ?, logo_url = ?, brand_color = ? WHERE gym_id = ?')
+                ->execute([$name, $address, $contact, $permitUrl, $logoUrl, $brandColor, $gym['gym_id']]);
             flash('Gym profile updated successfully.', 'success');
             redirect('gym_profile');
         } else {
@@ -47,7 +65,7 @@ function gym_profile_page(): void
         <div class="page-header">
             <div>
                 <h1>Gym Profile</h1>
-                <p>Manage your gym's public details and business permit.</p>
+                <p>Manage your gym's public details, logo, and brand color theme.</p>
             </div>
         </div>
 
@@ -64,6 +82,29 @@ function gym_profile_page(): void
 
             <label style="grid-column: 1 / -1;">Contact Info
                 <input type="text" name="contact_info" value="<?= h($gym['contact_info']) ?>" placeholder="Phone or Email">
+            </label>
+
+            <div style="grid-column: 1 / -1; background: rgba(255,255,255,0.02); padding: 16px; border-radius: 8px; margin-top: 10px;">
+                <h4 style="margin-top:0;">Gym Logo</h4>
+                <?php if (!empty($gym['logo_url'])): ?>
+                    <div style="margin-bottom: 12px; display: flex; align-items: center; gap: 15px;">
+                        <img src="assets/uploads/<?= h($gym['logo_url']) ?>" alt="Logo Preview" style="height: 60px; max-width: 150px; object-fit: contain; background: rgba(0,0,0,0.2); padding: 5px; border-radius: 4px; border: 1px solid var(--line);">
+                        <p style="font-size: 13px; color: var(--muted); margin: 0;">
+                            Current Logo: <?= h($gym['logo_url']) ?>
+                        </p>
+                    </div>
+                <?php else: ?>
+                    <p style="font-size: 13px; color: var(--muted); margin-bottom: 10px;">No custom logo uploaded. Default brand logo will be used.</p>
+                <?php endif; ?>
+                
+                <label style="margin: 0;">Upload New Logo (JPG, PNG, GIF, WEBP)
+                    <input type="file" name="logo" accept="image/*">
+                </label>
+            </div>
+
+            <label style="grid-column: 1 / -1;">Brand Theme Color
+                <input type="color" name="brand_color" value="<?= h($gym['brand_color'] ?? '#c7ff22') ?>" style="display: block; width: 100%; height: 40px; padding: 4px; cursor: pointer; border-radius: 8px; border: 1px solid var(--line); background: var(--bg);">
+                <span style="font-size: 11px; color: var(--muted); margin-top: 4px; display: block;">Pick a custom color to style your dashboard buttons, active nav elements, highlights, and icons.</span>
             </label>
 
             <div style="grid-column: 1 / -1; background: rgba(255,255,255,0.02); padding: 16px; border-radius: 8px; margin-top: 10px;">

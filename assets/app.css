@@ -1314,7 +1314,8 @@ dialog.modal .modal-body {
     }
     .app-frame.collapsed .nav-label,
     .app-frame.collapsed .brand > span:not(.brand-mark),
-    .app-frame.collapsed .role-switch {
+    .app-frame.collapsed .role-switch,
+    .app-frame.collapsed .role-badge {
         display: none;
     }
     .app-frame.collapsed .brand {

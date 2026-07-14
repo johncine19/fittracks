@@ -6,6 +6,10 @@ function render_header(string $title, ?array $user = null): void
     $isAuthPage = defined('AUTH_PAGE') && AUTH_PAGE;
     $user = $isAuthPage ? null : ($user ?? current_user());
     $role = $user['role'] ?? null;
+    $gym = null;
+    if ($user) {
+        $gym = get_user_gym($user);
+    }
     $nav = [];
     if ($user) {
         $nav['dashboard'] = 'Dashboard';
@@ -60,8 +64,16 @@ function render_header(string $title, ?array $user = null): void
     <head>
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1">
-        <title><?= h($title) ?> - FitTrack</title>
+        <title><?= h($title) ?> - <?= h($gym['name'] ?? 'FitTrack') ?></title>
         <link rel="stylesheet" href="assets/app.css">
+        <?php if ($gym && !empty($gym['brand_color'])): ?>
+            <style>
+                :root, [data-theme="light"] {
+                    --lime: <?= h($gym['brand_color']) ?> !important;
+                    --lime-dark: color-mix(in srgb, <?= h($gym['brand_color']) ?> 80%, black) !important;
+                }
+            </style>
+        <?php endif; ?>
         <script>
             (function() {
                 const saved = localStorage.getItem('fittracks_theme');
@@ -112,9 +124,14 @@ function render_header(string $title, ?array $user = null): void
         <div class="sidebar-overlay" id="sidebar-overlay"></div>
         <div class="app-frame">
             <aside class="sidebar" id="main-sidebar">
-                <a class="brand" href="index.php">
-                    <span class="brand-mark">FT</span>
-                    <span>FitTrack</span>
+                <a class="brand" href="index.php" style="display: flex; align-items: center; gap: 10px;">
+                    <?php if ($gym && !empty($gym['logo_url'])): ?>
+                        <img src="assets/uploads/<?= h($gym['logo_url']) ?>" alt="Logo" style="height: 32px; max-width: 45px; object-fit: contain; border-radius: 4px; flex-shrink: 0;">
+                        <span style="font-weight: 700; font-size: 1.1rem; letter-spacing: -0.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;"><?= h($gym['name']) ?></span>
+                    <?php else: ?>
+                        <span class="brand-mark">FT</span>
+                        <span>FitTrack</span>
+                    <?php endif; ?>
                 </a>
                 <!-- Role badge (replaces non-functional role-switch select) -->
                 <div class="role-badge"><?= h(ucfirst($user['role'])) ?></div>
