@@ -397,7 +397,7 @@ function users_page(): void
                         <th>User</th>
                         <th>Email</th>
                         <th>Role</th>
-                        <?php if ($isAdmin): ?>
+                        <?php if ($isAdmin && $tab !== 'platform_admin'): ?>
                             <th>Gym / Branch</th>
                         <?php endif; ?>
                         <?php if ($tab === 'trainer'): ?>
@@ -428,7 +428,7 @@ function users_page(): void
                         </td>
                         <td style="color:var(--muted)"><?= h($row['email']) ?></td>
                         <td><span class="<?= $roleClass ?>"><?= h($row['role']) ?></span></td>
-                        <?php if ($isAdmin): ?>
+                        <?php if ($isAdmin && $tab !== 'platform_admin'): ?>
                         <?php
                             $associatedGym = null;
                             if ($row['role'] === 'gym_owner') $associatedGym = $row['owner_gym_name'];
