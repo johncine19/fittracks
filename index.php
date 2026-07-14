@@ -97,6 +97,7 @@ try {
         'gyms' => 'gyms_page',
         'gym_profile' => 'gym_profile_page',
         'view_gym' => 'view_gym_page',
+        'gym_selection' => 'gym_selection_page',
         'settings' => 'settings_page',
         'announcements' => 'announcements_page',
         'member_transfers' => 'member_transfers_page',

@@ -113,6 +113,10 @@ function profile_page(): void
             } else {
                 flash('Physical profile updated.', 'success');
             }
+            $hasMembership = scalar('SELECT 1 FROM memberships WHERE user_id = ? AND status IN ("active", "pending")', [$user['user_id']]);
+            if (!$hasMembership) {
+                redirect('gym_selection');
+            }
             redirect('profile');
         } elseif (isset($_POST['update_system_settings']) && $user['role'] === 'admin') {
             $settings = $_POST['settings'] ?? [];
