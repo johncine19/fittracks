@@ -6,6 +6,7 @@ require __DIR__ . '/pages/member/complete_exercise.php';
 require __DIR__ . '/pages/member/trainers.php';
 require __DIR__ . '/pages/admin/exercises.php';
 require __DIR__ . '/pages/admin/workout_plans.php';
+require __DIR__ . '/pages/admin/gym_applications.php';
 require __DIR__ . '/pages/landing.php';
 
 try {
@@ -51,6 +52,7 @@ try {
         'reset_password' => 'handle_reset_password',
         'verify_email' => 'verify_email_page',
         'setup_profile' => 'setup_profile_page',
+        'pending_gym' => 'pending_gym_page',
 
         'notification_action' => 'handle_notification_actions',
         'notification_click'  => 'handle_notification_click',
@@ -82,6 +84,7 @@ try {
         'audit_logs' => 'audit_logs_page',
         'workout_builder' => 'workout_builder_page',
         'admin_workouts' => 'admin_workouts_page',
+        'gym_applications' => 'gym_applications_page',
     ];
 
     ($routes[$page] ?? $routes['dashboard'])();

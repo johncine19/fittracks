@@ -75,7 +75,7 @@ function handle_export(string $type, string $format, array $data): void
 
 function reports_page(): void
 {
-    $user = require_roles(['admin']);
+    $user = require_roles(['platform_admin', 'gym_owner']);
     $revenue = [
         'daily' => query_all('
             SELECT day, SUM(revenue) AS revenue FROM (

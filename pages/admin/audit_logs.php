@@ -3,7 +3,7 @@ declare(strict_types=1);
 
 function audit_logs_page(): void
 {
-    $user = require_roles(['admin']);
+    $user = require_roles(['platform_admin']);
 
     // Filters
     $filterAdmin  = $_GET['admin_id'] ?? '';

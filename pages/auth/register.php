@@ -5,12 +5,20 @@ function handle_register(): void
 {
     if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $validator = new Validator();
-        $valid = $validator->validate($_POST, [
+        $rules = [
+            'account_type' => 'required',
             'first_name' => 'required|min:1|max:100',
             'last_name'  => 'required|min:1|max:100',
             'email'      => 'required|email|max:255',
             'password'   => 'required|min:8',
-        ]);
+        ];
+
+        if (post('account_type') === 'gym_owner') {
+            $rules['gym_name'] = 'required|min:2|max:100';
+            $rules['gym_address'] = 'required|min:5|max:255';
+        }
+
+        $valid = $validator->validate($_POST, $rules);
 
         if ($valid && !is_acceptable_password((string) post('password'))) {
             $valid = false;
@@ -41,11 +49,14 @@ function handle_register(): void
                     }
                 }
 
+                $role = (post('account_type') === 'gym_owner') ? 'gym_owner' : 'member';
+
                 $stmt = $pdo->prepare(
                     'INSERT INTO users (role, first_name, last_name, email, password_hash, phone, status)
-                     VALUES ("member", ?, ?, ?, ?, ?, "active")'
+                     VALUES (?, ?, ?, ?, ?, ?, "active")'
                 );
                 $stmt->execute([
+                    $role,
                     post('first_name'),
                     post('last_name'),
                     post('email'),
@@ -54,7 +65,37 @@ function handle_register(): void
                 ]);
                 $userId = (int) $pdo->lastInsertId();
 
+                if ($role === 'gym_owner') {
+                    require_once __DIR__ . '/../../core/file_handler.php';
+                    $permitFilename = null;
+                    if (isset($_FILES['business_permit']) && $_FILES['business_permit']['error'] === UPLOAD_ERR_OK) {
+                        $permitFilename = FileUpload::storeBusinessPermit($_FILES['business_permit'], $userId);
+                    } else {
+                        throw new Exception('Business permit is required for gym owners.');
+                    }
+
+                    $gymStmt = $pdo->prepare(
+                        'INSERT INTO gyms (owner_user_id, name, address, business_permit_url, status)
+                         VALUES (?, ?, ?, ?, "pending")'
+                    );
+                    $gymStmt->execute([
+                        $userId,
+                        post('gym_name'),
+                        post('gym_address'),
+                        $permitFilename
+                    ]);
+                }
+
                 $pdo->commit();
+
+                if ($role === 'gym_owner') {
+                    $gymName = post('gym_name');
+                    $ownerName = post('first_name') . ' ' . post('last_name');
+                    notify_admins('system', 'New Gym Application', "A new gym application for '{$gymName}' was submitted by {$ownerName}. Please review it in the Gym Applications dashboard.");
+                    
+                    $emailBody = "Hello Platform Admin,<br><br>A new gym application has been submitted and is waiting for your approval.<br><br><b>Gym Name:</b> " . htmlspecialchars((string)$gymName, ENT_QUOTES) . "<br><b>Owner:</b> " . htmlspecialchars((string)$ownerName, ENT_QUOTES) . "<br><br>Please log in to the platform admin dashboard to review the business permit and approve or reject the application.<br><br>Thanks,<br>FITTRACKS System";
+                    notify_admins_email('New Gym Application: ' . $gymName, $emailBody);
+                }
 
                 // Send a verification email. Login is blocked until the member verifies.
                 $emailSent = false;
@@ -85,8 +126,68 @@ function handle_register(): void
                 <h1 class="auth-title">FITTRACKS</h1>
                 <p class="auth-subtitle">Create your account</p>
             </div>
-            <form method="post" class="auth-form" novalidate onsubmit="const btn = this.querySelector('button[type=submit]'); btn.disabled = true; btn.innerHTML = '<span class=\'loader\' style=\'width:16px;height:16px;border:2px solid var(--bg);border-bottom-color:transparent;border-radius:50%;display:inline-block;box-sizing:border-box;animation:rotation 1s linear infinite;margin-right:8px;\'></span> CREATING ACCOUNT...';">
+            <form method="post" class="auth-form" enctype="multipart/form-data" novalidate onsubmit="const btn = this.querySelector('button[type=submit]'); btn.disabled = true; btn.innerHTML = '<span class=\'loader\' style=\'width:16px;height:16px;border:2px solid var(--bg);border-bottom-color:transparent;border-radius:50%;display:inline-block;box-sizing:border-box;animation:rotation 1s linear infinite;margin-right:8px;\'></span> CREATING ACCOUNT...';">
                 <?= csrf_field() ?>
+                
+                <div class="auth-field" style="margin-bottom: 20px;">
+                    <label>I AM A:</label>
+                    <div style="display: flex; gap: 20px; margin-top: 10px;">
+                        <label style="display: flex; align-items: center; gap: 5px; cursor: pointer; text-transform: none; letter-spacing: normal;">
+                            <input type="radio" name="account_type" value="member" checked onchange="toggleGymFields()">
+                            Member
+                        </label>
+                        <label style="display: flex; align-items: center; gap: 5px; cursor: pointer; text-transform: none; letter-spacing: normal;">
+                            <input type="radio" name="account_type" value="gym_owner" onchange="toggleGymFields()">
+                            Gym Owner
+                        </label>
+                    </div>
+                </div>
+
+                <div id="gym-fields" style="display: none; padding: 15px; border-radius: 8px; background: rgba(255,255,255,0.05); margin-bottom: 20px;">
+                    <div class="auth-field">
+                        <label>GYM NAME</label>
+                        <div class="auth-input-group">
+                            <input type="text" name="gym_name" id="gym_name" placeholder="Enter your gym name" value="<?= h(post('gym_name')) ?>">
+                        </div>
+                    </div>
+                    <div class="auth-field">
+                        <label>GYM ADDRESS</label>
+                        <div class="auth-input-group">
+                            <input type="text" name="gym_address" id="gym_address" placeholder="Complete address" value="<?= h(post('gym_address')) ?>">
+                        </div>
+                    </div>
+                    <div class="auth-field">
+                        <label>BUSINESS PERMIT (PDF, JPG, PNG)</label>
+                        <div class="auth-input-group">
+                            <input type="file" name="business_permit" id="business_permit" accept=".pdf,.jpg,.jpeg,.png">
+                        </div>
+                    </div>
+                </div>
+
+                <script>
+                    function toggleGymFields() {
+                        const isGymOwner = document.querySelector('input[name="account_type"]:checked').value === 'gym_owner';
+                        const gymFields = document.getElementById('gym-fields');
+                        const gymName = document.getElementById('gym_name');
+                        const gymAddress = document.getElementById('gym_address');
+                        const businessPermit = document.getElementById('business_permit');
+                        
+                        if (isGymOwner) {
+                            gymFields.style.display = 'block';
+                            gymName.required = true;
+                            gymAddress.required = true;
+                            businessPermit.required = true;
+                        } else {
+                            gymFields.style.display = 'none';
+                            gymName.required = false;
+                            gymAddress.required = false;
+                            businessPermit.required = false;
+                        }
+                    }
+                    // Run on load to set correct initial state
+                    document.addEventListener('DOMContentLoaded', toggleGymFields);
+                </script>
+
                 <div class="auth-form-row">
                     <div class="auth-field">
                         <label>FIRST NAME</label>

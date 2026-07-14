@@ -3,7 +3,18 @@ declare(strict_types=1);
 
 function scanner_page(): void
 {
-    $user = require_roles(['admin']);
+    $user = require_roles(['platform_admin', 'gym_owner', 'trainer']);
+    
+    $currentGymId = null;
+    if ($user['role'] === 'gym_owner') {
+        $currentGymId = scalar('SELECT gym_id FROM gyms WHERE owner_user_id = ?', [$user['user_id']]);
+    } elseif ($user['role'] === 'trainer') {
+        $currentGymId = scalar('SELECT gym_id FROM trainer_profiles WHERE user_id = ?', [$user['user_id']]);
+    }
+
+    if (!$currentGymId && $user['role'] !== 'platform_admin') {
+        die('You are not associated with any gym.');
+    }
     
     // Handle AJAX check-in request
     if ($_SERVER['REQUEST_METHOD'] === 'POST' && post('action') === 'process_qr') {
@@ -43,11 +54,42 @@ function scanner_page(): void
             audit_log($user['user_id'], 'qr_checkout', 'attendance', (string) $openRecord['attendance_id'], json_encode(['user_id' => $userId]));
             $message = 'Check-out successful for ' . $member['first_name'] . ' ' . $member['last_name'];
         } else {
-            // Check in
-            if ($member['role'] !== 'trainer' && $member['role'] !== 'admin') {
-                $hasMembership = scalar('SELECT 1 FROM memberships WHERE user_id = ? AND status = "active" AND end_date >= CURDATE()', [$userId]);
-                if (!$hasMembership && !isset($_POST['amount_paid'])) {
-                    echo json_encode(['success' => false, 'requires_payment' => true, 'qr_data' => $qrData, 'message' => 'No active membership. Please collect payment for this session.']);
+            if ($member['role'] === 'member') {
+                $membership = $pdo->prepare('
+                    SELECT m.membership_id, mp.gym_id, mp.plan_scope, mp.plan_id
+                    FROM memberships m
+                    JOIN membership_plans mp ON m.plan_id = mp.plan_id
+                    WHERE m.user_id = ? AND m.status = "active" AND m.end_date >= CURDATE()
+                ');
+                $membership->execute([$userId]);
+                $activePlans = $membership->fetchAll();
+
+                $hasValidPlan = false;
+                if ($user['role'] === 'platform_admin') {
+                    // Platform admin can scan anywhere
+                    $hasValidPlan = count($activePlans) > 0;
+                } else {
+                    foreach ($activePlans as $plan) {
+                        if ($plan['plan_scope'] === 'local' && (int)$plan['gym_id'] === (int)$currentGymId) {
+                            $hasValidPlan = true;
+                            break;
+                        }
+                        if ($plan['plan_scope'] === 'shared') {
+                            if ((int)$plan['gym_id'] === (int)$currentGymId || (int)$plan['gym_id'] === 0) { // If they created it, or it's platform-wide
+                                $hasValidPlan = true;
+                                break;
+                            }
+                            $isOptedIn = scalar('SELECT 1 FROM shared_plan_gyms WHERE plan_id = ? AND gym_id = ? AND status = "approved"', [$plan['plan_id'], $currentGymId]);
+                            if ($isOptedIn) {
+                                $hasValidPlan = true;
+                                break;
+                            }
+                        }
+                    }
+                }
+
+                if (!$hasValidPlan && !isset($_POST['amount_paid'])) {
+                    echo json_encode(['success' => false, 'requires_payment' => true, 'qr_data' => $qrData, 'message' => 'No active membership covers this gym. Please collect payment.']);
                     exit;
                 }
             }
@@ -66,8 +108,8 @@ function scanner_page(): void
             $bookedClass = $classBooking->fetch();
             $scheduleId = $bookedClass ? $bookedClass['schedule_id'] : null;
 
-            $stmt = $pdo->prepare('INSERT INTO attendance (user_id, schedule_id, check_in_time, check_in_method, recorded_by) VALUES (?, ?, NOW(), "qr_code", ?)');
-            $stmt->execute([$userId, $scheduleId, $user['user_id']]);
+            $stmt = $pdo->prepare('INSERT INTO attendance (user_id, schedule_id, gym_id, check_in_time, check_in_method, recorded_by) VALUES (?, ?, ?, NOW(), "qr_code", ?)');
+            $stmt->execute([$userId, $scheduleId, $currentGymId, $user['user_id']]);
             
             if ($scheduleId) {
                 $pdo->prepare('UPDATE class_bookings SET booking_status = "attended" WHERE user_id = ? AND schedule_id = ?')->execute([$userId, $scheduleId]);

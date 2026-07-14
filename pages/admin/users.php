@@ -6,7 +6,7 @@ use PHPMailer\PHPMailer\Exception as PHPMailerException;
 
 function users_page(): void
 {
-    $user = require_roles(['admin']);
+    $user = require_roles(['platform_admin']);
     if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if (post('action') === 'create') {
             $phone = (string)post('phone');
@@ -165,7 +165,7 @@ function users_page(): void
     $where = '1=1';
     $u_where = '1=1';
     $params = [];
-    if (in_array($tab, ['admin', 'trainer', 'member'], true)) {
+    if (in_array($tab, ['platform_admin', 'gym_owner', 'trainer', 'member'], true)) {
         $where = 'role = ?';
         $u_where = 'u.role = ?';
         $params[] = $tab;
@@ -235,8 +235,8 @@ function users_page(): void
                     </label>
                     <label>Role
                         <select name="role" id="new_user_role" onchange="toggleTrainerFields(this.value)">
-                            <?php foreach (['admin', 'trainer', 'member'] as $role): ?>
-                                <option value="<?= h($role) ?>"><?= h(ucfirst($role)) ?></option>
+                            <?php foreach (['platform_admin' => 'Platform Admin', 'gym_owner' => 'Gym Owner', 'trainer' => 'Trainer', 'member' => 'Member'] as $roleValue => $roleLabel): ?>
+                                <option value="<?= h($roleValue) ?>"><?= h($roleLabel) ?></option>
                             <?php endforeach; ?>
                         </select>
                     </label>
@@ -267,11 +267,12 @@ function users_page(): void
         </dialog>
 
         <div style="display:flex; justify-content:space-between; align-items:flex-end; margin-bottom: 12px; border-bottom: 1px solid var(--line); padding-bottom: 8px;">
-            <div style="display:flex; gap:16px;">
-                <a href="?page=users&tab=all" style="color: <?= $tab === 'all' ? 'var(--lime)' : 'var(--muted)' ?>; font-weight: <?= $tab === 'all' ? '700' : '400' ?>; text-decoration:none; padding-bottom:4px; border-bottom: 2px solid <?= $tab === 'all' ? 'var(--lime)' : 'transparent' ?>;">All Users</a>
-                <a href="?page=users&tab=admin" style="color: <?= $tab === 'admin' ? 'var(--lime)' : 'var(--muted)' ?>; font-weight: <?= $tab === 'admin' ? '700' : '400' ?>; text-decoration:none; padding-bottom:4px; border-bottom: 2px solid <?= $tab === 'admin' ? 'var(--lime)' : 'transparent' ?>;">Admins</a>
-                <a href="?page=users&tab=trainer" style="color: <?= $tab === 'trainer' ? 'var(--lime)' : 'var(--muted)' ?>; font-weight: <?= $tab === 'trainer' ? '700' : '400' ?>; text-decoration:none; padding-bottom:4px; border-bottom: 2px solid <?= $tab === 'trainer' ? 'var(--lime)' : 'transparent' ?>;">Trainers</a>
-                <a href="?page=users&tab=member" style="color: <?= $tab === 'member' ? 'var(--lime)' : 'var(--muted)' ?>; font-weight: <?= $tab === 'member' ? '700' : '400' ?>; text-decoration:none; padding-bottom:4px; border-bottom: 2px solid <?= $tab === 'member' ? 'var(--lime)' : 'transparent' ?>;">Members</a>
+            <div style="display:flex; gap:16px; overflow-x:auto;">
+                <a href="?page=users&tab=all" style="white-space:nowrap; color: <?= $tab === 'all' ? 'var(--lime)' : 'var(--muted)' ?>; font-weight: <?= $tab === 'all' ? '700' : '400' ?>; text-decoration:none; padding-bottom:4px; border-bottom: 2px solid <?= $tab === 'all' ? 'var(--lime)' : 'transparent' ?>;">All Users</a>
+                <a href="?page=users&tab=platform_admin" style="white-space:nowrap; color: <?= $tab === 'platform_admin' ? 'var(--lime)' : 'var(--muted)' ?>; font-weight: <?= $tab === 'platform_admin' ? '700' : '400' ?>; text-decoration:none; padding-bottom:4px; border-bottom: 2px solid <?= $tab === 'platform_admin' ? 'var(--lime)' : 'transparent' ?>;">Platform Admins</a>
+                <a href="?page=users&tab=gym_owner" style="white-space:nowrap; color: <?= $tab === 'gym_owner' ? 'var(--lime)' : 'var(--muted)' ?>; font-weight: <?= $tab === 'gym_owner' ? '700' : '400' ?>; text-decoration:none; padding-bottom:4px; border-bottom: 2px solid <?= $tab === 'gym_owner' ? 'var(--lime)' : 'transparent' ?>;">Gym Owners</a>
+                <a href="?page=users&tab=trainer" style="white-space:nowrap; color: <?= $tab === 'trainer' ? 'var(--lime)' : 'var(--muted)' ?>; font-weight: <?= $tab === 'trainer' ? '700' : '400' ?>; text-decoration:none; padding-bottom:4px; border-bottom: 2px solid <?= $tab === 'trainer' ? 'var(--lime)' : 'transparent' ?>;">Trainers</a>
+                <a href="?page=users&tab=member" style="white-space:nowrap; color: <?= $tab === 'member' ? 'var(--lime)' : 'var(--muted)' ?>; font-weight: <?= $tab === 'member' ? '700' : '400' ?>; text-decoration:none; padding-bottom:4px; border-bottom: 2px solid <?= $tab === 'member' ? 'var(--lime)' : 'transparent' ?>;">Members</a>
             </div>
             <p class="section-label" style="margin:0; border:none; padding:0;"><?= $total ?> found</p>
         </div>
@@ -400,7 +401,8 @@ function users_page(): void
                     <label style="display:block; color: var(--muted); font-size: 14px;">Phone <input type="tel" name="phone" id="eu_phone" class="form-control" style="width: 100%; box-sizing: border-box;"></label>
                     <label style="display:block; color: var(--muted); font-size: 14px;">Role *
                         <select name="role" id="eu_role" class="form-control" style="width: 100%; box-sizing: border-box;" onchange="toggleEditTrainerFields(this.value)">
-                            <option value="admin">Admin</option>
+                            <option value="platform_admin">Platform Admin</option>
+                            <option value="gym_owner">Gym Owner</option>
                             <option value="trainer">Trainer</option>
                             <option value="member">Member</option>
                         </select>

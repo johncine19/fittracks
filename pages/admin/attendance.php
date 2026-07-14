@@ -3,7 +3,7 @@ declare(strict_types=1);
 
 function attendance_page(): void
 {
-    $user = require_roles(['admin']);
+    $user = require_roles(['platform_admin', 'gym_owner']);
     if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if (post('action') === 'checkout') {
             db()->prepare('UPDATE attendance SET check_out_time = NOW() WHERE attendance_id = ?')->execute([post('attendance_id')]);

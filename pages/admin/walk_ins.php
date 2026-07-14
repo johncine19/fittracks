@@ -6,7 +6,7 @@ use PHPMailer\PHPMailer\Exception as PHPMailerException;
 
 function walk_ins_page(): void
 {
-    $user = require_roles(['admin']);
+    $user = require_roles(['platform_admin', 'gym_owner']);
 
     // Handle walk-in to member conversion
     if ($_SERVER['REQUEST_METHOD'] === 'POST' && post('action') === 'convert') {

@@ -3,7 +3,7 @@ declare(strict_types=1);
 
 function exercises_page(): void
 {
-    $user = require_roles(['admin']);
+    $user = require_roles(['platform_admin', 'gym_owner']);
     $pdo = db();
     verify_csrf();
 

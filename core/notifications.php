@@ -3,6 +3,9 @@ declare(strict_types=1);
 
 const NOTIFICATION_TYPES = ['renewal_reminder', 'class_reminder', 'coach_message', 'milestone', 'system'];
 
+use PHPMailer\PHPMailer\PHPMailer;
+use PHPMailer\PHPMailer\Exception as PHPMailerException;
+
 /**
  * Auto-migrate: add reference_id column to notifications if missing.
  * Called once per request; uses a static flag to avoid repeated checks.
@@ -41,8 +44,39 @@ function notify_user(int $userId, string $type, string $title, string $message, 
 
 function notify_admins(string $type, string $title, string $message): void
 {
-    foreach (query_all('SELECT user_id FROM users WHERE role IN ("admin") AND status = "active"') as $user) {
+    foreach (query_all('SELECT user_id FROM users WHERE role IN ("platform_admin", "admin") AND status = "active"') as $user) {
         notify_user((int) $user['user_id'], $type, $title, $message);
+    }
+}
+
+function notify_admins_email(string $subject, string $body): void
+{
+    $admins = query_all('SELECT email, first_name FROM users WHERE role IN ("platform_admin", "admin") AND status = "active"');
+    if (!$admins) {
+        return;
+    }
+
+    try {
+        $mail = new PHPMailer(true);
+        $mail->isSMTP();
+        $mail->Host       = $_ENV['SMTP_HOST'] ?? 'smtp.gmail.com';
+        $mail->SMTPAuth   = true;
+        $mail->Username   = $_ENV['SMTP_USER'] ?? '';
+        $mail->Password   = $_ENV['SMTP_PASS'] ?? '';
+        $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
+        $mail->Port       = (int) ($_ENV['SMTP_PORT'] ?? 587);
+
+        $mail->setFrom($_ENV['SMTP_FROM'] ?? 'no-reply@fittracks.com', $_ENV['SMTP_FROM_NAME'] ?? 'FITTRACKS');
+        $mail->isHTML(true);
+        $mail->Subject = $subject;
+        $mail->Body    = $body;
+
+        foreach ($admins as $admin) {
+            $mail->addAddress($admin['email'], $admin['first_name']);
+        }
+        $mail->send();
+    } catch (Throwable) {
+        // Non-blocking
     }
 }
 

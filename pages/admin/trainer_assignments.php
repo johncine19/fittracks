@@ -3,9 +3,27 @@ declare(strict_types=1);
 
 function trainer_assignments_page(): void
 {
-    $user = require_roles(['admin']);
+    $user = require_roles(['platform_admin', 'gym_owner']);
+    $gymId = null;
+    if ($user['role'] === 'gym_owner') {
+        $gymId = (int) scalar('SELECT gym_id FROM gyms WHERE owner_user_id = ?', [$user['user_id']]);
+    }
+
     if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-        if (post('action') === 'end') {
+        if (post('action') === 'create_trainer') {
+            $email = trim((string) post('email'));
+            if (scalar('SELECT user_id FROM users WHERE email = ?', [$email])) {
+                flash('A user with that email already exists.', 'danger');
+            } else {
+                $plainPassword = (string) post('password');
+                db()->prepare('INSERT INTO users (role, first_name, last_name, email, password_hash, status, email_verified_at) VALUES ("trainer", ?, ?, ?, ?, "active", NOW())')
+                    ->execute([post('first_name'), post('last_name'), $email, password_hash($plainPassword, PASSWORD_DEFAULT)]);
+                $newUserId = (int) db()->lastInsertId();
+                db()->prepare('INSERT INTO trainer_profiles (user_id, specialization, gym_id) VALUES (?, ?, ?)')
+                    ->execute([$newUserId, post('specialization'), $gymId]);
+                flash('Trainer created successfully.', 'success');
+            }
+        } elseif (post('action') === 'end') {
             db()->prepare('UPDATE trainer_assignments SET status = "ended", ended_date = CURDATE() WHERE assignment_id = ?')->execute([post('assignment_id')]);
             audit_log($user['user_id'], 'end', 'trainer_assignment', (string) post('assignment_id'));
             flash('Trainer assignment ended.');
@@ -52,7 +70,7 @@ function trainer_assignments_page(): void
                  JOIN users tu ON tu.user_id = tp.user_id
                  JOIN users mu ON mu.user_id = ?
                  WHERE tp.trainer_id = ?',
-                [$memberUserId, $trainerId]
+                 [$memberUserId, $trainerId]
             );
             if ($names) {
                 $pair = $names[0];
@@ -72,9 +90,16 @@ function trainer_assignments_page(): void
                  SET ca.status = "ended", ca.ended_date = m.end_date
                  WHERE ca.status = "active" AND m.end_date < CURDATE()');
 
-    $coaches = db()->query('SELECT cp.trainer_id, CONCAT(u.first_name, " ", u.last_name, " - ", COALESCE(cp.specialization, "trainer")) AS name FROM trainer_profiles cp JOIN users u ON u.user_id = cp.user_id WHERE u.status = "active" ORDER BY u.first_name')->fetchAll();
-    $members = db()->query('SELECT u.user_id, CONCAT(u.first_name, " ", u.last_name, IF(EXISTS(SELECT 1 FROM memberships m WHERE m.user_id = u.user_id AND m.status = "active" AND m.end_date >= CURDATE()), " (Has Plan)", " (No Plan - 1 Day)")) AS name FROM users u WHERE u.role = "member" AND u.status = "active" ORDER BY u.first_name')->fetchAll();
-    $rows = db()->query('SELECT ca.*, (SELECT end_date FROM memberships WHERE user_id = ca.member_user_id AND end_date >= CURDATE() ORDER BY end_date DESC LIMIT 1) as membership_end_date, CONCAT(cu.first_name, " ", cu.last_name) AS trainer, CONCAT(mu.first_name, " ", mu.last_name) AS member, cu.first_name AS coach_fn, cu.last_name AS coach_ln, cu.profile_picture AS coach_picture, mu.first_name AS member_fn, mu.last_name AS member_ln, mu.profile_picture AS member_picture FROM trainer_assignments ca JOIN trainer_profiles cp ON cp.trainer_id = ca.trainer_id JOIN users cu ON cu.user_id = cp.user_id JOIN users mu ON mu.user_id = ca.member_user_id ORDER BY CASE ca.status WHEN "active" THEN 1 WHEN "pending_admin" THEN 2 WHEN "pending_trainer" THEN 3 WHEN "ended" THEN 4 WHEN "rejected" THEN 5 ELSE 6 END, ca.assigned_date DESC')->fetchAll();
+    if ($user['role'] === 'platform_admin') {
+        $coaches = db()->query('SELECT cp.trainer_id, CONCAT(u.first_name, " ", u.last_name, " - ", COALESCE(cp.specialization, "trainer")) AS name FROM trainer_profiles cp JOIN users u ON u.user_id = cp.user_id WHERE u.status = "active" ORDER BY u.first_name')->fetchAll();
+        $members = db()->query('SELECT u.user_id, CONCAT(u.first_name, " ", u.last_name, IF(EXISTS(SELECT 1 FROM memberships m WHERE m.user_id = u.user_id AND m.status = "active" AND m.end_date >= CURDATE()), " (Has Plan)", " (No Plan - 1 Day)")) AS name FROM users u WHERE u.role = "member" AND u.status = "active" ORDER BY u.first_name')->fetchAll();
+        $rows = db()->query('SELECT ca.*, (SELECT end_date FROM memberships WHERE user_id = ca.member_user_id AND end_date >= CURDATE() ORDER BY end_date DESC LIMIT 1) as membership_end_date, CONCAT(cu.first_name, " ", cu.last_name) AS trainer, CONCAT(mu.first_name, " ", mu.last_name) AS member, cu.first_name AS coach_fn, cu.last_name AS coach_ln, cu.profile_picture AS coach_picture, mu.first_name AS member_fn, mu.last_name AS member_ln, mu.profile_picture AS member_picture FROM trainer_assignments ca JOIN trainer_profiles cp ON cp.trainer_id = ca.trainer_id JOIN users cu ON cu.user_id = cp.user_id JOIN users mu ON mu.user_id = ca.member_user_id ORDER BY CASE ca.status WHEN "active" THEN 1 WHEN "pending_admin" THEN 2 WHEN "pending_trainer" THEN 3 WHEN "ended" THEN 4 WHEN "rejected" THEN 5 ELSE 6 END, ca.assigned_date DESC')->fetchAll();
+    } else {
+        $coaches = db()->query('SELECT cp.trainer_id, CONCAT(u.first_name, " ", u.last_name, " - ", COALESCE(cp.specialization, "trainer")) AS name FROM trainer_profiles cp JOIN users u ON u.user_id = cp.user_id WHERE u.status = "active" AND cp.gym_id = ' . $gymId . ' ORDER BY u.first_name')->fetchAll();
+        // Members who have active plan at this gym
+        $members = db()->query('SELECT DISTINCT u.user_id, CONCAT(u.first_name, " ", u.last_name, " (Has Plan)") AS name FROM users u JOIN memberships m ON m.user_id = u.user_id JOIN membership_plans mp ON mp.plan_id = m.plan_id WHERE u.role = "member" AND u.status = "active" AND m.status="active" AND m.end_date >= CURDATE() AND (mp.gym_id = ' . $gymId . ' OR mp.plan_scope="shared") ORDER BY u.first_name')->fetchAll();
+        $rows = db()->query('SELECT ca.*, (SELECT end_date FROM memberships WHERE user_id = ca.member_user_id AND end_date >= CURDATE() ORDER BY end_date DESC LIMIT 1) as membership_end_date, CONCAT(cu.first_name, " ", cu.last_name) AS trainer, CONCAT(mu.first_name, " ", mu.last_name) AS member, cu.first_name AS coach_fn, cu.last_name AS coach_ln, cu.profile_picture AS coach_picture, mu.first_name AS member_fn, mu.last_name AS member_ln, mu.profile_picture AS member_picture FROM trainer_assignments ca JOIN trainer_profiles cp ON cp.trainer_id = ca.trainer_id JOIN users cu ON cu.user_id = cp.user_id JOIN users mu ON mu.user_id = ca.member_user_id WHERE cp.gym_id = ' . $gymId . ' ORDER BY CASE ca.status WHEN "active" THEN 1 WHEN "pending_admin" THEN 2 WHEN "pending_trainer" THEN 3 WHEN "ended" THEN 4 WHEN "rejected" THEN 5 ELSE 6 END, ca.assigned_date DESC')->fetchAll();
+    }
 
     render_header('Trainer Assignments', $user);
     ?>
@@ -84,7 +109,10 @@ function trainer_assignments_page(): void
                 <h1>Trainer Assignments</h1>
                 <p>Link coaches to members and manage active pairings.</p>
             </div>
-            <button onclick="addAssignment()" class="btn" style="background: var(--lime); color: var(--bg); font-weight: bold;">+ New Assignment</button>
+            <div style="display:flex; gap: 8px;">
+                <button onclick="addTrainer()" class="btn btn-secondary" style="font-weight: bold;">+ Add Trainer</button>
+                <button onclick="addAssignment()" class="btn" style="background: var(--lime); color: var(--bg); font-weight: bold;">+ New Assignment</button>
+            </div>
         </div>
 
         <p class="section-label">All assignments</p>
@@ -186,6 +214,48 @@ function trainer_assignments_page(): void
     </section>
     
     <script>
+    function addTrainer() {
+        Swal.fire({
+            title: 'Add Trainer',
+            html: `
+                <form id="addTrainerForm" method="post" style="text-align: left; display: flex; flex-direction: column; gap: 12px; margin-top: 15px;">
+                    <?= csrf_field() ?>
+                    <input type="hidden" name="action" value="create_trainer">
+                    
+                    <label style="display:block; color: var(--muted); font-size: 14px;">First Name *
+                        <input name="first_name" class="form-control" style="width: 100%; box-sizing: border-box;" required>
+                    </label>
+                    <label style="display:block; color: var(--muted); font-size: 14px;">Last Name *
+                        <input name="last_name" class="form-control" style="width: 100%; box-sizing: border-box;" required>
+                    </label>
+                    <label style="display:block; color: var(--muted); font-size: 14px;">Email *
+                        <input type="email" name="email" class="form-control" style="width: 100%; box-sizing: border-box;" required>
+                    </label>
+                    <label style="display:block; color: var(--muted); font-size: 14px;">Password *
+                        <input type="password" name="password" class="form-control" style="width: 100%; box-sizing: border-box;" required>
+                    </label>
+                    <label style="display:block; color: var(--muted); font-size: 14px;">Specialization *
+                        <input name="specialization" class="form-control" placeholder="e.g. Strength & Conditioning" style="width: 100%; box-sizing: border-box;" required>
+                    </label>
+                </form>
+            `,
+            showCancelButton: true,
+            confirmButtonText: 'Create Trainer',
+            confirmButtonColor: 'var(--lime-dark)',
+            cancelButtonColor: 'var(--line)',
+            background: 'var(--bg)',
+            color: 'var(--ink)',
+            preConfirm: () => {
+                const form = document.getElementById('addTrainerForm');
+                if (!form.first_name.value || !form.last_name.value || !form.email.value || !form.password.value || !form.specialization.value) {
+                    Swal.showValidationMessage('Please fill all required fields');
+                    return false;
+                }
+                form.submit();
+            }
+        });
+    }
+
     function addAssignment() {
         Swal.fire({
             title: 'New Assignment',

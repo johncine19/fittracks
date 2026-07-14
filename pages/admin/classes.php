@@ -3,7 +3,7 @@ declare(strict_types=1);
 
 function classes_page(): void
 {
-    $user = require_roles(['admin', 'trainer']);
+    $user = require_roles(['platform_admin', 'gym_owner', 'trainer']);
     $isAdmin = $user['role'] === 'admin';
     if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $action = post('action');

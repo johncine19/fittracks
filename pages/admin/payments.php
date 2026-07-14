@@ -3,7 +3,7 @@ declare(strict_types=1);
 
 function payments_page(): void
 {
-    $user = require_roles(['admin', 'member']);
+    $user = require_roles(['platform_admin', 'gym_owner', 'member']);
     if (can($user, ['admin']) && $_SERVER['REQUEST_METHOD'] === 'POST') {
         $receipt = post('receipt_number') ?: 'RCPT-' . date('Ymd') . '-' . random_int(1000, 9999);
         $membershipId = (int) post('membership_id');

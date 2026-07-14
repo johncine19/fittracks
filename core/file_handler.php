@@ -18,6 +18,12 @@ final class FileUpload
         'image/webp' => 'webp',
     ];
 
+    private const ALLOWED_MIME_PERMIT = [
+        'image/jpeg' => 'jpg',
+        'image/png'  => 'png',
+        'application/pdf' => 'pdf',
+    ];
+
     private const MAX_SIZE = 5 * 1024 * 1024; // 5MB
 
     /**
@@ -42,8 +48,31 @@ final class FileUpload
         $mime = finfo_file($finfo, $file['tmp_name']);
         finfo_close($finfo);
 
-        if (!isset(self::ALLOWED_MIME[$mime])) {
-            throw new RuntimeException('Unsupported file type. Please upload a JPG, PNG, GIF, or WEBP image.');
+        if (!isset(self::ALLOWED_MIME[$mime]) && !isset(self::ALLOWED_MIME_PERMIT[$mime])) {
+            throw new RuntimeException('Unsupported file type.');
+        }
+    }
+
+    public static function validatePermit(array $file): void
+    {
+        if (!isset($file['error']) || $file['error'] !== UPLOAD_ERR_OK) {
+            throw new RuntimeException('File upload failed. Please try again.');
+        }
+
+        if (!is_uploaded_file($file['tmp_name'])) {
+            throw new RuntimeException('Invalid upload.');
+        }
+
+        if ($file['size'] > self::MAX_SIZE) {
+            throw new RuntimeException('File is too large (max 5MB).');
+        }
+
+        $finfo = finfo_open(FILEINFO_MIME_TYPE);
+        $mime = finfo_file($finfo, $file['tmp_name']);
+        finfo_close($finfo);
+
+        if (!isset(self::ALLOWED_MIME_PERMIT[$mime])) {
+            throw new RuntimeException('Unsupported file type. Please upload a JPG, PNG, or PDF.');
         }
     }
 
@@ -72,6 +101,35 @@ final class FileUpload
 
         if (!move_uploaded_file($file['tmp_name'], $uploadDir . $filename)) {
             throw new RuntimeException('Could not save the uploaded file.');
+        }
+
+        return $filename;
+    }
+
+    /**
+     * Validates and stores a business permit under assets/permits.
+     *
+     * @param array $file one entry of $_FILES
+     * @throws RuntimeException on invalid/oversized/unreadable file
+     */
+    public static function storeBusinessPermit(array $file, int $userId): string
+    {
+        self::validatePermit($file);
+
+        $finfo = finfo_open(FILEINFO_MIME_TYPE);
+        $mime = finfo_file($finfo, $file['tmp_name']);
+        finfo_close($finfo);
+        $ext = self::ALLOWED_MIME_PERMIT[$mime];
+
+        $uploadDir = __DIR__ . '/../assets/permits/';
+        if (!is_dir($uploadDir)) {
+            mkdir($uploadDir, 0775, true);
+        }
+
+        $filename = 'permit_' . $userId . '_' . bin2hex(random_bytes(8)) . '.' . $ext;
+
+        if (!move_uploaded_file($file['tmp_name'], $uploadDir . $filename)) {
+            throw new RuntimeException('Could not save the business permit.');
         }
 
         return $filename;

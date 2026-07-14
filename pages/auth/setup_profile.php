@@ -38,13 +38,45 @@ function setup_profile_page(): void
         }
 
         save_member_profile((int) $user['user_id']);
-        generate_workout_plan((int) $user['user_id']);
+        generate_workout_plan((int) $user['user_id']); // Keep existing plan generation if needed, or we can rely on the lookup
+
+        // Lookup engine for starter workout and diet
+        $pdo = db();
+        $stmtProfile = $pdo->prepare('SELECT * FROM member_profiles WHERE user_id = ?');
+        $stmtProfile->execute([$user['user_id']]);
+        $profile = $stmtProfile->fetch();
+
+        $tier = $profile['fitness_tier'] ?? 1;
+        $sex = $profile['biological_sex'];
+        $goal = $profile['primary_goal'];
+        $activity = $profile['activity_level'];
+
+        // Workout rule lookup
+        $wRule = $pdo->prepare('SELECT recommended_workout_structure FROM workout_rules WHERE experience_level = ? AND (biological_sex = ? OR biological_sex = "any") AND primary_goal = ? AND (activity_level = ? OR activity_level = "any") LIMIT 1');
+        $wRule->execute([$tier, $sex, $goal, $activity]);
+        $workoutStruct = $wRule->fetchColumn();
+        if (!$workoutStruct) {
+            $wRule->execute([1, 'any', $goal, 'any']);
+            $workoutStruct = $wRule->fetchColumn() ?: 'General full body workout 3 times a week.';
+        }
+
+        // Diet rule lookup
+        $dRule = $pdo->prepare('SELECT macro_split, notes FROM diet_rules WHERE experience_level = ? AND (biological_sex = ? OR biological_sex = "any") AND primary_goal = ? AND (activity_level = ? OR activity_level = "any") LIMIT 1');
+        $dRule->execute([$tier, $sex, $goal, $activity]);
+        $dietInfo = $dRule->fetch();
+        if (!$dietInfo) {
+            $dRule->execute([1, 'any', $goal, 'any']);
+            $dietInfo = $dRule->fetch();
+        }
+        $dietStruct = $dietInfo ? ($dietInfo['macro_split'] . ' - ' . $dietInfo['notes']) : 'Balanced diet.';
+
+        $msgBody = "Based on your profile, here is your starter guide!\n\n**Workout Structure:**\n$workoutStruct\n\n**Diet & Macros:**\n$dietStruct";
+        notify_user((int) $user['user_id'], 'system', 'Your Starter Plan is Ready!', $msgBody);
+
         if (empty(post('height_cm')) || empty(post('weight_kg'))) {
-            notify_user((int) $user['user_id'], 'system', 'Welcome to FITTRACKS', 'Welcome! Don\'t forget to complete your physical profile later so we can build your personalised workout plan.');
             flash('Welcome to FITTRACKS! Please add your measurements later.', 'success');
         } else {
-            notify_user((int) $user['user_id'], 'system', 'Welcome to FITTRACKS', 'Your profile is set up and your personalised workout plan is ready.');
-            flash('Physical profile saved! Welcome to FITTRACKS.', 'success');
+            flash('Physical profile saved! Check your notifications for your starter plan.', 'success');
         }
         redirect('dashboard');
     }

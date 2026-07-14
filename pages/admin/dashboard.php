@@ -51,18 +51,37 @@ function calc_checkin_trend(PDO $pdo): string
     return ($pct >= 0 ? '▲ ' : '▼ ') . abs($pct) . '% vs yesterday';
 }
 
-function admin_dashboard(PDO $pdo): void
+function admin_dashboard(PDO $pdo, array $user): void
 {
-    $members      = (int) $pdo->query('SELECT COUNT(*) FROM users WHERE role = "member" AND status = "active"')->fetchColumn();
-    $revenue = (float) $pdo->query(
-        'SELECT SUM(revenue) FROM (
-            SELECT amount AS revenue FROM payments WHERE status = "paid" AND payment_date >= DATE_FORMAT(CURDATE(), "%Y-%m-01")
-            UNION ALL
-            SELECT amount_paid AS revenue FROM walk_in_transactions WHERE visit_date >= DATE_FORMAT(CURDATE(), "%Y-%m-01")
-        ) AS combined'
-    )->fetchColumn();
-    $classesToday = (int) $pdo->query('SELECT COUNT(*) FROM class_schedules WHERE DATE(start_datetime) = CURDATE()')->fetchColumn();
-    $checkinsToday = (int) $pdo->query('SELECT COUNT(*) FROM attendance WHERE DATE(check_in_time) = CURDATE()')->fetchColumn();
+    $isPlatformAdmin = $user['role'] === 'platform_admin';
+    $gymId = null;
+    if (!$isPlatformAdmin) {
+        $gymId = (int) scalar('SELECT gym_id FROM gyms WHERE owner_user_id = ?', [$user['user_id']]);
+    }
+
+    if ($isPlatformAdmin) {
+        $members      = (int) $pdo->query('SELECT COUNT(*) FROM users WHERE role = "member" AND status = "active"')->fetchColumn();
+    } else {
+        $members      = (int) $pdo->query('SELECT COUNT(DISTINCT m.user_id) FROM memberships m JOIN membership_plans mp ON mp.plan_id = m.plan_id WHERE mp.gym_id = ' . $gymId . ' AND m.status = "active"')->fetchColumn();
+    }
+    if ($isPlatformAdmin) {
+        $revenue = (float) $pdo->query(
+            'SELECT SUM(revenue) FROM (
+                SELECT amount AS revenue FROM payments WHERE status = "paid" AND payment_date >= DATE_FORMAT(CURDATE(), "%Y-%m-01")
+                UNION ALL
+                SELECT amount_paid AS revenue FROM walk_in_transactions WHERE visit_date >= DATE_FORMAT(CURDATE(), "%Y-%m-01")
+            ) AS combined'
+        )->fetchColumn();
+        $classesToday = (int) $pdo->query('SELECT COUNT(*) FROM class_schedules WHERE DATE(start_datetime) = CURDATE()')->fetchColumn();
+        $checkinsToday = (int) $pdo->query('SELECT COUNT(*) FROM attendance WHERE DATE(check_in_time) = CURDATE()')->fetchColumn();
+    } else {
+        // Gym Owner stats
+        $revenue = (float) $pdo->query(
+            'SELECT COALESCE(SUM(p.amount), 0) FROM payments p JOIN memberships m ON m.membership_id = p.membership_id JOIN membership_plans mp ON mp.plan_id = m.plan_id WHERE mp.gym_id = ' . $gymId . ' AND p.status = "paid" AND p.payment_date >= DATE_FORMAT(CURDATE(), "%Y-%m-01")'
+        )->fetchColumn();
+        $classesToday = (int) $pdo->query('SELECT COUNT(*) FROM class_schedules cs JOIN classes c ON c.class_id = cs.class_id WHERE c.gym_id = ' . $gymId . ' AND DATE(cs.start_datetime) = CURDATE()')->fetchColumn();
+        $checkinsToday = (int) $pdo->query('SELECT COUNT(*) FROM attendance WHERE gym_id = ' . $gymId . ' AND DATE(check_in_time) = CURDATE()')->fetchColumn();
+    }
 
     $revenueTrend = calc_revenue_trend($pdo);
     $memberTrend  = calc_member_trend($pdo);
@@ -341,8 +360,8 @@ function dashboard(): void
     render_header('Dashboard', $user);
 
     $pdo = db();
-    if ($user['role'] === 'admin') {
-        admin_dashboard($pdo);
+    if ($user['role'] === 'platform_admin' || $user['role'] === 'gym_owner') {
+        admin_dashboard($pdo, $user);
     } elseif ($user['role'] === 'trainer') {
         render_skeleton_banner();
         render_skeleton_stats(4);

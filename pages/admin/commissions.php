@@ -3,7 +3,7 @@ declare(strict_types=1);
 
 function commissions_page(): void
 {
-    $user = require_roles(['admin']);
+    $user = require_roles(['platform_admin', 'gym_owner']);
 
     if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $action = post('action');

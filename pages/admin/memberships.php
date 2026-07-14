@@ -6,8 +6,8 @@ use PHPMailer\PHPMailer\Exception as PHPMailerException;
 
 function memberships_page(): void
 {
-    $user = require_roles(['admin', 'member']);
-    if ($user['role'] === 'admin' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+    $user = require_roles(['platform_admin', 'gym_owner', 'member']);
+    if ($user['role'] === 'gym_owner' && $_SERVER['REQUEST_METHOD'] === 'POST') {
         if (isset($_POST['update_status_id'])) {
             $membershipId = (int) post('update_status_id');
             $status = post('status');
@@ -156,9 +156,9 @@ function memberships_page(): void
             db()->prepare('INSERT INTO payments (membership_id, amount, payment_date, payment_method, status, receipt_number) VALUES (?, ?, ?, ?, ?, ?)')
                 ->execute([$membershipId, $finalPrice, $start->format('Y-m-d'), $paymentMethod, 'pending', $receipt]);
                 
-            $admins = query_all('SELECT user_id FROM users WHERE role = "admin"');
-            foreach ($admins as $admin) {
-                notify_user((int) $admin['user_id'], 'system', 'New Subscription Request', $user['first_name'] . ' ' . $user['last_name'] . ' requested a ' . $plan['plan_name'] . ' membership. Payment method: ' . strtoupper($paymentMethod) . '.');
+            $gymOwners = query_all('SELECT owner_user_id FROM gyms');
+            foreach ($gymOwners as $owner) {
+                notify_user((int) $owner['owner_user_id'], 'system', 'New Subscription Request', $user['first_name'] . ' ' . $user['last_name'] . ' requested a ' . $plan['plan_name'] . ' membership. Payment method: ' . strtoupper($paymentMethod) . '.');
             }
             
             flash('Subscription requested. Please proceed with payment.');
@@ -166,9 +166,19 @@ function memberships_page(): void
         }
     }
 
+    $gymId = null;
+    if ($user['role'] === 'gym_owner') {
+        $gymId = (int) scalar('SELECT gym_id FROM gyms WHERE owner_user_id = ?', [$user['user_id']]);
+        $where = 'WHERE m.plan_id IN (SELECT plan_id FROM membership_plans WHERE gym_id = ' . $gymId . ' OR plan_scope = "shared")';
+        $plans = db()->query('SELECT * FROM membership_plans WHERE is_active = 1 AND (gym_id = ' . $gymId . ' OR plan_scope = "shared") ORDER BY price')->fetchAll();
+    } elseif ($user['role'] === 'member') {
+        $where = 'WHERE m.user_id = ' . (int) $user['user_id'];
+        $plans = db()->query('SELECT mp.*, g.name AS gym_name FROM membership_plans mp LEFT JOIN gyms g ON g.gym_id = mp.gym_id WHERE mp.is_active = 1 ORDER BY mp.price')->fetchAll();
+    } else {
+        $where = 'WHERE 1=0'; // Platform admin doesn't use this page
+        $plans = [];
+    }
     $members = db()->query('SELECT user_id, CONCAT(first_name, " ", last_name) AS name FROM users WHERE role = "member" AND status = "active" ORDER BY first_name')->fetchAll();
-    $plans   = db()->query('SELECT * FROM membership_plans WHERE is_active = 1 ORDER BY price')->fetchAll();
-    $where   = $user['role'] === 'member' ? 'WHERE m.user_id = ' . (int) $user['user_id'] : '';
     $rows    = db()->query('SELECT m.*, CONCAT(u.first_name, " ", u.last_name) AS member, u.first_name, u.last_name, u.profile_picture, p.plan_name, p.price FROM memberships m JOIN users u ON u.user_id = m.user_id JOIN membership_plans p ON p.plan_id = m.plan_id ' . $where . ' ORDER BY m.created_at DESC')->fetchAll();
     render_header('Memberships', $user);
     ?>
@@ -179,7 +189,7 @@ function memberships_page(): void
                     <div class="sk sk-title" style="width:180px;margin-bottom:8px"></div>
                     <div class="sk sk-text" style="width:280px;height:12px"></div>
                 </div>
-                <?php if ($user['role'] === 'admin'): ?>
+                <?php if ($user['role'] === 'gym_owner'): ?>
                     <div class="sk sk-rect" style="width:140px;height:36px;border-radius:18px"></div>
                 <?php endif; ?>
             </div>
@@ -209,7 +219,7 @@ function memberships_page(): void
                 <h1>Memberships</h1>
                 <p>Manage member subscription plans and their validity periods.</p>
             </div>
-            <?php if ($user['role'] === 'admin'): ?>
+            <?php if ($user['role'] === 'gym_owner'): ?>
                 <button onclick="addMembership()" class="btn" style="background: var(--lime); color: var(--bg); font-weight: bold;">+ New Membership</button>
             <?php endif; ?>
         </div>
@@ -255,8 +265,23 @@ function memberships_page(): void
                 ?>
                     <div class="panel plan-card-glow" style="width: 280px; flex-shrink: 0; padding: 1.5rem; display: flex; flex-direction: column; gap: 1rem; background: var(--surface); <?= $isActive ? 'border: 2px solid var(--lime); box-shadow: 0 0 15px rgba(204,255,0,0.1);' : '' ?>">
                         <div>
-                            <h3 style="margin: 0; font-size: 1.2rem;"><?= h($plan['plan_name']) ?></h3>
-                            <p style="color: var(--muted); font-size: 0.9rem; margin-top: 4px;"><?= h($plan['duration_days']) ?> Days</p>
+                            <h3 style="margin: 0; font-size: 1.2rem; display: flex; align-items: center; gap: 8px;">
+                                <?= h($plan['plan_name']) ?>
+                                <?php if ($plan['plan_scope'] === 'shared'): ?>
+                                    <span style="font-size: 10px; background: rgba(199,255,34,0.15); color: var(--lime); padding: 2px 6px; border-radius: 12px; font-weight: bold; letter-spacing: 0.5px; text-transform: uppercase;">Shared</span>
+                                <?php else: ?>
+                                    <span style="font-size: 10px; background: rgba(255,255,255,0.1); color: var(--muted); padding: 2px 6px; border-radius: 12px; font-weight: bold; letter-spacing: 0.5px; text-transform: uppercase;">Local</span>
+                                <?php endif; ?>
+                            </h3>
+                            <p style="color: var(--muted); font-size: 0.9rem; margin-top: 4px;">
+                                <?= h($plan['duration_days']) ?> Days
+                                &bull; 
+                                <?php if ($plan['plan_scope'] === 'shared'): ?>
+                                    Valid at all participating gyms
+                                <?php else: ?>
+                                    Valid only at <?= h($plan['gym_name'] ?: 'this gym') ?>
+                                <?php endif; ?>
+                            </p>
                         </div>
                         <div style="font-size: 1.5rem; font-weight: bold; color: var(--lime);">
                             <?php if (!$isActive && $sameDayDiscount > 0): ?>
@@ -332,7 +357,7 @@ function memberships_page(): void
                         <th>Start</th>
                         <th>End</th>
                         <th>Status</th>
-                        <?php if ($user['role'] === 'admin'): ?><th>Action</th><?php endif; ?>
+                        <?php if ($user['role'] === 'gym_owner'): ?><th>Action</th><?php endif; ?>
                     </tr>
                 </thead>
                 <tbody>
@@ -353,7 +378,7 @@ function memberships_page(): void
                         <td><?= h(date('M j, Y', strtotime($row['start_date']))) ?></td>
                         <td><?= h(date('M j, Y', strtotime($row['end_date']))) ?></td>
                         <td><span class="<?= $statusClass ?>"><?= h($row['status']) ?></span></td>
-                        <?php if ($user['role'] === 'admin'): ?>
+                        <?php if ($user['role'] === 'gym_owner'): ?>
                         <td>
                             <button onclick="editStatus(<?= $row['membership_id'] ?>, '<?= h($row['status']) ?>')" class="btn btn-secondary" style="padding:4px 8px;font-size:12px;" title="Edit Status">Update</button>
                         </td>
@@ -366,7 +391,7 @@ function memberships_page(): void
         <?php endif; ?>
     </section>
     
-    <?php if ($user['role'] === 'admin'): ?>
+    <?php if ($user['role'] === 'gym_owner'): ?>
     <script>
         function editStatus(membershipId, currentStatus) {
             Swal.fire({
@@ -401,7 +426,7 @@ function memberships_page(): void
     <?php endif; ?>
 
     
-    <?php if ($user['role'] === 'admin'): ?>
+    <?php if ($user['role'] === 'gym_owner'): ?>
     <script>
     function addMembership() {
         Swal.fire({

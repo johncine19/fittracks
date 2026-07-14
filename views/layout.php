@@ -9,10 +9,18 @@ function render_header(string $title, ?array $user = null): void
     $nav = [];
     if ($user) {
         $nav['dashboard'] = 'Dashboard';
-        if ($role === 'admin') {
+        if ($role === 'platform_admin') {
+            $nav += [
+                'gym_applications' => 'Gym Applications',
+                'users' => 'Users Accounts',
+                'plans' => 'Shared Plans',
+                'reports' => 'Reports',
+                'audit_logs' => 'Audit Logs',
+            ];
+        }
+        if ($role === 'gym_owner') {
             $nav += [
                 'scanner' => 'Scan QR',
-                'users' => 'Users Accounts',
                 'trainer_assignments' => 'Trainers',
                 'plans' => 'Plans',
                 'admin_workouts' => 'Workout Plans',
@@ -24,7 +32,6 @@ function render_header(string $title, ?array $user = null): void
                 'attendance' => 'Attendance',
                 'exercises' => 'Exercises',
                 'reports' => 'Reports',
-                'audit_logs' => 'Audit Logs',
                 'messages' => 'Messages',
                 'notifications' => 'Notifications'
             ];
