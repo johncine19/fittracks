@@ -16,7 +16,7 @@ function settings_page(): void
             }
         }
         flash('Settings updated successfully.', 'success');
-        redirect('settings');
+        redirect($_SERVER['HTTP_REFERER'] ?? 'dashboard');
     }
 
     $settingsRows = $pdo->query('SELECT * FROM system_settings')->fetchAll();

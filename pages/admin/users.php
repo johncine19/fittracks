@@ -162,21 +162,44 @@ function users_page(): void
     $offset = ($page - 1) * $limit;
 
     $tab = $_GET['tab'] ?? 'all';
+    $gymFilter = (int)($_GET['gym_id'] ?? 0);
+    
     $where = '1=1';
-    $u_where = '1=1';
     $params = [];
     if (in_array($tab, ['platform_admin', 'gym_owner', 'trainer', 'member'], true)) {
-        $where = 'role = ?';
-        $u_where = 'u.role = ?';
+        $where .= ' AND u.role = ?';
         $params[] = $tab;
     }
+    
+    if ($gymFilter) {
+        $where .= ' AND (
+            (u.role = "gym_owner" AND EXISTS (SELECT 1 FROM gyms WHERE owner_user_id = u.user_id AND gym_id = ?)) OR
+            (u.role = "trainer" AND EXISTS (SELECT 1 FROM trainer_profiles WHERE user_id = u.user_id AND gym_id = ?)) OR
+            (u.role = "member" AND EXISTS (SELECT 1 FROM memberships m JOIN membership_plans mp ON m.plan_id = mp.plan_id WHERE m.user_id = u.user_id AND mp.gym_id = ?))
+        )';
+        $params[] = $gymFilter;
+        $params[] = $gymFilter;
+        $params[] = $gymFilter;
+    }
 
-    $total = (int) scalar('SELECT COUNT(*) FROM users WHERE ' . $where, $params);
+    $total = (int) scalar('SELECT COUNT(*) FROM users u WHERE ' . $where, $params);
     $totalPages = max(1, (int) ceil($total / $limit));
 
-    $stmt = db()->prepare('SELECT u.*, tp.specialization, tp.bio FROM users u LEFT JOIN trainer_profiles tp ON u.user_id = tp.user_id WHERE ' . $u_where . ' ORDER BY u.first_name ASC, u.last_name ASC LIMIT ' . (int)$limit . ' OFFSET ' . (int)$offset);
+    $sql = 'SELECT u.*, tp.specialization, tp.bio, 
+            (SELECT g1.name FROM gyms g1 WHERE g1.owner_user_id = u.user_id LIMIT 1) AS owner_gym_name,
+            (SELECT g2.name FROM trainer_profiles tp2 JOIN gyms g2 ON tp2.gym_id = g2.gym_id WHERE tp2.user_id = u.user_id LIMIT 1) AS trainer_gym_name,
+            (SELECT g3.name FROM memberships m JOIN membership_plans mp ON m.plan_id = mp.plan_id JOIN gyms g3 ON mp.gym_id = g3.gym_id WHERE m.user_id = u.user_id AND m.status IN ("active","pending") LIMIT 1) AS member_gym_name
+            FROM users u 
+            LEFT JOIN trainer_profiles tp ON u.user_id = tp.user_id 
+            WHERE ' . $where . ' 
+            ORDER BY u.first_name ASC, u.last_name ASC 
+            LIMIT ' . (int)$limit . ' OFFSET ' . (int)$offset;
+
+    $stmt = db()->prepare($sql);
     $stmt->execute($params);
     $rows = $stmt->fetchAll();
+    
+    $allGyms = db()->query('SELECT gym_id, name FROM gyms ORDER BY name ASC')->fetchAll();
     
     render_header('Users', $user);
     ?>
@@ -266,15 +289,28 @@ function users_page(): void
             </div>
         </dialog>
 
-        <div style="display:flex; justify-content:space-between; align-items:flex-end; margin-bottom: 12px; border-bottom: 1px solid var(--line); padding-bottom: 8px;">
+        <div style="display:flex; justify-content:space-between; align-items:flex-end; margin-bottom: 12px; border-bottom: 1px solid var(--line); padding-bottom: 8px; flex-wrap:wrap; gap:16px;">
             <div style="display:flex; gap:16px; overflow-x:auto;">
-                <a href="?page=users&tab=all" style="white-space:nowrap; color: <?= $tab === 'all' ? 'var(--lime)' : 'var(--muted)' ?>; font-weight: <?= $tab === 'all' ? '700' : '400' ?>; text-decoration:none; padding-bottom:4px; border-bottom: 2px solid <?= $tab === 'all' ? 'var(--lime)' : 'transparent' ?>;">All Users</a>
-                <a href="?page=users&tab=platform_admin" style="white-space:nowrap; color: <?= $tab === 'platform_admin' ? 'var(--lime)' : 'var(--muted)' ?>; font-weight: <?= $tab === 'platform_admin' ? '700' : '400' ?>; text-decoration:none; padding-bottom:4px; border-bottom: 2px solid <?= $tab === 'platform_admin' ? 'var(--lime)' : 'transparent' ?>;">Platform Admins</a>
-                <a href="?page=users&tab=gym_owner" style="white-space:nowrap; color: <?= $tab === 'gym_owner' ? 'var(--lime)' : 'var(--muted)' ?>; font-weight: <?= $tab === 'gym_owner' ? '700' : '400' ?>; text-decoration:none; padding-bottom:4px; border-bottom: 2px solid <?= $tab === 'gym_owner' ? 'var(--lime)' : 'transparent' ?>;">Gym Owners</a>
-                <a href="?page=users&tab=trainer" style="white-space:nowrap; color: <?= $tab === 'trainer' ? 'var(--lime)' : 'var(--muted)' ?>; font-weight: <?= $tab === 'trainer' ? '700' : '400' ?>; text-decoration:none; padding-bottom:4px; border-bottom: 2px solid <?= $tab === 'trainer' ? 'var(--lime)' : 'transparent' ?>;">Trainers</a>
-                <a href="?page=users&tab=member" style="white-space:nowrap; color: <?= $tab === 'member' ? 'var(--lime)' : 'var(--muted)' ?>; font-weight: <?= $tab === 'member' ? '700' : '400' ?>; text-decoration:none; padding-bottom:4px; border-bottom: 2px solid <?= $tab === 'member' ? 'var(--lime)' : 'transparent' ?>;">Members</a>
+                <a href="?page=users&tab=all<?= $gymFilter ? '&gym_id='.$gymFilter : '' ?>" style="white-space:nowrap; color: <?= $tab === 'all' ? 'var(--lime)' : 'var(--muted)' ?>; font-weight: <?= $tab === 'all' ? '700' : '400' ?>; text-decoration:none; padding-bottom:4px; border-bottom: 2px solid <?= $tab === 'all' ? 'var(--lime)' : 'transparent' ?>;">All Users</a>
+                <a href="?page=users&tab=platform_admin<?= $gymFilter ? '&gym_id='.$gymFilter : '' ?>" style="white-space:nowrap; color: <?= $tab === 'platform_admin' ? 'var(--lime)' : 'var(--muted)' ?>; font-weight: <?= $tab === 'platform_admin' ? '700' : '400' ?>; text-decoration:none; padding-bottom:4px; border-bottom: 2px solid <?= $tab === 'platform_admin' ? 'var(--lime)' : 'transparent' ?>;">Platform Admins</a>
+                <a href="?page=users&tab=gym_owner<?= $gymFilter ? '&gym_id='.$gymFilter : '' ?>" style="white-space:nowrap; color: <?= $tab === 'gym_owner' ? 'var(--lime)' : 'var(--muted)' ?>; font-weight: <?= $tab === 'gym_owner' ? '700' : '400' ?>; text-decoration:none; padding-bottom:4px; border-bottom: 2px solid <?= $tab === 'gym_owner' ? 'var(--lime)' : 'transparent' ?>;">Gym Owners</a>
+                <a href="?page=users&tab=trainer<?= $gymFilter ? '&gym_id='.$gymFilter : '' ?>" style="white-space:nowrap; color: <?= $tab === 'trainer' ? 'var(--lime)' : 'var(--muted)' ?>; font-weight: <?= $tab === 'trainer' ? '700' : '400' ?>; text-decoration:none; padding-bottom:4px; border-bottom: 2px solid <?= $tab === 'trainer' ? 'var(--lime)' : 'transparent' ?>;">Trainers</a>
+                <a href="?page=users&tab=member<?= $gymFilter ? '&gym_id='.$gymFilter : '' ?>" style="white-space:nowrap; color: <?= $tab === 'member' ? 'var(--lime)' : 'var(--muted)' ?>; font-weight: <?= $tab === 'member' ? '700' : '400' ?>; text-decoration:none; padding-bottom:4px; border-bottom: 2px solid <?= $tab === 'member' ? 'var(--lime)' : 'transparent' ?>;">Members</a>
             </div>
-            <p class="section-label" style="margin:0; border:none; padding:0;"><?= $total ?> found</p>
+            
+            <div style="display:flex; align-items:center; gap: 16px;">
+                <form method="get" style="margin:0; display:flex; gap:8px; align-items:center;">
+                    <input type="hidden" name="page" value="users">
+                    <input type="hidden" name="tab" value="<?= h($tab) ?>">
+                    <select name="gym_id" onchange="this.form.submit()" style="padding:4px 8px; font-size:13px; border-radius:6px; background:var(--bg); border:1px solid var(--line); color:var(--ink);">
+                        <option value="">All Gyms</option>
+                        <?php foreach ($allGyms as $g): ?>
+                            <option value="<?= $g['gym_id'] ?>" <?= selected((string)$g['gym_id'], (string)$gymFilter) ?>><?= h($g['name']) ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                </form>
+                <p class="section-label" style="margin:0; border:none; padding:0;"><?= $total ?> found</p>
+            </div>
         </div>
         
         <?php if (!$rows): ?>
