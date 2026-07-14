@@ -4,22 +4,35 @@ declare(strict_types=1);
 function classes_page(): void
 {
     $user = require_roles(['platform_admin', 'gym_owner', 'trainer']);
-    $isAdmin = $user['role'] === 'admin';
+    $isAdmin = $user['role'] === 'platform_admin';
+    $gymId = null;
+    if ($user['role'] === 'gym_owner') {
+        $gymId = (int) scalar('SELECT gym_id FROM gyms WHERE owner_user_id = ?', [$user['user_id']]);
+    } elseif ($user['role'] === 'trainer') {
+        $gymId = (int) scalar('SELECT gym_id FROM trainer_profiles WHERE user_id = ?', [$user['user_id']]);
+    }
+
     if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $action = post('action');
         if ($action === 'class') {
-            $instructor_id = $isAdmin ? (post('instructor_id') ?: null) : $user['user_id'];
-            db()->prepare('INSERT INTO classes (class_name, description, instructor_id, capacity) VALUES (?, ?, ?, ?)')->execute([post('class_name'), post('description'), $instructor_id, post('capacity')]);
+            $instructor_id = ($user['role'] === 'trainer') ? $user['user_id'] : (post('instructor_id') ?: null);
+            db()->prepare('INSERT INTO classes (class_name, description, instructor_id, capacity, gym_id, created_by) VALUES (?, ?, ?, ?, ?, ?)')
+                ->execute([post('class_name'), post('description'), $instructor_id, post('capacity'), $gymId, $user['user_id']]);
             audit_log($user['user_id'], 'create', 'class', (string) db()->lastInsertId(), json_encode(['class_name' => post('class_name')]));
             flash('Class created.');
         } elseif ($action === 'schedule') {
             $class_id = post('class_id');
             if (!$isAdmin) {
-                $c = db()->prepare('SELECT instructor_id FROM classes WHERE class_id=?');
+                $c = db()->prepare('SELECT instructor_id, gym_id FROM classes WHERE class_id=?');
                 $c->execute([$class_id]);
-                if ($c->fetchColumn() != $user['user_id']) redirect('classes');
+                $cls = $c->fetch();
+                if (!$cls) redirect('classes');
+                
+                if ($user['role'] === 'gym_owner' && $cls['gym_id'] != $gymId) redirect('classes');
+                if ($user['role'] === 'trainer' && $cls['instructor_id'] != $user['user_id']) redirect('classes');
             }
-            db()->prepare('INSERT INTO class_schedules (class_id, room_location, start_datetime, end_datetime) VALUES (?, ?, ?, ?)')->execute([$class_id, post('room_location'), post('start_datetime'), post('end_datetime')]);
+            db()->prepare('INSERT INTO class_schedules (class_id, room_location, start_datetime, end_datetime) VALUES (?, ?, ?, ?)')
+                ->execute([$class_id, post('room_location'), post('start_datetime'), post('end_datetime')]);
             
             $className = db()->query('SELECT class_name FROM classes WHERE class_id = ' . (int)$class_id)->fetchColumn();
             $startTime = date('M j, Y g:i A', strtotime(post('start_datetime')));
@@ -32,15 +45,22 @@ function classes_page(): void
             flash('Schedule created.');
         } elseif ($action === 'edit_class') {
             if ($isAdmin) {
-                db()->prepare('UPDATE classes SET class_name=?, description=?, instructor_id=?, capacity=? WHERE class_id=?')->execute([post('class_name'), post('description'), post('instructor_id') ?: null, post('capacity'), post('class_id')]);
+                db()->prepare('UPDATE classes SET class_name=?, description=?, instructor_id=?, capacity=? WHERE class_id=?')
+                    ->execute([post('class_name'), post('description'), post('instructor_id') ?: null, post('capacity'), post('class_id')]);
+            } elseif ($user['role'] === 'gym_owner') {
+                db()->prepare('UPDATE classes SET class_name=?, description=?, instructor_id=?, capacity=? WHERE class_id=? AND gym_id=?')
+                    ->execute([post('class_name'), post('description'), post('instructor_id') ?: null, post('capacity'), post('class_id'), $gymId]);
             } else {
-                db()->prepare('UPDATE classes SET class_name=?, description=?, capacity=? WHERE class_id=? AND instructor_id=?')->execute([post('class_name'), post('description'), post('capacity'), post('class_id'), $user['user_id']]);
+                db()->prepare('UPDATE classes SET class_name=?, description=?, capacity=? WHERE class_id=? AND instructor_id=?')
+                    ->execute([post('class_name'), post('description'), post('capacity'), post('class_id'), $user['user_id']]);
             }
             flash('Class updated.');
             audit_log($user['user_id'], 'edit', 'class', (string) post('class_id'), json_encode(['class_name' => post('class_name')]));
         } elseif ($action === 'delete_class') {
             if ($isAdmin) {
                 db()->prepare('DELETE FROM classes WHERE class_id=?')->execute([post('class_id')]);
+            } elseif ($user['role'] === 'gym_owner') {
+                db()->prepare('DELETE FROM classes WHERE class_id=? AND gym_id=?')->execute([post('class_id'), $gymId]);
             } else {
                 db()->prepare('DELETE FROM classes WHERE class_id=? AND instructor_id=?')->execute([post('class_id'), $user['user_id']]);
             }
@@ -50,19 +70,28 @@ function classes_page(): void
             $schedule_id = post('schedule_id');
             $class_id = post('class_id');
             if (!$isAdmin) {
-                $c = db()->prepare('SELECT instructor_id FROM classes WHERE class_id=?');
+                $c = db()->prepare('SELECT instructor_id, gym_id FROM classes WHERE class_id=?');
                 $c->execute([$class_id]);
-                if ($c->fetchColumn() != $user['user_id']) redirect('classes');
+                $cls = $c->fetch();
+                if (!$cls) redirect('classes');
+                
+                if ($user['role'] === 'gym_owner' && $cls['gym_id'] != $gymId) redirect('classes');
+                if ($user['role'] === 'trainer' && $cls['instructor_id'] != $user['user_id']) redirect('classes');
             }
-            db()->prepare('UPDATE class_schedules SET class_id=?, room_location=?, start_datetime=?, end_datetime=? WHERE schedule_id=?')->execute([$class_id, post('room_location'), post('start_datetime'), post('end_datetime'), $schedule_id]);
+            db()->prepare('UPDATE class_schedules SET class_id=?, room_location=?, start_datetime=?, end_datetime=? WHERE schedule_id=?')
+                ->execute([$class_id, post('room_location'), post('start_datetime'), post('end_datetime'), $schedule_id]);
             audit_log($user['user_id'], 'edit', 'class_schedule', (string) $schedule_id, json_encode(['class_id' => $class_id]));
             flash('Schedule updated.');
         } elseif ($action === 'delete_schedule') {
             $schedule_id = post('schedule_id');
             if (!$isAdmin) {
-                $c = db()->prepare('SELECT c.instructor_id FROM classes c JOIN class_schedules s ON c.class_id = s.class_id WHERE s.schedule_id=?');
+                $c = db()->prepare('SELECT c.instructor_id, c.gym_id FROM classes c JOIN class_schedules s ON c.class_id = s.class_id WHERE s.schedule_id=?');
                 $c->execute([$schedule_id]);
-                if ($c->fetchColumn() != $user['user_id']) redirect('classes');
+                $cls = $c->fetch();
+                if (!$cls) redirect('classes');
+                
+                if ($user['role'] === 'gym_owner' && $cls['gym_id'] != $gymId) redirect('classes');
+                if ($user['role'] === 'trainer' && $cls['instructor_id'] != $user['user_id']) redirect('classes');
             }
             db()->prepare('DELETE FROM class_schedules WHERE schedule_id=?')->execute([$schedule_id]);
             audit_log($user['user_id'], 'delete', 'class_schedule', (string) $schedule_id);
@@ -70,17 +99,20 @@ function classes_page(): void
         }
         redirect('classes');
     }
-    $coaches   = db()->query('SELECT user_id, CONCAT(first_name, " ", last_name) AS name FROM users WHERE role = "trainer" AND status = "active"')->fetchAll();
+
     if ($isAdmin) {
-        $classes   = db()->query('SELECT c.*, CONCAT(u.first_name, " ", u.last_name) AS instructor FROM classes c LEFT JOIN users u ON u.user_id = c.instructor_id ORDER BY c.created_at DESC')->fetchAll();
+        $coaches = db()->query('SELECT user_id, CONCAT(first_name, " ", last_name) AS name FROM users WHERE role = "trainer" AND status = "active"')->fetchAll();
+        $classes = db()->query('SELECT c.*, CONCAT(u.first_name, " ", u.last_name) AS instructor FROM classes c LEFT JOIN users u ON u.user_id = c.instructor_id ORDER BY c.created_at DESC')->fetchAll();
         $schedules = db()->query('SELECT s.*, c.class_name, (SELECT COUNT(*) FROM class_bookings b WHERE b.schedule_id = s.schedule_id AND b.booking_status = "booked") AS booked FROM class_schedules s JOIN classes c ON c.class_id = s.class_id ORDER BY s.start_datetime DESC')->fetchAll();
     } else {
-        $stmt = db()->prepare('SELECT c.*, CONCAT(u.first_name, " ", u.last_name) AS instructor FROM classes c LEFT JOIN users u ON u.user_id = c.instructor_id WHERE c.instructor_id = ? ORDER BY c.created_at DESC');
-        $stmt->execute([$user['user_id']]);
+        $coaches = db()->query('SELECT u.user_id, CONCAT(u.first_name, " ", u.last_name) AS name FROM users u JOIN trainer_profiles tp ON u.user_id = tp.user_id WHERE u.role = "trainer" AND u.status = "active" AND tp.gym_id = ' . (int)$gymId)->fetchAll();
+        
+        $stmt = db()->prepare('SELECT c.*, CONCAT(u.first_name, " ", u.last_name) AS instructor FROM classes c LEFT JOIN users u ON u.user_id = c.instructor_id WHERE c.gym_id = ? ORDER BY c.created_at DESC');
+        $stmt->execute([$gymId]);
         $classes = $stmt->fetchAll();
         
-        $stmt2 = db()->prepare('SELECT s.*, c.class_name, (SELECT COUNT(*) FROM class_bookings b WHERE b.schedule_id = s.schedule_id AND b.booking_status = "booked") AS booked FROM class_schedules s JOIN classes c ON c.class_id = s.class_id WHERE c.instructor_id = ? ORDER BY s.start_datetime DESC');
-        $stmt2->execute([$user['user_id']]);
+        $stmt2 = db()->prepare('SELECT s.*, c.class_name, (SELECT COUNT(*) FROM class_bookings b WHERE b.schedule_id = s.schedule_id AND b.booking_status = "booked") AS booked FROM class_schedules s JOIN classes c ON c.class_id = s.class_id WHERE c.gym_id = ? ORDER BY s.start_datetime DESC');
+        $stmt2->execute([$gymId]);
         $schedules = $stmt2->fetchAll();
     }
     
@@ -142,7 +174,7 @@ function classes_page(): void
                 <input type="hidden" name="action" value="class">
                 <label>Class name <input name="class_name" placeholder="e.g. HIIT Training" required></label>
                 <label>Description <input name="description" placeholder="Short description"></label>
-                <?php if ($isAdmin): ?>
+                <?php if ($user['role'] !== 'trainer'): ?>
                 <label>Instructor
                     <select name="instructor_id">
                         <option value="">— None assigned —</option>
@@ -201,11 +233,13 @@ function classes_page(): void
                     <input type="hidden" name="class_id" id="ec_id">
                     <label style="display:block; color: var(--muted); font-size: 14px;">Class name * <input name="class_name" id="ec_name" class="form-control" required style="width: 100%; box-sizing: border-box;"></label>
                     <label style="display:block; color: var(--muted); font-size: 14px;">Description <input name="description" id="ec_desc" class="form-control" style="width: 100%; box-sizing: border-box;"></label>
+                    <?php if ($user['role'] !== 'trainer'): ?>
                     <label style="display:block; color: var(--muted); font-size: 14px;">Instructor
                         <select name="instructor_id" id="ec_inst" class="form-control" style="width: 100%; box-sizing: border-box;">
                             <?= $instructorOptions ?>
                         </select>
                     </label>
+                    <?php endif; ?>
                     <label style="display:block; color: var(--muted); font-size: 14px;">Capacity * <input name="capacity" id="ec_cap" type="number" min="1" class="form-control" required style="width: 100%; box-sizing: border-box;"></label>
                 </form>
             `,
@@ -213,7 +247,9 @@ function classes_page(): void
                 document.getElementById('ec_id').value = c.class_id;
                 document.getElementById('ec_name').value = c.class_name;
                 document.getElementById('ec_desc').value = c.description || '';
-                document.getElementById('ec_inst').value = c.instructor_id || '';
+                if (document.getElementById('ec_inst')) {
+                    document.getElementById('ec_inst').value = c.instructor_id || '';
+                }
                 document.getElementById('ec_cap').value = c.capacity;
             },
             showCancelButton: true,
