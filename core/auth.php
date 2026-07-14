@@ -29,13 +29,7 @@ function require_login(): array
         }
     }
 
-    // Globally enforce gym approval for gym owners
-    if ($user['role'] === 'gym_owner' && $page !== 'pending_gym' && $page !== 'logout') {
-        $gymStatus = scalar('SELECT status FROM gyms WHERE owner_user_id = ?', [$user['user_id']]);
-        if ($gymStatus !== 'approved') {
-            redirect('pending_gym');
-        }
-    }
+    // Note: Gym approval enforcement is now handled at login.
 
     return $user;
 }
