@@ -20,6 +20,10 @@ function setup_goal_page(): void
     }
 
     if (!empty($profile['primary_goal'])) {
+        $hasMembership = scalar('SELECT 1 FROM memberships WHERE user_id = ? AND status IN ("active", "pending")', [$user['user_id']]);
+        if (!$hasMembership) {
+            redirect('gym_selection');
+        }
         redirect('dashboard');
     }
 
@@ -70,6 +74,10 @@ function setup_goal_page(): void
         notify_user((int) $user['user_id'], 'system', 'Your Starter Plan is Ready!', $msgBody);
 
         flash('Goal saved! Check your notifications for your starter plan.', 'success');
+        $hasMembership = scalar('SELECT 1 FROM memberships WHERE user_id = ? AND status IN ("active", "pending")', [$user['user_id']]);
+        if (!$hasMembership) {
+            redirect('gym_selection');
+        }
         redirect('dashboard');
     }
 

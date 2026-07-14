@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 function gym_selection_page(): void
 {
+    define('AUTH_PAGE', true);
     $user = require_roles(['member']);
     
     $gyms = db()->query('SELECT * FROM gyms WHERE status = "approved"')->fetchAll();
@@ -153,6 +154,10 @@ function gym_selection_page(): void
                 <p>&larr; Swipe or scroll to see more gyms &rarr;</p>
             </div>
         <?php endif; ?>
+        
+        <div style="text-align: center; margin-top: 30px;">
+            <a href="index.php?page=dashboard" style="color: var(--muted); text-decoration: underline;">Skip for now</a>
+        </div>
     </div>
 
     <!-- The Modal -->
@@ -215,6 +220,7 @@ function gym_selection_page(): void
                             Duration: ${p.duration_days} days
                         </p>
                         <form method="post" action="index.php?page=memberships">
+                            <?= csrf_field() ?>
                             <input type="hidden" name="action" value="subscribe">
                             <input type="hidden" name="plan_id" value="${p.plan_id}">
                             <input type="hidden" name="payment_method" value="gcash">

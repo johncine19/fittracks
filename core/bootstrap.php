@@ -80,3 +80,4 @@ require __DIR__ . '/../pages/member/qr_attendance.php';
 require __DIR__ . '/../pages/member/my_commissions.php';
 require __DIR__ . '/../pages/member/diet.php';
 require __DIR__ . '/../pages/member/view_gym.php';
+require __DIR__ . '/../pages/member/gym_selection.php';
