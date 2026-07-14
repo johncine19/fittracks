@@ -16,9 +16,13 @@ function setup_profile_page(): void
         redirect('dashboard');
     }
 
-    // If they already have a profile, send them to the dashboard
-    if (member_profile((int) $user['user_id']) !== null) {
-        redirect('dashboard');
+    $profile = member_profile((int) $user['user_id']);
+    if ($profile !== null) {
+        if (!empty($profile['primary_goal'])) {
+            redirect('dashboard');
+        } else {
+            redirect('setup_goal');
+        }
     }
 
     if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -38,47 +42,9 @@ function setup_profile_page(): void
         }
 
         save_member_profile((int) $user['user_id']);
-        generate_workout_plan((int) $user['user_id']); // Keep existing plan generation if needed, or we can rely on the lookup
-
-        // Lookup engine for starter workout and diet
-        $pdo = db();
-        $stmtProfile = $pdo->prepare('SELECT * FROM member_profiles WHERE user_id = ?');
-        $stmtProfile->execute([$user['user_id']]);
-        $profile = $stmtProfile->fetch();
-
-        $tier = $profile['fitness_tier'] ?? 1;
-        $sex = $profile['biological_sex'];
-        $goal = $profile['primary_goal'];
-        $activity = $profile['activity_level'];
-
-        // Workout rule lookup
-        $wRule = $pdo->prepare('SELECT recommended_workout_structure FROM workout_rules WHERE experience_level = ? AND (biological_sex = ? OR biological_sex = "any") AND primary_goal = ? AND (activity_level = ? OR activity_level = "any") LIMIT 1');
-        $wRule->execute([$tier, $sex, $goal, $activity]);
-        $workoutStruct = $wRule->fetchColumn();
-        if (!$workoutStruct) {
-            $wRule->execute([1, 'any', $goal, 'any']);
-            $workoutStruct = $wRule->fetchColumn() ?: 'General full body workout 3 times a week.';
-        }
-
-        // Diet rule lookup
-        $dRule = $pdo->prepare('SELECT macro_split, notes FROM diet_rules WHERE experience_level = ? AND (biological_sex = ? OR biological_sex = "any") AND primary_goal = ? AND (activity_level = ? OR activity_level = "any") LIMIT 1');
-        $dRule->execute([$tier, $sex, $goal, $activity]);
-        $dietInfo = $dRule->fetch();
-        if (!$dietInfo) {
-            $dRule->execute([1, 'any', $goal, 'any']);
-            $dietInfo = $dRule->fetch();
-        }
-        $dietStruct = $dietInfo ? ($dietInfo['macro_split'] . ' - ' . $dietInfo['notes']) : 'Balanced diet.';
-
-        $msgBody = "Based on your profile, here is your starter guide!\n\n**Workout Structure:**\n$workoutStruct\n\n**Diet & Macros:**\n$dietStruct";
-        notify_user((int) $user['user_id'], 'system', 'Your Starter Plan is Ready!', $msgBody);
-
-        if (empty(post('height_cm')) || empty(post('weight_kg'))) {
-            flash('Welcome to FITTRACKS! Please add your measurements later.', 'success');
-        } else {
-            flash('Physical profile saved! Check your notifications for your starter plan.', 'success');
-        }
-        redirect('dashboard');
+        
+        // Redirect to step 2
+        redirect('setup_goal');
     }
 
     // We pass null for $user to render_header so that the sidebar/topbar are NOT rendered.
@@ -124,14 +90,7 @@ function setup_profile_page(): void
                         <?php endforeach; ?>
                     </select>
                 </label>
-                <label>Primary goal
-                    <select name="primary_goal" required>
-                        <?php foreach (['fat_loss', 'muscle_gain', 'maintenance', 'general_health'] as $goal): ?>
-                            <option value="<?= h($goal) ?>"><?= h(ucwords(str_replace('_', ' ', $goal))) ?></option>
-                        <?php endforeach; ?>
-                    </select>
-                </label>
-                <label>Experience level
+                <label style="grid-column: 1/-1;">Experience level
                     <select name="experience_level" required>
                         <option value="1">Starter</option>
                         <option value="2">Intermediate</option>
@@ -139,7 +98,7 @@ function setup_profile_page(): void
                     </select>
                 </label>
                 <button type="submit" class="auth-submit-btn full-width" style="grid-column:1/-1;margin-top:8px;">
-                    SAVE &amp; CONTINUE TO DASHBOARD
+                    NEXT STEP (CHOOSE GOAL)
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14"></path><path d="M12 5l7 7-7 7"></path></svg>
                 </button>
             </form>

@@ -22,7 +22,7 @@ function save_member_profile(int $userId): void
         (int) (post('age') ?: 0),
         post('biological_sex'),
         post('activity_level'),
-        post('primary_goal'),
+        post('primary_goal') ?: '',
     ]);
 
     // Update fitness_tier based on selected experience_level
@@ -64,7 +64,7 @@ function get_exercise_recommendations(int $userId): array
         return [];
     }
 
-    $goal          = $profile['primary_goal'];
+    $goal = map_detailed_goal_to_basic($profile['primary_goal']);
     $activityLevel = $profile['activity_level'];
     $sex           = $profile['biological_sex'];
     $weight        = (float) $profile['weight_kg'];

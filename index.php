@@ -57,6 +57,7 @@ try {
         'reset_password' => 'handle_reset_password',
         'verify_email' => 'verify_email_page',
         'setup_profile' => 'setup_profile_page',
+        'setup_goal' => 'setup_goal_page',
         'pending_gym' => 'pending_gym_page',
 
         'notification_action' => 'handle_notification_actions',

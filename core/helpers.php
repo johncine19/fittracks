@@ -260,3 +260,24 @@ function audit_log(int $adminUserId, string $action, string $entityType, ?string
         // Non-fatal — audit logging should never break the main flow
     }
 }
+
+function map_detailed_goal_to_basic(string $detailedGoal): string
+{
+    $map = [
+        'Building a visible six-pack' => 'fat_loss',
+        'Growing larger biceps and arms' => 'muscle_gain',
+        'Developing a wide chest' => 'muscle_gain',
+        'Sculpting a V-tapered back' => 'muscle_gain',
+        'Shaping the lower body' => 'muscle_gain',
+        'Increasing maximum strength' => 'muscle_gain',
+        'Boosting explosive power' => 'general_health',
+        'Enhancing physical endurance' => 'general_health',
+        'Improving body flexibility' => 'general_health',
+        'Losing excess body fat' => 'fat_loss',
+        'Gaining lean body mass' => 'muscle_gain',
+        'Reaching body recomposition' => 'maintenance'
+    ];
+    
+    return $map[$detailedGoal] ?? 'general_health';
+}
+

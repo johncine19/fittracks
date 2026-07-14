@@ -6,7 +6,7 @@ declare(strict_types=1);
  */
 function _get_workout_parameters(array $profile, PDO $pdo): array
 {
-    $goal = $profile['primary_goal'];
+    $goal = map_detailed_goal_to_basic($profile['primary_goal']);
     $tier = (int) ($profile['fitness_tier'] ?? 1);
     
     // Map fitness_tier to experience_level (1=Starter, 2=Intermediate, 3=Advanced)
