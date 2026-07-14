@@ -281,3 +281,69 @@ function map_detailed_goal_to_basic(string $detailedGoal): string
     return $map[$detailedGoal] ?? 'general_health';
 }
 
+function get_recommendations_by_goal(PDO $pdo, string $detailedGoal): array
+{
+    $basicGoal = map_detailed_goal_to_basic($detailedGoal);
+    
+    // Define keywords based on basic goal
+    $keywords = [];
+    if ($basicGoal === 'fat_loss') {
+        $keywords = ['hiit', 'cardio', 'zumba', 'burn', 'fat', 'sweat', 'core', 'abs', 'cycle', 'spin'];
+    } elseif ($basicGoal === 'muscle_gain') {
+        $keywords = ['strength', 'weight', 'power', 'lift', 'crossfit', 'bodybuilding', 'hypertrophy', 'muscle'];
+    } elseif ($basicGoal === 'general_health' || $basicGoal === 'maintenance') {
+        $keywords = ['yoga', 'pilates', 'wellness', 'stretch', 'balance', 'flow', 'mobility', 'health'];
+    }
+    
+    $classes = [];
+    $gyms = [];
+    
+    if (!empty($keywords)) {
+        // Build query to find matching classes that belong to approved gyms
+        $conditions = [];
+        $params = [];
+        foreach ($keywords as $kw) {
+            $conditions[] = 'c.class_name LIKE ? OR c.description LIKE ?';
+            $params[] = '%' . $kw . '%';
+            $params[] = '%' . $kw . '%';
+        }
+        
+        $sql = "SELECT c.*, g.name AS gym_name, g.address AS gym_address, g.contact_info 
+                FROM classes c
+                JOIN gyms g ON c.gym_id = g.gym_id
+                WHERE g.status = 'approved' AND (" . implode(' OR ', $conditions) . ")
+                ORDER BY RAND() LIMIT 4";
+                
+        $stmt = $pdo->prepare($sql);
+        $stmt->execute($params);
+        $classes = $stmt->fetchAll();
+        
+        // Find matching gyms (gyms that host these classes, or have matching names/descriptions)
+        // Wait, gyms table doesn't have a description right now, only name and address.
+        // So we'll just recommend the gyms that host the recommended classes.
+        $gymIds = array_unique(array_column($classes, 'gym_id'));
+        if (!empty($gymIds)) {
+            $placeholders = implode(',', array_fill(0, count($gymIds), '?'));
+            $gymStmt = $pdo->prepare("SELECT * FROM gyms WHERE gym_id IN ($placeholders) AND status = 'approved' LIMIT 4");
+            $gymStmt->execute($gymIds);
+            $gyms = $gymStmt->fetchAll();
+        }
+    }
+    
+    // Fallback if no classes match (e.g., new platform, empty DB)
+    if (empty($classes)) {
+        $classes = $pdo->query("SELECT c.*, g.name AS gym_name, g.address AS gym_address 
+                                FROM classes c JOIN gyms g ON c.gym_id = g.gym_id 
+                                WHERE g.status = 'approved' ORDER BY RAND() LIMIT 4")->fetchAll();
+    }
+    
+    if (empty($gyms)) {
+        $gyms = $pdo->query("SELECT * FROM gyms WHERE status = 'approved' ORDER BY RAND() LIMIT 4")->fetchAll();
+    }
+    
+    return [
+        'classes' => $classes,
+        'gyms' => $gyms
+    ];
+}
+

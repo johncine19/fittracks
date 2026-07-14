@@ -705,7 +705,7 @@ function dashboard(): void
 
         echo '<div class="skeleton-content animate-fade-in delay-2">';
         
-        $profile = db()->query('SELECT height_cm, weight_kg FROM member_profiles WHERE user_id = ' . (int)$user['user_id'])->fetch();
+        $profile = db()->query('SELECT height_cm, weight_kg, primary_goal FROM member_profiles WHERE user_id = ' . (int)$user['user_id'])->fetch();
         if ($profile && ((float)$profile['height_cm'] == 0 || (float)$profile['weight_kg'] == 0)) {
             echo '<div style="background: rgba(255,165,0,0.1); border: 1px solid orange; border-radius: 12px; padding: 24px; text-align: center; margin-bottom: 24px;">';
             echo '<h3 style="color: orange; margin: 0 0 12px 0;">We need a little more info!</h3>';
@@ -721,6 +721,52 @@ function dashboard(): void
         echo '<div class="skeleton-content animate-fade-in delay-3">';
         render_exercise_recommendations((int) $user['user_id'], true);
         echo '</div>';
+        
+        // Recommended Gyms and Classes Section
+        if (!empty($profile['primary_goal'])) {
+            $recommendations = get_recommendations_by_goal(db(), $profile['primary_goal']);
+            
+            echo '<div class="skeleton-content animate-fade-in delay-4" style="margin-top: 24px;">';
+            echo '<div style="display:flex; justify-content:space-between; align-items:flex-end; margin-bottom:16px;">';
+            echo '<h3 style="margin:0; font-size:1.2rem; color:var(--ink);">Recommended For You</h3>';
+            echo '</div>';
+            
+            echo '<div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 16px;">';
+            
+            // Classes
+            if (!empty($recommendations['classes'])) {
+                echo '<div class="panel" style="background:var(--surface); border:1px solid var(--line); border-radius:12px; padding:20px;">';
+                echo '<h4 style="margin:0 0 16px; color:var(--lime); display:flex; align-items:center; gap:8px;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path></svg> Recommended Classes</h4>';
+                foreach ($recommendations['classes'] as $cls) {
+                    echo '<div style="margin-bottom: 16px; padding-bottom:16px; border-bottom:1px solid rgba(255,255,255,0.05);">';
+                    echo '<div style="font-weight:bold; font-size:1.1rem; color:var(--ink);">' . h($cls['class_name']) . '</div>';
+                    echo '<div style="font-size:0.9rem; color:var(--muted); margin-bottom:8px;">At ' . h($cls['gym_name']) . '</div>';
+                    if (!empty($cls['description'])) {
+                        echo '<div style="font-size:0.85rem; color:var(--muted); line-height:1.4;">' . h($cls['description']) . '</div>';
+                    }
+                    echo '</div>';
+                }
+                echo '</div>';
+            }
+            
+            // Gyms
+            if (!empty($recommendations['gyms'])) {
+                echo '<div class="panel" style="background:var(--surface); border:1px solid var(--line); border-radius:12px; padding:20px;">';
+                echo '<h4 style="margin:0 0 16px; color:var(--accent, #7c5cfc); display:flex; align-items:center; gap:8px;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><polyline points="9 22 9 12 15 12 15 22"></polyline></svg> Recommended Gyms</h4>';
+                foreach ($recommendations['gyms'] as $gym) {
+                    echo '<div style="margin-bottom: 16px; padding-bottom:16px; border-bottom:1px solid rgba(255,255,255,0.05); display:flex; justify-content:space-between; align-items:center;">';
+                    echo '<div>';
+                    echo '<div style="font-weight:bold; font-size:1.1rem; color:var(--ink);">' . h($gym['name']) . '</div>';
+                    echo '<div style="font-size:0.9rem; color:var(--muted);">' . h($gym['address']) . '</div>';
+                    echo '</div>';
+                    echo '<a href="index.php?page=view_gym&gym_id=' . $gym['gym_id'] . '" class="btn btn-primary" style="padding: 6px 12px; font-size:0.85rem;">View</a>';
+                    echo '</div>';
+                }
+                echo '</div>';
+            }
+            
+            echo '</div></div>';
+        }
         
         $wAtt = (int) get_setting('engagement_weight_attendance', '40');
         $wCls = (int) get_setting('engagement_weight_classes', '20');
