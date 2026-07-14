@@ -148,21 +148,95 @@ function memberships_page(): void
                 }
             }
             
+            // GCash Placeholder Intercept
+            if ($paymentMethod === 'gcash' && !isset($_POST['gcash_simulated'])) {
+                ?>
+                <!DOCTYPE html>
+                <html lang="en">
+                <head>
+                    <meta charset="UTF-8">
+                    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                    <title>GCash Payment Simulation</title>
+                    <style>
+                        body { font-family: 'Inter', sans-serif; background-color: #0f1115; color: #fff; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; }
+                        .payment-container { max-width: 400px; width: 100%; background: #16181d; border: 1px solid #ccff00; border-radius: 12px; padding: 30px; text-align: center; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
+                        .summary { background: rgba(255,255,255,0.05); padding: 15px; border-radius: 8px; margin-bottom: 25px; text-align: left; }
+                        .btn-primary { width: 100%; padding: 12px; font-size: 1.1rem; background: #007DFE; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; }
+                        .btn-primary:hover { background: #0066d6; }
+                        a { color: #8892b0; text-decoration: underline; font-size: 0.9rem; }
+                    </style>
+                </head>
+                <body>
+                    <div class="payment-container">
+                        <img src="https://getpaymongo.com/assets/images/paymongo-logo.svg" alt="PayMongo" style="height: 30px; margin-bottom: 20px; filter: brightness(0) invert(1);">
+                        <h2 style="color: #ccff00; margin-top: 0;">GCash Payment</h2>
+                        <p style="color: #8892b0; margin-bottom: 30px;">This is a simulated PayMongo checkout for demonstration purposes.</p>
+                        
+                        <div class="summary">
+                            <div style="display: flex; justify-content: space-between; margin-bottom: 10px;">
+                                <span style="color: #8892b0;">Plan:</span>
+                                <span style="font-weight: bold;"><?= h($plan['plan_name']) ?></span>
+                            </div>
+                            <div style="display: flex; justify-content: space-between;">
+                                <span style="color: #8892b0;">Total Amount:</span>
+                                <span style="color: #ccff00; font-weight: bold; font-size: 1.2rem;"><?= h(money($finalPrice)) ?></span>
+                            </div>
+                        </div>
+                        
+                        <form method="post" action="index.php?page=memberships">
+                            <?= csrf_field() ?>
+                            <input type="hidden" name="subscribe_plan_id" value="<?= $planId ?>">
+                            <input type="hidden" name="payment_method" value="gcash">
+                            <input type="hidden" name="gcash_simulated" value="1">
+                            <button type="submit" class="btn-primary">Simulate Successful Payment</button>
+                        </form>
+                        <div style="margin-top: 15px;">
+                            <a href="index.php?page=gym_selection">Cancel</a>
+                        </div>
+                    </div>
+                </body>
+                </html>
+                <?php
+                exit;
+            }
+
+            $paymentStatus = ($paymentMethod === 'gcash') ? 'paid' : 'pending';
+            $membershipStatus = ($paymentMethod === 'gcash') ? 'active' : 'pending';
+            
             db()->prepare('INSERT INTO memberships (user_id, plan_id, start_date, end_date, status) VALUES (?, ?, ?, ?, ?)')
-                ->execute([$user['user_id'], $planId, $start->format('Y-m-d'), $end, 'pending']);
+                ->execute([$user['user_id'], $planId, $start->format('Y-m-d'), $end, $membershipStatus]);
             $membershipId = (int) db()->lastInsertId();
             
+            if (!empty($plan['gym_id'])) {
+                db()->prepare('INSERT IGNORE INTO gym_members (user_id, gym_id) VALUES (?, ?)')
+                    ->execute([$user['user_id'], $plan['gym_id']]);
+            }
+            
             $receipt = 'REQ-' . date('Ymd') . '-' . random_int(1000, 9999);
+            if ($paymentStatus === 'paid') {
+                $receipt = 'GCASH-' . date('Ymd') . '-' . random_int(100000, 999999);
+            }
+
             db()->prepare('INSERT INTO payments (membership_id, amount, payment_date, payment_method, status, receipt_number) VALUES (?, ?, ?, ?, ?, ?)')
-                ->execute([$membershipId, $finalPrice, $start->format('Y-m-d'), $paymentMethod, 'pending', $receipt]);
+                ->execute([$membershipId, $finalPrice, $start->format('Y-m-d'), $paymentMethod, $paymentStatus, $receipt]);
                 
             $gymOwners = query_all('SELECT owner_user_id FROM gyms');
             foreach ($gymOwners as $owner) {
-                notify_user((int) $owner['owner_user_id'], 'system', 'New Subscription Request', $user['first_name'] . ' ' . $user['last_name'] . ' requested a ' . $plan['plan_name'] . ' membership. Payment method: ' . strtoupper($paymentMethod) . '.');
+                notify_user((int) $owner['owner_user_id'], 'system', 'New Subscription', $user['first_name'] . ' ' . $user['last_name'] . ' requested a ' . $plan['plan_name'] . ' membership. Payment method: ' . strtoupper($paymentMethod) . '. Status: ' . strtoupper($paymentStatus) . '.');
             }
             
-            flash('Subscription requested. Please proceed with payment.');
-            redirect('memberships');
+            if ($paymentMethod === 'gcash') {
+                flash('GCash Payment Successful! You are now subscribed.', 'success');
+            } else {
+                flash('Subscription requested. Please proceed with payment at the front desk.');
+            }
+            
+            // Auto redirect to dashboard if paid successfully
+            if ($paymentMethod === 'gcash') {
+                redirect('dashboard');
+            } else {
+                redirect('memberships');
+            }
         }
     }
 

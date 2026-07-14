@@ -222,7 +222,7 @@ function gym_selection_page(): void
                         <form method="post" action="index.php?page=memberships">
                             <?= csrf_field() ?>
                             <input type="hidden" name="action" value="subscribe">
-                            <input type="hidden" name="plan_id" value="${p.plan_id}">
+                            <input type="hidden" name="subscribe_plan_id" value="${p.plan_id}">
                             <input type="hidden" name="payment_method" value="gcash">
                             <button type="submit" class="btn btn-primary" style="width: 100%;">Subscribe</button>
                         </form>
