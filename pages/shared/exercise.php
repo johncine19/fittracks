@@ -9,9 +9,9 @@ declare(strict_types=1);
 function save_member_profile(int $userId): void
 {
     $pdo = db();
-    $stmt = $pdo->prepare('INSERT INTO member_profiles (user_id, height_cm, weight_kg, neck_cm, waist_cm, hip_cm, age, biological_sex, activity_level, primary_goal)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        ON DUPLICATE KEY UPDATE height_cm = VALUES(height_cm), weight_kg = VALUES(weight_kg), neck_cm = VALUES(neck_cm), waist_cm = VALUES(waist_cm), hip_cm = VALUES(hip_cm), age = VALUES(age), biological_sex = VALUES(biological_sex), activity_level = VALUES(activity_level), primary_goal = VALUES(primary_goal)');
+    $stmt = $pdo->prepare('INSERT INTO member_profiles (user_id, height_cm, weight_kg, neck_cm, waist_cm, hip_cm, age, biological_sex, activity_level, primary_goal, dietary_restrictions)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON DUPLICATE KEY UPDATE height_cm = VALUES(height_cm), weight_kg = VALUES(weight_kg), neck_cm = VALUES(neck_cm), waist_cm = VALUES(waist_cm), hip_cm = VALUES(hip_cm), age = VALUES(age), biological_sex = VALUES(biological_sex), activity_level = VALUES(activity_level), primary_goal = VALUES(primary_goal), dietary_restrictions = VALUES(dietary_restrictions)');
     $stmt->execute([
         $userId,
         post('height_cm') ?: 0.0,
@@ -23,6 +23,7 @@ function save_member_profile(int $userId): void
         post('biological_sex'),
         post('activity_level'),
         post('primary_goal') ?: '',
+        post('dietary_restrictions') ?: 'none',
     ]);
 
     // Update fitness_tier based on selected experience_level

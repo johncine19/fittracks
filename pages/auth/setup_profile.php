@@ -90,6 +90,20 @@ function setup_profile_page(): void
                         <?php endforeach; ?>
                     </select>
                 </label>
+                <label>Dietary Restrictions
+                    <select name="dietary_restrictions" required>
+                        <option value="none">None</option>
+                        <option value="vegetarian">Vegetarian</option>
+                        <option value="vegan">Vegan</option>
+                        <option value="pescatarian">Pescatarian</option>
+                        <option value="halal">Halal</option>
+                        <option value="gluten-free">Gluten-Free</option>
+                        <option value="keto">Keto</option>
+                        <option value="paleo">Paleo</option>
+                        <option value="nut-allergy">Nut Allergy</option>
+                        <option value="dairy-free">Dairy-Free</option>
+                    </select>
+                </label>
                 <label style="grid-column: 1/-1;">Experience level
                     <select name="experience_level" required>
                         <option value="1">Starter</option>

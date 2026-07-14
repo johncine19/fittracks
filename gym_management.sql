@@ -197,7 +197,7 @@ CREATE TABLE `dietary_plans` (
   `trainer_id` int UNSIGNED NOT NULL,
   `title` varchar(255) NOT NULL,
   `goal` varchar(100) NOT NULL,
-  `status` enum('active','completed','cancelled') NOT NULL DEFAULT 'active',
+  `status` enum('active','completed','cancelled','draft') NOT NULL DEFAULT 'draft',
   `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
@@ -405,6 +405,7 @@ CREATE TABLE `member_profiles` (
   `biological_sex` enum('male','female') NOT NULL,
   `activity_level` enum('sedentary','lightly_active','moderately_active','very_active','extra_active') NOT NULL,
   `primary_goal` varchar(255) NOT NULL,
+  `dietary_restrictions` varchar(255) DEFAULT 'none',
   `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   `fitness_tier` int DEFAULT '1',

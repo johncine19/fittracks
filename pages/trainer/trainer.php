@@ -180,7 +180,7 @@ HTML;
                 <a href="index.php?page=workout_builder&member_user_id={$memberId}" class="btn t-btn-primary" style="text-align:center; text-decoration:none;">
                     Generate Workout
                 </a>
-                <a href="index.php?page=diet_builder&member_user_id={$memberId}" class="btn t-btn-primary" style="text-align:center; text-decoration:none; background: var(--blue);">
+                <a href="index.php?page=diet_builder&member_user_id={$memberId}" class="btn t-btn-primary" style="text-align:center; text-decoration:none; background: #3b82f6; color: white;">
                     Build Diet Plan
                 </a>
                 

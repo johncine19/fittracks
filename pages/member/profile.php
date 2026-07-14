@@ -369,6 +369,10 @@ function profile_page(): void
                     <p class="muted" style="margin: 0 0 4px; font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em;">Goal</p>
                     <strong style="font-size: 1.2rem;"><?= h(ucwords(str_replace('_', ' ', $profile['primary_goal'] ?? 'N/A'))) ?></strong>
                 </div>
+                <div class="panel plan-card-glow" style="padding: 1rem; background: var(--panel-soft); margin-top: 0;">
+                    <p class="muted" style="margin: 0 0 4px; font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em;">Diet</p>
+                    <strong style="font-size: 1.2rem;"><?= h(ucwords(str_replace('-', ' ', $profile['dietary_restrictions'] ?? 'None'))) ?></strong>
+                </div>
             </div>
 
             <dialog id="physicalProfileModal" class="modal">

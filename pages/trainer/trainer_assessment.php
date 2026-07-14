@@ -6,7 +6,7 @@ function trainer_assessment_page(): void
     $user = require_roles(['trainer']);
     $pdo = db();
     
-    $memberUserId = (int) get('member_user_id');
+    $memberUserId = (int) ($_GET['member_user_id'] ?? 0);
     if (!$memberUserId) {
         flash('No member selected.', 'danger');
         redirect('trainer_members');

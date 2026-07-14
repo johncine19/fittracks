@@ -90,9 +90,37 @@ function render_member_form(string $context, ?array $user = null, ?array $profil
         </label>
         <label>Primary goal
             <select name="primary_goal" <?= $context !== 'profile' ? 'required' : '' ?>>
-                <?php foreach (['fat_loss', 'muscle_gain', 'maintenance', 'general_health'] as $goal): ?>
-                    <option value="<?= h($goal) ?>" <?= selected($goal, $profile['primary_goal'] ?? null) ?>>
-                        <?= h(ucwords(str_replace('_', ' ', $goal))) ?>
+                <optgroup label="Aesthetic & Muscle Building">
+                    <option value="Building a visible six-pack" <?= selected("Building a visible six-pack", $profile['primary_goal'] ?? null) ?>>Building a visible six-pack</option>
+                    <option value="Growing larger biceps and arms" <?= selected("Growing larger biceps and arms", $profile['primary_goal'] ?? null) ?>>Growing larger biceps and arms</option>
+                    <option value="Developing a wide chest" <?= selected("Developing a wide chest", $profile['primary_goal'] ?? null) ?>>Developing a wide chest</option>
+                    <option value="Sculpting a V-tapered back" <?= selected("Sculpting a V-tapered back", $profile['primary_goal'] ?? null) ?>>Sculpting a V-tapered back</option>
+                    <option value="Shaping the lower body" <?= selected("Shaping the lower body", $profile['primary_goal'] ?? null) ?>>Shaping the lower body</option>
+                </optgroup>
+                <optgroup label="Athletic & Performance">
+                    <option value="Increasing maximum strength" <?= selected("Increasing maximum strength", $profile['primary_goal'] ?? null) ?>>Increasing maximum strength</option>
+                    <option value="Boosting explosive power" <?= selected("Boosting explosive power", $profile['primary_goal'] ?? null) ?>>Boosting explosive power</option>
+                    <option value="Enhancing physical endurance" <?= selected("Enhancing physical endurance", $profile['primary_goal'] ?? null) ?>>Enhancing physical endurance</option>
+                    <option value="Improving body flexibility" <?= selected("Improving body flexibility", $profile['primary_goal'] ?? null) ?>>Improving body flexibility</option>
+                </optgroup>
+                <optgroup label="Body Composition">
+                    <option value="Losing excess body fat" <?= selected("Losing excess body fat", $profile['primary_goal'] ?? null) ?>>Losing excess body fat</option>
+                    <option value="Gaining lean body mass" <?= selected("Gaining lean body mass", $profile['primary_goal'] ?? null) ?>>Gaining lean body mass</option>
+                    <option value="Reaching body recomposition" <?= selected("Reaching body recomposition", $profile['primary_goal'] ?? null) ?>>Reaching body recomposition</option>
+                </optgroup>
+                <optgroup label="General">
+                    <option value="fat_loss" <?= selected("fat_loss", $profile['primary_goal'] ?? null) ?>>Fat Loss</option>
+                    <option value="muscle_gain" <?= selected("muscle_gain", $profile['primary_goal'] ?? null) ?>>Muscle Gain</option>
+                    <option value="maintenance" <?= selected("maintenance", $profile['primary_goal'] ?? null) ?>>Maintenance</option>
+                    <option value="general_health" <?= selected("general_health", $profile['primary_goal'] ?? null) ?>>General Health</option>
+                </optgroup>
+            </select>
+        </label>
+        <label>Dietary Restrictions
+            <select name="dietary_restrictions" required>
+                <?php foreach (['none', 'vegetarian', 'vegan', 'pescatarian', 'halal', 'gluten-free', 'keto', 'paleo', 'nut-allergy', 'dairy-free'] as $diet): ?>
+                    <option value="<?= h($diet) ?>" <?= selected($diet, $profile['dietary_restrictions'] ?? 'none') ?>>
+                        <?= h(ucwords(str_replace('-', ' ', $diet))) ?>
                     </option>
                 <?php endforeach; ?>
             </select>
