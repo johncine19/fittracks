@@ -170,6 +170,30 @@ function profile_page(): void
                 }
             }
             redirect('profile');
+        } elseif (isset($_POST['request_transfer']) && $is_member) {
+            $toGymId = (int) post('to_gym_id');
+            $fromGymId = (int) post('from_gym_id');
+            if ($toGymId && $fromGymId && $toGymId !== $fromGymId) {
+                // Check if already has pending transfer
+                $pending = scalar('SELECT transfer_id FROM member_transfers WHERE user_id = ? AND status = "pending"', [$user['user_id']]);
+                if ($pending) {
+                    flash('You already have a pending transfer request.', 'warning');
+                } else {
+                    db()->prepare('INSERT INTO member_transfers (user_id, from_gym_id, to_gym_id, status) VALUES (?, ?, ?, "pending")')
+                        ->execute([$user['user_id'], $fromGymId, $toGymId]);
+                    
+                    // Notify platform admins
+                    $admins = query_all('SELECT user_id FROM users WHERE role = "admin"');
+                    foreach ($admins as $admin) {
+                        notify_user((int) $admin['user_id'], 'system', 'New Transfer Request', $user['first_name'] . ' requested a gym transfer.');
+                    }
+                    
+                    flash('Transfer request submitted successfully. A platform admin will review it.', 'success');
+                }
+            } else {
+                flash('Invalid gym selected.', 'danger');
+            }
+            redirect('profile');
         }
     }
 
@@ -180,7 +204,26 @@ function profile_page(): void
     foreach ($allSettings as $s) {
         $sysSettings[$s['setting_key']] = $s;
     }
+
+    $currentGymId = null;
+    $currentGymName = '';
+    if ($is_member) {
+        $activeMem = db()->query("
+            SELECT g.gym_id, g.name 
+            FROM memberships m 
+            JOIN membership_plans p ON p.plan_id = m.plan_id 
+            JOIN gyms g ON g.gym_id = p.gym_id 
+            WHERE m.user_id = {$user['user_id']} AND m.status = 'active' AND p.gym_id IS NOT NULL
+            ORDER BY m.end_date DESC LIMIT 1
+        ")->fetch();
+        if ($activeMem) {
+            $currentGymId = (int)$activeMem['gym_id'];
+            $currentGymName = $activeMem['name'];
+        }
+    }
     
+    $allGyms = query_all('SELECT gym_id, name FROM gyms WHERE status = "approved" ORDER BY name ASC');
+
     render_header('Settings', $user);
 ?>
     <?php render_skeleton_profile(); ?>
@@ -360,6 +403,42 @@ function profile_page(): void
                 </label>
             </div>
         </section>
+
+        <?php if ($is_member && $currentGymId): ?>
+        <section class="panel" style="flex: 1; min-width: 350px; max-width: 650px; margin: 0;">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;">
+                <h2 style="margin:0;">Gym Transfer</h2>
+            </div>
+            <p class="muted" style="margin-bottom:1.5rem;font-size:13px;">
+                You are currently a member of <strong><?= h($currentGymName) ?></strong>. You can request to transfer your membership to another gym on the platform.
+            </p>
+            
+            <?php 
+            $pendingTransfer = db()->query("SELECT t.*, g.name as to_gym FROM member_transfers t JOIN gyms g ON g.gym_id = t.to_gym_id WHERE t.user_id = {$user['user_id']} AND t.status = 'pending'")->fetch();
+            if ($pendingTransfer): 
+            ?>
+                <div class="flash warning">
+                    You have a pending transfer request to <strong><?= h($pendingTransfer['to_gym']) ?></strong>. A platform administrator is reviewing it.
+                </div>
+            <?php else: ?>
+                <form method="post" class="form grid-form" style="margin-bottom:0;" onsubmit="return confirm('Are you sure you want to request a transfer? Your request will be reviewed by the platform admin.');">
+                    <?= csrf_field() ?>
+                    <input type="hidden" name="request_transfer" value="1">
+                    <input type="hidden" name="from_gym_id" value="<?= $currentGymId ?>">
+                    
+                    <label style="grid-column: 1 / -1;">Transfer To Gym
+                        <select name="to_gym_id" class="form-control" required>
+                            <option value="">Select Destination Gym...</option>
+                            <?php foreach ($allGyms as $g): if ((int)$g['gym_id'] === $currentGymId) continue; ?>
+                                <option value="<?= (int) $g['gym_id'] ?>"><?= h($g['name']) ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                    </label>
+                    <button type="submit" class="btn-primary" style="margin-top: 10px; grid-column: 1 / -1;">Request Transfer</button>
+                </form>
+            <?php endif; ?>
+        </section>
+        <?php endif; ?>
 
         <?php if ($user['role'] === 'admin'): ?>
         <section class="panel" style="flex: 1; min-width: 350px; max-width: 650px; margin: 0;">

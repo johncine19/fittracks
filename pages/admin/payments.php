@@ -4,7 +4,7 @@ declare(strict_types=1);
 function payments_page(): void
 {
     $user = require_roles(['platform_admin', 'gym_owner', 'member']);
-    if (can($user, ['admin']) && $_SERVER['REQUEST_METHOD'] === 'POST') {
+    if (can($user, ['platform_admin', 'gym_owner']) && $_SERVER['REQUEST_METHOD'] === 'POST') {
         $receipt = post('receipt_number') ?: 'RCPT-' . date('Ymd') . '-' . random_int(1000, 9999);
         $membershipId = (int) post('membership_id');
         $status = post('status');
@@ -41,9 +41,20 @@ function payments_page(): void
         redirect('payments');
     }
 
-    $membershipWhere = $user['role'] === 'member' ? 'WHERE m.user_id = ' . (int) $user['user_id'] : '';
+    $membershipWhere = '';
+    $paymentWhere = '';
+    if ($user['role'] === 'member') {
+        $membershipWhere = 'WHERE m.user_id = ' . (int) $user['user_id'];
+        $paymentWhere = 'WHERE m.user_id = ' . (int) $user['user_id'];
+    } elseif ($user['role'] === 'gym_owner') {
+        $gym = db()->query('SELECT gym_id FROM gyms WHERE owner_user_id = ' . (int) $user['user_id'])->fetch();
+        $gymId = $gym ? $gym['gym_id'] : 0;
+        $membershipWhere = 'WHERE p.gym_id = ' . (int) $gymId;
+        $paymentWhere = 'WHERE p.gym_id = ' . (int) $gymId;
+    }
+
     $memberships = db()->query('SELECT m.membership_id, CONCAT(u.first_name, " ", u.last_name, " — ", p.plan_name, " (", m.status, ")") AS label, p.price FROM memberships m JOIN users u ON u.user_id = m.user_id JOIN membership_plans p ON p.plan_id = m.plan_id ' . $membershipWhere . ' ORDER BY m.created_at DESC')->fetchAll();
-    $paymentWhere = $user['role'] === 'member' ? 'WHERE m.user_id = ' . (int) $user['user_id'] : '';
+
 
     $page = max(1, (int)($_GET['p'] ?? 1));
     $limit = 10;
@@ -64,7 +75,7 @@ function payments_page(): void
                     <div class="sk sk-title" style="width:140px;margin-bottom:8px"></div>
                     <div class="sk sk-text" style="width:280px;height:12px"></div>
                 </div>
-                <?php if (can($user, ['admin'])): ?>
+                <?php if (can($user, ['platform_admin', 'gym_owner'])): ?>
                     <div class="sk sk-rect" style="width:140px;height:36px;border-radius:18px"></div>
                 <?php endif; ?>
             </div>
@@ -78,7 +89,7 @@ function payments_page(): void
                 <h1>Payments</h1>
                 <p>Record and track membership payment transactions.</p>
             </div>
-            <?php if (can($user, ['admin'])): ?>
+            <?php if (can($user, ['platform_admin', 'gym_owner'])): ?>
                 <button onclick="recordPayment()" class="btn" style="background: var(--lime); color: var(--bg); font-weight: bold;">+ New Payment</button>
             <?php endif; ?>
         </div>
@@ -133,7 +144,7 @@ function payments_page(): void
         <?php endif; ?>
     </section>
     
-    <?php if (can($user, ['admin'])): ?>
+    <?php if (can($user, ['platform_admin', 'gym_owner'])): ?>
     <script>
     function recordPayment() {
         Swal.fire({

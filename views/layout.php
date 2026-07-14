@@ -12,14 +12,19 @@ function render_header(string $title, ?array $user = null): void
         if ($role === 'platform_admin') {
             $nav += [
                 'gym_applications' => 'Gym Applications',
+                'gyms' => 'All Gyms',
                 'users' => 'Users Accounts',
                 'plans' => 'Shared Plans',
                 'reports' => 'Reports',
                 'audit_logs' => 'Audit Logs',
+                'member_transfers' => 'Member Transfers',
+                'announcements' => 'Announcements',
+                'settings' => 'Platform Settings',
             ];
         }
         if ($role === 'gym_owner') {
             $nav += [
+                'gym_profile' => 'Gym Profile',
                 'scanner' => 'Scan QR',
                 'trainer_assignments' => 'Trainers',
                 'plans' => 'Plans',

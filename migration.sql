@@ -103,3 +103,31 @@ INSERT INTO `diet_rules` (`experience_level`, `biological_sex`, `primary_goal`, 
 (2, 'any', 'muscle_gain', 'any', '30% Protein / 50% Carbs / 20% Fat', 'Higher carbs to fuel intense training sessions.'),
 (3, 'any', 'fat_loss', 'any', '40% Protein / 30% Carbs / 30% Fat', 'Aggressive deficit with refeed days.'),
 (3, 'any', 'muscle_gain', 'any', '30% Protein / 50% Carbs / 20% Fat', 'Carefully tracked surplus to minimize fat gain.');
+
+-- 9. Create announcements table
+CREATE TABLE IF NOT EXISTS `announcements` (
+  `announcement_id` int UNSIGNED NOT NULL AUTO_INCREMENT,
+  `title` varchar(255) NOT NULL,
+  `content` text NOT NULL,
+  `target_audience` enum('all','gym_owners','trainers','members') NOT NULL DEFAULT 'all',
+  `created_by` int UNSIGNED NOT NULL,
+  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`announcement_id`),
+  CONSTRAINT `fk_announcement_author` FOREIGN KEY (`created_by`) REFERENCES `users` (`user_id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+-- 10. Create member_transfers table
+CREATE TABLE IF NOT EXISTS `member_transfers` (
+  `transfer_id` int UNSIGNED NOT NULL AUTO_INCREMENT,
+  `user_id` int UNSIGNED NOT NULL,
+  `from_gym_id` int UNSIGNED NOT NULL,
+  `to_gym_id` int UNSIGNED NOT NULL,
+  `status` enum('pending','approved','rejected') NOT NULL DEFAULT 'pending',
+  `requested_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `resolved_at` timestamp NULL DEFAULT NULL,
+  PRIMARY KEY (`transfer_id`),
+  CONSTRAINT `fk_transfer_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`user_id`) ON DELETE CASCADE,
+  CONSTRAINT `fk_transfer_from_gym` FOREIGN KEY (`from_gym_id`) REFERENCES `gyms` (`gym_id`) ON DELETE CASCADE,
+  CONSTRAINT `fk_transfer_to_gym` FOREIGN KEY (`to_gym_id`) REFERENCES `gyms` (`gym_id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;

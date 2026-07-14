@@ -7,6 +7,11 @@ require __DIR__ . '/pages/member/trainers.php';
 require __DIR__ . '/pages/admin/exercises.php';
 require __DIR__ . '/pages/admin/workout_plans.php';
 require __DIR__ . '/pages/admin/gym_applications.php';
+require __DIR__ . '/pages/admin/gyms.php';
+require __DIR__ . '/pages/admin/gym_profile.php';
+require __DIR__ . '/pages/admin/settings.php';
+require __DIR__ . '/pages/admin/announcements.php';
+require __DIR__ . '/pages/admin/member_transfers.php';
 require __DIR__ . '/pages/landing.php';
 
 try {
@@ -85,6 +90,11 @@ try {
         'workout_builder' => 'workout_builder_page',
         'admin_workouts' => 'admin_workouts_page',
         'gym_applications' => 'gym_applications_page',
+        'gyms' => 'gyms_page',
+        'gym_profile' => 'gym_profile_page',
+        'settings' => 'settings_page',
+        'announcements' => 'announcements_page',
+        'member_transfers' => 'member_transfers_page',
     ];
 
     ($routes[$page] ?? $routes['dashboard'])();
