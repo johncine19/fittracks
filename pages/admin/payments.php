@@ -17,6 +17,7 @@ function payments_page(): void
         if ($status === 'paid') {
             db()->prepare('UPDATE memberships SET status = "active" WHERE membership_id = ? AND status = "pending"')->execute([$membershipId]);
             process_trainer_commission($paymentId, (float) post('amount'));
+            process_shared_plan_revenue_split($paymentId, (float) post('amount'));
         }
 
         $paymentInfo = query_all(

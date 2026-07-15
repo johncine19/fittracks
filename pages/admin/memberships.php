@@ -106,6 +106,7 @@ function memberships_page(): void
         
         if ($paymentStatus === 'paid') {
             process_trainer_commission($paymentId, (float) $finalPrice);
+            process_shared_plan_revenue_split($paymentId, (float) $finalPrice);
             notify_user(
                 $memberUserId,
                 'system',
@@ -219,6 +220,12 @@ function memberships_page(): void
 
             db()->prepare('INSERT INTO payments (membership_id, amount, payment_date, payment_method, status, receipt_number) VALUES (?, ?, ?, ?, ?, ?)')
                 ->execute([$membershipId, $finalPrice, $start->format('Y-m-d'), $paymentMethod, $paymentStatus, $receipt]);
+            $paymentId = (int) db()->lastInsertId();
+
+            if ($paymentStatus === 'paid') {
+                process_trainer_commission($paymentId, (float) $finalPrice);
+                process_shared_plan_revenue_split($paymentId, (float) $finalPrice);
+            }
                 
             $gymOwners = query_all('SELECT owner_user_id FROM gyms');
             foreach ($gymOwners as $owner) {

@@ -128,6 +128,7 @@ function nav_icon(string $key): string
         'audit_logs' => '<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>',
         // Settings
         'settings' => '<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>',
+        'gym_payouts' => '<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>',
     ];
     return $icons[$key] ?? '<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/></svg>';
 }
@@ -228,6 +229,69 @@ function process_trainer_commission(int $paymentId, float $amount): void
         }
     }
 }
+
+function process_shared_plan_revenue_split(int $paymentId, float $amount): void
+{
+    $pdo = db();
+    
+    // 1. Get plan details associated with this payment
+    $planInfo = $pdo->query("
+        SELECT mp.plan_id, mp.plan_scope, mp.gym_id AS creator_gym_id
+        FROM payments p
+        JOIN memberships m ON m.membership_id = p.membership_id
+        JOIN membership_plans mp ON mp.plan_id = m.plan_id
+        WHERE p.payment_id = " . (int)$paymentId . "
+        LIMIT 1
+    ")->fetch();
+    
+    if (!$planInfo || $planInfo['plan_scope'] !== 'shared') {
+        return;
+    }
+    
+    $planId = (int)$planInfo['plan_id'];
+    $creatorGymId = $planInfo['creator_gym_id'] ? (int)$planInfo['creator_gym_id'] : null;
+    
+    // 2. Fetch all approved opted-in gym IDs for this plan
+    $optedInGyms = $pdo->query("
+        SELECT gym_id 
+        FROM shared_plan_gyms 
+        WHERE plan_id = " . $planId . " AND status = 'approved'
+    ")->fetchAll(PDO::FETCH_COLUMN);
+    
+    // 3. Compile list of participating gyms
+    $gyms = [];
+    if ($creatorGymId !== null) {
+        $gyms[] = $creatorGymId;
+    }
+    foreach ($optedInGyms as $gid) {
+        $gid = (int)$gid;
+        if (!in_array($gid, $gyms)) {
+            $gyms[] = $gid;
+        }
+    }
+    
+    if (empty($gyms)) {
+        return; // No participating gyms to split with
+    }
+    
+    // 4. Calculate split amount
+    $count = count($gyms);
+    $splitAmount = round($amount / $count, 2);
+    
+    if ($splitAmount <= 0) {
+        return;
+    }
+    
+    // Clean up any existing splits for this payment to avoid duplicates
+    $pdo->prepare("DELETE FROM gym_share_payouts WHERE payment_id = ?")->execute([$paymentId]);
+    
+    // 5. Insert split payouts
+    $stmt = $pdo->prepare("INSERT INTO gym_share_payouts (gym_id, payment_id, amount, status) VALUES (?, ?, ?, 'pending')");
+    foreach ($gyms as $gymId) {
+        $stmt->execute([$gymId, $paymentId, $splitAmount]);
+    }
+}
+
 
 function grant_retroactive_commission(int $memberUserId): void
 {

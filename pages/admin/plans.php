@@ -18,12 +18,18 @@ function plans_page(): void
             audit_log($user['user_id'], 'delete', 'plan', (string) post('id'));
             flash('Membership plan deleted.');
         } elseif ($action === 'edit') {
-            $planScope = $isPlatformAdmin ? 'shared' : post('plan_scope', 'local');
-            $pdo->prepare('UPDATE membership_plans SET plan_name = ?, plan_type = ?, duration_days = ?, price = ?, description = ?, is_active = ?, commission_rate = ?, plan_scope = ? WHERE plan_id = ? AND (gym_id = ? OR ? = 1)')->execute([post('plan_name'), post('plan_type'), post('duration_days'), post('price'), post('description'), post('is_active', 0) ? 1 : 0, post('commission_rate', 5.0), $planScope, post('id'), $gymId, $isPlatformAdmin ? 1 : 0]);
+            $planScope = $isPlatformAdmin ? post('plan_scope', 'shared') : 'local';
+            $price = (float) post('price');
+            if ($planScope === 'shared' && $price < 1500) {
+                flash('Shared plans must have a premium price of at least ₱1,500.00.', 'danger');
+                redirect('plans');
+            }
+
+            $pdo->prepare('UPDATE membership_plans SET plan_name = ?, plan_type = ?, duration_days = ?, price = ?, description = ?, is_active = ?, commission_rate = ?, plan_scope = ? WHERE plan_id = ? AND (gym_id = ? OR ? = 1)')->execute([post('plan_name'), post('plan_type'), post('duration_days'), $price, post('description'), post('is_active', 0) ? 1 : 0, post('commission_rate', 5.0), $planScope, post('id'), $gymId, $isPlatformAdmin ? 1 : 0]);
             
             // Recalculate pending commissions for this plan based on new price and rate
             $newRate = (float)post('commission_rate', 5.0);
-            $newPrice = (float)post('price');
+            $newPrice = $price;
             $planId = (int)post('id');
             $pdo->prepare("
                 UPDATE trainer_commissions tc
@@ -33,14 +39,37 @@ function plans_page(): void
                 WHERE m.plan_id = ? AND tc.status = 'pending'
             ")->execute([$newPrice, $newRate, $planId]);
 
-            audit_log($user['user_id'], 'edit', 'plan', (string) post('id'), json_encode(['plan_name' => post('plan_name'), 'price' => post('price')]));
+            audit_log($user['user_id'], 'edit', 'plan', (string) post('id'), json_encode(['plan_name' => post('plan_name'), 'price' => $price]));
             flash('Membership plan updated.');
         } elseif ($action === 'opt_in') {
             if (!$isPlatformAdmin) {
                 $planId = (int)post('id');
-                // Opt in requires approval from Platform Admin? 
-                // The requirements: "either created by you as a platform-wide offer, or by another gym that they choose to opt into". 
-                // Let's set status to pending, platform admin must approve.
+                
+                // Get details of the shared plan we want to opt in to
+                $sharedPlanQuery = $pdo->prepare('SELECT plan_type, price, plan_name FROM membership_plans WHERE plan_id = ?');
+                $sharedPlanQuery->execute([$planId]);
+                $sp = $sharedPlanQuery->fetch();
+                
+                if ($sp) {
+                    // Profit protection check: Find if this gym has any active local plan of the same type priced higher
+                    $conflictQuery = $pdo->prepare('
+                        SELECT plan_name, price 
+                        FROM membership_plans 
+                        WHERE gym_id = ? AND plan_type = ? AND plan_scope = "local" AND is_active = 1 AND price > ?
+                        LIMIT 1
+                    ');
+                    $conflictQuery->execute([$gymId, $sp['plan_type'], $sp['price']]);
+                    $conflict = $conflictQuery->fetch();
+                    
+                    if ($conflict) {
+                        flash(sprintf(
+                            'Opt-in blocked: The shared plan "%s" is priced at %s, which is lower than your active local equivalent plan "%s" (%s). Opting in would cause you to lose profit.',
+                            $sp['plan_name'], money((float)$sp['price']), $conflict['plan_name'], money((float)$conflict['price'])
+                        ), 'danger');
+                        redirect('plans');
+                    }
+                }
+                
                 $pdo->prepare('INSERT IGNORE INTO shared_plan_gyms (plan_id, gym_id, status) VALUES (?, ?, "pending")')->execute([$planId, $gymId]);
                 flash('Opt-in request sent. Awaiting platform admin approval.', 'success');
             }
@@ -53,9 +82,15 @@ function plans_page(): void
             $pdo->prepare('UPDATE shared_plan_gyms SET status = "rejected" WHERE spg_id = ?')->execute([$spgId]);
             flash('Opt-in rejected.', 'success');
         } else {
-            $planScope = $isPlatformAdmin ? 'shared' : post('plan_scope', 'local');
-            $pdo->prepare('INSERT INTO membership_plans (gym_id, plan_scope, plan_name, plan_type, duration_days, price, description, is_active, commission_rate) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)')->execute([$gymId, $planScope, post('plan_name'), post('plan_type'), post('duration_days'), post('price'), post('description'), post('is_active', 0) ? 1 : 0, post('commission_rate', 5.0)]);
-            audit_log($user['user_id'], 'create', 'plan', (string) $pdo->lastInsertId(), json_encode(['plan_name' => post('plan_name'), 'price' => post('price')]));
+            $planScope = $isPlatformAdmin ? post('plan_scope', 'shared') : 'local';
+            $price = (float) post('price');
+            if ($planScope === 'shared' && $price < 1500) {
+                flash('Shared plans must have a premium price of at least ₱1,500.00.', 'danger');
+                redirect('plans');
+            }
+
+            $pdo->prepare('INSERT INTO membership_plans (gym_id, plan_scope, plan_name, plan_type, duration_days, price, description, is_active, commission_rate) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)')->execute([$gymId, $planScope, post('plan_name'), post('plan_type'), post('duration_days'), $price, post('description'), post('is_active', 0) ? 1 : 0, post('commission_rate', 5.0)]);
+            audit_log($user['user_id'], 'create', 'plan', (string) $pdo->lastInsertId(), json_encode(['plan_name' => post('plan_name'), 'price' => $price]));
             flash('Membership plan saved.');
         }
         redirect('plans');
@@ -238,7 +273,7 @@ function plans_page(): void
                     
                     <div style="display:flex;gap:12px;">
                         <label style="display:block; flex:1; color: var(--muted); font-size: 14px;">Scope *
-                            <select name="plan_scope" class="form-control" style="width: 100%; box-sizing: border-box;" required <?= $isPlatformAdmin ? 'disabled' : '' ?>>
+                            <select name="plan_scope" class="form-control" style="width: 100%; box-sizing: border-box;" required <?= !$isPlatformAdmin ? 'disabled' : '' ?>>
                                 <option value="local" ${plan.plan_scope === 'local' ? 'selected' : ''}>Local</option>
                                 <option value="shared" ${plan.plan_scope === 'shared' ? 'selected' : ''}>Shared</option>
                             </select>
@@ -330,7 +365,7 @@ function plans_page(): void
                     
                     <div style="display:flex;gap:12px;">
                         <label style="display:block; flex:1; color: var(--muted); font-size: 14px;">Scope *
-                            <select name="plan_scope" class="form-control" style="width: 100%; box-sizing: border-box;" required <?= $isPlatformAdmin ? 'disabled' : '' ?>>
+                            <select name="plan_scope" class="form-control" style="width: 100%; box-sizing: border-box;" required <?= !$isPlatformAdmin ? 'disabled' : '' ?>>
                                 <option value="local">Local</option>
                                 <option value="shared" <?= $isPlatformAdmin ? 'selected' : '' ?>>Shared</option>
                             </select>
