@@ -127,7 +127,7 @@ function render_header(string $title, ?array $user = null): void
                 <a class="brand" href="index.php" style="display: flex; align-items: center; gap: 10px;">
                     <?php if ($gym && !empty($gym['logo_url'])): ?>
                         <img src="assets/uploads/<?= h($gym['logo_url']) ?>" alt="Logo" style="height: 32px; max-width: 45px; object-fit: contain; border-radius: 4px; flex-shrink: 0;">
-                        <span style="font-weight: 700; font-size: 1.1rem; letter-spacing: -0.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;"><?= h($gym['name']) ?></span>
+                        <span style="font-weight: 700; font-size: 1rem; line-height: 1.2; letter-spacing: -0.2px; white-space: normal;"><?= h($gym['name']) ?></span>
                     <?php else: ?>
                         <span class="brand-mark">FT</span>
                         <span>FitTrack</span>
