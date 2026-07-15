@@ -174,12 +174,157 @@ function render_current_workout(int $memberUserId, bool $dashboardMode = false, 
     }
 
     if (!$dashboardMode) {
-        metric_cards([
-            'Goal'       => ucwords(str_replace('_', ' ', (string) $plan['goal'])),
-            'Status'     => $plan['status'],
-            'Started'    => $plan['start_date'],
-            'Training days' => workout_day_count((int) $plan['plan_id']),
-        ]);
+        $goalVal = ucwords(str_replace('_', ' ', (string) $plan['goal']));
+        $statusVal = ucfirst((string) $plan['status']);
+        $startedVal = date('M j, Y', strtotime((string) $plan['start_date']));
+        $daysCount = workout_day_count((int) $plan['plan_id']);
+        
+        $statusClass = strtolower($statusVal) === 'active' ? 'status-active' : 'status-draft';
+        ?>
+        <div class="workout-header-grid">
+            <div class="workout-header-card workout-goal-card">
+                <div class="card-icon">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>
+                </div>
+                <div class="card-info">
+                    <span class="card-label">Primary Goal</span>
+                    <strong class="card-value"><?= h($goalVal) ?></strong>
+                </div>
+            </div>
+            
+            <div class="workout-header-card workout-status-card">
+                <div class="card-icon">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+                </div>
+                <div class="card-info">
+                    <span class="card-label">Plan Status</span>
+                    <strong class="card-value"><span class="badge-pill <?= $statusClass ?>"><?= h($statusVal) ?></span></strong>
+                </div>
+            </div>
+
+            <div class="workout-header-card workout-started-card">
+                <div class="card-icon">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+                </div>
+                <div class="card-info">
+                    <span class="card-label">Started Date</span>
+                    <strong class="card-value"><?= h($startedVal) ?></strong>
+                </div>
+            </div>
+
+            <div class="workout-header-card workout-days-card">
+                <div class="card-icon">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 4v16M10 4v16M6 12h4M14 4v16M18 4v16M14 12h4"/></svg>
+                </div>
+                <div class="card-info">
+                    <span class="card-label">Training Schedule</span>
+                    <strong class="card-value"><?= $daysCount ?> Days / Week</strong>
+                </div>
+            </div>
+        </div>
+        
+        <style>
+            .workout-header-grid {
+                display: grid;
+                grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+                gap: 16px;
+                margin-top: 16px;
+                margin-bottom: 24px;
+            }
+            .workout-header-card {
+                background: linear-gradient(135deg, rgba(255, 255, 255, 0.03) 0%, rgba(255, 255, 255, 0.01) 100%);
+                border: 1px solid var(--line);
+                border-radius: 12px;
+                padding: 20px;
+                display: flex;
+                align-items: center;
+                gap: 16px;
+                box-shadow: var(--shadow);
+                backdrop-filter: blur(12px);
+                -webkit-backdrop-filter: blur(12px);
+                transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.25s ease, box-shadow 0.25s ease;
+                position: relative;
+                overflow: hidden;
+            }
+            .workout-header-card::before {
+                content: '';
+                position: absolute;
+                top: 0; left: 0; right: 0; bottom: 0;
+                background: radial-gradient(circle at 10% 20%, rgba(199, 255, 34, 0.05) 0%, transparent 50%);
+                opacity: 0;
+                transition: opacity 0.3s ease;
+                pointer-events: none;
+            }
+            .workout-header-card:hover {
+                transform: translateY(-4px);
+                border-color: color-mix(in srgb, var(--lime) 30%, var(--line));
+                box-shadow: 0 12px 30px rgba(0, 0, 0, 0.2), 0 0 20px color-mix(in srgb, var(--lime) 5%, transparent);
+            }
+            .workout-header-card:hover::before {
+                opacity: 1;
+            }
+            .card-icon {
+                width: 46px;
+                height: 46px;
+                border-radius: 10px;
+                background: rgba(255, 255, 255, 0.03);
+                border: 1px solid var(--line);
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                color: var(--lime);
+                flex-shrink: 0;
+                transition: background 0.3s ease, color 0.3s ease, border-color 0.3s ease;
+            }
+            .workout-header-card:hover .card-icon {
+                background: color-mix(in srgb, var(--lime) 12%, transparent);
+                color: var(--lime);
+                border-color: color-mix(in srgb, var(--lime) 30%, transparent);
+            }
+            .card-info {
+                display: flex;
+                flex-direction: column;
+                gap: 4px;
+                min-width: 0;
+                width: 100%;
+            }
+            .card-label {
+                font-size: 11px;
+                font-weight: 700;
+                text-transform: uppercase;
+                letter-spacing: 0.08em;
+                color: var(--muted);
+            }
+            .card-value {
+                font-size: 17px;
+                font-weight: 800;
+                color: var(--ink);
+                line-height: 1.35;
+                white-space: normal;
+                word-wrap: break-word;
+            }
+            .badge-pill {
+                display: inline-flex;
+                align-items: center;
+                padding: 2px 8px;
+                border-radius: 20px;
+                font-size: 11px;
+                font-weight: 800;
+                text-transform: uppercase;
+                letter-spacing: 0.05em;
+            }
+            .status-active {
+                background: rgba(45, 240, 165, 0.15);
+                color: #2df0a5;
+                border: 1px solid rgba(45, 240, 165, 0.25);
+            }
+            .status-draft {
+                background: rgba(255, 149, 72, 0.15);
+                color: var(--orange);
+                border: 1px solid rgba(255, 149, 72, 0.25);
+            }
+        </style>
+        <?php
     }
 
     $stmt = db()->prepare(
