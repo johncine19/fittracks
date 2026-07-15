@@ -14,8 +14,15 @@ function gym_selection_page(): void
         $classes->execute([$gym['gym_id']]);
         $gym['classes'] = $classes->fetchAll();
         
-        $plans = db()->prepare('SELECT * FROM membership_plans WHERE (gym_id = ? OR plan_scope = "shared") AND is_active = 1 ORDER BY price ASC');
-        $plans->execute([$gym['gym_id']]);
+        $plans = db()->prepare('
+            SELECT * FROM membership_plans 
+            WHERE 
+                (gym_id = :gym_id AND is_active = 1)
+                OR 
+                (plan_id IN (SELECT plan_id FROM shared_plan_gyms WHERE gym_id = :gym_id AND status = "approved") AND plan_scope = "shared" AND is_active = 1)
+            ORDER BY price ASC
+        ');
+        $plans->execute(['gym_id' => $gym['gym_id']]);
         $gym['plans'] = $plans->fetchAll();
         
         $gymData[] = $gym;
@@ -119,15 +126,15 @@ function gym_selection_page(): void
         .gym-card.is-filtered-out { display: none; }
         .gym-badge {
             position: absolute;
-            top: -12px;
-            right: -12px;
+            top: 0;
+            right: 0;
             background: var(--lime);
             color: var(--bg);
             font-size: 11px;
             font-weight: bold;
-            padding: 4px 10px;
-            border-radius: 20px;
-            box-shadow: 0 4px 10px rgba(204,255,0,0.3);
+            padding: 4px 12px;
+            border-radius: 0 14px 0 14px;
+            box-shadow: -2px 2px 10px rgba(0,0,0,0.15);
             text-transform: uppercase;
         }
         .gym-card h3 { margin: 0 0 10px; color: var(--lime); font-size: 1.25rem; }
@@ -388,11 +395,20 @@ function gym_selection_page(): void
                             }
                         }
                     ?>
-                        <div class="gym-card" onclick="openGymModal(<?= (int)$index ?>)" data-search="<?= h(mb_strtolower($gym['name'] . ' ' . $gym['address'])) ?>">
+                        <div class="gym-card" style="--lime: <?= !empty($gym['brand_color']) ? h($gym['brand_color']) : '#c7ff22' ?>;" onclick="openGymModal(<?= (int)$index ?>)" data-search="<?= h(mb_strtolower($gym['name'] . ' ' . $gym['address'])) ?>">
                             <?php if ($isMatch): ?>
                                 <div class="gym-badge">Recommended</div>
                             <?php endif; ?>
-                            <h3><?= h($gym['name']) ?></h3>
+                            <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 10px;">
+                                <?php if (!empty($gym['logo_url'])): ?>
+                                    <img src="assets/uploads/<?= h($gym['logo_url']) ?>" alt="Logo" style="width: 32px; height: 32px; object-fit: contain; border-radius: 6px; background: white;">
+                                <?php else: ?>
+                                    <div style="width: 32px; height: 32px; border-radius: 6px; background: rgba(199,255,34,0.1); display: flex; align-items: center; justify-content: center; font-weight: bold; color: var(--lime); flex-shrink: 0;">
+                                        <?= substr(h($gym['name']), 0, 1) ?>
+                                    </div>
+                                <?php endif; ?>
+                                <h3 style="margin: 0; font-size: 1.25rem; color: var(--lime);"><?= h($gym['name']) ?></h3>
+                            </div>
                             <p><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle></svg> <?= h($gym['address']) ?></p>
                             <div class="stat-row">
                                 <span><?= count($gym['classes']) ?> Classes</span>
@@ -547,12 +563,12 @@ function gym_selection_page(): void
     // ---------------------------------------------------------------
     function guessClassIcon(name, desc) {
         const text = (name + ' ' + (desc || '')).toLowerCase();
-        if (/(yoga|stretch|mobility|flex)/.test(text)) return '🧘';
-        if (/(cycle|spin|bike)/.test(text)) return '🚴';
-        if (/(crossfit|power|strength|lift|weight)/.test(text)) return '🏋️';
-        if (/(hiit|burn|cardio|zumba|dance)/.test(text)) return '🔥';
-        if (/(core|abs|pilates)/.test(text)) return '🎯';
-        return '⭐';
+        if (/(yoga|stretch|mobility|flex)/.test(text)) return '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>';
+        if (/(cycle|spin|bike)/.test(text)) return '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="2" x2="12" y2="6"/><line x1="12" y1="18" x2="12" y2="22"/><line x1="4.93" y1="4.93" x2="7.76" y2="7.76"/><line x1="16.24" y1="16.24" x2="19.07" y2="19.07"/><line x1="2" y1="12" x2="6" y2="12"/><line x1="18" y1="12" x2="22" y2="12"/><line x1="4.93" y1="19.07" x2="7.76" y2="16.24"/><line x1="16.24" y1="7.76" x2="19.07" y2="4.93"/></svg>';
+        if (/(crossfit|power|strength|lift|weight)/.test(text)) return '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>';
+        if (/(hiit|burn|cardio|zumba|dance)/.test(text)) return '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8.5 14.5A2.5 2.5 0 0011 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 11-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 002.5 2.5z"/></svg>';
+        if (/(core|abs|pilates)/.test(text)) return '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>';
+        return '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>';
     }
 
     function buildModalHtml(gym) {
@@ -569,10 +585,14 @@ function gym_selection_page(): void
             });
         }
 
+        let logoHtml = gym.logo_url 
+            ? `<img src="assets/uploads/${escapeHtml(gym.logo_url)}" alt="Logo" style="width: 100%; height: 100%; object-fit: contain; border-radius: 10px; background: white;">` 
+            : `<span style="color: var(--lime); font-size: 1.5rem;">${escapeHtml(gym.name.charAt(0))}</span>`;
+
         let html = `
             <div class="modal-hero">
                 <div class="modal-hero-top">
-                    <div class="modal-gym-icon">🏟️</div>
+                    <div class="modal-gym-icon" style="overflow: hidden; padding: ${gym.logo_url ? '0' : '8px'};">${logoHtml}</div>
                     <div>
                         <h2>${escapeHtml(gym.name)}</h2>
                         <p class="addr">
@@ -584,7 +604,7 @@ function gym_selection_page(): void
                 <div class="modal-quickstats">
                     <span><strong>${classCount}</strong> classes</span>
                     <span><strong>${planCount}</strong> plans</span>
-                    ${minPrice !== null ? `<span>From <strong>$${minPrice.toFixed(2)}</strong></span>` : ''}
+                    ${minPrice !== null ? `<span>From <strong>₱${minPrice.toFixed(2)}</strong></span>` : ''}
                 </div>
                 <div class="modal-tabs">
                     <button type="button" class="modal-tab-btn is-active" id="tabbtn-classes" data-tab="classes">
@@ -633,9 +653,9 @@ function gym_selection_page(): void
                             ${scopeBadge}
                         </div>
                         <div class="plan-price-row">
-                            <span class="plan-price">$${parseFloat(p.price).toFixed(2)}</span>
+                            <span class="plan-price">₱${parseFloat(p.price).toFixed(2)}</span>
                         </div>
-                        <div class="plan-per-day">~$${perDay.toFixed(2)}/day &middot; ${p.duration_days} days</div>
+                        <div class="plan-per-day">~₱${perDay.toFixed(2)}/day &middot; ${p.duration_days} days</div>
                         <p style="color: var(--muted); font-size: 0.88rem; flex-grow: 1; margin-bottom: 18px; line-height: 1.45;">
                             ${escapeHtml(p.description || '')}
                         </p>
@@ -691,6 +711,12 @@ function gym_selection_page(): void
         const gym = gymData[index];
         modalBody.innerHTML = buildModalHtml(gym);
         wireModalInteractions();
+
+        if (gym.brand_color) {
+            modalContent.style.setProperty('--lime', gym.brand_color);
+        } else {
+            modalContent.style.removeProperty('--lime');
+        }
 
         modal.style.visibility = 'visible';
         modal.style.pointerEvents = 'auto';

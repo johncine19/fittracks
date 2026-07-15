@@ -6,25 +6,7 @@ const NOTIFICATION_TYPES = ['renewal_reminder', 'class_reminder', 'coach_message
 use PHPMailer\PHPMailer\PHPMailer;
 use PHPMailer\PHPMailer\Exception as PHPMailerException;
 
-/**
- * Auto-migrate: add reference_id column to notifications if missing.
- * Called once per request; uses a static flag to avoid repeated checks.
- */
-function ensure_notifications_reference_id(): void
-{
-    static $checked = false;
-    if ($checked) return;
-    $checked = true;
 
-    try {
-        $cols = db()->query('SHOW COLUMNS FROM notifications LIKE "reference_id"')->fetchAll();
-        if (!$cols) {
-            db()->exec('ALTER TABLE notifications ADD COLUMN reference_id INT UNSIGNED DEFAULT NULL AFTER message');
-        }
-    } catch (Throwable) {
-        // Non-blocking — column may already exist.
-    }
-}
 
 function notify_user(int $userId, string $type, string $title, string $message, ?int $referenceId = null): void
 {
@@ -33,7 +15,7 @@ function notify_user(int $userId, string $type, string $title, string $message, 
     }
 
     try {
-        ensure_notifications_reference_id();
+
         db()->prepare('INSERT INTO notifications (user_id, type, title, message, reference_id) VALUES (?, ?, ?, ?, ?)')
             ->execute([$userId, $type, mb_substr(trim($title), 0, 100), mb_substr(trim($message), 0, 500), $referenceId]);
     } catch (Throwable) {
