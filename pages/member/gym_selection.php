@@ -6,6 +6,17 @@ function gym_selection_page(): void
     define('AUTH_PAGE', true);
     $user = require_roles(['member']);
 
+    if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'select_gym') {
+        verify_csrf();
+        $gymId = (int) ($_POST['gym_id'] ?? 0);
+        if ($gymId > 0) {
+            db()->prepare('INSERT IGNORE INTO gym_members (user_id, gym_id) VALUES (?, ?)')
+                ->execute([$user['user_id'], $gymId]);
+            flash('Successfully affiliated with the selected gym.', 'success');
+            redirect('index.php?page=dashboard');
+        }
+    }
+
     $gyms = db()->query('SELECT * FROM gyms WHERE status = "approved"')->fetchAll();
 
     $gymData = [];
@@ -764,15 +775,21 @@ function gym_selection_page(): void
         const hasGallery = gym.images && gym.images.length > 0;
         let html = `
             <div class="modal-hero">
-                <div class="modal-hero-top">
+                <div class="modal-hero-top" style="align-items: center;">
                     <div class="modal-gym-icon" style="overflow: hidden; padding: ${gym.logo_url ? '0' : '8px'};">${logoHtml}</div>
-                    <div>
+                    <div style="flex: 1;">
                         <h2>${escapeHtml(gym.name)}</h2>
                         <p class="addr">
                             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle></svg>
                             ${escapeHtml(gym.address)}
                         </p>
                     </div>
+                    <form method="post" action="index.php?page=gym_selection" style="margin: 0;">
+                        <?= csrf_field() ?>
+                        <input type="hidden" name="action" value="select_gym">
+                        <input type="hidden" name="gym_id" value="${gym.gym_id}">
+                        <button type="submit" class="btn btn-primary" style="padding: 10px 20px; font-size: 0.95rem; white-space: nowrap; box-shadow: 0 4px 12px rgba(199, 255, 34, 0.2);">Select Gym</button>
+                    </form>
                 </div>
                 <div class="modal-quickstats">
                     <span><strong>${classCount}</strong> classes</span>

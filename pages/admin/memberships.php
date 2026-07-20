@@ -7,6 +7,16 @@ use PHPMailer\PHPMailer\Exception as PHPMailerException;
 function memberships_page(): void
 {
     $user = require_roles(['platform_admin', 'gym_owner', 'member']);
+    
+    if ($user['role'] === 'member') {
+        $isGymMember = db()->prepare('SELECT 1 FROM gym_members WHERE user_id = ?');
+        $isGymMember->execute([$user['user_id']]);
+        if (!$isGymMember->fetchColumn()) {
+            flash('Please select a gym first to view this page.', 'warning');
+            redirect('gym_selection');
+        }
+    }
+
     if ($user['role'] === 'gym_owner' && $_SERVER['REQUEST_METHOD'] === 'POST') {
         if (isset($_POST['update_status_id'])) {
             $membershipId = (int) post('update_status_id');

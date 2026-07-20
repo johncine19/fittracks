@@ -4,6 +4,14 @@ declare(strict_types=1);
 function book_classes_page(): void
 {
     $user = require_roles(['member']);
+    
+    $isGymMember = db()->prepare('SELECT 1 FROM gym_members WHERE user_id = ?');
+    $isGymMember->execute([$user['user_id']]);
+    if (!$isGymMember->fetchColumn()) {
+        flash('Please select a gym first to view this page.', 'warning');
+        redirect('gym_selection');
+    }
+
     if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $scheduleId = (int) post('schedule_id');
         $action = post('action', 'book');

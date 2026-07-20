@@ -48,7 +48,19 @@ function render_header(string $title, ?array $user = null): void
             $nav += ['qr_attendance' => 'My QR', 'my_commissions' => 'Commissions', 'trainer_members' => 'Clients', 'training' => 'Training', 'classes' => 'My Classes', 'messages' => 'Messages', 'notifications' => 'Notifications'];
         }
         if ($role === 'member') {
-            $nav += ['qr_attendance' => 'My QR', 'my_workout' => 'Workouts', 'diet' => 'Diet Plan', 'trainers' => 'Trainers', 'memberships' => 'Membership', 'payments' => 'Payments', 'book_classes' => 'Classes', 'progress' => 'Progress', 'messages' => 'Messages', 'notifications' => 'Notifications'];
+            $isGymMember = db()->prepare('SELECT 1 FROM gym_members WHERE user_id = ?');
+            $isGymMember->execute([$user['user_id']]);
+            $hasGym = (bool) $isGymMember->fetchColumn();
+
+            $nav += ['qr_attendance' => 'My QR', 'my_workout' => 'Workouts', 'diet' => 'Diet Plan'];
+            
+            if ($hasGym) {
+                $nav += ['trainers' => 'Trainers', 'memberships' => 'Membership', 'book_classes' => 'Classes'];
+            } else {
+                $nav += ['gym_selection' => 'Select Gym'];
+            }
+            
+            $nav += ['payments' => 'Payments', 'progress' => 'Progress', 'messages' => 'Messages', 'notifications' => 'Notifications'];
         }
     }
     $page = $_GET['page'] ?? 'dashboard';
