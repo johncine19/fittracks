@@ -428,10 +428,10 @@ function gym_profile_page(): void
                             <img src="assets/uploads/<?= h($img['image_url']) ?>" alt="Gallery Image" style="width: 100%; height: 100%; object-fit: cover;">
                             
                             <!-- Delete button (submit inside the main form would save the form, so we use a separate mini form, or a button with form attributes) -->
-                            <button type="submit" name="delete_gallery_image" value="1" formnovalidate
-                                    onclick="document.getElementById('delete_image_id').value = '<?= $img['id'] ?>'; return confirm('Delete this image?');"
-                                    style="position: absolute; top: 8px; right: 8px; background: rgba(0,0,0,0.7); border: none; color: white; border-radius: 50%; width: 28px; height: 28px; cursor: pointer; display: flex; align-items: center; justify-content: center;">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                            <button type="button" 
+                                    onclick="confirmGalleryDelete(<?= $img['id'] ?>)"
+                                    style="position: absolute; top: 8px; right: 8px; background: rgba(0,0,0,0.7); border: none; border-radius: 50%; width: 28px; height: 28px; min-width: 28px; min-height: 28px; padding: 0; box-sizing: border-box; cursor: pointer; display: flex; align-items: center; justify-content: center; z-index: 10; color: #ffffff; font-size: 20px; font-family: Arial, sans-serif; line-height: 0;">
+                                &times;
                             </button>
                         </div>
                     <?php endforeach; ?>
@@ -475,6 +475,47 @@ function gym_profile_page(): void
                 });
             });
         });
+
+        function confirmGalleryDelete(imageId) {
+            Swal.fire({
+                title: 'Delete this image?',
+                text: "You won't be able to revert this!",
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonColor: '#ef4444',
+                cancelButtonColor: '#64748b',
+                confirmButtonText: 'Yes, delete it!'
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    const form = document.createElement('form');
+                    form.method = 'POST';
+                    
+                    const csrfInput = document.querySelector('input[name="csrf_token"]');
+                    if (csrfInput) {
+                        const csrfClone = document.createElement('input');
+                        csrfClone.type = 'hidden';
+                        csrfClone.name = 'csrf_token';
+                        csrfClone.value = csrfInput.value;
+                        form.appendChild(csrfClone);
+                    }
+                    
+                    const actionInput = document.createElement('input');
+                    actionInput.type = 'hidden';
+                    actionInput.name = 'delete_gallery_image';
+                    actionInput.value = '1';
+                    form.appendChild(actionInput);
+                    
+                    const idInput = document.createElement('input');
+                    idInput.type = 'hidden';
+                    idInput.name = 'image_id';
+                    idInput.value = imageId;
+                    form.appendChild(idInput);
+                    
+                    document.body.appendChild(form);
+                    form.submit();
+                }
+            })
+        }
     </script>
 <?php
     render_footer();
