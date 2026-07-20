@@ -425,7 +425,7 @@ function gym_profile_page(): void
                 <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 16px;">
                     <?php foreach ($galleryImages as $img): ?>
                         <div style="position: relative; border-radius: 8px; overflow: hidden; border: 1px solid var(--line); aspect-ratio: 1; background: var(--bg);">
-                            <img src="/assets/uploads/<?= h($img['image_url']) ?>" alt="Gallery Image" style="width: 100%; height: 100%; object-fit: cover;">
+                            <img src="assets/uploads/<?= h($img['image_url']) ?>" alt="Gallery Image" style="width: 100%; height: 100%; object-fit: cover;">
                             
                             <!-- Delete button (submit inside the main form would save the form, so we use a separate mini form, or a button with form attributes) -->
                             <button type="submit" name="delete_gallery_image" value="1" formnovalidate
