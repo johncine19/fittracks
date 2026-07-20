@@ -100,6 +100,11 @@ function scanner_page(): void
             $stmt = $pdo->prepare('INSERT INTO attendance (user_id, schedule_id, gym_id, check_in_time, check_in_method, recorded_by) VALUES (?, ?, ?, NOW(), "qr_code", ?)');
             $stmt->execute([$userId, $scheduleId, $currentGymId, $user['user_id']]);
             
+            if ($member['role'] === 'member' && $currentGymId) {
+                $pdo->prepare('INSERT IGNORE INTO gym_members (user_id, gym_id) VALUES (?, ?)')
+                    ->execute([$userId, $currentGymId]);
+            }
+            
             if ($scheduleId) {
                 $pdo->prepare('UPDATE class_bookings SET booking_status = "attended" WHERE user_id = ? AND schedule_id = ?')->execute([$userId, $scheduleId]);
                 $message = 'Check-in successful & Class Auto-Attended for ' . $member['first_name'] . ' ' . $member['last_name'];
