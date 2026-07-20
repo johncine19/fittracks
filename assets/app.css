@@ -2102,3 +2102,27 @@ body.loaded .skeleton-content.sk-display-flex {
 .skeleton-content.sk-delay-2 { animation-delay: 0.10s; }
 .skeleton-content.sk-delay-3 { animation-delay: 0.15s; }
 .skeleton-content.sk-delay-4 { animation-delay: 0.20s; }
+
+/* Custom Scrollbars */
+::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+}
+::-webkit-scrollbar-track {
+    background: transparent;
+}
+::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 6px;
+}
+::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 255, 255, 0.2);
+}
+
+/* Sticky Table Headers */
+.table-wrap th {
+    position: sticky;
+    top: 0;
+    background: var(--surface);
+    z-index: 10;
+}
