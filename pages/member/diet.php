@@ -204,62 +204,131 @@ function diet_page(): void
     </form>
 </div>
 
-<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px;">
-    <?php foreach ($daysMap as $dayNum => $dayName): ?>
-        <div class="panel plan-card-glow" style="margin: 0; padding: 20px;">
-            <h3 style="margin-top: 0; border-bottom: 2px solid var(--lime); padding-bottom: 10px; margin-bottom: 15px; color: var(--lime); font-size: 1.3rem;">
+<div style="background: var(--surface); border-radius: 12px; border: 1px solid var(--line); overflow: hidden;">
+    <!-- Tabs Header -->
+    <div style="display: flex; overflow-x: auto; background: color-mix(in srgb, var(--surface) 90%, var(--ink)); border-bottom: 1px solid var(--line); scrollbar-width: none;">
+        <?php foreach ($daysMap as $dayNum => $dayName): ?>
+            <button class="diet-tab-btn <?= $dayNum === 1 ? 'active' : '' ?>" onclick="switchDietTab(<?= $dayNum ?>)" 
+                    style="flex: 1; padding: 16px 20px; background: transparent; border: none; color: <?= $dayNum === 1 ? 'var(--lime)' : 'var(--muted)' ?>; font-weight: <?= $dayNum === 1 ? '600' : '400' ?>; cursor: pointer; border-bottom: 2px solid <?= $dayNum === 1 ? 'var(--lime)' : 'transparent' ?>; transition: all 0.2s ease; min-width: 100px;">
                 <?= $dayName ?>
-            </h3>
-            
-            <?php if (empty($mealsByDay[$dayNum])): ?>
-                <p class="muted" style="margin:0; text-align: center; font-style: italic;">No meals specified.</p>
-            <?php else: ?>
-                <div style="display: flex; flex-direction: column; gap: 15px;">
-                    <?php 
-                    $dayCals = 0; $dayPro = 0; $dayCarbs = 0; $dayFat = 0;
-                    foreach ($mealsByDay[$dayNum] as $meal): 
-                        $dayCals += $meal['calories'];
-                        $dayPro += $meal['protein_g'];
-                        $dayCarbs += $meal['carbs_g'];
-                        $dayFat += $meal['fat_g'];
-                    ?>
-                        <div style="background: color-mix(in srgb, var(--surface) 50%, var(--bg)); padding: 15px; border-radius: 8px; border: 1px solid var(--line);">
-                            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
-                                <strong style="color: var(--ink); font-size: 1.1rem;"><?= h($meal['meal_type']) ?></strong>
-                                <span style="background: var(--lime); color: var(--bg); padding: 3px 8px; border-radius: 20px; font-size: 0.8rem; font-weight: bold;">
-                                    <?= $meal['calories'] ?> kcal
-                                </span>
+            </button>
+        <?php endforeach; ?>
+    </div>
+    
+    <!-- Tab Contents -->
+    <div style="padding: 24px;">
+        <?php foreach ($daysMap as $dayNum => $dayName): ?>
+            <div id="diet-tab-<?= $dayNum ?>" class="diet-tab-content" style="display: <?= $dayNum === 1 ? 'block' : 'none' ?>; animation: fadeIn 0.3s ease;">
+                <h3 style="margin-top: 0; color: var(--lime); font-size: 1.3rem; margin-bottom: 20px;">
+                    <?= $dayName ?>'s Plan
+                </h3>
+                
+                <?php if (empty($mealsByDay[$dayNum])): ?>
+                    <div style="padding: 40px; text-align: center; color: var(--muted); background: var(--bg); border-radius: 8px; border: 1px dashed var(--line);">
+                        <p style="margin:0; font-style: italic;">No meals specified for this day.</p>
+                    </div>
+                <?php else: ?>
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px;">
+                        <?php 
+                        $dayCals = 0; $dayPro = 0; $dayCarbs = 0; $dayFat = 0;
+                        foreach ($mealsByDay[$dayNum] as $meal): 
+                            $dayCals += $meal['calories'];
+                            $dayPro += $meal['protein_g'];
+                            $dayCarbs += $meal['carbs_g'];
+                            $dayFat += $meal['fat_g'];
+                        ?>
+                            <div style="background: var(--bg); padding: 20px; border-radius: 12px; border: 1px solid var(--line); position: relative; overflow: hidden;">
+                                <!-- Left accent line -->
+                                <div style="position: absolute; left: 0; top: 0; bottom: 0; width: 4px; background: var(--lime);"></div>
+                                
+                                <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px;">
+                                    <strong style="color: var(--ink); font-size: 1.15rem;"><?= h($meal['meal_type']) ?></strong>
+                                    <span style="background: color-mix(in srgb, var(--lime) 20%, transparent); color: var(--lime); padding: 4px 10px; border-radius: 20px; font-size: 0.85rem; font-weight: bold; border: 1px solid color-mix(in srgb, var(--lime) 30%, transparent);">
+                                        <?= $meal['calories'] ?> kcal
+                                    </span>
+                                </div>
+                                
+                                <div style="color: var(--muted); font-size: 1rem; margin-bottom: 16px; line-height: 1.5; min-height: 48px;">
+                                    <?= nl2br(h($meal['food_items'])) ?>
+                                </div>
+                                
+                                <div style="display: flex; gap: 10px; font-size: 0.85rem; color: var(--ink); background: color-mix(in srgb, var(--surface) 50%, var(--bg)); padding: 10px; border-radius: 8px; justify-content: space-between;">
+                                    <div style="text-align: center; flex: 1;"><strong style="display:block; color:var(--muted); font-size:10px; text-transform:uppercase;">Protein</strong> <?= $meal['protein_g'] ?>g</div>
+                                    <div style="width:1px; background:var(--line);"></div>
+                                    <div style="text-align: center; flex: 1;"><strong style="display:block; color:var(--muted); font-size:10px; text-transform:uppercase;">Carbs</strong> <?= $meal['carbs_g'] ?>g</div>
+                                    <div style="width:1px; background:var(--line);"></div>
+                                    <div style="text-align: center; flex: 1;"><strong style="display:block; color:var(--muted); font-size:10px; text-transform:uppercase;">Fat</strong> <?= $meal['fat_g'] ?>g</div>
+                                </div>
                             </div>
-                            
-                            <div style="color: var(--muted); font-size: 0.95rem; margin-bottom: 10px; line-height: 1.5;">
-                                <?= nl2br(h($meal['food_items'])) ?>
-                            </div>
-                            
-                            <div style="display: flex; gap: 15px; font-size: 0.85rem; color: var(--ink); background: var(--bg); padding: 8px; border-radius: 6px;">
-                                <div><strong>P:</strong> <?= $meal['protein_g'] ?>g</div>
-                                <div><strong>C:</strong> <?= $meal['carbs_g'] ?>g</div>
-                                <div><strong>F:</strong> <?= $meal['fat_g'] ?>g</div>
-                            </div>
-                        </div>
-                    <?php endforeach; ?>
+                        <?php endforeach; ?>
+                    </div>
                     
                     <!-- Daily Totals -->
-                    <div style="margin-top: 5px; padding: 15px; background: rgba(163, 230, 53, 0.1); border: 1px solid rgba(163, 230, 53, 0.2); border-radius: 8px; text-align: center;">
-                        <div style="font-size: 0.85rem; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 5px;">Daily Totals</div>
-                        <div style="font-size: 1.1rem; font-weight: bold; color: var(--lime);">
-                            <?= $dayCals ?> kcal
+                    <div style="margin-top: 24px; padding: 20px; background: rgba(163, 230, 53, 0.05); border: 1px solid rgba(163, 230, 53, 0.2); border-radius: 12px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 16px;">
+                        <div style="display: flex; align-items: center; gap: 12px;">
+                            <div style="background: var(--lime); color: var(--bg); width: 48px; height: 48px; border-radius: 50%; display: flex; align-items: center; justify-content: center;">
+                                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z"/></svg>
+                            </div>
+                            <div>
+                                <div style="font-size: 0.85rem; color: var(--muted); text-transform: uppercase; letter-spacing: 1px;">Daily Total Calories</div>
+                                <div style="font-size: 1.4rem; font-weight: bold; color: var(--lime);"><?= $dayCals ?> kcal</div>
+                            </div>
                         </div>
-                        <div style="display: flex; justify-content: center; gap: 15px; margin-top: 5px; font-size: 0.9rem;">
-                            <span>Pro: <?= $dayPro ?>g</span>
-                            <span>Carbs: <?= $dayCarbs ?>g</span>
-                            <span>Fat: <?= $dayFat ?>g</span>
+                        <div style="display: flex; gap: 24px; font-size: 1rem;">
+                            <div style="display: flex; flex-direction: column; align-items: flex-end;">
+                                <span style="font-size: 0.8rem; color: var(--muted); text-transform: uppercase;">Protein</span>
+                                <strong><?= $dayPro ?>g</strong>
+                            </div>
+                            <div style="display: flex; flex-direction: column; align-items: flex-end;">
+                                <span style="font-size: 0.8rem; color: var(--muted); text-transform: uppercase;">Carbs</span>
+                                <strong><?= $dayCarbs ?>g</strong>
+                            </div>
+                            <div style="display: flex; flex-direction: column; align-items: flex-end;">
+                                <span style="font-size: 0.8rem; color: var(--muted); text-transform: uppercase;">Fat</span>
+                                <strong><?= $dayFat ?>g</strong>
+                            </div>
                         </div>
                     </div>
-                </div>
-            <?php endif; ?>
-        </div>
-    <?php endforeach; ?>
+                <?php endif; ?>
+            </div>
+        <?php endforeach; ?>
+    </div>
 </div>
+
+<style>
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(5px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+.diet-tab-btn:hover {
+    background: rgba(255,255,255,0.05) !important;
+}
+</style>
+
+<script>
+function switchDietTab(dayNum) {
+    // Hide all contents
+    document.querySelectorAll('.diet-tab-content').forEach(el => el.style.display = 'none');
+    // Reset all buttons
+    document.querySelectorAll('.diet-tab-btn').forEach(btn => {
+        btn.style.color = 'var(--muted)';
+        btn.style.fontWeight = '400';
+        btn.style.borderBottomColor = 'transparent';
+    });
+    
+    // Show selected content
+    document.getElementById('diet-tab-' + dayNum).style.display = 'block';
+    
+    // Highlight selected button
+    const activeBtn = document.querySelector('.diet-tab-btn:nth-child(' + dayNum + ')');
+    if(activeBtn) {
+        activeBtn.style.color = 'var(--lime)';
+        activeBtn.style.fontWeight = '600';
+        activeBtn.style.borderBottomColor = 'var(--lime)';
+    }
+}
+</script>
+
 <?php
     render_footer();
 }
