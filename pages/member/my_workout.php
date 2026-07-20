@@ -51,7 +51,7 @@ function my_workout_page(): void
                     <?= csrf_field() ?>
                     <button type="submit" style="background: var(--lime); border: none; color: var(--bg); padding: 10px 16px; border-radius: 8px; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 8px; transition: opacity 0.2s;">
                         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.92-10.26l5.67-5.67"/></svg>
-                        <?= $plan ? 'Regenerate Plan' : 'Generate AI Plan' ?>
+                        <?= $plan ? 'Regenerate Plan' : 'Generate Plan' ?>
                     </button>
                 </form>
             </div>
