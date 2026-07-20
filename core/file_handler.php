@@ -163,4 +163,47 @@ final class FileUpload
 
         return $filename;
     }
+
+    /**
+     * Validates and stores a gym gallery image under assets/uploads, returning the
+     * generated filename to store in the database.
+     *
+     * @param array $file one entry of $_FILES
+     * @throws RuntimeException on invalid/oversized/unreadable file
+     */
+    public static function storeGymGalleryImage(array $file, int $gymId): string
+    {
+        self::validate($file);
+
+        $finfo = finfo_open(FILEINFO_MIME_TYPE);
+        $mime = finfo_file($finfo, $file['tmp_name']);
+        finfo_close($finfo);
+        $ext = self::ALLOWED_MIME[$mime];
+
+        $uploadDir = __DIR__ . '/../assets/uploads/';
+        if (!is_dir($uploadDir)) {
+            mkdir($uploadDir, 0775, true);
+        }
+
+        $filename = 'gym_' . $gymId . '_gallery_' . bin2hex(random_bytes(8)) . '.' . $ext;
+
+        if (!move_uploaded_file($file['tmp_name'], $uploadDir . $filename)) {
+            throw new RuntimeException('Could not save the gallery image.');
+        }
+
+        return $filename;
+    }
+
+    /**
+     * Deletes a gym gallery image from the filesystem.
+     *
+     * @param string $filename the filename to delete
+     */
+    public static function deleteGymGalleryImage(string $filename): void
+    {
+        $filePath = __DIR__ . '/../assets/uploads/' . basename($filename);
+        if (file_exists($filePath) && is_file($filePath)) {
+            @unlink($filePath);
+        }
+    }
 }

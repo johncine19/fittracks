@@ -22,6 +22,10 @@ function gym_selection_page(): void
         $plans->execute(['gym_id' => $gym['gym_id']]);
         $gym['plans'] = $plans->fetchAll();
 
+        $images = db()->prepare('SELECT image_url FROM gym_images WHERE gym_id = ? ORDER BY created_at DESC LIMIT 10');
+        $images->execute([$gym['gym_id']]);
+        $gym['images'] = $images->fetchAll(PDO::FETCH_COLUMN);
+
         $gymData[] = $gym;
     }
 
@@ -757,6 +761,7 @@ function gym_selection_page(): void
             ? `<img src="assets/uploads/${escapeHtml(gym.logo_url)}" alt="Logo" style="width: 100%; height: 100%; object-fit: contain; border-radius: 10px; background: white;">`
             : `<span style="color: var(--lime); font-size: 1.5rem;">${escapeHtml(gym.name.charAt(0))}</span>`;
 
+        const hasGallery = gym.images && gym.images.length > 0;
         let html = `
             <div class="modal-hero">
                 <div class="modal-hero-top">
@@ -778,7 +783,13 @@ function gym_selection_page(): void
                     <path d="M0,8 L200,8 L212,2 L224,14 L236,8 L500,8" />
                 </svg>
                 <div class="modal-tabs">
-                    <button type="button" class="modal-tab-btn is-active" id="tabbtn-classes" data-tab="classes">
+                    ${hasGallery ? `
+                    <button type="button" class="modal-tab-btn is-active" id="tabbtn-gallery" data-tab="gallery">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline></svg>
+                        Gallery<span class="tab-underline"></span>
+                    </button>
+                    ` : ''}
+                    <button type="button" class="modal-tab-btn ${!hasGallery ? 'is-active' : ''}" id="tabbtn-classes" data-tab="classes">
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
                         Classes<span class="tab-underline"></span>
                     </button>
@@ -789,8 +800,23 @@ function gym_selection_page(): void
                 </div>
             </div>
             <div class="modal-body-inner">
-                <div class="modal-tab-panel is-active" id="tab-classes">
         `;
+        
+        if (hasGallery) {
+            html += `<div class="modal-tab-panel is-active" id="tab-gallery">
+                        <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 14px;">`;
+            gym.images.forEach(img => {
+                html += `
+                    <div style="border-radius: 12px; overflow: hidden; aspect-ratio: 4/3; border: 1px solid var(--line); box-shadow: var(--shadow);">
+                        <img src="assets/uploads/${escapeHtml(img)}" alt="Gym Image" style="width: 100%; height: 100%; object-fit: cover; transition: transform 0.3s ease;" onmouseover="this.style.transform='scale(1.05)'" onmouseout="this.style.transform='scale(1)'">
+                    </div>
+                `;
+            });
+            html += `   </div>
+                      </div>`;
+        }
+        
+        html += `<div class="modal-tab-panel ${!hasGallery ? 'is-active' : ''}" id="tab-classes">`;
 
         if (classCount > 0) {
             html += `<div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 14px;">`;

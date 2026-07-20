@@ -49,6 +49,39 @@ function gym_profile_page(): void
             }
         }
 
+        // Handle Gallery Uploads
+        if (isset($_FILES['gallery_images']) && is_array($_FILES['gallery_images']['tmp_name'])) {
+            $currentGalleryCount = $pdo->query('SELECT COUNT(*) FROM gym_images WHERE gym_id = ' . (int)$gym['gym_id'])->fetchColumn();
+            $files = $_FILES['gallery_images'];
+            $uploadCount = 0;
+            
+            for ($i = 0; $i < count($files['tmp_name']); $i++) {
+                if ($files['error'][$i] === UPLOAD_ERR_OK) {
+                    if ($currentGalleryCount + $uploadCount >= 10) {
+                        flash('You can only upload a maximum of 10 images.', 'warning');
+                        break;
+                    }
+                    
+                    $singleFile = [
+                        'name' => $files['name'][$i],
+                        'type' => $files['type'][$i],
+                        'tmp_name' => $files['tmp_name'][$i],
+                        'error' => $files['error'][$i],
+                        'size' => $files['size'][$i],
+                    ];
+                    
+                    try {
+                        $uploadedImage = FileUpload::storeGymGalleryImage($singleFile, (int) $gym['gym_id']);
+                        $pdo->prepare('INSERT INTO gym_images (gym_id, image_url) VALUES (?, ?)')
+                            ->execute([$gym['gym_id'], $uploadedImage]);
+                        $uploadCount++;
+                    } catch (RuntimeException $e) {
+                        flash('Gallery Upload Error: ' . $e->getMessage(), 'danger');
+                    }
+                }
+            }
+        }
+
         if ($name && $address) {
             $pdo->prepare('UPDATE gyms SET name = ?, address = ?, contact_info = ?, business_permit_url = ?, logo_url = ?, brand_color = ? WHERE gym_id = ?')
                 ->execute([$name, $address, $contact, $permitUrl, $logoUrl, $brandColor, $gym['gym_id']]);
@@ -58,6 +91,23 @@ function gym_profile_page(): void
             flash('Name and address are required.', 'danger');
         }
     }
+
+    if (isset($_POST['delete_gallery_image'])) {
+        $imageId = (int) $_POST['image_id'];
+        $image = $pdo->prepare('SELECT * FROM gym_images WHERE id = ? AND gym_id = ?');
+        $image->execute([$imageId, $gym['gym_id']]);
+        $image = $image->fetch();
+        
+        if ($image) {
+            FileUpload::deleteGymGalleryImage($image['image_url']);
+            $pdo->prepare('DELETE FROM gym_images WHERE id = ?')->execute([$imageId]);
+            flash('Image deleted successfully.', 'success');
+        }
+        redirect('gym_profile');
+    }
+
+    $galleryImages = $pdo->query('SELECT * FROM gym_images WHERE gym_id = ' . (int)$gym['gym_id'] . ' ORDER BY created_at DESC')->fetchAll();
+
 
     render_header('Gym Profile', $user);
 ?>
@@ -351,6 +401,45 @@ function gym_profile_page(): void
                 </div>
             </div>
         </div>
+        
+        <!-- Gym Gallery Section -->
+        <div class="panel" style="margin-top: 24px;">
+            <h3>
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline></svg>
+                Gym Gallery (Max 10 Images)
+            </h3>
+            
+            <div class="profile-input-group">
+                <label>Upload Gallery Images</label>
+                <label class="custom-file-upload">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
+                    <span>Click to select multiple images</span>
+                    <input type="file" name="gallery_images[]" accept=".jpg,.jpeg,.png,.webp" multiple>
+                </label>
+                <small>Select multiple images to show off your gym to members.</small>
+            </div>
+            
+            <?php if (!empty($galleryImages)): ?>
+            <div style="margin-top: 24px;">
+                <label style="margin-bottom: 12px; display: block;">Current Gallery</label>
+                <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 16px;">
+                    <?php foreach ($galleryImages as $img): ?>
+                        <div style="position: relative; border-radius: 8px; overflow: hidden; border: 1px solid var(--line); aspect-ratio: 1; background: var(--bg);">
+                            <img src="/assets/uploads/<?= h($img['image_url']) ?>" alt="Gallery Image" style="width: 100%; height: 100%; object-fit: cover;">
+                            
+                            <!-- Delete button (submit inside the main form would save the form, so we use a separate mini form, or a button with form attributes) -->
+                            <button type="submit" name="delete_gallery_image" value="1" formnovalidate
+                                    onclick="document.getElementById('delete_image_id').value = '<?= $img['id'] ?>'; return confirm('Delete this image?');"
+                                    style="position: absolute; top: 8px; right: 8px; background: rgba(0,0,0,0.7); border: none; color: white; border-radius: 50%; width: 28px; height: 28px; cursor: pointer; display: flex; align-items: center; justify-content: center;">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                            </button>
+                        </div>
+                    <?php endforeach; ?>
+                </div>
+            </div>
+            <?php endif; ?>
+        </div>
+        <input type="hidden" name="image_id" id="delete_image_id" value="">
 
         <div style="margin-top: 10px; display: flex; justify-content: flex-end;">
             <button type="submit" class="btn-primary" style="padding: 12px 32px; min-height: 46px;">Save Changes</button>
