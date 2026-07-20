@@ -79,17 +79,8 @@ function can_recalculate_workout(int $memberUserId): bool
     }
 
     // 2. Check if a system-generated plan was created within the last 7 days.
-    $stmt = $pdo->prepare('SELECT created_at FROM training_plans WHERE member_user_id = ? AND trainer_id IS NULL ORDER BY created_at DESC LIMIT 1');
-    $stmt->execute([$memberUserId]);
-    $lastCreated = $stmt->fetchColumn();
-
-    if (!$lastCreated) {
-        return true;
-    }
-
-    $createdAtTime = strtotime($lastCreated);
-    $sevenDaysAgo = strtotime('-7 days');
-    return $createdAtTime <= $sevenDaysAgo;
+    // Restriction removed per user request: allow generation anytime.
+    return true;
 }
 function generate_workout_plan(int $memberUserId, ?int $coachId = null): int
 {
