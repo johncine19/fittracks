@@ -5,15 +5,15 @@ function gym_selection_page(): void
 {
     define('AUTH_PAGE', true);
     $user = require_roles(['member']);
-    
+
     $gyms = db()->query('SELECT * FROM gyms WHERE status = "approved"')->fetchAll();
-    
+
     $gymData = [];
     foreach ($gyms as $gym) {
         $classes = db()->prepare('SELECT * FROM classes WHERE gym_id = ? ORDER BY class_name ASC');
         $classes->execute([$gym['gym_id']]);
         $gym['classes'] = $classes->fetchAll();
-        
+
         $plans = db()->prepare('
             SELECT * FROM membership_plans 
             WHERE 
@@ -24,16 +24,101 @@ function gym_selection_page(): void
         ');
         $plans->execute(['gym_id' => $gym['gym_id']]);
         $gym['plans'] = $plans->fetchAll();
-        
+
         $gymData[] = $gym;
     }
-    
+
     $profile = member_profile((int) $user['user_id']);
     $userGoal = strtolower($profile['primary_goal'] ?? '');
-    
+
     render_header('Select Your Gym', $user);
     ?>
     <style>
+        @import url('https://fonts.googleapis.com/css2?family=Oswald:wght@500;600;700&family=DM+Sans:wght@400;500;700&display=swap');
+
+        /* Override the site's default boxed .panel treatment for this page only,
+           so it spans the viewport instead of floating as a narrow card. */
+        .panel.gym-select {
+            --font-display: 'Oswald', 'Arial Narrow', sans-serif;
+            --font-ui: 'DM Sans', var(--font-sans, system-ui), sans-serif;
+            max-width: none !important;
+            width: 100% !important;
+            margin: 0 !important;
+            border-radius: 0 !important;
+            border-left: none !important;
+            border-right: none !important;
+            box-sizing: border-box;
+            padding: 48px clamp(20px, 5vw, 72px) !important;
+        }
+        .gym-select, .gym-select input, .gym-select button { font-family: var(--font-ui); }
+        .gym-select .gym-hero,
+        .gym-select .gym-search-wrap { max-width: 620px; margin-left: auto; margin-right: auto; }
+        .gym-select .carousel-wrap { max-width: 1440px; margin: 0 auto; }
+
+        /* ---------------- Hero ---------------- */
+        .gym-hero { text-align: center; margin-bottom: 26px; position: relative; }
+        .gym-hero .eyebrow {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            font-family: var(--font-display);
+            font-size: 0.72rem;
+            font-weight: 600;
+            letter-spacing: 0.28em;
+            text-transform: uppercase;
+            color: var(--lime, #c7ff22);
+            margin-bottom: 12px;
+        }
+        .gym-hero .eyebrow .dot {
+            width: 6px; height: 6px; border-radius: 50%;
+            background: var(--lime, #c7ff22);
+            box-shadow: 0 0 0 0 rgba(199,255,34,0.6);
+            animation: pulse-dot 1.8s ease-out infinite;
+        }
+        @keyframes pulse-dot {
+            0% { box-shadow: 0 0 0 0 rgba(199,255,34,0.55); }
+            70% { box-shadow: 0 0 0 8px rgba(199,255,34,0); }
+            100% { box-shadow: 0 0 0 0 rgba(199,255,34,0); }
+        }
+        .gym-hero h1 {
+            font-family: var(--font-display);
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.01em;
+            font-size: clamp(2rem, 4.5vw, 3rem);
+            line-height: 1.05;
+            margin: 0 0 12px;
+        }
+        .gym-hero h1 mark {
+            background: none;
+            color: var(--lime, #c7ff22);
+            position: relative;
+            padding: 0 2px;
+        }
+        .gym-hero h1 mark::after {
+            content: '';
+            position: absolute;
+            left: 0; right: 0; bottom: 2px;
+            height: 6px;
+            background: rgba(199,255,34,0.22);
+            z-index: -1;
+        }
+        .gym-hero p.sub { color: var(--muted); font-size: 1.05rem; max-width: 560px; margin: 0 auto; }
+
+        .pulse-line { display: block; width: 100%; max-width: 460px; height: 30px; margin: 20px auto 4px; opacity: 0.85; }
+        .pulse-line path {
+            fill: none;
+            stroke: var(--lime, #c7ff22);
+            stroke-width: 2;
+            stroke-linecap: round;
+            stroke-linejoin: round;
+            stroke-dasharray: 480;
+            stroke-dashoffset: 480;
+            animation: draw-pulse 1.6s ease-out forwards;
+        }
+        @keyframes draw-pulse { to { stroke-dashoffset: 0; } }
+
+        /* ---------------- Search ---------------- */
         .gym-search-wrap {
             position: relative;
             max-width: 420px;
@@ -48,6 +133,7 @@ function gym_selection_page(): void
             height: 16px;
             color: var(--muted);
             pointer-events: none;
+            transition: color 0.2s;
         }
         #gym-search {
             width: 100%;
@@ -62,17 +148,20 @@ function gym_selection_page(): void
         }
         #gym-search:focus {
             border-color: rgba(199, 255, 34, 0.5);
-            box-shadow: 0 0 0 3px rgba(199, 255, 34, 0.08);
+            box-shadow: 0 0 0 3px rgba(199, 255, 34, 0.1);
         }
+        #gym-search:focus + svg,
+        .gym-search-wrap:focus-within svg { color: var(--lime, #c7ff22); }
         #gym-search::placeholder { color: var(--muted); }
 
+        /* ---------------- Carousel ---------------- */
         .carousel-wrap { position: relative; }
         .carousel-container {
             display: flex;
             overflow-x: auto;
             scroll-snap-type: x mandatory;
             gap: 20px;
-            padding: 22px 4px;
+            padding: 26px 4px;
             scrollbar-width: none;
             -ms-overflow-style: none;
         }
@@ -92,19 +181,23 @@ function gym_selection_page(): void
             justify-content: center;
             cursor: pointer;
             z-index: 5;
-            transition: border-color 0.2s, color 0.2s;
+            transition: border-color 0.2s, color 0.2s, transform 0.15s;
         }
-        .carousel-nav:hover { border-color: var(--lime); color: var(--lime); }
+        .carousel-nav:hover { border-color: var(--lime); color: var(--lime); transform: translateY(-50%) scale(1.06); }
+        .carousel-nav:focus-visible { outline: 2px solid var(--lime); outline-offset: 2px; }
         .carousel-nav.prev { left: -18px; }
         .carousel-nav.next { right: -18px; }
         .carousel-nav.is-disabled { opacity: 0.25; pointer-events: none; }
         @media (max-width: 640px) { .carousel-nav { display: none; } }
 
+        /* ---------------- Gym card ---------------- */
         .gym-card {
             scroll-snap-align: start;
             flex: 0 0 auto;
             width: 300px;
-            background: linear-gradient(160deg, var(--surface), rgba(255,255,255,0.015));
+            background:
+                radial-gradient(120% 90% at 100% 0%, rgba(199,255,34,0.06), transparent 60%),
+                linear-gradient(160deg, var(--surface), rgba(255,255,255,0.015));
             border: 1px solid var(--line);
             border-radius: 14px;
             padding: 22px;
@@ -123,44 +216,83 @@ function gym_selection_page(): void
             transition: opacity 0.25s;
         }
         .gym-card:hover::before { opacity: 1; }
+        .gym-card:focus-visible { outline: 2px solid var(--lime); outline-offset: 2px; }
         .gym-card.is-filtered-out { display: none; }
+
         .gym-badge {
             position: absolute;
-            top: 0;
-            right: 0;
-            background: var(--lime);
-            color: var(--bg);
-            font-size: 11px;
-            font-weight: bold;
-            padding: 4px 12px;
-            border-radius: 0 14px 0 14px;
-            box-shadow: -2px 2px 10px rgba(0,0,0,0.15);
+            top: 14px;
+            left: -1px;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            background: rgba(199,255,34,0.12);
+            border: 1px solid rgba(199,255,34,0.4);
+            border-left: none;
+            color: var(--lime);
+            font-size: 10.5px;
+            font-weight: 700;
+            letter-spacing: 0.06em;
+            padding: 4px 10px 4px 8px;
+            border-radius: 0 20px 20px 0;
             text-transform: uppercase;
         }
-        .gym-card h3 { margin: 0 0 10px; color: var(--lime); font-size: 1.25rem; }
-        .gym-card p { margin: 0 0 5px; color: var(--muted); font-size: 14px; }
-        .gym-card .stat-row {
-            margin-top: 16px;
-            padding-top: 14px;
-            border-top: 1px solid rgba(255,255,255,0.06);
-            display: flex;
-            justify-content: space-between;
-            color: var(--ink);
-            font-weight: bold;
-            font-size: 0.85rem;
+        .gym-badge .dot {
+            width: 5px; height: 5px; border-radius: 50%;
+            background: var(--lime);
+            box-shadow: 0 0 0 0 rgba(199,255,34,0.6);
+            animation: pulse-dot 1.8s ease-out infinite;
         }
+
+        .gym-card-top { display: flex; align-items: center; gap: 11px; margin-bottom: 12px; margin-top: 4px; }
+        .gym-logo-tile {
+            width: 36px; height: 36px; border-radius: 8px; flex-shrink: 0;
+            background: rgba(199,255,34,0.1);
+            border: 1px solid rgba(199,255,34,0.25);
+            display: flex; align-items: center; justify-content: center;
+            font-family: var(--font-display);
+            font-weight: 600; color: var(--lime);
+            overflow: hidden;
+        }
+        .gym-logo-tile img { width: 100%; height: 100%; object-fit: contain; background: #fff; }
+        .gym-card h3 {
+            margin: 0;
+            font-family: var(--font-display);
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.01em;
+            font-size: 1.18rem;
+            color: var(--ink);
+        }
+        .gym-card .addr-row {
+            display: flex; align-items: flex-start; gap: 6px;
+            margin: 0 0 5px; color: var(--muted); font-size: 13.5px; line-height: 1.4;
+        }
+        .gym-card .addr-row svg { flex-shrink: 0; margin-top: 2px; color: var(--muted); }
+
+        .gym-chip-row { margin-top: 16px; padding-top: 14px; border-top: 1px solid rgba(255,255,255,0.06); display: flex; gap: 8px; flex-wrap: wrap; }
+        .gym-chip {
+            display: inline-flex; align-items: center; gap: 5px;
+            font-size: 11.5px; font-weight: 600; color: var(--ink);
+            background: rgba(255,255,255,0.04);
+            border: 1px solid var(--line);
+            padding: 4px 9px; border-radius: 20px;
+        }
+        .gym-chip svg { color: var(--lime); }
+
         .gym-card .view-hint {
             display: flex;
             align-items: center;
             gap: 4px;
             margin-top: 14px;
             font-size: 0.78rem;
+            font-weight: 600;
             color: var(--lime);
             opacity: 0;
             transform: translateX(-4px);
             transition: opacity 0.2s, transform 0.2s;
         }
-        .gym-card:hover .view-hint { opacity: 1; transform: translateX(0); }
+        .gym-card:hover .view-hint, .gym-card:focus-visible .view-hint { opacity: 1; transform: translateX(0); }
 
         .carousel-dots { display: flex; justify-content: center; gap: 6px; margin-top: 6px; }
         .carousel-dot {
@@ -172,6 +304,9 @@ function gym_selection_page(): void
 
         .gym-no-results { display: none; text-align: center; color: var(--muted); padding: 40px 10px; }
         .gym-no-results.show { display: block; }
+
+        .gym-select .skip-link { text-align: center; margin-top: 34px; }
+        .gym-select .skip-link a { color: var(--muted); text-decoration: underline; font-size: 0.9rem; }
 
         /* ---------------- Modal ---------------- */
         #gymDetailsModal {
@@ -209,6 +344,7 @@ function gym_selection_page(): void
             opacity: 0;
             scrollbar-width: thin;
             scrollbar-color: rgba(199,255,34,0.35) transparent;
+            font-family: var(--font-ui, inherit);
         }
         .gym-details-content::-webkit-scrollbar { width: 6px; }
         .gym-details-content::-webkit-scrollbar-track { background: transparent; }
@@ -230,9 +366,16 @@ function gym_selection_page(): void
             background: rgba(199,255,34,0.12);
             border: 1px solid rgba(199,255,34,0.3);
             display: flex; align-items: center; justify-content: center;
-            font-size: 1.5rem;
+            font-family: var(--font-display);
+            font-size: 1.4rem;
         }
-        .modal-hero h2 { color: var(--ink); font-size: 1.7rem; margin: 0 0 4px; }
+        .modal-hero h2 {
+            font-family: var(--font-display);
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.01em;
+            color: var(--ink); font-size: 1.6rem; margin: 0 0 4px;
+        }
         .modal-hero .addr { color: var(--muted); font-size: 0.95rem; margin: 0; display: flex; align-items: center; gap: 6px; }
         .modal-quickstats {
             display: flex;
@@ -242,20 +385,28 @@ function gym_selection_page(): void
             color: var(--muted);
             flex-wrap: wrap;
         }
-        .modal-quickstats strong { color: var(--lime); }
+        .modal-quickstats strong { color: var(--lime); font-family: var(--font-display); font-weight: 600; }
 
-        .modal-tabs { display: flex; gap: 4px; margin-top: 18px; }
+        .modal-pulse-line { display: block; width: 100%; height: 16px; margin-top: 14px; opacity: 0.5; }
+        .modal-pulse-line path {
+            fill: none; stroke: var(--lime, #c7ff22); stroke-width: 1.5;
+            stroke-linecap: round; stroke-linejoin: round;
+        }
+
+        .modal-tabs { display: flex; gap: 4px; margin-top: 14px; }
         .modal-tab-btn {
+            display: flex; align-items: center; gap: 6px;
             background: transparent;
             border: none;
             color: var(--muted);
-            font-size: 0.9rem;
+            font-size: 0.88rem;
             font-weight: 600;
             padding: 10px 4px;
             margin-right: 22px;
             cursor: pointer;
             position: relative;
         }
+        .modal-tab-btn:focus-visible { outline: 2px solid var(--lime); outline-offset: 3px; }
         .modal-tab-btn .tab-underline {
             position: absolute;
             left: 0; right: 0; bottom: -1px;
@@ -287,6 +438,7 @@ function gym_selection_page(): void
             z-index: 3;
         }
         .close-btn:hover { color: var(--ink); background: rgba(255,255,255,0.08); border-color: var(--lime); }
+        .close-btn:focus-visible { outline: 2px solid var(--lime); outline-offset: 2px; }
 
         .class-card {
             background: rgba(255,255,255,0.03);
@@ -304,6 +456,7 @@ function gym_selection_page(): void
             border-radius: 8px;
             background: rgba(199,255,34,0.1);
             display: flex; align-items: center; justify-content: center;
+            color: var(--lime);
             font-size: 1.05rem;
         }
         .class-card strong { display: block; color: var(--ink); font-size: 1rem; margin-bottom: 4px; }
@@ -342,7 +495,7 @@ function gym_selection_page(): void
             text-transform: uppercase;
         }
         .plan-price-row { display: flex; align-items: baseline; gap: 6px; margin-bottom: 4px; }
-        .plan-price { font-size: 1.8rem; font-weight: bold; color: var(--lime); }
+        .plan-price { font-family: var(--font-display); font-size: 1.9rem; font-weight: 700; color: var(--lime); }
         .plan-per-day { font-size: 0.78rem; color: var(--muted); margin-bottom: 14px; }
         .plan-card .btn { transition: none; }
 
@@ -350,18 +503,33 @@ function gym_selection_page(): void
             .modal-hero { padding: 22px 20px 0; }
             .modal-body-inner { padding: 18px 20px 24px; }
         }
+
+        @media (prefers-reduced-motion: reduce) {
+            .pulse-line path { animation: none; stroke-dashoffset: 0; }
+            .gym-badge .dot, .gym-hero .eyebrow .dot { animation: none; }
+        }
     </style>
 
-    <div class="panel" style="max-width: 1000px; margin: 0 auto;">
-        <div id="gym-header" style="text-align: center; margin-bottom: 30px;">
-            <h1 style="font-size: 2.5rem; margin-bottom: 10px;">Find Your Perfect Gym</h1>
-            <p style="color: var(--muted); font-size: 1.1rem;">
+    <div class="panel gym-select">
+        <div class="gym-hero" id="gym-header">
+            <div class="eyebrow"><span class="dot"></span> Membership</div>
+            <h1>
                 <?php if ($userGoal): ?>
-                    Based on your primary goal (<strong><?= h(ucwords(str_replace('-', ' ', $userGoal))) ?></strong>), here are the gyms available.
+                    Gyms matched to your <mark><?= h(str_replace('-', ' ', $userGoal)) ?></mark> goal
                 <?php else: ?>
-                    Select a gym to view their classes, schedules, and membership plans.
+                    Find your <mark>perfect</mark> gym
+                <?php endif; ?>
+            </h1>
+            <p class="sub">
+                <?php if ($userGoal): ?>
+                    We've flagged the gyms whose classes line up with what you're training for.
+                <?php else: ?>
+                    Browse classes, schedules, and membership plans from every gym on the platform.
                 <?php endif; ?>
             </p>
+            <svg class="pulse-line" viewBox="0 0 460 30" preserveAspectRatio="none" aria-hidden="true">
+                <path d="M0,15 L150,15 L168,3 L184,27 L200,15 L215,15 L228,8 L240,22 L252,15 L460,15" />
+            </svg>
         </div>
 
         <?php if (empty($gymData)): ?>
@@ -380,7 +548,7 @@ function gym_selection_page(): void
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"></path></svg>
                 </button>
                 <div class="carousel-container" id="carousel">
-                    <?php foreach ($gymData as $index => $gym): 
+                    <?php foreach ($gymData as $index => $gym):
                         $isMatch = false;
                         if ($userGoal) {
                             $goalKeywords = explode('-', $userGoal);
@@ -395,24 +563,31 @@ function gym_selection_page(): void
                             }
                         }
                     ?>
-                        <div class="gym-card" style="--lime: <?= !empty($gym['brand_color']) ? h($gym['brand_color']) : '#c7ff22' ?>;" onclick="openGymModal(<?= (int)$index ?>)" data-search="<?= h(mb_strtolower($gym['name'] . ' ' . $gym['address'])) ?>">
+                        <div class="gym-card" tabindex="0" role="button" style="--lime: <?= !empty($gym['brand_color']) ? h($gym['brand_color']) : '#c7ff22' ?>;" onclick="openGymModal(<?= (int)$index ?>)" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openGymModal(<?= (int)$index ?>);}" data-search="<?= h(mb_strtolower($gym['name'] . ' ' . $gym['address'])) ?>">
                             <?php if ($isMatch): ?>
-                                <div class="gym-badge">Recommended</div>
+                                <div class="gym-badge"><span class="dot"></span> Recommended</div>
                             <?php endif; ?>
-                            <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 10px;">
+                            <div class="gym-card-top">
                                 <?php if (!empty($gym['logo_url'])): ?>
-                                    <img src="assets/uploads/<?= h($gym['logo_url']) ?>" alt="Logo" style="width: 32px; height: 32px; object-fit: contain; border-radius: 6px; background: white;">
+                                    <div class="gym-logo-tile"><img src="assets/uploads/<?= h($gym['logo_url']) ?>" alt="<?= h($gym['name']) ?> logo"></div>
                                 <?php else: ?>
-                                    <div style="width: 32px; height: 32px; border-radius: 6px; background: rgba(199,255,34,0.1); display: flex; align-items: center; justify-content: center; font-weight: bold; color: var(--lime); flex-shrink: 0;">
-                                        <?= substr(h($gym['name']), 0, 1) ?>
-                                    </div>
+                                    <div class="gym-logo-tile"><?= substr(h($gym['name']), 0, 1) ?></div>
                                 <?php endif; ?>
-                                <h3 style="margin: 0; font-size: 1.25rem; color: var(--lime);"><?= h($gym['name']) ?></h3>
+                                <h3><?= h($gym['name']) ?></h3>
                             </div>
-                            <p><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle></svg> <?= h($gym['address']) ?></p>
-                            <div class="stat-row">
-                                <span><?= count($gym['classes']) ?> Classes</span>
-                                <span><?= count($gym['plans']) ?> Plans</span>
+                            <p class="addr-row">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle></svg>
+                                <span><?= h($gym['address']) ?></span>
+                            </p>
+                            <div class="gym-chip-row">
+                                <span class="gym-chip">
+                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+                                    <?= count($gym['classes']) ?> Classes
+                                </span>
+                                <span class="gym-chip">
+                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><circle cx="7" cy="7" r="1"/></svg>
+                                    <?= count($gym['plans']) ?> Plans
+                                </span>
                             </div>
                             <div class="view-hint">
                                 View details
@@ -430,9 +605,9 @@ function gym_selection_page(): void
 
             <div class="gym-no-results" id="gym-no-results">No gyms match your search.</div>
         <?php endif; ?>
-        
-        <div style="text-align: center; margin-top: 30px;">
-            <a href="index.php?page=dashboard" style="color: var(--muted); text-decoration: underline;">Skip for now</a>
+
+        <div class="skip-link">
+            <a href="index.php?page=dashboard">Skip for now</a>
         </div>
     </div>
 
@@ -474,13 +649,9 @@ function gym_selection_page(): void
         if (searchWrap) tl.to(searchWrap, { opacity: 1, y: 0, duration: 0.35 }, '-=0.2');
         tl.to(cards, { opacity: 1, y: 0, duration: 0.4, stagger: 0.08 }, '-=0.15');
 
-        document.querySelectorAll('.gym-badge').forEach(function (badge, i) {
-            gsap.to(badge, { scale: 1.08, duration: 0.9, repeat: -1, yoyo: true, ease: 'sine.inOut', delay: i * 0.15 });
-        });
-
         cards.forEach(function (c) {
             c.addEventListener('mouseenter', function () {
-                gsap.to(c, { y: -6, boxShadow: '0 12px 24px rgba(0,0,0,0.25)', borderColor: 'var(--lime)', duration: 0.25, ease: 'power2.out' });
+                gsap.to(c, { y: -6, boxShadow: '0 14px 30px rgba(0,0,0,0.3), 0 0 0 1px rgba(199,255,34,0.25)', borderColor: 'var(--lime)', duration: 0.25, ease: 'power2.out' });
             });
             c.addEventListener('mouseleave', function () {
                 gsap.to(c, { y: 0, boxShadow: '0 0px 0px rgba(0,0,0,0)', borderColor: 'var(--line)', duration: 0.3, ease: 'power2.out' });
@@ -585,8 +756,8 @@ function gym_selection_page(): void
             });
         }
 
-        let logoHtml = gym.logo_url 
-            ? `<img src="assets/uploads/${escapeHtml(gym.logo_url)}" alt="Logo" style="width: 100%; height: 100%; object-fit: contain; border-radius: 10px; background: white;">` 
+        let logoHtml = gym.logo_url
+            ? `<img src="assets/uploads/${escapeHtml(gym.logo_url)}" alt="Logo" style="width: 100%; height: 100%; object-fit: contain; border-radius: 10px; background: white;">`
             : `<span style="color: var(--lime); font-size: 1.5rem;">${escapeHtml(gym.name.charAt(0))}</span>`;
 
         let html = `
@@ -606,11 +777,16 @@ function gym_selection_page(): void
                     <span><strong>${planCount}</strong> plans</span>
                     ${minPrice !== null ? `<span>From <strong>₱${minPrice.toFixed(2)}</strong></span>` : ''}
                 </div>
+                <svg class="modal-pulse-line" viewBox="0 0 500 16" preserveAspectRatio="none" aria-hidden="true">
+                    <path d="M0,8 L200,8 L212,2 L224,14 L236,8 L500,8" />
+                </svg>
                 <div class="modal-tabs">
                     <button type="button" class="modal-tab-btn is-active" id="tabbtn-classes" data-tab="classes">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
                         Classes<span class="tab-underline"></span>
                     </button>
                     <button type="button" class="modal-tab-btn" id="tabbtn-plans" data-tab="plans">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><circle cx="7" cy="7" r="1"/></svg>
                         Membership Plans<span class="tab-underline"></span>
                     </button>
                 </div>
