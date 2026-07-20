@@ -25,7 +25,7 @@ function member_transfers_page(): void
                         // Find or create a "Transfer Plan" for the new gym
                         $transferPlan = $pdo->query("SELECT plan_id FROM membership_plans WHERE gym_id = {$transfer['to_gym_id']} AND plan_name = 'Transferred Membership'")->fetch();
                         if (!$transferPlan) {
-                            $pdo->prepare("INSERT INTO membership_plans (gym_id, plan_name, duration_days, price, description, is_active, plan_scope) VALUES (?, 'Transferred Membership', 30, 0, 'Automatically created for transferred members', 0, 'local')")->execute([$transfer['to_gym_id']]);
+                            $pdo->prepare("INSERT INTO membership_plans (gym_id, plan_name, duration_days, price, description, is_active) VALUES (?, 'Transferred Membership', 30, 0, 'Automatically created for transferred members', 0)")->execute([$transfer['to_gym_id']]);
                             $transferPlanId = $pdo->lastInsertId();
                         } else {
                             $transferPlanId = $transferPlan['plan_id'];

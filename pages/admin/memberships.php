@@ -106,7 +106,6 @@ function memberships_page(): void
         
         if ($paymentStatus === 'paid') {
             process_trainer_commission($paymentId, (float) $finalPrice);
-            process_shared_plan_revenue_split($paymentId, (float) $finalPrice);
             notify_user(
                 $memberUserId,
                 'system',
@@ -224,7 +223,6 @@ function memberships_page(): void
 
             if ($paymentStatus === 'paid') {
                 process_trainer_commission($paymentId, (float) $finalPrice);
-                process_shared_plan_revenue_split($paymentId, (float) $finalPrice);
             }
                 
             $gymOwners = query_all('SELECT owner_user_id FROM gyms');
@@ -250,8 +248,8 @@ function memberships_page(): void
     $gymId = null;
     if ($user['role'] === 'gym_owner') {
         $gymId = (int) scalar('SELECT gym_id FROM gyms WHERE owner_user_id = ?', [$user['user_id']]);
-        $where = 'WHERE m.plan_id IN (SELECT plan_id FROM membership_plans WHERE gym_id = ' . $gymId . ' OR plan_scope = "shared")';
-        $plans = db()->query('SELECT * FROM membership_plans WHERE is_active = 1 AND (gym_id = ' . $gymId . ' OR plan_scope = "shared") ORDER BY price')->fetchAll();
+        $where = 'WHERE m.plan_id IN (SELECT plan_id FROM membership_plans WHERE gym_id = ' . $gymId . ')';
+        $plans = db()->query('SELECT * FROM membership_plans WHERE is_active = 1 AND gym_id = ' . $gymId . ' ORDER BY price')->fetchAll();
     } elseif ($user['role'] === 'member') {
         $where = 'WHERE m.user_id = ' . (int) $user['user_id'];
         $plans = db()->query('SELECT mp.*, g.name AS gym_name FROM membership_plans mp LEFT JOIN gyms g ON g.gym_id = mp.gym_id WHERE mp.is_active = 1 ORDER BY mp.price')->fetchAll();
@@ -348,20 +346,10 @@ function memberships_page(): void
                         <div>
                             <h3 style="margin: 0; font-size: 1.2rem; display: flex; align-items: center; gap: 8px;">
                                 <?= h($plan['plan_name']) ?>
-                                <?php if ($plan['plan_scope'] === 'shared'): ?>
-                                    <span style="font-size: 10px; background: rgba(199,255,34,0.15); color: var(--lime); padding: 2px 6px; border-radius: 12px; font-weight: bold; letter-spacing: 0.5px; text-transform: uppercase;">Shared</span>
-                                <?php else: ?>
-                                    <span style="font-size: 10px; background: rgba(255,255,255,0.1); color: var(--muted); padding: 2px 6px; border-radius: 12px; font-weight: bold; letter-spacing: 0.5px; text-transform: uppercase;">Local</span>
-                                <?php endif; ?>
                             </h3>
                             <p style="color: var(--muted); font-size: 0.9rem; margin-top: 4px;">
                                 <?= h($plan['duration_days']) ?> Days
-                                &bull; 
-                                <?php if ($plan['plan_scope'] === 'shared'): ?>
-                                    Valid at all participating gyms
-                                <?php else: ?>
-                                    Valid only at <?= h($plan['gym_name'] ?: 'this gym') ?>
-                                <?php endif; ?>
+                                &bull; Valid only at <?= h($plan['gym_name'] ?: 'this gym') ?>
                             </p>
                         </div>
                         <div style="font-size: 1.5rem; font-weight: bold; color: var(--lime);">

@@ -12,7 +12,6 @@ require __DIR__ . '/pages/admin/gym_profile.php';
 require __DIR__ . '/pages/admin/settings.php';
 require __DIR__ . '/pages/admin/announcements.php';
 require __DIR__ . '/pages/admin/member_transfers.php';
-require __DIR__ . '/pages/admin/gym_payouts.php';
 require __DIR__ . '/pages/landing.php';
 
 try {
@@ -102,7 +101,6 @@ try {
         'settings' => 'settings_page',
         'announcements' => 'announcements_page',
         'member_transfers' => 'member_transfers_page',
-        'gym_payouts' => 'gym_payouts_page',
     ];
 
     ($routes[$page] ?? $routes['dashboard'])();

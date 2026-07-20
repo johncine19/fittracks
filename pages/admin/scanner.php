@@ -56,7 +56,7 @@ function scanner_page(): void
         } else {
             if ($member['role'] === 'member') {
                 $membership = $pdo->prepare('
-                    SELECT m.membership_id, mp.gym_id, mp.plan_scope, mp.plan_id
+                    SELECT m.membership_id, mp.gym_id, mp.plan_id
                     FROM memberships m
                     JOIN membership_plans mp ON m.plan_id = mp.plan_id
                     WHERE m.user_id = ? AND m.status = "active" AND m.end_date >= CURDATE()
@@ -70,20 +70,9 @@ function scanner_page(): void
                     $hasValidPlan = count($activePlans) > 0;
                 } else {
                     foreach ($activePlans as $plan) {
-                        if ($plan['plan_scope'] === 'local' && (int)$plan['gym_id'] === (int)$currentGymId) {
+                        if ((int)$plan['gym_id'] === (int)$currentGymId) {
                             $hasValidPlan = true;
                             break;
-                        }
-                        if ($plan['plan_scope'] === 'shared') {
-                            if ((int)$plan['gym_id'] === (int)$currentGymId || (int)$plan['gym_id'] === 0) { // If they created it, or it's platform-wide
-                                $hasValidPlan = true;
-                                break;
-                            }
-                            $isOptedIn = scalar('SELECT 1 FROM shared_plan_gyms WHERE plan_id = ? AND gym_id = ? AND status = "approved"', [$plan['plan_id'], $currentGymId]);
-                            if ($isOptedIn) {
-                                $hasValidPlan = true;
-                                break;
-                            }
                         }
                     }
                 }

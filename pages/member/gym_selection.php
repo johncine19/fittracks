@@ -16,10 +16,7 @@ function gym_selection_page(): void
 
         $plans = db()->prepare('
             SELECT * FROM membership_plans 
-            WHERE 
-                (gym_id = :gym_id AND is_active = 1)
-                OR 
-                (plan_id IN (SELECT plan_id FROM shared_plan_gyms WHERE gym_id = :gym_id AND status = "approved") AND plan_scope = "shared" AND is_active = 1)
+            WHERE gym_id = :gym_id AND is_active = 1
             ORDER BY price ASC
         ');
         $plans->execute(['gym_id' => $gym['gym_id']]);
@@ -820,13 +817,11 @@ function gym_selection_page(): void
             gym.plans.forEach(p => {
                 const isBest = p.plan_id === bestValuePlanId && gym.plans.length > 1;
                 const perDay = parseFloat(p.price) / Math.max(1, parseInt(p.duration_days, 10));
-                const scopeBadge = p.plan_scope === 'shared' ? `<span class="plan-scope-badge">Shared</span>` : '';
                 html += `
                     <div class="plan-card${isBest ? ' is-best-value' : ''}">
                         ${isBest ? '<span class="plan-best-badge">Best Value</span>' : ''}
                         <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 10px; margin-top: ${isBest ? '4px' : '0'};">
                             <strong style="font-size: 1.15rem; color: var(--ink);">${escapeHtml(p.plan_name)}</strong>
-                            ${scopeBadge}
                         </div>
                         <div class="plan-price-row">
                             <span class="plan-price">₱${parseFloat(p.price).toFixed(2)}</span>

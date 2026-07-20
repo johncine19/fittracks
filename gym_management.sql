@@ -373,19 +373,18 @@ CREATE TABLE `membership_plans` (
   `is_active` tinyint(1) NOT NULL DEFAULT '1',
   `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `commission_rate` decimal(5,2) NOT NULL DEFAULT '5.00',
-  `gym_id` int UNSIGNED DEFAULT NULL,
-  `plan_scope` enum('local','shared') NOT NULL DEFAULT 'local'
+  `gym_id` int UNSIGNED DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 --
 -- Dumping data for table `membership_plans`
 --
 
-INSERT INTO `membership_plans` (`plan_id`, `plan_name`, `plan_type`, `duration_days`, `price`, `description`, `is_active`, `created_at`, `commission_rate`, `gym_id`, `plan_scope`) VALUES
-(1, 'Monthly Starter', 'monthly', 30, 1200.00, 'Gym access with standard class booking.', 1, '2026-06-24 23:48:32', 40.00, NULL, 'local'),
-(2, 'Quarterly Plus', 'quarterly', 90, 3200.00, 'Best for consistent members and coaching add-ons.', 1, '2026-06-24 23:48:32', 40.00, NULL, 'local'),
-(3, 'Annual Elite', 'annual', 365, 12000.00, 'Full-year access with preferred class scheduling.', 1, '2026-06-24 23:48:32', 40.00, NULL, 'local'),
-(4, 'Weekly Pack', 'custom', 7, 200.00, 'Weekly subscription', 1, '2026-07-02 23:02:41', 40.00, NULL, 'local');
+INSERT INTO `membership_plans` (`plan_id`, `plan_name`, `plan_type`, `duration_days`, `price`, `description`, `is_active`, `created_at`, `commission_rate`, `gym_id`) VALUES
+(1, 'Monthly Starter', 'monthly', 30, 1200.00, 'Gym access with standard class booking.', 1, '2026-06-24 23:48:32', 40.00, NULL),
+(2, 'Quarterly Plus', 'quarterly', 90, 3200.00, 'Best for consistent members and coaching add-ons.', 1, '2026-06-24 23:48:32', 40.00, NULL),
+(3, 'Annual Elite', 'annual', 365, 12000.00, 'Full-year access with preferred class scheduling.', 1, '2026-06-24 23:48:32', 40.00, NULL),
+(4, 'Weekly Pack', 'custom', 7, 200.00, 'Weekly subscription', 1, '2026-07-02 23:02:41', 40.00, NULL);
 
 -- --------------------------------------------------------
 
@@ -515,19 +514,6 @@ CREATE TABLE `progress_logs` (
   `photo_url` varchar(255) DEFAULT NULL,
   `notes` varchar(255) DEFAULT NULL,
   `recorded_by` int UNSIGNED DEFAULT NULL,
-  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
-
--- --------------------------------------------------------
-
---
--- Table structure for table `shared_plan_gyms`
---
-
-CREATE TABLE `shared_plan_gyms` (
-  `plan_id` int UNSIGNED NOT NULL,
-  `gym_id` int UNSIGNED NOT NULL,
-  `status` enum('pending','approved','rejected') NOT NULL DEFAULT 'pending',
   `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
@@ -927,13 +913,6 @@ ALTER TABLE `progress_logs`
   ADD KEY `idx_progress_date` (`user_id`,`log_date`);
 
 --
--- Indexes for table `shared_plan_gyms`
---
-ALTER TABLE `shared_plan_gyms`
-  ADD PRIMARY KEY (`plan_id`,`gym_id`),
-  ADD KEY `fk_spg_gym` (`gym_id`);
-
---
 -- Indexes for table `system_settings`
 --
 ALTER TABLE `system_settings`
@@ -1310,13 +1289,6 @@ ALTER TABLE `payments`
 ALTER TABLE `progress_logs`
   ADD CONSTRAINT `fk_progress_recorder` FOREIGN KEY (`recorded_by`) REFERENCES `users` (`user_id`) ON DELETE SET NULL,
   ADD CONSTRAINT `fk_progress_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`user_id`) ON DELETE CASCADE;
-
---
--- Constraints for table `shared_plan_gyms`
---
-ALTER TABLE `shared_plan_gyms`
-  ADD CONSTRAINT `fk_spg_gym` FOREIGN KEY (`gym_id`) REFERENCES `gyms` (`gym_id`) ON DELETE CASCADE,
-  ADD CONSTRAINT `fk_spg_plan` FOREIGN KEY (`plan_id`) REFERENCES `membership_plans` (`plan_id`) ON DELETE CASCADE;
 
 --
 -- Constraints for table `system_settings`

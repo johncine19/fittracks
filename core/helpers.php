@@ -230,69 +230,6 @@ function process_trainer_commission(int $paymentId, float $amount): void
     }
 }
 
-function process_shared_plan_revenue_split(int $paymentId, float $amount): void
-{
-    $pdo = db();
-    
-    // 1. Get plan details associated with this payment
-    $planInfo = $pdo->query("
-        SELECT mp.plan_id, mp.plan_scope, mp.gym_id AS creator_gym_id
-        FROM payments p
-        JOIN memberships m ON m.membership_id = p.membership_id
-        JOIN membership_plans mp ON mp.plan_id = m.plan_id
-        WHERE p.payment_id = " . (int)$paymentId . "
-        LIMIT 1
-    ")->fetch();
-    
-    if (!$planInfo || $planInfo['plan_scope'] !== 'shared') {
-        return;
-    }
-    
-    $planId = (int)$planInfo['plan_id'];
-    $creatorGymId = $planInfo['creator_gym_id'] ? (int)$planInfo['creator_gym_id'] : null;
-    
-    // 2. Fetch all approved opted-in gym IDs for this plan
-    $optedInGyms = $pdo->query("
-        SELECT gym_id 
-        FROM shared_plan_gyms 
-        WHERE plan_id = " . $planId . " AND status = 'approved'
-    ")->fetchAll(PDO::FETCH_COLUMN);
-    
-    // 3. Compile list of participating gyms
-    $gyms = [];
-    if ($creatorGymId !== null) {
-        $gyms[] = $creatorGymId;
-    }
-    foreach ($optedInGyms as $gid) {
-        $gid = (int)$gid;
-        if (!in_array($gid, $gyms)) {
-            $gyms[] = $gid;
-        }
-    }
-    
-    if (empty($gyms)) {
-        return; // No participating gyms to split with
-    }
-    
-    // 4. Calculate split amount
-    $count = count($gyms);
-    $splitAmount = round($amount / $count, 2);
-    
-    if ($splitAmount <= 0) {
-        return;
-    }
-    
-    // Clean up any existing splits for this payment to avoid duplicates
-    $pdo->prepare("DELETE FROM gym_share_payouts WHERE payment_id = ?")->execute([$paymentId]);
-    
-    // 5. Insert split payouts
-    $stmt = $pdo->prepare("INSERT INTO gym_share_payouts (gym_id, payment_id, amount, status) VALUES (?, ?, ?, 'pending')");
-    foreach ($gyms as $gymId) {
-        $stmt->execute([$gymId, $paymentId, $splitAmount]);
-    }
-}
-
-
 function grant_retroactive_commission(int $memberUserId): void
 {
     $pdo = db();
