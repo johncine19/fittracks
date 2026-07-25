@@ -48,12 +48,12 @@ function my_commissions_page(): void
             </div>
         </div>
 
-        <div style="display:flex; gap:15px; margin-bottom: 20px;">
-            <div style="flex:1; background:var(--bg); padding:15px; border-radius:8px; border:1px solid var(--line);">
+        <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap:15px; margin-bottom: 20px;">
+            <div style="background:var(--bg); padding:15px; border-radius:8px; border:1px solid var(--line);">
                 <div style="color:var(--muted); font-size:13px; margin-bottom:5px;">Pending Earnings</div>
                 <div style="font-size:24px; font-weight:bold; color:var(--ink);"><?= h(money($stats['pending_total'] ?? 0)) ?></div>
             </div>
-            <div style="flex:1; background:var(--bg); padding:15px; border-radius:8px; border:1px solid var(--line);">
+            <div style="background:var(--bg); padding:15px; border-radius:8px; border:1px solid var(--line);">
                 <div style="color:var(--muted); font-size:13px; margin-bottom:5px;">Paid Earnings (All Time)</div>
                 <div style="font-size:24px; font-weight:bold; color:var(--lime);"><?= h(money($stats['paid_total'] ?? 0)) ?></div>
             </div>

@@ -236,15 +236,20 @@ function handle_register(): void
                     <label>PASSWORD</label>
                     <div class="auth-input-group">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
-                        <input type="password" name="password" required minlength="8"
+                        <input type="password" name="password" id="register_password" required minlength="8"
                                placeholder="Min. 8 characters, with a letter and a number"
-                               oninput="this.setCustomValidity(this.value.length < 8 ? 'Password must be at least 8 characters.' : '')"
-                               oninvalid="this.setCustomValidity(this.value.length < 8 ? 'Password must be at least 8 characters.' : 'Please enter a password.')">
+                               oninput="checkPasswordStrength(this.value)">
                     </div>
                 </div>
 
                 <div class="auth-field">
-                    <p class="muted" style="font-size:12px;margin:-4px 0 0;">Must include at least one letter and one number.</p>
+                    <div style="display:flex; gap: 4px; margin-top: 4px; margin-bottom: 4px;">
+                        <div id="pw-str-1" style="height: 4px; flex: 1; border-radius: 2px; background: var(--line);"></div>
+                        <div id="pw-str-2" style="height: 4px; flex: 1; border-radius: 2px; background: var(--line);"></div>
+                        <div id="pw-str-3" style="height: 4px; flex: 1; border-radius: 2px; background: var(--line);"></div>
+                        <div id="pw-str-4" style="height: 4px; flex: 1; border-radius: 2px; background: var(--line);"></div>
+                    </div>
+                    <p id="pw-str-text" class="muted" style="font-size:12px;margin:0;">Must include at least one letter and one number.</p>
                 </div>
 
                 <button type="submit" class="auth-submit-btn">CREATE ACCOUNT <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14"></path><path d="M12 5l7 7-7 7"></path></svg></button>
@@ -265,6 +270,36 @@ function handle_register(): void
             <div class="corner corner-br"></div>
         </div>
     </section>
+    <script>
+    function checkPasswordStrength(pw) {
+        const input = document.getElementById('register_password');
+        let strength = 0;
+        let msg = 'Must include at least one letter and one number.';
+        
+        if (pw.length >= 8) strength++;
+        if (/[A-Za-z]/.test(pw) && /[0-9]/.test(pw)) strength++;
+        if (pw.length >= 12) strength++;
+        if (/[^A-Za-z0-9]/.test(pw)) strength++;
+        
+        if (pw.length === 0) strength = 0;
+
+        const colors = ['var(--line)', '#ff4d5d', '#ff9548', '#facc15', 'var(--lime)'];
+        const text = ['Must include at least one letter and one number.', 'Weak', 'Fair', 'Good', 'Strong'];
+        
+        for (let i = 1; i <= 4; i++) {
+            document.getElementById('pw-str-' + i).style.background = (strength >= i) ? colors[strength] : 'var(--line)';
+        }
+        
+        document.getElementById('pw-str-text').innerText = text[strength] || text[0];
+        document.getElementById('pw-str-text').style.color = (strength > 0) ? colors[strength] : 'var(--muted)';
+        
+        if (strength < 2 && pw.length > 0) {
+            input.setCustomValidity('Password is too weak. Please follow the guidelines.');
+        } else {
+            input.setCustomValidity('');
+        }
+    }
+    </script>
     <?php
     render_footer();
 }

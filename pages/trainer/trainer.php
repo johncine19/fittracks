@@ -69,143 +69,139 @@ function trainer_members_page(): void
     
     render_header('Clients', $user);
     
-    if ($pending_requests) {
-        echo '<section class="panel"><h1>Pending Appointments</h1><div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 20px; margin-bottom: 30px;">';
-        foreach ($pending_requests as $req) {
-            $name = h($req['first_name'] . ' ' . $req['last_name']);
-            $email = h($req['email']);
-            $goal = h(ucwords(str_replace('_', ' ', $req['primary_goal'] ?? 'No goal')));
-            $weight = h($req['weight_kg'] ?? '-');
-            $assignmentId = (int) $req['assignment_id'];
-            $avatarHtml = render_avatar($req, 'large');
-            $csrf = csrf_field();
-            
-            // Format the date/time
-            $dateTimeText = 'Immediate (Ongoing)';
-            if ($req['assigned_date'] && $req['ended_date']) {
-                // This means it's a 1-day appointment
-                $dateTimeText = date('M j, Y g:i A', strtotime($req['assigned_date']));
-            } else {
-                $dateTimeText = date('M j, Y', strtotime($req['assigned_date'])) . ' (Ongoing)';
-            }
+    if ($pending_requests): ?>
+        <section class="panel">
+            <h1>Pending Appointments</h1>
+            <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 20px; margin-bottom: 30px;">
+            <?php foreach ($pending_requests as $req):
+                $name = h($req['first_name'] . ' ' . $req['last_name']);
+                $email = h($req['email']);
+                $goal = h(ucwords(str_replace('_', ' ', $req['primary_goal'] ?? 'No goal')));
+                $weight = h($req['weight_kg'] ?? '-');
+                $assignmentId = (int) $req['assignment_id'];
+                $avatarHtml = render_avatar($req, 'large');
+                $csrf = csrf_field();
+                
+                $dateTimeText = 'Immediate (Ongoing)';
+                if ($req['assigned_date'] && $req['ended_date']) {
+                    $dateTimeText = date('M j, Y g:i A', strtotime($req['assigned_date']));
+                } elseif ($req['assigned_date']) {
+                    $dateTimeText = date('M j, Y', strtotime($req['assigned_date'])) . ' (Ongoing)';
+                }
+            ?>
+                <article class="panel plan-card-glow" style="display: flex; flex-direction: column; gap: 1rem; background: var(--surface); padding: 1.5rem; border: 1px solid var(--lime);">
+                    <div style="display: flex; gap: 15px; align-items: center;">
+                        <div><?= $avatarHtml ?></div>
+                        <div>
+                            <h3 style="margin: 0; font-size: 1.2rem; color: var(--ink);"><?= $name ?></h3>
+                            <p style="color: var(--muted); font-size: 0.9rem; margin-top: 4px;"><?= $email ?></p>
+                        </div>
+                    </div>
+                    <div style="font-size: 1.1rem; font-weight: bold; color: var(--lime); margin-top: 0.5rem;">Goal: <?= $goal ?></div>
+                    <p style="font-size: 0.9rem; color: var(--muted); margin-bottom: 0;">Current weight: <?= $weight ?> kg</p>
+                    <div style="background: rgba(163, 230, 53, 0.1); border-radius: 8px; padding: 10px; border: 1px solid rgba(163, 230, 53, 0.2); flex: 1;">
+                        <div style="font-size: 0.8rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px;">Appointment Date</div>
+                        <div style="font-size: 0.95rem; font-weight: 500; color: var(--ink);"><?= $dateTimeText ?></div>
+                    </div>
+                    <div style="display: flex; gap: 10px; margin-top: 0.5rem;">
+                        <form method="post" style="flex: 1;">
+                            <?= $csrf ?>
+                            <input type="hidden" name="action" value="accept_appointment">
+                            <input type="hidden" name="assignment_id" value="<?= $assignmentId ?>">
+                            <button class="btn" style="width: 100%; background: var(--lime); color: var(--bg); font-weight: bold;">Accept</button>
+                        </form>
+                        <button class="btn btn-danger" style="flex: 1;" onclick="rejectAppointment(<?= $assignmentId ?>)">Reject</button>
+                    </div>
+                </article>
+            <?php endforeach; ?>
+            </div>
+        </section>
+    <?php endif; ?>
 
-            echo <<<HTML
-            <article class="panel plan-card-glow" style="display: flex; flex-direction: column; gap: 1rem; background: var(--surface); padding: 1.5rem; border: 1px solid var(--lime);">
+    <section class="panel">
+        <h1>Assigned clients</h1>
+        <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 20px;">
+        <style>
+        .t-btn-primary { background: var(--lime); color: var(--bg); font-weight: bold; width: 100%; border: none; cursor: pointer; padding: 10px; transition: all 0.2s ease; border-radius: 4px; }
+        .t-btn-primary:hover { filter: brightness(0.85); transform: translateY(-1px); box-shadow: 0 4px 12px rgba(163, 230, 53, 0.2); }
+        .t-btn-secondary { background: color-mix(in srgb, var(--bg) 50%, transparent); border: 1px solid var(--line); color: var(--ink); padding: 10px; font-size: 13px; text-align: center; text-decoration: none; transition: all 0.2s ease; border-radius: 4px; }
+        .t-btn-secondary:hover { background: color-mix(in srgb, var(--lime) 10%, transparent); border-color: var(--lime); color: var(--lime); transform: translateY(-1px); }
+        .t-btn-send { padding: 6px 12px; background: var(--lime); color: var(--bg); font-weight: bold; border: none; font-size: 13px; transition: all 0.2s ease; border-radius: 4px; cursor: pointer; }
+        .t-btn-send:hover { filter: brightness(0.85); transform: scale(1.05); }
+        </style>
+        
+        <?php foreach ($members as $member):
+            $name = h($member['first_name'] . ' ' . $member['last_name']);
+            $email = h($member['email']);
+            $goal = h(ucwords(str_replace('_', ' ', $member['primary_goal'] ?? 'No goal')));
+            $weight = h($member['weight_kg'] ?? '-');
+            $memberId = (int) $member['member_user_id'];
+            $csrf = csrf_field();
+            $avatarHtml = render_avatar($member, 'large');
+            
+            $dateTimeText = 'Immediate (Ongoing)';
+            if ($member['assigned_date'] && $member['ended_date']) {
+                $dateTimeText = date('M j, Y g:i A', strtotime($member['assigned_date']));
+            } elseif ($member['assigned_date']) {
+                $dateTimeText = date('M j, Y', strtotime($member['assigned_date'])) . ' (Ongoing)';
+            }
+        ?>
+            <article class="panel plan-card-glow" style="display: flex; flex-direction: column; gap: 1rem; background: var(--surface); padding: 1.5rem;">
                 <div style="display: flex; gap: 15px; align-items: center;">
-                    <div>{$avatarHtml}</div>
+                    <div><?= $avatarHtml ?></div>
                     <div>
-                        <h3 style="margin: 0; font-size: 1.2rem; color: var(--ink);">{$name}</h3>
-                        <p style="color: var(--muted); font-size: 0.9rem; margin-top: 4px;">{$email}</p>
+                        <h3 style="margin: 0; font-size: 1.2rem; color: var(--ink);"><?= $name ?></h3>
+                        <p style="color: var(--muted); font-size: 0.9rem; margin-top: 4px;"><?= $email ?></p>
                     </div>
                 </div>
-                <div style="font-size: 1.1rem; font-weight: bold; color: var(--lime); margin-top: 0.5rem;">Goal: {$goal}</div>
-                <p style="font-size: 0.9rem; color: var(--muted); margin-bottom: 0;">Current weight: {$weight} kg</p>
-                <div style="background: rgba(163, 230, 53, 0.1); border-radius: 8px; padding: 10px; border: 1px solid rgba(163, 230, 53, 0.2); flex: 1;">
-                    <div style="font-size: 0.8rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px;">Appointment Date</div>
-                    <div style="font-size: 0.95rem; font-weight: 500; color: var(--ink);">{$dateTimeText}</div>
+                
+                <div style="font-size: 1.3rem; font-weight: bold; color: var(--lime); margin-top: 0.5rem;">
+                    <?= $goal ?>
                 </div>
-                <div style="display: flex; gap: 10px; margin-top: 0.5rem;">
-                    <form method="post" style="flex: 1;">
-                        {$csrf}
-                        <input type="hidden" name="action" value="accept_appointment">
-                        <input type="hidden" name="assignment_id" value="{$assignmentId}">
-                        <button class="btn" style="width: 100%; background: var(--lime); color: var(--bg); font-weight: bold;">Accept</button>
-                    </form>
-                    <button class="btn btn-danger" style="flex: 1;" onclick="rejectAppointment({$assignmentId})">Reject</button>
+                
+                <p style="font-size: 0.9rem; color: var(--muted); margin-bottom: 0;">
+                    Current recorded weight: <?= $weight ?> kg
+                </p>
+                
+                <div style="background: rgba(163, 230, 53, 0.05); border-radius: 8px; padding: 10px; border: 1px solid rgba(163, 230, 53, 0.1); flex: 1;">
+                    <div style="font-size: 0.8rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px;">Assignment Date</div>
+                    <div style="font-size: 0.95rem; font-weight: 500; color: var(--ink);"><?= $dateTimeText ?></div>
+                </div>
+                
+                <div style="display: flex; flex-direction: column; gap: 10px; margin-top: 0.5rem;">
+                    <a href="index.php?page=trainer_assessment&member_user_id=<?= $memberId ?>" class="btn t-btn-secondary" style="text-align:center; text-decoration:none; display: block; border-color: var(--lime); color: var(--lime);">
+                        Update Assessment
+                    </a>
+                    <a href="index.php?page=workout_builder&member_user_id=<?= $memberId ?>" class="btn t-btn-primary" style="text-align:center; text-decoration:none;">
+                        Generate Workout
+                    </a>
+                    <a href="index.php?page=diet_builder&member_user_id=<?= $memberId ?>" class="btn t-btn-primary" style="text-align:center; text-decoration:none; background: #3b82f6; color: white;">
+                        Build Diet Plan
+                    </a>
+                    
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                        <a class="btn t-btn-secondary" href="index.php?page=training&member_user_id=<?= $memberId ?>">
+                            Training Plan
+                        </a>
+                        <a class="btn t-btn-secondary" href="index.php?page=progress&member_user_id=<?= $memberId ?>">
+                            Progress
+                        </a>
+                    </div>
+                    
+                    <a class="btn t-btn-secondary" href="index.php?page=messages&chat=<?= $memberId ?>" style="display: flex; gap: 8px; justify-content: center; align-items: center; border-color: transparent; background: color-mix(in srgb, var(--bg) 80%, transparent);">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+                            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+                        </svg>
+                        Message Client
+                    </a>
                 </div>
             </article>
-HTML;
-        }
-        echo '</div></section>';
-    }
-
-    echo '<section class="panel"><h1>Assigned clients</h1><div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 20px;">';
-    echo <<<HTML
-    <style>
-    .t-btn-primary { background: var(--lime); color: var(--bg); font-weight: bold; width: 100%; border: none; cursor: pointer; padding: 10px; transition: all 0.2s ease; border-radius: 4px; }
-    .t-btn-primary:hover { filter: brightness(0.85); transform: translateY(-1px); box-shadow: 0 4px 12px rgba(163, 230, 53, 0.2); }
-    .t-btn-secondary { background: color-mix(in srgb, var(--bg) 50%, transparent); border: 1px solid var(--line); color: var(--ink); padding: 10px; font-size: 13px; text-align: center; text-decoration: none; transition: all 0.2s ease; border-radius: 4px; }
-    .t-btn-secondary:hover { background: color-mix(in srgb, var(--lime) 10%, transparent); border-color: var(--lime); color: var(--lime); transform: translateY(-1px); }
-    .t-btn-send { padding: 6px 12px; background: var(--lime); color: var(--bg); font-weight: bold; border: none; font-size: 13px; transition: all 0.2s ease; border-radius: 4px; cursor: pointer; }
-    .t-btn-send:hover { filter: brightness(0.85); transform: scale(1.05); }
-    </style>
-HTML;
-
-    foreach ($members as $member) {
-        $name = h($member['first_name'] . ' ' . $member['last_name']);
-        $email = h($member['email']);
-        $goal = h(ucwords(str_replace('_', ' ', $member['primary_goal'] ?? 'No goal')));
-        $weight = h($member['weight_kg'] ?? '-');
-        $memberId = (int) $member['member_user_id'];
-        $csrf = csrf_field();
-        $avatarHtml = render_avatar($member, 'large'); // Using large size for the card
-        
-        // Format the date/time
-        $dateTimeText = 'Immediate (Ongoing)';
-        if ($member['assigned_date'] && $member['ended_date']) {
-            $dateTimeText = date('M j, Y g:i A', strtotime($member['assigned_date']));
-        } elseif ($member['assigned_date']) {
-            $dateTimeText = date('M j, Y', strtotime($member['assigned_date'])) . ' (Ongoing)';
-        }
-
-        echo <<<HTML
-        <article class="panel plan-card-glow" style="display: flex; flex-direction: column; gap: 1rem; background: var(--surface); padding: 1.5rem;">
-            <div style="display: flex; gap: 15px; align-items: center;">
-                <div>
-                    {$avatarHtml}
-                </div>
-                <div>
-                    <h3 style="margin: 0; font-size: 1.2rem; color: var(--ink);">{$name}</h3>
-                    <p style="color: var(--muted); font-size: 0.9rem; margin-top: 4px;">{$email}</p>
-                </div>
-            </div>
-            
-            <div style="font-size: 1.3rem; font-weight: bold; color: var(--lime); margin-top: 0.5rem;">
-                {$goal}
-            </div>
-            
-            <p style="font-size: 0.9rem; color: var(--muted); margin-bottom: 0;">
-                Current recorded weight: {$weight} kg
-            </p>
-            
-            <div style="background: rgba(163, 230, 53, 0.05); border-radius: 8px; padding: 10px; border: 1px solid rgba(163, 230, 53, 0.1); flex: 1;">
-                <div style="font-size: 0.8rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px;">Assignment Date</div>
-                <div style="font-size: 0.95rem; font-weight: 500; color: var(--ink);">{$dateTimeText}</div>
-            </div>
-            
-            <div style="display: flex; flex-direction: column; gap: 10px; margin-top: 0.5rem;">
-                <a href="index.php?page=trainer_assessment&member_user_id={$memberId}" class="btn t-btn-secondary" style="text-align:center; text-decoration:none; display: block; border-color: var(--lime); color: var(--lime);">
-                    Update Assessment
-                </a>
-                <a href="index.php?page=workout_builder&member_user_id={$memberId}" class="btn t-btn-primary" style="text-align:center; text-decoration:none;">
-                    Generate Workout
-                </a>
-                <a href="index.php?page=diet_builder&member_user_id={$memberId}" class="btn t-btn-primary" style="text-align:center; text-decoration:none; background: #3b82f6; color: white;">
-                    Build Diet Plan
-                </a>
-                
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
-                    <a class="btn t-btn-secondary" href="index.php?page=training&member_user_id={$memberId}">
-                        Training Plan
-                    </a>
-                    <a class="btn t-btn-secondary" href="index.php?page=progress&member_user_id={$memberId}">
-                        Progress
-                    </a>
-                </div>
-                
-                <a class="btn t-btn-secondary" href="index.php?page=messages&chat={$memberId}" style="display: flex; gap: 8px; justify-content: center; align-items: center; border-color: transparent; background: color-mix(in srgb, var(--bg) 80%, transparent);">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
-                        <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
-                    </svg>
-                    Message Client
-                </a>
-            </div>
-        </article>
-HTML;
-    }
-    if (!$members) echo '<p class="muted">No assigned clients yet. Admins can assign trainers from the Trainers page.</p>';
-    echo '</div></section>';
-    ?>
+        <?php endforeach; ?>
+        <?php if (!$members): ?>
+            <p class="muted">No assigned clients yet. Admins can assign trainers from the Trainers page.</p>
+        <?php endif; ?>
+        </div>
+    </section>
     <script>
     function rejectAppointment(assignmentId) {
         Swal.fire({

@@ -211,11 +211,11 @@ function progress_page(): void
                         datasets: [{
                             label: 'Weight (kg)',
                             data: <?= json_encode($chartWeights, JSON_HEX_TAG) ?>,
-                            borderColor: '#c7ff22',
-                            backgroundColor: 'rgba(199,255,34,0.08)',
+                            borderColor: 'var(--lime)',
+                            backgroundColor: 'color-mix(in srgb, var(--lime) 8%, transparent)',
                             borderWidth: 2,
                             pointRadius: 4,
-                            pointBackgroundColor: '#c7ff22',
+                            pointBackgroundColor: 'var(--lime)',
                             tension: 0.3,
                             fill: true,
                         }]
@@ -238,7 +238,37 @@ function progress_page(): void
 
         <!-- History table -->
         <h2 style="margin-bottom:12px;">History</h2>
-        <?= render_simple_table($rows, ['log_date', 'weight_kg', 'body_fat_percent', 'waist_cm', 'chest_cm', 'arm_cm', 'notes']) ?>
+        <div class="table-wrap">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Date</th>
+                        <th>Weight</th>
+                        <th>Body Fat</th>
+                        <th>Waist</th>
+                        <th>Chest</th>
+                        <th>Arm</th>
+                        <th>Notes</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <?php foreach ($rows as $row): ?>
+                        <tr>
+                            <td><?= h(date('M j, Y', strtotime($row['log_date']))) ?></td>
+                            <td><?= $row['weight_kg'] ? h($row['weight_kg']) . ' kg' : '-' ?></td>
+                            <td><?= $row['body_fat_percent'] ? h($row['body_fat_percent']) . '%' : '-' ?></td>
+                            <td><?= $row['waist_cm'] ? h($row['waist_cm']) . ' cm' : '-' ?></td>
+                            <td><?= $row['chest_cm'] ? h($row['chest_cm']) . ' cm' : '-' ?></td>
+                            <td><?= $row['arm_cm'] ? h($row['arm_cm']) . ' cm' : '-' ?></td>
+                            <td><?= h($row['notes']) ?></td>
+                        </tr>
+                    <?php endforeach; ?>
+                    <?php if (!$rows): ?>
+                        <tr><td colspan="7" style="text-align:center; padding: 20px; color: var(--muted);">No progress logs yet.</td></tr>
+                    <?php endif; ?>
+                </tbody>
+            </table>
+        </div>
     </section>
     
     <script>

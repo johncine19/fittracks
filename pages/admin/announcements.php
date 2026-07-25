@@ -38,7 +38,23 @@ function announcements_page(): void
 
     render_header('Announcements', $user);
 ?>
-    <section class="panel">
+    <div class="skeleton-wrapper">
+        <section class="panel">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:24px">
+                <div>
+                    <div class="sk sk-title" style="width:140px;margin-bottom:8px"></div>
+                    <div class="sk sk-text" style="width:280px;height:12px"></div>
+                </div>
+                <div class="sk sk-rect" style="width:160px;height:36px;border-radius:18px"></div>
+            </div>
+            <div style="margin-top:24px; display: grid; gap: 20px;">
+                <?php for($i = 0; $i < 3; $i++): ?>
+                    <div class="sk sk-rect" style="width:100%;height:140px;border-radius:12px"></div>
+                <?php endfor; ?>
+            </div>
+        </section>
+    </div>
+    <section class="panel skeleton-content sk-display-block">
         <div class="page-header">
             <div>
                 <h1>Announcements</h1>
@@ -112,7 +128,7 @@ function announcements_page(): void
                                     <?= csrf_field() ?>
                                     <input type="hidden" name="announcement_id" value="<?= (int) $ann['announcement_id'] ?>">
                                     <input type="hidden" name="action" value="delete">
-                                    <button type="submit" class="btn-sm btn-ghost" style="color:var(--danger)" data-confirm="Are you sure you want to delete this announcement?">Delete</button>
+                                    <button type="submit" class="btn-sm btn-ghost" style="color:var(--danger)" data-confirm="Are you sure you want to delete this announcement?" data-confirm-btn="Yes, delete">Delete</button>
                                 </form>
                             </td>
                         </tr>

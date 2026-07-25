@@ -303,17 +303,27 @@ function diet_builder_page(): void
                 
                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
                     <label>Calories
-                        <input type="number" name="calories" min="0" value="0">
+                        <input type="number" name="calories" id="calc_cals" min="0" value="0" readonly style="background:var(--bg); border-color:transparent;">
                     </label>
                     <label>Protein (g)
-                        <input type="number" name="protein_g" min="0" value="0">
+                        <input type="number" name="protein_g" id="calc_p" min="0" value="0" oninput="updateMacros()">
                     </label>
                     <label>Carbs (g)
-                        <input type="number" name="carbs_g" min="0" value="0">
+                        <input type="number" name="carbs_g" id="calc_c" min="0" value="0" oninput="updateMacros()">
                     </label>
                     <label>Fat (g)
-                        <input type="number" name="fat_g" min="0" value="0">
+                        <input type="number" name="fat_g" id="calc_f" min="0" value="0" oninput="updateMacros()">
                     </label>
+                </div>
+                
+                <script>
+                function updateMacros() {
+                    const p = parseInt(document.getElementById('calc_p').value) || 0;
+                    const c = parseInt(document.getElementById('calc_c').value) || 0;
+                    const f = parseInt(document.getElementById('calc_f').value) || 0;
+                    document.getElementById('calc_cals').value = (p * 4) + (c * 4) + (f * 9);
+                }
+                </script>
                 </div>
                 
                 <button class="btn btn-primary" style="margin-top: 10px; width: 100%;">Add Meal</button>

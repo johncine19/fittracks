@@ -84,7 +84,7 @@ function trainers_page(): void
                         <input type="hidden" name="trainer_id" value="<?= (int) $trainer['trainer_id'] ?>">
                         <?php if ($existingAssignment): ?>
                             <?php if ($existingAssignment['trainer_id'] == $trainer['trainer_id']): ?>
-                                <button type="button" class="btn" style="width: 100%; background: var(--surface); color: var(--muted); border: 1px solid var(--line); cursor: not-allowed;" disabled>
+                                <button type="button" class="btn" style="width: 100%; background: rgba(199,255,34,0.1); color: var(--lime); border: 1px solid var(--lime); cursor: not-allowed; font-weight: 600;" disabled>
                                     <?= $existingAssignment['status'] === 'active' ? 'Currently Assigned' : 'Request Pending' ?>
                                 </button>
                             <?php else: ?>
@@ -92,9 +92,9 @@ function trainers_page(): void
                             <?php endif; ?>
                         <?php elseif (!$hasActivePlan): ?>
                             <input type="hidden" name="appointment_date" id="date-<?= $trainer['trainer_id'] ?>" value="">
-                            <button type="button" onclick="requestTrainerDate(<?= $trainer['trainer_id'] ?>)" class="btn" style="width: 100%; background: var(--surface); color: var(--ink); border: 1px solid var(--line);">Request Appointment</button>
+                            <button type="button" onclick="requestTrainerDate(<?= $trainer['trainer_id'] ?>)" class="btn" style="width: 100%; background: var(--lime); color: var(--bg); border: none; font-weight: 600;">Request Appointment</button>
                         <?php else: ?>
-                            <button type="submit" class="btn" style="width: 100%; background: var(--surface); color: var(--ink); border: 1px solid var(--line);">Request Appointment</button>
+                            <button type="submit" class="btn" style="width: 100%; background: var(--lime); color: var(--bg); border: none; font-weight: 600;">Request Appointment</button>
                         <?php endif; ?>
                     </form>
                 </div>

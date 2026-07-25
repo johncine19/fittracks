@@ -31,7 +31,22 @@ function attendance_page(): void
 
     render_header('Attendance', $user);
     ?>
-    <section class="panel">
+    <div class="skeleton-wrapper">
+        <section class="panel">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:24px">
+                <div>
+                    <div class="sk sk-title" style="width:140px;margin-bottom:8px"></div>
+                    <div class="sk sk-text" style="width:280px;height:12px"></div>
+                </div>
+                <div class="sk sk-rect" style="width:140px;height:36px;border-radius:18px"></div>
+            </div>
+            <div style="margin-top:24px">
+                <div class="sk sk-title" style="width:180px;margin-bottom:12px"></div>
+                <?php render_skeleton_table(8, 7); ?>
+            </div>
+        </section>
+    </div>
+    <section class="panel skeleton-content sk-display-block">
         <div class="page-header">
             <div>
                 <h1>Attendance</h1>

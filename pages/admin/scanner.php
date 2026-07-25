@@ -13,7 +13,8 @@ function scanner_page(): void
     }
 
     if (!$currentGymId && $user['role'] !== 'platform_admin') {
-        die('You are not associated with any gym.');
+        flash('You are not associated with any gym. Please contact an administrator.', 'danger');
+        redirect('dashboard');
     }
     
     // Handle AJAX check-in request

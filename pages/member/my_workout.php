@@ -30,7 +30,7 @@ function my_workout_page(): void
     ?>
     <div>
         <!-- Glassmorphic Banner -->
-        <div class="animate-fade-in" style="background: linear-gradient(135deg, rgba(199,255,34,0.1) 0%, rgba(66,219,165,0.05) 100%); border: 1px solid rgba(199,255,34,0.2); border-radius: 16px; padding: 28px 32px; margin-bottom: 24px; box-shadow: 0 4px 24px rgba(0,0,0,0.1); backdrop-filter: blur(16px); display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 16px;">
+        <div class="animate-fade-in" style="background: linear-gradient(135deg, color-mix(in srgb, var(--lime) 10%, transparent) 0%, color-mix(in srgb, var(--lime) 5%, transparent) 100%); border: 1px solid color-mix(in srgb, var(--lime) 20%, transparent); border-radius: 16px; padding: 28px 32px; margin-bottom: 24px; box-shadow: 0 4px 24px rgba(0,0,0,0.1); backdrop-filter: blur(16px); display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 16px;">
             <div>
                 <h1 style="margin: 0; font-size: 26px; color: var(--ink); display: flex; align-items: center; gap: 12px;">
                     <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="var(--lime)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8h1a4 4 0 0 1 0 8h-1"/><path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z"/><line x1="6" y1="1" x2="6" y2="4"/><line x1="10" y1="1" x2="10" y2="4"/><line x1="14" y1="1" x2="14" y2="4"/></svg>
@@ -47,9 +47,9 @@ function my_workout_page(): void
             
             <?php if (!$hasTrainerPlan): ?>
             <div style="display:flex; gap:12px;">
-                <form method="post" onsubmit="return confirm('<?= $plan ? 'This will archive your current plan and generate a new one. Continue?' : 'Generate a new AI workout plan?' ?>');" style="margin:0;">
+                <form method="post" style="margin:0;">
                     <?= csrf_field() ?>
-                    <button type="submit" style="background: var(--lime); border: none; color: var(--bg); padding: 10px 16px; border-radius: 8px; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 8px; transition: opacity 0.2s;">
+                    <button type="submit" data-confirm="<?= $plan ? 'This will archive your current plan and generate a new one. Continue?' : 'Generate a new AI workout plan?' ?>" data-confirm-btn="<?= $plan ? 'Yes, regenerate' : 'Yes, generate' ?>" style="background: var(--lime); border: none; color: var(--bg); padding: 10px 16px; border-radius: 8px; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 8px; transition: opacity 0.2s;">
                         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.92-10.26l5.67-5.67"/></svg>
                         <?= $plan ? 'Regenerate Plan' : 'Generate Plan' ?>
                     </button>

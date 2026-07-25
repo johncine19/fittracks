@@ -329,6 +329,11 @@ function setup_goal_page(): void
             </div>
 
             <div class="auth-card-header" style="position:relative; z-index:1;">
+                <div style="display:flex; justify-content:center; gap: 8px; margin-bottom: 20px;">
+                    <div style="width:30px; height:6px; border-radius:3px; background:var(--lime); opacity:0.3;"></div>
+                    <div style="width:30px; height:6px; border-radius:3px; background:var(--lime); opacity:0.3;"></div>
+                    <div style="width:30px; height:6px; border-radius:3px; background:var(--lime);"></div>
+                </div>
                 <h1 class="auth-title" style="font-size:1.8rem;">Select Your Primary Goal</h1>
                 <p class="auth-subtitle">Choose the specific outcome you want to achieve. This helps us generate the perfect plan for you.</p>
             </div>

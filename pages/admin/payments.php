@@ -17,7 +17,6 @@ function payments_page(): void
         if ($status === 'paid') {
             db()->prepare('UPDATE memberships SET status = "active" WHERE membership_id = ? AND status = "pending"')->execute([$membershipId]);
             process_trainer_commission($paymentId, (float) post('amount'));
-            process_shared_plan_revenue_split($paymentId, (float) post('amount'));
         }
 
         $paymentInfo = query_all(
@@ -95,7 +94,20 @@ function payments_page(): void
             <?php endif; ?>
         </div>
 
-
+        <?php
+            $totalCollected = (float) scalar('SELECT SUM(pm.amount) FROM payments pm JOIN memberships m ON pm.membership_id = m.membership_id JOIN membership_plans p ON p.plan_id = m.plan_id ' . ($paymentWhere ? str_replace('WHERE', 'WHERE pm.status=\'paid\' AND', $paymentWhere) : 'WHERE pm.status=\'paid\''));
+            $totalPending = (int) scalar('SELECT COUNT(*) FROM payments pm JOIN memberships m ON pm.membership_id = m.membership_id JOIN membership_plans p ON p.plan_id = m.plan_id ' . ($paymentWhere ? str_replace('WHERE', 'WHERE pm.status=\'pending\' AND', $paymentWhere) : 'WHERE pm.status=\'pending\''));
+        ?>
+        <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap:15px; margin-bottom: 24px;">
+            <div style="background:var(--bg); padding:16px; border-radius:8px; border:1px solid var(--line);">
+                <div style="color:var(--muted); font-size:13px; margin-bottom:4px;">Total Collected</div>
+                <div style="font-size:24px; font-weight:bold; color:var(--lime);"><?= h(money($totalCollected)) ?></div>
+            </div>
+            <div style="background:var(--bg); padding:16px; border-radius:8px; border:1px solid var(--line);">
+                <div style="color:var(--muted); font-size:13px; margin-bottom:4px;">Pending Payments</div>
+                <div style="font-size:24px; font-weight:bold; color:var(--ink);"><?= $totalPending ?></div>
+            </div>
+        </div>
 
         <p class="section-label">Payment history</p>
         <?php if (!$rows): ?>

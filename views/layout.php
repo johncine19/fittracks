@@ -79,7 +79,7 @@ function render_header(string $title, ?array $user = null): void
         <link rel="stylesheet" href="assets/app.css">
         <?php if ($gym && !empty($gym['brand_color'])): ?>
             <style>
-                :root, [data-theme="light"] {
+                :root, [data-theme="light"], [data-theme="dark"] {
                     --lime: <?= h($gym['brand_color']) ?> !important;
                     --lime-dark: color-mix(in srgb, <?= h($gym['brand_color']) ?> 80%, black) !important;
                 }

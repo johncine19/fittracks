@@ -300,6 +300,21 @@ function walk_ins_page(): void
             </div>
         </dialog>
 
+        <?php
+            $todayRevenue = (float) scalar('SELECT SUM(amount_paid) FROM walk_in_transactions WHERE DATE(visit_date) = CURDATE()');
+            $todayCount = (int) scalar('SELECT COUNT(*) FROM walk_in_transactions WHERE DATE(visit_date) = CURDATE()');
+        ?>
+        <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap:15px; margin-bottom: 24px;">
+            <div style="background:var(--bg); padding:16px; border-radius:8px; border:1px solid var(--line);">
+                <div style="color:var(--muted); font-size:13px; margin-bottom:4px;">Today's Walk-in Revenue</div>
+                <div style="font-size:24px; font-weight:bold; color:var(--lime);"><?= h(money($todayRevenue)) ?></div>
+            </div>
+            <div style="background:var(--bg); padding:16px; border-radius:8px; border:1px solid var(--line);">
+                <div style="color:var(--muted); font-size:13px; margin-bottom:4px;">Today's Walk-in Visitors</div>
+                <div style="font-size:24px; font-weight:bold; color:var(--ink);"><?= $todayCount ?></div>
+            </div>
+        </div>
+
         <?php if (!$rows): ?>
             <div class="empty-state">
                 <p>No walk-in transactions found.</p>

@@ -26,21 +26,29 @@ function handle_export(string $type, string $format, array $data): void
         <head>
             <title><?= h(ucfirst($type)) ?> Report</title>
             <style>
-                body { font-family: sans-serif; padding: 20px; }
-                table { border-collapse: collapse; width: 100%; margin-top: 20px; }
-                th, td { border: 1px solid #ccc; padding: 8px; text-align: left; }
-                th { background: #f4f4f4; }
+                @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+                body { font-family: 'Inter', sans-serif; padding: 40px; color: #111827; background: #fff; }
+                table { border-collapse: collapse; width: 100%; margin-top: 20px; font-size: 13px; }
+                th, td { border: 1px solid #e5e7eb; padding: 12px 16px; text-align: left; }
+                th { background: #f9fafb; font-weight: 600; color: #374151; text-transform: uppercase; letter-spacing: 0.05em; font-size: 12px; }
+                h2 { color: #111827; margin-bottom: 5px; font-size: 24px; }
+                .report-date { color: #6b7280; font-size: 14px; margin-bottom: 30px; }
+                button { background: #111827; color: white; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-weight: 500; margin-right: 10px; }
+                button.secondary { background: #f3f4f6; color: #374151; }
                 @media print {
-                    .no-print { display: none; }
+                    .no-print { display: none !important; }
+                    body { padding: 0; }
+                    th { background: #f9fafb !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
                 }
             </style>
         </head>
         <body>
-            <div class="no-print" style="margin-bottom: 20px;">
+            <div class="no-print" style="margin-bottom: 30px; border-bottom: 1px solid #e5e7eb; padding-bottom: 20px;">
                 <button onclick="window.print()">Print / Save as PDF</button>
-                <button onclick="window.close()">Close</button>
+                <button onclick="window.close()" class="secondary">Close</button>
             </div>
-            <h2><?= h(ucfirst($type)) ?> Report - <?= h(date('Y-m-d')) ?></h2>
+            <h2><?= h(ucfirst($type)) ?> Report</h2>
+            <div class="report-date">Generated on <?= h(date('F j, Y g:i A')) ?></div>
             <table>
                 <?php if (!empty($data)): ?>
                     <thead>
