@@ -2126,3 +2126,230 @@ body.loaded .skeleton-content.sk-display-flex {
     background: var(--surface);
     z-index: 10;
 }
+
+/* UI/UX Utility Additions */
+
+/* 1. Macro Ring & Bar Visualizers */
+.macro-visualizer {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 16px;
+    margin-bottom: 24px;
+}
+.macro-card {
+    background: var(--panel-bg);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 16px 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    transition: transform .2s ease, border-color .2s ease;
+}
+.macro-card:hover {
+    border-color: rgba(255, 255, 255, 0.2);
+    transform: translateY(-2px);
+}
+.macro-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-weight: 600;
+    font-size: 14px;
+    color: var(--ink);
+}
+.macro-progress-bar {
+    width: 100%;
+    height: 8px;
+    background: rgba(255, 255, 255, 0.08);
+    border-radius: 4px;
+    overflow: hidden;
+}
+.macro-progress-fill {
+    height: 100%;
+    border-radius: 4px;
+    transition: width 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* 2. Interactive Goal Selection Cards */
+.goal-cards-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 16px;
+    margin: 20px 0;
+}
+.goal-card-option {
+    position: relative;
+    background: var(--panel-bg);
+    border: 2px solid var(--border);
+    border-radius: 14px;
+    padding: 20px;
+    cursor: pointer;
+    transition: all 0.25s ease;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    gap: 12px;
+}
+.goal-card-option:hover {
+    border-color: var(--lime);
+    background: rgba(199, 255, 34, 0.03);
+    transform: translateY(-3px);
+}
+.goal-card-option.selected {
+    border-color: var(--lime);
+    background: rgba(199, 255, 34, 0.08);
+    box-shadow: 0 0 20px rgba(199, 255, 34, 0.15);
+}
+.goal-card-option input[type="radio"] {
+    position: absolute;
+    top: 12px;
+    right: 12px;
+    accent-color: var(--lime);
+}
+.goal-card-icon {
+    width: 48px;
+    height: 48px;
+    border-radius: 12px;
+    background: rgba(199, 255, 34, 0.1);
+    color: var(--lime);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* 3. Password Toggle Wrapper */
+.pwd-toggle-wrap {
+    position: relative;
+    width: 100%;
+}
+.pwd-toggle-wrap input {
+    width: 100%;
+    padding-right: 42px !important;
+}
+.pwd-toggle-btn {
+    position: absolute;
+    right: 10px;
+    top: 50%;
+    transform: translateY(-50%);
+    background: transparent;
+    border: none;
+    color: var(--muted);
+    cursor: pointer;
+    padding: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 6px;
+    transition: color 0.2s;
+}
+.pwd-toggle-btn:hover {
+    color: var(--ink);
+}
+
+/* 4. KPI Trend Badges */
+.kpi-trend-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 10px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 600;
+    line-height: 1;
+}
+.kpi-trend-up {
+    background: rgba(66, 219, 165, 0.15);
+    color: #42dba5;
+    border: 1px solid rgba(66, 219, 165, 0.3);
+}
+.kpi-trend-down {
+    background: rgba(255, 77, 93, 0.15);
+    color: #ff4d5d;
+    border: 1px solid rgba(255, 77, 93, 0.3);
+}
+
+/* 5. Chart Time Range Filter Buttons */
+.time-range-group {
+    display: flex;
+    gap: 6px;
+    background: rgba(255, 255, 255, 0.05);
+    padding: 4px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+}
+.time-range-btn {
+    background: transparent;
+    border: none;
+    color: var(--muted);
+    padding: 4px 12px;
+    font-size: 12px;
+    font-weight: 600;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+.time-range-btn:hover {
+    color: var(--ink);
+}
+.time-range-btn.active {
+    background: var(--lime);
+    color: #000;
+}
+
+/* 6. Dropdown Action Menu in Tables */
+.action-dropdown-wrap {
+    position: relative;
+    display: inline-block;
+}
+.action-dropdown-trigger {
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid var(--border);
+    color: var(--ink);
+    border-radius: 6px;
+    padding: 4px 10px;
+    cursor: pointer;
+    font-size: 14px;
+}
+.action-dropdown-trigger:hover {
+    background: rgba(255, 255, 255, 0.1);
+}
+.action-dropdown-menu {
+    position: absolute;
+    right: 0;
+    top: 100%;
+    margin-top: 4px;
+    background: var(--panel-bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.4);
+    min-width: 150px;
+    z-index: 100;
+    display: none;
+    flex-direction: column;
+    padding: 4px 0;
+}
+.action-dropdown-wrap:focus-within .action-dropdown-menu,
+.action-dropdown-menu.show {
+    display: flex;
+}
+.action-dropdown-menu a, .action-dropdown-menu button {
+    padding: 8px 14px;
+    text-align: left;
+    color: var(--ink);
+    font-size: 13px;
+    background: transparent;
+    border: none;
+    width: 100%;
+    cursor: pointer;
+    text-decoration: none;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.action-dropdown-menu a:hover, .action-dropdown-menu button:hover {
+    background: rgba(199, 255, 34, 0.1);
+    color: var(--lime);
+}
+

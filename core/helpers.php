@@ -381,6 +381,10 @@ function get_user_gym(array $user): ?array
         // Fallback to any pending membership gym
         $gym = $pdo->query("SELECT g.* FROM gyms g JOIN membership_plans mp ON mp.gym_id = g.gym_id JOIN memberships m ON m.plan_id = mp.plan_id WHERE m.user_id = $userId AND m.status = 'pending' ORDER BY m.membership_id DESC LIMIT 1")->fetch();
         if ($gym) return $gym;
+
+        // Fallback to gym_members direct association (covers walk-ins, QR check-ins, expired memberships)
+        $gym = $pdo->query("SELECT g.* FROM gyms g JOIN gym_members gm ON gm.gym_id = g.gym_id WHERE gm.user_id = $userId LIMIT 1")->fetch();
+        if ($gym) return $gym;
     }
     
     return null;

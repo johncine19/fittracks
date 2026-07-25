@@ -187,22 +187,43 @@ function diet_page(): void
     
     $daysMap = [1=>'Monday', 2=>'Tuesday', 3=>'Wednesday', 4=>'Thursday', 5=>'Friday', 6=>'Saturday', 7=>'Sunday'];
 ?>
-<div style="display:flex; justify-content:space-between; align-items:flex-end; margin-bottom: 20px;">
+<div style="display:flex; justify-content:space-between; align-items:flex-end; margin-bottom: 20px; flex-wrap: wrap; gap: 12px;">
     <div>
         <h1 style="margin: 0 0 5px 0;">My Diet Plan</h1>
         <p class="muted" style="margin: 0;">Goal: <?= h(ucwords(str_replace('_', ' ', $activePlan['goal']))) ?> | Assigned by: <?= $trainerName ?></p>
     </div>
     
     <!-- Generate a new plan overriding the current one -->
-    <form method="post" onsubmit="return confirm('This will archive your current plan and generate a new one. Continue?');" style="margin: 0;">
+    <form id="regenerate-plan-form" method="post" style="margin: 0;">
         <?= csrf_field() ?>
         <input type="hidden" name="action" value="generate_plan">
-        <button type="submit" class="btn" style="background: var(--surface); color: var(--ink); border: 1px solid var(--line); border-radius: 8px; padding: 8px 16px; cursor: pointer; display: flex; align-items: center; gap: 6px;">
+        <button type="button" onclick="confirmRegeneratePlan()" class="btn" style="background: var(--surface); color: var(--ink); border: 1px solid var(--line); border-radius: 8px; padding: 8px 16px; cursor: pointer; display: flex; align-items: center; gap: 6px;">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.92-10.26l5.67-5.67"/></svg>
             Regenerate Plan
         </button>
     </form>
 </div>
+
+<script>
+function confirmRegeneratePlan() {
+    Swal.fire({
+        title: 'Regenerate Diet Plan?',
+        text: 'This will archive your current plan and generate a new customized plan based on your current weight and goals.',
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: 'var(--lime, #c7ff22)',
+        cancelButtonColor: 'transparent',
+        confirmButtonText: 'Yes, Regenerate Plan',
+        cancelButtonText: 'Cancel',
+        background: getComputedStyle(document.documentElement).getPropertyValue('--panel-bg').trim() || '#121721',
+        color: getComputedStyle(document.documentElement).getPropertyValue('--ink').trim() || '#ffffff',
+    }).then((result) => {
+        if (result.isConfirmed) {
+            document.getElementById('regenerate-plan-form').submit();
+        }
+    });
+}
+</script>
 
 <div style="background: var(--surface); border-radius: 12px; border: 1px solid var(--line); overflow: hidden;">
     <!-- Tabs Header -->

@@ -110,7 +110,8 @@ function render_header(string $title, ?array $user = null): void
                 const Toast = Swal.mixin({
                     toast: true, position: 'top-end', showConfirmButton: false,
                     timer: 3000, timerProgressBar: true,
-                    background: '#090b10', color: '#ffffff',
+                    background: getComputedStyle(document.documentElement).getPropertyValue('--panel-bg').trim() || '#121721',
+                    color: getComputedStyle(document.documentElement).getPropertyValue('--ink').trim() || '#ffffff',
                     didOpen: (toast) => {
                         toast.onmouseenter = Swal.stopTimer;
                         toast.onmouseleave = Swal.resumeTimer;

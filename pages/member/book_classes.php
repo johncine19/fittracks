@@ -123,10 +123,13 @@ function book_classes_page(): void
         </section>
     </div>
     <section class="panel skeleton-content sk-display-block">
-        <div class="page-header">
+        <div class="page-header" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px;">
             <div>
                 <h1>Classes</h1>
                 <p>Browse upcoming sessions and reserve your spot.</p>
+            </div>
+            <div style="display: flex; gap: 10px; min-width: 260px;">
+                <input type="text" id="classSearchInput" placeholder="Search class or instructor..." onkeyup="filterClasses()" style="width: 100%; padding: 8px 14px; border-radius: 8px; border: 1px solid var(--border); background: var(--panel-bg); color: var(--ink); font-size: 14px;">
             </div>
         </div>
 
@@ -149,7 +152,7 @@ function book_classes_page(): void
                     $startDt  = new DateTime($row['start_datetime']);
                     $endDt    = new DateTime($row['end_datetime']);
                 ?>
-                    <div class="cc-card">
+                    <div class="cc-card" data-class-name="<?= h(strtolower($row['class_name'])) ?>" data-instructor="<?= h(strtolower($row['instructor'])) ?>">
                         <div class="cc-header">
                             <span class="cc-category" style="color:<?= $colors[$ci % count($colors)] ?>;border-color:<?= $colors[$ci % count($colors)] ?>"><?= h(strtoupper(substr($row['class_name'], 0, 8))) ?></span>
                             <?php if ($full): ?>
@@ -195,6 +198,20 @@ function book_classes_page(): void
         <?php endif; ?>
         <?php render_pagination($page, $totalPages, '?page=book_classes'); ?>
     </section>
+    <script>
+    function filterClasses() {
+        const q = (document.getElementById('classSearchInput').value || '').toLowerCase().trim();
+        document.querySelectorAll('.cc-card').forEach(card => {
+            const name = (card.getAttribute('data-class-name') || '');
+            const instructor = (card.getAttribute('data-instructor') || '');
+            if (name.includes(q) || instructor.includes(q)) {
+                card.style.display = 'block';
+            } else {
+                card.style.display = 'none';
+            }
+        });
+    }
+    </script>
     <?php
     render_footer();
 }
