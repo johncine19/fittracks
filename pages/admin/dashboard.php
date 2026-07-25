@@ -141,6 +141,7 @@ function admin_dashboard(PDO $pdo, array $user): void
         'checkins' => ['labels' => array_keys($week), 'values' => array_values($week)],
     ];
 ?>
+    <?php render_announcement_carousel(get_active_announcements('gym_owners')); ?>
     <?php render_skeleton_stats(4); ?>
     <section class="dash-grid stats-row skeleton-content sk-display-grid">
         <?php 
@@ -574,6 +575,8 @@ function dashboard(): void
             </div>
         </div>
 
+        <?php render_announcement_carousel(get_active_announcements('trainers')); ?>
+
         <!-- 4 Metric Cards -->
         <div class="skeleton-content animate-fade-in delay-1" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-bottom: 24px;">
             <!-- Assigned Clients -->
@@ -743,6 +746,8 @@ function dashboard(): void
         echo '<span style="display: inline-block; margin-top: 6px; font-size: 11px; background: ' . $catBg . '; color: ' . $catColor . '; padding: 2px 8px; border-radius: 12px; font-weight: bold;">' . h(ucfirst(str_replace('_', ' ', $category))) . '</span>';
         echo '<div style="margin-top: 6px; font-size: 10px; color: var(--muted); opacity: 0.7;">Click to view missions ↓</div>';
         echo '</div></div>';
+        
+        render_announcement_carousel(get_active_announcements('members'));
 
         // Animated Metric Cards
         echo '<div class="skeleton-content metrics animate-fade-in delay-1" style="margin-bottom: 24px; display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px;">';

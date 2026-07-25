@@ -2353,3 +2353,44 @@ body.loaded .skeleton-content.sk-display-flex {
     color: var(--lime);
 }
 
+/* Announcement Carousel */
+.announcement-carousel {
+    position: relative;
+    overflow: hidden;
+    width: 100%;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    margin-bottom: 24px;
+}
+.announcement-slides {
+    display: flex;
+    transition: transform 0.4s ease-in-out;
+    width: 100%;
+}
+.announcement-slide {
+    flex: 0 0 100%;
+    width: 100%;
+    padding: 20px 24px 35px 24px;
+    box-sizing: border-box;
+}
+.announcement-dots {
+    position: absolute;
+    bottom: 12px;
+    left: 0;
+    right: 0;
+    display: flex;
+    justify-content: center;
+    gap: 6px;
+}
+.announcement-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--line);
+    cursor: pointer;
+    transition: background 0.3s;
+}
+.announcement-dot.active {
+    background: var(--lime);
+}

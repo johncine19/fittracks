@@ -390,3 +390,104 @@ function get_user_gym(array $user): ?array
     return null;
 }
 
+/**
+ * Fetch the latest announcements targeting a specific role or everyone.
+ */
+function get_active_announcements(string $role, int $limit = 5): array
+{
+    $pdo = db();
+    $stmt = $pdo->prepare('
+        SELECT a.title, a.content, a.created_at, u.first_name, u.last_name 
+        FROM announcements a 
+        JOIN users u ON u.user_id = a.created_by 
+        WHERE a.target_audience = "all" OR a.target_audience = ?
+        ORDER BY a.created_at DESC 
+        LIMIT ?
+    ');
+    // PDO doesn't automatically cast limit bind params correctly if not configured properly, so we explicitly cast via bindValue
+    $stmt->bindValue(1, $role, PDO::PARAM_STR);
+    $stmt->bindValue(2, $limit, PDO::PARAM_INT);
+    $stmt->execute();
+    return $stmt->fetchAll();
+}
+
+/**
+ * Render the announcement carousel inside a modal triggered by a button.
+ */
+function render_announcement_carousel(array $announcements): void
+{
+    if (empty($announcements)) {
+        return;
+    }
+    
+    $carouselId = 'carousel_' . uniqid();
+    ?>
+    <button onclick="document.getElementById('announcementModal_<?= $carouselId ?>').showModal()" class="animate-fade-in" style="margin-bottom: 24px; display: flex; align-items: center; gap: 8px; background: var(--panel-soft); border: 1px solid var(--line); padding: 12px 20px; border-radius: 12px; color: var(--ink); cursor: pointer; transition: all 0.2s;" onmouseover="this.style.background='var(--line)'" onmouseout="this.style.background='var(--panel-soft)'">
+        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--lime)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+        <span style="font-weight: bold;">View Announcements (<?= count($announcements) ?>)</span>
+    </button>
+
+    <dialog id="announcementModal_<?= $carouselId ?>" class="modal" style="padding: 0; background: transparent; border: none; max-width: 500px; width: 100%;">
+        <div style="background: var(--surface); border: 1px solid var(--line); border-radius: 16px; overflow: hidden; position: relative; padding-top: 12px;">
+            <button onclick="this.closest('dialog').close()" style="position: absolute; top: 12px; right: 12px; background: rgba(255,255,255,0.1); border: none; width: 32px; height: 32px; border-radius: 50%; color: var(--ink); cursor: pointer; display: flex; align-items: center; justify-content: center; z-index: 10; font-size: 20px; line-height: 1;">&times;</button>
+            
+            <div class="announcement-carousel" id="<?= $carouselId ?>" style="margin-bottom: 0; border: none; border-radius: 0;">
+                <div class="announcement-slides" id="slides_<?= $carouselId ?>">
+                    <?php foreach ($announcements as $ann): ?>
+                        <div class="announcement-slide">
+                            <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
+                                <span style="background: rgba(199,255,34,0.15); color: var(--lime); padding: 3px 10px; border-radius: 12px; font-size: 11px; font-weight: bold; text-transform: uppercase; letter-spacing: 0.5px;">Notice</span>
+                                <span style="color: var(--muted); font-size: 12px;"><?= date('M j, Y', strtotime($ann['created_at'])) ?></span>
+                            </div>
+                            <h3 style="margin: 0 0 8px 0; color: var(--ink); font-size: 18px; padding-right: 24px;"><?= h($ann['title']) ?></h3>
+                            <p style="margin: 0; color: var(--muted); font-size: 14px; line-height: 1.5; white-space: pre-line;"><?= h($ann['content']) ?></p>
+                        </div>
+                    <?php endforeach; ?>
+                </div>
+                
+                <?php if (count($announcements) > 1): ?>
+                <div class="announcement-dots" id="dots_<?= $carouselId ?>">
+                    <?php foreach ($announcements as $index => $ann): ?>
+                        <div class="announcement-dot <?= $index === 0 ? 'active' : '' ?>" data-index="<?= $index ?>"></div>
+                    <?php endforeach; ?>
+                </div>
+                <script>
+                (function() {
+                    const carousel = document.getElementById('<?= $carouselId ?>');
+                    const slidesContainer = document.getElementById('slides_<?= $carouselId ?>');
+                    const dots = document.getElementById('dots_<?= $carouselId ?>').querySelectorAll('.announcement-dot');
+                    let currentIndex = 0;
+                    const total = <?= count($announcements) ?>;
+                    let interval;
+                    
+                    function showSlide(index) {
+                        currentIndex = index;
+                        slidesContainer.style.transform = `translateX(-${index * 100}%)`;
+                        dots.forEach(d => d.classList.remove('active'));
+                        dots[index].classList.add('active');
+                    }
+                    
+                    function nextSlide() {
+                        showSlide((currentIndex + 1) % total);
+                    }
+                    
+                    dots.forEach(dot => {
+                        dot.addEventListener('click', function() {
+                            showSlide(parseInt(this.getAttribute('data-index')));
+                            resetInterval();
+                        });
+                    });
+                    
+                    function resetInterval() {
+                        clearInterval(interval);
+                        interval = setInterval(nextSlide, 7000);
+                    }
+                    resetInterval();
+                })();
+                </script>
+                <?php endif; ?>
+            </div>
+        </div>
+    </dialog>
+    <?php
+}

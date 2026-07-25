@@ -17,6 +17,14 @@ function announcements_page(): void
             if ($title && $content && in_array($target, ['all', 'gym_owners', 'trainers', 'members'], true)) {
                 $pdo->prepare('INSERT INTO announcements (title, content, target_audience, created_by) VALUES (?, ?, ?, ?)')
                     ->execute([$title, $content, $target, $user['user_id']]);
+                
+                // Notify targeted users
+                $where = $target === 'all' ? '1=1' : 'role = ' . $pdo->quote(rtrim($target, 's')); // gym_owners -> gym_owner
+                $usersToNotify = $pdo->query("SELECT user_id FROM users WHERE status = 'active' AND $where")->fetchAll(PDO::FETCH_COLUMN);
+                foreach ($usersToNotify as $uid) {
+                    notify_user((int)$uid, 'system', 'New Announcement: ' . $title, mb_substr($content, 0, 100) . (mb_strlen($content) > 100 ? '...' : ''));
+                }
+                
                 flash('Announcement published successfully.', 'success');
             } else {
                 flash('Please fill in all fields correctly.', 'danger');
@@ -104,13 +112,14 @@ function announcements_page(): void
                         <th>Date</th>
                         <th>Target</th>
                         <th>Title</th>
+                        <th>Message</th>
                         <th>Author</th>
                         <th style="width: 100px;">Actions</th>
                     </tr>
                 </thead>
                 <tbody>
                     <?php if (!$announcements): ?>
-                        <tr><td colspan="5" class="text-center">No announcements have been published yet.</td></tr>
+                        <tr><td colspan="6" class="text-center">No announcements have been published yet.</td></tr>
                     <?php else: foreach ($announcements as $ann): ?>
                         <tr>
                             <td style="color:var(--muted); font-size:13px;"><?= h(date('M j, Y', strtotime($ann['created_at']))) ?></td>
@@ -122,6 +131,9 @@ function announcements_page(): void
                             <td>
                                 <strong><?= h($ann['title']) ?></strong>
                             </td>
+                            <td style="max-width: 300px; font-size: 13px; color: var(--muted); white-space: normal; line-height: 1.4;">
+                                <?= nl2br(h($ann['content'])) ?>
+                            </td>
                             <td><?= h($ann['first_name'] . ' ' . $ann['last_name']) ?></td>
                             <td>
                                 <form method="post" action="index.php?page=announcements" style="margin:0;">
@@ -130,11 +142,6 @@ function announcements_page(): void
                                     <input type="hidden" name="action" value="delete">
                                     <button type="submit" class="btn-sm btn-ghost" style="color:var(--danger)" data-confirm="Are you sure you want to delete this announcement?" data-confirm-btn="Yes, delete">Delete</button>
                                 </form>
-                            </td>
-                        </tr>
-                        <tr style="border-bottom: 2px solid var(--line);">
-                            <td colspan="5" style="padding-top:0; padding-bottom:16px;">
-                                <div style="background: rgba(255,255,255,0.02); padding: 12px; border-radius: 8px; font-size: 14px; white-space: pre-wrap;"><?= h($ann['content']) ?></div>
                             </td>
                         </tr>
                     <?php endforeach; endif; ?>
