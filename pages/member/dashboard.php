@@ -20,7 +20,7 @@ function member_dashboard(PDO $pdo, array $user): void
 
     // Welcome Banner
     echo '<div class="skeleton-content animate-fade-in" style="background: linear-gradient(135deg, rgba(199,255,34,0.1) 0%, rgba(66,219,165,0.05) 100%); border: 1px solid rgba(199,255,34,0.3); border-radius: 12px; padding: 24px; margin-bottom: 24px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 16px; box-shadow: 0 4px 20px rgba(0,0,0,0.15); backdrop-filter: blur(16px);">';
-    echo '<div><div style="display:flex; align-items:center; gap: 12px; margin-bottom: 4px;"><h2 style="margin: 0; font-size: 24px; color: var(--ink);">Welcome back, ' . h($user['first_name']) . '!</h2><span style="background: var(--accent, #7c5cfc); color: #fff; padding: 3px 10px; border-radius: 12px; font-size: 12px; font-weight: bold; box-shadow: 0 2px 10px rgba(124,92,252,0.3); display: flex; align-items: center; gap: 4px;">' . h($tierName) . ' Tier <a href="#" onclick="event.preventDefault(); document.getElementById(\'guide-modal\').showModal();" style="color:rgba(255,255,255,0.8); text-decoration: none;" title="How it works">&#9468;</a></span></div>';
+    echo '<div style="flex: 1 1 250px; min-width: 0;"><div style="display:flex; align-items:center; gap: 12px; margin-bottom: 4px; flex-wrap: wrap;"><h2 style="margin: 0; font-size: 24px; color: var(--ink); max-width: 100%; word-break: break-word;">Welcome back, ' . h($user['first_name']) . '!</h2><span style="background: var(--accent, #7c5cfc); color: #fff; padding: 3px 10px; border-radius: 12px; font-size: 12px; font-weight: bold; box-shadow: 0 2px 10px rgba(124,92,252,0.3); display: flex; align-items: center; gap: 4px; white-space: nowrap;">' . h($tierName) . ' Tier <a href="#" onclick="event.preventDefault(); document.getElementById(\'guide-modal\').showModal();" style="color:rgba(255,255,255,0.8); text-decoration: none;" title="How it works">&#9468;</a></span></div>';
     echo '<p style="margin: 0; color: var(--muted); font-size: 14px;">Let\'s crush today\'s fitness goals. Here\'s your progress at a glance.</p></div>';
     
     // Hero Engagement Score
@@ -34,7 +34,7 @@ function member_dashboard(PDO $pdo, array $user): void
         $catBg = 'rgba(239, 68, 68, 0.15)';
     }
     
-    echo '<div onclick="document.getElementById(\'missions-section\').scrollIntoView({behavior: \'smooth\'})" style="background: var(--panel-soft); padding: 12px 20px; border-radius: 10px; border: 1px solid rgba(255,255,255,0.05); text-align: center; cursor: pointer; transition: all 0.2s;" onmouseover="this.style.transform=\'scale(1.03)\'; this.style.boxShadow=\'0 4px 16px rgba(0,0,0,0.2)\'" onmouseout="this.style.transform=\'scale(1)\'; this.style.boxShadow=\'none\'" title="Click to view your missions">';
+    echo '<div onclick="document.getElementById(\'missions-section\').scrollIntoView({behavior: \'smooth\'})" style="background: var(--panel-soft); padding: 12px 20px; border-radius: 10px; border: 1px solid rgba(255,255,255,0.05); text-align: center; cursor: pointer; transition: all 0.2s; flex: 1 1 150px;" onmouseover="this.style.transform=\'scale(1.03)\'; this.style.boxShadow=\'0 4px 16px rgba(0,0,0,0.2)\'" onmouseout="this.style.transform=\'scale(1)\'; this.style.boxShadow=\'none\'" title="Click to view your missions">';
     echo '<span style="display: block; font-size: 11px; text-transform: uppercase; letter-spacing: 0.1em; color: var(--muted); margin-bottom: 4px;">Engagement Score <a href="#" onclick="event.stopPropagation(); event.preventDefault(); document.getElementById(\'guide-modal\').showModal();" style="color:' . $catColor . '; margin-left: 4px; text-decoration: none;" title="How it works">&#9468;</a></span>';
     echo '<strong style="display: block; font-size: 32px; color: ' . $catColor . '; line-height: 1;">' . $score . '<span style="font-size: 16px; color: var(--muted);">/100</span></strong>';
     echo '<span style="display: inline-block; margin-top: 6px; font-size: 11px; background: ' . $catBg . '; color: ' . $catColor . '; padding: 2px 8px; border-radius: 12px; font-weight: bold;">' . h(ucfirst(str_replace('_', ' ', $category))) . '</span>';
@@ -44,7 +44,7 @@ function member_dashboard(PDO $pdo, array $user): void
     render_announcement_carousel(get_active_announcements('members'));
 
     // Animated Metric Cards
-    echo '<div class="skeleton-content metrics animate-fade-in delay-1" style="margin-bottom: 24px; display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px;">';
+    echo '<div class="skeleton-content metrics animate-fade-in delay-1" style="margin-bottom: 24px; display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 16px;">';
     $metrics = [
         'Attendance Records' => $attendance,
         'Progress Logs' => $progressLogs,
@@ -169,7 +169,7 @@ function member_dashboard(PDO $pdo, array $user): void
         echo '<h3 style="margin:0; font-size:1.2rem; color:var(--ink);">Recommended For You</h3>';
         echo '</div>';
         
-        echo '<div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 16px;">';
+        echo '<div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr)); gap: 16px;">';
         
         // Classes
         if (!empty($recommendations['classes'])) {

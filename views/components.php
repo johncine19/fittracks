@@ -226,7 +226,7 @@ function render_current_workout(int $memberUserId, bool $dashboardMode = false, 
         <style>
             .workout-header-grid {
                 display: grid;
-                grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+                grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr));
                 gap: 16px;
                 margin-top: 16px;
                 margin-bottom: 24px;
@@ -595,7 +595,7 @@ function render_exercise_recommendations(int $userId, bool $compact = false): vo
 
         .rec-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+            grid-template-columns: repeat(auto-fill, minmax(min(100%, 220px), 1fr));
             gap: 0.75rem;
         }
         .rec-card {
