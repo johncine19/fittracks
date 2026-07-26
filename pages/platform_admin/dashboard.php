@@ -98,7 +98,7 @@ function platform_admin_dashboard(PDO $pdo, array $user): void
         <div class="sk-card"><div class="sk sk-title" style="width:130px;margin-bottom:14px"></div><div class="list-stack" style="gap:10px"></div></div>
     </section></div>
 
-    <section class="dash-grid lower-row skeleton-content sk-display-grid" style="grid-template-columns: 1fr 1fr;">
+    <section class="dash-grid lower-row skeleton-content sk-display-grid">
         <article class="panel">
             <div style="display:flex; justify-content:space-between; align-items:center;">
                 <h2>Recent Gym Registrations</h2>

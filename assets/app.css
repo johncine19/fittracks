@@ -828,7 +828,7 @@ a.btn-ghost:hover {
     justify-content: flex-end;
 }
 
-.table-wrap {
+.table-wrap, .table-container {
     width: 100%;
     overflow-x: auto;
 }
@@ -895,8 +895,9 @@ code {
     .stats-row,
     .chart-row,
     .lower-row,
+    .dash-grid,
     .split {
-        grid-template-columns: 1fr;
+        grid-template-columns: 1fr !important;
     }
 
     /* Mobile slide-in drawer */
@@ -1673,11 +1674,11 @@ dialog.modal .modal-body {
 }
 
 /* Ensure tables scroll horizontally on mobile */
-.table-wrap {
+.table-wrap, .table-container {
     overflow-x: auto;
     -webkit-overflow-scrolling: touch;
 }
-.table-wrap table {
+.table-wrap table, .table-container table {
     min-width: 540px;
 }
 
