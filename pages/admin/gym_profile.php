@@ -269,8 +269,10 @@ function gym_profile_page(): void
     </style>
 
     <div class="page-header">
-        <h1>Gym Administration Profile</h1>
-        <p>Branding, customization options, metadata, and license documents for your gym.</p>
+        <div>
+            <h1>Gym Administration Profile</h1>
+            <p>Branding, customization options, metadata, and license documents for your gym.</p>
+        </div>
     </div>
 
     <form method="post" enctype="multipart/form-data" id="gym-profile-form">
