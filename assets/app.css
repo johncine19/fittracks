@@ -17,19 +17,19 @@
 
 [data-theme="light"] {
     color-scheme: light;
-    --bg: #f8fafc;
+    --bg: #f1f5f9;
     --sidebar: #ffffff;
     --panel: #ffffff;
-    --panel-soft: #f1f5f9;
-    --line: #e2e8f0;
-    --ink: #0f172a;
-    --muted: #64748b;
-    --lime: #84cc16;
-    --lime-dark: #65a30d;
-    --teal: #10b981;
-    --orange: #f59e0b;
-    --danger: #ef4444;
-    --shadow: 0 4px 20px rgba(0, 0, 0, 0.04);
+    --panel-soft: #e2e8f0;
+    --line: #cbd5e1;
+    --ink: #1e293b;
+    --muted: #475569;
+    --lime: #65a30d;
+    --lime-dark: #4d7c0f;
+    --teal: #059669;
+    --orange: #d97706;
+    --danger: #dc2626;
+    --shadow: 0 4px 15px rgba(0, 0, 0, 0.08);
 }
 
 /* Plan Card Glow */
