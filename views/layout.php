@@ -87,8 +87,13 @@ function render_header(string $title, ?array $user = null): void
         <?php endif; ?>
         <script>
             (function() {
-                const saved = localStorage.getItem('fittracks_theme');
-                if (saved === 'light') document.documentElement.setAttribute('data-theme', 'light');
+                const isAuth = <?= $isAuthPage ? 'true' : 'false' ?>;
+                if (isAuth) {
+                    document.documentElement.setAttribute('data-theme', 'dark');
+                } else {
+                    const saved = localStorage.getItem('fittracks_theme');
+                    if (saved === 'light') document.documentElement.setAttribute('data-theme', 'light');
+                }
             })();
         </script>
         <script src="https://cdn.jsdelivr.net/npm/chart.js" defer></script>
