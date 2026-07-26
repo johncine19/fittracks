@@ -116,6 +116,14 @@ function render_member_form(string $context, ?array $user = null, ?array $profil
                 </optgroup>
             </select>
         </label>
+        <div class="split">
+            <label>Target Weight (kg) <span class="muted">(Optional)</span>
+                <input type="number" step="0.1" name="target_weight_kg" value="<?= h((string)($profile['target_weight_kg'] ?? '')) ?>" placeholder="e.g. 75">
+            </label>
+            <label>Target Body Fat (%) <span class="muted">(Optional)</span>
+                <input type="number" step="0.1" name="target_body_fat_percent" value="<?= h((string)($profile['target_body_fat_percent'] ?? '')) ?>" placeholder="e.g. 15">
+            </label>
+        </div>
         <label>Dietary Restrictions
             <select name="dietary_restrictions" required>
                 <?php foreach (['none', 'vegetarian', 'vegan', 'pescatarian', 'halal', 'gluten-free', 'keto', 'paleo', 'nut-allergy', 'dairy-free'] as $diet): ?>

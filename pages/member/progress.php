@@ -9,7 +9,7 @@ function progress_page(): void
         : (int) $user['user_id'];
 
     // Fetch member details
-    $stmt = db()->prepare('SELECT first_name, last_name, profile_picture FROM users WHERE user_id = ?');
+    $stmt = db()->prepare('SELECT u.first_name, u.last_name, u.profile_picture, mp.target_weight_kg, mp.target_body_fat_percent, mp.primary_goal FROM users u LEFT JOIN member_profiles mp ON u.user_id = mp.user_id WHERE u.user_id = ?');
     $stmt->execute([$memberId]);
     $member = $stmt->fetch();
 
@@ -146,6 +146,12 @@ function progress_page(): void
 
             $bfStart = $baseline['body_fat_percent'] ? (float) $baseline['body_fat_percent'] : null;
             $bfCurr = $current['body_fat_percent'] ? (float) $current['body_fat_percent'] : null;
+            
+            $goal = $member['primary_goal'] ?? '';
+            $showArm = in_array($goal, ['Growing larger biceps and arms', 'Gaining lean body mass', 'Increasing maximum strength', 'muscle_gain']);
+            $showChest = in_array($goal, ['Developing a wide chest', 'Gaining lean body mass', 'Increasing maximum strength', 'muscle_gain']);
+            $showWaist = in_array($goal, ['Building a visible six-pack', 'Losing excess body fat', 'Reaching body recomposition', 'fat_loss']);
+            $showHips = in_array($goal, ['Shaping the lower body', 'Losing excess body fat', 'fat_loss']);
         ?>
         <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 200px), 1fr)); gap: 15px; margin-bottom: 2rem;">
             <div style="background: var(--bg); padding: 15px; border-radius: 8px; border: 1px solid var(--line);">
@@ -155,7 +161,18 @@ function progress_page(): void
                         <div style="font-size: 24px; font-weight: bold; color: var(--ink);"><?= h(number_format($weightCurr, 1)) ?> <span style="font-size: 14px; font-weight: normal; color: var(--muted);">kg</span></div>
                         <div style="font-size: 13px; color: var(--muted);">Start: <?= h(number_format($weightStart, 1)) ?> kg</div>
                     </div>
-                    <?php if ($weightDelta !== 0.0): ?>
+                    <?php if ($member['target_weight_kg']): 
+                        $dist = $weightCurr - (float)$member['target_weight_kg'];
+                    ?>
+                        <div style="text-align: right;">
+                            <div style="font-size: 13px; color: var(--muted); margin-bottom: 4px;">Target: <?= h($member['target_weight_kg']) ?> kg</div>
+                            <?php if (abs($dist) < 0.1): ?>
+                                <div style="padding: 4px 8px; border-radius: 4px; font-size: 13px; font-weight: bold; background: var(--lime)20; color: var(--lime);">Goal Reached!</div>
+                            <?php else: ?>
+                                <div style="padding: 4px 8px; border-radius: 4px; font-size: 13px; font-weight: bold; background: var(--panel-soft); color: var(--ink);"><?= h(number_format(abs($dist), 1)) ?> kg to go</div>
+                            <?php endif; ?>
+                        </div>
+                    <?php elseif ($weightDelta !== 0.0): ?>
                         <div style="padding: 4px 8px; border-radius: 4px; font-size: 13px; font-weight: bold; background: <?= $weightColor ?>20; color: <?= $weightColor ?>;">
                             <?= $weightSign ?><?= h(number_format($weightDelta, 1)) ?>
                         </div>
@@ -179,7 +196,18 @@ function progress_page(): void
                         <div style="font-size: 24px; font-weight: bold; color: var(--ink);"><?= h(number_format($bfCurr, 1)) ?> <span style="font-size: 14px; font-weight: normal; color: var(--muted);">%</span></div>
                         <div style="font-size: 13px; color: var(--muted);">Start: <?= h(number_format($bfStart, 1)) ?> %</div>
                     </div>
-                    <?php if ($bfDelta !== 0.0): ?>
+                    <?php if ($member['target_body_fat_percent']): 
+                        $dist = $bfCurr - (float)$member['target_body_fat_percent'];
+                    ?>
+                        <div style="text-align: right;">
+                            <div style="font-size: 13px; color: var(--muted); margin-bottom: 4px;">Target: <?= h($member['target_body_fat_percent']) ?> %</div>
+                            <?php if ($dist <= 0): ?>
+                                <div style="padding: 4px 8px; border-radius: 4px; font-size: 13px; font-weight: bold; background: var(--lime)20; color: var(--lime);">Goal Reached!</div>
+                            <?php else: ?>
+                                <div style="padding: 4px 8px; border-radius: 4px; font-size: 13px; font-weight: bold; background: var(--panel-soft); color: var(--ink);"><?= h(number_format($dist, 1)) ?> % to go</div>
+                            <?php endif; ?>
+                        </div>
+                    <?php elseif ($bfDelta !== 0.0): ?>
                         <div style="padding: 4px 8px; border-radius: 4px; font-size: 13px; font-weight: bold; background: <?= $bfColor ?>20; color: <?= $bfColor ?>;">
                             <?= $bfSign ?><?= h(number_format($bfDelta, 1)) ?>
                         </div>
@@ -191,6 +219,52 @@ function progress_page(): void
                 </div>
             </div>
             <?php endif; ?>
+
+            <?php 
+            $extraMetrics = [
+                ['key' => 'arm_cm', 'label' => 'Arm Size', 'unit' => 'cm', 'show' => $showArm, 'better' => 'up'],
+                ['key' => 'chest_cm', 'label' => 'Chest Size', 'unit' => 'cm', 'show' => $showChest, 'better' => 'up'],
+                ['key' => 'waist_cm', 'label' => 'Waist Size', 'unit' => 'cm', 'show' => $showWaist, 'better' => 'down'],
+                ['key' => 'hips_cm', 'label' => 'Hip Size', 'unit' => 'cm', 'show' => $showHips, 'better' => 'down'],
+            ];
+            foreach ($extraMetrics as $m):
+                if (!$m['show']) continue;
+                $mStart = $baseline[$m['key']] ? (float) $baseline[$m['key']] : null;
+                $mCurr = $current[$m['key']] ? (float) $current[$m['key']] : null;
+                if ($mStart !== null && $mCurr !== null):
+                    $mDelta = $mCurr - $mStart;
+                    $mSign = $mDelta > 0 ? '+' : '';
+                    $mColor = 'var(--line)';
+                    if ($mDelta !== 0.0) {
+                        if ($m['better'] === 'up') {
+                            $mColor = $mDelta > 0 ? 'var(--lime)' : 'var(--danger)';
+                        } else {
+                            $mColor = $mDelta < 0 ? 'var(--lime)' : 'var(--danger)';
+                        }
+                    }
+            ?>
+            <div style="background: var(--bg); padding: 15px; border-radius: 8px; border: 1px solid var(--line);">
+                <div style="color: var(--muted); font-size: 13px; font-weight: 600; text-transform: uppercase; margin-bottom: 8px;"><?= $m['label'] ?></div>
+                <div style="display: flex; justify-content: space-between; align-items: baseline;">
+                    <div>
+                        <div style="font-size: 24px; font-weight: bold; color: var(--ink);"><?= h(number_format($mCurr, 1)) ?> <span style="font-size: 14px; font-weight: normal; color: var(--muted);"><?= $m['unit'] ?></span></div>
+                        <div style="font-size: 13px; color: var(--muted);">Start: <?= h(number_format($mStart, 1)) ?> <?= $m['unit'] ?></div>
+                    </div>
+                    <?php if ($mDelta !== 0.0): ?>
+                        <div style="padding: 4px 8px; border-radius: 4px; font-size: 13px; font-weight: bold; background: <?= $mColor ?>20; color: <?= $mColor ?>;">
+                            <?= $mSign ?><?= h(number_format($mDelta, 1)) ?>
+                        </div>
+                    <?php else: ?>
+                        <div style="padding: 4px 8px; border-radius: 4px; font-size: 13px; font-weight: bold; background: var(--line); color: var(--muted);">
+                            No change
+                        </div>
+                    <?php endif; ?>
+                </div>
+            </div>
+            <?php 
+                endif;
+            endforeach; 
+            ?>
         </div>
         <?php endif; ?>
 
@@ -218,7 +292,19 @@ function progress_page(): void
                             pointBackgroundColor: 'var(--lime)',
                             tension: 0.3,
                             fill: true,
-                        }]
+                        }
+                        <?php if ($member['target_weight_kg']): ?>
+                        , {
+                            label: 'Target Weight (kg)',
+                            data: Array(<?= count($chartLabels) ?>).fill(<?= (float)$member['target_weight_kg'] ?>),
+                            borderColor: 'var(--orange)',
+                            borderDash: [5, 5],
+                            borderWidth: 2,
+                            pointRadius: 0,
+                            fill: false
+                        }
+                        <?php endif; ?>
+                        ]
                     },
                     options: {
                         responsive: true,

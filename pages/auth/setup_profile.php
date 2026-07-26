@@ -28,12 +28,14 @@ function setup_profile_page(): void
     if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $validator = new Validator();
         $valid = $validator->validate($_POST, [
-            'height_cm' => 'numeric|min_num:100|max_num:250',
-            'weight_kg' => 'numeric|min_num:20|max_num:300',
-            'age'       => 'numeric|min_num:16|max_num:120',
-            'neck_cm'   => 'numeric|min_num:20|max_num:100',
-            'waist_cm'  => 'numeric|min_num:30|max_num:200',
+            'height_cm' => 'required|numeric|min_num:100|max_num:250',
+            'weight_kg' => 'required|numeric|min_num:20|max_num:300',
+            'age'       => 'required|numeric|min_num:16|max_num:120',
+            'neck_cm'   => 'required|numeric|min_num:20|max_num:100',
+            'waist_cm'  => 'required|numeric|min_num:30|max_num:200',
             'hip_cm'    => 'numeric|min_num:30|max_num:200',
+            'target_weight_kg'        => 'numeric|min_num:20|max_num:300',
+            'target_body_fat_percent' => 'numeric|min_num:1|max_num:70',
         ]);
         
         if (!$valid) {
@@ -59,23 +61,23 @@ function setup_profile_page(): void
             </div>
             <form method="post" action="index.php?page=setup_profile" class="form grid-form" style="padding:0 0 8px;">
                 <?= csrf_field() ?>
-                <label>Height (cm) <small style="color:var(--muted);font-weight:normal;">(Optional)</small>
-                    <input name="height_cm" type="number" step="0.01" min="1" placeholder="Leave blank if unknown">
+                <label>Height (cm)
+                    <input name="height_cm" type="number" step="0.01" min="1" placeholder="e.g. 175" required>
                 </label>
-                <label>Weight (kg) <small style="color:var(--muted);font-weight:normal;">(Optional)</small>
-                    <input name="weight_kg" type="number" step="0.01" min="1" placeholder="Leave blank if unknown">
+                <label>Weight (kg)
+                    <input name="weight_kg" type="number" step="0.01" min="1" placeholder="e.g. 70" required>
                 </label>
-                <label>Age <small style="color:var(--muted);font-weight:normal;">(Optional)</small>
-                    <input name="age" type="number" min="16" max="120" placeholder="e.g. 30">
+                <label>Age
+                    <input name="age" type="number" min="16" max="120" placeholder="e.g. 30" required>
                 </label>
-                <label>Neck (cm) <small style="color:var(--muted);font-weight:normal;">(Optional)</small>
-                    <input name="neck_cm" type="number" step="0.01" min="1" placeholder="Leave blank if unknown">
+                <label>Neck (cm)
+                    <input name="neck_cm" type="number" step="0.01" min="1" placeholder="e.g. 38" required>
                 </label>
-                <label>Waist (cm) <small style="color:var(--muted);font-weight:normal;">(Optional)</small>
-                    <input name="waist_cm" type="number" step="0.01" min="1" placeholder="Leave blank if unknown">
+                <label>Waist (cm)
+                    <input name="waist_cm" type="number" step="0.01" min="1" placeholder="e.g. 85" required>
                 </label>
-                <label id="hipContainer" style="display: none;">Hip (cm) <small style="color:var(--muted);font-weight:normal;">(Optional)</small>
-                    <input name="hip_cm" type="number" step="0.01" min="1" placeholder="Widest part (required for females)">
+                <label id="hipContainer" style="display: none;">Hip (cm) <small style="color:var(--muted);font-weight:normal;">(Required for females)</small>
+                    <input name="hip_cm" type="number" step="0.01" min="1" placeholder="Widest part">
                 </label>
                 <label>Biological sex
                     <select name="biological_sex" id="biological_sex" required>

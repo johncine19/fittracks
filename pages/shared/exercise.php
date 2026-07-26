@@ -9,9 +9,9 @@ declare(strict_types=1);
 function save_member_profile(int $userId): void
 {
     $pdo = db();
-    $stmt = $pdo->prepare('INSERT INTO member_profiles (user_id, height_cm, weight_kg, neck_cm, waist_cm, hip_cm, age, biological_sex, activity_level, primary_goal, dietary_restrictions)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        ON DUPLICATE KEY UPDATE height_cm = VALUES(height_cm), weight_kg = VALUES(weight_kg), neck_cm = VALUES(neck_cm), waist_cm = VALUES(waist_cm), hip_cm = VALUES(hip_cm), age = VALUES(age), biological_sex = VALUES(biological_sex), activity_level = VALUES(activity_level), primary_goal = VALUES(primary_goal), dietary_restrictions = VALUES(dietary_restrictions)');
+    $stmt = $pdo->prepare('INSERT INTO member_profiles (user_id, height_cm, weight_kg, neck_cm, waist_cm, hip_cm, age, biological_sex, activity_level, primary_goal, dietary_restrictions, target_weight_kg, target_body_fat_percent)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON DUPLICATE KEY UPDATE height_cm = VALUES(height_cm), weight_kg = VALUES(weight_kg), neck_cm = VALUES(neck_cm), waist_cm = VALUES(waist_cm), hip_cm = VALUES(hip_cm), age = VALUES(age), biological_sex = VALUES(biological_sex), activity_level = VALUES(activity_level), primary_goal = VALUES(primary_goal), dietary_restrictions = VALUES(dietary_restrictions), target_weight_kg = VALUES(target_weight_kg), target_body_fat_percent = VALUES(target_body_fat_percent)');
     $stmt->execute([
         $userId,
         post('height_cm') ?: 0.0,
@@ -24,6 +24,8 @@ function save_member_profile(int $userId): void
         post('activity_level'),
         post('primary_goal') ?: '',
         post('dietary_restrictions') ?: 'none',
+        post('target_weight_kg') ?: null,
+        post('target_body_fat_percent') ?: null,
     ]);
 
     // Update fitness_tier based on selected experience_level
