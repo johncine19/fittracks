@@ -2412,6 +2412,7 @@ body.loaded .skeleton-content.sk-display-flex {
 }
 .msg-sidebar {
     width: 300px;
+    flex-shrink: 0;
     border-right: 1px solid var(--line);
     display: flex;
     flex-direction: column;

@@ -122,7 +122,7 @@ function messages_page(): void
     render_header('Messages', $user);
     ?>
     <?php render_skeleton_chat(); ?>
-    <section class="panel wide skeleton-content msg-container <?= $activeChatId ? 'has-active-chat' : '' ?>">
+    <section class="panel wide skeleton-content sk-display-flex msg-container <?= $activeChatId ? 'has-active-chat' : '' ?>">
         
         <!-- Sidebar -->
         <div class="msg-sidebar">
@@ -163,16 +163,18 @@ function messages_page(): void
                 $aName = h($activeUser['first_name'] . ' ' . $activeUser['last_name']);
             ?>
                 <!-- Chat Header -->
-                <div style="padding: 15px 20px; border-bottom: 1px solid var(--line); display: flex; align-items: center; gap: 12px; background: var(--surface);">
+                <div class="chat-header" style="flex-shrink: 0; padding: 15px 20px; border-bottom: 1px solid var(--line); display: flex; align-items: center; gap: 12px; background: var(--surface);">
                     <a href="index.php?page=messages" class="mobile-back-btn" title="Back to messages">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="24" height="24">
                             <path d="M19 12H5M12 19l-7-7 7-7"/>
                         </svg>
                     </a>
-                    <?= render_avatar($activeUser, 'small') ?>
-                    <div>
-                        <h3 style="margin: 0; font-size: 1.1rem; color: var(--ink);"><?= $aName ?></h3>
-                        <p style="margin: 0; font-size: 0.8rem; color: var(--muted); text-transform: capitalize;"><?= h($activeUser['role']) ?></p>
+                    <div style="display: flex; align-items: center; gap: 12px; flex: 1;">
+                        <?= render_avatar($activeUser, 'small') ?>
+                        <div>
+                            <h3 style="margin: 0; font-size: 1.1rem; color: var(--ink);"><?= $aName ?></h3>
+                            <p style="margin: 0; font-size: 0.8rem; color: var(--muted); text-transform: capitalize;"><?= h($activeUser['role']) ?></p>
+                        </div>
                     </div>
                 </div>
                 
