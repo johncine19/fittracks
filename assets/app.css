@@ -2399,3 +2399,63 @@ body.loaded .skeleton-content.sk-display-flex {
 .announcement-dot.active {
     background: var(--lime);
 }
+
+/* Messages Layout */
+.msg-container {
+    display: flex;
+    padding: 0;
+    height: calc(100vh - 120px);
+    min-height: 500px;
+    overflow: hidden;
+    background: var(--surface);
+    border: 1px solid var(--line);
+}
+.msg-sidebar {
+    width: 300px;
+    border-right: 1px solid var(--line);
+    display: flex;
+    flex-direction: column;
+    background: var(--surface);
+}
+.msg-main {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    background: var(--bg);
+    min-width: 0;
+}
+.mobile-back-btn {
+    display: none;
+    color: var(--muted);
+    text-decoration: none;
+    padding-right: 8px;
+}
+.mobile-back-btn:hover {
+    color: var(--ink);
+}
+
+@media (max-width: 768px) {
+    .msg-container {
+        height: calc(100vh - 90px);
+    }
+    .msg-sidebar {
+        width: 100%;
+        border-right: none;
+    }
+    
+    /* When a chat is active, hide sidebar */
+    .msg-container.has-active-chat .msg-sidebar {
+        display: none !important;
+    }
+    
+    /* When NO chat is active, hide main chat */
+    .msg-container:not(.has-active-chat) .msg-main {
+        display: none !important;
+    }
+    
+    /* Show back button in chat header */
+    .mobile-back-btn {
+        display: flex;
+        align-items: center;
+    }
+}

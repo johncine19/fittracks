@@ -22,7 +22,6 @@ function messages_page(): void
                 
                 if ($unreadCount > 1) {
                     $msgText = 'You have ' . $unreadCount . ' new messages.';
-                    ensure_notifications_reference_id();
                     db()->prepare('UPDATE notifications SET message = ?, reference_id = ?, created_at = CURRENT_TIMESTAMP WHERE user_id = ? AND title = ? AND type = "coach_message" AND is_read = 0')
                       ->execute([$msgText, $user['user_id'], $recipientId, $title]);
                 } else {
@@ -123,10 +122,10 @@ function messages_page(): void
     render_header('Messages', $user);
     ?>
     <?php render_skeleton_chat(); ?>
-    <section class="panel wide skeleton-content sk-display-flex" style="padding: 0; height: calc(100vh - 120px); min-height: 500px; overflow: hidden; background: var(--surface); border: 1px solid var(--line);">
+    <section class="panel wide skeleton-content msg-container <?= $activeChatId ? 'has-active-chat' : '' ?>">
         
         <!-- Sidebar -->
-        <div style="width: 300px; border-right: 1px solid var(--line); display: flex; flex-direction: column; background: var(--surface);">
+        <div class="msg-sidebar">
             <div style="padding: 20px; border-bottom: 1px solid var(--line); display: flex; justify-content: space-between; align-items: center;">
                 <h2 style="margin: 0; font-size: 1.2rem;">Messages</h2>
                 <button onclick="document.getElementById('composeModal').showModal()" style="background: none; border: none; color: var(--lime); cursor: pointer; padding: 5px;" title="New Message">
@@ -159,12 +158,17 @@ function messages_page(): void
         </div>
         
         <!-- Main Chat Area -->
-        <div style="flex: 1; display: flex; flex-direction: column; background: var(--bg);">
+        <div class="msg-main">
             <?php if ($activeUser): 
                 $aName = h($activeUser['first_name'] . ' ' . $activeUser['last_name']);
             ?>
                 <!-- Chat Header -->
                 <div style="padding: 15px 20px; border-bottom: 1px solid var(--line); display: flex; align-items: center; gap: 12px; background: var(--surface);">
+                    <a href="index.php?page=messages" class="mobile-back-btn" title="Back to messages">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="24" height="24">
+                            <path d="M19 12H5M12 19l-7-7 7-7"/>
+                        </svg>
+                    </a>
                     <?= render_avatar($activeUser, 'small') ?>
                     <div>
                         <h3 style="margin: 0; font-size: 1.1rem; color: var(--ink);"><?= $aName ?></h3>
