@@ -42,7 +42,7 @@ function view_gym_page(): void
         
         <h3 style="color:var(--ink); margin-bottom:12px;">Classes Offered</h3>
         <?php if ($classes): ?>
-            <div style="display:grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap:16px;">
+            <div style="display:grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 250px), 1fr)); gap:16px;">
                 <?php foreach ($classes as $c): ?>
                     <div style="background:var(--surface); border:1px solid var(--line); border-radius:8px; padding:16px;">
                         <div style="font-weight:bold; color:var(--ink); font-size:1.1rem; margin-bottom:4px;"><?= h($c['class_name']) ?></div>

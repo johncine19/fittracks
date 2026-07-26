@@ -72,7 +72,7 @@ function trainer_members_page(): void
     if ($pending_requests): ?>
         <section class="panel">
             <h1>Pending Appointments</h1>
-            <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 20px; margin-bottom: 30px;">
+            <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 320px), 1fr)); gap: 20px; margin-bottom: 30px;">
             <?php foreach ($pending_requests as $req):
                 $name = h($req['first_name'] . ' ' . $req['last_name']);
                 $email = h($req['email']);
@@ -120,7 +120,7 @@ function trainer_members_page(): void
 
     <section class="panel">
         <h1>Assigned clients</h1>
-        <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 20px;">
+        <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 320px), 1fr)); gap: 20px;">
         <style>
         .t-btn-primary { background: var(--lime); color: var(--bg); font-weight: bold; width: 100%; border: none; cursor: pointer; padding: 10px; transition: all 0.2s ease; border-radius: 4px; }
         .t-btn-primary:hover { filter: brightness(0.85); transform: translateY(-1px); box-shadow: 0 4px 12px rgba(163, 230, 53, 0.2); }

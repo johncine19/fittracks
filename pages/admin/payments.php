@@ -98,7 +98,7 @@ function payments_page(): void
             $totalCollected = (float) scalar('SELECT SUM(pm.amount) FROM payments pm JOIN memberships m ON pm.membership_id = m.membership_id JOIN membership_plans p ON p.plan_id = m.plan_id ' . ($paymentWhere ? str_replace('WHERE', 'WHERE pm.status=\'paid\' AND', $paymentWhere) : 'WHERE pm.status=\'paid\''));
             $totalPending = (int) scalar('SELECT COUNT(*) FROM payments pm JOIN memberships m ON pm.membership_id = m.membership_id JOIN membership_plans p ON p.plan_id = m.plan_id ' . ($paymentWhere ? str_replace('WHERE', 'WHERE pm.status=\'pending\' AND', $paymentWhere) : 'WHERE pm.status=\'pending\''));
         ?>
-        <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap:15px; margin-bottom: 24px;">
+        <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr)); gap:15px; margin-bottom: 24px;">
             <div style="background:var(--bg); padding:16px; border-radius:8px; border:1px solid var(--line);">
                 <div style="color:var(--muted); font-size:13px; margin-bottom:4px;">Total Collected</div>
                 <div style="font-size:24px; font-weight:bold; color:var(--lime);"><?= h(money($totalCollected)) ?></div>

@@ -78,7 +78,7 @@ function trainer_dashboard(PDO $pdo, array $user): void
     <?php render_announcement_carousel(get_active_announcements('trainers')); ?>
 
     <!-- 4 Metric Cards -->
-    <div class="skeleton-content animate-fade-in delay-1" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-bottom: 24px;">
+    <div class="skeleton-content animate-fade-in delay-1" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 200px), 1fr)); gap: 16px; margin-bottom: 24px;">
         <!-- Assigned Clients -->
         <div class="trainer-metric-card" style="background: var(--bg); border: 1px solid var(--line); border-radius: 12px; padding: 20px; transition: transform 0.2s, box-shadow 0.2s; cursor: default; box-shadow: 0 2px 8px rgba(0,0,0,0.08);" onmouseover="this.style.transform='translateY(-4px)'; this.style.boxShadow='0 8px 24px rgba(0,0,0,0.15)'" onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 2px 8px rgba(0,0,0,0.08)'">
             <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 12px;">

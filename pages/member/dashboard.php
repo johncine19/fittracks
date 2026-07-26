@@ -44,7 +44,7 @@ function member_dashboard(PDO $pdo, array $user): void
     render_announcement_carousel(get_active_announcements('members'));
 
     // Animated Metric Cards
-    echo '<div class="skeleton-content metrics animate-fade-in delay-1" style="margin-bottom: 24px; display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 16px;">';
+    echo '<div class="skeleton-content metrics animate-fade-in delay-1" style="margin-bottom: 24px; display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 150px), 1fr)); gap: 16px;">';
     $metrics = [
         'Attendance Records' => $attendance,
         'Progress Logs' => $progressLogs,
@@ -67,7 +67,7 @@ function member_dashboard(PDO $pdo, array $user): void
         <section class="panel" style="padding: 0; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.08);">
             <div style="padding: 20px 24px 16px; border-bottom: 1px solid var(--line); display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
                 <div style="display: flex; align-items: center; gap: 10px;">
-                    <h2 style="margin: 0; font-size: 18px; color: var(--ink);">Monthly Missions</h2>
+                    <h2 style="margin: 0; font-size: 18px; color: var(--ink);">Missions</h2>
                     <span style="font-size: 12px; background: rgba(199,255,34,0.15); color: var(--lime); padding: 3px 10px; border-radius: 12px; font-weight: 600;"><?= $completedCount ?>/<?= $totalMissions ?> Complete</span>
                 </div>
                 <span style="font-size: 13px; color: var(--muted);">Complete missions to boost your Engagement Score!</span>
@@ -242,7 +242,7 @@ function member_dashboard(PDO $pdo, array $user): void
             <p style="color:var(--muted); font-size:14px; margin-bottom:12px; line-height:1.6;">
                 <strong>Engagement Categories:</strong>
             </p>
-            <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(150px, 1fr)); gap:12px; font-size:13px; margin-bottom: 24px;">
+            <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(min(100%, 150px), 1fr)); gap:12px; font-size:13px; margin-bottom: 24px;">
                 <div style="background:rgba(255,255,255,0.03); padding:10px; border-radius:8px; border-left: 3px solid var(--lime);"><strong>{$high} - 100:</strong> Highly Engaged</div>
                 <div style="background:rgba(255,255,255,0.03); padding:10px; border-radius:8px; border-left: 3px solid #f59e0b;"><strong>{$mod} - {$mod_end}:</strong> Moderately Engaged</div>
                 <div style="background:rgba(255,255,255,0.03); padding:10px; border-radius:8px; border-left: 3px solid #ef4444;"><strong>0 - {$risk_end}:</strong> At-Risk</div>

@@ -147,7 +147,7 @@ function progress_page(): void
             $bfStart = $baseline['body_fat_percent'] ? (float) $baseline['body_fat_percent'] : null;
             $bfCurr = $current['body_fat_percent'] ? (float) $current['body_fat_percent'] : null;
         ?>
-        <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin-bottom: 2rem;">
+        <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 200px), 1fr)); gap: 15px; margin-bottom: 2rem;">
             <div style="background: var(--bg); padding: 15px; border-radius: 8px; border: 1px solid var(--line);">
                 <div style="color: var(--muted); font-size: 13px; font-weight: 600; text-transform: uppercase; margin-bottom: 8px;">Weight</div>
                 <div style="display: flex; justify-content: space-between; align-items: baseline;">

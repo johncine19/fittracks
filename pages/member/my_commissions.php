@@ -48,7 +48,7 @@ function my_commissions_page(): void
             </div>
         </div>
 
-        <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap:15px; margin-bottom: 20px;">
+        <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr)); gap:15px; margin-bottom: 20px;">
             <div style="background:var(--bg); padding:15px; border-radius:8px; border:1px solid var(--line);">
                 <div style="color:var(--muted); font-size:13px; margin-bottom:5px;">Pending Earnings</div>
                 <div style="font-size:24px; font-weight:bold; color:var(--ink);"><?= h(money($stats['pending_total'] ?? 0)) ?></div>

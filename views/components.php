@@ -401,7 +401,7 @@ function render_current_workout(int $memberUserId, bool $dashboardMode = false, 
             $completions[$c['completed_date']][] = $c['exercise_id'];
         }
 
-        echo '<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; margin-top: 2rem;">';
+        echo '<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr)); gap: 20px; margin-top: 2rem;">';
         foreach ($daysArray as $dayName => $dayNum) {
             $exercises = $grouped[$dayName] ?? [];
             $dateForThisDay = date('Y-m-d', strtotime($dayName . ' this week'));

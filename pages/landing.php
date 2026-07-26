@@ -413,7 +413,7 @@ function landing_page(): void
         <h2 class="section-title">Frequently Asked <span style="color:var(--lime)">Questions</span></h2>
     </div>
 
-    <div class="faq-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 30px;">
+    <div class="faq-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr)); gap: 30px;">
         <div class="faq-card" style="background: rgba(255, 255, 255, 0.03); border: 1px solid var(--line); border-radius: 16px; padding: 30px;">
             <h3 style="font-size: 1.25rem; margin-bottom: 12px; color: var(--ink);">How does the Engagement Score work?</h3>
             <p style="color: var(--muted); line-height: 1.6; font-size: 0.95rem; margin: 0;">

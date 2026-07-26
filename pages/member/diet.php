@@ -249,7 +249,7 @@ function confirmRegeneratePlan() {
                         <p style="margin:0; font-style: italic;">No meals specified for this day.</p>
                     </div>
                 <?php else: ?>
-                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px;">
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr)); gap: 20px;">
                         <?php 
                         $dayCals = 0; $dayPro = 0; $dayCarbs = 0; $dayFat = 0;
                         foreach ($mealsByDay[$dayNum] as $meal): 

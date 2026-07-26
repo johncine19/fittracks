@@ -422,7 +422,7 @@ function gym_profile_page(): void
             <?php if (!empty($galleryImages)): ?>
             <div style="margin-top: 24px;">
                 <label style="margin-bottom: 12px; display: block;">Current Gallery</label>
-                <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 16px;">
+                <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 150px), 1fr)); gap: 16px;">
                     <?php foreach ($galleryImages as $img): ?>
                         <div style="position: relative; border-radius: 8px; overflow: hidden; border: 1px solid var(--line); aspect-ratio: 1; background: var(--bg);">
                             <img src="assets/uploads/<?= h($img['image_url']) ?>" alt="Gallery Image" style="width: 100%; height: 100%; object-fit: cover;">

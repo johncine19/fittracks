@@ -821,7 +821,7 @@ function gym_selection_page(): void
         
         if (hasGallery) {
             html += `<div class="modal-tab-panel is-active" id="tab-gallery">
-                        <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 14px;">`;
+                        <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 200px), 1fr)); gap: 14px;">`;
             gym.images.forEach(img => {
                 html += `
                     <div style="border-radius: 12px; overflow: hidden; aspect-ratio: 4/3; border: 1px solid var(--line); box-shadow: var(--shadow);">
@@ -836,7 +836,7 @@ function gym_selection_page(): void
         html += `<div class="modal-tab-panel ${!hasGallery ? 'is-active' : ''}" id="tab-classes">`;
 
         if (classCount > 0) {
-            html += `<div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 14px;">`;
+            html += `<div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 230px), 1fr)); gap: 14px;">`;
             gym.classes.forEach(c => {
                 html += `
                     <div class="class-card">
@@ -856,7 +856,7 @@ function gym_selection_page(): void
         html += `</div><div class="modal-tab-panel" id="tab-plans">`;
 
         if (planCount > 0) {
-            html += `<div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 16px;">`;
+            html += `<div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 250px), 1fr)); gap: 16px;">`;
             gym.plans.forEach(p => {
                 const isBest = p.plan_id === bestValuePlanId && gym.plans.length > 1;
                 const perDay = parseFloat(p.price) / Math.max(1, parseInt(p.duration_days, 10));
