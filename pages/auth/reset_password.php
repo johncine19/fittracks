@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 function handle_reset_password(): void
 {
+    if (!defined('AUTH_PAGE')) define('AUTH_PAGE', true);
     $reset_email = $_SESSION['reset_email'] ?? '';
     if (!$reset_email) {
         flash('Please request a new OTP.', 'danger');

@@ -6,6 +6,7 @@ use PHPMailer\PHPMailer\Exception;
 
 function handle_forgot_password(): void
 {
+    if (!defined('AUTH_PAGE')) define('AUTH_PAGE', true);
     if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $email = post('email');
 

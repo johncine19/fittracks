@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 function handle_register(): void
 {
+    if (!defined('AUTH_PAGE')) define('AUTH_PAGE', true);
     if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $validator = new Validator();
         $rules = [

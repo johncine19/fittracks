@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 function verify_email_page(): void
 {
+    if (!defined('AUTH_PAGE')) define('AUTH_PAGE', true);
     if ($_SERVER['REQUEST_METHOD'] === 'POST' && post('action') === 'resend') {
         // Support resend both from an authenticated session AND from the
         // login-page "pending verify" flow (user not yet logged in).

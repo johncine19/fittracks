@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 function handle_login(): void
 {
+    if (!defined('AUTH_PAGE')) define('AUTH_PAGE', true);
     if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $email = (string) post('email');
 
