@@ -5,19 +5,22 @@ document.addEventListener('DOMContentLoaded', () => {
         return;
     }
 
-    Chart.defaults.color = '#9aa8c7';
+    const computedStyle = getComputedStyle(document.documentElement);
+    let lime = computedStyle.getPropertyValue('--lime').trim() || '#c7ff22';
+    let muted = computedStyle.getPropertyValue('--muted').trim() || '#8792ad';
+
+    Chart.defaults.color = muted;
     Chart.defaults.font.family = 'Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
 
-    const gridColor = 'rgba(135, 146, 173, 0.12)';
-    const lime = '#c7ff22';
-    const limeSoft = 'rgba(199, 255, 34, 0.14)';
+    const gridColor = `color-mix(in srgb, ${muted} 12%, transparent)`;
+    const limeSoft = `color-mix(in srgb, ${lime} 14%, transparent)`;
 
     const revenueCanvas = document.getElementById('revenueTrendChart');
     if (revenueCanvas) {
         const ctx = revenueCanvas.getContext('2d');
         const fill = ctx.createLinearGradient(0, 0, 0, revenueCanvas.clientHeight || 260);
-        fill.addColorStop(0, 'rgba(199, 255, 34, 0.24)');
-        fill.addColorStop(1, 'rgba(199, 255, 34, 0.02)');
+        fill.addColorStop(0, `color-mix(in srgb, ${lime} 24%, transparent)`);
+        fill.addColorStop(1, `color-mix(in srgb, ${lime} 2%, transparent)`);
 
         new Chart(ctx, {
             type: 'line',
@@ -53,13 +56,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 scales: {
                     x: {
                         grid: { color: gridColor, drawBorder: false },
-                        ticks: { color: '#9aa8c7' }
+                        ticks: { color: muted }
                     },
                     y: {
                         beginAtZero: true,
                         grid: { color: gridColor, drawBorder: false },
                         ticks: {
-                            color: '#9aa8c7',
+                            color: muted,
                             callback: (value) => `PHP ${Number(value).toLocaleString()}`
                         }
                     }
@@ -78,7 +81,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     label: 'Check-ins',
                     data: data.checkins.values,
                     backgroundColor: lime,
-                    hoverBackgroundColor: '#dbff63',
+                    hoverBackgroundColor: `color-mix(in srgb, ${lime} 80%, white)`,
                     borderRadius: 5,
                     barThickness: 18
                 }]
@@ -92,13 +95,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 scales: {
                     x: {
                         grid: { display: false, drawBorder: false },
-                        ticks: { color: '#9aa8c7' }
+                        ticks: { color: muted }
                     },
                     y: {
                         beginAtZero: true,
                         grid: { color: gridColor, drawBorder: false },
                         ticks: {
-                            color: '#9aa8c7',
+                            color: muted,
                             precision: 0
                         }
                     }
