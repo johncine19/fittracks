@@ -76,7 +76,7 @@ function render_header(string $title, ?array $user = null): void
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <title><?= h($title) ?> - <?= h($gym['name'] ?? 'FitTrack') ?></title>
-        <link rel="stylesheet" href="assets/app.css">
+        <link rel="stylesheet" href="assets/app.css?v=<?= filemtime(__DIR__ . '/../assets/app.css') ?>">
         <?php if ($gym && !empty($gym['brand_color'])): ?>
             <style>
                 :root, [data-theme="light"], [data-theme="dark"] {
@@ -597,6 +597,6 @@ function setup_error(Throwable $e): void
 {
     http_response_code(500);
     ?>
-    <!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>FITTRACK setup</title><link rel="stylesheet" href="assets/app.css"></head><body><main class="shell"><section class="panel"><h1>Database setup needed</h1><p>FITTRACK could not connect to the MySQL schema yet.</p><p class="muted"><?= h($e->getMessage()) ?></p><ol><li>Create/import the <code>gym_management</code> database using <code>gym_management.sql</code>.</li><li>Check the database constants at the top of <code>index.php</code>.</li><li>Reload this page.</li></ol></section></main></body></html>
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>FITTRACK setup</title><link rel="stylesheet" href="assets/app.css?v=<?= filemtime(__DIR__ . '/../assets/app.css') ?>"></head><body><main class="shell"><section class="panel"><h1>Database setup needed</h1><p>FITTRACK could not connect to the MySQL schema yet.</p><p class="muted"><?= h($e->getMessage()) ?></p><ol><li>Create/import the <code>gym_management</code> database using <code>gym_management.sql</code>.</li><li>Check the database constants at the top of <code>index.php</code>.</li><li>Reload this page.</li></ol></section></main></body></html>
     <?php
 }
