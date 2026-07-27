@@ -1345,6 +1345,39 @@ ALTER TABLE `training_plan_exercises`
 ALTER TABLE `walk_in_transactions`
   ADD CONSTRAINT `fk_walkin_member` FOREIGN KEY (`converted_to_member_id`) REFERENCES `users` (`user_id`) ON DELETE SET NULL,
   ADD CONSTRAINT `fk_walkin_staff` FOREIGN KEY (`processed_by`) REFERENCES `users` (`user_id`) ON DELETE SET NULL;
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `gym_members`
+--
+CREATE TABLE IF NOT EXISTS `gym_members` (
+  `user_id` int UNSIGNED NOT NULL,
+  `gym_id` int UNSIGNED NOT NULL,
+  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+--
+-- Indexes for table `gym_members`
+--
+ALTER TABLE `gym_members`
+  ADD PRIMARY KEY (`user_id`,`gym_id`),
+  ADD KEY `fk_gym_members_gym` (`gym_id`);
+
+--
+-- Constraints for table `gym_members`
+--
+ALTER TABLE `gym_members`
+  ADD CONSTRAINT `fk_gym_members_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`user_id`) ON DELETE CASCADE,
+  ADD CONSTRAINT `fk_gym_members_gym` FOREIGN KEY (`gym_id`) REFERENCES `gyms` (`gym_id`) ON DELETE CASCADE;
+
+--
+-- Constraints for table `checkout_ratings`
+--
+ALTER TABLE `checkout_ratings`
+  ADD CONSTRAINT `fk_checkout_attendance` FOREIGN KEY (`attendance_id`) REFERENCES `attendance` (`attendance_id`) ON DELETE CASCADE,
+  ADD CONSTRAINT `fk_checkout_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`user_id`) ON DELETE CASCADE;
+
 COMMIT;
 
 /*!40101 SET CHARACTER_SET_CLIENT=@OLD_CHARACTER_SET_CLIENT */;
