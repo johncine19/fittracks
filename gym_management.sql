@@ -329,6 +329,7 @@ CREATE TABLE `gyms` (
   `address` varchar(255) NOT NULL,
   `contact_info` varchar(100) DEFAULT NULL,
   `business_permit_url` varchar(255) DEFAULT NULL,
+  `valid_id_url` varchar(255) DEFAULT NULL,
   `status` enum('pending','approved','rejected') NOT NULL DEFAULT 'pending',
   `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP

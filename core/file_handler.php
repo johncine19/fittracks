@@ -136,6 +136,35 @@ final class FileUpload
     }
 
     /**
+     * Validates and stores a valid ID under assets/permits.
+     *
+     * @param array $file one entry of $_FILES
+     * @throws RuntimeException on invalid/oversized/unreadable file
+     */
+    public static function storeValidId(array $file, int $userId): string
+    {
+        self::validatePermit($file);
+
+        $finfo = finfo_open(FILEINFO_MIME_TYPE);
+        $mime = finfo_file($finfo, $file['tmp_name']);
+        finfo_close($finfo);
+        $ext = self::ALLOWED_MIME_PERMIT[$mime];
+
+        $uploadDir = __DIR__ . '/../assets/permits/';
+        if (!is_dir($uploadDir)) {
+            mkdir($uploadDir, 0775, true);
+        }
+
+        $filename = 'id_' . $userId . '_' . bin2hex(random_bytes(8)) . '.' . $ext;
+
+        if (!move_uploaded_file($file['tmp_name'], $uploadDir . $filename)) {
+            throw new RuntimeException('Could not save the valid ID.');
+        }
+
+        return $filename;
+    }
+
+    /**
      * Validates and stores a gym logo under assets/uploads.
      *
      * @param array $file one entry of $_FILES

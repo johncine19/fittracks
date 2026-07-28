@@ -41,7 +41,8 @@ function gym_applications_page(): void
                         <th>Owner</th>
                         <th>Email</th>
                         <th>Address</th>
-                        <th>Business Permit</th>
+                        <th>Contact Info</th>
+                        <th>Documents</th>
                         <th style="width: 200px;">Actions</th>
                     </tr>
                 </thead>
@@ -54,12 +55,19 @@ function gym_applications_page(): void
                                 <td><?= h($app['first_name'] . ' ' . $app['last_name']) ?></td>
                                 <td><?= h($app['email']) ?></td>
                                 <td><?= h($app['address']) ?></td>
+                                <td><?= h($app['contact_info'] ?? 'N/A') ?></td>
                                 <td>
-                                    <?php if ($app['business_permit_url']): ?>
-                                        <button type="button" class="btn-sm btn-ghost" onclick="viewDocument('<?= h($app['business_permit_url']) ?>')">View Document</button>
-                                    <?php else: ?>
-                                        <span class="muted">None</span>
-                                    <?php endif; ?>
+                                    <div style="display:flex; flex-direction:column; gap:4px;">
+                                        <?php if ($app['business_permit_url']): ?>
+                                            <button type="button" class="btn-sm btn-ghost" onclick="viewDocument('<?= h($app['business_permit_url']) ?>', 'Business Permit')">Business Permit</button>
+                                        <?php endif; ?>
+                                        <?php if ($app['valid_id_url'] ?? null): ?>
+                                            <button type="button" class="btn-sm btn-ghost" onclick="viewDocument('<?= h($app['valid_id_url']) ?>', 'Valid ID')">Valid ID</button>
+                                        <?php endif; ?>
+                                        <?php if (!$app['business_permit_url'] && !($app['valid_id_url'] ?? null)): ?>
+                                            <span class="muted">None</span>
+                                        <?php endif; ?>
+                                    </div>
                                 </td>
                                 <td>
                                     <div style="display: flex; gap: 8px;">
@@ -85,13 +93,13 @@ function gym_applications_page(): void
         </div>
     </section>
     <script>
-    function viewDocument(filename) {
+    function viewDocument(filename, docTitle = 'Document') {
         const url = 'assets/permits/' + filename;
         const ext = filename.split('.').pop().toLowerCase();
         
         if (ext === 'pdf') {
             Swal.fire({
-                title: 'Business Permit',
+                title: docTitle,
                 html: `<iframe src="${url}" style="width:100%; height:70vh; border:none;"></iframe>`,
                 width: '80%',
                 showCloseButton: true,
@@ -101,9 +109,9 @@ function gym_applications_page(): void
             });
         } else {
             Swal.fire({
-                title: 'Business Permit',
+                title: docTitle,
                 imageUrl: url,
-                imageAlt: 'Business Permit',
+                imageAlt: docTitle,
                 width: 'auto',
                 showCloseButton: true,
                 showConfirmButton: false,

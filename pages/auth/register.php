@@ -17,6 +17,7 @@ function handle_register(): void
         if (post('account_type') === 'gym_owner') {
             $rules['gym_name'] = 'required|min:2|max:100';
             $rules['gym_address'] = 'required|min:5|max:255';
+            $rules['gym_contact_info'] = 'required|min:5|max:100';
         }
 
         $valid = $validator->validate($_POST, $rules);
@@ -75,15 +76,24 @@ function handle_register(): void
                         throw new Exception('Business permit is required for gym owners.');
                     }
 
+                    $validIdFilename = null;
+                    if (isset($_FILES['valid_id']) && $_FILES['valid_id']['error'] === UPLOAD_ERR_OK) {
+                        $validIdFilename = FileUpload::storeValidId($_FILES['valid_id'], $userId);
+                    } else {
+                        throw new Exception('Valid ID is required for gym owners.');
+                    }
+
                     $gymStmt = $pdo->prepare(
-                        'INSERT INTO gyms (owner_user_id, name, address, business_permit_url, status)
-                         VALUES (?, ?, ?, ?, "pending")'
+                        'INSERT INTO gyms (owner_user_id, name, address, contact_info, business_permit_url, valid_id_url, status)
+                         VALUES (?, ?, ?, ?, ?, ?, "pending")'
                     );
                     $gymStmt->execute([
                         $userId,
                         post('gym_name'),
                         post('gym_address'),
-                        $permitFilename
+                        post('gym_contact_info'),
+                        $permitFilename,
+                        $validIdFilename
                     ]);
                 }
 
@@ -158,9 +168,21 @@ function handle_register(): void
                         </div>
                     </div>
                     <div class="auth-field">
+                        <label>GYM CONTACT INFO</label>
+                        <div class="auth-input-group">
+                            <input type="text" name="gym_contact_info" id="gym_contact_info" placeholder="Phone or Email" value="<?= h(post('gym_contact_info')) ?>">
+                        </div>
+                    </div>
+                    <div class="auth-field">
                         <label>BUSINESS PERMIT (PDF, JPG, PNG)</label>
                         <div class="auth-input-group">
                             <input type="file" name="business_permit" id="business_permit" accept=".pdf,.jpg,.jpeg,.png">
+                        </div>
+                    </div>
+                    <div class="auth-field">
+                        <label>VALID ID (PDF, JPG, PNG)</label>
+                        <div class="auth-input-group">
+                            <input type="file" name="valid_id" id="valid_id" accept=".pdf,.jpg,.jpeg,.png">
                         </div>
                     </div>
                 </div>
@@ -171,18 +193,24 @@ function handle_register(): void
                         const gymFields = document.getElementById('gym-fields');
                         const gymName = document.getElementById('gym_name');
                         const gymAddress = document.getElementById('gym_address');
+                        const gymContact = document.getElementById('gym_contact_info');
                         const businessPermit = document.getElementById('business_permit');
+                        const validId = document.getElementById('valid_id');
                         
                         if (isGymOwner) {
                             gymFields.style.display = 'block';
                             gymName.required = true;
                             gymAddress.required = true;
+                            gymContact.required = true;
                             businessPermit.required = true;
+                            validId.required = true;
                         } else {
                             gymFields.style.display = 'none';
                             gymName.required = false;
                             gymAddress.required = false;
+                            gymContact.required = false;
                             businessPermit.required = false;
+                            validId.required = false;
                         }
                     }
                     // Run on load to set correct initial state
