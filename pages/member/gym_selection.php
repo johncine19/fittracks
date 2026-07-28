@@ -12,6 +12,7 @@ function gym_selection_page(): void
         if ($gymId > 0) {
             db()->prepare('INSERT IGNORE INTO gym_members (user_id, gym_id) VALUES (?, ?)')
                 ->execute([$user['user_id'], $gymId]);
+            $_SESSION['current_gym_id'] = $gymId;
             flash('Successfully affiliated with the selected gym.', 'success');
             redirect('index.php?page=dashboard');
         }

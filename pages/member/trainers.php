@@ -49,7 +49,10 @@ function trainers_page(): void
         redirect('trainers');
     }
 
-    $trainers = query_all('SELECT tp.trainer_id, u.user_id, u.first_name, u.last_name, u.profile_picture, tp.specialization, tp.bio, (SELECT COUNT(*) FROM attendance WHERE user_id = u.user_id AND check_out_time IS NULL AND DATE(check_in_time) = CURDATE()) as is_present FROM trainer_profiles tp JOIN users u ON u.user_id = tp.user_id WHERE u.status = "active"');
+    $currentGym = get_user_gym($user);
+    $gymId = $currentGym ? (int) $currentGym['gym_id'] : 0;
+    
+    $trainers = query_all('SELECT tp.trainer_id, u.user_id, u.first_name, u.last_name, u.profile_picture, tp.specialization, tp.bio, (SELECT COUNT(*) FROM attendance WHERE user_id = u.user_id AND check_out_time IS NULL AND DATE(check_in_time) = CURDATE()) as is_present FROM trainer_profiles tp JOIN users u ON u.user_id = tp.user_id WHERE u.status = "active" AND tp.gym_id = ?', [$gymId]);
     
     $stmt = db()->prepare("SELECT status, trainer_id FROM trainer_assignments WHERE member_user_id = ? AND status IN ('active', 'pending_admin', 'pending_trainer')");
     $stmt->execute([$user['user_id']]);
