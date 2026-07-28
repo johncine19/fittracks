@@ -176,26 +176,14 @@ function profile_page(): void
                 }
             }
             redirect('profile');
-        } elseif (isset($_POST['request_transfer']) && $is_member) {
-            $toGymId = (int) post('to_gym_id');
-            $fromGymId = (int) post('from_gym_id');
-            if ($toGymId && $fromGymId && $toGymId !== $fromGymId) {
-                // Check if already has pending transfer
-                $pending = scalar('SELECT transfer_id FROM member_transfers WHERE user_id = ? AND status IN ("pending_current_gym", "pending_receiving_gym")', [$user['user_id']]);
-                if ($pending) {
-                    flash('You already have a pending transfer request.', 'warning');
-                } else {
-                    db()->prepare('INSERT INTO member_transfers (user_id, from_gym_id, to_gym_id, status) VALUES (?, ?, ?, "pending_current_gym")')
-                        ->execute([$user['user_id'], $fromGymId, $toGymId]);
-                    
-                    // Notify current gym owner
-                    $currentGymOwner = scalar('SELECT owner_user_id FROM gyms WHERE gym_id = ?', [$fromGymId]);
-                    if ($currentGymOwner) {
-                        notify_user((int) $currentGymOwner, 'system', 'New Transfer Request', $user['first_name'] . ' requested a gym transfer. Please review in Member Transfers.');
-                    }
-                    
-                    flash('Transfer request submitted successfully. Waiting for your current gym owner to approve.', 'success');
-                }
+        } elseif (isset($_POST['switch_home_gym']) && $is_member) {
+            $newGymId = (int) post('new_gym_id');
+            $gym = db()->query("SELECT name FROM gyms WHERE gym_id = $newGymId AND status = 'approved'")->fetch();
+            if ($gym) {
+                db()->prepare("DELETE FROM gym_members WHERE user_id = ?")->execute([$user['user_id']]);
+                db()->prepare("INSERT INTO gym_members (user_id, gym_id) VALUES (?, ?)")->execute([$user['user_id'], $newGymId]);
+                $_SESSION['current_gym_id'] = $newGymId;
+                flash('You have set ' . $gym['name'] . ' as your home gym. Your historical data (workouts, diet, progress) is now linked to this profile. To access trainers and classes here, please purchase a membership plan.', 'success');
             } else {
                 flash('Invalid gym selected.', 'danger');
             }
@@ -213,6 +201,8 @@ function profile_page(): void
 
     $currentGymId = null;
     $currentGymName = '';
+    $homeGymId = null;
+    $homeGymName = 'None';
     if ($is_member) {
         $activeMem = db()->query("
             SELECT g.gym_id, g.name 
@@ -225,6 +215,11 @@ function profile_page(): void
         if ($activeMem) {
             $currentGymId = (int)$activeMem['gym_id'];
             $currentGymName = $activeMem['name'];
+        }
+        $homeGym = get_user_gym($user);
+        if ($homeGym) {
+            $homeGymId = (int)$homeGym['gym_id'];
+            $homeGymName = $homeGym['name'];
         }
     }
     
@@ -414,38 +409,94 @@ function profile_page(): void
             </div>
         </section>
 
-        <?php if ($is_member && $currentGymId): ?>
+        <?php if ($is_member): ?>
         <section class="panel" style="flex: 1; min-width: 350px; max-width: 650px; margin: 0;">
             <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;">
-                <h2 style="margin:0;">Gym Transfer</h2>
+                <h2 style="margin:0;">Gym Affiliation</h2>
             </div>
-            <p class="muted" style="margin-bottom:1.5rem;font-size:13px;">
-                You are currently a member of <strong><?= h($currentGymName) ?></strong>. You can request to transfer your membership to another gym on the platform.
-            </p>
             
-            <?php 
-            $pendingTransfer = db()->query("SELECT t.*, g.name as to_gym FROM member_transfers t JOIN gyms g ON g.gym_id = t.to_gym_id WHERE t.user_id = {$user['user_id']} AND t.status IN ('pending_current_gym', 'pending_receiving_gym')")->fetch();
-            if ($pendingTransfer): 
-                $statusMsg = $pendingTransfer['status'] === 'pending_current_gym' ? 'Waiting for your current gym to approve.' : 'Waiting for the destination gym to approve.';
-            ?>
-                <div class="flash warning">
-                    You have a pending transfer request to <strong><?= h($pendingTransfer['to_gym']) ?></strong>. <?= h($statusMsg) ?>
-                </div>
+            <?php if ($currentGymId): ?>
+                <!-- Scenario B: Active Membership Transfer -->
+                <p class="muted" style="margin-bottom:1.5rem;font-size:13px;">
+                    You have an active membership at <strong><?= h($currentGymName) ?></strong>. You can request to transfer your membership to another gym on the platform.
+                </p>
+                
+                <?php 
+                $pendingTransfer = db()->query("SELECT t.*, g.name as to_gym FROM member_transfers t JOIN gyms g ON g.gym_id = t.to_gym_id WHERE t.user_id = {$user['user_id']} AND t.status IN ('pending_current_gym', 'pending_receiving_gym')")->fetch();
+                if ($pendingTransfer): 
+                    $statusMsg = $pendingTransfer['status'] === 'pending_current_gym' ? 'Waiting for your current gym to approve.' : 'Waiting for the destination gym to approve.';
+                ?>
+                    <div class="flash warning">
+                        You have a pending transfer request to <strong><?= h($pendingTransfer['to_gym']) ?></strong>. <?= h($statusMsg) ?>
+                    </div>
+                <?php else: ?>
+                    <form method="post" id="transfer-form" class="form grid-form" style="margin-bottom:0;" onsubmit="handleTransferSubmit(event);">
+                        <?= csrf_field() ?>
+                        <input type="hidden" name="request_transfer" value="1">
+                        <input type="hidden" name="from_gym_id" value="<?= $currentGymId ?>">
+                        
+                        <label style="grid-column: 1 / -1;">Transfer To Gym
+                            <select name="to_gym_id" id="to_gym_id" class="form-control" required>
+                                <option value="">Select Destination Gym...</option>
+                                <?php foreach ($allGyms as $g): if ((int)$g['gym_id'] === $currentGymId) continue; ?>
+                                    <option value="<?= (int) $g['gym_id'] ?>"><?= h($g['name']) ?></option>
+                                <?php endforeach; ?>
+                            </select>
+                        </label>
+                        <button type="submit" class="btn-primary" style="margin-top: 10px; grid-column: 1 / -1;">Request Transfer</button>
+                    </form>
+                    <script>
+                    function handleTransferSubmit(e) {
+                        e.preventDefault();
+                        const select = document.getElementById('to_gym_id');
+                        const selectedText = select.options[select.selectedIndex].text;
+                        if (!select.value) return;
+
+                        Swal.fire({
+                            title: 'Transfer Membership?',
+                            html: '<p style="font-size:14px;color:var(--muted);margin-bottom:15px;">You are requesting to transfer your active membership to <strong>' + selectedText + '</strong>.</p>' +
+                                  '<div style="text-align:left;background:rgba(239, 68, 68, 0.1);border:1px solid rgba(239, 68, 68, 0.3);padding:12px;border-radius:8px;">' +
+                                  '<strong style="color:#ef4444;display:block;margin-bottom:4px;">Warning:</strong>' +
+                                  '<ul style="margin:0;padding-left:20px;font-size:13px;color:var(--muted);">' +
+                                  '<li>Your current gym owner must approve the release.</li>' +
+                                  '<li>The destination gym must accept your transfer.</li>' +
+                                  '<li>You will forfeit any remaining sessions, credits, or benefits at your current gym.</li>' +
+                                  '</ul></div>',
+                            icon: 'warning',
+                            showCancelButton: true,
+                            confirmButtonColor: '#ef4444',
+                            cancelButtonColor: 'transparent',
+                            confirmButtonText: 'Yes, Request Transfer',
+                            background: 'var(--surface-color, #18251eff)',
+                            color: 'var(--text-color, #ffffff)',
+                            customClass: { cancelButton: 'swal-skip-btn' }
+                        }).then((result) => {
+                            if (result.isConfirmed) {
+                                document.getElementById('transfer-form').submit();
+                            }
+                        });
+                    }
+                    </script>
+                <?php endif; ?>
+            
             <?php else: ?>
-                <form method="post" class="form grid-form" style="margin-bottom:0;" onsubmit="return confirm('Are you sure you want to request a transfer? Your request will be reviewed by the platform admin.');">
+                <!-- Scenario A: Switch Home Gym (No Active Plan) -->
+                <p class="muted" style="margin-bottom:1.5rem;font-size:13px;">
+                    Your current home gym is <strong><?= h($homeGymName) ?></strong>. Since you don't have an active membership, you can freely switch your affiliation to explore other gyms on the platform.
+                </p>
+                <form method="post" class="form grid-form" style="margin-bottom:0;" onsubmit="const btn = this.querySelector('button[type=submit]'); btn.disabled = true; btn.innerHTML = 'Updating...';">
                     <?= csrf_field() ?>
-                    <input type="hidden" name="request_transfer" value="1">
-                    <input type="hidden" name="from_gym_id" value="<?= $currentGymId ?>">
+                    <input type="hidden" name="switch_home_gym" value="1">
                     
-                    <label style="grid-column: 1 / -1;">Transfer To Gym
-                        <select name="to_gym_id" class="form-control" required>
-                            <option value="">Select Destination Gym...</option>
-                            <?php foreach ($allGyms as $g): if ((int)$g['gym_id'] === $currentGymId) continue; ?>
+                    <label style="grid-column: 1 / -1;">New Home Gym
+                        <select name="new_gym_id" class="form-control" required>
+                            <option value="">Select a Gym...</option>
+                            <?php foreach ($allGyms as $g): if ($homeGymId && (int)$g['gym_id'] === $homeGymId) continue; ?>
                                 <option value="<?= (int) $g['gym_id'] ?>"><?= h($g['name']) ?></option>
                             <?php endforeach; ?>
                         </select>
                     </label>
-                    <button type="submit" class="btn-primary" style="margin-top: 10px; grid-column: 1 / -1;">Request Transfer</button>
+                    <button type="submit" class="btn-primary" style="margin-top: 10px; grid-column: 1 / -1;">Set Home Gym</button>
                 </form>
             <?php endif; ?>
         </section>
