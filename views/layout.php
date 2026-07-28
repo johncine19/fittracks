@@ -145,6 +145,15 @@ function render_header(string $title, ?array $user = null): void
                     <?php if ($gym && !empty($gym['logo_url'])): ?>
                         <img src="assets/uploads/<?= h($gym['logo_url']) ?>" alt="Logo" style="height: 32px; max-width: 45px; object-fit: contain; border-radius: 4px; flex-shrink: 0;">
                         <span style="font-weight: 700; font-size: 1rem; line-height: 1.2; letter-spacing: -0.2px; white-space: normal;"><?= h($gym['name']) ?></span>
+                    <?php elseif ($gym && !empty($gym['name'])): ?>
+                        <?php
+                            $words = preg_split('/\s+/', trim($gym['name']));
+                            $gymInitials = count($words) >= 2 
+                                ? mb_strtoupper(mb_substr($words[0], 0, 1) . mb_substr($words[1], 0, 1))
+                                : mb_strtoupper(mb_substr($words[0], 0, 2));
+                        ?>
+                        <span class="brand-mark"><?= h($gymInitials) ?></span>
+                        <span style="font-weight: 700; font-size: 1rem; line-height: 1.2; letter-spacing: -0.2px; white-space: normal;"><?= h($gym['name']) ?></span>
                     <?php else: ?>
                         <span class="brand-mark">FT</span>
                         <span>FitTrack</span>
