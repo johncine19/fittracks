@@ -40,6 +40,7 @@ function render_header(string $title, ?array $user = null): void
                 'attendance' => 'Attendance',
                 'exercises' => 'Exercises',
                 'reports' => 'Reports',
+                'gym_owner_transfers' => 'Member Transfers',
                 'messages' => 'Messages',
                 'notifications' => 'Notifications'
             ];

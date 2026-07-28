@@ -13,7 +13,7 @@ function member_transfers_page(): void
 
         if ($action === 'approve' || $action === 'reject') {
             $transfer = $pdo->query("SELECT * FROM member_transfers WHERE transfer_id = $transferId")->fetch();
-            if ($transfer && $transfer['status'] === 'pending') {
+            if ($transfer && in_array($transfer['status'], ['pending_current_gym', 'pending_receiving_gym'])) {
                 $pdo->prepare('UPDATE member_transfers SET status = ?, resolved_at = NOW() WHERE transfer_id = ?')
                     ->execute([$action . 'd', $transferId]); // 'approved' or 'rejected'
                 
@@ -105,20 +105,22 @@ function member_transfers_page(): void
                                     <span class="badge badge-active">Approved</span>
                                 <?php elseif ($t['status'] === 'rejected'): ?>
                                     <span class="badge badge-inactive" style="color:var(--danger)">Rejected</span>
-                                <?php else: ?>
-                                    <span class="badge badge-pending">Pending</span>
+                                <?php elseif ($t['status'] === 'pending_current_gym'): ?>
+                                    <span class="badge badge-pending">Waiting: Current Gym</span>
+                                <?php elseif ($t['status'] === 'pending_receiving_gym'): ?>
+                                    <span class="badge badge-pending">Waiting: Destination Gym</span>
                                 <?php endif; ?>
                             </td>
                             <td style="color:var(--muted); font-size:13px;">
                                 <?= $t['resolved_at'] ? h(date('M j, Y g:i A', strtotime($t['resolved_at']))) : '—' ?>
                             </td>
                             <td>
-                                <?php if ($t['status'] === 'pending'): ?>
-                                    <form method="post" style="display:inline-block; margin:0;">
+                                <?php if (in_array($t['status'], ['pending_current_gym', 'pending_receiving_gym'])): ?>
+                                    <form method="post" style="display:inline-block; margin:0;" onsubmit="return confirm('Override and force <?= $t['status'] === 'pending_current_gym' ? 'approve' : 'resolve' ?> this transfer?');">
                                         <?= csrf_field() ?>
                                         <input type="hidden" name="transfer_id" value="<?= $t['transfer_id'] ?>">
-                                        <button type="submit" name="action" value="approve" class="btn-sm btn-primary" style="padding: 4px 8px; font-size: 12px; background: var(--lime); color: var(--bg); border: none;">Approve</button>
-                                        <button type="submit" name="action" value="reject" class="btn-sm btn-ghost" style="padding: 4px 8px; font-size: 12px; color: var(--danger); border: none;">Reject</button>
+                                        <button type="submit" name="action" value="approve" class="btn-sm btn-primary" style="padding: 4px 8px; font-size: 12px; background: var(--lime); color: var(--bg); border: none;">Force Approve</button>
+                                        <button type="submit" name="action" value="reject" class="btn-sm btn-ghost" style="padding: 4px 8px; font-size: 12px; color: var(--danger); border: none;">Force Reject</button>
                                     </form>
                                 <?php else: ?>
                                     <span style="color:var(--muted); font-size:12px;">Resolved</span>

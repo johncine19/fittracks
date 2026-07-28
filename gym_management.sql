@@ -423,7 +423,7 @@ CREATE TABLE `member_transfers` (
   `user_id` int UNSIGNED NOT NULL,
   `from_gym_id` int UNSIGNED NOT NULL,
   `to_gym_id` int UNSIGNED NOT NULL,
-  `status` enum('pending','approved','rejected') NOT NULL DEFAULT 'pending',
+  `status` enum('pending_current_gym','pending_receiving_gym','approved','rejected') NOT NULL DEFAULT 'pending_current_gym',
   `requested_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `resolved_at` timestamp NULL DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;

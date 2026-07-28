@@ -181,20 +181,20 @@ function profile_page(): void
             $fromGymId = (int) post('from_gym_id');
             if ($toGymId && $fromGymId && $toGymId !== $fromGymId) {
                 // Check if already has pending transfer
-                $pending = scalar('SELECT transfer_id FROM member_transfers WHERE user_id = ? AND status = "pending"', [$user['user_id']]);
+                $pending = scalar('SELECT transfer_id FROM member_transfers WHERE user_id = ? AND status IN ("pending_current_gym", "pending_receiving_gym")', [$user['user_id']]);
                 if ($pending) {
                     flash('You already have a pending transfer request.', 'warning');
                 } else {
-                    db()->prepare('INSERT INTO member_transfers (user_id, from_gym_id, to_gym_id, status) VALUES (?, ?, ?, "pending")')
+                    db()->prepare('INSERT INTO member_transfers (user_id, from_gym_id, to_gym_id, status) VALUES (?, ?, ?, "pending_current_gym")')
                         ->execute([$user['user_id'], $fromGymId, $toGymId]);
                     
-                    // Notify platform admins
-                    $admins = query_all('SELECT user_id FROM users WHERE role = "admin"');
-                    foreach ($admins as $admin) {
-                        notify_user((int) $admin['user_id'], 'system', 'New Transfer Request', $user['first_name'] . ' requested a gym transfer.');
+                    // Notify current gym owner
+                    $currentGymOwner = scalar('SELECT owner_user_id FROM gyms WHERE gym_id = ?', [$fromGymId]);
+                    if ($currentGymOwner) {
+                        notify_user((int) $currentGymOwner, 'system', 'New Transfer Request', $user['first_name'] . ' requested a gym transfer. Please review in Member Transfers.');
                     }
                     
-                    flash('Transfer request submitted successfully. A platform admin will review it.', 'success');
+                    flash('Transfer request submitted successfully. Waiting for your current gym owner to approve.', 'success');
                 }
             } else {
                 flash('Invalid gym selected.', 'danger');
@@ -424,11 +424,12 @@ function profile_page(): void
             </p>
             
             <?php 
-            $pendingTransfer = db()->query("SELECT t.*, g.name as to_gym FROM member_transfers t JOIN gyms g ON g.gym_id = t.to_gym_id WHERE t.user_id = {$user['user_id']} AND t.status = 'pending'")->fetch();
+            $pendingTransfer = db()->query("SELECT t.*, g.name as to_gym FROM member_transfers t JOIN gyms g ON g.gym_id = t.to_gym_id WHERE t.user_id = {$user['user_id']} AND t.status IN ('pending_current_gym', 'pending_receiving_gym')")->fetch();
             if ($pendingTransfer): 
+                $statusMsg = $pendingTransfer['status'] === 'pending_current_gym' ? 'Waiting for your current gym to approve.' : 'Waiting for the destination gym to approve.';
             ?>
                 <div class="flash warning">
-                    You have a pending transfer request to <strong><?= h($pendingTransfer['to_gym']) ?></strong>. A platform administrator is reviewing it.
+                    You have a pending transfer request to <strong><?= h($pendingTransfer['to_gym']) ?></strong>. <?= h($statusMsg) ?>
                 </div>
             <?php else: ?>
                 <form method="post" class="form grid-form" style="margin-bottom:0;" onsubmit="return confirm('Are you sure you want to request a transfer? Your request will be reviewed by the platform admin.');">
