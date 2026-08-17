@@ -22,10 +22,13 @@ function require_login(): array
 
     $page = $_GET['page'] ?? 'dashboard';
     
-    // Globally enforce physical profile setup for members
-    if ($user['role'] === 'member' && $page !== 'setup_profile' && $page !== 'logout') {
-        if (member_profile((int) $user['user_id']) === null) {
+    // Globally enforce physical profile + goal setup for members
+    if ($user['role'] === 'member' && !in_array($page, ['setup_profile', 'setup_goal', 'logout'], true)) {
+        $memberProfile = member_profile((int) $user['user_id']);
+        if ($memberProfile === null) {
             redirect('setup_profile');
+        } elseif (empty($memberProfile['primary_goal'])) {
+            redirect('setup_goal');
         }
     }
 
