@@ -70,8 +70,8 @@ function admin_dashboard(PDO $pdo, array $user): void
         'Sat' => $weekMap[7],
         'Sun' => $weekMap[1],
     ];
-    $todayClasses = $pdo->query('SELECT c.class_name, c.capacity, s.start_datetime, COALESCE(CONCAT(u.first_name, " ", u.last_name), "Open trainer") AS trainer, (SELECT COUNT(*) FROM class_bookings b WHERE b.schedule_id = s.schedule_id AND b.booking_status = "booked") AS booked FROM class_schedules s JOIN classes c ON c.class_id = s.class_id LEFT JOIN users u ON u.user_id = c.instructor_id WHERE DATE(s.start_datetime) = CURDATE() ORDER BY s.start_datetime LIMIT 4')->fetchAll();
-    $recent = $pdo->query('SELECT a.check_in_time, CONCAT(u.first_name, " ", u.last_name) AS member, u.first_name, u.last_name, u.profile_picture FROM attendance a JOIN users u ON u.user_id = a.user_id ORDER BY a.check_in_time DESC LIMIT 15')->fetchAll();
+    $todayClasses = $pdo->query('SELECT c.class_name, c.capacity, s.start_datetime, COALESCE(CONCAT(u.first_name, " ", u.last_name), "Open trainer") AS trainer, (SELECT COUNT(*) FROM class_bookings b WHERE b.schedule_id = s.schedule_id AND b.booking_status = "booked") AS booked FROM class_schedules s JOIN classes c ON c.class_id = s.class_id LEFT JOIN users u ON u.user_id = c.instructor_id WHERE ' . ($isPlatformAdmin ? '' : 'c.gym_id = ' . $gymId . ' AND ') . 'DATE(s.start_datetime) = CURDATE() ORDER BY s.start_datetime LIMIT 4')->fetchAll();
+    $recent = $pdo->query('SELECT a.check_in_time, CONCAT(u.first_name, " ", u.last_name) AS member, u.first_name, u.last_name, u.profile_picture FROM attendance a JOIN users u ON u.user_id = a.user_id ' . ($isPlatformAdmin ? '' : 'WHERE a.gym_id = ' . $gymId . ' ') . 'ORDER BY a.check_in_time DESC LIMIT 15')->fetchAll();
 
     // Revenue trend % for chart panel label
     $lastMonthRevenue = (float) $pdo->query(
@@ -241,7 +241,7 @@ function admin_dashboard(PDO $pdo, array $user): void
             <h2>Expiring Memberships</h2>
             <div class="list-stack">
                 <?php
-                $expiring = $pdo->query('SELECT m.end_date, CONCAT(u.first_name, " ", u.last_name) AS member, u.first_name, u.last_name, u.profile_picture FROM memberships m JOIN users u ON u.user_id = m.user_id WHERE m.status = "active" AND m.end_date BETWEEN CURDATE() AND DATE_ADD(CURDATE(), INTERVAL 3 DAY) ORDER BY m.end_date ASC LIMIT 5')->fetchAll();
+                $expiring = $pdo->query('SELECT m.end_date, CONCAT(u.first_name, " ", u.last_name) AS member, u.first_name, u.last_name, u.profile_picture FROM memberships m JOIN users u ON u.user_id = m.user_id JOIN membership_plans mp ON mp.plan_id = m.plan_id WHERE m.status = "active" AND m.end_date BETWEEN CURDATE() AND DATE_ADD(CURDATE(), INTERVAL 3 DAY)' . ($isPlatformAdmin ? '' : ' AND mp.gym_id = ' . $gymId) . ' ORDER BY m.end_date ASC LIMIT 5')->fetchAll();
                 foreach ($expiring as $row): ?>
                     <div class="checkin-row">
                         <?= render_avatar($row) ?>
@@ -263,7 +263,7 @@ function admin_dashboard(PDO $pdo, array $user): void
             </div>
             <div class="list-stack" id="inactive-carousel">
                 <?php
-                $inactive = get_inactive_members(15);
+                $inactive = get_inactive_members(15, $isPlatformAdmin ? null : $gymId);
                 foreach ($inactive as $index => $row): ?>
                     <div class="checkin-row inactive-slide" style="display: <?= $index < 3 ? 'flex' : 'none' ?>;">
                         <?= render_avatar($row) ?>

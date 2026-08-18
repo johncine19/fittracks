@@ -19,12 +19,6 @@ try {
     seed_reference_data_if_empty();
     verify_csrf();
 
-    // --- Daily Background Tasks ---
-    $lastScan = get_setting('last_at_risk_scan_date');
-    if ($lastScan !== date('Y-m-d')) {
-        db()->prepare('REPLACE INTO system_settings (setting_key, setting_value) VALUES (?, ?)')->execute(['last_at_risk_scan_date', date('Y-m-d')]);
-        process_automated_at_risk_notifications();
-    }
 
     // --- Global Actions ---
     if (isset($_POST['self_checkout'])) {

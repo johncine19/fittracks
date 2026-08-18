@@ -143,28 +143,59 @@ function get_engagement_missions(int $userId): array
     ];
 }
 
-function get_cached_engagement_score(int $userId, int $maxAgeMinutes = 1440): int
+function get_cached_engagement_score(int $userId): int
 {
     $row = db()->query(
-        'SELECT engagement_score, engagement_computed_at FROM users WHERE user_id = ' . (int)$userId
+        'SELECT engagement_score FROM users WHERE user_id = ' . (int)$userId
     )->fetch();
     
-    if ($row && $row['engagement_score'] !== null && $row['engagement_computed_at']) {
-        $computedTime = strtotime($row['engagement_computed_at']);
-        if (time() - $computedTime < $maxAgeMinutes * 60) {
-            return (int) $row['engagement_score'];
-        }
-    }
-    
-    return calculate_engagement_score($userId);
+    return (int) ($row['engagement_score'] ?? 0);
 }
 
-function recompute_all_engagement_scores(): void
+function recompute_all_engagement_scores_batch(): void
 {
-    $users = query_all('SELECT user_id FROM users WHERE role = "member" AND status = "active"');
-    foreach ($users as $u) {
-        calculate_engagement_score((int) $u['user_id']);
-    }
+    $pdo = db();
+    $wAttendance = (int) get_setting('engagement_weight_attendance', '40');
+    $wClasses = (int) get_setting('engagement_weight_classes', '20');
+    $wConsistency = (int) get_setting('engagement_weight_consistency', '20');
+    $wWorkouts = (int) get_setting('engagement_weight_workouts', '10');
+    $wProgress = (int) get_setting('engagement_weight_progress', '10');
+
+    $sql = "
+        UPDATE users u
+        LEFT JOIN (
+            SELECT user_id, LEAST(?, (COUNT(*) / 7) * ?) AS score
+            FROM attendance WHERE check_in_time >= DATE_SUB(CURDATE(), INTERVAL 30 DAY) GROUP BY user_id
+        ) att ON att.user_id = u.user_id
+        LEFT JOIN (
+            SELECT user_id, LEAST(?, (COUNT(*) / 4) * ?) AS score
+            FROM class_bookings WHERE booking_status = 'attended' AND booked_at >= DATE_SUB(CURDATE(), INTERVAL 30 DAY) GROUP BY user_id
+        ) cls ON cls.user_id = u.user_id
+        LEFT JOIN (
+            SELECT user_id, LEAST(?, (COUNT(DISTINCT WEEK(check_in_time)) / 4) * ?) AS score
+            FROM attendance WHERE check_in_time >= DATE_SUB(CURDATE(), INTERVAL 30 DAY) GROUP BY user_id
+        ) cons ON cons.user_id = u.user_id
+        LEFT JOIN (
+            SELECT user_id, LEAST(?, (COUNT(DISTINCT completed_date) / 8) * ?) AS score
+            FROM exercise_completions WHERE completed_date >= DATE_SUB(CURDATE(), INTERVAL 30 DAY) GROUP BY user_id
+        ) wk ON wk.user_id = u.user_id
+        LEFT JOIN (
+            SELECT user_id, ? AS score
+            FROM progress_logs WHERE log_date >= DATE_SUB(CURDATE(), INTERVAL 60 DAY) GROUP BY user_id
+        ) prg ON prg.user_id = u.user_id
+        SET 
+            u.engagement_score = ROUND(COALESCE(att.score, 0) + COALESCE(cls.score, 0) + COALESCE(cons.score, 0) + COALESCE(wk.score, 0) + COALESCE(prg.score, 0)),
+            u.engagement_computed_at = NOW()
+        WHERE u.role = 'member' AND u.status = 'active'
+    ";
+
+    $pdo->prepare($sql)->execute([
+        $wAttendance, $wAttendance,
+        $wClasses, $wClasses,
+        $wConsistency, $wConsistency,
+        $wWorkouts, $wWorkouts,
+        $wProgress
+    ]);
 }
 
 function get_engagement_category(int $score): string
@@ -176,16 +207,27 @@ function get_engagement_category(int $score): string
     return 'At-Risk';
 }
 
-function get_inactive_members(int $limit = 5): array
+function get_inactive_members(int $limit = 5, ?int $gymId = null): array
 {
     $pdo = db();
+    
+    $gymJoin = '';
+    $gymWhere = '';
+    if ($gymId !== null) {
+        $gymJoin = 'LEFT JOIN gym_members gm ON gm.user_id = u.user_id 
+                    LEFT JOIN memberships m ON m.user_id = u.user_id AND m.status = "active" 
+                    LEFT JOIN membership_plans mp ON mp.plan_id = m.plan_id';
+        $gymWhere = 'AND (gm.gym_id = ' . (int)$gymId . ' OR mp.gym_id = ' . (int)$gymId . ')';
+    }
+
     $users = query_all(
-        'SELECT u.user_id, u.first_name, u.last_name, u.email, u.profile_picture, u.created_at,
+        'SELECT u.user_id, u.first_name, u.last_name, u.email, u.profile_picture, u.created_at, u.engagement_score,
                 MAX(a.check_in_time) as last_checkin, 
                 COALESCE(DATEDIFF(CURDATE(), MAX(a.check_in_time)), DATEDIFF(CURDATE(), u.created_at)) as days_inactive
          FROM users u
          LEFT JOIN attendance a ON u.user_id = a.user_id
-         WHERE u.role = "member" AND u.status = "active"
+         ' . $gymJoin . '
+         WHERE u.role = "member" AND u.status = "active" ' . $gymWhere . '
          GROUP BY u.user_id'
     );
 
@@ -194,7 +236,7 @@ function get_inactive_members(int $limit = 5): array
         if ((int)$u['days_inactive'] < 1) {
             continue; // Skip members who checked in today (0 days inactive)
         }
-        $score = get_cached_engagement_score((int) $u['user_id']);
+        $score = (int) ($u['engagement_score'] ?? 0);
         if (get_engagement_category($score) === 'At-Risk') {
             $atRisk[] = $u;
         }
@@ -216,12 +258,12 @@ function process_automated_at_risk_notifications(): void
         if (($member['days_inactive'] ?? 0) >= $inactivityThreshold) {
             $userId = (int) $member['user_id'];
             
-            $stmt = $pdo->prepare("SELECT COUNT(*) FROM notifications WHERE user_id = ? AND type = 'system' AND title = 'We miss you at the gym! 💪' AND created_at >= DATE_SUB(NOW(), INTERVAL ? DAY)");
+            $stmt = $pdo->prepare("SELECT COUNT(*) FROM notifications WHERE user_id = ? AND type = 'system' AND title = 'We miss you at the gym!' AND created_at >= DATE_SUB(NOW(), INTERVAL ? DAY)");
             $stmt->execute([$userId, $cooldownDays]);
             $recentNotifs = (int) $stmt->fetchColumn();
             
             if ($recentNotifs === 0) {
-                notify_user($userId, 'system', 'We miss you at the gym! 💪', 'It\'s been a few days since your last activity. Check out this week\'s classes or your new workout plan to get back on track!');
+                notify_user($userId, 'system', 'We miss you at the gym!', 'It\'s been a few days since your last activity. Check out this week\'s classes or your new workout plan to get back on track!');
             }
         }
     }
