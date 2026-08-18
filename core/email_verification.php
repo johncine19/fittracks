@@ -36,32 +36,13 @@ function create_email_verification_token(int $userId): string
 function send_verification_email(string $email, string $firstName, string $token): bool
 {
     $link = app_base_url() . '?page=verify_email&token=' . urlencode($token);
+    $htmlBody = 'Hi ' . htmlspecialchars($firstName, ENT_QUOTES, 'UTF-8') . ',<br><br>'
+        . 'Please confirm your email address by clicking the link below:<br>'
+        . '<a href="' . htmlspecialchars($link, ENT_QUOTES, 'UTF-8') . '">Verify my email</a><br><br>'
+        . 'This link expires in 24 hours.';
 
-    $mail = new PHPMailer(true);
-    try {
-        $mail->isSMTP();
-        $mail->Host       = $_ENV['SMTP_HOST'] ?? 'smtp.gmail.com';
-        $mail->SMTPAuth   = true;
-        $mail->Username   = $_ENV['SMTP_USER'] ?? '';
-        $mail->Password   = $_ENV['SMTP_PASS'] ?? '';
-        $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
-        $mail->Port       = (int) ($_ENV['SMTP_PORT'] ?? 587);
-
-        $mail->setFrom($_ENV['SMTP_FROM'] ?? 'no-reply@fittracks.com', $_ENV['SMTP_FROM_NAME'] ?? 'FITTRACKS');
-        $mail->addAddress($email);
-
-        $mail->isHTML(true);
-        $mail->Subject = 'Verify your FITTRACKS email address';
-        $mail->Body    = 'Hi ' . htmlspecialchars($firstName, ENT_QUOTES, 'UTF-8') . ',<br><br>'
-            . 'Please confirm your email address by clicking the link below:<br>'
-            . '<a href="' . htmlspecialchars($link, ENT_QUOTES, 'UTF-8') . '">Verify my email</a><br><br>'
-            . 'This link expires in 24 hours.';
-
-        $mail->send();
-        return true;
-    } catch (PHPMailerException) {
-        return false;
-    }
+    queue_email($email, $firstName, 'Verify your FITTRACKS email address', $htmlBody);
+    return true;
 }
 
 function app_base_url(): string

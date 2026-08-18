@@ -23,6 +23,82 @@ function notify_user(int $userId, string $type, string $title, string $message, 
     }
 }
 
+function broadcast_class_schedule_job(array $payload): void
+{
+    $classId = (int) ($payload['class_id'] ?? 0);
+    $startTime = (string) ($payload['start_time'] ?? '');
+    if ($classId <= 0) {
+        return;
+    }
+
+    $classStmt = db()->prepare('SELECT class_name, gym_id FROM classes WHERE class_id = ?');
+    $classStmt->execute([$classId]);
+    $classData = $classStmt->fetch();
+    if (!$classData) {
+        return;
+    }
+
+    $className = $classData['class_name'];
+    $gymId = $classData['gym_id'] ? (int) $classData['gym_id'] : null;
+
+    if ($gymId !== null) {
+        $stmt = db()->prepare('SELECT u.user_id FROM users u JOIN gym_members gm ON gm.user_id = u.user_id WHERE gm.gym_id = ? AND u.role = "member" AND u.status = "active"');
+        $stmt->execute([$gymId]);
+    } else {
+        $stmt = db()->query('SELECT user_id FROM users WHERE role = "member" AND status = "active"');
+    }
+
+    $members = $stmt->fetchAll(PDO::FETCH_COLUMN);
+    foreach ($members as $memberId) {
+        notify_user((int) $memberId, 'class_reminder', 'New Class Session', "A new session for {$className} has been scheduled on {$startTime}.");
+    }
+}
+
+
+function send_email_job(array $payload): bool
+{
+    $to = (string) ($payload['to'] ?? '');
+    $name = (string) ($payload['name'] ?? '');
+    $subject = (string) ($payload['subject'] ?? '');
+    $htmlBody = (string) ($payload['body'] ?? '');
+
+    if (empty($to) || empty($subject) || empty($htmlBody)) {
+        return false;
+    }
+
+    try {
+        $mail = new PHPMailer(true);
+        $mail->isSMTP();
+        $mail->Host       = $_ENV['SMTP_HOST'] ?? 'smtp.gmail.com';
+        $mail->SMTPAuth   = true;
+        $mail->Username   = $_ENV['SMTP_USER'] ?? '';
+        $mail->Password   = $_ENV['SMTP_PASS'] ?? '';
+        $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
+        $mail->Port       = (int) ($_ENV['SMTP_PORT'] ?? 587);
+
+        $mail->setFrom($_ENV['SMTP_FROM'] ?? 'no-reply@fittracks.com', $_ENV['SMTP_FROM_NAME'] ?? 'FITTRACKS');
+        $mail->addAddress($to, $name);
+
+        $mail->isHTML(true);
+        $mail->Subject = $subject;
+        $mail->Body    = $htmlBody;
+
+        return $mail->send();
+    } catch (Throwable $e) {
+        error_log("Failed sending queued email to {$to}: " . $e->getMessage());
+        return false;
+    }
+}
+
+function queue_email(string $toEmail, string $toName, string $subject, string $htmlBody): void
+{
+    Queue::push('send_email_job', [
+        'to' => $toEmail,
+        'name' => $toName,
+        'subject' => $subject,
+        'body' => $htmlBody,
+    ]);
+}
 
 function notify_admins(string $type, string $title, string $message): void
 {

@@ -22,14 +22,14 @@ function handle_reset_password(): void
             return;
         }
 
-        // Verify OTP
-        $stmt = db()->prepare('SELECT token FROM password_resets WHERE email = ?');
+        // Verify OTP (must be within 15 minutes)
+        $stmt = db()->prepare('SELECT token FROM password_resets WHERE email = ? AND created_at >= DATE_SUB(NOW(), INTERVAL 15 MINUTE)');
         $stmt->execute([$reset_email]);
         $reset = $stmt->fetch();
 
         if (!$reset || !hash_equals((string) $reset['token'], (string) $otp)) {
             RateLimiter::hit('reset_otp:' . $reset_email, 600);
-            flash('Invalid or expired OTP.', 'danger');
+            flash('Invalid or expired OTP. Please request a new one.', 'danger');
         } elseif (!is_acceptable_password((string) $password)) {
             flash('Password must be at least 8 characters with a letter and a number, and not a common password.', 'danger');
         } else {
@@ -75,6 +75,16 @@ function handle_reset_password(): void
                 <p class="muted" style="font-size:12px;margin-top:-8px;">Must include at least one letter and one number.</p>
 
                 <button type="submit" class="auth-submit-btn">UPDATE PASSWORD <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14"></path><path d="M12 5l7 7-7 7"></path></svg></button>
+
+                <div class="auth-form-footer" style="margin-top: 18px; display: flex; flex-direction: column; gap: 10px; text-align: center;">
+                    <div>Didn't get the code? <a href="index.php?page=forgot_password">Request new OTP</a></div>
+                    <div style="margin-top: 4px;">
+                        <a href="index.php?page=login" style="color: var(--muted); text-decoration: none; font-size: 13px; display: inline-flex; align-items: center; justify-content: center; gap: 6px; transition: color 0.2s;" onmouseover="this.style.color='var(--lime)'" onmouseout="this.style.color='var(--muted)'">
+                            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>
+                            Back to Sign In
+                        </a>
+                    </div>
+                </div>
             </form>
             <div class="corner corner-tl"></div>
             <div class="corner corner-tr"></div>

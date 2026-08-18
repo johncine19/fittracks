@@ -16,7 +16,13 @@ require __DIR__ . '/Queue.php';
 require __DIR__ . '/Cache.php';
 
 require __DIR__ . '/seeds.php';
-seed_reference_data_if_empty();
+$seedLockFile = __DIR__ . '/../storage/.seeded.lock';
+if (!file_exists($seedLockFile)) {
+    seed_reference_data_if_empty();
+    if (is_dir(__DIR__ . '/../storage')) {
+        @file_put_contents($seedLockFile, '1');
+    }
+}
 
 $redisClient = redis();
 if ($redisClient !== null) {
@@ -24,6 +30,16 @@ if ($redisClient !== null) {
 } else {
     $sessionHandler = new SessionDbHandler(db());
 }
+$isHttps = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') || (isset($_SERVER['SERVER_PORT']) && $_SERVER['SERVER_PORT'] == 443);
+session_set_cookie_params([
+    'lifetime' => 86400,
+    'path' => '/',
+    'secure' => $isHttps,
+    'httponly' => true,
+    'samesite' => 'Lax',
+]);
+ini_set('session.use_strict_mode', '1');
+
 session_set_save_handler($sessionHandler, true);
 session_start();
 ob_start(); // Buffer all output so setup_error() can set HTTP headers even mid-render

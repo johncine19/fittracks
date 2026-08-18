@@ -17,7 +17,7 @@ function book_classes_page(): void
         $action = post('action', 'book');
         
         $classRows = query_all(
-            'SELECT c.class_name, s.start_datetime, s.end_datetime, s.room_location, c.instructor_id
+            'SELECT c.class_name, c.capacity, s.start_datetime, s.end_datetime, s.room_location, c.instructor_id
              FROM class_schedules s
              JOIN classes c ON c.class_id = s.class_id
              WHERE s.schedule_id = ?',
@@ -48,6 +48,17 @@ function book_classes_page(): void
         $existing->execute([$scheduleId, $user['user_id']]);
         if ($existing->fetchColumn() === 'booked') {
             flash('You have already booked this class!', 'danger');
+            redirect('book_classes');
+        }
+
+        // Check class capacity
+        $currentBookings = (int) scalar(
+            'SELECT COUNT(*) FROM class_bookings WHERE schedule_id = ? AND booking_status = "booked"',
+            [$scheduleId]
+        );
+        $maxCapacity = (int) ($class['capacity'] ?? 0);
+        if ($maxCapacity > 0 && $currentBookings >= $maxCapacity) {
+            flash("Sorry, this class is full ($currentBookings / $maxCapacity capacity reached).", 'danger');
             redirect('book_classes');
         }
 

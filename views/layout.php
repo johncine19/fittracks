@@ -605,8 +605,36 @@ HTML;
 
 function setup_error(Throwable $e): void
 {
+    error_log('Application Error: ' . $e->getMessage() . "\n" . $e->getTraceAsString());
     http_response_code(500);
+    $isDev = in_array(strtolower($_ENV['APP_ENV'] ?? 'production'), ['development', 'dev', 'local'], true) 
+             || (isset($_SERVER['REMOTE_ADDR']) && in_array($_SERVER['REMOTE_ADDR'], ['127.0.0.1', '::1'], true));
     ?>
-<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>FITTRACK setup</title><link rel="stylesheet" href="assets/app.css?v=<?= filemtime(__DIR__ . '/../assets/app.css') ?>"></head><body><main class="shell"><section class="panel"><h1>Database setup needed</h1><p>FITTRACK could not connect to the MySQL schema yet.</p><p class="muted"><?= h($e->getMessage()) ?></p><ol><li>Create/import the <code>gym_management</code> database using <code>gym_management.sql</code>.</li><li>Check the database constants at the top of <code>index.php</code>.</li><li>Reload this page.</li></ol></section></main></body></html>
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>FITTRACK - System Notification</title>
+    <link rel="stylesheet" href="assets/app.css?v=<?= filemtime(__DIR__ . '/../assets/app.css') ?>">
+</head>
+<body>
+<main class="shell">
+    <section class="panel" style="max-width: 600px; margin: 40px auto;">
+        <h1>Service Temporarily Unavailable</h1>
+        <p>The system encountered a configuration or database connectivity issue. Please try again in a few moments.</p>
+        <?php if ($isDev): ?>
+            <div style="background: rgba(239,68,68,0.1); border: 1px solid rgba(239,68,68,0.3); border-radius: 8px; padding: 12px; margin: 16px 0; font-family: monospace; font-size: 13px; color: #ef4444; word-break: break-all;">
+                <strong>Debug Info:</strong> <?= h($e->getMessage()) ?>
+            </div>
+            <ol style="font-size: 13px; color: var(--muted, #888); padding-left: 20px;">
+                <li>Ensure the MySQL database is imported and running.</li>
+                <li>Verify database credentials in your <code>.env</code> file.</li>
+            </ol>
+        <?php endif; ?>
+    </section>
+</main>
+</body>
+</html>
     <?php
 }

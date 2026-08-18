@@ -24,38 +24,24 @@ function handle_forgot_password(): void
             // Block password reset for unverified members
             if ($user['role'] === 'member' && empty($user['email_verified_at'])) {
                 flash('Please verify your email address before resetting your password. Check your inbox or sign in to request a new verification email.', 'danger');
-            } else {
-                $token = sprintf('%06d', random_int(0, 999999));
-                db()->prepare('REPLACE INTO password_resets (email, token) VALUES (?, ?)')->execute([$email, $token]);
-
-                $mail = new PHPMailer(true);
-                try {
-                    $mail->isSMTP();
-                    $mail->Host       = $_ENV['SMTP_HOST'] ?? 'smtp.gmail.com';
-                    $mail->SMTPAuth   = true;
-                    $mail->Username   = $_ENV['SMTP_USER'] ?? '';
-                    $mail->Password   = $_ENV['SMTP_PASS'] ?? '';
-                    $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
-                    $mail->Port       = (int) ($_ENV['SMTP_PORT'] ?? 587);
-
-                    $mail->setFrom($_ENV['SMTP_FROM'] ?? 'no-reply@fittracks.com', $_ENV['SMTP_FROM_NAME'] ?? 'FITTRACKS');
-                    $mail->addAddress($email);
-
-                    $mail->isHTML(true);
-                    $mail->Subject = 'Password Reset OTP';
-                    $mail->Body    = "Your password reset OTP is <strong>$token</strong>. Please enter this code on the reset page.";
-
-                    $mail->send();
-                    $_SESSION['reset_email'] = $email;
-                    flash('An OTP has been sent to your email address.', 'success');
-                    redirect('reset_password');
-                } catch (Exception $e) {
-                    flash("Message could not be sent. Mailer Error: {$mail->ErrorInfo}", 'danger');
-                }
+                redirect('forgot_password');
             }
-        } else {
-            flash('No account found with that email address. Please register first.', 'danger');
+
+            $token = sprintf('%06d', random_int(0, 999999));
+            db()->prepare('REPLACE INTO password_resets (email, token, created_at) VALUES (?, ?, NOW())')->execute([$email, $token]);
+
+            queue_email(
+                $email,
+                $user['first_name'] ?? 'Member',
+                'Password Reset OTP - FITTRACKS',
+                "Your password reset OTP is <strong>$token</strong>. It will expire in 15 minutes.<br><br>Please enter this code on the reset page."
+            );
         }
+
+        // Generic response to prevent user enumeration
+        $_SESSION['reset_email'] = $email;
+        flash('If an account is associated with this email, an OTP has been sent. The code expires in 15 minutes.', 'success');
+        redirect('reset_password');
     }
 
     render_header('Forgot Password');

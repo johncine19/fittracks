@@ -2,13 +2,8 @@
 declare(strict_types=1);
 
 /**
- * Simple file-based rate limiter for login brute-force protection.
- *
- * Deliberately NOT session-based: an attacker can clear their own session
- * cookie at will, which would defeat a session-stored counter. Instead,
- * attempts are tracked server-side in storage/ratelimit/, keyed by a
- * combination of the client IP and the identifier being attacked (e.g. the
- * email address), so a counter survives across requests/cookies.
+ * High-performance Rate Limiter.
+ * Uses Redis atomic INCR + EXPIRE when available; falls back to disk storage.
  */
 final class RateLimiter
 {
@@ -27,7 +22,7 @@ final class RateLimiter
     }
 
     /** @return array{count:int, reset_at:int} */
-    private static function read(string $key, int $windowSeconds): array
+    private static function readDisk(string $key, int $windowSeconds): array
     {
         $file = self::file($key);
         if (is_file($file)) {
@@ -41,29 +36,67 @@ final class RateLimiter
 
     public static function tooManyAttempts(string $identifier, int $maxAttempts = 5, int $windowSeconds = 300): bool
     {
+        $redis = function_exists('redis') ? redis() : null;
+        if ($redis !== null) {
+            try {
+                $key = 'rl:' . hash('sha256', self::key($identifier));
+                $count = (int) ($redis->get($key) ?? 0);
+                return $count >= $maxAttempts;
+            } catch (Throwable) {}
+        }
+
         $key = self::key($identifier);
-        return self::read($key, $windowSeconds)['count'] >= $maxAttempts;
+        return self::readDisk($key, $windowSeconds)['count'] >= $maxAttempts;
     }
 
     public static function hit(string $identifier, int $windowSeconds = 300): void
     {
+        $redis = function_exists('redis') ? redis() : null;
+        if ($redis !== null) {
+            try {
+                $key = 'rl:' . hash('sha256', self::key($identifier));
+                $count = (int) $redis->incr($key);
+                if ($count === 1) {
+                    $redis->expire($key, $windowSeconds);
+                }
+                return;
+            } catch (Throwable) {}
+        }
+
         $key = self::key($identifier);
-        $bucket = self::read($key, $windowSeconds);
+        $bucket = self::readDisk($key, $windowSeconds);
         $bucket['count']++;
         file_put_contents(self::file($key), json_encode($bucket), LOCK_EX);
     }
 
     public static function clear(string $identifier): void
     {
+        $redis = function_exists('redis') ? redis() : null;
+        if ($redis !== null) {
+            try {
+                $key = 'rl:' . hash('sha256', self::key($identifier));
+                $redis->del([$key]);
+            } catch (Throwable) {}
+        }
+
         $file = self::file(self::key($identifier));
         if (is_file($file)) {
-            unlink($file);
+            @unlink($file);
         }
     }
 
     public static function secondsRemaining(string $identifier, int $windowSeconds = 300): int
     {
-        $bucket = self::read(self::key($identifier), $windowSeconds);
+        $redis = function_exists('redis') ? redis() : null;
+        if ($redis !== null) {
+            try {
+                $key = 'rl:' . hash('sha256', self::key($identifier));
+                $ttl = (int) $redis->ttl($key);
+                return max(0, $ttl);
+            } catch (Throwable) {}
+        }
+
+        $bucket = self::readDisk(self::key($identifier), $windowSeconds);
         return max(0, $bucket['reset_at'] - time());
     }
 

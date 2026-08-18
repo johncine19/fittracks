@@ -34,12 +34,11 @@ function classes_page(): void
             db()->prepare('INSERT INTO class_schedules (class_id, room_location, start_datetime, end_datetime) VALUES (?, ?, ?, ?)')
                 ->execute([$class_id, post('room_location'), post('start_datetime'), post('end_datetime')]);
             
-            $className = db()->query('SELECT class_name FROM classes WHERE class_id = ' . (int)$class_id)->fetchColumn();
             $startTime = date('M j, Y g:i A', strtotime(post('start_datetime')));
-            $activeMembers = db()->query('SELECT user_id FROM users WHERE role="member" AND status="active"')->fetchAll();
-            foreach ($activeMembers as $member) {
-                notify_user((int) $member['user_id'], 'class_reminder', 'New Class Session', 'A new session for ' . $className . ' has been scheduled on ' . $startTime . '.');
-            }
+            Queue::push('broadcast_class_schedule_job', [
+                'class_id' => (int) $class_id,
+                'start_time' => $startTime,
+            ]);
             audit_log($user['user_id'], 'create', 'class_schedule', (string) db()->lastInsertId(), json_encode(['class_id' => $class_id, 'start' => post('start_datetime')]));
             
             flash('Schedule created.');
