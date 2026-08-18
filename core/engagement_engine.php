@@ -152,50 +152,19 @@ function get_cached_engagement_score(int $userId): int
     return (int) ($row['engagement_score'] ?? 0);
 }
 
+function recompute_engagement_job(array $payload): void
+{
+    calculate_engagement_score((int) $payload['user_id']);
+}
+
 function recompute_all_engagement_scores_batch(): void
 {
     $pdo = db();
-    $wAttendance = (int) get_setting('engagement_weight_attendance', '40');
-    $wClasses = (int) get_setting('engagement_weight_classes', '20');
-    $wConsistency = (int) get_setting('engagement_weight_consistency', '20');
-    $wWorkouts = (int) get_setting('engagement_weight_workouts', '10');
-    $wProgress = (int) get_setting('engagement_weight_progress', '10');
-
-    $sql = "
-        UPDATE users u
-        LEFT JOIN (
-            SELECT user_id, LEAST(?, (COUNT(*) / 7) * ?) AS score
-            FROM attendance WHERE check_in_time >= DATE_SUB(CURDATE(), INTERVAL 30 DAY) GROUP BY user_id
-        ) att ON att.user_id = u.user_id
-        LEFT JOIN (
-            SELECT user_id, LEAST(?, (COUNT(*) / 4) * ?) AS score
-            FROM class_bookings WHERE booking_status = 'attended' AND booked_at >= DATE_SUB(CURDATE(), INTERVAL 30 DAY) GROUP BY user_id
-        ) cls ON cls.user_id = u.user_id
-        LEFT JOIN (
-            SELECT user_id, LEAST(?, (COUNT(DISTINCT WEEK(check_in_time)) / 4) * ?) AS score
-            FROM attendance WHERE check_in_time >= DATE_SUB(CURDATE(), INTERVAL 30 DAY) GROUP BY user_id
-        ) cons ON cons.user_id = u.user_id
-        LEFT JOIN (
-            SELECT user_id, LEAST(?, (COUNT(DISTINCT completed_date) / 8) * ?) AS score
-            FROM exercise_completions WHERE completed_date >= DATE_SUB(CURDATE(), INTERVAL 30 DAY) GROUP BY user_id
-        ) wk ON wk.user_id = u.user_id
-        LEFT JOIN (
-            SELECT user_id, ? AS score
-            FROM progress_logs WHERE log_date >= DATE_SUB(CURDATE(), INTERVAL 60 DAY) GROUP BY user_id
-        ) prg ON prg.user_id = u.user_id
-        SET 
-            u.engagement_score = ROUND(COALESCE(att.score, 0) + COALESCE(cls.score, 0) + COALESCE(cons.score, 0) + COALESCE(wk.score, 0) + COALESCE(prg.score, 0)),
-            u.engagement_computed_at = NOW()
-        WHERE u.role = 'member' AND u.status = 'active'
-    ";
-
-    $pdo->prepare($sql)->execute([
-        $wAttendance, $wAttendance,
-        $wClasses, $wClasses,
-        $wConsistency, $wConsistency,
-        $wWorkouts, $wWorkouts,
-        $wProgress
-    ]);
+    $userIds = $pdo->query("SELECT user_id FROM users WHERE role = 'member' AND status = 'active'")->fetchAll(PDO::FETCH_COLUMN);
+    
+    foreach ($userIds as $userId) {
+        Queue::push('recompute_engagement_job', ['user_id' => (int)$userId]);
+    }
 }
 
 function get_engagement_category(int $score): string
@@ -246,6 +215,12 @@ function get_inactive_members(int $limit = 5, ?int $gymId = null): array
     return array_slice($atRisk, 0, $limit);
 }
 
+function send_at_risk_notification_job(array $payload): void
+{
+    $userId = (int) $payload['user_id'];
+    notify_user($userId, 'system', 'We miss you at the gym!', 'It\'s been a few days since your last activity. Check out this week\'s classes or your new workout plan to get back on track!');
+}
+
 function process_automated_at_risk_notifications(): void
 {
     $pdo = db();
@@ -254,17 +229,42 @@ function process_automated_at_risk_notifications(): void
     $inactivityThreshold = (int) get_setting('at_risk_inactivity_days', '3');
     $cooldownDays = (int) get_setting('at_risk_notification_cooldown', '14');
     
+    $userIds = [];
     foreach ($atRiskMembers as $member) {
         if (($member['days_inactive'] ?? 0) >= $inactivityThreshold) {
-            $userId = (int) $member['user_id'];
+            $userIds[] = (int) $member['user_id'];
+        }
+    }
+    
+    if (empty($userIds)) {
+        return;
+    }
+    
+    // Batch query to get recent notification counts for all these users
+    $placeholders = implode(',', array_fill(0, count($userIds), '?'));
+    $sql = "SELECT user_id, COUNT(*) as cnt FROM notifications 
+            WHERE user_id IN ($placeholders) 
+            AND type = 'system' 
+            AND title = 'We miss you at the gym!' 
+            AND created_at >= DATE_SUB(NOW(), INTERVAL ? DAY)
+            GROUP BY user_id";
             
-            $stmt = $pdo->prepare("SELECT COUNT(*) FROM notifications WHERE user_id = ? AND type = 'system' AND title = 'We miss you at the gym!' AND created_at >= DATE_SUB(NOW(), INTERVAL ? DAY)");
-            $stmt->execute([$userId, $cooldownDays]);
-            $recentNotifs = (int) $stmt->fetchColumn();
-            
-            if ($recentNotifs === 0) {
-                notify_user($userId, 'system', 'We miss you at the gym!', 'It\'s been a few days since your last activity. Check out this week\'s classes or your new workout plan to get back on track!');
-            }
+    $params = $userIds;
+    $params[] = $cooldownDays;
+    
+    $stmt = $pdo->prepare($sql);
+    $stmt->execute($params);
+    $rows = $stmt->fetchAll();
+    
+    $notifCounts = [];
+    foreach ($rows as $row) {
+        $notifCounts[(int)$row['user_id']] = (int)$row['cnt'];
+    }
+    
+    foreach ($userIds as $userId) {
+        if (($notifCounts[$userId] ?? 0) === 0) {
+            // Instead of sending synchronously, queue it
+            Queue::push('send_at_risk_notification_job', ['user_id' => $userId]);
         }
     }
 }

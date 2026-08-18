@@ -4,6 +4,30 @@ declare(strict_types=1);
 function seed_reference_data_if_empty(): void
 {
     $pdo = db();
+    
+    $pdo->exec("
+        CREATE TABLE IF NOT EXISTS sessions (
+            session_id VARCHAR(128) NOT NULL PRIMARY KEY,
+            session_data MEDIUMTEXT NOT NULL,
+            expires_at INT UNSIGNED NOT NULL
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+        
+        CREATE TABLE IF NOT EXISTS jobs (
+            id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+            job_class VARCHAR(255) NOT NULL,
+            payload TEXT NOT NULL,
+            attempts INT UNSIGNED DEFAULT 0,
+            created_at INT UNSIGNED NOT NULL,
+            available_at INT UNSIGNED NOT NULL
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+        CREATE TABLE IF NOT EXISTS cache (
+            cache_key VARCHAR(255) NOT NULL PRIMARY KEY,
+            cache_value LONGTEXT NOT NULL,
+            expires_at INT UNSIGNED NOT NULL
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+    ");
+
     if ((int) $pdo->query('SELECT COUNT(*) FROM membership_plans')->fetchColumn() === 0) {
         $stmt = $pdo->prepare('INSERT INTO membership_plans (plan_name, plan_type, duration_days, price, description, is_active) VALUES (?, ?, ?, ?, ?, 1)');
         foreach ([
