@@ -101,6 +101,18 @@ function render_header(string $title, ?array $user = null): void
         <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     </head>
     <body class="<?= $user ? 'app-body' : 'auth-body' ?>">
+    <div id="global-page-loader">
+        <div class="loader-content">
+            <svg class="loader-icon" xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <line x1="6" y1="12" x2="18" y2="12"></line>
+                <rect x="4" y="8" width="2" height="8" rx="1"></rect>
+                <rect x="18" y="8" width="2" height="8" rx="1"></rect>
+                <rect x="2" y="10" width="2" height="4" rx="1"></rect>
+                <rect x="20" y="10" width="2" height="4" rx="1"></rect>
+            </svg>
+            <div class="loader-text">FITTRACKS</div>
+        </div>
+    </div>
     
     <?php if (!$user): ?>
     <!-- Grain texture overlay for auth pages -->
