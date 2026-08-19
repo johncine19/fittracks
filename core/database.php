@@ -16,6 +16,11 @@ function db(): PDO
         PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
     ];
     if ($useSSL) {
+        // TiDB Cloud Serverless requires SSL — use system CA bundle
+        $caBundle = '/etc/ssl/certs/ca-certificates.crt';
+        if (file_exists($caBundle)) {
+            $options[PDO::MYSQL_ATTR_SSL_CA] = $caBundle;
+        }
         $options[PDO::MYSQL_ATTR_SSL_VERIFY_SERVER_CERT] = false;
     }
     $pdo = new PDO($dsn, DB_USER, DB_PASS, $options);

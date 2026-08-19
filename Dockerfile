@@ -2,7 +2,7 @@ FROM php:8.2-apache
 
 # Install PDO MySQL and zip (needed by Composer)
 RUN apt-get update && apt-get install -y \
-    zip unzip git curl \
+    zip unzip git curl ca-certificates \
     && docker-php-ext-install pdo pdo_mysql \
     && apt-get clean
 
