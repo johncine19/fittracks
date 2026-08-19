@@ -88,7 +88,7 @@ function gym_onboarding_page(): void
                 <p class="auth-subtitle">We need a few details about your gym before you can access the platform.</p>
             </div>
 
-            <form method="post" enctype="multipart/form-data" class="auth-form" style="display:flex; flex-direction:column; gap:20px;">
+            <form method="post" enctype="multipart/form-data" class="auth-form" style="display:flex; flex-direction:column; gap:20px;" onsubmit="const btn = this.querySelector('button[type=submit]'); btn.disabled = true; btn.innerHTML = '<svg class=\'fitness-loader mini\' viewBox=\'0 0 24 24\' fill=\'none\' stroke=\'currentColor\' stroke-width=\'2\' stroke-linecap=\'round\' stroke-linejoin=\'round\' style=\'margin-right:8px;\'><line x1=\'6\' y1=\'12\' x2=\'18\' y2=\'12\'></line><rect x=\'4\' y=\'8\' width=\'2\' height=\'8\' rx=\'1\'></rect><rect x=\'18\' y=\'8\' width=\'2\' height=\'8\' rx=\'1\'></rect><rect x=\'2\' y=\'10\' width=\'2\' height=\'4\' rx=\'1\'></rect><rect x=\'20\' y=\'10\' width=\'2\' height=\'4\' rx=\'1\'></rect></svg> SUBMITTING...';">
                 <?= csrf_field() ?>
                 
                 <div class="auth-field">

@@ -26,7 +26,13 @@ function gym_pending_page(): void
                 <span style="font-weight:700;font-size:1.2rem;line-height:1;letter-spacing:-0.2px;color:var(--ink);">FitTrack</span>
             </a>
             <div style="background: rgba(199,255,34,0.1); color: var(--lime); padding: 20px; border-radius: 50%; display: inline-flex; margin-top: 10px;">
-                <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                <svg class="fitness-loader" xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <line x1="6" y1="12" x2="18" y2="12"></line>
+                    <rect x="4" y="8" width="2" height="8" rx="1"></rect>
+                    <rect x="18" y="8" width="2" height="8" rx="1"></rect>
+                    <rect x="2" y="10" width="2" height="4" rx="1"></rect>
+                    <rect x="20" y="10" width="2" height="4" rx="1"></rect>
+                </svg>
             </div>
             
             <h1 class="auth-title" style="margin: 0;">Under Review</h1>
