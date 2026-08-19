@@ -105,6 +105,6 @@ register_shutdown_function(function() {
     try {
         Queue::work(3); // Process up to 3 jobs per request to avoid blocking for too long
     } catch (Throwable $e) {
-        // Silently ignore queue errors during shutdown
+        error_log("Background Queue Error: " . $e->getMessage());
     }
 });

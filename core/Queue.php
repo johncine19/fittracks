@@ -91,7 +91,7 @@ class Queue
         for ($i = 0; $i < $limit; $i++) {
             $pdo->beginTransaction();
 
-            $stmt = $pdo->prepare('SELECT * FROM jobs WHERE available_at <= ? AND attempts < 3 ORDER BY id ASC LIMIT 1 FOR UPDATE SKIP LOCKED');
+            $stmt = $pdo->prepare('SELECT * FROM jobs WHERE available_at <= ? AND attempts < 3 ORDER BY id ASC LIMIT 1 FOR UPDATE');
             $stmt->execute([time()]);
             $job = $stmt->fetch(PDO::FETCH_ASSOC);
 
