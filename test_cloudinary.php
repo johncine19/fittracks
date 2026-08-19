@@ -31,10 +31,12 @@ imagedestroy($im);
 
 $timestamp = time();
 $folder = 'fittracks_diagnostic';
-$signatureStr = "folder={$folder}&timestamp={$timestamp}{$apiSecret}";
 $cloudName = preg_replace('/[^a-zA-Z0-9_-]/', '', trim((string)$cloudName));
 $apiKey = trim((string)$apiKey);
 $apiSecret = trim((string)$apiSecret);
+
+$signatureStr = "folder={$folder}&timestamp={$timestamp}{$apiSecret}";
+$signature = sha1($signatureStr);
 
 $uploadUrl = "https://api.cloudinary.com/v1_1/{$cloudName}/auto/upload";
 echo "Target URL: " . htmlspecialchars($uploadUrl) . "\n";
