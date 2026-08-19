@@ -11,14 +11,30 @@ function gym_applications_page(): void
         $gymId = (int) post('gym_id');
         $action = post('action');
 
-        if ($action === 'approve') {
-            $pdo->prepare('UPDATE gyms SET status = "approved" WHERE gym_id = ?')->execute([$gymId]);
-            require_once __DIR__ . '/../../core/seeds.php';
-            seed_exercises_for_gym($gymId);
-            flash('Gym application approved successfully. Default exercises have been seeded.', 'success');
-        } elseif ($action === 'reject') {
-            $pdo->prepare('UPDATE gyms SET status = "rejected" WHERE gym_id = ?')->execute([$gymId]);
-            flash('Gym application rejected.', 'success');
+        $gymStmt = $pdo->prepare('SELECT g.name AS gym_name, g.owner_user_id, u.email, u.first_name, u.last_name FROM gyms g JOIN users u ON g.owner_user_id = u.user_id WHERE g.gym_id = ?');
+        $gymStmt->execute([$gymId]);
+        $gym = $gymStmt->fetch();
+
+        if ($gym) {
+            $ownerName = $gym['first_name'] . ' ' . $gym['last_name'];
+            
+            if ($action === 'approve') {
+                $pdo->prepare('UPDATE gyms SET status = "approved" WHERE gym_id = ?')->execute([$gymId]);
+                require_once __DIR__ . '/../../core/seeds.php';
+                seed_exercises_for_gym($gymId);
+                
+                notify_user((int)$gym['owner_user_id'], 'system', 'Application Approved', "Your gym application for {$gym['gym_name']} has been approved.");
+                Emails::sendGymApplicationApproved($gym['email'], $ownerName, $gym['gym_name']);
+                
+                flash('Gym application approved successfully. Default exercises have been seeded.', 'success');
+            } elseif ($action === 'reject') {
+                $pdo->prepare('UPDATE gyms SET status = "rejected" WHERE gym_id = ?')->execute([$gymId]);
+                
+                notify_user((int)$gym['owner_user_id'], 'system', 'Application Rejected', "Your gym application for {$gym['gym_name']} has been rejected.");
+                Emails::sendGymApplicationRejected($gym['email'], $ownerName, $gym['gym_name']);
+                
+                flash('Gym application rejected.', 'success');
+            }
         }
         redirect('gym_applications');
     }

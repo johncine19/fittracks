@@ -139,4 +139,32 @@ HTML;
         // Wait, notify_admins_email accepts subject and body. I'll just change it to use self::layout there.
         notify_admins_email('New Gym Application: ' . $gymName, self::layout($content));
     }
+
+    public static function sendGymApplicationApproved(string $email, string $ownerName, string $gymName): void
+    {
+        $content = <<<HTML
+        <p>Hi <strong>{$ownerName}</strong>,</p>
+        <p>Congratulations! Your application for <strong>{$gymName}</strong> has been approved by the platform administration.</p>
+        <p>Your Gym Owner account is now fully active. You can now log in to the platform to customize your gym profile, add memberships, and manage trainers.</p>
+        <p style="text-align: center; margin: 30px 0;">
+            <a href="htmlentities(app_base_url())" class="btn">Go to Dashboard</a>
+        </p>
+        <p>Welcome aboard!</p>
+HTML;
+
+        queue_email($email, $ownerName, 'Gym Application Approved! - FITTRACKS', self::layout($content));
+    }
+
+    public static function sendGymApplicationRejected(string $email, string $ownerName, string $gymName): void
+    {
+        $content = <<<HTML
+        <p>Hi <strong>{$ownerName}</strong>,</p>
+        <p>We regret to inform you that your application for <strong>{$gymName}</strong> has been rejected by the platform administration.</p>
+        <p>This may be due to missing or invalid documentation (such as your Business Permit or Valid ID) or a failure to meet our platform requirements.</p>
+        <p>If you believe this was a mistake, or if you would like to appeal this decision and provide new documentation, please contact our support team.</p>
+        <p>Thank you for your interest in FITTRACKS.</p>
+HTML;
+
+        queue_email($email, $ownerName, 'Gym Application Update - FITTRACKS', self::layout($content));
+    }
 }
