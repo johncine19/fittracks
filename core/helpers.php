@@ -149,6 +149,10 @@ function upload_url(?string $filename, string $folder = 'uploads', string $fallb
         return $fallback;
     }
 
+    if (str_starts_with($filename, 'http://') || str_starts_with($filename, 'https://')) {
+        return $filename;
+    }
+
     $cdnUrl = $_ENV['CDN_URL'] ?? $_ENV['STORAGE_PUBLIC_URL'] ?? null;
     if ($cdnUrl) {
         return rtrim($cdnUrl, '/') . '/assets/' . $folder . '/' . ltrim($filename, '/');

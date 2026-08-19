@@ -147,22 +147,74 @@ final class FileUpload
     /**
      * Stores a member/staff profile picture, compressed to WebP (max 600x600).
      */
+
+    /**
+     * Uploads a file to Cloudinary via REST API.
+     * Returns the secure_url if successful, or false on failure.
+     */
+    private static function uploadToCloudinary(string $filePath, string $mimeType, string $folder): string|false
+    {
+        $cloudName = $_ENV['CLOUDINARY_CLOUD_NAME'] ?? '';
+        $apiKey = $_ENV['CLOUDINARY_API_KEY'] ?? '';
+        $apiSecret = $_ENV['CLOUDINARY_API_SECRET'] ?? '';
+
+        if (!$cloudName || !$apiKey || !$apiSecret) {
+            return false;
+        }
+
+        $timestamp = time();
+        $signatureStr = "folder={$folder}&timestamp={$timestamp}{$apiSecret}";
+        $signature = sha1($signatureStr);
+
+        $ch = curl_init("https://api.cloudinary.com/v1_1/{$cloudName}/auto/upload");
+        
+        $cFile = new CURLFile($filePath, $mimeType, basename($filePath));
+        
+        curl_setopt($ch, CURLOPT_POST, true);
+        curl_setopt($ch, CURLOPT_POSTFIELDS, [
+            'file' => $cFile,
+            'api_key' => $apiKey,
+            'timestamp' => $timestamp,
+            'signature' => $signature,
+            'folder' => $folder
+        ]);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        
+        $response = curl_exec($ch);
+        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        curl_close($ch);
+
+        if ($httpCode >= 200 && $httpCode < 300 && $response) {
+            $data = json_decode($response, true);
+            return $data['secure_url'] ?? false;
+        }
+
+        return false;
+    }
+
     public static function storeProfilePicture(array $file, int $userId): string
     {
         self::validate($file);
+
+        $tempDir = sys_get_temp_dir() . '/';
+        $filename = 'profile_' . $userId . '_' . bin2hex(random_bytes(8)) . '.webp';
+        $destPath = $tempDir . $filename;
+
+        if (!self::processAndStoreImage($file['tmp_name'], $destPath, 600, 600, 82)) {
+            throw new RuntimeException('Could not process the profile picture.');
+        }
+
+        $cloudinaryUrl = self::uploadToCloudinary($destPath, 'image/webp', 'fittracks_profiles');
+        if ($cloudinaryUrl) {
+            unlink($destPath);
+            return $cloudinaryUrl;
+        }
 
         $uploadDir = __DIR__ . '/../assets/uploads/';
         if (!is_dir($uploadDir)) {
             mkdir($uploadDir, 0775, true);
         }
-
-        $filename = 'profile_' . $userId . '_' . bin2hex(random_bytes(8)) . '.webp';
-        $destPath = $uploadDir . $filename;
-
-        if (!self::processAndStoreImage($file['tmp_name'], $destPath, 600, 600, 82)) {
-            throw new RuntimeException('Could not save the profile picture.');
-        }
-
+        rename($destPath, $uploadDir . $filename);
         return $filename;
     }
 
@@ -178,26 +230,34 @@ final class FileUpload
         $mime = finfo_file($finfo, $file['tmp_name']);
         finfo_close($finfo);
 
-        $uploadDir = __DIR__ . '/../assets/permits/';
-        if (!is_dir($uploadDir)) {
-            mkdir($uploadDir, 0775, true);
-        }
-
         if ($mime === 'application/pdf') {
+            $cloudinaryUrl = self::uploadToCloudinary($file['tmp_name'], 'application/pdf', 'fittracks_permits');
+            if ($cloudinaryUrl) return $cloudinaryUrl;
+
+            $uploadDir = __DIR__ . '/../assets/permits/';
+            if (!is_dir($uploadDir)) mkdir($uploadDir, 0775, true);
             $filename = 'permit_' . $userId . '_' . bin2hex(random_bytes(8)) . '.pdf';
-            if (!move_uploaded_file($file['tmp_name'], $uploadDir . $filename)) {
-                throw new RuntimeException('Could not save the business permit.');
-            }
+            if (!move_uploaded_file($file['tmp_name'], $uploadDir . $filename)) throw new RuntimeException('Could not save the business permit.');
             return $filename;
         }
 
+        $tempDir = sys_get_temp_dir() . '/';
         $filename = 'permit_' . $userId . '_' . bin2hex(random_bytes(8)) . '.webp';
-        $destPath = $uploadDir . $filename;
+        $destPath = $tempDir . $filename;
 
         if (!self::processAndStoreImage($file['tmp_name'], $destPath, 2000, 2000, 85)) {
-            throw new RuntimeException('Could not save the business permit.');
+            throw new RuntimeException('Could not process the business permit.');
         }
 
+        $cloudinaryUrl = self::uploadToCloudinary($destPath, 'image/webp', 'fittracks_permits');
+        if ($cloudinaryUrl) {
+            unlink($destPath);
+            return $cloudinaryUrl;
+        }
+
+        $uploadDir = __DIR__ . '/../assets/permits/';
+        if (!is_dir($uploadDir)) mkdir($uploadDir, 0775, true);
+        rename($destPath, $uploadDir . $filename);
         return $filename;
     }
 
@@ -213,26 +273,34 @@ final class FileUpload
         $mime = finfo_file($finfo, $file['tmp_name']);
         finfo_close($finfo);
 
-        $uploadDir = __DIR__ . '/../assets/permits/';
-        if (!is_dir($uploadDir)) {
-            mkdir($uploadDir, 0775, true);
-        }
-
         if ($mime === 'application/pdf') {
+            $cloudinaryUrl = self::uploadToCloudinary($file['tmp_name'], 'application/pdf', 'fittracks_permits');
+            if ($cloudinaryUrl) return $cloudinaryUrl;
+
+            $uploadDir = __DIR__ . '/../assets/permits/';
+            if (!is_dir($uploadDir)) mkdir($uploadDir, 0775, true);
             $filename = 'id_' . $userId . '_' . bin2hex(random_bytes(8)) . '.pdf';
-            if (!move_uploaded_file($file['tmp_name'], $uploadDir . $filename)) {
-                throw new RuntimeException('Could not save the valid ID.');
-            }
+            if (!move_uploaded_file($file['tmp_name'], $uploadDir . $filename)) throw new RuntimeException('Could not save the valid ID.');
             return $filename;
         }
 
+        $tempDir = sys_get_temp_dir() . '/';
         $filename = 'id_' . $userId . '_' . bin2hex(random_bytes(8)) . '.webp';
-        $destPath = $uploadDir . $filename;
+        $destPath = $tempDir . $filename;
 
         if (!self::processAndStoreImage($file['tmp_name'], $destPath, 2000, 2000, 85)) {
-            throw new RuntimeException('Could not save the valid ID.');
+            throw new RuntimeException('Could not process the valid ID.');
         }
 
+        $cloudinaryUrl = self::uploadToCloudinary($destPath, 'image/webp', 'fittracks_permits');
+        if ($cloudinaryUrl) {
+            unlink($destPath);
+            return $cloudinaryUrl;
+        }
+
+        $uploadDir = __DIR__ . '/../assets/permits/';
+        if (!is_dir($uploadDir)) mkdir($uploadDir, 0775, true);
+        rename($destPath, $uploadDir . $filename);
         return $filename;
     }
 
@@ -243,18 +311,23 @@ final class FileUpload
     {
         self::validate($file);
 
-        $uploadDir = __DIR__ . '/../assets/uploads/';
-        if (!is_dir($uploadDir)) {
-            mkdir($uploadDir, 0775, true);
-        }
-
-        $filename = 'logo_' . $gymId . '_' . bin2hex(random_bytes(8)) . '.webp';
-        $destPath = $uploadDir . $filename;
+        $tempDir = sys_get_temp_dir() . '/';
+        $filename = 'gym_logo_' . $gymId . '_' . bin2hex(random_bytes(8)) . '.webp';
+        $destPath = $tempDir . $filename;
 
         if (!self::processAndStoreImage($file['tmp_name'], $destPath, 500, 500, 85)) {
-            throw new RuntimeException('Could not save the gym logo.');
+            throw new RuntimeException('Could not process the gym logo.');
         }
 
+        $cloudinaryUrl = self::uploadToCloudinary($destPath, 'image/webp', 'fittracks_gyms');
+        if ($cloudinaryUrl) {
+            unlink($destPath);
+            return $cloudinaryUrl;
+        }
+
+        $uploadDir = __DIR__ . '/../assets/uploads/';
+        if (!is_dir($uploadDir)) mkdir($uploadDir, 0775, true);
+        rename($destPath, $uploadDir . $filename);
         return $filename;
     }
 

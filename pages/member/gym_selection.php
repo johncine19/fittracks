@@ -755,6 +755,12 @@ function gym_selection_page(): void
         return '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>';
     }
 
+    function getImageUrl(filename, folder = 'uploads') {
+        if (!filename) return '';
+        if (filename.startsWith('http://') || filename.startsWith('https://')) return escapeHtml(filename);
+        return `assets/${folder}/${escapeHtml(filename)}`;
+    }
+
     function buildModalHtml(gym) {
         const classCount = gym.classes ? gym.classes.length : 0;
         const planCount = gym.plans ? gym.plans.length : 0;
@@ -770,7 +776,7 @@ function gym_selection_page(): void
         }
 
         let logoHtml = gym.logo_url
-            ? `<img src="assets/uploads/${escapeHtml(gym.logo_url)}" alt="Logo" loading="lazy" decoding="async" style="width: 100%; height: 100%; object-fit: contain; border-radius: 10px; background: white;" onerror="this.onerror=null; this.outerHTML='<span style=\\'color: var(--lime); font-size: 1.5rem;\\'>'+escapeHtml(gym.name.charAt(0))+'</span>';">`
+            ? `<img src="${getImageUrl(gym.logo_url)}" alt="Logo" loading="lazy" decoding="async" style="width: 100%; height: 100%; object-fit: contain; border-radius: 10px; background: white;" onerror="this.onerror=null; this.outerHTML='<span style=\\'color: var(--lime); font-size: 1.5rem;\\'>'+escapeHtml(gym.name.charAt(0))+'</span>';">`
             : `<span style="color: var(--lime); font-size: 1.5rem;">${escapeHtml(gym.name.charAt(0))}</span>`;
 
         const hasGallery = gym.images && gym.images.length > 0;
@@ -826,7 +832,7 @@ function gym_selection_page(): void
             gym.images.forEach(img => {
                 html += `
                     <div style="border-radius: 12px; overflow: hidden; aspect-ratio: 4/3; border: 1px solid var(--line); box-shadow: var(--shadow);">
-                        <img src="assets/uploads/${escapeHtml(img)}" alt="Gym Image" loading="lazy" decoding="async" style="width: 100%; height: 100%; object-fit: cover; transition: transform 0.3s ease;" onmouseover="this.style.transform='scale(1.05)'" onmouseout="this.style.transform='scale(1)'">
+                        <img src="${getImageUrl(img)}" alt="Gym Image" loading="lazy" decoding="async" style="width: 100%; height: 100%; object-fit: cover; transition: transform 0.3s ease;" onmouseover="this.style.transform='scale(1.05)'" onmouseout="this.style.transform='scale(1)'">
                     </div>
                 `;
             });
