@@ -22,6 +22,17 @@ try {
         echo "target_body_fat_percent already exists.\n";
     }
 
+    // Create jobs table if it doesn't exist
+    $pdo->exec("CREATE TABLE IF NOT EXISTS jobs (
+        id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+        job_class VARCHAR(255) NOT NULL,
+        payload JSON NOT NULL,
+        attempts INT UNSIGNED DEFAULT 0,
+        created_at INT UNSIGNED NOT NULL,
+        available_at INT UNSIGNED NOT NULL
+    )");
+    echo "Jobs table created or already exists.\n";
+
     echo "Database fixed successfully.";
 } catch (Exception $e) {
     echo "Error: " . $e->getMessage();
