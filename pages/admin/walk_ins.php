@@ -7,6 +7,8 @@ use PHPMailer\PHPMailer\Exception as PHPMailerException;
 function walk_ins_page(): void
 {
     $user = require_roles(['platform_admin', 'gym_owner']);
+    $gym = get_user_gym($user);
+    $gymId = $gym ? (int)$gym['gym_id'] : null;
 
     // Handle walk-in to member conversion
     if ($_SERVER['REQUEST_METHOD'] === 'POST' && post('action') === 'convert') {
@@ -97,8 +99,8 @@ function walk_ins_page(): void
             $memberInfo = db()->query('SELECT first_name, last_name, phone FROM users WHERE user_id = ' . (int)post('user_id'))->fetch();
             $guestName = $memberInfo['first_name'] . ' ' . $memberInfo['last_name'];
             $contactInfo = $memberInfo['phone'] ?: 'N/A';
-            db()->prepare('INSERT INTO walk_in_transactions (guest_name, contact_info, amount_paid, payment_method, visit_date, processed_by, converted_to_member_id) VALUES (?, ?, ?, ?, NOW(), ?, ?)')
-                ->execute([$guestName, $contactInfo, $amount, post('payment_method'), $user['user_id'], post('user_id')]);
+            db()->prepare('INSERT INTO walk_in_transactions (gym_id, guest_name, contact_info, amount_paid, payment_method, visit_date, processed_by, converted_to_member_id) VALUES (?, ?, ?, ?, ?, NOW(), ?, ?)')
+                ->execute([$gymId, $guestName, $contactInfo, $amount, post('payment_method'), $user['user_id'], post('user_id')]);
         }
         audit_log($user['user_id'], 'member_checkin', 'walk_in', (string) post('user_id'), json_encode(['amount' => $amount]));
         flash('Member check-in recorded successfully as attendance.', 'success');
@@ -114,8 +116,9 @@ function walk_ins_page(): void
         }
         $contact_info = $contact_info ?: 'N/A';
 
-        $stmt = db()->prepare('INSERT INTO walk_in_transactions (guest_name, contact_info, amount_paid, payment_method, visit_date, processed_by) VALUES (?, ?, ?, ?, NOW(), ?)');
+        $stmt = db()->prepare('INSERT INTO walk_in_transactions (gym_id, guest_name, contact_info, amount_paid, payment_method, visit_date, processed_by) VALUES (?, ?, ?, ?, ?, NOW(), ?)');
         $stmt->execute([
+            $gymId,
             post('guest_name'),
             $contact_info,
             post('amount_paid'),
@@ -127,12 +130,20 @@ function walk_ins_page(): void
         redirect('walk_ins');
     }
 
-    $rows = db()->query(
-        'SELECT w.*, u.first_name AS member_first, u.last_name AS member_last, u.email AS member_email
+    $query = 'SELECT w.*, u.first_name AS member_first, u.last_name AS member_last, u.email AS member_email
          FROM walk_in_transactions w
-         LEFT JOIN users u ON u.user_id = w.converted_to_member_id
-         ORDER BY w.visit_date DESC'
-    )->fetchAll();
+         LEFT JOIN users u ON u.user_id = w.converted_to_member_id';
+    
+    $params = [];
+    if ($user['role'] === 'gym_owner' && $gymId) {
+        $query .= ' WHERE w.gym_id = ?';
+        $params[] = $gymId;
+    }
+    $query .= ' ORDER BY w.visit_date DESC';
+    
+    $rows = db()->prepare($query);
+    $rows->execute($params);
+    $rows = $rows->fetchAll();
     $activeMembers = db()->query('
         SELECT u.user_id, CONCAT(u.first_name, " ", u.last_name) AS name,
                EXISTS(SELECT 1 FROM memberships m WHERE m.user_id = u.user_id AND m.status = "active" AND m.end_date >= CURDATE()) AS has_active_membership
@@ -301,8 +312,18 @@ function walk_ins_page(): void
         </dialog>
 
         <?php
-            $todayRevenue = (float) scalar('SELECT SUM(amount_paid) FROM walk_in_transactions WHERE DATE(visit_date) = CURDATE()');
-            $todayCount = (int) scalar('SELECT COUNT(*) FROM walk_in_transactions WHERE DATE(visit_date) = CURDATE()');
+            $revenueQuery = 'SELECT SUM(amount_paid) FROM walk_in_transactions WHERE DATE(visit_date) = CURDATE()';
+            $countQuery = 'SELECT COUNT(*) FROM walk_in_transactions WHERE DATE(visit_date) = CURDATE()';
+            $statParams = [];
+            
+            if ($user['role'] === 'gym_owner' && $gymId) {
+                $revenueQuery .= ' AND gym_id = ?';
+                $countQuery .= ' AND gym_id = ?';
+                $statParams[] = $gymId;
+            }
+            
+            $todayRevenue = (float) scalar($revenueQuery, $statParams);
+            $todayCount = (int) scalar($countQuery, $statParams);
         ?>
         <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr)); gap:15px; margin-bottom: 24px;">
             <div style="background:var(--bg); padding:16px; border-radius:8px; border:1px solid var(--line);">

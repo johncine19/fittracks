@@ -27,25 +27,41 @@ function admin_dashboard(PDO $pdo, array $user): void
     } else {
         // Gym Owner stats
         $revenue = (float) $pdo->query(
-            'SELECT COALESCE(SUM(p.amount), 0) FROM payments p JOIN memberships m ON m.membership_id = p.membership_id JOIN membership_plans mp ON mp.plan_id = m.plan_id WHERE mp.gym_id = ' . $gymId . ' AND p.status = "paid" AND p.payment_date >= DATE_FORMAT(CURDATE(), "%Y-%m-01")'
+            'SELECT SUM(revenue) FROM (
+                SELECT p.amount AS revenue FROM payments p JOIN memberships m ON m.membership_id = p.membership_id JOIN membership_plans mp ON mp.plan_id = m.plan_id WHERE mp.gym_id = ' . $gymId . ' AND p.status = "paid" AND p.payment_date >= DATE_FORMAT(CURDATE(), "%Y-%m-01")
+                UNION ALL
+                SELECT amount_paid AS revenue FROM walk_in_transactions WHERE gym_id = ' . $gymId . ' AND visit_date >= DATE_FORMAT(CURDATE(), "%Y-%m-01")
+            ) AS combined'
         )->fetchColumn();
         $classesToday = (int) $pdo->query('SELECT COUNT(*) FROM class_schedules cs JOIN classes c ON c.class_id = cs.class_id WHERE c.gym_id = ' . $gymId . ' AND DATE(cs.start_datetime) = CURDATE()')->fetchColumn();
         $checkinsToday = (int) $pdo->query('SELECT COUNT(*) FROM attendance WHERE gym_id = ' . $gymId . ' AND DATE(check_in_time) = CURDATE()')->fetchColumn();
     }
 
-    $revenueTrend = calc_revenue_trend($pdo);
-    $memberTrend  = calc_member_trend($pdo);
-    $checkinTrend = calc_checkin_trend($pdo);
+    $revenueTrend = calc_revenue_trend($pdo, $gymId);
+    $memberTrend  = calc_member_trend($pdo, $gymId);
+    $checkinTrend = calc_checkin_trend($pdo, $gymId);
 
     $monthStart = (new DateTime('first day of this month'))->modify('-5 months');
-    $monthlyRows = query_all(
-        'SELECT month_key, COALESCE(SUM(total), 0) AS total FROM (
-            SELECT DATE_FORMAT(payment_date, "%Y-%m") AS month_key, amount AS total FROM payments WHERE status = "paid" AND payment_date >= ?
-            UNION ALL
-            SELECT DATE_FORMAT(visit_date, "%Y-%m") AS month_key, amount_paid AS total FROM walk_in_transactions WHERE visit_date >= ?
-        ) AS combined GROUP BY month_key',
-        [$monthStart->format('Y-m-01'), $monthStart->format('Y-m-01')]
-    );
+    
+    if (!$gymId) {
+        $monthlyRows = query_all(
+            'SELECT month_key, COALESCE(SUM(total), 0) AS total FROM (
+                SELECT DATE_FORMAT(payment_date, "%Y-%m") AS month_key, amount AS total FROM payments WHERE status = "paid" AND payment_date >= ?
+                UNION ALL
+                SELECT DATE_FORMAT(visit_date, "%Y-%m") AS month_key, amount_paid AS total FROM walk_in_transactions WHERE visit_date >= ?
+            ) AS combined GROUP BY month_key',
+            [$monthStart->format('Y-m-01'), $monthStart->format('Y-m-01')]
+        );
+    } else {
+        $monthlyRows = query_all(
+            'SELECT month_key, COALESCE(SUM(total), 0) AS total FROM (
+                SELECT DATE_FORMAT(p.payment_date, "%Y-%m") AS month_key, p.amount AS total FROM payments p JOIN memberships m ON m.membership_id = p.membership_id JOIN membership_plans mp ON mp.plan_id = m.plan_id WHERE mp.gym_id = ? AND p.status = "paid" AND p.payment_date >= ?
+                UNION ALL
+                SELECT DATE_FORMAT(visit_date, "%Y-%m") AS month_key, amount_paid AS total FROM walk_in_transactions WHERE gym_id = ? AND visit_date >= ?
+            ) AS combined GROUP BY month_key',
+            [$gymId, $monthStart->format('Y-m-01'), $gymId, $monthStart->format('Y-m-01')]
+        );
+    }
     $monthlyTotals = [];
     foreach ($monthlyRows as $row) {
         $monthlyTotals[$row['month_key']] = (float) $row['total'];

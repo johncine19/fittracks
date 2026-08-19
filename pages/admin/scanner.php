@@ -117,8 +117,8 @@ function scanner_page(): void
             if ($amount > 0) {
                 $guestName = $member['first_name'] . ' ' . $member['last_name'];
                 $contactInfo = scalar('SELECT phone FROM users WHERE user_id = ?', [$userId]) ?: 'N/A';
-                $pdo->prepare('INSERT INTO walk_in_transactions (guest_name, contact_info, amount_paid, payment_method, visit_date, processed_by, converted_to_member_id) VALUES (?, ?, ?, ?, NOW(), ?, ?)')
-                    ->execute([$guestName, $contactInfo, $amount, post('payment_method') ?: 'cash', $user['user_id'], $userId]);
+                $pdo->prepare('INSERT INTO walk_in_transactions (gym_id, guest_name, contact_info, amount_paid, payment_method, visit_date, processed_by, converted_to_member_id) VALUES (?, ?, ?, ?, ?, NOW(), ?, ?)')
+                    ->execute([$currentGymId, $guestName, $contactInfo, $amount, post('payment_method') ?: 'cash', $user['user_id'], $userId]);
             }
             audit_log($user['user_id'], 'qr_checkin', 'attendance', null, json_encode(['user_id' => $userId, 'schedule_id' => $scheduleId]));
         }

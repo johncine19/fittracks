@@ -108,7 +108,10 @@ function reports_page(): void
                 FROM payments p
                 JOIN memberships m ON m.membership_id = p.membership_id
                 JOIN membership_plans mp ON mp.plan_id = m.plan_id
-                WHERE p.status = "paid" AND mp.gym_id = ' . $selectedGymId;
+                WHERE p.status = "paid" AND mp.gym_id = ' . $selectedGymId . '
+                UNION ALL
+                SELECT DATE(visit_date) AS day, DATE_FORMAT(visit_date, "%Y-%m") AS month, YEAR(visit_date) AS year, amount_paid AS revenue 
+                FROM walk_in_transactions WHERE gym_id = ' . $selectedGymId;
             $attendanceCondition = 'SELECT DATE(check_in_time) AS day, DATE_FORMAT(check_in_time, "%Y-%m") AS month, YEAR(check_in_time) AS year FROM attendance WHERE gym_id = ' . $selectedGymId;
             $members = query_all('SELECT DISTINCT u.user_id, u.first_name, u.last_name, u.email, u.profile_picture FROM users u JOIN memberships m ON m.user_id = u.user_id JOIN membership_plans mp ON mp.plan_id = m.plan_id WHERE u.role = "member" AND u.status = "active" AND m.status = "active" AND mp.gym_id = ' . $selectedGymId);
         } else {
@@ -128,7 +131,10 @@ function reports_page(): void
             FROM payments p
             JOIN memberships m ON m.membership_id = p.membership_id
             JOIN membership_plans mp ON mp.plan_id = m.plan_id
-            WHERE p.status = "paid" AND mp.gym_id = ' . $gymId;
+            WHERE p.status = "paid" AND mp.gym_id = ' . $gymId . '
+            UNION ALL
+            SELECT DATE(visit_date) AS day, DATE_FORMAT(visit_date, "%Y-%m") AS month, YEAR(visit_date) AS year, amount_paid AS revenue 
+            FROM walk_in_transactions WHERE gym_id = ' . $gymId;
         $attendanceCondition = 'SELECT DATE(check_in_time) AS day, DATE_FORMAT(check_in_time, "%Y-%m") AS month, YEAR(check_in_time) AS year FROM attendance WHERE gym_id = ' . $gymId;
         $members = query_all('SELECT DISTINCT u.user_id, u.first_name, u.last_name, u.email, u.profile_picture FROM users u JOIN memberships m ON m.user_id = u.user_id JOIN membership_plans mp ON mp.plan_id = m.plan_id WHERE u.role = "member" AND u.status = "active" AND m.status = "active" AND mp.gym_id = ' . $gymId);
     }

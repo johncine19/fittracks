@@ -75,6 +75,28 @@ echo "<h3>Database structure checks completed.</h3>";
     } else {
         echo "gym_id column already exists in exercises.\n";
     }
+
+    // Walk-in Transactions Migration
+    $stmt = $pdo->query("SHOW COLUMNS FROM walk_in_transactions LIKE 'gym_id'");
+    if ($stmt->rowCount() == 0) {
+        // Step 1: Add column as nullable
+        $pdo->exec("ALTER TABLE walk_in_transactions ADD COLUMN gym_id INT UNSIGNED DEFAULT NULL AFTER transaction_id");
+        
+        // Step 2: Update existing rows to the first gym
+        $firstGymId = $pdo->query("SELECT gym_id FROM gyms ORDER BY gym_id ASC LIMIT 1")->fetchColumn();
+        if ($firstGymId) {
+            $pdo->prepare("UPDATE walk_in_transactions SET gym_id = ?")->execute([$firstGymId]);
+            echo "Migrated all global walk-ins to gym_id $firstGymId.\n";
+            
+            // Step 3: Now make it NOT NULL and add foreign key
+            $pdo->exec("ALTER TABLE walk_in_transactions MODIFY gym_id INT UNSIGNED NOT NULL");
+            $pdo->exec("ALTER TABLE walk_in_transactions ADD CONSTRAINT fk_walk_ins_gym FOREIGN KEY (gym_id) REFERENCES gyms (gym_id) ON DELETE CASCADE");
+        } else {
+            echo "No gyms found to migrate walk-ins to. Leaving gym_id nullable for now.\n";
+        }
+    } else {
+        echo "gym_id column already exists in walk_in_transactions.\n";
+    }
 } catch (Exception $e) {
     echo "Error: " . $e->getMessage();
 }
