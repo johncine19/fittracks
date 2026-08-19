@@ -335,6 +335,8 @@ CREATE TABLE `gyms` (
   `contact_info` varchar(100) DEFAULT NULL,
   `business_permit_url` varchar(255) DEFAULT NULL,
   `valid_id_url` varchar(255) DEFAULT NULL,
+  `logo_url` varchar(255) DEFAULT NULL,
+  `brand_color` varchar(20) DEFAULT '#c7ff22',
   `status` enum('pending','approved','rejected') NOT NULL DEFAULT 'pending',
   `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
@@ -1173,6 +1175,15 @@ SET FOREIGN_KEY_CHECKS = 1;
 /*!40101 SET CHARACTER_SET_RESULTS=@OLD_CHARACTER_SET_RESULTS */;
 /*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
 
+
+CREATE TABLE IF NOT EXISTS `gym_images` (
+    `id` int UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    `gym_id` int UNSIGNED NOT NULL,
+    `image_url` varchar(255) NOT NULL,
+    `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    KEY `fk_gym_images_gym` (`gym_id`),
+    CONSTRAINT `fk_gym_images_gym` FOREIGN KEY (`gym_id`) REFERENCES `gyms` (`gym_id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE IF NOT EXISTS `sessions` (
     `session_id` VARCHAR(128) NOT NULL PRIMARY KEY,

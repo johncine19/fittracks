@@ -251,6 +251,7 @@
 .btn-landing {
     display: inline-flex;
     align-items: center;
+    justify-content: center;
     gap: 8px;
     padding: 10px 24px;
     border-radius: 100px;
@@ -258,9 +259,11 @@
     font-weight: 600;
     letter-spacing: 0.01em;
     text-decoration: none;
+    white-space: nowrap;
     transition: all 0.3s;
     cursor: pointer;
     border: none;
+    flex-shrink: 0;
 }
 
 .btn-landing-primary {
@@ -1350,6 +1353,37 @@
 }
 
 @media (max-width: 600px) {
+    .landing-nav {
+        padding: 12px 16px;
+    }
+
+    .landing-nav-brand {
+        font-size: 1.05rem;
+        gap: 8px;
+    }
+
+    .landing-nav-brand .brand-icon {
+        width: 28px;
+        height: 28px;
+        font-size: 11px;
+        border-radius: 5px;
+    }
+
+    .landing-nav-links {
+        gap: 6px;
+    }
+
+    .landing-nav-links .nav-link {
+        display: none;
+    }
+
+    .landing-nav-links .btn-landing {
+        padding: 7px 12px;
+        font-size: 12px;
+        font-weight: 600;
+        gap: 4px;
+    }
+
     .hero-cta {
         flex-direction: column;
         width: 100%;
@@ -1358,14 +1392,32 @@
     .hero-cta .btn-landing {
         width: 100%;
         justify-content: center;
-    }
-
-    .landing-nav-links .nav-link {
-        display: none;
+        padding: 12px 24px;
+        font-size: 14px;
     }
 
     .stats-grid {
         grid-template-columns: 1fr 1fr;
+    }
+}
+
+@media (max-width: 380px) {
+    .landing-nav {
+        padding: 10px 12px;
+    }
+
+    .landing-nav-brand {
+        font-size: 0.95rem;
+        gap: 6px;
+    }
+
+    .landing-nav-links {
+        gap: 5px;
+    }
+
+    .landing-nav-links .btn-landing {
+        padding: 6px 9px;
+        font-size: 11px;
     }
 }
 
