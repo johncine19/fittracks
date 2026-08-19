@@ -71,16 +71,7 @@ function handle_login(): void
                 redirect('login');
             }
 
-            if ($user['role'] === 'gym_owner') {
-                $gymStatus = scalar('SELECT status FROM gyms WHERE owner_user_id = ?', [$user['user_id']]);
-                if ($gymStatus === 'pending') {
-                    flash('Your gym application is still pending approval. You can log in once it has been approved by the platform admin.', 'warning');
-                    redirect('login');
-                } elseif ($gymStatus === 'rejected') {
-                    flash('Your gym application was rejected. Please contact support.', 'danger');
-                    redirect('login');
-                }
-            }
+            // Gym owner routing is now handled by core/auth.php require_login()
             RateLimiter::clear($email);
             session_regenerate_id(true);
             $_SESSION['user_id'] = $user['user_id'];

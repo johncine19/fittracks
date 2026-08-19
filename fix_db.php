@@ -33,7 +33,26 @@ try {
     )");
     echo "Jobs table created or already exists.\n";
 
-    echo "Database fixed successfully.";
+    // --- 4. Gym Onboarding Columns ---
+try {
+    $pdo->exec("ALTER TABLE gyms ADD COLUMN permit_url VARCHAR(255) DEFAULT NULL AFTER contact_info");
+    echo "Added permit_url column to gyms.<br>";
+} catch (PDOException $e) {
+    if ($e->getCode() !== '42S21') {
+        echo "Error adding permit_url: " . $e->getMessage() . "<br>";
+    }
+}
+
+try {
+    $pdo->exec("ALTER TABLE gyms ADD COLUMN id_url VARCHAR(255) DEFAULT NULL AFTER permit_url");
+    echo "Added id_url column to gyms.<br>";
+} catch (PDOException $e) {
+    if ($e->getCode() !== '42S21') {
+        echo "Error adding id_url: " . $e->getMessage() . "<br>";
+    }
+}
+
+echo "<h3>Database structure checks completed.</h3>";
 
     // Custom Exercises Migration
     $stmt = $pdo->query("SHOW COLUMNS FROM exercises LIKE 'gym_id'");

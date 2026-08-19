@@ -40,6 +40,10 @@ try {
         'setup_profile' => ['file' => 'pages/auth/setup_profile.php', 'handler' => 'setup_profile_page'],
         'setup_goal' => ['file' => 'pages/auth/setup_goal.php', 'handler' => 'setup_goal_page'],
         'pending_gym' => ['file' => 'pages/auth/pending_gym.php', 'handler' => 'pending_gym_page'],
+        
+        'gym_onboarding' => ['file' => 'pages/gym_owner/gym_onboarding.php', 'handler' => 'gym_onboarding_page'],
+        'gym_pending' => ['file' => 'pages/gym_owner/gym_pending.php', 'handler' => 'gym_pending_page'],
+        'gym_rejected' => ['file' => 'pages/gym_owner/gym_rejected.php', 'handler' => 'gym_rejected_page'],
 
         'notification_action' => ['file' => 'pages/shared/notifications.php', 'handler' => 'handle_notification_actions'],
         'notification_click'  => ['file' => 'pages/shared/notifications.php', 'handler' => 'handle_notification_click'],

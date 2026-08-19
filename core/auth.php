@@ -32,7 +32,18 @@ function require_login(): array
         }
     }
 
-    // Note: Gym approval enforcement is now handled at login.
+    // Handle Gym Owner onboarding interception
+    if ($user['role'] === 'gym_owner' && !in_array($page, ['gym_onboarding', 'gym_pending', 'gym_rejected', 'logout'], true)) {
+        $gym = db()->query('SELECT status FROM gyms WHERE owner_user_id = ' . (int)$user['user_id'])->fetch();
+        
+        if (!$gym) {
+            redirect('gym_onboarding');
+        } elseif ($gym['status'] === 'pending') {
+            redirect('gym_pending');
+        } elseif ($gym['status'] === 'rejected') {
+            redirect('gym_rejected');
+        }
+    }
 
     return $user;
 }

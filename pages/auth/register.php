@@ -15,9 +15,7 @@ function handle_register(): void
         ];
 
         if (post('account_type') === 'gym_owner') {
-            $rules['gym_name'] = 'required|min:2|max:100';
-            $rules['gym_address'] = 'required|min:5|max:255';
-            $rules['gym_contact_info'] = 'required|min:5|max:100';
+            // Gym owners will fill these out in the onboarding wizard
         }
 
         $valid = $validator->validate($_POST, $rules);
@@ -154,67 +152,10 @@ function handle_register(): void
                     </div>
                 </div>
 
-                <div id="gym-fields" style="display: none; padding: 15px; border-radius: 8px; background: rgba(255,255,255,0.05); margin-bottom: 20px;">
-                    <div class="auth-field">
-                        <label>GYM NAME</label>
-                        <div class="auth-input-group">
-                            <input type="text" name="gym_name" id="gym_name" placeholder="Enter your gym name" value="<?= h(post('gym_name')) ?>">
-                        </div>
-                    </div>
-                    <div class="auth-field">
-                        <label>GYM ADDRESS</label>
-                        <div class="auth-input-group">
-                            <input type="text" name="gym_address" id="gym_address" placeholder="Complete address" value="<?= h(post('gym_address')) ?>">
-                        </div>
-                    </div>
-                    <div class="auth-field">
-                        <label>GYM CONTACT INFO</label>
-                        <div class="auth-input-group">
-                            <input type="text" name="gym_contact_info" id="gym_contact_info" placeholder="Phone or Email" value="<?= h(post('gym_contact_info')) ?>">
-                        </div>
-                    </div>
-                    <div class="auth-field">
-                        <label>BUSINESS PERMIT (PDF, JPG, PNG)</label>
-                        <div class="auth-input-group">
-                            <input type="file" name="business_permit" id="business_permit" accept=".pdf,.jpg,.jpeg,.png">
-                        </div>
-                    </div>
-                    <div class="auth-field">
-                        <label>VALID ID (PDF, JPG, PNG)</label>
-                        <div class="auth-input-group">
-                            <input type="file" name="valid_id" id="valid_id" accept=".pdf,.jpg,.jpeg,.png">
-                        </div>
-                    </div>
-                </div>
-
                 <script>
                     function toggleGymFields() {
-                        const isGymOwner = document.querySelector('input[name="account_type"]:checked').value === 'gym_owner';
-                        const gymFields = document.getElementById('gym-fields');
-                        const gymName = document.getElementById('gym_name');
-                        const gymAddress = document.getElementById('gym_address');
-                        const gymContact = document.getElementById('gym_contact_info');
-                        const businessPermit = document.getElementById('business_permit');
-                        const validId = document.getElementById('valid_id');
-                        
-                        if (isGymOwner) {
-                            gymFields.style.display = 'block';
-                            gymName.required = true;
-                            gymAddress.required = true;
-                            gymContact.required = true;
-                            businessPermit.required = true;
-                            validId.required = true;
-                        } else {
-                            gymFields.style.display = 'none';
-                            gymName.required = false;
-                            gymAddress.required = false;
-                            gymContact.required = false;
-                            businessPermit.required = false;
-                            validId.required = false;
-                        }
+                        // Registration is now streamlined. Gym owners will complete setup in the onboarding wizard.
                     }
-                    // Run on load to set correct initial state
-                    document.addEventListener('DOMContentLoaded', toggleGymFields);
                 </script>
 
                 <div class="auth-form-row">
