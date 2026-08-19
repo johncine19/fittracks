@@ -111,12 +111,11 @@ function gym_applications_page(): void
         } else {
             Swal.fire({
                 title: docTitle,
-                imageUrl: url,
-                imageAlt: docTitle,
-                width: 'auto',
+                html: `<div style="display: flex; justify-content: center; align-items: center; width: 100%; height: 70vh;"><img src="${url}" style="max-width: 100%; max-height: 100%; object-fit: contain; border-radius: 4px;" alt="${docTitle}"></div>`,
+                width: '80%',
                 showCloseButton: true,
                 showConfirmButton: false,
-                background: 'var(--surface-color, #18251eff)',
+                background: 'var(--surface, #18251eff)',
                 color: 'var(--text-color, #ffffff)'
             });
         }
