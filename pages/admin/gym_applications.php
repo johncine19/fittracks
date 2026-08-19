@@ -60,13 +60,13 @@ function gym_applications_page(): void
                                 <td><?= h($app['contact_info'] ?? 'N/A') ?></td>
                                 <td>
                                     <div style="display:flex; flex-direction:column; gap:4px;">
-                                        <?php if ($app['permit_url']): ?>
-                                            <button type="button" class="btn-sm btn-ghost" onclick="viewDocument('<?= h(upload_url($app['permit_url'], 'permits')) ?>', 'Business Permit')">Business Permit</button>
+                                        <?php if ($app['business_permit_url']): ?>
+                                            <button type="button" class="btn-sm btn-ghost" onclick="viewDocument('<?= h(upload_url($app['business_permit_url'], 'permits')) ?>', 'Business Permit')">Business Permit</button>
                                         <?php endif; ?>
-                                        <?php if ($app['id_url'] ?? null): ?>
-                                            <button type="button" class="btn-sm btn-ghost" onclick="viewDocument('<?= h(upload_url($app['id_url'], 'permits')) ?>', 'Valid ID')">Valid ID</button>
+                                        <?php if ($app['valid_id_url'] ?? null): ?>
+                                            <button type="button" class="btn-sm btn-ghost" onclick="viewDocument('<?= h(upload_url($app['valid_id_url'], 'permits')) ?>', 'Valid ID')">Valid ID</button>
                                         <?php endif; ?>
-                                        <?php if (!$app['permit_url'] && !($app['id_url'] ?? null)): ?>
+                                        <?php if (!$app['business_permit_url'] && !($app['valid_id_url'] ?? null)): ?>
                                             <span class="muted">None</span>
                                         <?php endif; ?>
                                     </div>

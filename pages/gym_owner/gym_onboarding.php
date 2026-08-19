@@ -49,7 +49,7 @@ function gym_onboarding_page(): void
                     throw new Exception('Valid ID is required.');
                 }
 
-                $stmt = $pdo->prepare('INSERT INTO gyms (owner_user_id, name, address, contact_info, permit_url, id_url, status) VALUES (?, ?, ?, ?, ?, ?, "pending")');
+                $stmt = $pdo->prepare('INSERT INTO gyms (owner_user_id, name, address, contact_info, business_permit_url, valid_id_url, status) VALUES (?, ?, ?, ?, ?, ?, "pending")');
                 $stmt->execute([
                     $user['user_id'],
                     $gymName,
