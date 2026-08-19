@@ -89,7 +89,7 @@ CREATE TABLE `announcements` (
 
 CREATE TABLE `attendance` (
   `attendance_id` int UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
-  `user_id` int UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  `user_id` int UNSIGNED NOT NULL,
   `schedule_id` int UNSIGNED DEFAULT NULL,
   `check_in_time` datetime NOT NULL,
   `check_out_time` datetime DEFAULT NULL,
@@ -106,8 +106,8 @@ CREATE TABLE `attendance` (
 
 CREATE TABLE `checkout_ratings` (
   `rating_id` int UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
-  `attendance_id` int UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
-  `user_id` int UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  `attendance_id` int UNSIGNED NOT NULL,
+  `user_id` int UNSIGNED NOT NULL,
   `rating` tinyint UNSIGNED NOT NULL,
   `comment` text,
   `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP
@@ -168,8 +168,8 @@ INSERT INTO `classes` (`class_id`, `created_by`, `class_name`, `description`, `i
 
 CREATE TABLE `class_bookings` (
   `booking_id` int UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
-  `schedule_id` int UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
-  `user_id` int UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  `schedule_id` int UNSIGNED NOT NULL,
+  `user_id` int UNSIGNED NOT NULL,
   `booking_status` enum('booked','cancelled','attended','no_show') NOT NULL DEFAULT 'booked',
   `booked_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
@@ -182,7 +182,7 @@ CREATE TABLE `class_bookings` (
 
 CREATE TABLE `class_schedules` (
   `schedule_id` int UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
-  `class_id` int UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  `class_id` int UNSIGNED NOT NULL,
   `room_location` varchar(80) DEFAULT NULL,
   `start_datetime` datetime NOT NULL,
   `end_datetime` datetime NOT NULL,
@@ -199,7 +199,7 @@ CREATE TABLE `class_schedules` (
 CREATE TABLE `dietary_plans` (
   `plan_id` int UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
   `member_user_id` int UNSIGNED NOT NULL,
-  `trainer_id` int UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  `trainer_id` int UNSIGNED NOT NULL,
   `title` varchar(255) NOT NULL,
   `goal` varchar(100) NOT NULL,
   `status` enum('active','completed','cancelled','draft') NOT NULL DEFAULT 'draft',
@@ -215,7 +215,7 @@ CREATE TABLE `dietary_plans` (
 
 CREATE TABLE `dietary_plan_meals` (
   `meal_id` int UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
-  `plan_id` int UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  `plan_id` int UNSIGNED NOT NULL,
   `day_of_week` tinyint UNSIGNED NOT NULL COMMENT '1=Monday...7=Sunday',
   `meal_type` enum('Breakfast','Lunch','Dinner','Snack') NOT NULL,
   `food_items` text NOT NULL,
@@ -315,9 +315,9 @@ INSERT INTO `exercises` (`exercise_id`, `name`, `category`, `muscle_group`, `des
 
 CREATE TABLE `exercise_completions` (
   `completion_id` int UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
-  `user_id` int UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
-  `plan_id` int UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
-  `exercise_id` int UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  `user_id` int UNSIGNED NOT NULL,
+  `plan_id` int UNSIGNED NOT NULL,
+  `exercise_id` int UNSIGNED NOT NULL,
   `completed_date` date NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
@@ -355,8 +355,8 @@ INSERT INTO `gyms` (`gym_id`, `owner_user_id`, `name`, `address`, `contact_info`
 
 CREATE TABLE `memberships` (
   `membership_id` int UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
-  `user_id` int UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
-  `plan_id` int UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  `user_id` int UNSIGNED NOT NULL,
+  `plan_id` int UNSIGNED NOT NULL,
   `start_date` date NOT NULL,
   `end_date` date NOT NULL,
   `status` enum('active','expired','cancelled','pending') NOT NULL DEFAULT 'pending',
@@ -400,7 +400,7 @@ INSERT INTO `membership_plans` (`plan_id`, `plan_name`, `plan_type`, `duration_d
 
 CREATE TABLE `member_profiles` (
   `profile_id` int UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
-  `user_id` int UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  `user_id` int UNSIGNED NOT NULL,
   `height_cm` decimal(5,2) NOT NULL,
   `weight_kg` decimal(5,2) NOT NULL,
   `neck_cm` decimal(5,2) DEFAULT NULL,
@@ -425,7 +425,7 @@ CREATE TABLE `member_profiles` (
 
 CREATE TABLE `member_transfers` (
   `transfer_id` int UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
-  `user_id` int UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  `user_id` int UNSIGNED NOT NULL,
   `from_gym_id` int UNSIGNED NOT NULL,
   `to_gym_id` int UNSIGNED NOT NULL,
   `status` enum('pending_current_gym','pending_receiving_gym','approved','rejected') NOT NULL DEFAULT 'pending_current_gym',
@@ -441,7 +441,7 @@ CREATE TABLE `member_transfers` (
 
 CREATE TABLE `notifications` (
   `notification_id` int UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
-  `user_id` int UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  `user_id` int UNSIGNED NOT NULL,
   `type` enum('renewal_reminder','class_reminder','coach_message','milestone','system') NOT NULL,
   `title` varchar(100) NOT NULL,
   `message` varchar(500) NOT NULL,
@@ -491,7 +491,7 @@ CREATE TABLE `password_resets` (
 
 CREATE TABLE `payments` (
   `payment_id` int UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
-  `membership_id` int UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  `membership_id` int UNSIGNED NOT NULL,
   `amount` decimal(10,2) NOT NULL,
   `payment_date` date NOT NULL,
   `payment_method` enum('cash','card','bank_transfer','online','other','gcash') NOT NULL,
@@ -509,7 +509,7 @@ CREATE TABLE `payments` (
 
 CREATE TABLE `progress_logs` (
   `log_id` int UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
-  `user_id` int UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  `user_id` int UNSIGNED NOT NULL,
   `log_date` date NOT NULL,
   `weight_kg` decimal(5,2) NOT NULL,
   `body_fat_percent` decimal(4,2) DEFAULT NULL,
@@ -560,7 +560,7 @@ INSERT INTO `system_settings` (`setting_key`, `setting_value`, `description`, `u
 
 CREATE TABLE `trainer_assignments` (
   `assignment_id` int UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
-  `trainer_id` int UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  `trainer_id` int UNSIGNED NOT NULL,
   `member_user_id` int UNSIGNED NOT NULL,
   `assigned_date` datetime NOT NULL,
   `ended_date` datetime DEFAULT NULL,
@@ -577,8 +577,8 @@ CREATE TABLE `trainer_assignments` (
 
 CREATE TABLE `trainer_commissions` (
   `commission_id` int UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
-  `trainer_id` int UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
-  `payment_id` int UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  `trainer_id` int UNSIGNED NOT NULL,
+  `payment_id` int UNSIGNED NOT NULL,
   `amount` decimal(10,2) NOT NULL,
   `status` enum('pending','paid') NOT NULL DEFAULT 'pending',
   `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP
@@ -607,7 +607,7 @@ CREATE TABLE `trainer_messages` (
 
 CREATE TABLE `trainer_profiles` (
   `trainer_id` int UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
-  `user_id` int UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  `user_id` int UNSIGNED NOT NULL,
   `specialization` varchar(100) DEFAULT NULL,
   `bio` text,
   `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -641,8 +641,8 @@ CREATE TABLE `training_plans` (
 
 CREATE TABLE `training_plan_exercises` (
   `plan_exercise_id` int UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
-  `plan_id` int UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
-  `exercise_id` int UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  `plan_id` int UNSIGNED NOT NULL,
+  `exercise_id` int UNSIGNED NOT NULL,
   `day_of_week` tinyint UNSIGNED DEFAULT NULL,
   `sequence_order` int UNSIGNED NOT NULL DEFAULT '1',
   `sets` int UNSIGNED DEFAULT NULL,
@@ -1141,9 +1141,10 @@ ALTER TABLE `walk_in_transactions`
 -- Table structure for table `gym_members`
 --
 CREATE TABLE IF NOT EXISTS `gym_members` (
-  `user_id` int UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
-  `gym_id` int UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
-  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP
+  `user_id` int UNSIGNED NOT NULL,
+  `gym_id` int UNSIGNED NOT NULL,
+  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`user_id`, `gym_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 --
