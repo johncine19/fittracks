@@ -95,3 +95,16 @@ try {
     ob_end_clean(); // discard any partial page that was buffered
     setup_error($e);
 }
+
+// Poor man's cron: process a few queue jobs at the end of every request.
+// Since Render web services don't have background cron, this ensures emails are sent.
+register_shutdown_function(function() {
+    if (function_exists('fastcgi_finish_request')) {
+        fastcgi_finish_request();
+    }
+    try {
+        Queue::work(3); // Process up to 3 jobs per request to avoid blocking for too long
+    } catch (Throwable $e) {
+        // Silently ignore queue errors during shutdown
+    }
+});
