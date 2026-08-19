@@ -9,11 +9,16 @@ function db(): PDO
     }
 
     $port = $_ENV['DB_PORT'] ?? '3306';
+    $useSSL = !empty($_ENV['DB_PORT']) && (int) $_ENV['DB_PORT'] === 4000; // TiDB Cloud requires SSL
     $dsn = 'mysql:host=' . DB_HOST . ';port=' . $port . ';dbname=' . DB_NAME . ';charset=utf8mb4';
-    $pdo = new PDO($dsn, DB_USER, DB_PASS, [
-        PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+    $options = [
+        PDO::ATTR_ERRMODE            => PDO::ERRMODE_EXCEPTION,
         PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
-    ]);
+    ];
+    if ($useSSL) {
+        $options[PDO::MYSQL_ATTR_SSL_VERIFY_SERVER_CERT] = false;
+    }
+    $pdo = new PDO($dsn, DB_USER, DB_PASS, $options);
 
 
 
