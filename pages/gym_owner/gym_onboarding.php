@@ -64,8 +64,7 @@ function gym_onboarding_page(): void
                 $ownerName = $user['first_name'] . ' ' . $user['last_name'];
                 notify_admins('system', 'New Gym Application', "A new gym application for '{$gymName}' was submitted by {$ownerName}. Please review it in the Gym Applications dashboard.");
                 
-                $emailBody = "Hello Platform Admin,<br><br>A new gym application has been submitted and is waiting for your approval.<br><br><b>Gym Name:</b> " . htmlspecialchars((string)$gymName, ENT_QUOTES) . "<br><b>Owner:</b> " . htmlspecialchars((string)$ownerName, ENT_QUOTES) . "<br><br>Please log in to the platform admin dashboard to review the business permit and approve or reject the application.<br><br>Thanks,<br>FITTRACKS System";
-                notify_admins_email('New Gym Application: ' . $gymName, $emailBody);
+                Emails::sendNewGymApplication($gymName, $ownerName);
 
                 flash('Your gym application has been submitted successfully!', 'success');
                 redirect('gym_pending');

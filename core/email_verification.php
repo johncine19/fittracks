@@ -35,13 +35,7 @@ function create_email_verification_token(int $userId): string
  */
 function send_verification_email(string $email, string $firstName, string $token): bool
 {
-    $link = app_base_url() . '?page=verify_email&token=' . urlencode($token);
-    $htmlBody = 'Hi ' . htmlspecialchars($firstName, ENT_QUOTES, 'UTF-8') . ',<br><br>'
-        . 'Please confirm your email address by clicking the link below:<br>'
-        . '<a href="' . htmlspecialchars($link, ENT_QUOTES, 'UTF-8') . '">Verify my email</a><br><br>'
-        . 'This link expires in 24 hours.';
-
-    queue_email($email, $firstName, 'Verify your FITTRACKS email address', $htmlBody);
+    Emails::sendVerification($email, $firstName, $token);
     return true;
 }
 

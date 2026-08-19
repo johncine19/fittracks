@@ -34,14 +34,10 @@ function memberships_page(): void
                     
                     notify_user((int) $mInfo['user_id'], 'system', 'Payment Received', 'Your payment for the ' . $mInfo['plan_name'] . ' membership was successful and your plan is now active!');
                     
-                    queue_email(
+                    Emails::sendPaymentConfirmation(
                         $mInfo['email'],
                         $mInfo['first_name'] . ' ' . $mInfo['last_name'],
-                        'Payment Confirmation - FITTRACKS',
-                        'Hi ' . htmlspecialchars($mInfo['first_name'], ENT_QUOTES, 'UTF-8') . ',<br><br>'
-                        . 'Great news! Your payment for the <strong>' . htmlspecialchars($mInfo['plan_name'], ENT_QUOTES, 'UTF-8') . '</strong> membership was successfully processed.<br><br>'
-                        . 'Your membership is now ACTIVE. We look forward to seeing you at the gym!<br><br>'
-                        . 'Best,<br>FITTRACKS Team'
+                        $mInfo['plan_name']
                     );
                 }
             }

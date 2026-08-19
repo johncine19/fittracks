@@ -14,6 +14,7 @@ require __DIR__ . '/SessionDbHandler.php';
 require __DIR__ . '/SessionRedisHandler.php';
 require __DIR__ . '/Queue.php';
 require __DIR__ . '/Cache.php';
+require __DIR__ . '/emails.php';
 
 require __DIR__ . '/seeds.php';
 $seedLockFile = __DIR__ . '/../storage/.seeded.lock';

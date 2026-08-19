@@ -30,11 +30,10 @@ function handle_forgot_password(): void
             $token = sprintf('%06d', random_int(0, 999999));
             db()->prepare('REPLACE INTO password_resets (email, token, created_at) VALUES (?, ?, NOW())')->execute([$email, $token]);
 
-            queue_email(
+            Emails::sendPasswordReset(
                 $email,
                 $user['first_name'] ?? 'Member',
-                'Password Reset OTP - FITTRACKS',
-                "Your password reset OTP is <strong>$token</strong>. It will expire in 15 minutes.<br><br>Please enter this code on the reset page."
+                $token
             );
         }
 

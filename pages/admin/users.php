@@ -73,20 +73,10 @@ function users_page(): void
             audit_log($user['user_id'], 'create', 'user', (string) $newUserId, json_encode(['role' => $roleToCreate, 'email' => $email, 'name' => post('first_name') . ' ' . post('last_name')]));
 
             // Send credentials email via background queue
-            $emailBody =
-                'Hi ' . htmlspecialchars((string) post('first_name'), ENT_QUOTES, 'UTF-8') . ',<br><br>'
-                . 'An account has been created for you on <strong>FITTRACKS</strong>.<br><br>'
-                . 'Your login credentials are:<br>'
-                . '&bull; <strong>Email:</strong> ' . htmlspecialchars($email, ENT_QUOTES, 'UTF-8') . '<br>'
-                . '&bull; <strong>Password:</strong> ' . htmlspecialchars($plainPassword, ENT_QUOTES, 'UTF-8') . '<br><br>'
-                . 'Please sign in and change your password as soon as possible.<br><br>'
-                . 'Thank you,<br>FITTRACKS Team';
-
-            queue_email(
+            Emails::sendAccountCreated(
                 $email,
                 post('first_name') . ' ' . post('last_name'),
-                'Your FITTRACKS account has been created',
-                $emailBody
+                $plainPassword
             );
 
             flash('User created successfully. Login credentials have been emailed to ' . $email . '.', 'success');
