@@ -351,7 +351,7 @@ function gym_profile_page(): void
                         <h4 style="margin: 0 0 10px 0; font-size: 13px; color: var(--muted); text-transform:uppercase; letter-spacing:0.04em;">Gym Logo</h4>
                         <?php if (!empty($gym['logo_url'])): ?>
                             <div class="preview-container">
-                                <img src="assets/uploads/<?= h($gym['logo_url']) ?>" alt="Logo Preview">
+                                <img src="<?= h(upload_url($gym['logo_url'])) ?>" alt="Logo Preview" loading="lazy" decoding="async">
                                 <div class="preview-info">
                                     <p>Active Logo Trademark</p>
                                     <span><?= h($gym['logo_url']) ?></span>
@@ -427,7 +427,7 @@ function gym_profile_page(): void
                 <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 150px), 1fr)); gap: 16px;">
                     <?php foreach ($galleryImages as $img): ?>
                         <div style="position: relative; border-radius: 8px; overflow: hidden; border: 1px solid var(--line); aspect-ratio: 1; background: var(--bg);">
-                            <img src="assets/uploads/<?= h($img['image_url']) ?>" alt="Gallery Image" style="width: 100%; height: 100%; object-fit: cover;">
+                            <img src="<?= h(upload_url($img['image_url'])) ?>" alt="Gallery Image" loading="lazy" decoding="async" style="width: 100%; height: 100%; object-fit: cover;">
                             
                             <!-- Delete button (submit inside the main form would save the form, so we use a separate mini form, or a button with form attributes) -->
                             <button type="button" 

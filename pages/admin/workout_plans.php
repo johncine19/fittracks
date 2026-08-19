@@ -90,7 +90,7 @@ function admin_workouts_page(): void
                                 <td style="font-weight:bold;">
                                     <div style="display: flex; align-items: center; gap: 8px;">
                                         <?php if ($row['member_pic']): ?>
-                                            <img src="assets/uploads/<?= h($row['member_pic']) ?>" alt="Member" style="width: 24px; height: 24px; border-radius: 50%; object-fit: cover;">
+                                            <img src="<?= h(upload_url($row['member_pic'])) ?>" alt="Member" loading="lazy" decoding="async" style="width: 24px; height: 24px; border-radius: 50%; object-fit: cover;">
                                         <?php else: ?>
                                             <div style="width: 24px; height: 24px; border-radius: 50%; background: var(--line); display: flex; align-items: center; justify-content: center; font-size: 10px; color: var(--muted);"><?= h(substr($row['member_first'], 0, 1)) ?></div>
                                         <?php endif; ?>
@@ -100,7 +100,7 @@ function admin_workouts_page(): void
                                 <td>
                                     <div style="display: flex; align-items: center; gap: 8px;">
                                         <?php if ($row['trainer_pic']): ?>
-                                            <img src="assets/uploads/<?= h($row['trainer_pic']) ?>" alt="Trainer" style="width: 24px; height: 24px; border-radius: 50%; object-fit: cover;">
+                                            <img src="<?= h(upload_url($row['trainer_pic'])) ?>" alt="Trainer" loading="lazy" decoding="async" style="width: 24px; height: 24px; border-radius: 50%; object-fit: cover;">
                                         <?php else: ?>
                                             <div style="width: 24px; height: 24px; border-radius: 50%; background: var(--line); display: flex; align-items: center; justify-content: center; font-size: 10px; color: var(--muted);"><?= h(substr($row['trainer_first'], 0, 1)) ?></div>
                                         <?php endif; ?>

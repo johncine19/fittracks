@@ -1,10 +1,12 @@
 FROM php:8.2-apache
 
-# Install PDO MySQL and zip (needed by Composer)
+# Install dependencies, GD (with FreeType, JPEG, WebP), PDO MySQL, and EXIF
 RUN apt-get update && apt-get install -y \
     zip unzip git curl ca-certificates \
-    && docker-php-ext-install pdo pdo_mysql \
-    && apt-get clean
+    libfreetype6-dev libjpeg62-turbo-dev libpng-dev libwebp-dev \
+    && docker-php-ext-configure gd --with-freetype --with-jpeg --with-webp \
+    && docker-php-ext-install -j$(nproc) gd exif pdo pdo_mysql \
+    && apt-get clean && rm -rf /var/lib/apt/lists/*
 
 # Install Composer
 COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
@@ -22,7 +24,7 @@ WORKDIR /var/www/html
 RUN composer install --no-dev --optimize-autoloader --no-interaction
 
 # Set correct permissions
-RUN mkdir -p /var/www/html/storage /var/www/html/assets/uploads \
-    && chown -R www-data:www-data /var/www/html/storage /var/www/html/assets/uploads
+RUN mkdir -p /var/www/html/storage /var/www/html/assets/uploads /var/www/html/assets/permits \
+    && chown -R www-data:www-data /var/www/html/storage /var/www/html/assets/uploads /var/www/html/assets/permits
 
 EXPOSE 80

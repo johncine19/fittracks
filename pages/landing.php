@@ -382,7 +382,7 @@ function landing_page(): void
             $rating   = (int) $t['rating'];
             $stars    = str_repeat('★', $rating) . str_repeat('☆', 5 - $rating);
             $avatarSrc = ($isLive && !empty($t['profile_picture']))
-                ? 'assets/uploads/' . h($t['profile_picture'])
+                ? upload_url($t['profile_picture'])
                 : null;
         ?>
         <div class="testimonial-card" style="display: flex; flex-direction: column;">

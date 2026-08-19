@@ -273,7 +273,7 @@ function profile_page(): void
         <div class="settings-hero-content">
             <div class="settings-hero-avatar">
                 <?php if (!empty($user['profile_picture'])): ?>
-                    <img src="assets/uploads/<?= h($user['profile_picture']) ?>" alt="Profile picture">
+                    <img src="<?= h(upload_url($user['profile_picture'])) ?>" alt="Profile picture" loading="lazy" decoding="async">
                 <?php else: ?>
                     <span class="settings-hero-initials"><?= h(initials($user)) ?></span>
                 <?php endif; ?>
@@ -740,7 +740,7 @@ function profile_page(): void
                 <input type="hidden" name="update_account" value="1">
                 <div style="grid-column:1/-1;display:flex;align-items:center;gap:1rem;margin-bottom:0.5rem;">
                     <?php if (!empty($user['profile_picture'])): ?>
-                        <img src="assets/uploads/<?= h($user['profile_picture']) ?>" alt="Profile picture" style="width:60px;height:60px;border-radius:50%;object-fit:cover;">
+                        <img src="<?= h(upload_url($user['profile_picture'])) ?>" alt="Profile picture" loading="lazy" decoding="async" style="width:60px;height:60px;border-radius:50%;object-fit:cover;">
                     <?php else: ?>
                         <div style="width:60px;height:60px;border-radius:50%;background:var(--panel-soft);display:flex;align-items:center;justify-content:center;font-size:1.5rem;color:var(--muted);"><?= h(initials($user)) ?></div>
                     <?php endif; ?>

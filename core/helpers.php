@@ -143,6 +143,20 @@ function nav_icon(string $key): string
 }
 
 
+function upload_url(?string $filename, string $folder = 'uploads', string $fallback = ''): string
+{
+    if (empty($filename)) {
+        return $fallback;
+    }
+
+    $cdnUrl = $_ENV['CDN_URL'] ?? $_ENV['STORAGE_PUBLIC_URL'] ?? null;
+    if ($cdnUrl) {
+        return rtrim($cdnUrl, '/') . '/assets/' . $folder . '/' . ltrim($filename, '/');
+    }
+
+    return 'assets/' . $folder . '/' . $filename;
+}
+
 function initials(array $user): string
 {
     return strtoupper(substr((string) $user['first_name'], 0, 1) . substr((string) $user['last_name'], 0, 1));
@@ -153,7 +167,8 @@ function render_avatar(array $row, string $size = 'small'): string
     $ini = initials($row);
     if (!empty($row['profile_picture'])) {
         $dim = $size === 'small' ? '32px' : '36px';
-        return '<img src="assets/uploads/' . h($row['profile_picture']) . '" alt="' . h($ini) . '" class="avatar ' . $size . '" style="object-fit:cover;width:' . $dim . ';height:' . $dim . ';">';
+        $src = upload_url($row['profile_picture'], 'uploads');
+        return '<img src="' . h($src) . '" alt="' . h($ini) . '" class="avatar ' . $size . '" loading="lazy" decoding="async" style="object-fit:cover;width:' . $dim . ';height:' . $dim . ';">';
     }
     return '<span class="avatar ' . $size . '">' . h($ini) . '</span>';
 }

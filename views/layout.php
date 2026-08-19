@@ -144,7 +144,7 @@ function render_header(string $title, ?array $user = null): void
             <aside class="sidebar" id="main-sidebar">
                 <a class="brand" href="index.php" style="display: flex; align-items: center; gap: 10px;">
                     <?php if ($gym && !empty($gym['logo_url'])): ?>
-                        <img src="assets/uploads/<?= h($gym['logo_url']) ?>" alt="Logo" style="height: 32px; max-width: 45px; object-fit: contain; border-radius: 4px; flex-shrink: 0;">
+                        <img src="<?= h(upload_url($gym['logo_url'])) ?>" alt="Logo" loading="lazy" decoding="async" style="height: 32px; max-width: 45px; object-fit: contain; border-radius: 4px; flex-shrink: 0;">
                         <span style="font-weight: 700; font-size: 1rem; line-height: 1.2; letter-spacing: -0.2px; white-space: normal;"><?= h($gym['name']) ?></span>
                     <?php elseif ($gym && !empty($gym['name'])): ?>
                         <?php
@@ -268,7 +268,7 @@ function render_header(string $title, ?array $user = null): void
                             <!-- icon injected by JS -->
                         </button>
                         <?php if (!empty($user['profile_picture'])): ?>
-                            <img src="assets/uploads/<?= h($user['profile_picture']) ?>" alt="Avatar" class="avatar" style="object-fit: cover;">
+                            <img src="<?= h(upload_url($user['profile_picture'])) ?>" alt="Avatar" class="avatar" loading="lazy" decoding="async" style="object-fit: cover;">
                         <?php else: ?>
                             <span class="avatar"><?= h(initials($user)) ?></span>
                         <?php endif; ?>

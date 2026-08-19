@@ -582,7 +582,7 @@ function gym_selection_page(): void
                             <?php endif; ?>
                             <div class="gym-card-top">
                                 <?php if (!empty($gym['logo_url'])): ?>
-                                    <div class="gym-logo-tile"><img src="assets/uploads/<?= h($gym['logo_url']) ?>" alt="<?= h($gym['name']) ?> logo"></div>
+                                    <div class="gym-logo-tile"><img src="<?= h(upload_url($gym['logo_url'])) ?>" alt="<?= h($gym['name']) ?> logo" loading="lazy" decoding="async"></div>
                                 <?php else: ?>
                                     <div class="gym-logo-tile"><?= substr(h($gym['name']), 0, 1) ?></div>
                                 <?php endif; ?>
@@ -770,7 +770,7 @@ function gym_selection_page(): void
         }
 
         let logoHtml = gym.logo_url
-            ? `<img src="assets/uploads/${escapeHtml(gym.logo_url)}" alt="Logo" style="width: 100%; height: 100%; object-fit: contain; border-radius: 10px; background: white;">`
+            ? `<img src="assets/uploads/${escapeHtml(gym.logo_url)}" alt="Logo" loading="lazy" decoding="async" style="width: 100%; height: 100%; object-fit: contain; border-radius: 10px; background: white;">`
             : `<span style="color: var(--lime); font-size: 1.5rem;">${escapeHtml(gym.name.charAt(0))}</span>`;
 
         const hasGallery = gym.images && gym.images.length > 0;
@@ -826,7 +826,7 @@ function gym_selection_page(): void
             gym.images.forEach(img => {
                 html += `
                     <div style="border-radius: 12px; overflow: hidden; aspect-ratio: 4/3; border: 1px solid var(--line); box-shadow: var(--shadow);">
-                        <img src="assets/uploads/${escapeHtml(img)}" alt="Gym Image" style="width: 100%; height: 100%; object-fit: cover; transition: transform 0.3s ease;" onmouseover="this.style.transform='scale(1.05)'" onmouseout="this.style.transform='scale(1)'">
+                        <img src="assets/uploads/${escapeHtml(img)}" alt="Gym Image" loading="lazy" decoding="async" style="width: 100%; height: 100%; object-fit: cover; transition: transform 0.3s ease;" onmouseover="this.style.transform='scale(1.05)'" onmouseout="this.style.transform='scale(1)'">
                     </div>
                 `;
             });
