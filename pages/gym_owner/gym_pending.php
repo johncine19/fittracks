@@ -21,7 +21,11 @@ function gym_pending_page(): void
     ?>
     <section style="padding: 60px 0; max-width: 600px; margin: 0 auto; text-align: center;">
         <div class="auth-card" style="box-shadow: 0 8px 32px rgba(0,0,0,0.2); display: flex; flex-direction: column; align-items: center; gap: 20px;">
-            <div style="background: rgba(199,255,34,0.1); color: var(--lime); padding: 20px; border-radius: 50%; display: inline-flex;">
+            <a class="brand" href="index.php" style="display: inline-flex; align-items: center; gap: 10px; text-decoration: none;">
+                <div style="width:32px;height:32px;background:var(--lime);border-radius:4px;display:flex;align-items:center;justify-content:center;color:var(--bg);font-weight:900;font-size:16px;">FT</div>
+                <span style="font-weight:700;font-size:1.2rem;line-height:1;letter-spacing:-0.2px;color:var(--ink);">FitTrack</span>
+            </a>
+            <div style="background: rgba(199,255,34,0.1); color: var(--lime); padding: 20px; border-radius: 50%; display: inline-flex; margin-top: 10px;">
                 <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
             </div>
             

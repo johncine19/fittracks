@@ -80,6 +80,10 @@ function gym_onboarding_page(): void
     <section style="padding: 40px 0; max-width: 600px; margin: 0 auto;">
         <div class="auth-card" style="box-shadow: 0 8px 32px rgba(0,0,0,0.2);">
             <div class="auth-card-header">
+                <a class="brand" href="index.php" style="margin-bottom: 24px; display: inline-flex; align-items: center; gap: 10px; text-decoration: none;">
+                    <div style="width:32px;height:32px;background:var(--lime);border-radius:4px;display:flex;align-items:center;justify-content:center;color:var(--bg);font-weight:900;font-size:16px;">FT</div>
+                    <span style="font-weight:700;font-size:1.2rem;line-height:1;letter-spacing:-0.2px;color:var(--ink);">FitTrack</span>
+                </a>
                 <h1 class="auth-title">Complete Your Setup</h1>
                 <p class="auth-subtitle">We need a few details about your gym before you can access the platform.</p>
             </div>
