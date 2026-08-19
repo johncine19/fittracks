@@ -48,7 +48,7 @@ class Queue
     {
         $redis = function_exists('redis') ? redis() : null;
 
-        echo "Starting worker loop...\n";
+        error_log("Starting worker loop...");
 
         // 1. Process Redis queue first if available
         if ($redis !== null) {
@@ -67,22 +67,22 @@ class Queue
                     try {
                         if ($jobClass && function_exists($jobClass)) {
                             call_user_func_array($jobClass, [$payload]);
-                            echo "Processed Redis job: $jobClass\n";
+                            // error_log("Processed Redis job: $jobClass");
                         } else {
-                            echo "Job handler not found: $jobClass\n";
+                            error_log("Job handler not found: $jobClass");
                         }
                     } catch (Throwable $e) {
-                        echo "Failed Redis job: $jobClass - Error: " . $e->getMessage() . "\n";
+                        error_log("Failed Redis job: $jobClass - Error: " . $e->getMessage());
                     }
 
                     $processed++;
                 }
 
                 if ($processed > 0) {
-                    echo "Processed $processed Redis jobs.\n";
+                    // error_log("Processed $processed Redis jobs.");
                 }
             } catch (Throwable $e) {
-                echo "Redis worker error: " . $e->getMessage() . "\n";
+                error_log("Redis worker error: " . $e->getMessage());
             }
         }
 
@@ -114,10 +114,10 @@ class Queue
 
                 $pdo->prepare('DELETE FROM jobs WHERE id = ?')->execute([$job['id']]);
                 $pdo->commit();
-                echo "Processed DB job ID: {$job['id']}\n";
+                // error_log("Processed DB job ID: {$job['id']}");
             } catch (Throwable $e) {
                 $pdo->rollBack();
-                echo "Failed DB job ID: {$job['id']} - Error: " . $e->getMessage() . "\n";
+                error_log("Failed DB job ID: {$job['id']} - Error: " . $e->getMessage());
             }
         }
     }
