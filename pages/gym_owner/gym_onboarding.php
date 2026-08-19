@@ -3,6 +3,8 @@ declare(strict_types=1);
 
 function gym_onboarding_page(): void
 {
+    if (!defined('AUTH_PAGE')) define('AUTH_PAGE', true);
+    
     $user = current_user();
     if (!$user || $user['role'] !== 'gym_owner') {
         redirect('login');
@@ -128,6 +130,10 @@ function gym_onboarding_page(): void
                 </button>
             </form>
             
+            <div style="text-align: center; margin-top: 20px; padding-bottom: 10px;">
+                <a href="index.php?page=logout" style="color: var(--muted); text-decoration: none; font-size: 14px; transition: color 0.2s;" onmouseover="this.style.color='var(--ink)'" onmouseout="this.style.color='var(--muted)'">Sign Out</a>
+            </div>
+
             <div class="corner corner-tl"></div>
             <div class="corner corner-tr"></div>
             <div class="corner corner-bl"></div>

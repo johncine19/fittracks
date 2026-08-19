@@ -3,6 +3,8 @@ declare(strict_types=1);
 
 function gym_pending_page(): void
 {
+    if (!defined('AUTH_PAGE')) define('AUTH_PAGE', true);
+    
     $user = current_user();
     if (!$user || $user['role'] !== 'gym_owner') {
         redirect('login');
