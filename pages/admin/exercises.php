@@ -7,13 +7,39 @@ function exercises_page(): void
     $pdo = db();
     verify_csrf();
 
-    $action = $_GET['action'] ?? 'list';
-    $id = (int) ($_GET['id'] ?? 0);
+    $gymId = null;
+    $gyms = [];
+    if ($user['role'] === 'gym_owner') {
+        $gymId = scalar('SELECT gym_id FROM gyms WHERE owner_user_id = ?', [$user['user_id']]);
+        if (!$gymId) {
+            flash('No gym found for this owner.', 'danger');
+            redirect('dashboard');
+        }
+    } else {
+        // Platform admin can select a gym when creating an exercise
+        $gyms = $pdo->query('SELECT gym_id, name FROM gyms ORDER BY name ASC')->fetchAll();
+    }
 
-    $catStmt = $pdo->query('SELECT DISTINCT category FROM exercises WHERE category IS NOT NULL AND category != "" ORDER BY category');
+    $action = $_GET['action'] ?? 'list';
+    
+    // Build filter queries based on role
+    $catQuery = 'SELECT DISTINCT category FROM exercises WHERE category IS NOT NULL AND category != ""';
+    $mgQuery = 'SELECT DISTINCT muscle_group FROM exercises WHERE muscle_group IS NOT NULL AND muscle_group != ""';
+    $filterParams = [];
+    if ($gymId) {
+        $catQuery .= ' AND gym_id = ?';
+        $mgQuery .= ' AND gym_id = ?';
+        $filterParams[] = $gymId;
+    }
+    $catQuery .= ' ORDER BY category';
+    $mgQuery .= ' ORDER BY muscle_group';
+    
+    $catStmt = $pdo->prepare($catQuery);
+    $catStmt->execute($filterParams);
     $allCategories = $catStmt->fetchAll(PDO::FETCH_COLUMN);
     
-    $mgStmt = $pdo->query('SELECT DISTINCT muscle_group FROM exercises WHERE muscle_group IS NOT NULL AND muscle_group != "" ORDER BY muscle_group');
+    $mgStmt = $pdo->prepare($mgQuery);
+    $mgStmt->execute($filterParams);
     $allMuscleGroups = $mgStmt->fetchAll(PDO::FETCH_COLUMN);
 
     if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -25,29 +51,48 @@ function exercises_page(): void
             $muscle_group = trim((string) post('muscle_group'));
             $description = trim((string) post('description'));
             
+            // For platform admin creating an exercise, they must pick a gym
+            $targetGymId = $gymId;
+            if (!$targetGymId && $user['role'] === 'platform_admin') {
+                $targetGymId = (int) post('gym_id');
+            }
+            
             if (!$name) {
                 flash('Exercise name is required.', 'danger');
+            } elseif (!$targetGymId) {
+                flash('You must select a gym for this exercise.', 'danger');
             } else {
                 if ($postAction === 'create') {
-                    $stmt = $pdo->prepare('INSERT INTO exercises (name, category, muscle_group, description) VALUES (?, ?, ?, ?)');
-                    $stmt->execute([$name, $category, $muscle_group, $description]);
-                    audit_log($user['user_id'], 'create', 'exercise', (string) $pdo->lastInsertId(), json_encode(['name' => $name, 'category' => $category]));
+                    $stmt = $pdo->prepare('INSERT INTO exercises (name, category, muscle_group, description, gym_id) VALUES (?, ?, ?, ?, ?)');
+                    $stmt->execute([$name, $category, $muscle_group, $description, $targetGymId]);
+                    audit_log($user['user_id'], 'create', 'exercise', (string) $pdo->lastInsertId(), json_encode(['name' => $name, 'category' => $category, 'gym_id' => $targetGymId]));
                     flash('Exercise created successfully.');
                 } else {
                     $editId = (int) post('exercise_id');
-                    $stmt = $pdo->prepare('UPDATE exercises SET name = ?, category = ?, muscle_group = ?, description = ? WHERE exercise_id = ?');
-                    $stmt->execute([$name, $category, $muscle_group, $description, $editId]);
-                    audit_log($user['user_id'], 'edit', 'exercise', (string) $editId, json_encode(['name' => $name]));
-                    flash('Exercise updated successfully.');
+                    // Ensure permission
+                    $exGymId = scalar('SELECT gym_id FROM exercises WHERE exercise_id = ?', [$editId]);
+                    if ($user['role'] === 'gym_owner' && (string)$exGymId !== (string)$gymId) {
+                        flash('Permission denied.', 'danger');
+                    } else {
+                        $stmt = $pdo->prepare('UPDATE exercises SET name = ?, category = ?, muscle_group = ?, description = ? WHERE exercise_id = ?');
+                        $stmt->execute([$name, $category, $muscle_group, $description, $editId]);
+                        audit_log($user['user_id'], 'edit', 'exercise', (string) $editId, json_encode(['name' => $name]));
+                        flash('Exercise updated successfully.');
+                    }
                 }
                 redirect('exercises');
             }
         } elseif ($postAction === 'delete') {
             $delId = (int) post('exercise_id');
-            $stmt = $pdo->prepare('DELETE FROM exercises WHERE exercise_id = ?');
-            $stmt->execute([$delId]);
-            audit_log($user['user_id'], 'delete', 'exercise', (string) $delId);
-            flash('Exercise deleted successfully.');
+            $exGymId = scalar('SELECT gym_id FROM exercises WHERE exercise_id = ?', [$delId]);
+            if ($user['role'] === 'gym_owner' && (string)$exGymId !== (string)$gymId) {
+                flash('Permission denied.', 'danger');
+            } else {
+                $stmt = $pdo->prepare('DELETE FROM exercises WHERE exercise_id = ?');
+                $stmt->execute([$delId]);
+                audit_log($user['user_id'], 'delete', 'exercise', (string) $delId);
+                flash('Exercise deleted successfully.');
+            }
             redirect('exercises');
         }
     }
@@ -67,32 +112,37 @@ function exercises_page(): void
 
     $csrfStr = csrf_field();
 
-    $sql = 'SELECT * FROM exercises WHERE 1=1';
-    $countSql = 'SELECT COUNT(*) FROM exercises WHERE 1=1';
+    $sql = 'SELECT e.*, g.name AS gym_name FROM exercises e LEFT JOIN gyms g ON e.gym_id = g.gym_id WHERE 1=1';
+    $countSql = 'SELECT COUNT(*) FROM exercises e WHERE 1=1';
     $params = [];
     
+    if ($gymId) {
+        $sql .= ' AND e.gym_id = ?';
+        $countSql .= ' AND e.gym_id = ?';
+        $params[] = $gymId;
+    }
+    
     if ($q !== '') {
-        $sql .= ' AND name LIKE ?';
-        $countSql .= ' AND name LIKE ?';
+        $sql .= ' AND e.name LIKE ?';
+        $countSql .= ' AND e.name LIKE ?';
         $params[] = '%' . $q . '%';
     }
     if ($cat !== '') {
-        $sql .= ' AND category = ?';
-        $countSql .= ' AND category = ?';
+        $sql .= ' AND e.category = ?';
+        $countSql .= ' AND e.category = ?';
         $params[] = $cat;
     }
     
-    // Count total for pagination
     $stmtCount = $pdo->prepare($countSql);
     $stmtCount->execute($params);
     $total = (int) $stmtCount->fetchColumn();
     
     $pageNum = max(1, (int)($_GET['p'] ?? 1));
-    $limit = 12; // Adjusted to 12 to look good on a grid
+    $limit = 12;
     $offset = ($pageNum - 1) * $limit;
     $totalPages = (int) ceil($total / $limit);
 
-    $sql .= ' ORDER BY name ASC LIMIT ' . $limit . ' OFFSET ' . $offset;
+    $sql .= ' ORDER BY e.name ASC LIMIT ' . $limit . ' OFFSET ' . $offset;
     
     $stmt = $pdo->prepare($sql);
     $stmt->execute($params);
@@ -159,7 +209,15 @@ function exercises_page(): void
                     <?php foreach ($exercises as $ex): $safeJson = htmlspecialchars(json_encode($ex)); ?>
                         <div class="ex-card">
                             <div style="display:flex; justify-content: space-between; align-items: flex-start;">
-                                <h3 style="margin:0; font-size:18px; color:var(--ink)"><?= h($ex['name']) ?></h3>
+                                <div>
+                                    <h3 style="margin:0; font-size:18px; color:var(--ink)"><?= h($ex['name']) ?></h3>
+                                    <?php if ($user['role'] === 'platform_admin' && $ex['gym_name']): ?>
+                                        <div style="font-size: 12px; color: var(--muted); margin-top: 4px;">
+                                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align: middle; margin-right: 4px;"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>
+                                            <?= h($ex['gym_name']) ?>
+                                        </div>
+                                    <?php endif; ?>
+                                </div>
                                 <div style="display:flex; gap:6px;">
                                     <button onclick="editExercise(<?= $safeJson ?>)" style="background:transparent; border:none; color:var(--muted); cursor:pointer; padding:4px;" title="Edit"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button>
                                     <form method="post" onsubmit="return confirm('Are you sure you want to delete this exercise?');" style="margin:0;">
@@ -215,6 +273,17 @@ function exercises_page(): void
                 
                 <label>Name * <input type="text" name="name" id="exName" class="form-control" placeholder="e.g. Barbell Squat" required></label>
                 
+                <?php if ($user['role'] === 'platform_admin'): ?>
+                <label>Assign to Gym *
+                    <select name="gym_id" id="exGymId" class="form-control" required>
+                        <option value="">-- Select a Gym --</option>
+                        <?php foreach ($gyms as $g): ?>
+                            <option value="<?= $g['gym_id'] ?>"><?= h($g['name']) ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                </label>
+                <?php endif; ?>
+                
                 <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px;">
                     <label>Category
                         <input type="text" name="category" id="exCat" list="categoriesList" class="form-control" placeholder="e.g. Strength">
@@ -242,6 +311,11 @@ function exercises_page(): void
         document.getElementById('exCat').value = ex.category || '';
         document.getElementById('exMuscle').value = ex.muscle_group || '';
         document.getElementById('exDesc').value = ex.description || '';
+        
+        var gymIdSelect = document.getElementById('exGymId');
+        if (gymIdSelect) {
+            gymIdSelect.value = ex.gym_id || '';
+        }
         
         document.getElementById('exModal').showModal();
     }

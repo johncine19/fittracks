@@ -75,8 +75,14 @@ function get_exercise_recommendations(int $userId): array
     // Use age directly from profile
     $age = (int) $profile['age'];
 
-    // Fetch all exercises
-    $exercises = db()->query('SELECT * FROM exercises ORDER BY category, name')->fetchAll();
+    // Fetch member's gym_id
+    $pdo = db();
+    $memberGymId = (int) $pdo->query('SELECT gym_id FROM gym_members WHERE user_id = ' . $userId)->fetchColumn();
+
+    // Fetch exercises for this gym
+    $stmt = $pdo->prepare('SELECT * FROM exercises WHERE gym_id = ? ORDER BY category, name');
+    $stmt->execute([$memberGymId]);
+    $exercises = $stmt->fetchAll();
     if (!$exercises) {
         return [];
     }

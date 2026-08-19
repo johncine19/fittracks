@@ -23,12 +23,13 @@ function workout_builder_page(): void
     $defaultStart = $membership ? $membership['start_date'] : date('Y-m-d');
     $defaultEnd = $membership ? $membership['end_date'] : date('Y-m-d', strtotime('+4 weeks'));
     
-    // Fetch trainer ID
-    $trainerProfile = $pdo->query('SELECT trainer_id FROM trainer_profiles WHERE user_id = ' . (int)$user['user_id'])->fetch();
+    // Fetch trainer ID & gym_id
+    $trainerProfile = $pdo->query('SELECT trainer_id, gym_id FROM trainer_profiles WHERE user_id = ' . (int)$user['user_id'])->fetch();
     if (!$trainerProfile) {
         die("Trainer profile not found.");
     }
     $trainerId = (int) $trainerProfile['trainer_id'];
+    $trainerGymId = (int) $trainerProfile['gym_id'];
     
     // Check if there is an active draft plan for this member by this trainer
     $stmt = $pdo->prepare('SELECT * FROM training_plans WHERE member_user_id = ? AND trainer_id = ? AND status = "draft" LIMIT 1');
@@ -141,7 +142,9 @@ function workout_builder_page(): void
     }
 
     // Fetch exercises for the dropdown
-    $allExercises = $pdo->query('SELECT exercise_id, name, muscle_group FROM exercises ORDER BY muscle_group, name')->fetchAll();
+    $stmt = $pdo->prepare('SELECT exercise_id, name, muscle_group FROM exercises WHERE gym_id = ? ORDER BY muscle_group, name');
+    $stmt->execute([$trainerGymId]);
+    $allExercises = $stmt->fetchAll();
 
     // Fetch assigned exercises for this draft
     $stmt = $pdo->prepare('

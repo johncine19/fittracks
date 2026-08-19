@@ -13,7 +13,9 @@ function gym_applications_page(): void
 
         if ($action === 'approve') {
             $pdo->prepare('UPDATE gyms SET status = "approved" WHERE gym_id = ?')->execute([$gymId]);
-            flash('Gym application approved successfully.', 'success');
+            require_once __DIR__ . '/../../core/seeds.php';
+            seed_exercises_for_gym($gymId);
+            flash('Gym application approved successfully. Default exercises have been seeded.', 'success');
         } elseif ($action === 'reject') {
             $pdo->prepare('UPDATE gyms SET status = "rejected" WHERE gym_id = ?')->execute([$gymId]);
             flash('Gym application rejected.', 'success');

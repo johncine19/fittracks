@@ -39,10 +39,19 @@ function seed_reference_data_if_empty(): void
         }
     }
 
+    $gyms = $pdo->query('SELECT gym_id FROM gyms')->fetchAll(PDO::FETCH_COLUMN);
+    foreach ($gyms as $gymId) {
+        seed_exercises_for_gym((int)$gymId);
+    }
+}
+
+function seed_exercises_for_gym(int $gymId): void
+{
+    $pdo = db();
     $stmt = $pdo->prepare(
-        'INSERT INTO exercises (name, category, muscle_group, description)
-         SELECT ?, ?, ?, ? FROM DUAL
-         WHERE NOT EXISTS (SELECT 1 FROM exercises WHERE name = ?)'
+        'INSERT INTO exercises (name, category, muscle_group, description, gym_id)
+         SELECT ?, ?, ?, ?, ? FROM DUAL
+         WHERE NOT EXISTS (SELECT 1 FROM exercises WHERE name = ? AND gym_id = ?)'
     );
     foreach ([
         ['Squat', 'strength', 'legs', 'Compound lower-body lift.'],
@@ -58,15 +67,18 @@ function seed_reference_data_if_empty(): void
         ['Lateral raise', 'strength', 'shoulders', 'Isolation work for side delts.'],
         ['Plank', 'core', 'abdominals', 'Anti-extension core hold.'],
         ['Russian twists', 'core', 'obliques', 'Rotational core exercise.'],
+        ['Bicycle crunches', 'core', 'abdominals', 'Dynamic core work.'],
         ['Hanging leg raise', 'core', 'abdominals', 'Lower-ab focused core movement.'],
         ['Dead bug', 'core', 'abdominals', 'Core stability with limb coordination.'],
         ['Treadmill intervals', 'cardio', 'full body', 'Alternating work and recovery intervals.'],
         ['Stationary bike', 'cardio', 'legs', 'Low-impact steady or interval cycling.'],
         ['Rowing machine', 'cardio', 'full body', 'Full-body cardio with pull drive.'],
         ['Jump rope', 'cardio', 'full body', 'High-intensity footwork and conditioning.'],
-        ['Stair climber', 'cardio', 'legs', 'Continuous stepping cardio.'],
-    ] as $exercise) {
-        $stmt->execute([$exercise[0], $exercise[1], $exercise[2], $exercise[3], $exercise[0]]);
+        ['Stair climber', 'cardio', 'legs', 'Continuous stepping cardio.']
+    ] as $ex) {
+        $stmt->execute([
+            $ex[0], $ex[1], $ex[2], $ex[3], $gymId,
+            $ex[0], $gymId
+        ]);
     }
 }
-
