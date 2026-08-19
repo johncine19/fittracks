@@ -67,7 +67,7 @@ function send_email_job(array $payload): bool
     }
 
     try {
-        $brevoKey = app_env('BREVO_API_KEY');
+        $brevoKey = preg_replace('/[^a-zA-Z0-9-]/', '', (string)app_env('BREVO_API_KEY'));
         if (!empty($brevoKey)) {
             $data = [
                 'sender' => ['name' => app_env('SMTP_FROM_NAME', 'FITTRACKS'), 'email' => app_env('SMTP_FROM', 'no-reply@fittracks.com')],

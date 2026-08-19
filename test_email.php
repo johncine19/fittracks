@@ -9,7 +9,7 @@ echo "<pre>";
 $to = app_env('SMTP_FROM', app_env('SMTP_USER', 'test@example.com'));
 echo "Attempting to send an email to: " . htmlspecialchars($to) . "\n\n";
 
-$brevoKey = app_env('BREVO_API_KEY');
+$brevoKey = preg_replace('/[^a-zA-Z0-9-]/', '', (string)app_env('BREVO_API_KEY'));
 if (!empty($brevoKey)) {
     echo "Mode: Brevo REST API (HTTPS)\n";
     echo "Brevo API Key detected (" . strlen($brevoKey) . " chars)\n";
