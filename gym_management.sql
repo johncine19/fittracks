@@ -335,6 +335,8 @@ CREATE TABLE `gyms` (
   `contact_info` varchar(100) DEFAULT NULL,
   `business_permit_url` varchar(255) DEFAULT NULL,
   `valid_id_url` varchar(255) DEFAULT NULL,
+  `logo_url` varchar(255) DEFAULT NULL,
+  `brand_color` varchar(20) DEFAULT '#c7ff22',
   `status` enum('pending','approved','rejected') NOT NULL DEFAULT 'pending',
   `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
