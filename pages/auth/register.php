@@ -66,44 +66,15 @@ function handle_register(): void
                 $userId = (int) $pdo->lastInsertId();
 
                 if ($role === 'gym_owner') {
-                    require_once __DIR__ . '/../../core/file_handler.php';
-                    $permitFilename = null;
-                    if (isset($_FILES['business_permit']) && $_FILES['business_permit']['error'] === UPLOAD_ERR_OK) {
-                        $permitFilename = FileUpload::storeBusinessPermit($_FILES['business_permit'], $userId);
-                    } else {
-                        throw new Exception('Business permit is required for gym owners.');
-                    }
-
-                    $validIdFilename = null;
-                    if (isset($_FILES['valid_id']) && $_FILES['valid_id']['error'] === UPLOAD_ERR_OK) {
-                        $validIdFilename = FileUpload::storeValidId($_FILES['valid_id'], $userId);
-                    } else {
-                        throw new Exception('Valid ID is required for gym owners.');
-                    }
-
-                    $gymStmt = $pdo->prepare(
-                        'INSERT INTO gyms (owner_user_id, name, address, contact_info, business_permit_url, valid_id_url, status)
-                         VALUES (?, ?, ?, ?, ?, ?, "pending")'
-                    );
-                    $gymStmt->execute([
-                        $userId,
-                        post('gym_name'),
-                        post('gym_address'),
-                        post('gym_contact_info'),
-                        $permitFilename,
-                        $validIdFilename
-                    ]);
+                    // Gym creation is deferred to the onboarding wizard
                 }
 
                 $pdo->commit();
 
                 if ($role === 'gym_owner') {
-                    $gymName = post('gym_name');
-                    $ownerName = post('first_name') . ' ' . post('last_name');
-                    notify_admins('system', 'New Gym Application', "A new gym application for '{$gymName}' was submitted by {$ownerName}. Please review it in the Gym Applications dashboard.");
-                    
-                    $emailBody = "Hello Platform Admin,<br><br>A new gym application has been submitted and is waiting for your approval.<br><br><b>Gym Name:</b> " . htmlspecialchars((string)$gymName, ENT_QUOTES) . "<br><b>Owner:</b> " . htmlspecialchars((string)$ownerName, ENT_QUOTES) . "<br><br>Please log in to the platform admin dashboard to review the business permit and approve or reject the application.<br><br>Thanks,<br>FITTRACKS System";
-                    notify_admins_email('New Gym Application: ' . $gymName, $emailBody);
+                    flash('Registration successful! Please check your email to verify your account before logging in to set up your gym.', 'success');
+                } else {
+                    flash('Registration successful! Please check your email to verify your account.', 'success');
                 }
 
                 // Send a verification email. Login is blocked until the member verifies.
