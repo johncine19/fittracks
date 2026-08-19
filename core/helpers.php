@@ -1,6 +1,21 @@
 <?php
 declare(strict_types=1);
 
+function app_env(string $key, mixed $default = ''): mixed
+{
+    if (isset($_ENV[$key]) && $_ENV[$key] !== '') {
+        return $_ENV[$key];
+    }
+    if (isset($_SERVER[$key]) && $_SERVER[$key] !== '') {
+        return $_SERVER[$key];
+    }
+    $val = getenv($key);
+    if ($val !== false && $val !== '') {
+        return $val;
+    }
+    return $default;
+}
+
 function get_setting(string $key, string $default = ''): string
 {
     static $cache = null;
@@ -153,8 +168,8 @@ function upload_url(?string $filename, string $folder = 'uploads', string $fallb
         return $filename;
     }
 
-    $cdnUrl = $_ENV['CDN_URL'] ?? $_ENV['STORAGE_PUBLIC_URL'] ?? null;
-    if ($cdnUrl) {
+    $cdnUrl = app_env('CDN_URL', app_env('STORAGE_PUBLIC_URL', ''));
+    if (!empty($cdnUrl)) {
         return rtrim($cdnUrl, '/') . '/assets/' . $folder . '/' . ltrim($filename, '/');
     }
 

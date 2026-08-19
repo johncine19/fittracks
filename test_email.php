@@ -6,17 +6,18 @@ use PHPMailer\PHPMailer\Exception;
 echo "<h1>Email Diagnostic Test</h1>";
 echo "<pre>";
 
-$to = $_ENV['SMTP_FROM'] ?? $_ENV['SMTP_USER'] ?? 'test@example.com';
+$to = app_env('SMTP_FROM', app_env('SMTP_USER', 'test@example.com'));
 echo "Attempting to send an email to: " . htmlspecialchars($to) . "\n\n";
 
-if (!empty($_ENV['BREVO_API_KEY'])) {
+$brevoKey = app_env('BREVO_API_KEY');
+if (!empty($brevoKey)) {
     echo "Mode: Brevo REST API (HTTPS)\n";
-    echo "Brevo API Key detected (" . strlen($_ENV['BREVO_API_KEY']) . " chars)\n";
+    echo "Brevo API Key detected (" . strlen($brevoKey) . " chars)\n";
     
     $data = [
         'sender' => [
-            'name' => $_ENV['SMTP_FROM_NAME'] ?? 'FITTRACKS',
-            'email' => $_ENV['SMTP_FROM'] ?? 'no-reply@fittracks.com'
+            'name' => app_env('SMTP_FROM_NAME', 'FITTRACKS'),
+            'email' => app_env('SMTP_FROM', 'no-reply@fittracks.com')
         ],
         'to' => [['email' => $to, 'name' => 'Diagnostic Test User']],
         'subject' => 'FITTRACKS Brevo Email Test',
@@ -29,7 +30,7 @@ if (!empty($_ENV['BREVO_API_KEY'])) {
     $ch = curl_init('https://api.brevo.com/v3/smtp/email');
     curl_setopt($ch, CURLOPT_HTTPHEADER, [
         'accept: application/json',
-        'api-key: ' . $_ENV['BREVO_API_KEY'],
+        'api-key: ' . $brevoKey,
         'content-type: application/json'
     ]);
     curl_setopt($ch, CURLOPT_POST, true);

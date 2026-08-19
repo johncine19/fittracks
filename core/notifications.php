@@ -67,9 +67,10 @@ function send_email_job(array $payload): bool
     }
 
     try {
-        if (!empty($_ENV['BREVO_API_KEY'])) {
+        $brevoKey = app_env('BREVO_API_KEY');
+        if (!empty($brevoKey)) {
             $data = [
-                'sender' => ['name' => $_ENV['SMTP_FROM_NAME'] ?? 'FITTRACKS', 'email' => $_ENV['SMTP_FROM'] ?? 'no-reply@fittracks.com'],
+                'sender' => ['name' => app_env('SMTP_FROM_NAME', 'FITTRACKS'), 'email' => app_env('SMTP_FROM', 'no-reply@fittracks.com')],
                 'to' => [['email' => $to, 'name' => $name]],
                 'subject' => $subject,
                 'htmlContent' => $htmlBody
@@ -78,7 +79,7 @@ function send_email_job(array $payload): bool
             $ch = curl_init('https://api.brevo.com/v3/smtp/email');
             curl_setopt($ch, CURLOPT_HTTPHEADER, [
                 'accept: application/json',
-                'api-key: ' . $_ENV['BREVO_API_KEY'],
+                'api-key: ' . $brevoKey,
                 'content-type: application/json'
             ]);
             curl_setopt($ch, CURLOPT_POST, true);
@@ -98,14 +99,14 @@ function send_email_job(array $payload): bool
         // Fallback to PHPMailer for local dev / unblocked hosts
         $mail = new PHPMailer(true);
         $mail->isSMTP();
-        $mail->Host       = $_ENV['SMTP_HOST'] ?? 'smtp.gmail.com';
+        $mail->Host       = app_env('SMTP_HOST', 'smtp.gmail.com');
         $mail->SMTPAuth   = true;
-        $mail->Username   = $_ENV['SMTP_USER'] ?? '';
-        $mail->Password   = $_ENV['SMTP_PASS'] ?? '';
+        $mail->Username   = app_env('SMTP_USER', '');
+        $mail->Password   = app_env('SMTP_PASS', '');
         $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
-        $mail->Port       = (int) ($_ENV['SMTP_PORT'] ?? 587);
+        $mail->Port       = (int) app_env('SMTP_PORT', 587);
 
-        $mail->setFrom($_ENV['SMTP_FROM'] ?? 'no-reply@fittracks.com', $_ENV['SMTP_FROM_NAME'] ?? 'FITTRACKS');
+        $mail->setFrom(app_env('SMTP_FROM', 'no-reply@fittracks.com'), app_env('SMTP_FROM_NAME', 'FITTRACKS'));
         $mail->addAddress($to, $name);
 
         $mail->isHTML(true);
