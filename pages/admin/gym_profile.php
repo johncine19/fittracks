@@ -350,12 +350,15 @@ function gym_profile_page(): void
                     <div style="margin-bottom: 20px;">
                         <h4 style="margin: 0 0 10px 0; font-size: 13px; color: var(--muted); text-transform:uppercase; letter-spacing:0.04em;">Gym Logo</h4>
                         <?php if (!empty($gym['logo_url'])): ?>
-                            <div class="preview-container">
-                                <img src="<?= h(upload_url($gym['logo_url'])) ?>" alt="Logo Preview" loading="lazy" decoding="async">
+                            <div class="preview-container" id="logo-preview-box">
+                                <img src="<?= h(upload_url($gym['logo_url'])) ?>" alt="Logo Preview" loading="lazy" decoding="async" onerror="document.getElementById('logo-preview-box').style.display='none'; document.getElementById('logo-missing-box').style.display='block';">
                                 <div class="preview-info">
                                     <p>Active Logo Trademark</p>
                                     <span><?= h($gym['logo_url']) ?></span>
                                 </div>
+                            </div>
+                            <div id="logo-missing-box" style="display:none; padding:12px; margin-bottom:14px; background:rgba(239,68,68,0.08); border:1px solid rgba(239,68,68,0.25); border-radius:8px; font-size:13px; color:#f87171;">
+                                No logo file found on this server. Please choose a new logo image below and click Save.
                             </div>
                         <?php else: ?>
                             <p style="font-size: 13px; color: var(--muted); margin: 0 0 14px 0;">No trademark logo uploaded. Default brand logo will be used.</p>

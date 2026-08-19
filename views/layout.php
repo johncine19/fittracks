@@ -144,7 +144,14 @@ function render_header(string $title, ?array $user = null): void
             <aside class="sidebar" id="main-sidebar">
                 <a class="brand" href="index.php" style="display: flex; align-items: center; gap: 10px;">
                     <?php if ($gym && !empty($gym['logo_url'])): ?>
-                        <img src="<?= h(upload_url($gym['logo_url'])) ?>" alt="Logo" loading="lazy" decoding="async" style="height: 32px; max-width: 45px; object-fit: contain; border-radius: 4px; flex-shrink: 0;">
+                        <?php
+                            $words = preg_split('/\s+/', trim($gym['name'] ?? 'Gym'));
+                            $gymInitials = count($words) >= 2 
+                                ? mb_strtoupper(mb_substr($words[0], 0, 1) . mb_substr($words[1], 0, 1))
+                                : mb_strtoupper(mb_substr($words[0] ?? 'G', 0, 2));
+                        ?>
+                        <img src="<?= h(upload_url($gym['logo_url'])) ?>" alt="Logo" loading="lazy" decoding="async" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-flex';" style="height: 32px; max-width: 45px; object-fit: contain; border-radius: 4px; flex-shrink: 0;">
+                        <span class="brand-mark" style="display: none;"><?= h($gymInitials) ?></span>
                         <span style="font-weight: 700; font-size: 1rem; line-height: 1.2; letter-spacing: -0.2px; white-space: normal;"><?= h($gym['name']) ?></span>
                     <?php elseif ($gym && !empty($gym['name'])): ?>
                         <?php
