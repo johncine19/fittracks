@@ -67,6 +67,35 @@ function send_email_job(array $payload): bool
     }
 
     try {
+        if (!empty($_ENV['BREVO_API_KEY'])) {
+            $data = [
+                'sender' => ['name' => $_ENV['SMTP_FROM_NAME'] ?? 'FITTRACKS', 'email' => $_ENV['SMTP_FROM'] ?? 'no-reply@fittracks.com'],
+                'to' => [['email' => $to, 'name' => $name]],
+                'subject' => $subject,
+                'htmlContent' => $htmlBody
+            ];
+            
+            $ch = curl_init('https://api.brevo.com/v3/smtp/email');
+            curl_setopt($ch, CURLOPT_HTTPHEADER, [
+                'accept: application/json',
+                'api-key: ' . $_ENV['BREVO_API_KEY'],
+                'content-type: application/json'
+            ]);
+            curl_setopt($ch, CURLOPT_POST, true);
+            curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($data));
+            curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+            
+            $response = curl_exec($ch);
+            $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+            curl_close($ch);
+            
+            if ($httpCode >= 200 && $httpCode < 300) {
+                return true;
+            }
+            throw new Exception("Brevo API Error: " . $response);
+        }
+
+        // Fallback to PHPMailer for local dev / unblocked hosts
         $mail = new PHPMailer(true);
         $mail->isSMTP();
         $mail->Host       = $_ENV['SMTP_HOST'] ?? 'smtp.gmail.com';
