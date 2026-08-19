@@ -46,14 +46,23 @@ curl_setopt($ch, CURLOPT_POSTFIELDS, [
     'folder' => $folder
 ]);
 curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+curl_setopt($ch, CURLOPT_TIMEOUT, 30);
+curl_setopt($ch, CURLOPT_IPRESOLVE, CURL_IPRESOLVE_V4);
+curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, 0);
 
 $response = curl_exec($ch);
 $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+$curlError = curl_error($ch);
+$curlErrno = curl_errno($ch);
 curl_close($ch);
 @unlink($tempFile);
 
 echo "HTTP Status Code: " . $httpCode . "\n";
-echo "Response: " . htmlspecialchars($response) . "\n\n";
+if ($curlErrno !== 0) {
+    echo "cURL Error (" . $curlErrno . "): " . htmlspecialchars($curlError) . "\n";
+}
+echo "Response: " . htmlspecialchars($response ?: "(empty)") . "\n\n";
 
 if ($httpCode >= 200 && $httpCode < 300) {
     $data = json_decode($response, true);
