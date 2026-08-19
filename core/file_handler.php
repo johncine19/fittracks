@@ -154,9 +154,9 @@ final class FileUpload
      */
     private static function uploadToCloudinary(string $filePath, string $mimeType, string $folder): string|false
     {
-        $cloudName = app_env('CLOUDINARY_CLOUD_NAME');
-        $apiKey = app_env('CLOUDINARY_API_KEY');
-        $apiSecret = app_env('CLOUDINARY_API_SECRET');
+        $cloudName = preg_replace('/[^a-zA-Z0-9_-]/', '', trim((string)app_env('CLOUDINARY_CLOUD_NAME')));
+        $apiKey = trim((string)app_env('CLOUDINARY_API_KEY'));
+        $apiSecret = trim((string)app_env('CLOUDINARY_API_SECRET'));
 
         if (!$cloudName || !$apiKey || !$apiSecret) {
             return false;

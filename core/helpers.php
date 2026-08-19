@@ -3,17 +3,24 @@ declare(strict_types=1);
 
 function app_env(string $key, mixed $default = ''): mixed
 {
+    $val = '';
     if (isset($_ENV[$key]) && $_ENV[$key] !== '') {
-        return $_ENV[$key];
+        $val = $_ENV[$key];
+    } elseif (isset($_SERVER[$key]) && $_SERVER[$key] !== '') {
+        $val = $_SERVER[$key];
+    } else {
+        $g = getenv($key);
+        if ($g !== false && $g !== '') {
+            $val = $g;
+        }
     }
-    if (isset($_SERVER[$key]) && $_SERVER[$key] !== '') {
-        return $_SERVER[$key];
+    if ($val === '') {
+        return $default;
     }
-    $val = getenv($key);
-    if ($val !== false && $val !== '') {
-        return $val;
+    if (is_string($val)) {
+        return trim($val, " \t\n\r\0\x0B\"'");
     }
-    return $default;
+    return $val;
 }
 
 function get_setting(string $key, string $default = ''): string
