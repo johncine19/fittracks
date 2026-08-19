@@ -72,39 +72,26 @@ function users_page(): void
             }
             audit_log($user['user_id'], 'create', 'user', (string) $newUserId, json_encode(['role' => $roleToCreate, 'email' => $email, 'name' => post('first_name') . ' ' . post('last_name')]));
 
-            // Send credentials email to the newly created user
-            $credMailSent = false;
-            try {
-                $mail = new PHPMailer(true);
-                $mail->isSMTP();
-                $mail->Host       = $_ENV['SMTP_HOST'] ?? 'smtp.gmail.com';
-                $mail->SMTPAuth   = true;
-                $mail->Username   = $_ENV['SMTP_USER'] ?? '';
-                $mail->Password   = $_ENV['SMTP_PASS'] ?? '';
-                $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
-                $mail->Port       = (int) ($_ENV['SMTP_PORT'] ?? 587);
-                $mail->setFrom($_ENV['SMTP_FROM'] ?? 'no-reply@fittracks.com', $_ENV['SMTP_FROM_NAME'] ?? 'FITTRACKS');
-                $mail->addAddress($email, post('first_name') . ' ' . post('last_name'));
-                $mail->isHTML(true);
-                $mail->Subject = 'Your FITTRACKS account has been created';
-                $mail->Body =
-                    'Hi ' . htmlspecialchars((string) post('first_name'), ENT_QUOTES, 'UTF-8') . ',<br><br>'
-                    . 'An account has been created for you on <strong>FITTRACKS</strong>.<br><br>'
-                    . 'Your login credentials are:<br>'
-                    . '&bull; <strong>Email:</strong> ' . htmlspecialchars($email, ENT_QUOTES, 'UTF-8') . '<br>'
-                    . '&bull; <strong>Password:</strong> ' . htmlspecialchars($plainPassword, ENT_QUOTES, 'UTF-8') . '<br><br>'
-                    . 'Please sign in and change your password as soon as possible.<br><br>'
-                    . 'Thank you,<br>FITTRACKS Team';
-                $mail->send();
-                $credMailSent = true;
-            } catch (PHPMailerException) {
-                // Non-fatal — admin is informed via flash
-            }
+            // Send credentials email via background queue
+            $emailBody =
+                'Hi ' . htmlspecialchars((string) post('first_name'), ENT_QUOTES, 'UTF-8') . ',<br><br>'
+                . 'An account has been created for you on <strong>FITTRACKS</strong>.<br><br>'
+                . 'Your login credentials are:<br>'
+                . '&bull; <strong>Email:</strong> ' . htmlspecialchars($email, ENT_QUOTES, 'UTF-8') . '<br>'
+                . '&bull; <strong>Password:</strong> ' . htmlspecialchars($plainPassword, ENT_QUOTES, 'UTF-8') . '<br><br>'
+                . 'Please sign in and change your password as soon as possible.<br><br>'
+                . 'Thank you,<br>FITTRACKS Team';
 
-            flash($credMailSent
-                ? 'User created and credentials emailed to ' . $email . '.'
-                : 'User created, but the credentials email could not be sent. Please share login details manually.',
-                $credMailSent ? 'success' : 'warning');
+            queue_email(
+                $email,
+                post('first_name') . ' ' . post('last_name'),
+                'Your FITTRACKS account has been created',
+                $emailBody
+            );
+
+            flash('User created successfully. Login credentials have been emailed to ' . $email . '.', 'success');
+            redirect('users');
+            return;
 
         } elseif (post('action') === 'status') {
             $targetUserId = (int) post('user_id');
