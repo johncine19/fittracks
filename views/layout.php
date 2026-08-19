@@ -56,7 +56,7 @@ function render_header(string $title, ?array $user = null): void
             $nav += ['qr_attendance' => 'My QR', 'my_workout' => 'Workouts', 'diet' => 'Diet Plan'];
             
             if ($hasGym) {
-                $nav += ['trainers' => 'Trainers', 'memberships' => 'Membership', 'book_classes' => 'Classes'];
+                $nav += ['trainers' => 'Trainers', 'memberships' => 'Membership', 'book_classes' => 'Classes', 'gym_selection' => 'Browse Gyms'];
             } else {
                 $nav += ['gym_selection' => 'Select Gym'];
             }

@@ -116,7 +116,8 @@ function profile_page(): void
                 flash('Physical profile updated.', 'success');
             }
             $hasMembership = scalar('SELECT 1 FROM memberships WHERE user_id = ? AND status IN ("active", "pending")', [$user['user_id']]);
-            if (!$hasMembership) {
+            $hasGym = scalar('SELECT 1 FROM gym_members WHERE user_id = ?', [$user['user_id']]);
+            if (!$hasMembership && !$hasGym) {
                 redirect('gym_selection');
             }
             redirect('profile');
