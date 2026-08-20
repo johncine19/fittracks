@@ -66,7 +66,7 @@ function my_workout_page(): void
             <?php
             // Fetch today's exercises for the Live Player
             $todayNum = (int) date('N');
-            $stmtEx = $pdo->prepare('SELECT tpe.exercise_id, tpe.sequence_order, tpe.sets, tpe.reps, tpe.rest_seconds, e.name, e.category 
+            $stmtEx = $pdo->prepare('SELECT tpe.exercise_id, tpe.sequence_order, tpe.sets, tpe.reps, tpe.rest_seconds, e.name, e.category, e.animation_url 
                                      FROM training_plan_exercises tpe 
                                      JOIN exercises e ON e.exercise_id = tpe.exercise_id 
                                      WHERE tpe.plan_id = ? AND tpe.day_of_week = ? 
@@ -115,6 +115,14 @@ function my_workout_page(): void
                                 <span id="player-exercise-count" class="player-pill">Exercise 1 of X</span>
                                 <h2 id="player-exercise-name">Exercise Name</h2>
                                 <p id="player-exercise-target" style="color: var(--muted); font-size: 18px; margin-top: 8px;">3 Sets &times; 10 Reps</p>
+                                
+                                <div id="player-animation-container" style="display: none; justify-content: center; margin-top: 24px; position: relative; min-height: 200px; align-items: center; background: rgba(0,0,0,0.2); border: 1px solid var(--line); border-radius: 12px;">
+                                    <video id="player-animation-video" width="100%" style="max-height: 250px; border-radius: 12px; object-fit: contain;" autoplay loop muted playsinline></video>
+                                    <div id="player-animation-fallback" style="display: none; color: var(--muted); text-align: center; font-size: 14px; position: absolute;">
+                                        <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="margin-bottom:8px; opacity:0.5;"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg><br>
+                                        Animation not available at the moment
+                                    </div>
+                                </div>
                             </div>
 
                             <div id="player-timer-screen" style="display: none; text-align: center; margin-top: 40px;">
@@ -172,6 +180,41 @@ function my_workout_page(): void
                         
                         document.getElementById('btn-complete-set').innerText = `Complete Set ${currentSet} of ${ex.sets}`;
                         
+                        const videoEl = document.getElementById('player-animation-video');
+                        const animationContainer = document.getElementById('player-animation-container');
+                        
+                        if (videoEl) videoEl.style.opacity = '1';
+
+                        const fallbackDiv = document.getElementById('player-animation-fallback');
+                        
+                        animationContainer.style.display = 'flex';
+                        videoEl.style.display = 'none';
+                        fallbackDiv.style.display = 'none';
+
+                        // Prioritize custom animation URL from DB
+                        let sourceUrl = ex.animation_url ? `assets/exercise_animations/${ex.animation_url}` : '';
+                        
+                        // If no DB URL, try guessing by exercise name
+                        if (!sourceUrl) {
+                            sourceUrl = `assets/exercise animation/${ex.name.toLowerCase().replace(/ /g, '_')}.mp4`;
+                        }
+
+                        videoEl.onloadeddata = () => { 
+                            videoEl.style.display = 'block'; 
+                            fallbackDiv.style.display = 'none';
+                        };
+                        videoEl.onerror = () => { 
+                            // If we tried the 'exercise animation' folder guess, fallback to 'assets/' directly
+                            if (!ex.animation_url && videoEl.src.includes('exercise%20animation')) {
+                                videoEl.src = `assets/${ex.name.toLowerCase().replace(/ /g, '_')}.mp4`;
+                            } else {
+                                videoEl.style.display = 'none';
+                                fallbackDiv.style.display = 'block';
+                            }
+                        };
+                        
+                        videoEl.src = sourceUrl;
+                        
                         const progress = ((currentExIndex) / totalEx) * 100;
                         document.querySelector('.progress-fill').style.width = progress + '%';
                     }
@@ -191,7 +234,7 @@ function my_workout_page(): void
                             fetch('index.php?page=complete_exercise', {
                                 method: 'POST',
                                 headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                                body: `plan_id=${planId}&exercise_id=${ex.exercise_id}`
+                                body: `csrf_token=<?= csrf_token() ?>&plan_id=${planId}&exercise_id=${ex.exercise_id}`
                             }).then(() => {
                                 btn.disabled = false;
                                 currentExIndex++;
@@ -210,6 +253,12 @@ function my_workout_page(): void
                         document.getElementById('player-controls').style.display = 'none';
                         const timerScreen = document.getElementById('player-timer-screen');
                         timerScreen.style.display = 'block';
+                        
+                        const videoEl = document.getElementById('player-animation-video');
+                        if (videoEl) {
+                            videoEl.pause();
+                            videoEl.style.opacity = '0.5';
+                        }
                         
                         let remaining = seconds;
                         document.getElementById('player-timer-text').innerText = remaining;

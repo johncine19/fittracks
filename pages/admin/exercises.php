@@ -65,7 +65,19 @@ function exercises_page(): void
                 if ($postAction === 'create') {
                     $stmt = $pdo->prepare('INSERT INTO exercises (name, category, muscle_group, description, gym_id) VALUES (?, ?, ?, ?, ?)');
                     $stmt->execute([$name, $category, $muscle_group, $description, $targetGymId]);
-                    audit_log($user['user_id'], 'create', 'exercise', (string) $pdo->lastInsertId(), json_encode(['name' => $name, 'category' => $category, 'gym_id' => $targetGymId]));
+                    $newId = (int) $pdo->lastInsertId();
+                    
+                    if (isset($_FILES['animation']) && $_FILES['animation']['error'] !== UPLOAD_ERR_NO_FILE) {
+                        try {
+                            require_once __DIR__ . '/../../core/file_handler.php';
+                            $animFile = FileUpload::storeExerciseAnimation($_FILES['animation'], $newId);
+                            $pdo->prepare('UPDATE exercises SET animation_url = ? WHERE exercise_id = ?')->execute([$animFile, $newId]);
+                        } catch (Throwable $e) {
+                            flash($e->getMessage(), 'warning');
+                        }
+                    }
+
+                    audit_log($user['user_id'], 'create', 'exercise', (string) $newId, json_encode(['name' => $name, 'category' => $category, 'gym_id' => $targetGymId]));
                     flash('Exercise created successfully.');
                 } else {
                     $editId = (int) post('exercise_id');
@@ -76,6 +88,17 @@ function exercises_page(): void
                     } else {
                         $stmt = $pdo->prepare('UPDATE exercises SET name = ?, category = ?, muscle_group = ?, description = ? WHERE exercise_id = ?');
                         $stmt->execute([$name, $category, $muscle_group, $description, $editId]);
+                        
+                        if (isset($_FILES['animation']) && $_FILES['animation']['error'] !== UPLOAD_ERR_NO_FILE) {
+                            try {
+                                require_once __DIR__ . '/../../core/file_handler.php';
+                                $animFile = FileUpload::storeExerciseAnimation($_FILES['animation'], $editId);
+                                $pdo->prepare('UPDATE exercises SET animation_url = ? WHERE exercise_id = ?')->execute([$animFile, $editId]);
+                            } catch (Throwable $e) {
+                                flash($e->getMessage(), 'warning');
+                            }
+                        }
+
                         audit_log($user['user_id'], 'edit', 'exercise', (string) $editId, json_encode(['name' => $name]));
                         flash('Exercise updated successfully.');
                     }
@@ -266,7 +289,7 @@ function exercises_page(): void
             </button>
         </div>
         <div class="modal-body">
-            <form id="exForm" method="post" action="index.php?page=exercises" style="display:flex; flex-direction:column; gap:16px;">
+            <form id="exForm" method="post" action="index.php?page=exercises" enctype="multipart/form-data" style="display:flex; flex-direction:column; gap:16px;">
                 <?= $csrfStr ?>
                 <input type="hidden" name="action" id="exFormAction" value="create">
                 <input type="hidden" name="exercise_id" id="exFormId" value="">
@@ -295,6 +318,10 @@ function exercises_page(): void
                 
                 <label>Description <textarea name="description" id="exDesc" class="form-control" placeholder="Form cues or notes..." rows="3"></textarea></label>
                 
+                <label>Animation <span style="color:var(--muted); font-size:12px;">(Optional, Max 5MB, MP4/GIF/WebP)</span>
+                    <input type="file" name="animation" id="exAnimation" class="form-control" accept="video/mp4,image/gif,image/webp">
+                </label>
+
                 <button type="submit" class="btn btn-primary" style="margin-top:8px;">Save Exercise</button>
             </form>
         </div>

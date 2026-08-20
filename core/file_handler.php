@@ -24,6 +24,12 @@ final class FileUpload
         'application/pdf' => 'pdf',
     ];
 
+    private const ALLOWED_MIME_ANIMATION = [
+        'video/mp4'  => 'mp4',
+        'image/gif'  => 'gif',
+        'image/webp' => 'webp',
+    ];
+
     private const MAX_SIZE = 10 * 1024 * 1024; // 10MB input limit (will be compressed down to <150KB)
 
     /**
@@ -74,6 +80,57 @@ final class FileUpload
         if (!isset(self::ALLOWED_MIME_PERMIT[$mime])) {
             throw new RuntimeException('Unsupported file type. Please upload a JPG, PNG, WebP, or PDF document.');
         }
+    }
+
+    public static function validateAnimation(array $file): void
+    {
+        if (!isset($file['error']) || $file['error'] !== UPLOAD_ERR_OK) {
+            throw new RuntimeException('File upload failed. Please try again.');
+        }
+
+        if (!is_uploaded_file($file['tmp_name'])) {
+            throw new RuntimeException('Invalid upload.');
+        }
+
+        // Enforce 5MB limit for animations to save storage
+        if ($file['size'] > 5 * 1024 * 1024) {
+            throw new RuntimeException('Animation file is too large (max 5MB).');
+        }
+
+        $finfo = finfo_open(FILEINFO_MIME_TYPE);
+        $mime = finfo_file($finfo, $file['tmp_name']);
+        finfo_close($finfo);
+
+        if (!isset(self::ALLOWED_MIME_ANIMATION[$mime])) {
+            throw new RuntimeException('Unsupported animation format. Please upload an MP4, GIF, or WebP file.');
+        }
+    }
+
+    /**
+     * Stores an exercise animation locally under assets/exercise_animations/.
+     * We save locally to avoid Cloudinary video limits.
+     */
+    public static function storeExerciseAnimation(array $file, int $exerciseId): string
+    {
+        self::validateAnimation($file);
+
+        $finfo = finfo_open(FILEINFO_MIME_TYPE);
+        $mime = finfo_file($finfo, $file['tmp_name']);
+        finfo_close($finfo);
+        
+        $extension = self::ALLOWED_MIME_ANIMATION[$mime];
+
+        $uploadDir = __DIR__ . '/../assets/exercise_animations/';
+        if (!is_dir($uploadDir)) {
+            mkdir($uploadDir, 0775, true);
+        }
+
+        $filename = 'ex_' . $exerciseId . '_' . bin2hex(random_bytes(6)) . '.' . $extension;
+        if (!move_uploaded_file($file['tmp_name'], $uploadDir . $filename)) {
+            throw new RuntimeException('Could not save the exercise animation.');
+        }
+
+        return $filename;
     }
 
     /**

@@ -278,6 +278,7 @@ CREATE TABLE `exercises` (
   `category` varchar(50) DEFAULT NULL,
   `muscle_group` varchar(50) DEFAULT NULL,
   `description` varchar(255) DEFAULT NULL,
+  `animation_url` varchar(255) DEFAULT NULL,
   `difficulty_level` int NOT NULL DEFAULT '1' COMMENT '1=Starter, 2=Intermediate, 3=Advanced'
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
