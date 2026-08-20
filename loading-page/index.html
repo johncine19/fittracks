@@ -1,0 +1,553 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>FitTrack — Loading</title>
+    <meta name="description" content="FitTrack is your all-in-one fitness management platform. Hang tight while we prepare your experience.">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400..800&family=IBM+Plex+Mono:wght@400;500&family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <style>
+        /* ── Reset & Base ──────────────────────────────────── */
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+        :root {
+            --bg: #0a0a09;
+            --bg-elev: #131211;
+            --ink: #f3f1ea;
+            --muted: #93897d;
+            --lime: #27f246;
+            --lime-deep: #27982f;
+            --line: rgba(243, 241, 234, 0.1);
+            --font-display: 'Bricolage Grotesque', Inter, ui-sans-serif, sans-serif;
+            --font-mono: 'IBM Plex Mono', ui-monospace, 'SFMono-Regular', monospace;
+        }
+
+        html, body {
+            height: 100%;
+            background: var(--bg);
+            color: var(--ink);
+            font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+            overflow: hidden;
+        }
+
+        /* ── Background Effects ──────────────────────────── */
+        .bg-grid {
+            position: fixed;
+            inset: 0;
+            background-image:
+                linear-gradient(rgba(255,255,255,0.02) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(255,255,255,0.02) 1px, transparent 1px);
+            background-size: 60px 60px;
+            z-index: 0;
+        }
+
+        .bg-glow {
+            position: fixed;
+            width: 600px;
+            height: 600px;
+            border-radius: 50%;
+            filter: blur(150px);
+            opacity: 0.15;
+            z-index: 0;
+            pointer-events: none;
+        }
+
+        .bg-glow-1 {
+            top: -200px;
+            left: -100px;
+            background: var(--lime);
+            animation: glow-drift-1 8s ease-in-out infinite alternate;
+        }
+
+        .bg-glow-2 {
+            bottom: -250px;
+            right: -150px;
+            background: #27982f;
+            animation: glow-drift-2 10s ease-in-out infinite alternate;
+        }
+
+        @keyframes glow-drift-1 {
+            0% { transform: translate(0, 0) scale(1); }
+            100% { transform: translate(80px, 60px) scale(1.2); }
+        }
+
+        @keyframes glow-drift-2 {
+            0% { transform: translate(0, 0) scale(1); }
+            100% { transform: translate(-60px, -80px) scale(1.15); }
+        }
+
+        /* ── Grain Overlay ───────────────────────────────── */
+        .grain-overlay {
+            position: fixed;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 1;
+            pointer-events: none;
+            opacity: 0.04;
+        }
+
+        /* ── Main Container ──────────────────────────────── */
+        .loader-container {
+            position: relative;
+            z-index: 2;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            gap: 40px;
+            padding: 24px;
+        }
+
+        /* ── Brand ───────────────────────────────────────── */
+        .brand {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            animation: fade-in 0.8s ease both;
+        }
+
+        .brand-icon {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 48px;
+            height: 48px;
+            border-radius: 12px;
+            background: linear-gradient(135deg, var(--lime), var(--lime-deep));
+            color: #0a0a09;
+            font-family: var(--font-display);
+            font-weight: 800;
+            font-size: 18px;
+            letter-spacing: -0.5px;
+            box-shadow: 0 0 30px rgba(39, 242, 70, 0.3);
+        }
+
+        .brand-name {
+            font-family: var(--font-display);
+            font-size: 32px;
+            font-weight: 700;
+            letter-spacing: -0.5px;
+            color: var(--ink);
+        }
+
+        /* ── Spinner Ring ────────────────────────────────── */
+        .spinner-wrapper {
+            position: relative;
+            width: 100px;
+            height: 100px;
+            animation: fade-in 1s ease 0.3s both;
+        }
+
+        .spinner-ring {
+            position: absolute;
+            inset: 0;
+            border-radius: 50%;
+            border: 3px solid var(--line);
+            border-top-color: var(--lime);
+            animation: spin 1s cubic-bezier(0.6, 0.15, 0.35, 0.85) infinite;
+        }
+
+        .spinner-ring-inner {
+            position: absolute;
+            inset: 10px;
+            border-radius: 50%;
+            border: 2px solid transparent;
+            border-bottom-color: rgba(39, 242, 70, 0.4);
+            animation: spin 1.5s cubic-bezier(0.6, 0.15, 0.35, 0.85) infinite reverse;
+        }
+
+        .spinner-dot {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 10px;
+            height: 10px;
+            margin: -5px 0 0 -5px;
+            border-radius: 50%;
+            background: var(--lime);
+            box-shadow: 0 0 20px rgba(39, 242, 70, 0.6);
+            animation: pulse 2s ease-in-out infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); opacity: 1; }
+            50% { transform: scale(1.3); opacity: 0.6; }
+        }
+
+        /* ── Status Text ─────────────────────────────────── */
+        .status-area {
+            text-align: center;
+            animation: fade-in 1s ease 0.6s both;
+        }
+
+        .status-text {
+            font-family: var(--font-mono);
+            font-size: 13px;
+            font-weight: 500;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            color: var(--muted);
+            margin-bottom: 12px;
+            min-height: 20px;
+        }
+
+        .status-text .lime {
+            color: var(--lime);
+        }
+
+        /* ── Progress Bar ────────────────────────────────── */
+        .progress-track {
+            width: 260px;
+            height: 3px;
+            border-radius: 3px;
+            background: var(--line);
+            overflow: hidden;
+            margin: 0 auto 16px;
+        }
+
+        .progress-fill {
+            height: 100%;
+            width: 0%;
+            border-radius: 3px;
+            background: linear-gradient(90deg, var(--lime-deep), var(--lime));
+            box-shadow: 0 0 12px rgba(39, 242, 70, 0.4);
+            transition: width 0.6s cubic-bezier(0.25, 0.8, 0.25, 1);
+        }
+
+        /* ── Status Steps ────────────────────────────────── */
+        .status-steps {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            font-family: var(--font-mono);
+            font-size: 11px;
+            color: var(--muted);
+            letter-spacing: 0.05em;
+        }
+
+        .status-step {
+            opacity: 0;
+            transform: translateY(8px);
+            transition: all 0.4s ease;
+        }
+
+        .status-step.visible {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        .status-step.active {
+            color: var(--lime);
+        }
+
+        .status-step.done {
+            color: var(--muted);
+            opacity: 0.6;
+        }
+
+        .status-step .check {
+            display: inline-block;
+            margin-right: 6px;
+        }
+
+        /* ── Tip ─────────────────────────────────────────── */
+        .tip {
+            position: fixed;
+            bottom: 32px;
+            left: 0;
+            right: 0;
+            width: 100%;
+            padding: 0 24px;
+            font-family: var(--font-mono);
+            font-size: 11px;
+            color: var(--muted);
+            opacity: 0;
+            letter-spacing: 0.05em;
+            animation: fade-in 1s ease 3s both;
+            text-align: center;
+        }
+
+        /* ── Animations ──────────────────────────────────── */
+        @keyframes fade-in {
+            from { opacity: 0; transform: translateY(12px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* ── Redirect Transition ─────────────────────────── */
+        .loader-container.redirecting {
+            animation: zoom-fade 0.6s ease forwards;
+        }
+
+        @keyframes zoom-fade {
+            to {
+                opacity: 0;
+                transform: scale(1.05);
+                filter: blur(8px);
+            }
+        }
+
+        /* ── Error State ─────────────────────────────────── */
+        .error-msg {
+            display: none;
+            text-align: center;
+            animation: fade-in 0.5s ease both;
+        }
+
+        .error-msg.visible {
+            display: block;
+        }
+
+        .error-msg p {
+            color: #ff9548;
+            font-size: 14px;
+            margin-bottom: 16px;
+        }
+
+        .error-msg a {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 10px 24px;
+            border-radius: 8px;
+            border: 1px solid var(--line);
+            color: var(--ink);
+            text-decoration: none;
+            font-family: var(--font-mono);
+            font-size: 12px;
+            font-weight: 500;
+            letter-spacing: 0.05em;
+            text-transform: uppercase;
+            transition: all 0.3s ease;
+        }
+
+        .error-msg a:hover {
+            background: rgba(39, 242, 70, 0.1);
+            border-color: var(--lime);
+            color: var(--lime);
+        }
+
+        /* ── Responsive ──────────────────────────────────── */
+        @media (max-width: 480px) {
+            .brand-name { font-size: 26px; }
+            .spinner-wrapper { width: 80px; height: 80px; }
+            .progress-track { width: 200px; }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Background effects -->
+    <div class="bg-grid"></div>
+    <div class="bg-glow bg-glow-1"></div>
+    <div class="bg-glow bg-glow-2"></div>
+
+    <!-- Grain texture overlay -->
+    <svg class="grain-overlay" aria-hidden="true">
+        <filter id="grain-filter">
+            <feTurbulence type="fractalNoise" baseFrequency="0.85" numOctaves="3" stitchTiles="stitch"></feTurbulence>
+            <feColorMatrix type="saturate" values="0"></feColorMatrix>
+        </filter>
+        <rect width="100%" height="100%" filter="url(#grain-filter)"></rect>
+    </svg>
+
+    <!-- Main loading UI -->
+    <div class="loader-container" id="loader">
+        <div class="brand">
+            <span class="brand-icon">FT</span>
+            <span class="brand-name">FitTrack</span>
+        </div>
+
+        <div class="spinner-wrapper">
+            <div class="spinner-ring"></div>
+            <div class="spinner-ring-inner"></div>
+            <div class="spinner-dot"></div>
+        </div>
+
+        <div class="status-area">
+            <div class="status-text" id="status-text">Initializing<span class="dots">...</span></div>
+            <div class="progress-track">
+                <div class="progress-fill" id="progress-fill"></div>
+            </div>
+            <div class="status-steps" id="status-steps">
+                <div class="status-step" data-step="0"><span class="check">◦</span> Connecting to server</div>
+                <div class="status-step" data-step="1"><span class="check">◦</span> Waking up services</div>
+                <div class="status-step" data-step="2"><span class="check">◦</span> Loading application</div>
+                <div class="status-step" data-step="3"><span class="check">◦</span> Preparing your experience</div>
+            </div>
+        </div>
+
+        <div class="error-msg" id="error-msg">
+            <p>The server is taking longer than expected.<br>This can happen after periods of inactivity.</p>
+            <a href="#" id="retry-btn">↻ Try Again</a>
+        </div>
+    </div>
+
+    <div class="tip">First visit may take up to 30 seconds — our server is warming up for you</div>
+
+    <script>
+    (() => {
+        // ══════════════════════════════════════════════════════
+        // ⚙️  CONFIGURATION — Render URL
+        // ══════════════════════════════════════════════════════
+        const RENDER_APP_URL = 'https://fittracks-p3ue.onrender.com';
+        // ══════════════════════════════════════════════════════
+
+        const MAX_ATTEMPTS   = 60;       // Max ping attempts (60 × 3s = 3 min timeout)
+        const PING_INTERVAL  = 3000;     // Ping every 3 seconds
+        const REDIRECT_DELAY = 800;      // Delay before redirect for transition
+
+        // DOM Elements
+        const loader      = document.getElementById('loader');
+        const statusText  = document.getElementById('status-text');
+        const progressBar = document.getElementById('progress-fill');
+        const errorMsg    = document.getElementById('error-msg');
+        const retryBtn    = document.getElementById('retry-btn');
+        const steps       = document.querySelectorAll('.status-step');
+
+        // Preserve any query params / hash from the incoming URL
+        const incomingParams = window.location.search;
+        const incomingHash   = window.location.hash;
+
+        let attempts  = 0;
+        let pingTimer = null;
+        let currentStep = -1;
+
+        const statusMessages = [
+            'Connecting to server<span class="dots">...</span>',
+            'Waking up services<span class="dots">...</span>',
+            'Loading application<span class="dots">...</span>',
+            'Almost there<span class="dots">...</span>',
+        ];
+
+        function setProgress(pct) {
+            progressBar.style.width = Math.min(pct, 100) + '%';
+        }
+
+        function advanceStep(index) {
+            if (index <= currentStep) return;
+            currentStep = index;
+
+            steps.forEach((step, i) => {
+                if (i < index) {
+                    step.classList.add('visible', 'done');
+                    step.classList.remove('active');
+                    step.querySelector('.check').textContent = '✓';
+                } else if (i === index) {
+                    step.classList.add('visible', 'active');
+                    step.classList.remove('done');
+                    step.querySelector('.check').textContent = '›';
+                }
+            });
+
+            if (statusMessages[index]) {
+                statusText.innerHTML = statusMessages[index];
+            }
+        }
+
+        function completeAllSteps() {
+            steps.forEach(step => {
+                step.classList.add('visible', 'done');
+                step.classList.remove('active');
+                step.querySelector('.check').textContent = '✓';
+            });
+            statusText.innerHTML = '<span class="lime">Ready!</span> Redirecting...';
+            setProgress(100);
+        }
+
+        function redirectToApp() {
+            loader.classList.add('redirecting');
+            setTimeout(() => {
+                window.location.href = RENDER_APP_URL + '/' + incomingParams + incomingHash;
+            }, REDIRECT_DELAY);
+        }
+
+        function showError() {
+            errorMsg.classList.add('visible');
+            statusText.innerHTML = 'Server is taking a while<span class="dots">...</span>';
+        }
+
+        async function pingServer() {
+            attempts++;
+
+            // Advance visual steps based on attempt count
+            if (attempts === 1) advanceStep(0);
+            if (attempts === 3) advanceStep(1);
+            if (attempts === 6) advanceStep(2);
+            if (attempts === 10) advanceStep(3);
+
+            // Progress bar (logarithmic curve so it slows down near 90%)
+            const rawPct = (attempts / MAX_ATTEMPTS) * 100;
+            const visualPct = Math.min(90, 30 * Math.log(rawPct + 1));
+            setProgress(visualPct);
+
+            try {
+                // Ping the health endpoint with CORS — this returns a specific
+                // JSON response only when the real PHP app is serving, NOT
+                // when Render's proxy is showing the cold-start screen.
+                const controller = new AbortController();
+                const timeout = setTimeout(() => controller.abort(), PING_INTERVAL - 500);
+
+                const response = await fetch(RENDER_APP_URL + '/health.php', {
+                    method: 'GET',
+                    mode: 'cors',
+                    cache: 'no-store',
+                    signal: controller.signal,
+                });
+                clearTimeout(timeout);
+
+                // Verify we got the real app response, not Render's proxy
+                if (response.ok) {
+                    const data = await response.json();
+                    if (data && data.status === 'ok') {
+                        completeAllSteps();
+                        clearInterval(pingTimer);
+                        setTimeout(redirectToApp, REDIRECT_DELAY);
+                        return;
+                    }
+                }
+
+            } catch (err) {
+                // Server not ready yet — continue pinging
+            }
+
+            if (attempts >= MAX_ATTEMPTS) {
+                clearInterval(pingTimer);
+                showError();
+            }
+        }
+
+        function startPinging() {
+            attempts = 0;
+            currentStep = -1;
+            errorMsg.classList.remove('visible');
+            steps.forEach(s => {
+                s.classList.remove('visible', 'active', 'done');
+                s.querySelector('.check').textContent = '◦';
+            });
+            setProgress(0);
+            statusText.innerHTML = 'Initializing<span class="dots">...</span>';
+
+            // Start pinging immediately, then at intervals
+            pingServer();
+            pingTimer = setInterval(pingServer, PING_INTERVAL);
+        }
+
+        retryBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            startPinging();
+        });
+
+        // Start on load
+        startPinging();
+    })();
+    </script>
+</body>
+</html>
