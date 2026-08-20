@@ -11,8 +11,8 @@ function training_page(): void
         $title = trim((string) post('title'));
         
         if ($action === 'add_plan') {
-            db()->prepare('INSERT INTO training_plans (member_user_id, trainer_id, title, goal, start_date, end_date, status) VALUES (?, ?, ?, ?, ?, ?, "draft")')
-                ->execute([$memberId, $coachId, $title, post('goal'), post('start_date'), post('end_date') ?: null]);
+            db()->prepare('INSERT INTO training_plans (member_user_id, trainer_id, title, goal, start_date, end_date, status) VALUES (?, ?, ?, ?, NULL, NULL, "draft")')
+                ->execute([$memberId, $coachId, $title, post('goal')]);
             
             // Go straight to workout builder
             header('Location: index.php?page=workout_builder&member_user_id=' . $memberId);
@@ -197,12 +197,6 @@ function training_page(): void
                 <label style="display:block; color:var(--muted); font-size:14px">Goal 
                     <input name="goal" class="form-control" placeholder="e.g. muscle_gain" style="width:100%;box-sizing:border-box">
                 </label>
-                <label style="display:block; color:var(--muted); font-size:14px">Start date 
-                    <input name="start_date" type="date" class="form-control" required value="<?= h(date('Y-m-d')) ?>" style="width:100%;box-sizing:border-box">
-                </label>
-                <label style="display:block; color:var(--muted); font-size:14px">End date 
-                    <input name="end_date" type="date" class="form-control" style="width:100%;box-sizing:border-box">
-                </label>
                 <div style="display:flex;justify-content:flex-end;gap:1rem;margin-top:1rem">
                     <button type="button" onclick="document.getElementById('planModal').style.display='none'" style="background:transparent;color:#94a3b8;border:1px solid #475569">Cancel</button>
                     <button>Create Plan</button>
@@ -236,7 +230,7 @@ function training_page(): void
                     <input name="goal" id="edit_goal" class="form-control" style="width:100%;box-sizing:border-box">
                 </label>
                 <label style="display:block; color:var(--muted); font-size:14px">Start Date 
-                    <input name="start_date" id="edit_start_date" type="date" class="form-control" style="width:100%;box-sizing:border-box" required>
+                    <input name="start_date" id="edit_start_date" type="date" class="form-control" style="width:100%;box-sizing:border-box">
                 </label>
                 <label style="display:block; color:var(--muted); font-size:14px">End Date 
                     <input name="end_date" id="edit_end_date" type="date" class="form-control" style="width:100%;box-sizing:border-box">
