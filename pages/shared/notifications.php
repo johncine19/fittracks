@@ -49,13 +49,13 @@ function notifications_page(): void
                 <h1>Notifications</h1>
                 <p><?= $unread ? h((string) $unread) . ' unread' : 'You are all caught up.' ?></p>
             </div>
-            <?php if ($unread): ?>
-                <form method="post" style="margin:0;">
-                    <?= csrf_field() ?>
-                    <input type="hidden" name="notification_action" value="mark_all_read">
-                    <button type="submit" class="btn-secondary">Mark all as read</button>
-                </form>
-            <?php endif; ?>
+            <form method="post" style="margin:0;">
+                <?= csrf_field() ?>
+                <input type="hidden" name="notification_action" value="mark_all_read">
+                <button type="submit" class="btn-secondary" <?= $unread ? '' : 'disabled style="opacity:0.55;cursor:default;"' ?>>
+                    <?= $unread ? 'Mark all as read' : 'All read' ?>
+                </button>
+            </form>
         </div>
 
         <?php if (!$rows): ?>
@@ -92,6 +92,8 @@ function notifications_page(): void
                                 <input type="hidden" name="notification_id" value="<?= (int) $row['notification_id'] ?>">
                                 <button type="submit" class="btn-sm">Mark read</button>
                             </form>
+                        <?php else: ?>
+                            <span style="font-size:11px;color:var(--muted);opacity:0.6;font-weight:500;">✓ Read</span>
                         <?php endif; ?>
                     </article>
                 <?php endforeach; ?>

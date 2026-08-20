@@ -688,15 +688,20 @@ function render_notification_bell(array $user, string $currentPage): void
         </button>
         <div class="notif-dropdown" id="notif-dropdown" hidden>
             <div class="notif-dropdown-head">
-                <strong>Notifications</strong>
-                <?php if ($unread > 0): ?>
-                    <form method="post" action="index.php?page=notification_action" class="notif-mark-all">
-                        <?= csrf_field() ?>
-                        <input type="hidden" name="notification_action" value="mark_all_read">
-                        <input type="hidden" name="return_page" value="<?= h($currentPage) ?>">
-                        <button type="submit">Mark all read</button>
-                    </form>
-                <?php endif; ?>
+                <div style="display:flex;align-items:center;gap:8px;">
+                    <strong>Notifications</strong>
+                    <?php if ($unread > 0): ?>
+                        <span style="font-size:10px;font-weight:700;padding:2px 6px;border-radius:10px;background:rgba(199,255,34,0.15);color:var(--lime);"><?= (int) $unread ?> new</span>
+                    <?php endif; ?>
+                </div>
+                <form method="post" action="index.php?page=notification_action" class="notif-mark-all">
+                    <?= csrf_field() ?>
+                    <input type="hidden" name="notification_action" value="mark_all_read">
+                    <input type="hidden" name="return_page" value="<?= h($currentPage) ?>">
+                    <button type="submit" <?= $unread > 0 ? '' : 'disabled class="is-disabled"' ?>>
+                        <?= $unread > 0 ? 'Mark all as read' : 'All read' ?>
+                    </button>
+                </form>
             </div>
             <?php if (!$items): ?>
                 <p class="notif-empty">No notifications yet.</p>
@@ -720,15 +725,19 @@ function render_notification_bell(array $user, string $currentPage): void
                                 <strong><?= h($item['title']) ?></strong>
                                 <p><?= h($item['message']) ?></p>
                             <?php endif; ?>
-                            <?php if (!$item['is_read']): ?>
-                                <form method="post" action="index.php?page=notification_action">
-                                    <?= csrf_field() ?>
-                                    <input type="hidden" name="notification_action" value="mark_read">
-                                    <input type="hidden" name="notification_id" value="<?= (int) $item['notification_id'] ?>">
-                                    <input type="hidden" name="return_page" value="<?= h($currentPage) ?>">
-                                    <button type="submit">Mark read</button>
-                                </form>
-                            <?php endif; ?>
+                            <div class="notif-item-footer">
+                                <?php if (!$item['is_read']): ?>
+                                    <form method="post" action="index.php?page=notification_action" class="notif-single-action">
+                                        <?= csrf_field() ?>
+                                        <input type="hidden" name="notification_action" value="mark_read">
+                                        <input type="hidden" name="notification_id" value="<?= (int) $item['notification_id'] ?>">
+                                        <input type="hidden" name="return_page" value="<?= h($currentPage) ?>">
+                                        <button type="submit" class="notif-mark-read-btn">Mark read</button>
+                                    </form>
+                                <?php else: ?>
+                                    <span class="notif-read-status">✓ Read</span>
+                                <?php endif; ?>
+                            </div>
                         </li>
                     <?php endforeach; ?>
                 </ul>

@@ -1744,23 +1744,36 @@ dialog.modal .modal-body {
 
 .notif-dropdown {
     position: absolute;
-    top: calc(100% + 8px);
+    top: calc(100% + 10px);
     right: 0;
-    width: min(360px, calc(100vw - 24px));
-    max-height: 420px;
-    overflow: auto;
+    width: 360px;
+    max-width: calc(100vw - 24px);
+    max-height: 480px;
+    overflow-y: auto;
     border: 1px solid var(--line);
-    border-radius: 12px;
-    background: var(--panel);
-    backdrop-filter: blur(16px);
-    -webkit-backdrop-filter: blur(16px);
-    box-shadow: 0 16px 40px rgba(0, 0, 0, .35);
-    z-index: 120;
+    border-radius: 14px;
+    background: #0d1017;
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    box-shadow: 0 20px 50px rgba(0, 0, 0, 0.75), 0 0 0 1px rgba(255, 255, 255, 0.08);
+    z-index: 1000;
+}
+
+[data-theme="light"] .notif-dropdown {
+    background: #ffffff;
+    box-shadow: 0 20px 50px rgba(0, 0, 0, 0.15), 0 0 0 1px rgba(0, 0, 0, 0.08);
 }
 
 @media (max-width: 640px) {
     .notif-dropdown {
-        right: -16px;
+        position: fixed;
+        top: 74px;
+        left: 12px;
+        right: 12px;
+        width: auto;
+        max-width: none;
+        max-height: calc(100dvh - 90px);
+        border-radius: 14px;
     }
 }
 
@@ -1771,20 +1784,77 @@ dialog.modal .modal-body {
     gap: 10px;
     padding: 12px 14px;
     border-bottom: 1px solid var(--line);
+    background: #0d1017;
+    position: sticky;
+    top: 0;
+    z-index: 2;
+}
+
+[data-theme="light"] .notif-dropdown-head {
+    background: #ffffff;
 }
 
 .notif-mark-all {
     margin: 0;
 }
 
-.notif-mark-all button,
-.notif-menu form button {
+.notif-mark-all button {
     border: 0;
     background: transparent;
     color: var(--lime);
     font-size: 12px;
+    font-weight: 600;
     cursor: pointer;
-    padding: 0;
+    padding: 3px 8px;
+    border-radius: 6px;
+    transition: opacity 0.2s, background 0.2s, color 0.2s;
+}
+
+.notif-mark-all button:hover:not(:disabled):not(.is-disabled) {
+    background: rgba(199, 255, 34, 0.12);
+}
+
+.notif-mark-all button:disabled,
+.notif-mark-all button.is-disabled {
+    color: var(--muted);
+    opacity: 0.55;
+    cursor: default;
+}
+
+.notif-item-footer {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    margin-top: 6px;
+}
+
+.notif-single-action {
+    margin: 0;
+}
+
+.notif-mark-read-btn {
+    border: 1px solid rgba(199, 255, 34, 0.3);
+    background: rgba(199, 255, 34, 0.12);
+    color: var(--lime);
+    font-size: 11px;
+    font-weight: 700;
+    cursor: pointer;
+    padding: 3px 10px;
+    border-radius: 6px;
+    transition: all 0.2s ease;
+}
+
+.notif-mark-read-btn:hover {
+    background: var(--lime);
+    color: #000;
+    border-color: var(--lime);
+}
+
+.notif-read-status {
+    font-size: 11px;
+    color: var(--muted);
+    opacity: 0.6;
+    font-weight: 500;
 }
 
 .notif-empty {
