@@ -18,7 +18,7 @@ Queue::push('process_automated_at_risk_notifications');
 
 echo "Jobs scheduled. Starting worker to process jobs...\n";
 
-// Process up to 100 jobs in the queue
-Queue::work(100);
+// Process as many jobs as possible within a 50-second time limit to avoid HTTP timeouts(60s)
+Queue::work(10000, 50);
 
 echo "All tasks completed successfully.\n";

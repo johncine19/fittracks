@@ -43,10 +43,12 @@ class Queue
     /**
      * Process pending jobs in the queue.
      * @param int $limit Maximum number of jobs to process in this run.
+     * @param int $timeLimitSeconds Maximum execution time in seconds (0 for no limit).
      */
-    public static function work(int $limit = 50): void
+    public static function work(int $limit = 50, int $timeLimitSeconds = 0): void
     {
         $redis = function_exists('redis') ? redis() : null;
+        $startTime = time();
 
         error_log("Starting worker loop...");
 
@@ -55,6 +57,11 @@ class Queue
             try {
                 $processed = 0;
                 while ($processed < $limit) {
+                    if ($timeLimitSeconds > 0 && (time() - $startTime) >= $timeLimitSeconds) {
+                        error_log("Worker time limit reached ({$timeLimitSeconds}s). Stopping.");
+                        return;
+                    }
+
                     $raw = $redis->lpop(self::REDIS_QUEUE_KEY);
                     if (!$raw) {
                         break;
@@ -67,7 +74,6 @@ class Queue
                     try {
                         if ($jobClass && function_exists($jobClass)) {
                             call_user_func_array($jobClass, [$payload]);
-                            // error_log("Processed Redis job: $jobClass");
                         } else {
                             error_log("Job handler not found: $jobClass");
                         }
@@ -77,10 +83,6 @@ class Queue
 
                     $processed++;
                 }
-
-                if ($processed > 0) {
-                    // error_log("Processed $processed Redis jobs.");
-                }
             } catch (Throwable $e) {
                 error_log("Redis worker error: " . $e->getMessage());
             }
@@ -89,6 +91,11 @@ class Queue
         // 2. Process MySQL database jobs if any exist
         $pdo = db();
         for ($i = 0; $i < $limit; $i++) {
+            if ($timeLimitSeconds > 0 && (time() - $startTime) >= $timeLimitSeconds) {
+                error_log("Worker time limit reached ({$timeLimitSeconds}s). Stopping.");
+                break;
+            }
+
             $pdo->beginTransaction();
 
             $stmt = $pdo->prepare('SELECT * FROM jobs WHERE available_at <= ? AND attempts < 3 ORDER BY id ASC LIMIT 1 FOR UPDATE');
@@ -114,7 +121,6 @@ class Queue
 
                 $pdo->prepare('DELETE FROM jobs WHERE id = ?')->execute([$job['id']]);
                 $pdo->commit();
-                // error_log("Processed DB job ID: {$job['id']}");
             } catch (Throwable $e) {
                 $pdo->rollBack();
                 error_log("Failed DB job ID: {$job['id']} - Error: " . $e->getMessage());
