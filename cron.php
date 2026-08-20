@@ -1,4 +1,10 @@
 <?php
+if (php_sapi_name() !== 'cli') {
+    if (empty($_GET['key']) || $_GET['key'] !== 'fittracks_secret_cron_2026') {
+        http_response_code(403);
+        die('Forbidden');
+    }
+}
 require __DIR__ . '/core/bootstrap.php';
 
 echo "Starting Fittracks Background Tasks...\n";
