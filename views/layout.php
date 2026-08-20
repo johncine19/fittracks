@@ -110,12 +110,18 @@ function render_header(string $title, ?array $user = null): void
     </svg>
     <?php endif; ?>
 
+    <style>
+        /* Ensure links inside SweetAlert toasts are always clickable */
+        .swal2-toast .swal2-html-container { pointer-events: auto !important; }
+        .swal2-toast a { pointer-events: auto !important; position: relative; z-index: 2; }
+    </style>
+
     <?php if ($flash): ?>
         <script>
             document.addEventListener('DOMContentLoaded', function() {
                 const Toast = Swal.mixin({
                     toast: true, position: 'top-end', showConfirmButton: false,
-                    timer: 3000, timerProgressBar: true,
+                    timer: 6000, timerProgressBar: true,
                     background: getComputedStyle(document.documentElement).getPropertyValue('--bg').trim() || '#121721',
                     color: getComputedStyle(document.documentElement).getPropertyValue('--ink').trim() || '#ffffff',
                     didOpen: (toast) => {
@@ -125,7 +131,7 @@ function render_header(string $title, ?array $user = null): void
                 });
                 Toast.fire({
                     icon: <?= json_encode($flash['type'] === 'danger' ? 'error' : $flash['type']) ?>,
-                    title: <?= json_encode($flash['message']) ?>
+                    html: <?= json_encode($flash['message']) ?>
                 });
             });
         </script>
@@ -559,6 +565,60 @@ HTML;
 
     $isAuthPage = defined('AUTH_PAGE') && AUTH_PAGE;
 
+    $adminEmail = 'johncinemartil596@gmail.com';
+    $supportHtml = <<<HTML
+    <div class="floating-support-container">
+        <div class="floating-support-label">Contact Support</div>
+        <a href="https://mail.google.com/mail/?view=cm&fs=1&to={$adminEmail}" target="_blank" class="floating-support-btn" title="Contact Support">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="22" height="22">
+                <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path>
+                <polyline points="22,6 12,13 2,6"></polyline>
+            </svg>
+        </a>
+    </div>
+    <style>
+        .floating-support-container {
+            position: fixed;
+            bottom: 24px;
+            right: 24px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 8px;
+            z-index: 9999;
+        }
+        .floating-support-label {
+            background: var(--panel, rgba(16, 19, 27, 0.9));
+            color: var(--ink, #f8fafc);
+            font-size: 11.5px;
+            font-weight: 600;
+            padding: 5px 12px;
+            border-radius: 12px;
+            border: 1px solid var(--line, rgba(255,255,255,0.08));
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+            white-space: nowrap;
+            letter-spacing: 0.04em;
+        }
+        .floating-support-btn {
+            width: 50px;
+            height: 50px;
+            background: var(--lime, #c7ff22);
+            color: var(--bg, #090b10);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 4px 14px rgba(199, 255, 34, 0.4);
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        .floating-support-btn:hover {
+            transform: translateY(-3px) scale(1.05);
+            box-shadow: 0 6px 20px rgba(199, 255, 34, 0.6);
+            color: var(--bg, #090b10);
+        }
+    </style>
+HTML;
+
     if (!$isAuthPage && current_user()) {
         echo '</main></section></div>';
         echo $navScript;
@@ -566,6 +626,7 @@ HTML;
         echo $confirmScript;
         echo $passwordScript;
         echo $skeletonScript;
+        echo $supportHtml;
         echo '</body></html>';
         return;
     }
@@ -573,6 +634,7 @@ HTML;
     echo $confirmScript;
     echo $passwordScript;
     echo $skeletonScript;
+    echo $supportHtml;
     echo '</body></html>';
 }
 
