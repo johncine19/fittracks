@@ -2579,3 +2579,80 @@ body.loaded .skeleton-content.sk-display-flex {
         margin-top: 4px;
     }
 }
+
+/* Workout Player Modal */
+.workout-player-modal {
+    position: fixed;
+    top: 0; left: 0; width: 100vw; height: 100vh;
+    background: rgba(0,0,0,0.85);
+    backdrop-filter: blur(20px);
+    z-index: 9999;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+}
+.player-container {
+    background: var(--bg);
+    border: 1px solid var(--line);
+    border-radius: 24px;
+    width: 100%; max-width: 500px;
+    height: 80vh; max-height: 700px;
+    position: relative;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+}
+.player-close {
+    position: absolute; top: 16px; right: 16px;
+    background: rgba(255,255,255,0.1); border: none;
+    color: var(--ink); font-size: 24px;
+    width: 40px; height: 40px; border-radius: 50%;
+    cursor: pointer; display: flex; align-items: center; justify-content: center;
+    transition: background 0.2s;
+}
+.player-close:hover { background: rgba(255,255,255,0.2); }
+.player-progress-bar {
+    height: 6px; width: 100%;
+    background: rgba(255,255,255,0.1);
+}
+.progress-fill {
+    height: 100%; background: var(--lime);
+    transition: width 0.3s ease;
+}
+.player-content {
+    padding: 40px 30px;
+    flex: 1; display: flex; flex-direction: column;
+    overflow-y: auto;
+}
+.player-pill {
+    background: rgba(199,255,34,0.15); color: var(--lime);
+    padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: bold;
+    text-transform: uppercase; letter-spacing: 0.05em; display: inline-block; margin-bottom: 16px;
+}
+.timer-ring {
+    width: 150px; height: 150px; border-radius: 50%;
+    border: 8px solid rgba(199,255,34,0.2);
+    border-top-color: var(--lime);
+    display: flex; align-items: center; justify-content: center;
+    margin: 0 auto;
+    font-size: 48px; font-weight: bold; color: var(--ink);
+    animation: spin 2s linear infinite;
+}
+.timer-ring span { animation: spin-reverse 2s linear infinite; }
+@keyframes spin { 100% { transform: rotate(360deg); } }
+@keyframes spin-reverse { 100% { transform: rotate(-360deg); } }
+.player-btn-primary {
+    background: var(--lime); color: var(--bg);
+    border: none; padding: 16px 0; width: 100%;
+    border-radius: 12px; font-size: 18px; font-weight: bold; cursor: pointer;
+    box-shadow: 0 4px 16px rgba(199,255,34,0.3); transition: transform 0.2s;
+}
+.player-btn-primary:active { transform: scale(0.98); }
+.player-btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+.player-btn-secondary {
+    background: transparent; color: var(--muted);
+    border: 1px solid var(--line); padding: 12px 24px;
+    border-radius: 12px; font-size: 16px; font-weight: bold; cursor: pointer;
+}
+

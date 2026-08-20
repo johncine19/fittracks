@@ -5,7 +5,7 @@ require_once __DIR__ . '/../shared/workouts.php';
 
 function workout_builder_page(): void
 {
-    $user = require_roles(['trainer']);
+    $user = require_roles(['trainer', 'gym_owner']);
     $memberId = (int) ($_GET['member_user_id'] ?? 0);
     
     if (!$memberId) {
@@ -20,16 +20,19 @@ function workout_builder_page(): void
     
     // Fetch active membership to sync dates
     $membership = $pdo->query('SELECT start_date, end_date FROM memberships WHERE user_id = ' . $memberId . ' AND status = "active" ORDER BY end_date DESC LIMIT 1')->fetch();
+    $hasMembership = (bool) $membership;
     $defaultStart = $membership ? $membership['start_date'] : date('Y-m-d');
-    $defaultEnd = $membership ? $membership['end_date'] : date('Y-m-d', strtotime('+4 weeks'));
+    $defaultEnd = $membership ? $membership['end_date'] : date('Y-m-d', strtotime('+7 days'));
     
     // Fetch trainer ID & gym_id
-    $trainerProfile = $pdo->query('SELECT trainer_id, gym_id FROM trainer_profiles WHERE user_id = ' . (int)$user['user_id'])->fetch();
-    if (!$trainerProfile) {
-        die("Trainer profile not found.");
+    $trainerId = ensure_coach_profile((int)$user['user_id']);
+    $trainerProfile = $pdo->query('SELECT gym_id FROM trainer_profiles WHERE trainer_id = ' . $trainerId)->fetch();
+    
+    if ($user['role'] === 'gym_owner') {
+        $trainerGymId = $user['gym_id'] ?? scalar('SELECT gym_id FROM gyms WHERE owner_user_id = ?', [$user['user_id']]) ?? scalar('SELECT gym_id FROM gyms ORDER BY gym_id ASC LIMIT 1');
+    } else {
+        $trainerGymId = (int) ($trainerProfile['gym_id'] ?? 0);
     }
-    $trainerId = (int) $trainerProfile['trainer_id'];
-    $trainerGymId = (int) $trainerProfile['gym_id'];
     
     // Check if there is an active draft plan for this member by this trainer
     $stmt = $pdo->prepare('SELECT * FROM training_plans WHERE member_user_id = ? AND trainer_id = ? AND status = "draft" LIMIT 1');
@@ -92,7 +95,7 @@ function workout_builder_page(): void
             
             notify_user($memberId, 'system', 'New Workout Plan!', 'Your trainer has published a new workout plan for you.');
             flash('Workout plan published successfully!', 'success');
-            redirect('trainer_members');
+            redirect('training');
         }
 
         if ($action === 'add_exercise') {
@@ -297,12 +300,17 @@ function workout_builder_page(): void
             html: `
                 <div style="text-align: left; display: flex; flex-direction: column; gap: 15px;">
                     <p style="margin:0; color:var(--ink);">This will make the workout plan active and notify the member.</p>
+                    <?php if (!$hasMembership): ?>
+                    <div style="background-color: rgba(255, 193, 7, 0.1); border-left: 4px solid var(--orange); padding: 10px; border-radius: 4px;">
+                        <p style="margin: 0; font-size: 13px; color: var(--orange);"><strong>Note:</strong> This member does not have an active membership. This plan will expire in 7 days as a free trial.</p>
+                    </div>
+                    <?php endif; ?>
                     <div style="display:flex; gap:10px;">
                         <label style="display:block; flex:1; color: var(--muted); font-size: 14px;">Start Date
-                            <input type="date" id="swal-start" class="form-control" style="width:100%; margin-top:5px;" value="<?= $defaultStart ?>">
+                            <input type="date" id="swal-start" class="form-control" style="width:100%; margin-top:5px;" value="<?= $defaultStart ?>" <?= !$hasMembership ? 'readonly' : '' ?>>
                         </label>
                         <label style="display:block; flex:1; color: var(--muted); font-size: 14px;">End Date
-                            <input type="date" id="swal-end" class="form-control" style="width:100%; margin-top:5px;" value="<?= $defaultEnd ?>">
+                            <input type="date" id="swal-end" class="form-control" style="width:100%; margin-top:5px;" value="<?= $defaultEnd ?>" <?= !$hasMembership ? 'readonly' : '' ?>>
                         </label>
                     </div>
                 </div>

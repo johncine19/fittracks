@@ -3,7 +3,7 @@ declare(strict_types=1);
 
 function training_page(): void
 {
-    $user = require_roles(['trainer']);
+    $user = require_roles(['trainer', 'gym_owner']);
     $coachId = ensure_coach_profile((int) $user['user_id']);
     $memberId = (int) ($_GET['member_user_id'] ?? post('member_user_id', 0));
     if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -15,7 +15,8 @@ function training_page(): void
                 ->execute([$memberId, $coachId, $title, post('goal'), post('start_date'), post('end_date') ?: null]);
             
             // Go straight to workout builder
-            redirect('workout_builder&member_user_id=' . $memberId);
+            header('Location: index.php?page=workout_builder&member_user_id=' . $memberId);
+            exit;
         } elseif ($action === 'edit_plan') {
             $plan_id = (int) post('plan_id');
             db()->prepare('UPDATE training_plans SET member_user_id=?, title=?, goal=?, start_date=?, end_date=? WHERE plan_id=? AND trainer_id=?')
@@ -79,7 +80,14 @@ function training_page(): void
         }
         redirect('training');
     }
-    $members = query_all('SELECT ca.member_user_id, CONCAT(u.first_name, " ", u.last_name) AS name, mp.primary_goal FROM trainer_assignments ca JOIN users u ON u.user_id = ca.member_user_id LEFT JOIN member_profiles mp ON mp.user_id = u.user_id WHERE ca.trainer_id = ? AND ca.status = "active" AND NOT EXISTS (SELECT 1 FROM training_plans tp WHERE tp.member_user_id = ca.member_user_id AND tp.trainer_id = ca.trainer_id AND tp.status IN ("active", "draft"))', [$coachId]);
+    
+    if ($user['role'] === 'gym_owner') {
+        $gymId = $user['gym_id'] ?? scalar('SELECT gym_id FROM gyms WHERE owner_user_id = ?', [$user['user_id']]) ?? scalar('SELECT gym_id FROM gyms ORDER BY gym_id ASC LIMIT 1');
+        $members = query_all('SELECT gm.user_id AS member_user_id, CONCAT(u.first_name, " ", u.last_name) AS name, mp.primary_goal, EXISTS (SELECT 1 FROM memberships m WHERE m.user_id = u.user_id AND m.status = "active" AND m.end_date >= CURRENT_DATE) AS has_membership FROM gym_members gm JOIN users u ON u.user_id = gm.user_id LEFT JOIN member_profiles mp ON mp.user_id = u.user_id WHERE gm.gym_id = ? AND u.status = "active" AND NOT EXISTS (SELECT 1 FROM training_plans tp WHERE tp.member_user_id = gm.user_id AND tp.trainer_id = ? AND tp.status IN ("active", "draft"))', [$gymId, $coachId]);
+    } else {
+        $members = query_all('SELECT ca.member_user_id, CONCAT(u.first_name, " ", u.last_name) AS name, mp.primary_goal, EXISTS (SELECT 1 FROM memberships m WHERE m.user_id = u.user_id AND m.status = "active" AND m.end_date >= CURRENT_DATE) AS has_membership FROM trainer_assignments ca JOIN users u ON u.user_id = ca.member_user_id LEFT JOIN member_profiles mp ON mp.user_id = u.user_id WHERE ca.trainer_id = ? AND ca.status = "active" AND NOT EXISTS (SELECT 1 FROM training_plans tp WHERE tp.member_user_id = ca.member_user_id AND tp.trainer_id = ca.trainer_id AND tp.status IN ("active", "draft"))', [$coachId]);
+    }
+    
     $plans = query_all('
         SELECT tp.*, 
                CONCAT(u.first_name, " ", u.last_name) AS member,
@@ -178,7 +186,8 @@ function training_page(): void
                     <select name="member_user_id" class="form-control" style="width:100%;box-sizing:border-box" required onchange="updateGoalField(this)">
                         <option value="" data-goal="">-- Select Member --</option>
                         <?php foreach ($members as $member): ?>
-                            <option value="<?= (int) $member['member_user_id'] ?>" data-goal="<?= h($member['primary_goal'] ?? '') ?>" <?= $memberId === (int) $member['member_user_id'] ? 'selected' : '' ?>><?= h($member['name']) ?></option>
+                            <?php $statusText = empty($member['has_membership']) ? ' (No Membership)' : ' (Active Plan)'; ?>
+                            <option value="<?= (int) $member['member_user_id'] ?>" data-goal="<?= h($member['primary_goal'] ?? '') ?>" <?= $memberId === (int) $member['member_user_id'] ? 'selected' : '' ?>><?= h($member['name']) . $statusText ?></option>
                         <?php endforeach; ?>
                     </select>
                 </label>

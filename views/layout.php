@@ -31,7 +31,8 @@ function render_header(string $title, ?array $user = null): void
                 'users' => 'Users Accounts',
                 'trainer_assignments' => 'Trainers',
                 'plans' => 'Plans',
-                'admin_workouts' => 'Workout Plans',
+                'training' => 'Create Workouts',
+                'admin_workouts' => 'All Workouts',
                 'memberships' => 'Memberships',
                 'payments' => 'Payments',
                 'commissions' => 'Commissions',
@@ -626,7 +627,6 @@ HTML;
         echo $confirmScript;
         echo $passwordScript;
         echo $skeletonScript;
-        echo $supportHtml;
         echo '</body></html>';
         return;
     }

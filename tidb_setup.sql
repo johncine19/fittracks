@@ -1207,3 +1207,27 @@ CREATE TABLE IF NOT EXISTS `cache` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 SET FOREIGN_KEY_CHECKS = 1;
+
+CREATE TABLE IF NOT EXISTS \member_badges\ (
+    \id\ INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    \user_id\ INT UNSIGNED NOT NULL,
+    \adge_type\ VARCHAR(50) NOT NULL,
+    \unlocked_at\ TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (\user_id\) REFERENCES \users\(\user_id\) ON DELETE CASCADE,
+    UNIQUE KEY \unique_user_badge\ (\user_id\, \adge_type\)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+CREATE TABLE IF NOT EXISTS \daily_macros\ (
+    \id\ INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    \user_id\ INT UNSIGNED NOT NULL,
+    \log_date\ DATE NOT NULL,
+    \calories\ INT UNSIGNED DEFAULT 0,
+    \protein_g\ INT UNSIGNED DEFAULT 0,
+    \carbs_g\ INT UNSIGNED DEFAULT 0,
+    \at_g\ INT UNSIGNED DEFAULT 0,
+    \created_at\ TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    \updated_at\ TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (\user_id\) REFERENCES \users\(\user_id\) ON DELETE CASCADE,
+    UNIQUE KEY \unique_user_date\ (\user_id\, \log_date\)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+

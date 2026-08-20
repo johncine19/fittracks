@@ -58,6 +58,71 @@ function member_dashboard(PDO $pdo, array $user): void
     }
     echo '</div>';
 
+    // Leaderboard & Badges Grid
+    echo '<div class="skeleton-content animate-fade-in delay-1" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr)); gap: 24px; margin-bottom: 24px;">';
+    
+    // Leaderboard
+    echo '<section class="panel" style="padding: 20px;">';
+    echo '<h3 style="margin: 0 0 16px; color: var(--ink); display: flex; align-items: center; gap: 8px;">👑 Gym Leaderboard</h3>';
+    
+    // Get member's gym ID safely
+    $gymId = $user['gym_id'] ?? scalar('SELECT gym_id FROM gym_members WHERE user_id = ? LIMIT 1', [$user['user_id']]);
+    
+    $stmtLeaders = $pdo->prepare('SELECT u.first_name, u.last_name, u.engagement_score FROM users u JOIN gym_members gm ON u.user_id = gm.user_id WHERE u.role = "member" AND gm.gym_id = ? AND u.status = "active" ORDER BY u.engagement_score DESC LIMIT 5');
+    $stmtLeaders->execute([$gymId]);
+    $leaders = $stmtLeaders->fetchAll(PDO::FETCH_ASSOC);
+    if ($leaders) {
+        $rank = 1;
+        foreach ($leaders as $leader) {
+            $isMe = ($leader['first_name'] === $user['first_name'] && $leader['last_name'] === $user['last_name']);
+            $bg = $isMe ? 'rgba(199,255,34,0.1)' : 'transparent';
+            $border = $isMe ? '1px solid rgba(199,255,34,0.3)' : '1px solid rgba(255,255,255,0.05)';
+            echo '<div style="display: flex; align-items: center; justify-content: space-between; padding: 10px; border-bottom: 1px solid rgba(255,255,255,0.03); background: '.$bg.'; border: '.$border.'; border-radius: 8px; margin-bottom: 4px;">';
+            echo '<div style="display: flex; align-items: center; gap: 12px;">';
+            echo '<span style="font-weight: bold; color: var(--muted); width: 20px;">#'.$rank.'</span>';
+            echo '<span style="font-weight: 600; color: var(--ink);">'.h($leader['first_name'].' '.mb_substr($leader['last_name'], 0, 1)).'.</span>';
+            echo '</div>';
+            echo '<span style="font-weight: 800; color: var(--lime);">'.$leader['engagement_score'].'</span>';
+            echo '</div>';
+            $rank++;
+        }
+    } else {
+        echo '<p style="color: var(--muted); font-size: 13px;">No active members found.</p>';
+    }
+    echo '</section>';
+
+    // Badges
+    echo '<section class="panel" style="padding: 20px;">';
+    echo '<h3 style="margin: 0 0 16px; color: var(--ink); display: flex; align-items: center; gap: 8px;">🎖️ My Badges</h3>';
+    $stmtBadges = $pdo->prepare('SELECT badge_type, unlocked_at FROM member_badges WHERE user_id = ? ORDER BY unlocked_at DESC');
+    $stmtBadges->execute([$user['user_id']]);
+    $badges = $stmtBadges->fetchAll(PDO::FETCH_ASSOC);
+    
+    $badgeDefs = [
+        'early_bird' => ['icon' => '🌅', 'name' => 'Early Bird', 'desc' => 'Checked in before 7 AM'],
+        'iron_lifter' => ['icon' => '🏋️', 'name' => 'Iron Lifter', 'desc' => 'Completed 50 exercises'],
+        'century_club' => ['icon' => '💯', 'name' => 'Century Club', 'desc' => 'Reached 100 Engagement Score']
+    ];
+
+    if ($badges) {
+        echo '<div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(80px, 1fr)); gap: 16px;">';
+        foreach ($badges as $b) {
+            $def = $badgeDefs[$b['badge_type']] ?? ['icon' => '🏆', 'name' => 'Unknown', 'desc' => 'Achievement Unlocked'];
+            echo '<div style="text-align: center; background: rgba(255,255,255,0.03); padding: 12px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.1);" title="'.h($def['desc']).' - Unlocked '.date('M j', strtotime($b['unlocked_at'])).'">';
+            echo '<div style="font-size: 32px; margin-bottom: 8px;">'.$def['icon'].'</div>';
+            echo '<div style="font-size: 11px; font-weight: bold; color: var(--ink); line-height: 1.2;">'.$def['name'].'</div>';
+            echo '</div>';
+        }
+        echo '</div>';
+    } else {
+        echo '<div style="text-align: center; padding: 20px; border: 1px dashed rgba(255,255,255,0.1); border-radius: 12px;">';
+        echo '<p style="color: var(--muted); font-size: 13px; margin: 0;">No badges unlocked yet. Keep training!</p>';
+        echo '</div>';
+    }
+    echo '</section>';
+    
+    echo '</div>';
+
     // Engagement Missions
     $missions = get_engagement_missions((int) $user['user_id']);
     $completedCount = count(array_filter($missions, fn($m) => $m['completed']));

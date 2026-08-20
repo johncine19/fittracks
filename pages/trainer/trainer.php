@@ -8,15 +8,6 @@ function trainer_plan_count(int $coachId): int
 }
 
 // Helper: ensure a trainer_profiles row exists for the given user and return trainer_id.
-function ensure_coach_profile(int $userId): int
-{
-    $coachId = (int) scalar('SELECT trainer_id FROM trainer_profiles WHERE user_id = ?', [$userId]);
-    if (!$coachId) {
-        db()->prepare('INSERT INTO trainer_profiles (user_id) VALUES (?)')->execute([$userId]);
-        $coachId = (int) db()->lastInsertId();
-    }
-    return $coachId;
-}
 
 function trainer_members_page(): void
 {

@@ -44,7 +44,37 @@ function calculate_engagement_score(int $userId): int
     $pdo->prepare('UPDATE users SET engagement_score = ?, engagement_computed_at = NOW() WHERE user_id = ?')
         ->execute([$score, $userId]);
         
+    check_and_award_badges($userId, $score);
+        
     return $score;
+}
+
+/**
+ * Checks and awards badges to a user based on their engagement metrics.
+ */
+function check_and_award_badges(int $userId, int $score): void
+{
+    $pdo = db();
+    
+    // Check Century Club (Score >= 100)
+    if ($score >= 100) {
+        $pdo->prepare('INSERT IGNORE INTO member_badges (user_id, badge_type) VALUES (?, ?)')
+            ->execute([$userId, 'century_club']);
+    }
+
+    // Check Iron Lifter (>= 50 completed exercises)
+    $completedCount = (int) scalar('SELECT COUNT(*) FROM exercise_completions WHERE user_id = ?', [$userId]);
+    if ($completedCount >= 50) {
+        $pdo->prepare('INSERT IGNORE INTO member_badges (user_id, badge_type) VALUES (?, ?)')
+            ->execute([$userId, 'iron_lifter']);
+    }
+
+    // Check Early Bird (Checked in before 7:00 AM)
+    $earlyCheckins = (int) scalar('SELECT COUNT(*) FROM attendance WHERE user_id = ? AND TIME(check_in_time) < "07:00:00"', [$userId]);
+    if ($earlyCheckins >= 1) {
+        $pdo->prepare('INSERT IGNORE INTO member_badges (user_id, badge_type) VALUES (?, ?)')
+            ->execute([$userId, 'early_bird']);
+    }
 }
 
 /**

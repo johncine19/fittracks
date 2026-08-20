@@ -225,6 +225,63 @@ function confirmRegeneratePlan() {
 }
 </script>
 
+<?php
+// Calculate today's targets
+$todayNum = (int) date('N');
+$targetMacros = $pdo->query("SELECT SUM(calories) as cals, SUM(protein_g) as protein, SUM(carbs_g) as carbs, SUM(fat_g) as fat FROM dietary_plan_meals WHERE plan_id = {$planId} AND day_of_week = {$todayNum}")->fetch();
+$targetCals = (int)$targetMacros['cals'];
+
+// Fetch logged macros for today
+$loggedMacros = $pdo->query("SELECT * FROM daily_macros WHERE user_id = {$userId} AND log_date = CURDATE()")->fetch();
+$loggedCals = $loggedMacros ? (int)$loggedMacros['calories'] : 0;
+$loggedPro = $loggedMacros ? (int)$loggedMacros['protein_g'] : 0;
+$loggedCarbs = $loggedMacros ? (int)$loggedMacros['carbs_g'] : 0;
+$loggedFat = $loggedMacros ? (int)$loggedMacros['fat_g'] : 0;
+
+$pctCals = $targetCals > 0 ? min(100, round(($loggedCals / $targetCals) * 100)) : 0;
+?>
+
+<div class="skeleton-content animate-fade-in" style="background: linear-gradient(135deg, rgba(199,255,34,0.1) 0%, rgba(66,219,165,0.05) 100%); border: 1px solid rgba(199,255,34,0.3); border-radius: 12px; padding: 24px; margin-bottom: 24px; box-shadow: 0 4px 20px rgba(0,0,0,0.15); backdrop-filter: blur(16px);">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; flex-wrap: wrap; gap: 16px;">
+        <div>
+            <h2 style="margin: 0; font-size: 20px; color: var(--ink);">Today's Macro Tracker</h2>
+            <p style="margin: 4px 0 0; color: var(--muted); font-size: 13px;">Log your food intake to stay on target.</p>
+        </div>
+        <div style="text-align: right;">
+            <span style="font-size: 24px; font-weight: 800; color: var(--lime);"><?= $loggedCals ?></span>
+            <span style="color: var(--muted);">/ <?= $targetCals ?> kcal</span>
+        </div>
+    </div>
+
+    <!-- Progress Bar -->
+    <div style="height: 8px; background: rgba(255,255,255,0.1); border-radius: 4px; overflow: hidden; margin-bottom: 24px;">
+        <div style="height: 100%; width: <?= $pctCals ?>%; background: var(--lime); transition: width 0.5s ease; <?= $pctCals >= 100 ? 'background: #22c55e;' : '' ?>"></div>
+    </div>
+
+    <form action="index.php?page=log_macros" method="post" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(100px, 1fr)); gap: 12px; align-items: end; margin: 0;">
+        <?= csrf_field() ?>
+        <div>
+            <label style="display:block; font-size:11px; color:var(--muted); margin-bottom:4px; text-transform:uppercase;">Calories (kcal)</label>
+            <input type="number" name="calories" value="<?= $loggedCals ?: '' ?>" required style="width:100%; background:rgba(0,0,0,0.2); border:1px solid var(--line); color:var(--ink); padding:10px; border-radius:8px;">
+        </div>
+        <div>
+            <label style="display:block; font-size:11px; color:var(--muted); margin-bottom:4px; text-transform:uppercase;">Protein (g)</label>
+            <input type="number" name="protein_g" value="<?= $loggedPro ?: '' ?>" style="width:100%; background:rgba(0,0,0,0.2); border:1px solid var(--line); color:var(--ink); padding:10px; border-radius:8px;">
+        </div>
+        <div>
+            <label style="display:block; font-size:11px; color:var(--muted); margin-bottom:4px; text-transform:uppercase;">Carbs (g)</label>
+            <input type="number" name="carbs_g" value="<?= $loggedCarbs ?: '' ?>" style="width:100%; background:rgba(0,0,0,0.2); border:1px solid var(--line); color:var(--ink); padding:10px; border-radius:8px;">
+        </div>
+        <div>
+            <label style="display:block; font-size:11px; color:var(--muted); margin-bottom:4px; text-transform:uppercase;">Fat (g)</label>
+            <input type="number" name="fat_g" value="<?= $loggedFat ?: '' ?>" style="width:100%; background:rgba(0,0,0,0.2); border:1px solid var(--line); color:var(--ink); padding:10px; border-radius:8px;">
+        </div>
+        <div>
+            <button type="submit" style="width:100%; background:var(--lime); color:var(--bg); border:none; padding:11px; border-radius:8px; font-weight:bold; cursor:pointer;">Save Log</button>
+        </div>
+    </form>
+</div>
+
 <div style="background: var(--surface); border-radius: 12px; border: 1px solid var(--line); overflow: hidden;">
     <!-- Tabs Header -->
     <div style="display: flex; overflow-x: auto; background: color-mix(in srgb, var(--surface) 90%, var(--ink)); border-bottom: 1px solid var(--line); scrollbar-width: none;">

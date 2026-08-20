@@ -587,3 +587,14 @@ if (!function_exists('setup_error')) {
         <?php
     }
 }
+
+function ensure_coach_profile(int $userId): int
+{
+    $coachId = (int) scalar('SELECT trainer_id FROM trainer_profiles WHERE user_id = ?', [$userId]);
+    if (!$coachId) {
+        db()->prepare('INSERT INTO trainer_profiles (user_id) VALUES (?)')->execute([$userId]);
+        $coachId = (int) db()->lastInsertId();
+    }
+    return $coachId;
+}
+

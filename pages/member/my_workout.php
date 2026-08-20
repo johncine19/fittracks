@@ -63,6 +63,181 @@ function my_workout_page(): void
         </div>
         
         <?php if ($plan): ?>
+            <?php
+            // Fetch today's exercises for the Live Player
+            $todayNum = (int) date('N');
+            $stmtEx = $pdo->prepare('SELECT tpe.exercise_id, tpe.sequence_order, tpe.sets, tpe.reps, tpe.rest_seconds, e.name, e.category 
+                                     FROM training_plan_exercises tpe 
+                                     JOIN exercises e ON e.exercise_id = tpe.exercise_id 
+                                     WHERE tpe.plan_id = ? AND tpe.day_of_week = ? 
+                                     ORDER BY tpe.sequence_order');
+            $stmtEx->execute([(int)$plan['plan_id'], $todayNum]);
+            $todaysExercises = $stmtEx->fetchAll(PDO::FETCH_ASSOC);
+
+            // Filter out already completed exercises for today
+            $stmtComp = $pdo->prepare('SELECT exercise_id FROM exercise_completions WHERE user_id = ? AND plan_id = ? AND completed_date = ?');
+            $stmtComp->execute([$user['user_id'], $plan['plan_id'], date('Y-m-d')]);
+            $completedIds = $stmtComp->fetchAll(PDO::FETCH_COLUMN);
+
+            $pendingExercises = array_values(array_filter($todaysExercises, function($ex) use ($completedIds) {
+                return !in_array($ex['exercise_id'], $completedIds);
+            }));
+            ?>
+
+            <?php if (empty($todaysExercises)): ?>
+                <div style="background: rgba(255,255,255,0.05); padding: 20px; border-radius: 12px; margin-bottom: 24px; text-align: center; border: 1px dashed var(--line);">
+                    <p style="margin: 0; color: var(--muted);">Today is a rest day. No exercises scheduled.</p>
+                </div>
+            <?php elseif (empty($pendingExercises)): ?>
+                <div style="background: rgba(199,255,34,0.1); padding: 20px; border-radius: 12px; margin-bottom: 24px; text-align: center; border: 1px solid rgba(199,255,34,0.3);">
+                    <h3 style="margin: 0 0 10px; color: var(--lime);">🎉 Workout Complete!</h3>
+                    <p style="margin: 0; color: var(--muted);">You have finished all your exercises for today.</p>
+                </div>
+            <?php else: ?>
+                <div style="margin-bottom: 24px; display: flex; justify-content: center;">
+                    <button onclick="startLiveWorkout()" style="background: var(--accent, #7c5cfc); color: #fff; border: none; padding: 16px 32px; border-radius: 30px; font-size: 18px; font-weight: 800; display: flex; align-items: center; gap: 12px; cursor: pointer; box-shadow: 0 4px 20px rgba(124,92,252,0.4); transition: transform 0.2s;">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+                        Start Live Workout
+                    </button>
+                </div>
+                
+                <!-- Live Player Modal -->
+                <div id="workout-player-modal" class="workout-player-modal" style="display: none;">
+                    <div class="player-container">
+                        <button class="player-close" onclick="closeLiveWorkout()">&times;</button>
+                        
+                        <div id="player-progress" class="player-progress-bar">
+                            <div class="progress-fill" style="width: 0%;"></div>
+                        </div>
+
+                        <div class="player-content">
+                            <div id="player-header">
+                                <span id="player-exercise-count" class="player-pill">Exercise 1 of X</span>
+                                <h2 id="player-exercise-name">Exercise Name</h2>
+                                <p id="player-exercise-target" style="color: var(--muted); font-size: 18px; margin-top: 8px;">3 Sets &times; 10 Reps</p>
+                            </div>
+
+                            <div id="player-timer-screen" style="display: none; text-align: center; margin-top: 40px;">
+                                <h3 style="color: var(--lime); margin-bottom: 10px;">Rest</h3>
+                                <div class="timer-ring">
+                                    <span id="player-timer-text">60</span>
+                                </div>
+                                <button onclick="skipRest()" class="player-btn-secondary" style="margin-top: 20px;">Skip Rest</button>
+                            </div>
+
+                            <div id="player-controls" style="margin-top: 60px; text-align: center;">
+                                <button id="btn-complete-set" onclick="completeSet()" class="player-btn-primary">Complete Set 1</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <script>
+                    const planId = <?= $plan['plan_id'] ?>;
+                    const exercises = <?= json_encode($pendingExercises) ?>;
+                    let currentExIndex = 0;
+                    let currentSet = 1;
+                    let restTimer = null;
+
+                    function startLiveWorkout() {
+                        document.getElementById('workout-player-modal').style.display = 'flex';
+                        currentExIndex = 0;
+                        currentSet = 1;
+                        renderExercise();
+                    }
+
+                    function closeLiveWorkout() {
+                        if(confirm('Are you sure you want to exit your live workout? Progress is saved per exercise.')) {
+                            document.getElementById('workout-player-modal').style.display = 'none';
+                            clearInterval(restTimer);
+                            window.location.reload();
+                        }
+                    }
+
+                    function renderExercise() {
+                        if (currentExIndex >= exercises.length) {
+                            finishWorkout();
+                            return;
+                        }
+                        
+                        document.getElementById('player-timer-screen').style.display = 'none';
+                        document.getElementById('player-controls').style.display = 'block';
+
+                        const ex = exercises[currentExIndex];
+                        const totalEx = exercises.length;
+                        
+                        document.getElementById('player-exercise-count').innerText = `Exercise ${currentExIndex + 1} of ${totalEx}`;
+                        document.getElementById('player-exercise-name').innerText = ex.name;
+                        document.getElementById('player-exercise-target').innerHTML = `${ex.sets} Sets &times; ${ex.reps} Reps <br><span style="font-size:14px; opacity:0.7;">Rest: ${ex.rest_seconds}s</span>`;
+                        
+                        document.getElementById('btn-complete-set').innerText = `Complete Set ${currentSet} of ${ex.sets}`;
+                        
+                        const progress = ((currentExIndex) / totalEx) * 100;
+                        document.querySelector('.progress-fill').style.width = progress + '%';
+                    }
+
+                    function completeSet() {
+                        const ex = exercises[currentExIndex];
+                        
+                        if (currentSet < ex.sets) {
+                            currentSet++;
+                            startRest(ex.rest_seconds);
+                        } else {
+                            // Completed all sets for this exercise, save to DB
+                            const btn = document.getElementById('btn-complete-set');
+                            btn.innerText = 'Saving...';
+                            btn.disabled = true;
+
+                            fetch('index.php?page=complete_exercise', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                                body: `plan_id=${planId}&exercise_id=${ex.exercise_id}`
+                            }).then(() => {
+                                btn.disabled = false;
+                                currentExIndex++;
+                                currentSet = 1;
+                                
+                                if (currentExIndex < exercises.length) {
+                                    startRest(ex.rest_seconds);
+                                } else {
+                                    renderExercise(); // triggers finishWorkout()
+                                }
+                            });
+                        }
+                    }
+
+                    function startRest(seconds) {
+                        document.getElementById('player-controls').style.display = 'none';
+                        const timerScreen = document.getElementById('player-timer-screen');
+                        timerScreen.style.display = 'block';
+                        
+                        let remaining = seconds;
+                        document.getElementById('player-timer-text').innerText = remaining;
+                        
+                        clearInterval(restTimer);
+                        restTimer = setInterval(() => {
+                            remaining--;
+                            document.getElementById('player-timer-text').innerText = remaining;
+                            if (remaining <= 0) {
+                                skipRest();
+                            }
+                        }, 1000);
+                    }
+
+                    function skipRest() {
+                        clearInterval(restTimer);
+                        renderExercise();
+                    }
+
+                    function finishWorkout() {
+                        document.querySelector('.progress-fill').style.width = '100%';
+                        document.getElementById('player-header').innerHTML = `<h2 style="color:var(--lime); font-size:36px; margin-top:40px;">🎉 Workout Complete!</h2><p style="color:var(--muted); font-size:18px;">Incredible job today!</p>`;
+                        document.getElementById('player-timer-screen').style.display = 'none';
+                        document.getElementById('player-controls').innerHTML = `<button class="player-btn-primary" onclick="window.location.reload()">Finish</button>`;
+                    }
+                </script>
+            <?php endif; ?>
+
             <?php render_current_workout((int) $user['user_id'], false); ?>
             <?php render_exercise_recommendations((int) $user['user_id'], false); ?>
         <?php else: ?>
