@@ -337,7 +337,7 @@ CREATE TABLE `gyms` (
   `valid_id_url` varchar(255) DEFAULT NULL,
   `logo_url` varchar(255) DEFAULT NULL,
   `brand_color` varchar(20) DEFAULT '#c7ff22',
-  `status` enum('pending','approved','rejected') NOT NULL DEFAULT 'pending',
+  `status` enum('pending','approved','rejected','suspended') NOT NULL DEFAULT 'pending',
   `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
