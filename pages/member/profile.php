@@ -121,61 +121,21 @@ function profile_page(): void
                 redirect('gym_selection');
             }
             redirect('profile');
-        } elseif (isset($_POST['update_system_settings']) && $user['role'] === 'admin') {
-            $settings = $_POST['settings'] ?? [];
-            $totalWeight = 0;
-            if (isset($settings['engagement_weight_attendance'])) {
-                foreach ($settings as $key => $val) {
-                    if (str_starts_with($key, 'engagement_weight_')) {
-                        $totalWeight += (int)$val;
-                    }
+        } elseif (isset($_POST['update_platform_settings']) && $user['role'] === 'platform_admin') {
+            $keys = ['platform_name', 'contact_email', 'registration_enabled'];
+            $pdo = db();
+            foreach ($keys as $key) {
+                if (isset($_POST[$key])) {
+                    $pdo->prepare('REPLACE INTO system_settings (setting_key, setting_value) VALUES (?, ?)')
+                        ->execute([$key, trim((string)$_POST[$key])]);
                 }
             }
-            if (isset($settings['engagement_weight_attendance']) && $totalWeight !== 100) {
-                flash("Engagement weights must equal exactly 100%. Currently: {$totalWeight}%", 'danger');
-            } else {
-                $currentInactivity = (int)(scalar("SELECT setting_value FROM system_settings WHERE setting_key = 'at_risk_inactivity_days'") ?: 3);
-                $currentCooldown = (int)(scalar("SELECT setting_value FROM system_settings WHERE setting_key = 'at_risk_notification_cooldown'") ?: 14);
-                $hasAtRiskChanges = false;
-                
-                if ((isset($settings['at_risk_inactivity_days']) && (int)$settings['at_risk_inactivity_days'] !== $currentInactivity) ||
-                    (isset($settings['at_risk_notification_cooldown']) && (int)$settings['at_risk_notification_cooldown'] !== $currentCooldown)) {
-                    $hasAtRiskChanges = true;
-                }
-
-                $canUpdateAtRisk = true;
-                $blockedMsg = '';
-                if ($hasAtRiskChanges) {
-                    $lastUpdate = scalar("SELECT setting_value FROM system_settings WHERE setting_key = 'last_at_risk_settings_update'") ?: '2000-01-01 00:00:00';
-                    if (strtotime($lastUpdate) > strtotime('-15 days')) {
-                        $canUpdateAtRisk = false;
-                        $daysLeft = 15 - floor((time() - strtotime($lastUpdate)) / 86400);
-                        $blockedMsg = "Automated Notification settings can only be updated every 15 days. Please wait {$daysLeft} more days.";
-                    } else {
-                        $settings['last_at_risk_settings_update'] = date('Y-m-d H:i:s');
-                    }
-                }
-
-                if ($hasAtRiskChanges && !$canUpdateAtRisk) {
-                    unset($settings['at_risk_inactivity_days']);
-                    unset($settings['at_risk_notification_cooldown']);
-                    if (!empty($settings)) {
-                        flash($blockedMsg . ' Other settings were saved.', 'warning');
-                    } else {
-                        flash($blockedMsg, 'danger');
-                    }
-                } else {
-                    flash('System settings updated successfully.', 'success');
-                }
-
-                if (!empty($settings)) {
-                    $stmt = db()->prepare('UPDATE system_settings SET setting_value = ?, updated_by = ?, updated_at = NOW() WHERE setting_key = ? AND setting_key != "last_at_risk_scan_date"');
-                    foreach ($settings as $key => $val) {
-                        $stmt->execute([(string) $val, $user['user_id'], $key]);
-                    }
-                    audit_log($user['user_id'], 'edit', 'system_settings', null, json_encode($settings));
-                }
-            }
+            audit_log((int)$user['user_id'], 'edit', 'platform_settings', null, json_encode([
+                'platform_name' => $_POST['platform_name'] ?? '',
+                'contact_email' => $_POST['contact_email'] ?? '',
+                'registration_enabled' => $_POST['registration_enabled'] ?? ''
+            ]));
+            flash('Platform settings updated successfully.', 'success');
             redirect('profile');
         } elseif (isset($_POST['request_transfer']) && $is_member) {
             $toGymId = (int) post('to_gym_id');
@@ -317,16 +277,16 @@ function profile_page(): void
             Gym Affiliation
         </button>
         <?php endif; ?>
-        <button class="settings-tab" data-tab="preferences">
-            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
-            Preferences
-        </button>
-        <?php if ($user['role'] === 'admin'): ?>
-        <button class="settings-tab" data-tab="system">
-            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
-            System
+        <?php if ($user['role'] === 'platform_admin'): ?>
+        <button class="settings-tab" data-tab="platform_settings">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+            Platform Settings
         </button>
         <?php endif; ?>
+        <button class="settings-tab" data-tab="preferences">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
+            Preferences
+        </button>
     </nav>
 
     <!-- Tab: Account -->
@@ -679,6 +639,44 @@ function profile_page(): void
     </div>
     <?php endif; ?>
 
+    <?php if ($user['role'] === 'platform_admin'): ?>
+    <!-- Tab: Platform Settings -->
+    <div class="settings-panel" data-panel="platform_settings">
+        <div class="settings-section">
+            <div class="settings-section-header">
+                <div>
+                    <h2 class="settings-section-title">Platform Settings</h2>
+                    <p class="settings-section-desc">Manage global platform configurations, support contact, and registration availability.</p>
+                </div>
+            </div>
+
+            <form method="post" class="form grid-form" style="max-width: 650px; margin-top: 1rem;" onsubmit="const btn = this.querySelector('button[type=submit]'); btn.disabled = true; btn.innerHTML = '<span class=\'loader\' style=\'width:16px;height:16px;border:2px solid var(--bg);border-bottom-color:transparent;border-radius:50%;display:inline-block;box-sizing:border-box;animation:rotation 1s linear infinite;margin-right:8px;vertical-align:-2px;\'></span> Saving...';">
+                <?= csrf_field() ?>
+                <input type="hidden" name="update_platform_settings" value="1">
+                
+                <label>Platform Name
+                    <input type="text" name="platform_name" value="<?= h($sysSettings['platform_name']['setting_value'] ?? 'FITTRACKS') ?>" required>
+                </label>
+
+                <label>Contact Email (For Support)
+                    <input type="email" name="contact_email" value="<?= h($sysSettings['contact_email']['setting_value'] ?? 'support@fittracks.com') ?>" required>
+                </label>
+
+                <label>Registration Enabled
+                    <select name="registration_enabled">
+                        <option value="1" <?= ($sysSettings['registration_enabled']['setting_value'] ?? '1') === '1' ? 'selected' : '' ?>>Enabled (Allow new gyms and members to register)</option>
+                        <option value="0" <?= ($sysSettings['registration_enabled']['setting_value'] ?? '1') === '0' ? 'selected' : '' ?>>Disabled</option>
+                    </select>
+                </label>
+
+                <div style="grid-column: 1 / -1; margin-top: 10px;">
+                    <button type="submit" class="btn-primary" style="padding: 10px 24px; border-radius: 8px;">Save Platform Settings</button>
+                </div>
+            </form>
+        </div>
+    </div>
+    <?php endif; ?>
+
     <!-- Tab: Preferences -->
     <div class="settings-panel" data-panel="preferences">
         <div class="settings-section">
@@ -706,24 +704,6 @@ function profile_page(): void
             </div>
         </div>
     </div>
-
-    <?php if ($user['role'] === 'admin'): ?>
-    <!-- Tab: System -->
-    <div class="settings-panel" data-panel="system">
-        <div class="settings-section">
-            <div class="settings-section-header">
-                <div>
-                    <h2 class="settings-section-title">System Settings</h2>
-                    <p class="settings-section-desc">Configure global system behaviors, multipliers, and engagement metrics.</p>
-                </div>
-                <button type="button" class="settings-edit-btn" onclick="document.getElementById('systemSettingsModal').showModal()">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg>
-                    Configure
-                </button>
-            </div>
-        </div>
-    </div>
-    <?php endif; ?>
 
     <!-- ==================== MODALS ==================== -->
 
@@ -780,55 +760,6 @@ function profile_page(): void
     </dialog>
     <?php endif; ?>
 
-    <?php if ($user['role'] === 'admin'): ?>
-    <dialog id="systemSettingsModal" class="modal">
-        <div class="modal-header">
-            <h3>Global System Settings</h3>
-            <button class="modal-close" onclick="this.closest('dialog').close()" aria-label="Close">
-                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
-            </button>
-        </div>
-        <div class="modal-body" style="max-height: 70vh; overflow-y: auto;">
-            <form method="post" class="form" style="margin-bottom:0;" onsubmit="const btn = this.querySelector('button[type=submit]'); btn.disabled = true; btn.innerHTML = 'Saving...';">
-                <?= csrf_field() ?>
-                <input type="hidden" name="update_system_settings" value="1">
-                <div class="card" style="padding: 15px; background: rgba(255, 255, 255, 0.02); border: 1px solid var(--line); border-radius: 12px; margin-bottom: 20px;">
-                    <h4 style="margin-top: 0; font-size: 1.05rem; color: var(--lime); border-bottom: 1px solid var(--line); padding-bottom: 8px; margin-bottom: 15px;">Engagement Score</h4>
-                    <?php 
-                    $engagementSettings = array_filter($sysSettings, fn($key) => str_starts_with($key, 'engagement_'), ARRAY_FILTER_USE_KEY);
-                    foreach ($engagementSettings as $key => $s): ?>
-                        <div style="margin-bottom: 12px;">
-                            <label style="display: block; font-weight: 500; margin-bottom: 4px; color: var(--ink);"><?= h(ucwords(str_replace('_', ' ', str_replace('engagement_weight_', '', $key)))) ?></label>
-                            <input type="number" name="settings[<?= h($key) ?>]" value="<?= h($s['setting_value']) ?>" step="any" class="form-control weight-input" style="width: 100%;" required>
-                            <?php if ($s['description']): ?><div style="font-size: 0.8rem; color: var(--muted); margin-top: 2px;"><?= h($s['description']) ?></div><?php endif; ?>
-                        </div>
-                    <?php endforeach; ?>
-                    <div id="weight-total-display" style="margin-top: 15px; font-weight: bold; padding: 10px; border-radius: 6px; text-align: right; background: rgba(0,0,0,0.2);">Total: <span id="weight-total-val">0</span>%</div>
-                </div>
-                <div class="card" style="padding: 15px; background: rgba(255, 255, 255, 0.02); border: 1px solid var(--line); border-radius: 12px; margin-bottom: 20px;">
-                    <h4 style="margin-top: 0; font-size: 1.05rem; color: var(--lime); border-bottom: 1px solid var(--line); padding-bottom: 8px; margin-bottom: 15px;">Automated Notifications</h4>
-                    <?php 
-                    $notificationSettings = ['at_risk_inactivity_days', 'at_risk_notification_cooldown'];
-                    foreach ($notificationSettings as $key):
-                        if (!isset($sysSettings[$key])) continue;
-                        $s = $sysSettings[$key];
-                    ?>
-                        <div style="margin-bottom: 12px;">
-                            <label style="display: block; font-weight: 500; margin-bottom: 4px; color: var(--ink);"><?= h(ucwords(str_replace('_', ' ', str_replace('at_risk_', '', $key)))) ?></label>
-                            <input type="number" name="settings[<?= h($key) ?>]" value="<?= h($s['setting_value']) ?>" step="1" class="form-control" style="width: 100%;" required>
-                            <?php if ($s['description']): ?><div style="font-size: 0.8rem; color: var(--muted); margin-top: 2px;"><?= h($s['description']) ?></div><?php endif; ?>
-                        </div>
-                    <?php endforeach; ?>
-                </div>
-                <div class="form-actions" style="margin-top: 1.5rem;">
-                    <button type="button" class="btn" style="background:transparent;border:1px solid var(--line);color:var(--ink);" onclick="this.closest('dialog').close()">Cancel</button>
-                    <button type="submit" class="btn btn-primary" style="background: var(--lime); color: var(--bg); font-weight: bold;">Save Settings</button>
-                </div>
-            </form>
-        </div>
-    </dialog>
-    <?php endif; ?>
-
     <!-- ==================== SCRIPTS ==================== -->
     <script>
     document.addEventListener('DOMContentLoaded', function() {
@@ -869,26 +800,6 @@ function profile_page(): void
                 }
             });
         }
-
-        // ── Weight Total Logic (Admin) ──
-        const inputs = document.querySelectorAll('.weight-input');
-        const display = document.getElementById('weight-total-val');
-        const displayContainer = document.getElementById('weight-total-display');
-        function updateTotal() {
-            if (!display) return;
-            let total = 0;
-            inputs.forEach(input => { total += parseInt(input.value) || 0; });
-            display.textContent = total;
-            if (total === 100) {
-                displayContainer.style.color = 'var(--lime)';
-                displayContainer.style.border = '1px solid rgba(163, 230, 53, 0.3)';
-            } else {
-                displayContainer.style.color = '#ef4444';
-                displayContainer.style.border = '1px solid rgba(239, 68, 68, 0.3)';
-            }
-        }
-        inputs.forEach(input => input.addEventListener('input', updateTotal));
-        updateTotal();
     });
     </script>
 

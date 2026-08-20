@@ -7,6 +7,7 @@ $dotenv->safeLoad();
 
 header('Content-Type: text/html; charset=UTF-8');
 
+require __DIR__ . '/helpers.php';
 require __DIR__ . '/../config/config.php';
 require __DIR__ . '/database.php';
 require __DIR__ . '/redis.php';
@@ -44,7 +45,6 @@ ini_set('session.use_strict_mode', '1');
 session_set_save_handler($sessionHandler, true);
 session_start();
 ob_start(); // Buffer all output so setup_error() can set HTTP headers even mid-render
-require __DIR__ . '/helpers.php';
 require __DIR__ . '/csrf.php';
 require __DIR__ . '/validators.php';
 require __DIR__ . '/rate_limiter.php';

@@ -179,10 +179,9 @@ function render_header(string $title, ?array $user = null): void
                 </nav>
                 <div class="sidebar-bottom">
                     <a href="index.php?page=profile"><span class="nav-icon"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></span> <span class="nav-label">Profile</span></a>
-                    <?php if ($role === 'platform_admin'): ?>
-                        <a href="javascript:void(0)" onclick="document.getElementById('platformSettingsModal').showModal()"><span class="nav-icon"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></span> <span class="nav-label">Platform Settings</span></a>
+                    <?php if ($role !== 'platform_admin'): ?>
+                        <a href="mailto:johncinemartil596@gmail.com"><span class="nav-icon"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path><polyline points="22,6 12,13 2,6"></polyline></svg></span> <span class="nav-label">Contact Support</span></a>
                     <?php endif; ?>
-                    <a href="mailto:johncinemartil596@gmail.com"><span class="nav-icon"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path><polyline points="22,6 12,13 2,6"></polyline></svg></span> <span class="nav-label">Contact Support</span></a>
                     <a href="index.php?page=logout" data-confirm="Are you sure you want to sign out?"><span class="nav-icon"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg></span> <span class="nav-label">Sign Out</span></a>
                 </div>
             </aside>
@@ -299,41 +298,7 @@ function render_header(string $title, ?array $user = null): void
                     <?php endif; ?>
     <?php else: ?>
         <main class="shell auth-shell">
-    <?php endif; ?>
-    <?php
-    if ($role === 'platform_admin') {
-        $settingsRows = db()->query('SELECT * FROM system_settings')->fetchAll();
-        $ps = [];
-        foreach ($settingsRows as $r) $ps[$r['setting_key']] = $r['setting_value'];
-        ?>
-        <dialog id="platformSettingsModal" class="modal">
-            <div class="modal-header">
-                <h3>Platform Settings</h3>
-                <button class="modal-close" onclick="this.closest('dialog').close()" aria-label="Close">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
-                </button>
-            </div>
-            <div class="modal-body">
-                <form method="post" action="index.php?page=settings" class="form grid-form">
-                    <?= csrf_field() ?>
-                    <label>Platform Name
-                        <input type="text" name="platform_name" value="<?= h($ps['platform_name'] ?? 'FITTRACKS') ?>" required>
-                    </label>
-                    <label>Contact Email (For Support)
-                        <input type="email" name="contact_email" value="<?= h($ps['contact_email'] ?? 'support@fittracks.com') ?>" required>
-                    </label>
-                    <label>Registration Enabled
-                        <select name="registration_enabled">
-                            <option value="1" <?= ($ps['registration_enabled'] ?? '1') === '1' ? 'selected' : '' ?>>Enabled (Allow new gyms to register)</option>
-                            <option value="0" <?= ($ps['registration_enabled'] ?? '1') === '0' ? 'selected' : '' ?>>Disabled</option>
-                        </select>
-                    </label>
-                    <button type="submit" class="btn-primary" style="grid-column: 1 / -1; margin-top: 15px;">Save Settings</button>
-                </form>
-            </div>
-        </dialog>
-        <?php
-    }
+    <?php endif;
 }
 
 function render_footer(): void
@@ -611,13 +576,14 @@ HTML;
     echo '</body></html>';
 }
 
-function setup_error(Throwable $e): void
-{
-    error_log('Application Error: ' . $e->getMessage() . "\n" . $e->getTraceAsString());
-    http_response_code(500);
-    $isDev = in_array(strtolower($_ENV['APP_ENV'] ?? 'production'), ['development', 'dev', 'local'], true) 
-             || (isset($_SERVER['REMOTE_ADDR']) && in_array($_SERVER['REMOTE_ADDR'], ['127.0.0.1', '::1'], true));
-    ?>
+if (!function_exists('setup_error')) {
+    function setup_error(Throwable $e): void
+    {
+        error_log('Application Error: ' . $e->getMessage() . "\n" . $e->getTraceAsString());
+        http_response_code(500);
+        $isDev = in_array(strtolower($_ENV['APP_ENV'] ?? 'production'), ['development', 'dev', 'local'], true) 
+                 || (isset($_SERVER['REMOTE_ADDR']) && in_array($_SERVER['REMOTE_ADDR'], ['127.0.0.1', '::1'], true));
+        ?>
 <!doctype html>
 <html lang="en">
 <head>
@@ -644,5 +610,6 @@ function setup_error(Throwable $e): void
 </main>
 </body>
 </html>
-    <?php
+        <?php
+    }
 }

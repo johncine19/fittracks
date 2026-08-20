@@ -94,10 +94,23 @@ try {
     require_once __DIR__ . '/' . $route['file'];
     $route['handler']();
 
-    ob_end_flush();
+    if (ob_get_level() > 0) {
+        ob_end_flush();
+    }
 } catch (Throwable $e) {
-    ob_end_clean(); // discard any partial page that was buffered
-    setup_error($e);
+    if (ob_get_level() > 0) {
+        ob_end_clean(); // discard any partial page that was buffered
+    }
+    if (function_exists('setup_error')) {
+        setup_error($e);
+    } else {
+        http_response_code(500);
+        error_log('Fatal App Error: ' . $e->getMessage() . "\n" . $e->getTraceAsString());
+        echo '<!doctype html><html><body style="font-family:sans-serif;padding:40px;background:#090b10;color:#fff;">';
+        echo '<h1>Service Temporarily Unavailable</h1>';
+        echo '<p style="color:#ef4444;"><strong>Error:</strong> ' . htmlspecialchars($e->getMessage(), ENT_QUOTES, 'UTF-8') . '</p>';
+        echo '</body></html>';
+    }
 }
 
 // Poor man's cron: process a few queue jobs at the end of every request.
