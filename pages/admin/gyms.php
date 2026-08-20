@@ -12,10 +12,18 @@ function gyms_page(): void
         $action = post('action');
 
         if ($action === 'suspend') {
+            $pdo->beginTransaction();
             $pdo->prepare('UPDATE gyms SET status = "suspended" WHERE gym_id = ?')->execute([$gymId]);
+            $pdo->prepare('UPDATE users SET status = "suspended" WHERE user_id = (SELECT owner_user_id FROM gyms WHERE gym_id = ?)')
+                ->execute([$gymId]);
+            $pdo->commit();
             flash('Gym suspended successfully.', 'success');
         } elseif ($action === 'reactivate') {
+            $pdo->beginTransaction();
             $pdo->prepare('UPDATE gyms SET status = "approved" WHERE gym_id = ?')->execute([$gymId]);
+            $pdo->prepare('UPDATE users SET status = "active" WHERE user_id = (SELECT owner_user_id FROM gyms WHERE gym_id = ?)')
+                ->execute([$gymId]);
+            $pdo->commit();
             flash('Gym reactivated.', 'success');
         }
         redirect('gyms');
