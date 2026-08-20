@@ -256,7 +256,8 @@ input[type="radio"] {
 }
 
 .side-nav a.active,
-.side-nav a:hover {
+.side-nav a:hover,
+.sidebar-bottom a:hover {
     background: var(--lime);
     color: #080b0d;
     font-weight: 800;

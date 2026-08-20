@@ -120,48 +120,64 @@ function training_page(): void
         $tableRows = array_map(function($p) use ($csrfStr) {
             $safeJson = htmlspecialchars(json_encode($p));
             
-            // Calculate Progress & Adherence
-            $startDate = strtotime($p['start_date'] ?? date('Y-m-d'));
-            $endDate = strtotime($p['end_date'] ?? date('Y-m-d'));
-            $now = time();
+            $isDraft = ($p['status'] === 'draft');
             
-            $totalWeeks = max(1, ceil(($endDate - $startDate) / (7 * 86400)));
-            $elapsedWeeks = max(1, ceil(($now - $startDate) / (7 * 86400)));
-            if ($now < $startDate) $elapsedWeeks = 0;
-            if ($now > $endDate) $elapsedWeeks = $totalWeeks;
-            
-            $p['progress'] = '<div style="font-size:12px; color:var(--muted); min-width:80px;">Week ' . $elapsedWeeks . ' of ' . $totalWeeks . '</div>';
-            
-            $expectedTotal = (int)$p['expected_weekly'] * $elapsedWeeks;
-            $completed = (int)$p['completed_count'];
-            $adherencePercent = $expectedTotal > 0 ? min(100, round(($completed / $expectedTotal) * 100)) : ($elapsedWeeks > 0 ? 0 : 100);
-            
-            $p['adherence'] = '<div style="display:flex;align-items:center;gap:8px; min-width:120px;">
-                                   <div style="flex:1;background:#334155;height:6px;border-radius:3px;overflow:hidden;">
-                                       <div style="width:'.$adherencePercent.'%;background:var(--lime);height:100%;"></div>
-                                   </div>
-                                   <span style="font-size:12px;">'.$adherencePercent.'%</span>
-                               </div>';
+            if ($isDraft) {
+                $p['progress'] = '<div style="font-size:12px; color:var(--muted); min-width:80px;">N/A</div>';
+                $p['adherence'] = '<div style="font-size:12px; color:var(--muted); min-width:120px;">N/A</div>';
+                $p['start_date'] = '<span style="color:var(--muted);"><small>N/A</small></span>';
+                $p['end_date'] = '<span style="color:var(--muted);"><small>N/A</small></span>';
+                
+                $renewBtn = '';
+                $buildBtn = '<form method="get" action="index.php" style="display:inline;">' .
+                            '<input type="hidden" name="page" value="workout_builder">' .
+                            '<input type="hidden" name="member_user_id" value="' . $p['member_user_id'] . '">' .
+                            '<button type="submit" class="btn btn-primary" style="padding:4px 8px;font-size:12px;margin-right:4px;cursor:pointer;">Build Workout</button></form>';
+            } else {
+                // Calculate Progress & Adherence
+                $startDate = strtotime($p['start_date'] ?? date('Y-m-d'));
+                $endDate = strtotime($p['end_date'] ?? date('Y-m-d'));
+                $now = time();
+                
+                $totalWeeks = max(1, ceil(($endDate - $startDate) / (7 * 86400)));
+                $elapsedWeeks = max(1, ceil(($now - $startDate) / (7 * 86400)));
+                if ($now < $startDate) $elapsedWeeks = 0;
+                if ($now > $endDate) $elapsedWeeks = $totalWeeks;
+                
+                $p['progress'] = '<div style="font-size:12px; color:var(--muted); min-width:80px;">Week ' . $elapsedWeeks . ' of ' . $totalWeeks . '</div>';
+                
+                $expectedTotal = (int)$p['expected_weekly'] * $elapsedWeeks;
+                $completed = (int)$p['completed_count'];
+                $adherencePercent = $expectedTotal > 0 ? min(100, round(($completed / $expectedTotal) * 100)) : ($elapsedWeeks > 0 ? 0 : 100);
+                
+                $p['adherence'] = '<div style="display:flex;align-items:center;gap:8px; min-width:120px;">
+                                       <div style="flex:1;background:#334155;height:6px;border-radius:3px;overflow:hidden;">
+                                           <div style="width:'.$adherencePercent.'%;background:var(--lime);height:100%;"></div>
+                                       </div>
+                                       <span style="font-size:12px;">'.$adherencePercent.'%</span>
+                                   </div>';
+                                   
+                // Expiry Alert
+                $daysLeft = ($endDate - $now) / 86400;
+                if ($daysLeft <= 3 && $daysLeft >= 0) {
+                    $p['end_date'] = '<span style="color:orange; font-weight:600;">' . h($p['end_date']) . ' <br><small>(Expiring)</small></span>';
+                } elseif ($daysLeft < 0) {
+                    $p['end_date'] = '<span style="color:var(--red); font-weight:600;">' . h($p['end_date']) . ' <br><small>(Expired)</small></span>';
+                }
+                
+                $renewBtn = ($daysLeft <= 3) ? '<form method="post" style="display:inline;" onsubmit="return confirm(\'Renew this plan for another 4 weeks?\');">' .
+                                               $csrfStr . '<input type="hidden" name="action" value="renew_plan"><input type="hidden" name="plan_id" value="'.$p['plan_id'].'">' .
+                                               '<button type="submit" class="btn btn-primary" style="padding:4px 8px;font-size:12px;margin-right:4px;">Renew</button></form>' : '';
+                $buildBtn = '';
+            }
             
             $feedbackStr = $p['latest_feedback'] ? h(substr($p['latest_feedback'], 0, 30)) . (strlen($p['latest_feedback']) > 30 ? '...' : '') : '<i style="color:var(--muted);">None</i>';
             $p['feedback'] = '<span style="font-size:12px; display:inline-block; max-width:150px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">' . $feedbackStr . '</span>';
             
-            // Expiry Alert
-            $daysLeft = ($endDate - $now) / 86400;
-            if ($daysLeft <= 3 && $daysLeft >= 0) {
-                $p['end_date'] = '<span style="color:orange; font-weight:600;">' . h($p['end_date']) . ' <br><small>(Expiring)</small></span>';
-            } elseif ($daysLeft < 0) {
-                $p['end_date'] = '<span style="color:var(--red); font-weight:600;">' . h($p['end_date']) . ' <br><small>(Expired)</small></span>';
-            }
-            
-            $renewBtn = ($daysLeft <= 3) ? '<form method="post" style="display:inline;" onsubmit="return confirm(\'Renew this plan for another 4 weeks?\');">' .
-                                           $csrfStr . '<input type="hidden" name="action" value="renew_plan"><input type="hidden" name="plan_id" value="'.$p['plan_id'].'">' .
-                                           '<button type="submit" class="btn btn-primary" style="padding:4px 8px;font-size:12px;margin-right:4px;">Renew</button></form>' : '';
-                                           
             $duplicateBtn = '<button type="button" onclick="openDuplicateModal('.$p['plan_id'].')" class="btn btn-secondary" style="padding:4px 8px;font-size:12px;margin-right:4px;">Duplicate</button>';
             
             $p['actions'] = '<div style="display:flex; gap:4px; flex-wrap:wrap;">' . 
-                            $renewBtn . $duplicateBtn . 
+                            $renewBtn . $buildBtn . $duplicateBtn . 
                             '<button type="button" onclick="editPlan(' . $safeJson . ')" class="btn btn-secondary" style="padding:4px 8px;font-size:12px;">Edit</button>' .
                             '<form method="post" style="display:inline;" onsubmit="return confirm(\'Delete this training plan?\');">' .
                             $csrfStr . '<input type="hidden" name="action" value="delete_plan"><input type="hidden" name="plan_id" value="'.$p['plan_id'].'">' .
