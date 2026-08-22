@@ -141,6 +141,27 @@ HTML;
         notify_admins_email('New Gym Application: ' . $gymName, self::layout($content));
     }
 
+    public static function sendGymApplicationSubmitted(string $email, string $ownerName, string $gymName): void
+    {
+        $loginUrl = app_base_url() . '?page=login';
+        $content = <<<HTML
+        <p>Hi <strong>{$ownerName}</strong>,</p>
+        <p>Thank you for submitting your gym registration for <strong>{$gymName}</strong> on FITTRACKS!</p>
+        <p>We have successfully received your gym information and submitted documents (Business Permit and Valid ID). Your application is now <strong>under review</strong> by our platform administration team.</p>
+        <div style="background: rgba(255,255,255,0.05); padding: 15px; border-radius: 4px; margin: 20px 0;">
+            <p style="margin: 0 0 10px 0;"><strong>Gym Name:</strong> {$gymName}</p>
+            <p style="margin: 0;"><strong>Status:</strong> Under Review (1-2 business days)</p>
+        </div>
+        <p>You will receive an email notification as soon as your account is approved or if additional information is required.</p>
+        <p style="text-align: center; margin: 30px 0;">
+            <a href="{$loginUrl}" class="btn">Check Application Status</a>
+        </p>
+        <p>Thank you for partnering with FITTRACKS!</p>
+HTML;
+
+        queue_email($email, $ownerName, 'Gym Registration Being Processed - FITTRACKS', self::layout($content));
+    }
+
     public static function sendGymApplicationApproved(string $email, string $ownerName, string $gymName): void
     {
         $dashboardUrl = app_base_url() . '?page=dashboard';

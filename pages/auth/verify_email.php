@@ -60,24 +60,37 @@ function verify_email_page(): void
     }
 
     $token = (string) ($_GET['token'] ?? '');
-    $ok = $token !== '' && verify_email_token($token);
+    $verifiedUserId = $token !== '' ? verify_email_token($token) : null;
 
-    // If verification succeeded and there's a pending_verify_uid, clear it
-    if ($ok) {
+    if ($verifiedUserId !== null) {
         unset($_SESSION['pending_verify_uid']);
+
+        // Auto-login the user immediately upon email verification
+        $userRow = query_all('SELECT * FROM users WHERE user_id = ? AND status = "active"', [$verifiedUserId]);
+        if ($userRow) {
+            $verifiedUser = $userRow[0];
+            session_regenerate_id(true);
+            $_SESSION['user_id'] = (int) $verifiedUser['user_id'];
+
+            if ($verifiedUser['role'] === 'gym_owner') {
+                flash('Email verified successfully! Please complete your gym profile to submit your application.', 'success');
+                redirect('gym_onboarding');
+            } elseif ($verifiedUser['role'] === 'member') {
+                flash('Email verified successfully! Welcome to FitTrack.', 'success');
+                redirect('setup_profile');
+            } else {
+                flash('Email verified successfully! Welcome to FitTrack.', 'success');
+                redirect('dashboard');
+            }
+        }
     }
 
     render_header('Verify email');
     ?>
     <section class="panel" style="max-width:520px;margin:40px auto;text-align:center;">
-        <?php if ($ok): ?>
-            <h1>Email verified</h1>
-            <p>Thanks — your email address has been confirmed. You can now sign in.</p>
-        <?php else: ?>
-            <h1>Verification link invalid or expired</h1>
-            <p>This link is no longer valid. You can request a new one from the sign-in page.</p>
-        <?php endif; ?>
-        <p><a href="index.php?page=<?= current_user() ? 'profile' : 'login' ?>">Continue</a></p>
+        <h1>Verification link invalid or expired</h1>
+        <p>This link is no longer valid or has already been used. You can request a new one from the sign-in page.</p>
+        <p><a href="index.php?page=login" class="btn">Go to Sign In</a></p>
     </section>
     <?php
     render_footer();

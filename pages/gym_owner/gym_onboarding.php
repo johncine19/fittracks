@@ -65,8 +65,9 @@ function gym_onboarding_page(): void
                 notify_admins('system', 'New Gym Application', "A new gym application for '{$gymName}' was submitted by {$ownerName}. Please review it in the Gym Applications dashboard.");
                 
                 Emails::sendNewGymApplication($gymName, $ownerName);
+                Emails::sendGymApplicationSubmitted((string)$user['email'], $ownerName, $gymName);
 
-                flash('Your gym application has been submitted successfully!', 'success');
+                flash('Your gym application has been submitted successfully! We have sent a confirmation email to ' . htmlspecialchars((string)$user['email']) . '.', 'success');
                 redirect('gym_pending');
 
             } catch (Exception $e) {

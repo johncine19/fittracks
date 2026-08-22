@@ -47,17 +47,17 @@ function app_base_url(): string
     return $scheme . '://' . $host . $path . '/index.php';
 }
 
-function verify_email_token(string $token): bool
+function verify_email_token(string $token): ?int
 {
     $row = query_all(
         'SELECT user_id FROM email_verifications WHERE token = ? AND expires_at > NOW()',
         [$token]
     );
     if (!$row) {
-        return false;
+        return null;
     }
     $userId = (int) $row[0]['user_id'];
     db()->prepare('UPDATE users SET email_verified_at = NOW() WHERE user_id = ?')->execute([$userId]);
     db()->prepare('DELETE FROM email_verifications WHERE user_id = ?')->execute([$userId]);
-    return true;
+    return $userId;
 }
