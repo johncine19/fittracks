@@ -61,6 +61,7 @@ try {
         'profile' => ['file' => 'pages/member/profile.php', 'handler' => 'profile_page'],
         'my_workout' => ['file' => 'pages/member/my_workout.php', 'handler' => 'my_workout_page'],
         'diet' => ['file' => 'pages/member/diet.php', 'handler' => 'diet_page'],
+        'log_macros' => ['file' => 'pages/member/log_macros.php', 'handler' => 'log_macros_page'],
         'my_commissions' => ['file' => 'pages/member/my_commissions.php', 'handler' => 'my_commissions_page'],
         'trainers' => ['file' => 'pages/member/trainers.php', 'handler' => 'trainers_page'],
         'book_classes' => ['file' => 'pages/member/book_classes.php', 'handler' => 'book_classes_page'],

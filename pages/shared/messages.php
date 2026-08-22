@@ -4,22 +4,53 @@ declare(strict_types=1);
 function messages_page(): void
 {
     $user = require_login();
+    $isAjax = (isset($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest')
+              || (isset($_SERVER['CONTENT_TYPE']) && str_contains($_SERVER['CONTENT_TYPE'], 'application/json'));
+
+    // ── AJAX: Poll for new messages ──────────────────────────────────────
+    if ($_SERVER['REQUEST_METHOD'] === 'POST' && post('action') === 'poll_messages' && $isAjax) {
+        if (ob_get_level()) ob_clean();
+        header('Content-Type: application/json');
+        $recipientId = (int) post('recipient_id');
+        $lastId      = (int) post('last_message_id');
+        if ($recipientId <= 0) { echo json_encode(['messages' => []]); exit; }
+        $newRows = query_all(
+            'SELECT m.message_id, m.sender_id, m.message_text, m.sent_at,
+                    CONCAT(s.first_name, " ", s.last_name) AS sender_name
+             FROM trainer_messages m
+             JOIN users s ON s.user_id = m.sender_id
+             WHERE ((m.sender_id = ? AND m.recipient_id = ?) OR (m.sender_id = ? AND m.recipient_id = ?))
+               AND m.message_id > ?
+             ORDER BY m.sent_at ASC',
+            [$user['user_id'], $recipientId, $recipientId, $user['user_id'], $lastId]
+        );
+        // Mark incoming as read
+        if ($newRows) {
+            db()->prepare('UPDATE trainer_messages SET is_read = 1 WHERE sender_id = ? AND recipient_id = ? AND is_read = 0')
+               ->execute([$recipientId, $user['user_id']]);
+        }
+        echo json_encode(['messages' => $newRows, 'my_id' => (int) $user['user_id']]);
+        exit;
+    }
 
     // Handle sending a message
     if ($_SERVER['REQUEST_METHOD'] === 'POST' && post('action') === 'send') {
         $recipientId = (int) post('recipient_id');
         $text = trim((string) post('message_text'));
+        $newMessageId = null;
+        $error = null;
+
         if ($recipientId && $text !== '') {
             if (mb_strlen($text) > 1000) {
-                flash('Message is too long. Maximum length is 1000 characters.', 'danger');
+                $error = 'Message is too long. Maximum 1000 characters.';
             } else {
-                db()->prepare('INSERT INTO trainer_messages (sender_id, recipient_id, message_text) VALUES (?, ?, ?)')
+                $pdo = db();
+                $pdo->prepare('INSERT INTO trainer_messages (sender_id, recipient_id, message_text) VALUES (?, ?, ?)')
                    ->execute([$user['user_id'], $recipientId, $text]);
+                $newMessageId = (int) $pdo->lastInsertId();
                 $senderName = $user['first_name'] . ' ' . $user['last_name'];
                 $title = 'New message from ' . $senderName;
-                
                 $unreadCount = (int) scalar('SELECT COUNT(*) FROM trainer_messages WHERE sender_id = ? AND recipient_id = ? AND is_read = 0', [$user['user_id'], $recipientId]);
-                
                 if ($unreadCount > 1) {
                     $msgText = 'You have ' . $unreadCount . ' new messages.';
                     db()->prepare('UPDATE notifications SET message = ?, reference_id = ?, created_at = CURRENT_TIMESTAMP WHERE user_id = ? AND title = ? AND type = "coach_message" AND is_read = 0')
@@ -29,6 +60,30 @@ function messages_page(): void
                 }
             }
         }
+
+        // AJAX response
+        if ($isAjax) {
+            if (ob_get_level()) ob_clean();
+            header('Content-Type: application/json');
+            if ($error) {
+                echo json_encode(['success' => false, 'error' => $error]);
+            } else {
+                // Fetch the stored sent_at from DB so timezone formatting matches
+                // the server-rendered message bubbles (date('g:i A', strtotime($sent_at)))
+                $sentAtRaw = scalar('SELECT sent_at FROM trainer_messages WHERE message_id = ?', [$newMessageId]);
+                $sentFormatted = $sentAtRaw ? date('g:i A', strtotime($sentAtRaw)) : date('g:i A');
+                echo json_encode([
+                    'success'    => true,
+                    'message_id' => $newMessageId,
+                    'sent_at'    => $sentFormatted,
+                    'text'       => $text,
+                ]);
+            }
+            exit;
+        }
+
+        // Fallback: normal redirect
+        flash($error ?? 'Message sent.', $error ? 'danger' : 'success');
         header('Location: index.php?page=messages&chat=' . $recipientId);
         exit;
     }
@@ -192,7 +247,7 @@ function messages_page(): void
                             $isMine = (int) $msg['sender_id'] === (int) $user['user_id'];
                             $time   = date('g:i A', strtotime($msg['sent_at']));
                         ?>
-                            <div style="display: flex; flex-direction: column; max-width: 75%; <?= $isMine ? 'align-self: flex-end; align-items: flex-end;' : 'align-self: flex-start; align-items: flex-start;' ?>">
+                            <div data-msg-id="<?= (int) $msg['message_id'] ?>" style="display: flex; flex-direction: column; max-width: 75%; <?= $isMine ? 'align-self: flex-end; align-items: flex-end;' : 'align-self: flex-start; align-items: flex-start;' ?>">
                                 <?php if (!$isMine): ?>
                                     <span style="font-size: 0.8rem; color: #3b82f6; margin-bottom: 4px; padding-left: 2px;"><?= h($msg['sender_name']) ?></span>
                                 <?php endif; ?>
@@ -207,12 +262,12 @@ function messages_page(): void
                 
                 <!-- Chat Input -->
                 <div style="padding: 15px 20px; border-top: 1px solid var(--line); background: var(--surface);">
-                    <form method="post" style="display: flex; gap: 10px; align-items: flex-end;">
+                    <form id="msg-send-form" method="post" style="display: flex; gap: 10px; align-items: flex-end;">
                         <?= csrf_field() ?>
                         <input type="hidden" name="action" value="send">
-                        <input type="hidden" name="recipient_id" value="<?= $activeChatId ?>">
-                        <textarea name="message_text" rows="1" placeholder="Type a message..." required style="flex: 1; resize: none; border-radius: 20px; padding: 12px 16px; border: 1px solid var(--line); background: var(--bg); color: var(--ink); font-family: inherit; font-size: 0.95rem; outline: none; line-height: 1.5; overflow-y: hidden;" oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px'"></textarea>
-                        <button type="submit" style="background: var(--lime); color: var(--bg); border: none; border-radius: 50%; width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; cursor: pointer; flex-shrink: 0; transition: transform 0.2s;" onmouseover="this.style.transform='scale(1.05)'" onmouseout="this.style.transform='scale(1)'">
+                        <input type="hidden" name="recipient_id" id="msg-recipient-id" value="<?= $activeChatId ?>">
+                        <textarea id="msg-textarea" name="message_text" rows="1" placeholder="Type a message..." required style="flex: 1; resize: none; border-radius: 20px; padding: 12px 16px; border: 1px solid var(--line); background: var(--bg); color: var(--ink); font-family: inherit; font-size: 0.95rem; outline: none; line-height: 1.5; overflow-y: hidden;" oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px'"></textarea>
+                        <button id="msg-send-btn" type="submit" style="background: var(--lime); color: var(--bg); border: none; border-radius: 50%; width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; cursor: pointer; flex-shrink: 0; transition: all 0.2s;" onmouseover="this.style.transform='scale(1.05)'" onmouseout="this.style.transform='scale(1)'">
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18" style="margin-right: 2px;">
                                 <line x1="22" y1="2" x2="11" y2="13"></line>
                                 <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
@@ -222,9 +277,138 @@ function messages_page(): void
                 </div>
                 
                 <script>
-                    // Scroll to bottom of chat
-                    const chatBox = document.getElementById('chat-messages');
+                (function() {
+                    const chatBox   = document.getElementById('chat-messages');
+                    const form      = document.getElementById('msg-send-form');
+                    const textarea  = document.getElementById('msg-textarea');
+                    const sendBtn   = document.getElementById('msg-send-btn');
+                    const recipientId = document.getElementById('msg-recipient-id').value;
+                    const csrfToken = form.querySelector('[name="csrf_token"]').value;
+                    const myId      = <?= (int) $user['user_id'] ?>;
+
+                    // Track highest seen message ID for polling
+                    const allMsgs = chatBox.querySelectorAll('[data-msg-id]');
+                    let lastMsgId = allMsgs.length ? parseInt(allMsgs[allMsgs.length - 1].dataset.msgId) : 0;
+
+                    // Scroll to bottom
                     chatBox.scrollTop = chatBox.scrollHeight;
+
+                    function buildBubble(text, timeStr, isMine, senderName, msgId) {
+                        const wrap = document.createElement('div');
+                        wrap.dataset.msgId = msgId || '';
+                        wrap.style.cssText = `display:flex;flex-direction:column;max-width:75%;${
+                            isMine ? 'align-self:flex-end;align-items:flex-end;' : 'align-self:flex-start;align-items:flex-start;'
+                        }`;
+                        if (!isMine) {
+                            const nameEl = document.createElement('span');
+                            nameEl.style.cssText = 'font-size:0.8rem;color:#3b82f6;margin-bottom:4px;padding-left:2px;';
+                            nameEl.textContent = senderName;
+                            wrap.appendChild(nameEl);
+                        }
+                        const bubble = document.createElement('div');
+                        bubble.style.cssText = `padding:10px 14px;border-radius:14px;font-size:0.95rem;line-height:1.4;word-break:break-word;${
+                            isMine
+                                ? 'background:var(--lime);color:#000;border-bottom-right-radius:4px;'
+                                : 'background:var(--surface);color:var(--ink);border-bottom-left-radius:4px;border:1px solid var(--line);'
+                        }`;
+                        bubble.innerHTML = text.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br>');
+                        wrap.appendChild(bubble);
+                        const timeEl = document.createElement('span');
+                        timeEl.style.cssText = 'font-size:0.7rem;color:var(--muted);margin-top:4px;';
+                        timeEl.textContent = timeStr;
+                        wrap.appendChild(timeEl);
+                        return wrap;
+                    }
+
+                    // ── Send via AJAX ─────────────────────────────────────────
+                    form.addEventListener('submit', async function(e) {
+                        e.preventDefault();
+                        const text = textarea.value.trim();
+                        if (!text) return;
+
+                        // Optimistic UI — no JS clock time, wait for server-confirmed time
+                        const bubble = buildBubble(text, '···', true, '', 0);
+                        chatBox.appendChild(bubble);
+                        chatBox.scrollTop = chatBox.scrollHeight;
+                        textarea.value = '';
+                        textarea.style.height = '';
+                        sendBtn.disabled = true;
+                        sendBtn.style.opacity = '0.6';
+
+                        try {
+                            const body = new URLSearchParams({
+                                action: 'send',
+                                recipient_id: recipientId,
+                                message_text: text,
+                                csrf_token: csrfToken
+                            });
+                            const res = await fetch('index.php?page=messages', {
+                                method: 'POST',
+                                headers: { 'X-Requested-With': 'XMLHttpRequest',
+                                           'Content-Type': 'application/x-www-form-urlencoded' },
+                                body: body.toString()
+                            });
+                            const data = await res.json();
+                            if (data.success) {
+                                // Replace placeholder with server-accurate time
+                                bubble.dataset.msgId = data.message_id;
+                                lastMsgId = Math.max(lastMsgId, data.message_id);
+                                const timeEl = bubble.querySelector('span:last-child');
+                                if (timeEl) timeEl.textContent = data.sent_at + ' ✓';
+                            } else {
+                                bubble.remove();
+                                Swal.fire({icon:'error', title:'Error', text: data.error || 'Could not send message.', background:'var(--bg)', color:'var(--ink)'});
+                            }
+                        } catch (err) {
+                            bubble.remove();
+                            Swal.fire({icon:'error', title:'Network Error', text:'Message not sent. Please try again.', background:'var(--bg)', color:'var(--ink)'});
+                        } finally {
+                            sendBtn.disabled = false;
+                            sendBtn.style.opacity = '1';
+                        }
+                    });
+
+                    // Enter = send (Shift+Enter = newline)
+                    textarea.addEventListener('keydown', function(e) {
+                        if (e.key === 'Enter' && !e.shiftKey) {
+                            e.preventDefault();
+                            form.dispatchEvent(new Event('submit', {cancelable: true}));
+                        }
+                    });
+
+                    // ── Poll for incoming messages every 4s ──────────────────
+                    setInterval(async function() {
+                        if (document.hidden) return; // don't poll when tab is in background
+                        try {
+                            const body = new URLSearchParams({
+                                action: 'poll_messages',
+                                recipient_id: recipientId,
+                                last_message_id: lastMsgId,
+                                csrf_token: csrfToken
+                            });
+                            const res = await fetch('index.php?page=messages', {
+                                method: 'POST',
+                                headers: { 'X-Requested-With': 'XMLHttpRequest',
+                                           'Content-Type': 'application/x-www-form-urlencoded' },
+                                body: body.toString()
+                            });
+                            const data = await res.json();
+                            if (data.messages && data.messages.length) {
+                                const wasAtBottom = chatBox.scrollHeight - chatBox.scrollTop - chatBox.clientHeight < 60;
+                                data.messages.forEach(function(m) {
+                                    const isMine = parseInt(m.sender_id) === myId;
+                                    // Skip messages already appended optimistically
+                                    if (chatBox.querySelector('[data-msg-id="' + m.message_id + '"]')) return;
+                                    const t = new Date(m.sent_at.replace(' ', 'T'));
+                                    const timeStr = t.toLocaleTimeString('en-US', {hour:'numeric', minute:'2-digit'});
+                                    chatBox.appendChild(buildBubble(m.message_text, timeStr, isMine, m.sender_name, m.message_id));
+                                    lastMsgId = Math.max(lastMsgId, parseInt(m.message_id));
+                                });
+                                if (wasAtBottom) chatBox.scrollTop = chatBox.scrollHeight;
+                            }
+                        } catch (_) {}
+                    }, 4000);
+                })();
                 </script>
             <?php else: ?>
                 <div style="margin: auto; text-align: center; color: var(--muted);">

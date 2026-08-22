@@ -248,38 +248,113 @@ $pctCals = $targetCals > 0 ? min(100, round(($loggedCals / $targetCals) * 100)) 
             <p style="margin: 4px 0 0; color: var(--muted); font-size: 13px;">Log your food intake to stay on target.</p>
         </div>
         <div style="text-align: right;">
-            <span style="font-size: 24px; font-weight: 800; color: var(--lime);"><?= $loggedCals ?></span>
-            <span style="color: var(--muted);">/ <?= $targetCals ?> kcal</span>
+            <span id="macro-logged-cals" style="font-size: 24px; font-weight: 800; color: var(--lime);"><?= $loggedCals ?></span>
+            <span style="color: var(--muted);">/ <span id="macro-target-cals"><?= $targetCals ?></span> kcal</span>
         </div>
     </div>
 
     <!-- Progress Bar -->
     <div style="height: 8px; background: rgba(255,255,255,0.1); border-radius: 4px; overflow: hidden; margin-bottom: 24px;">
-        <div style="height: 100%; width: <?= $pctCals ?>%; background: var(--lime); transition: width 0.5s ease; <?= $pctCals >= 100 ? 'background: #22c55e;' : '' ?>"></div>
+        <div id="macro-progress-bar" style="height: 100%; width: <?= $pctCals ?>%; background: var(--lime); transition: width 0.7s ease; <?= $pctCals >= 100 ? 'background: #22c55e;' : '' ?>"></div>
     </div>
 
-    <form action="index.php?page=log_macros" method="post" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(100px, 1fr)); gap: 12px; align-items: end; margin: 0;">
+    <form id="macro-log-form" action="index.php?page=log_macros" method="post" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(100px, 1fr)); gap: 12px; align-items: end; margin: 0;">
         <?= csrf_field() ?>
         <div>
             <label style="display:block; font-size:11px; color:var(--muted); margin-bottom:4px; text-transform:uppercase;">Calories (kcal)</label>
-            <input type="number" name="calories" value="<?= $loggedCals ?: '' ?>" required style="width:100%; background:rgba(0,0,0,0.2); border:1px solid var(--line); color:var(--ink); padding:10px; border-radius:8px;">
+            <input id="macro-input-cals" type="number" name="calories" value="<?= $loggedCals ?: '' ?>" required style="width:100%; background:rgba(0,0,0,0.2); border:1px solid var(--line); color:var(--ink); padding:10px; border-radius:8px;">
         </div>
         <div>
             <label style="display:block; font-size:11px; color:var(--muted); margin-bottom:4px; text-transform:uppercase;">Protein (g)</label>
-            <input type="number" name="protein_g" value="<?= $loggedPro ?: '' ?>" style="width:100%; background:rgba(0,0,0,0.2); border:1px solid var(--line); color:var(--ink); padding:10px; border-radius:8px;">
+            <input id="macro-input-pro" type="number" name="protein_g" value="<?= $loggedPro ?: '' ?>" style="width:100%; background:rgba(0,0,0,0.2); border:1px solid var(--line); color:var(--ink); padding:10px; border-radius:8px;">
         </div>
         <div>
             <label style="display:block; font-size:11px; color:var(--muted); margin-bottom:4px; text-transform:uppercase;">Carbs (g)</label>
-            <input type="number" name="carbs_g" value="<?= $loggedCarbs ?: '' ?>" style="width:100%; background:rgba(0,0,0,0.2); border:1px solid var(--line); color:var(--ink); padding:10px; border-radius:8px;">
+            <input id="macro-input-carbs" type="number" name="carbs_g" value="<?= $loggedCarbs ?: '' ?>" style="width:100%; background:rgba(0,0,0,0.2); border:1px solid var(--line); color:var(--ink); padding:10px; border-radius:8px;">
         </div>
         <div>
             <label style="display:block; font-size:11px; color:var(--muted); margin-bottom:4px; text-transform:uppercase;">Fat (g)</label>
-            <input type="number" name="fat_g" value="<?= $loggedFat ?: '' ?>" style="width:100%; background:rgba(0,0,0,0.2); border:1px solid var(--line); color:var(--ink); padding:10px; border-radius:8px;">
+            <input id="macro-input-fat" type="number" name="fat_g" value="<?= $loggedFat ?: '' ?>" style="width:100%; background:rgba(0,0,0,0.2); border:1px solid var(--line); color:var(--ink); padding:10px; border-radius:8px;">
         </div>
         <div>
-            <button type="submit" style="width:100%; background:var(--lime); color:var(--bg); border:none; padding:11px; border-radius:8px; font-weight:bold; cursor:pointer;">Save Log</button>
+            <button id="macro-save-btn" type="submit" style="width:100%; background:var(--lime); color:var(--bg); border:none; padding:11px; border-radius:8px; font-weight:bold; cursor:pointer; transition: opacity 0.2s;">Save Log</button>
         </div>
     </form>
+
+<script>
+(function() {
+    const form     = document.getElementById('macro-log-form');
+    const saveBtn  = document.getElementById('macro-save-btn');
+    const bar      = document.getElementById('macro-progress-bar');
+    const calsDisp = document.getElementById('macro-logged-cals');
+    const tarDisp  = document.getElementById('macro-target-cals');
+    if (!form) return;
+    const csrf = form.querySelector('[name="csrf_token"]').value;
+
+    form.addEventListener('submit', async function(e) {
+        e.preventDefault();
+        saveBtn.disabled = true;
+        saveBtn.textContent = 'Saving…';
+        saveBtn.style.opacity = '0.7';
+
+        // Build POST body explicitly so CSRF token is always included
+        const body = new URLSearchParams({
+            calories:   document.getElementById('macro-input-cals')?.value  || '0',
+            protein_g:  document.getElementById('macro-input-pro')?.value   || '0',
+            carbs_g:    document.getElementById('macro-input-carbs')?.value || '0',
+            fat_g:      document.getElementById('macro-input-fat')?.value   || '0',
+            csrf_token: csrf
+        });
+
+        let data = null;
+        try {
+            const res = await fetch('index.php?page=log_macros', {
+                method: 'POST',
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'Content-Type': 'application/x-www-form-urlencoded'
+                },
+                body: body.toString()
+            });
+            data = await res.json();
+        } catch (err) {
+            Swal.fire({ icon: 'error', title: 'Error', text: 'Could not reach the server. Please try again.', background: 'var(--bg)', color: 'var(--ink)' });
+            saveBtn.disabled = false;
+            saveBtn.textContent = 'Save Log';
+            saveBtn.style.opacity = '1';
+            return;
+        }
+
+        if (data && data.success) {
+            // Animate calorie counter
+            if (calsDisp) calsDisp.textContent = data.logged_cals;
+            if (tarDisp && data.target_cals) tarDisp.textContent = data.target_cals;
+
+            // Animate progress bar
+            if (bar) {
+                bar.style.width = data.pct_cals + '%';
+                bar.style.background = data.pct_cals >= 100 ? '#22c55e' : 'var(--lime)';
+            }
+
+            // SweetAlert toast
+            const Toast = Swal.mixin({
+                toast: true, position: 'top-end', showConfirmButton: false,
+                timer: 3000, timerProgressBar: true,
+                background: getComputedStyle(document.documentElement).getPropertyValue('--bg').trim() || '#121721',
+                color: getComputedStyle(document.documentElement).getPropertyValue('--ink').trim() || '#ffffff',
+            });
+            Toast.fire({ icon: 'success', title: 'Macros saved for today! 🍏' });
+        } else {
+            const msg = (data && data.error) ? data.error : 'Could not save macros. Please try again.';
+            Swal.fire({ icon: 'error', title: 'Error', text: msg, background: 'var(--bg)', color: 'var(--ink)' });
+        }
+
+        saveBtn.disabled = false;
+        saveBtn.textContent = 'Save Log';
+        saveBtn.style.opacity = '1';
+    });
+})();
+</script>
 </div>
 
 <div style="background: var(--surface); border-radius: 12px; border: 1px solid var(--line); overflow: hidden;">

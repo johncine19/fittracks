@@ -25,6 +25,13 @@ function verify_csrf(): void
 
     if (!$valid) {
         http_response_code(403);
+        $isAjax = isset($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest';
+        if ($isAjax) {
+            if (ob_get_level()) ob_clean();
+            header('Content-Type: application/json');
+            echo json_encode(['success' => false, 'error' => 'Session expired. Please refresh the page and try again.']);
+            exit;
+        }
         if (function_exists('render_header')) {
             render_header('Security check failed');
             echo '<section class="panel"><h1>Security check failed</h1><p>Your session expired or the form was submitted from an untrusted source. Please go back, refresh the page, and try again.</p></section>';

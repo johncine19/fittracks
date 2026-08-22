@@ -683,7 +683,9 @@ function render_notification_bell(array $user, string $currentPage): void
         <button type="button" class="notif-bell" id="notif-toggle" aria-label="Notifications" aria-expanded="false">
             <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
             <?php if ($unread > 0): ?>
-                <span class="notif-badge"><?= $unread > 9 ? '9+' : (int) $unread ?></span>
+                <span id="notif-badge" class="notif-badge"><?= $unread > 9 ? '9+' : (int) $unread ?></span>
+            <?php else: ?>
+                <span id="notif-badge" class="notif-badge" style="display:none;"></span>
             <?php endif; ?>
         </button>
         <div class="notif-dropdown" id="notif-dropdown" hidden>
@@ -691,14 +693,16 @@ function render_notification_bell(array $user, string $currentPage): void
                 <div style="display:flex;align-items:center;gap:8px;">
                     <strong>Notifications</strong>
                     <?php if ($unread > 0): ?>
-                        <span style="font-size:10px;font-weight:700;padding:2px 6px;border-radius:10px;background:rgba(199,255,34,0.15);color:var(--lime);"><?= (int) $unread ?> new</span>
+                        <span id="notif-bell-new-badge" style="font-size:10px;font-weight:700;padding:2px 6px;border-radius:10px;background:rgba(199,255,34,0.15);color:var(--lime);"><?= (int) $unread ?> new</span>
+                    <?php else: ?>
+                        <span id="notif-bell-new-badge" style="font-size:10px;font-weight:700;padding:2px 6px;border-radius:10px;background:rgba(199,255,34,0.15);color:var(--lime);display:none;"></span>
                     <?php endif; ?>
                 </div>
-                <form method="post" action="index.php?page=notification_action" class="notif-mark-all">
+                <form method="post" action="index.php?page=notification_action" class="notif-mark-all" id="notif-mark-all-form">
                     <?= csrf_field() ?>
                     <input type="hidden" name="notification_action" value="mark_all_read">
                     <input type="hidden" name="return_page" value="<?= h($currentPage) ?>">
-                    <button type="submit" <?= $unread > 0 ? '' : 'disabled class="is-disabled"' ?>>
+                    <button type="button" id="notif-mark-all-btn" <?= $unread > 0 ? '' : 'disabled class="is-disabled"' ?>>
                         <?= $unread > 0 ? 'Mark all as read' : 'All read' ?>
                     </button>
                 </form>
@@ -727,13 +731,11 @@ function render_notification_bell(array $user, string $currentPage): void
                             <?php endif; ?>
                             <div class="notif-item-footer">
                                 <?php if (!$item['is_read']): ?>
-                                    <form method="post" action="index.php?page=notification_action" class="notif-single-action">
-                                        <?= csrf_field() ?>
-                                        <input type="hidden" name="notification_action" value="mark_read">
-                                        <input type="hidden" name="notification_id" value="<?= (int) $item['notification_id'] ?>">
-                                        <input type="hidden" name="return_page" value="<?= h($currentPage) ?>">
-                                        <button type="submit" class="notif-mark-read-btn">Mark read</button>
-                                    </form>
+                                    <button type="button" class="notif-mark-read-btn"
+                                        data-notif-id="<?= (int) $item['notification_id'] ?>"
+                                        data-csrf="<?= h(csrf_token()) ?>">
+                                        Mark read
+                                    </button>
                                 <?php else: ?>
                                     <span class="notif-read-status">✓ Read</span>
                                 <?php endif; ?>
@@ -742,9 +744,132 @@ function render_notification_bell(array $user, string $currentPage): void
                     <?php endforeach; ?>
                 </ul>
             <?php endif; ?>
-            <a class="notif-view-all" href="index.php?page=notifications">View all notifications</a>
+    <a class="notif-view-all" href="index.php?page=notifications">View all notifications</a>
         </div>
     </div>
+    <script>
+    (function() {
+        const bellBadge    = document.getElementById('notif-badge');
+        const newBadge     = document.getElementById('notif-bell-new-badge');
+        const markAllBtn   = document.getElementById('notif-mark-all-btn');
+        const markAllForm  = document.getElementById('notif-mark-all-form');
+        const csrfToken    = markAllForm ? markAllForm.querySelector('[name="csrf_token"]').value : '';
+
+        function updateBadges(unreadCount) {
+            // Main bell badge (header button)
+            if (bellBadge) {
+                if (unreadCount > 0) {
+                    bellBadge.textContent = unreadCount > 9 ? '9+' : unreadCount;
+                    bellBadge.style.display = '';
+                } else {
+                    bellBadge.style.display = 'none';
+                }
+            }
+            // Dropdown header "X new" badge
+            if (newBadge) {
+                if (unreadCount > 0) {
+                    newBadge.textContent = unreadCount + ' new';
+                    newBadge.style.display = '';
+                } else {
+                    newBadge.style.display = 'none';
+                }
+            }
+            // Mark-all button state
+            if (markAllBtn) {
+                markAllBtn.disabled = unreadCount === 0;
+                markAllBtn.textContent = unreadCount > 0 ? 'Mark all as read' : 'All read';
+                markAllBtn.classList.toggle('is-disabled', unreadCount === 0);
+            }
+        }
+
+        async function ajaxNotifAction(payload) {
+            try {
+                const body = new URLSearchParams(payload);
+                const res = await fetch('index.php?page=notifications', {
+                    method: 'POST',
+                    headers: { 'X-Requested-With': 'XMLHttpRequest',
+                               'Content-Type': 'application/x-www-form-urlencoded' },
+                    body: body.toString()
+                });
+                return await res.json();
+            } catch (_) { return null; }
+        }
+
+        // ── Mark single notification read ───────────────────────────
+        document.querySelectorAll('.notif-mark-read-btn[data-notif-id]').forEach(function(btn) {
+            btn.addEventListener('click', async function() {
+                const notifId = btn.dataset.notifId;
+                const csrf    = btn.dataset.csrf;
+                const li = btn.closest('li');
+                btn.disabled = true;
+                btn.textContent = '...';
+                const data = await ajaxNotifAction({
+                    notification_action: 'mark_read',
+                    notification_id: notifId,
+                    csrf_token: csrf
+                });
+                if (data && data.success) {
+                    if (li) li.classList.remove('unread');
+                    const footer = btn.closest('.notif-item-footer');
+                    if (footer) {
+                        const readSpan = document.createElement('span');
+                        readSpan.className = 'notif-read-status';
+                        readSpan.textContent = '✓ Read';
+                        footer.replaceChild(readSpan, btn);
+                    }
+                    updateBadges(data.unread_count);
+                } else {
+                    btn.disabled = false;
+                    btn.textContent = 'Mark read';
+                }
+            });
+        });
+
+        // ── Mark all read ──────────────────────────────────────────
+        if (markAllBtn) {
+            markAllBtn.addEventListener('click', async function() {
+                if (markAllBtn.disabled) return;
+                markAllBtn.disabled = true;
+                markAllBtn.textContent = '...';
+                const data = await ajaxNotifAction({
+                    notification_action: 'mark_all_read',
+                    csrf_token: csrfToken
+                });
+                if (data && data.success) {
+                    document.querySelectorAll('.notif-menu li.unread').forEach(function(li) {
+                        li.classList.remove('unread');
+                        const btn2 = li.querySelector('.notif-mark-read-btn');
+                        if (btn2) {
+                            const footer = btn2.closest('.notif-item-footer');
+                            if (footer) {
+                                const s = document.createElement('span');
+                                s.className = 'notif-read-status';
+                                s.textContent = '✓ Read';
+                                footer.replaceChild(s, btn2);
+                            }
+                        }
+                    });
+                    updateBadges(0);
+                } else {
+                    markAllBtn.disabled = false;
+                    markAllBtn.textContent = 'Mark all as read';
+                }
+            });
+        }
+
+        // ── 30-second badge polling ─────────────────────────────────
+        setInterval(async function() {
+            if (document.hidden) return;
+            const data = await ajaxNotifAction({
+                notification_action: 'fetch_notifications',
+                csrf_token: csrfToken
+            });
+            if (data && typeof data.unread === 'number') {
+                updateBadges(data.unread);
+            }
+        }, 30000);
+    })();
+    </script>
     <?php
 }
 

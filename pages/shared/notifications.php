@@ -6,7 +6,32 @@ function notifications_page(): void
     $user = require_login();
 
     if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+        $isAjax = isset($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest';
         $action = post('notification_action');
+
+        // ── AJAX handlers ────────────────────────────────────────────────
+        if ($isAjax && $action === 'fetch_notifications') {
+            if (ob_get_level()) ob_clean();
+            header('Content-Type: application/json');
+            $items   = get_notifications((int) $user['user_id'], 8);
+            $unread  = unread_notification_count((int) $user['user_id']);
+            echo json_encode(['unread' => $unread, 'items' => $items]);
+            exit;
+        }
+        if ($isAjax && ($action === 'mark_read' || $action === 'mark_all_read')) {
+            if ($action === 'mark_read') {
+                mark_notification_read((int) post('notification_id'), (int) $user['user_id']);
+            } else {
+                mark_all_notifications_read((int) $user['user_id']);
+            }
+            if (ob_get_level()) ob_clean();
+            header('Content-Type: application/json');
+            $unread = unread_notification_count((int) $user['user_id']);
+            echo json_encode(['success' => true, 'unread_count' => $unread]);
+            exit;
+        }
+
+        // ── Normal form POST fallback ─────────────────────────────────────
         if ($action === 'mark_read') {
             mark_notification_read((int) post('notification_id'), (int) $user['user_id']);
             flash('Notification marked as read.', 'success');
