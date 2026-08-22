@@ -5,6 +5,8 @@ require __DIR__ . '/../vendor/autoload.php';
 $dotenv = Dotenv\Dotenv::createImmutable(__DIR__ . '/../');
 $dotenv->safeLoad();
 
+date_default_timezone_set('Asia/Manila');
+
 header('Content-Type: text/html; charset=UTF-8');
 
 require __DIR__ . '/helpers.php';

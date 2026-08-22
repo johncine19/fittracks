@@ -24,8 +24,9 @@ function db(): PDO
         $options[PDO::MYSQL_ATTR_SSL_VERIFY_SERVER_CERT] = false;
     }
     $pdo = new PDO($dsn, DB_USER, DB_PASS, $options);
-
-
+    try {
+        $pdo->exec("SET time_zone = '+08:00'");
+    } catch (Throwable) {}
 
     return $pdo;
 }
