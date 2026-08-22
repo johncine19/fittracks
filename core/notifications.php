@@ -149,27 +149,8 @@ function notify_admins_email(string $subject, string $body): void
         return;
     }
 
-    try {
-        $mail = new PHPMailer(true);
-        $mail->isSMTP();
-        $mail->Host       = $_ENV['SMTP_HOST'] ?? 'smtp.gmail.com';
-        $mail->SMTPAuth   = true;
-        $mail->Username   = $_ENV['SMTP_USER'] ?? '';
-        $mail->Password   = $_ENV['SMTP_PASS'] ?? '';
-        $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
-        $mail->Port       = (int) ($_ENV['SMTP_PORT'] ?? 587);
-
-        $mail->setFrom($_ENV['SMTP_FROM'] ?? 'no-reply@fittracks.com', $_ENV['SMTP_FROM_NAME'] ?? 'FITTRACKS');
-        $mail->isHTML(true);
-        $mail->Subject = $subject;
-        $mail->Body    = $body;
-
-        foreach ($admins as $admin) {
-            $mail->addAddress($admin['email'], $admin['first_name']);
-        }
-        $mail->send();
-    } catch (Throwable) {
-        // Non-blocking
+    foreach ($admins as $admin) {
+        queue_email($admin['email'], $admin['first_name'], $subject, $body);
     }
 }
 
