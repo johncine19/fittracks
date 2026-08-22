@@ -89,6 +89,7 @@ HTML;
 
     public static function sendAccountCreated(string $email, string $name, string $plainPassword): void
     {
+        $loginUrl = app_base_url() . '?page=login';
         $content = <<<HTML
         <p>Hi <strong>{$name}</strong>,</p>
         <p>An administrator has created a new FITTRACKS account for you. Below are your temporary login credentials:</p>
@@ -98,7 +99,7 @@ HTML;
         </div>
         <p>For your security, please sign in and change your password as soon as possible.</p>
         <p style="text-align: center; margin: 30px 0;">
-            <a href="htmlentities(app_base_url())" class="btn">Sign In to FITTRACKS</a>
+            <a href="{$loginUrl}" class="btn">Sign In to FITTRACKS</a>
         </p>
 HTML;
 
@@ -107,12 +108,13 @@ HTML;
 
     public static function sendPaymentConfirmation(string $email, string $name, string $planName): void
     {
+        $dashboardUrl = app_base_url() . '?page=dashboard';
         $content = <<<HTML
         <p>Hi <strong>{$name}</strong>,</p>
         <p>Great news! Your payment for the <strong>{$planName}</strong> membership was successfully processed.</p>
         <p>Your membership is now <strong>ACTIVE</strong>. You can now start booking classes and communicating with trainers.</p>
         <p style="text-align: center; margin: 30px 0;">
-            <a href="htmlentities(app_base_url())" class="btn">Go to Dashboard</a>
+            <a href="{$dashboardUrl}" class="btn">Go to Dashboard</a>
         </p>
         <p>We look forward to seeing you at the gym!</p>
 HTML;
@@ -122,6 +124,7 @@ HTML;
 
     public static function sendNewGymApplication(string $gymName, string $ownerName): void
     {
+        $appUrl = app_base_url() . '?page=gym_applications';
         $content = <<<HTML
         <p>Hello Platform Admin,</p>
         <p>A new gym application has been submitted and is waiting for your review.</p>
@@ -131,23 +134,22 @@ HTML;
         </div>
         <p>Please log in to the platform admin dashboard to review the business permit and approve or reject the application.</p>
         <p style="text-align: center; margin: 30px 0;">
-            <a href="htmlentities(app_base_url() . '?page=gym_applications')" class="btn">Review Application</a>
+            <a href="{$appUrl}" class="btn">Review Application</a>
         </p>
 HTML;
 
-        // Since it goes to all platform admins, we use notify_admins_email which might have multiple recipients.
-        // Wait, notify_admins_email accepts subject and body. I'll just change it to use self::layout there.
         notify_admins_email('New Gym Application: ' . $gymName, self::layout($content));
     }
 
     public static function sendGymApplicationApproved(string $email, string $ownerName, string $gymName): void
     {
+        $dashboardUrl = app_base_url() . '?page=dashboard';
         $content = <<<HTML
         <p>Hi <strong>{$ownerName}</strong>,</p>
         <p>Congratulations! Your application for <strong>{$gymName}</strong> has been approved by the platform administration.</p>
         <p>Your Gym Owner account is now fully active. You can now log in to the platform to customize your gym profile, add memberships, and manage trainers.</p>
         <p style="text-align: center; margin: 30px 0;">
-            <a href="htmlentities(app_base_url())" class="btn">Go to Dashboard</a>
+            <a href="{$dashboardUrl}" class="btn">Go to Dashboard</a>
         </p>
         <p>Welcome aboard!</p>
 HTML;
