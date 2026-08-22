@@ -11,10 +11,19 @@ function gym_rejected_page(): void
     }
 
     $pdo = db();
-    $gym = $pdo->query('SELECT status FROM gyms WHERE owner_user_id = ' . (int)$user['user_id'])->fetch();
+    $gym = $pdo->query('SELECT gym_id, status FROM gyms WHERE owner_user_id = ' . (int)$user['user_id'])->fetch();
     
     if (!$gym || $gym['status'] !== 'rejected') {
         redirect('dashboard');
+    }
+
+    if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+        verify_csrf();
+        if (post('action') === 'resubmit') {
+            $pdo->prepare('DELETE FROM gyms WHERE gym_id = ?')->execute([$gym['gym_id']]);
+            flash('You can now submit a new gym application.', 'success');
+            redirect('gym_onboarding');
+        }
     }
 
     render_header('Application Rejected', $user);
@@ -32,10 +41,17 @@ function gym_rejected_page(): void
             <h1 class="auth-title" style="margin: 0; color: #ff4d5d;">Application Rejected</h1>
             <p class="auth-subtitle" style="max-width: 400px; margin: 0 auto; line-height: 1.6;">
                 Unfortunately, your gym application has been rejected by the administration team. 
-                Please contact support if you believe this was a mistake or need more information.
+                This usually happens if your business permit or government ID was unclear or invalid.
             </p>
 
-            <a href="index.php?page=logout" class="btn" style="background: var(--surface); color: var(--ink); border: 1px solid var(--line); margin-top: 20px;">
+            <form method="post" action="index.php?page=gym_rejected" style="margin-top: 10px;">
+                <?= csrf_field() ?>
+                <button type="submit" name="action" value="resubmit" class="btn" style="width: 100%;">
+                    Submit a New Application
+                </button>
+            </form>
+
+            <a href="index.php?page=logout" style="color: var(--muted); text-decoration: none; font-size: 14px; transition: color 0.2s;" onmouseover="this.style.color='var(--ink)'" onmouseout="this.style.color='var(--muted)'">
                 Sign Out
             </a>
             
