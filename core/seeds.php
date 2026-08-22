@@ -39,19 +39,16 @@ function seed_reference_data_if_empty(): void
         }
     }
 
-    $gyms = $pdo->query('SELECT gym_id FROM gyms')->fetchAll(PDO::FETCH_COLUMN);
-    foreach ($gyms as $gymId) {
-        seed_exercises_for_gym((int)$gymId);
-    }
+    seed_reference_exercises();
 }
 
-function seed_exercises_for_gym(int $gymId): void
+function seed_reference_exercises(): void
 {
     $pdo = db();
     $stmt = $pdo->prepare(
-        'INSERT INTO exercises (name, category, muscle_group, description, gym_id)
-         SELECT ?, ?, ?, ?, ? FROM DUAL
-         WHERE NOT EXISTS (SELECT 1 FROM exercises WHERE name = ? AND gym_id = ?)'
+        'INSERT INTO exercises (name, category, muscle_group, description)
+         SELECT ?, ?, ?, ? FROM DUAL
+         WHERE NOT EXISTS (SELECT 1 FROM exercises WHERE name = ?)'
     );
     foreach ([
         ['Squat', 'strength', 'legs', 'Compound lower-body lift.'],
@@ -77,8 +74,8 @@ function seed_exercises_for_gym(int $gymId): void
         ['Stair climber', 'cardio', 'legs', 'Continuous stepping cardio.']
     ] as $ex) {
         $stmt->execute([
-            $ex[0], $ex[1], $ex[2], $ex[3], $gymId,
-            $ex[0], $gymId
+            $ex[0], $ex[1], $ex[2], $ex[3],
+            $ex[0]
         ]);
     }
 }

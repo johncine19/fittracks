@@ -21,7 +21,7 @@ function gym_applications_page(): void
             if ($action === 'approve') {
                 $pdo->prepare('UPDATE gyms SET status = "approved" WHERE gym_id = ?')->execute([$gymId]);
                 require_once __DIR__ . '/../../core/seeds.php';
-                seed_exercises_for_gym($gymId);
+                seed_reference_exercises();
                 
                 notify_user((int)$gym['owner_user_id'], 'system', 'Application Approved', "Your gym application for {$gym['gym_name']} has been approved.");
                 Emails::sendGymApplicationApproved($gym['email'], $ownerName, $gym['gym_name']);
