@@ -243,18 +243,25 @@ function messages_page(): void
                             <p>Send a message to start the conversation with <?= $aName ?>.</p>
                         </div>
                     <?php else: ?>
-                        <?php foreach ($rows as $msg):
-                            $isMine = (int) $msg['sender_id'] === (int) $user['user_id'];
-                            $time   = date('g:i A', strtotime($msg['sent_at']));
+                        <?php
+                        $prevSenderId = null;
+                        foreach ($rows as $msg):
+                            $isMine      = (int) $msg['sender_id'] === (int) $user['user_id'];
+                            $time        = date('g:i A', strtotime($msg['sent_at']));
+                            $isSameSender = $prevSenderId === (int) $msg['sender_id'];
+                            $prevSenderId = (int) $msg['sender_id'];
+                            $gap = $isSameSender ? '4px' : '14px';
                         ?>
-                            <div data-msg-id="<?= (int) $msg['message_id'] ?>" style="display: flex; flex-direction: column; max-width: 75%; <?= $isMine ? 'align-self: flex-end; align-items: flex-end;' : 'align-self: flex-start; align-items: flex-start;' ?>">
-                                <?php if (!$isMine): ?>
+                            <div data-msg-id="<?= (int) $msg['message_id'] ?>" data-sender-id="<?= (int) $msg['sender_id'] ?>" style="display: flex; flex-direction: column; max-width: 75%; margin-bottom: <?= $gap ?>; <?= $isMine ? 'align-self: flex-end; align-items: flex-end;' : 'align-self: flex-start; align-items: flex-start;' ?>">
+                                <?php if (!$isMine && !$isSameSender): ?>
                                     <span style="font-size: 0.8rem; color: #3b82f6; margin-bottom: 4px; padding-left: 2px;"><?= h($msg['sender_name']) ?></span>
                                 <?php endif; ?>
                                 <div style="padding: 10px 14px; border-radius: 14px; font-size: 0.95rem; line-height: 1.4; word-break: break-word; <?= $isMine ? 'background: var(--lime); color: #000; border-bottom-right-radius: 4px;' : 'background: var(--surface); color: var(--ink); border-bottom-left-radius: 4px; border: 1px solid var(--line);' ?>">
                                     <?= nl2br(h($msg['message_text'])) ?>
                                 </div>
-                                <span style="font-size: 0.7rem; color: var(--muted); margin-top: 4px;"><?= h($time) ?></span>
+                                <?php if (!$isSameSender || true): // always show time on last bubble – simplified: always show ?>
+                                    <span style="font-size: 0.7rem; color: var(--muted); margin-top: 4px;"><?= h($time) ?></span>
+                                <?php endif; ?>
                             </div>
                         <?php endforeach; ?>
                     <?php endif; ?>
@@ -286,20 +293,33 @@ function messages_page(): void
                     const csrfToken = form.querySelector('[name="csrf_token"]').value;
                     const myId      = <?= (int) $user['user_id'] ?>;
 
-                    // Track highest seen message ID for polling
+                    // Track highest seen message ID and last sender for grouping
                     const allMsgs = chatBox.querySelectorAll('[data-msg-id]');
-                    let lastMsgId = allMsgs.length ? parseInt(allMsgs[allMsgs.length - 1].dataset.msgId) : 0;
+                    let lastMsgId    = allMsgs.length ? parseInt(allMsgs[allMsgs.length - 1].dataset.msgId)    : 0;
+                    let lastSenderId = allMsgs.length ? parseInt(allMsgs[allMsgs.length - 1].dataset.senderId) : null;
 
                     // Scroll to bottom
                     chatBox.scrollTop = chatBox.scrollHeight;
 
-                    function buildBubble(text, timeStr, isMine, senderName, msgId) {
+                    /**
+                     * Build a chat bubble element.
+                     * @param {string}  text
+                     * @param {string}  timeStr   — displayed below the bubble
+                     * @param {boolean} isMine
+                     * @param {string}  senderName — only shown when showName = true
+                     * @param {number}  msgId
+                     * @param {boolean} showName   — false when same sender as previous bubble
+                     * @param {string}  senderId   — stored as data-sender-id for future grouping checks
+                     */
+                    function buildBubble(text, timeStr, isMine, senderName, msgId, showName, senderId) {
                         const wrap = document.createElement('div');
-                        wrap.dataset.msgId = msgId || '';
-                        wrap.style.cssText = `display:flex;flex-direction:column;max-width:75%;${
+                        wrap.dataset.msgId    = msgId   || '';
+                        wrap.dataset.senderId = senderId || (isMine ? myId : '');
+                        const gap = showName ? '14px' : '4px';
+                        wrap.style.cssText = `display:flex;flex-direction:column;max-width:75%;margin-bottom:${gap};${
                             isMine ? 'align-self:flex-end;align-items:flex-end;' : 'align-self:flex-start;align-items:flex-start;'
                         }`;
-                        if (!isMine) {
+                        if (!isMine && showName) {
                             const nameEl = document.createElement('span');
                             nameEl.style.cssText = 'font-size:0.8rem;color:#3b82f6;margin-bottom:4px;padding-left:2px;';
                             nameEl.textContent = senderName;
@@ -326,10 +346,12 @@ function messages_page(): void
                         const text = textarea.value.trim();
                         if (!text) return;
 
-                        // Optimistic UI — no JS clock time, wait for server-confirmed time
-                        const bubble = buildBubble(text, '···', true, '', 0);
+                        // Optimistic UI — group with previous if I was last sender
+                        const isSameAsPrev = lastSenderId === myId;
+                        const bubble = buildBubble(text, '···', true, '', 0, !isSameAsPrev, myId);
                         chatBox.appendChild(bubble);
                         chatBox.scrollTop = chatBox.scrollHeight;
+                        lastSenderId = myId; // update grouping tracker
                         textarea.value = '';
                         textarea.style.height = '';
                         sendBtn.disabled = true;
@@ -350,17 +372,18 @@ function messages_page(): void
                             });
                             const data = await res.json();
                             if (data.success) {
-                                // Replace placeholder with server-accurate time
                                 bubble.dataset.msgId = data.message_id;
                                 lastMsgId = Math.max(lastMsgId, data.message_id);
                                 const timeEl = bubble.querySelector('span:last-child');
                                 if (timeEl) timeEl.textContent = data.sent_at + ' ✓';
                             } else {
                                 bubble.remove();
+                                lastSenderId = null; // reset since bubble was removed
                                 Swal.fire({icon:'error', title:'Error', text: data.error || 'Could not send message.', background:'var(--bg)', color:'var(--ink)'});
                             }
                         } catch (err) {
                             bubble.remove();
+                            lastSenderId = null;
                             Swal.fire({icon:'error', title:'Network Error', text:'Message not sent. Please try again.', background:'var(--bg)', color:'var(--ink)'});
                         } finally {
                             sendBtn.disabled = false;
@@ -378,7 +401,7 @@ function messages_page(): void
 
                     // ── Poll for incoming messages every 4s ──────────────────
                     setInterval(async function() {
-                        if (document.hidden) return; // don't poll when tab is in background
+                        if (document.hidden) return;
                         try {
                             const body = new URLSearchParams({
                                 action: 'poll_messages',
@@ -396,13 +419,17 @@ function messages_page(): void
                             if (data.messages && data.messages.length) {
                                 const wasAtBottom = chatBox.scrollHeight - chatBox.scrollTop - chatBox.clientHeight < 60;
                                 data.messages.forEach(function(m) {
-                                    const isMine = parseInt(m.sender_id) === myId;
-                                    // Skip messages already appended optimistically
+                                    const isMine   = parseInt(m.sender_id) === myId;
+                                    const senderId = parseInt(m.sender_id);
+                                    // Skip messages already rendered (optimistic or duplicate)
                                     if (chatBox.querySelector('[data-msg-id="' + m.message_id + '"]')) return;
+                                    // Format time from DB timestamp (same as PHP template)
                                     const t = new Date(m.sent_at.replace(' ', 'T'));
-                                    const timeStr = t.toLocaleTimeString('en-US', {hour:'numeric', minute:'2-digit'});
-                                    chatBox.appendChild(buildBubble(m.message_text, timeStr, isMine, m.sender_name, m.message_id));
-                                    lastMsgId = Math.max(lastMsgId, parseInt(m.message_id));
+                                    const timeStr = t.toLocaleTimeString([], {hour:'numeric', minute:'2-digit'});
+                                    const showName = senderId !== lastSenderId;
+                                    chatBox.appendChild(buildBubble(m.message_text, timeStr, isMine, m.sender_name, m.message_id, showName, senderId));
+                                    lastMsgId    = Math.max(lastMsgId, parseInt(m.message_id));
+                                    lastSenderId = senderId;
                                 });
                                 if (wasAtBottom) chatBox.scrollTop = chatBox.scrollHeight;
                             }
@@ -410,6 +437,8 @@ function messages_page(): void
                     }, 4000);
                 })();
                 </script>
+
+
             <?php else: ?>
                 <div style="margin: auto; text-align: center; color: var(--muted);">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="48" height="48" style="margin-bottom: 15px; opacity: 0.5;">
