@@ -216,7 +216,7 @@ function profile_page(): void
     $membershipInfo = null;
     if ($is_member && $currentGymId) {
         $membershipInfo = db()->query("
-            SELECT m.*, mp.name as plan_name, mp.duration_days, m.end_date,
+            SELECT m.*, mp.plan_name as plan_name, mp.duration_days, m.end_date,
                    DATEDIFF(m.end_date, CURDATE()) as days_remaining
             FROM memberships m
             JOIN membership_plans mp ON mp.plan_id = m.plan_id
