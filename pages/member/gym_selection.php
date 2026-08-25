@@ -406,7 +406,7 @@ function gym_selection_page(): void
             stroke-linecap: round; stroke-linejoin: round;
         }
 
-        .modal-tabs { display: flex; gap: 4px; margin-top: 14px; }
+        .modal-tabs { display: flex; gap: 4px; margin-top: 14px; flex-wrap: wrap; }
         .modal-tab-btn {
             display: flex; align-items: center; gap: 6px;
             background: transparent;
@@ -515,6 +515,17 @@ function gym_selection_page(): void
         @media (max-width: 560px) {
             .modal-hero { padding: 22px 20px 0; }
             .modal-body-inner { padding: 18px 20px 24px; }
+            .modal-hero-top { flex-direction: column; align-items: flex-start !important; gap: 12px; }
+            .modal-hero-top form, .modal-hero-top button { width: 100%; }
+            .modal-gym-icon { width: 44px; height: 44px; }
+            .modal-hero h2 { font-size: 1.3rem; }
+            .modal-tab-btn { margin-right: 12px; font-size: 0.8rem; }
+            .gym-card { width: 85vw; }
+        }
+
+        @media (max-width: 400px) {
+            .gym-card { width: 90vw; }
+            .panel.gym-select { padding: 32px 16px !important; }
         }
 
         @media (prefers-reduced-motion: reduce) {
