@@ -54,14 +54,15 @@ function gym_selection_page(): void
         .panel.gym-select {
             --font-display: 'Oswald', 'Arial Narrow', sans-serif;
             --font-ui: 'DM Sans', var(--font-sans, system-ui), sans-serif;
-            max-width: none !important;
+            max-width: 100% !important;
             width: 100% !important;
             margin: 0 !important;
             border-radius: 0 !important;
             border-left: none !important;
             border-right: none !important;
             box-sizing: border-box;
-            padding: 48px clamp(20px, 5vw, 72px) !important;
+            padding: 48px clamp(16px, 4vw, 72px) !important;
+            overflow-x: hidden;
         }
         .gym-select, .gym-select input, .gym-select button { font-family: var(--font-ui); }
         .gym-select .gym-hero,
@@ -98,9 +99,11 @@ function gym_selection_page(): void
             font-weight: 700;
             text-transform: uppercase;
             letter-spacing: 0.01em;
-            font-size: clamp(2rem, 4.5vw, 3rem);
-            line-height: 1.05;
+            font-size: clamp(1.75rem, 7vw, 3rem);
+            line-height: 1.1;
             margin: 0 0 12px;
+            word-wrap: break-word;
+            overflow-wrap: break-word;
         }
         .gym-hero h1 mark {
             background: none;
@@ -116,7 +119,7 @@ function gym_selection_page(): void
             background: rgba(199,255,34,0.22);
             z-index: -1;
         }
-        .gym-hero p.sub { color: var(--muted); font-size: 1.05rem; max-width: 560px; margin: 0 auto; }
+        .gym-hero p.sub { color: var(--muted); font-size: 0.95rem; max-width: 560px; margin: 0 auto; padding: 0 10px; }
 
         .pulse-line { display: block; width: 100%; max-width: 460px; height: 30px; margin: 20px auto 4px; opacity: 0.85; }
         .pulse-line path {
@@ -513,6 +516,7 @@ function gym_selection_page(): void
         .plan-card .btn { transition: none; }
 
         @media (max-width: 560px) {
+            .panel.gym-select { padding: 32px 16px !important; }
             .modal-hero { padding: 22px 20px 0; }
             .modal-body-inner { padding: 18px 20px 24px; }
             .modal-hero-top { flex-direction: column; align-items: flex-start !important; gap: 12px; }
@@ -525,7 +529,7 @@ function gym_selection_page(): void
 
         @media (max-width: 400px) {
             .gym-card { width: 90vw; }
-            .panel.gym-select { padding: 32px 16px !important; }
+            .gym-hero h1 { font-size: 1.6rem; }
         }
 
         @media (prefers-reduced-motion: reduce) {
