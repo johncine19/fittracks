@@ -36,7 +36,7 @@ function attendance_page(): void
     }
     $members  = db()->query('SELECT user_id, CONCAT(first_name, " ", last_name, " (", role, ")") AS name FROM users WHERE role IN ("member", "trainer") AND status = "active" ORDER BY role, first_name')->fetchAll();
     $schedules = db()->query('SELECT s.schedule_id, CONCAT(c.class_name, " - ", DATE_FORMAT(s.start_datetime, "%b %d %h:%i %p")) AS label FROM class_schedules s JOIN classes c ON c.class_id = s.class_id WHERE s.start_datetime >= DATE_SUB(NOW(), INTERVAL 1 DAY) ORDER BY s.start_datetime')->fetchAll();
-    $rows     = db()->query('SELECT a.*, CONCAT(u.first_name, " ", u.last_name) AS member, u.first_name, u.last_name, u.role, c.class_name FROM attendance a JOIN users u ON u.user_id = a.user_id LEFT JOIN class_schedules s ON s.schedule_id = a.schedule_id LEFT JOIN classes c ON c.class_id = s.class_id ORDER BY a.check_in_time DESC LIMIT 100')->fetchAll();
+    $rows     = db()->query('SELECT a.*, CONCAT(u.first_name, " ", u.last_name) AS member, u.first_name, u.last_name, u.role, c.class_name FROM attendance a JOIN users u ON u.user_id = a.user_id LEFT JOIN class_schedules s ON s.schedule_id = a.schedule_id LEFT JOIN classes c ON c.class_id = s.class_id ORDER BY u.first_name ASC, u.last_name ASC, a.check_in_time DESC LIMIT 100')->fetchAll();
 
     render_header('Attendance', $user);
     ?>
