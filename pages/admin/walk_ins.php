@@ -89,26 +89,10 @@ function walk_ins_page(): void
         redirect('walk_ins');
     }
 
-    // Handle manual member check-in
-    if ($_SERVER['REQUEST_METHOD'] === 'POST' && post('action') === 'member_checkin') {
-        db()->prepare('INSERT INTO attendance (user_id, schedule_id, check_in_time, check_in_method, recorded_by) VALUES (?, ?, NOW(), "manual", ?)')
-            ->execute([post('user_id'), post('schedule_id') ?: null, $user['user_id']]);
-            
-        $amount = (float) post('amount_paid');
-        if ($amount > 0) {
-            $memberInfo = db()->query('SELECT first_name, last_name, phone FROM users WHERE user_id = ' . (int)post('user_id'))->fetch();
-            $guestName = $memberInfo['first_name'] . ' ' . $memberInfo['last_name'];
-            $contactInfo = $memberInfo['phone'] ?: 'N/A';
-            db()->prepare('INSERT INTO walk_in_transactions (gym_id, guest_name, contact_info, amount_paid, payment_method, visit_date, processed_by, converted_to_member_id) VALUES (?, ?, ?, ?, ?, NOW(), ?, ?)')
-                ->execute([$gymId, $guestName, $contactInfo, $amount, post('payment_method'), $user['user_id'], post('user_id')]);
-        }
-        audit_log($user['user_id'], 'member_checkin', 'walk_in', (string) post('user_id'), json_encode(['amount' => $amount]));
-        flash('Member check-in recorded successfully as attendance.', 'success');
-        redirect('attendance');
-    }
+
 
     // Handle new walk-in recording
-    if ($_SERVER['REQUEST_METHOD'] === 'POST' && post('action') !== 'convert' && post('action') !== 'member_checkin') {
+    if ($_SERVER['REQUEST_METHOD'] === 'POST' && post('action') !== 'convert') {
         $contact_info = preg_replace('/[^0-9]/', '', (string)post('contact_info'));
         if ($contact_info !== '' && strlen($contact_info) !== 11) {
             flash('Phone number must be exactly 11 digits.', 'danger');
@@ -139,19 +123,11 @@ function walk_ins_page(): void
         $query .= ' WHERE w.gym_id = ?';
         $params[] = $gymId;
     }
-    $query .= ' ORDER BY w.visit_date DESC';
+    $query .= ' ORDER BY w.guest_name ASC';
     
     $rows = db()->prepare($query);
     $rows->execute($params);
     $rows = $rows->fetchAll();
-    $activeMembers = db()->query('
-        SELECT u.user_id, CONCAT(u.first_name, " ", u.last_name) AS name,
-               EXISTS(SELECT 1 FROM memberships m WHERE m.user_id = u.user_id AND m.status = "active" AND m.end_date >= CURDATE()) AS has_active_membership
-        FROM users u 
-        WHERE u.role = "member" AND u.status = "active" 
-        ORDER BY u.first_name
-    ')->fetchAll();
-    $todaySchedules = db()->query('SELECT s.schedule_id, CONCAT(c.class_name, " - ", DATE_FORMAT(s.start_datetime, "%h:%i %p")) AS label FROM class_schedules s JOIN classes c ON c.class_id = s.class_id WHERE DATE(s.start_datetime) = CURDATE() ORDER BY s.start_datetime')->fetchAll();
     
     render_header('Walk-in Transactions', $user);
     ?>
@@ -162,92 +138,9 @@ function walk_ins_page(): void
                 <p>Record visits and payments for non-members.</p>
             </div>
             <div style="display: flex; gap: 10px;">
-                <button onclick="document.getElementById('memberCheckInModal').showModal()" class="btn btn-secondary">Member Check-in</button>
                 <button onclick="document.getElementById('recordWalkInModal').showModal()">+ Record Walk-in</button>
             </div>
         </div>
-
-        <dialog id="memberCheckInModal" class="modal">
-            <div class="modal-header">
-                <h3>Member Check-in</h3>
-                <button class="modal-close" onclick="this.closest('dialog').close()" aria-label="Close">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
-                </button>
-            </div>
-            <div class="modal-body">
-                <form method="post" class="form grid-form">
-                    <?= csrf_field() ?>
-                    <input type="hidden" name="action" value="member_checkin">
-                    <label>Member
-                        <select name="user_id" id="member_select" required onchange="handleMemberSelection()">
-                            <option value="" data-has-membership="0">Select a member...</option>
-                            <?php foreach ($activeMembers as $m): ?>
-                                <option value="<?= $m['user_id'] ?>" data-has-membership="<?= $m['has_active_membership'] ? 1 : 0 ?>">
-                                    <?= h($m['name']) ?>
-                                </option>
-                            <?php endforeach; ?>
-                        </select>
-                    </label>
-                    <div id="membership_status_badge" style="margin-bottom: 15px; font-size: 13px; grid-column: 1 / -1; display: none;"></div>
-                    <label>Class Session (Optional)
-                        <select name="schedule_id">
-                            <option value="">None (Gym Visit)</option>
-                            <?php foreach ($todaySchedules as $s): ?>
-                                <option value="<?= $s['schedule_id'] ?>"><?= h($s['label']) ?></option>
-                            <?php endforeach; ?>
-                        </select>
-                    </label>
-                    <div id="payment_fields_container" style="display: contents;">
-                        <label>Amount Paid
-                            <input name="amount_paid" id="amount_paid" type="number" step="0.01" min="0" placeholder="0.00">
-                        </label>
-                        <label>Payment Method
-                            <select name="payment_method" id="payment_method">
-                                <option value="cash">Cash</option>
-                                <option value="gcash">GCash</option>
-                            </select>
-                        </label>
-                    </div>
-                    <button style="grid-column: 1 / -1; margin-top: 10px; background: var(--lime); color: var(--bg);">Record Attendance</button>
-                </form>
-            </div>
-            <script>
-            function handleMemberSelection() {
-                const select = document.getElementById('member_select');
-                const selectedOption = select.options[select.selectedIndex];
-                const hasMembership = selectedOption.getAttribute('data-has-membership') === '1';
-                const badge = document.getElementById('membership_status_badge');
-                const paymentFields = document.getElementById('payment_fields_container');
-                const amountInput = document.getElementById('amount_paid');
-                const paymentMethod = document.getElementById('payment_method');
-
-                if (select.value === '') {
-                    badge.style.display = 'none';
-                    badge.innerHTML = '';
-                    paymentFields.style.display = 'contents';
-                    amountInput.value = '';
-                    amountInput.required = false;
-                    return;
-                }
-
-                badge.style.display = 'block';
-
-                if (hasMembership) {
-                    badge.innerHTML = '<span style="color: var(--lime); font-weight: bold;">✔ Active Membership</span> - No payment required.';
-                    paymentFields.style.display = 'none';
-                    amountInput.value = ''; // Will default to 0 on backend
-                    amountInput.required = false;
-                    paymentMethod.disabled = true;
-                } else {
-                    badge.innerHTML = '<span style="color: var(--danger); font-weight: bold;">⚠ No Active Membership</span> - Walk-in fee required.';
-                    paymentFields.style.display = 'contents';
-                    amountInput.required = true;
-                    paymentMethod.disabled = false;
-                }
-            }
-            </script>
-        </dialog>
-
         <dialog id="recordWalkInModal" class="modal">
             <div class="modal-header">
                 <h3>Record Walk-in</h3>
