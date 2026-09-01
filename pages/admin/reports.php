@@ -507,50 +507,55 @@ function reports_page(): void
     <?php endif; ?>
 
     <script>
-    window.showTab = function(tabId) {
-        document.querySelectorAll('.tab-content').forEach(el => {
-            el.style.display = 'none';
-        });
     const chartsData = <?= $chartsDataJson ?>;
-    let revenueChartInstance, attendanceChartInstance, walkinChartInstance;
+    let revenueChartInstance = null;
+    let attendanceChartInstance = null;
+    let walkinChartInstance = null;
 
-    function showTab(tabId) {
+    window.showTab = function(tabId) {
         document.querySelectorAll('.tab-content').forEach(el => el.style.display = 'none');
         document.querySelectorAll('.report-tab-btn').forEach(el => el.classList.remove('active'));
         document.getElementById(tabId).style.display = 'block';
         document.querySelector(`.report-tab-btn[onclick="showTab('${tabId}')"]`).classList.add('active');
-    }
+    };
 
-    function setTimeframe(type, tf) {
-        document.querySelectorAll(`.tf-btn-${type}`).forEach(el => el.classList.remove('active'));
-        document.getElementById(`tf-${type}-${tf}`).classList.add('active');
+    window.setTimeframe = function(type, timeframe) {
+        document.querySelectorAll('.tf-btn-' + type).forEach(el => el.classList.remove('active'));
+        const btn = document.getElementById('tf-' + type + '-' + timeframe);
+        if (btn) btn.classList.add('active');
 
-        document.querySelectorAll(`[id^="${type}-table-"]`).forEach(el => el.style.display = 'none');
-        document.getElementById(`${type}-table-${tf}`).style.display = 'block';
+        ['daily', 'monthly', 'yearly'].forEach(tf => {
+            const table = document.getElementById(type + '-table-' + tf);
+            if (table) table.style.display = (tf === timeframe) ? 'block' : 'none';
+        });
 
-        const linkCsv = document.getElementById(`btn-export-${type}-csv`);
-        const linkPrint = document.getElementById(`btn-export-${type}-print`);
-        if (linkCsv) linkCsv.href = `index.php?page=reports&type=${type}&timeframe=${tf}&export=csv`;
-        if (linkPrint) linkPrint.href = `index.php?page=reports&type=${type}&timeframe=${tf}&export=print`;
+        const csvBtn = document.getElementById('btn-export-' + type + '-csv');
+        const printBtn = document.getElementById('btn-export-' + type + '-print');
+        if (csvBtn) csvBtn.href = 'index.php?page=reports&type=' + type + '&timeframe=' + timeframe + '&export=csv';
+        if (printBtn) printBtn.href = 'index.php?page=reports&type=' + type + '&timeframe=' + timeframe + '&export=print';
 
-        if (chartsData[type] && chartsData[type][tf]) {
-            if (type === 'revenue') {
-                revenueChartInstance.data.labels = chartsData.revenue[tf].labels;
-                revenueChartInstance.data.datasets[0].data = chartsData.revenue[tf].data;
+        if (chartsData[type] && chartsData[type][timeframe]) {
+            if (type === 'revenue' && revenueChartInstance) {
+                revenueChartInstance.data.labels = chartsData.revenue[timeframe].labels;
+                revenueChartInstance.data.datasets[0].data = chartsData.revenue[timeframe].data;
                 revenueChartInstance.update();
-            } else if (type === 'attendance') {
-                attendanceChartInstance.data.labels = chartsData.attendance[tf].labels;
-                attendanceChartInstance.data.datasets[0].data = chartsData.attendance[tf].data;
+            } else if (type === 'attendance' && attendanceChartInstance) {
+                attendanceChartInstance.data.labels = chartsData.attendance[timeframe].labels;
+                attendanceChartInstance.data.datasets[0].data = chartsData.attendance[timeframe].data;
                 attendanceChartInstance.update();
-            } else if (type === 'walkin') {
-                walkinChartInstance.data.labels = chartsData.walkin[tf].labels;
-                walkinChartInstance.data.datasets[0].data = chartsData.walkin[tf].data;
+            } else if (type === 'walkin' && walkinChartInstance) {
+                walkinChartInstance.data.labels = chartsData.walkin[timeframe].labels;
+                walkinChartInstance.data.datasets[0].data = chartsData.walkin[timeframe].data;
                 walkinChartInstance.update();
             }
         }
     };
 
     document.addEventListener('DOMContentLoaded', function() {
+        document.querySelectorAll('.tab-content').forEach(el => {
+            if(el.id !== 'revenue-tab') el.style.display = 'none';
+        });
+
         if (typeof Chart !== 'undefined') {
             Chart.defaults.color = '#8892b0';
             Chart.defaults.borderColor = 'rgba(255, 255, 255, 0.05)';
