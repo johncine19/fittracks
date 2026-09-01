@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 function setup_goal_page(): void
 {
+    require_once __DIR__ . '/../shared/workouts.php';
     define('AUTH_PAGE', true);
 
     $user = current_user();

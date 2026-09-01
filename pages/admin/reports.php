@@ -113,6 +113,7 @@ function reports_page(): void
                 SELECT DATE(visit_date) AS day, DATE_FORMAT(visit_date, "%Y-%m") AS month, YEAR(visit_date) AS year, amount_paid AS revenue 
                 FROM walk_in_transactions WHERE gym_id = ' . $selectedGymId;
             $attendanceCondition = 'SELECT DATE(check_in_time) AS day, DATE_FORMAT(check_in_time, "%Y-%m") AS month, YEAR(check_in_time) AS year FROM attendance WHERE gym_id = ' . $selectedGymId;
+            $walkinCondition = 'SELECT DATE(visit_date) AS day, DATE_FORMAT(visit_date, "%Y-%m") AS month, YEAR(visit_date) AS year FROM walk_in_transactions WHERE gym_id = ' . $selectedGymId;
             $members = query_all('SELECT DISTINCT u.user_id, u.first_name, u.last_name, u.email, u.profile_picture FROM users u JOIN memberships m ON m.user_id = u.user_id JOIN membership_plans mp ON mp.plan_id = m.plan_id WHERE u.role = "member" AND u.status = "active" AND m.status = "active" AND mp.gym_id = ' . $selectedGymId);
         } else {
             $revenueCondition = '
@@ -123,6 +124,7 @@ function reports_page(): void
                 FROM walk_in_transactions
             ';
             $attendanceCondition = 'SELECT DATE(check_in_time) AS day, DATE_FORMAT(check_in_time, "%Y-%m") AS month, YEAR(check_in_time) AS year FROM attendance';
+            $walkinCondition = 'SELECT DATE(visit_date) AS day, DATE_FORMAT(visit_date, "%Y-%m") AS month, YEAR(visit_date) AS year FROM walk_in_transactions';
             $members = query_all('SELECT user_id, first_name, last_name, email, profile_picture FROM users WHERE role = "member" AND status = "active"');
         }
     } else {
@@ -136,6 +138,7 @@ function reports_page(): void
             SELECT DATE(visit_date) AS day, DATE_FORMAT(visit_date, "%Y-%m") AS month, YEAR(visit_date) AS year, amount_paid AS revenue 
             FROM walk_in_transactions WHERE gym_id = ' . $gymId;
         $attendanceCondition = 'SELECT DATE(check_in_time) AS day, DATE_FORMAT(check_in_time, "%Y-%m") AS month, YEAR(check_in_time) AS year FROM attendance WHERE gym_id = ' . $gymId;
+        $walkinCondition = 'SELECT DATE(visit_date) AS day, DATE_FORMAT(visit_date, "%Y-%m") AS month, YEAR(visit_date) AS year FROM walk_in_transactions WHERE gym_id = ' . $gymId;
         $members = query_all('SELECT DISTINCT u.user_id, u.first_name, u.last_name, u.email, u.profile_picture FROM users u JOIN memberships m ON m.user_id = u.user_id JOIN membership_plans mp ON mp.plan_id = m.plan_id WHERE u.role = "member" AND u.status = "active" AND m.status = "active" AND mp.gym_id = ' . $gymId);
     }
 
@@ -148,6 +151,11 @@ function reports_page(): void
         'daily' => query_all('SELECT day, COUNT(*) AS visits FROM (' . $attendanceCondition . ') AS a GROUP BY day ORDER BY day DESC LIMIT 14'),
         'monthly' => query_all('SELECT month, COUNT(*) AS visits FROM (' . $attendanceCondition . ') AS a GROUP BY month ORDER BY month DESC LIMIT 12'),
         'yearly' => query_all('SELECT year, COUNT(*) AS visits FROM (' . $attendanceCondition . ') AS a GROUP BY year ORDER BY year DESC LIMIT 5')
+    ];
+    $walkin = [
+        'daily' => query_all('SELECT day, COUNT(*) AS visits FROM (' . $walkinCondition . ') AS a GROUP BY day ORDER BY day DESC LIMIT 14'),
+        'monthly' => query_all('SELECT month, COUNT(*) AS visits FROM (' . $walkinCondition . ') AS a GROUP BY month ORDER BY month DESC LIMIT 12'),
+        'yearly' => query_all('SELECT year, COUNT(*) AS visits FROM (' . $walkinCondition . ') AS a GROUP BY year ORDER BY year DESC LIMIT 5')
     ];
     
     // Engagement Analytics
@@ -196,6 +204,7 @@ function reports_page(): void
         $key = ($tf === 'daily') ? 'day' : (($tf === 'monthly') ? 'month' : 'year');
         $revenue[$tf] = $pad_time_series($revenue[$tf], $key, 'revenue', $tf);
         $attendance[$tf] = $pad_time_series($attendance[$tf], $key, 'visits', $tf);
+        $walkin[$tf] = $pad_time_series($walkin[$tf], $key, 'visits', $tf);
 
         foreach ($revenue[$tf] as &$row) {
             if ($tf === 'daily') $row[$key] = date('d-m-Y', strtotime($row[$key]));
@@ -203,6 +212,11 @@ function reports_page(): void
         }
         unset($row);
         foreach ($attendance[$tf] as &$row) {
+            if ($tf === 'daily') $row[$key] = date('d-m-Y', strtotime($row[$key]));
+            elseif ($tf === 'monthly') $row[$key] = date('M Y', strtotime($row[$key] . '-01'));
+        }
+        unset($row);
+        foreach ($walkin[$tf] as &$row) {
             if ($tf === 'daily') $row[$key] = date('d-m-Y', strtotime($row[$key]));
             elseif ($tf === 'monthly') $row[$key] = date('M Y', strtotime($row[$key] . '-01'));
         }
@@ -218,6 +232,7 @@ function reports_page(): void
         if ($type === 'engagement') handle_export($type, $format, $engagementData);
         if ($type === 'revenue') handle_export($type . '_' . $timeframe, $format, $revenue[$timeframe] ?? $revenue['monthly']);
         if ($type === 'attendance') handle_export($type . '_' . $timeframe, $format, $attendance[$timeframe] ?? $attendance['daily']);
+        if ($type === 'walkin') handle_export($type . '_' . $timeframe, $format, $walkin[$timeframe] ?? $walkin['daily']);
     }
 
     $engagementJson = json_encode(array_column($engagementData, 'count'));
@@ -225,7 +240,8 @@ function reports_page(): void
     
     $chartsData = [
         'revenue' => [],
-        'attendance' => []
+        'attendance' => [],
+        'walkin' => []
     ];
     foreach (['daily', 'monthly', 'yearly'] as $tf) {
         $key = ($tf === 'daily') ? 'day' : (($tf === 'monthly') ? 'month' : 'year');
@@ -239,6 +255,12 @@ function reports_page(): void
         $chartsData['attendance'][$tf] = [
             'labels' => array_column($aRev, $key),
             'data' => array_map(fn($a) => (int)$a['visits'], $aRev)
+        ];
+        
+        $wRev = array_reverse($walkin[$tf]);
+        $chartsData['walkin'][$tf] = [
+            'labels' => array_column($wRev, $key),
+            'data' => array_map(fn($a) => (int)$a['visits'], $wRev)
         ];
     }
     $chartsDataJson = json_encode($chartsData);
@@ -324,6 +346,7 @@ function reports_page(): void
     <div class="report-tabs">
         <button class="report-tab-btn active" onclick="showTab('revenue-tab')">Revenue</button>
         <button class="report-tab-btn" onclick="showTab('attendance-tab')">Attendance</button>
+        <button class="report-tab-btn" onclick="showTab('walkin-tab')">Walk-In Attendance</button>
         <button class="report-tab-btn" onclick="showTab('engagement-tab')">Engagement</button>
     </div>
     <?php endif; ?>
@@ -384,6 +407,36 @@ function reports_page(): void
                     <div id="attendance-table-daily" style="display:block;"><?= render_simple_table($attendance['daily'], ['day', 'visits']) ?></div>
                     <div id="attendance-table-monthly" style="display:none;"><?= render_simple_table($attendance['monthly'], ['month', 'visits']) ?></div>
                     <div id="attendance-table-yearly" style="display:none;"><?= render_simple_table($attendance['yearly'], ['year', 'visits']) ?></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Walk-In Tab -->
+    <div id="walkin-tab" class="tab-content animate-fade-in" style="display: none;">
+        <div class="panel" style="border-radius: 16px; padding: 24px;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 20px;">
+                <h2 style="margin:0;">Walk-In Attendance Analytics</h2>
+                <div style="display: flex; gap: 8px;">
+                    <a href="index.php?page=reports&type=walkin&timeframe=daily&export=csv" id="btn-export-walkin-csv" class="btn" style="background: transparent; border: 1px solid var(--line); color: var(--ink);">Export CSV</a>
+                    <a href="index.php?page=reports&type=walkin&timeframe=daily&export=print" id="btn-export-walkin-print" target="_blank" class="btn" style="background: transparent; border: 1px solid var(--line); color: var(--ink);">Print / PDF</a>
+                </div>
+            </div>
+
+            <div style="margin-bottom: 24px; display: flex; gap: 8px; background: var(--surface); padding: 6px; border-radius: 8px; width: fit-content;">
+                <button class="tf-btn tf-btn-walkin active" onclick="setTimeframe('walkin', 'daily')" id="tf-walkin-daily">Daily</button>
+                <button class="tf-btn tf-btn-walkin" onclick="setTimeframe('walkin', 'monthly')" id="tf-walkin-monthly">Monthly</button>
+                <button class="tf-btn tf-btn-walkin" onclick="setTimeframe('walkin', 'yearly')" id="tf-walkin-yearly">Yearly</button>
+            </div>
+
+            <div class="dash-grid" style="grid-template-columns: 2fr 1fr; gap: 24px; align-items: start;">
+                <div class="chart-canvas" style="min-height: 350px;">
+                    <canvas id="walkinChart"></canvas>
+                </div>
+                <div class="table-wrap" style="max-height: 400px; overflow-y: auto; border: 1px solid var(--line); border-radius: 8px;">
+                    <div id="walkin-table-daily" style="display:block;"><?= render_simple_table($walkin['daily'], ['day', 'visits']) ?></div>
+                    <div id="walkin-table-monthly" style="display:none;"><?= render_simple_table($walkin['monthly'], ['month', 'visits']) ?></div>
+                    <div id="walkin-table-yearly" style="display:none;"><?= render_simple_table($walkin['yearly'], ['year', 'visits']) ?></div>
                 </div>
             </div>
         </div>
@@ -458,40 +511,42 @@ function reports_page(): void
         document.querySelectorAll('.tab-content').forEach(el => {
             el.style.display = 'none';
         });
-        document.querySelectorAll('.report-tab-btn').forEach(el => el.classList.remove('active'));
-        
-        document.getElementById(tabId).style.display = 'block';
-        document.querySelector(`button[onclick="showTab('\${tabId}')"]`).classList.add('active');
-    };
-    
     const chartsData = <?= $chartsDataJson ?>;
-    let revenueChartInstance = null;
-    let attendanceChartInstance = null;
+    let revenueChartInstance, attendanceChartInstance, walkinChartInstance;
 
-    window.setTimeframe = function(type, timeframe) {
-        document.querySelectorAll('.tf-btn-' + type).forEach(el => el.classList.remove('active'));
-        const btn = document.getElementById('tf-' + type + '-' + timeframe);
-        if (btn) btn.classList.add('active');
+    function showTab(tabId) {
+        document.querySelectorAll('.tab-content').forEach(el => el.style.display = 'none');
+        document.querySelectorAll('.report-tab-btn').forEach(el => el.classList.remove('active'));
+        document.getElementById(tabId).style.display = 'block';
+        document.querySelector(`.report-tab-btn[onclick="showTab('${tabId}')"]`).classList.add('active');
+    }
 
-        ['daily', 'monthly', 'yearly'].forEach(tf => {
-            const table = document.getElementById(type + '-table-' + tf);
-            if (table) table.style.display = (tf === timeframe) ? 'block' : 'none';
-        });
+    function setTimeframe(type, tf) {
+        document.querySelectorAll(`.tf-btn-${type}`).forEach(el => el.classList.remove('active'));
+        document.getElementById(`tf-${type}-${tf}`).classList.add('active');
 
-        const csvBtn = document.getElementById('btn-export-' + type + '-csv');
-        const printBtn = document.getElementById('btn-export-' + type + '-print');
-        if (csvBtn) csvBtn.href = 'index.php?page=reports&type=' + type + '&timeframe=' + timeframe + '&export=csv';
-        if (printBtn) printBtn.href = 'index.php?page=reports&type=' + type + '&timeframe=' + timeframe + '&export=print';
+        document.querySelectorAll(`[id^="${type}-table-"]`).forEach(el => el.style.display = 'none');
+        document.getElementById(`${type}-table-${tf}`).style.display = 'block';
 
-        if (type === 'revenue' && revenueChartInstance) {
-            revenueChartInstance.data.labels = chartsData.revenue[timeframe].labels;
-            revenueChartInstance.data.datasets[0].data = chartsData.revenue[timeframe].data;
-            revenueChartInstance.update();
-        }
-        if (type === 'attendance' && attendanceChartInstance) {
-            attendanceChartInstance.data.labels = chartsData.attendance[timeframe].labels;
-            attendanceChartInstance.data.datasets[0].data = chartsData.attendance[timeframe].data;
-            attendanceChartInstance.update();
+        const linkCsv = document.getElementById(`btn-export-${type}-csv`);
+        const linkPrint = document.getElementById(`btn-export-${type}-print`);
+        if (linkCsv) linkCsv.href = `index.php?page=reports&type=${type}&timeframe=${tf}&export=csv`;
+        if (linkPrint) linkPrint.href = `index.php?page=reports&type=${type}&timeframe=${tf}&export=print`;
+
+        if (chartsData[type] && chartsData[type][tf]) {
+            if (type === 'revenue') {
+                revenueChartInstance.data.labels = chartsData.revenue[tf].labels;
+                revenueChartInstance.data.datasets[0].data = chartsData.revenue[tf].data;
+                revenueChartInstance.update();
+            } else if (type === 'attendance') {
+                attendanceChartInstance.data.labels = chartsData.attendance[tf].labels;
+                attendanceChartInstance.data.datasets[0].data = chartsData.attendance[tf].data;
+                attendanceChartInstance.update();
+            } else if (type === 'walkin') {
+                walkinChartInstance.data.labels = chartsData.walkin[tf].labels;
+                walkinChartInstance.data.datasets[0].data = chartsData.walkin[tf].data;
+                walkinChartInstance.update();
+            }
         }
     };
 
@@ -581,6 +636,39 @@ function reports_page(): void
                     plugins: { 
                         legend: { display: false },
                         tooltip: { backgroundColor: '#16181d', titleColor: '#fff', bodyColor: '#8b5cf6', padding: 12, borderColor: 'rgba(139,92,246,0.2)', borderWidth: 1 }
+                    } 
+                }
+            });
+
+            walkinChartInstance = new Chart(document.getElementById('walkinChart'), {
+                type: 'line',
+                data: {
+                    labels: chartsData.walkin.daily.labels,
+                    datasets: [{
+                        label: 'Walk-In Visits',
+                        data: chartsData.walkin.daily.data,
+                        borderColor: '#0ea5e9',
+                        backgroundColor: 'rgba(14, 165, 233, 0.1)',
+                        fill: true,
+                        tension: 0.4,
+                        borderWidth: 3,
+                        pointBackgroundColor: '#16181d',
+                        pointBorderColor: '#0ea5e9',
+                        pointBorderWidth: 2,
+                        pointRadius: 4,
+                        pointHoverRadius: 6
+                    }]
+                },
+                options: { 
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: { 
+                        y: { beginAtZero: true, grid: { color: 'rgba(255,255,255,0.05)' } },
+                        x: { grid: { display: false } }
+                    }, 
+                    plugins: { 
+                        legend: { display: false },
+                        tooltip: { backgroundColor: '#16181d', titleColor: '#fff', bodyColor: '#0ea5e9', padding: 12, borderColor: 'rgba(14,165,233,0.2)', borderWidth: 1 }
                     } 
                 }
             });
