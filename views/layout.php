@@ -89,13 +89,8 @@ function render_header(string $title, ?array $user = null): void
         <?php endif; ?>
         <script>
             (function() {
-                const isAuth = <?= $isAuthPage ? 'true' : 'false' ?>;
-                if (isAuth) {
-                    document.documentElement.setAttribute('data-theme', 'dark');
-                } else {
-                    const saved = localStorage.getItem('fittracks_theme');
-                    if (saved === 'light') document.documentElement.setAttribute('data-theme', 'light');
-                }
+                const saved = localStorage.getItem('fittracks_theme') || 'light';
+                document.documentElement.setAttribute('data-theme', saved);
             })();
         </script>
         <script src="https://cdn.jsdelivr.net/npm/chart.js" defer></script>
@@ -355,10 +350,10 @@ HTML;
         btn.innerHTML = theme === 'light' ? ICONS.light : ICONS.dark;
         btn.title = theme === 'light' ? 'Switch to Dark Mode' : 'Switch to Light Mode';
     }
-    const saved = localStorage.getItem('fittracks_theme') || 'dark';
+    const saved = localStorage.getItem('fittracks_theme') || 'light';
     applyTheme(saved);
     btn.addEventListener('click', function() {
-        const current = document.documentElement.getAttribute('data-theme') || 'dark';
+        const current = document.documentElement.getAttribute('data-theme') || 'light';
         applyTheme(current === 'dark' ? 'light' : 'dark');
     });
 })();
