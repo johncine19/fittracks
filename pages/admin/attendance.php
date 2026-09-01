@@ -13,6 +13,15 @@ function attendance_page(): void
             $userId = post('user_id');
             $scheduleId = post('schedule_id') ?: null;
             
+            // Prevent duplicate check-ins
+            $activeCheckin = db()->prepare('SELECT attendance_id FROM attendance WHERE user_id = ? AND check_out_time IS NULL');
+            $activeCheckin->execute([$userId]);
+            if ($activeCheckin->fetchColumn()) {
+                flash('User is already checked in and must check out first.', 'error');
+                redirect('attendance');
+                return;
+            }
+            
             db()->prepare('INSERT INTO attendance (user_id, schedule_id, check_in_time, check_in_method, recorded_by) VALUES (?, ?, NOW(), ?, ?)')->execute([$userId, $scheduleId, post('check_in_method'), $user['user_id']]);
             
             if ($scheduleId) {
