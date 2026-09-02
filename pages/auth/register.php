@@ -111,13 +111,14 @@ function handle_register(): void
                 
                 <div class="auth-field" style="margin-bottom: 20px;">
                     <label>I AM A:</label>
+                    <?php $isGymOwner = (isset($_GET['role']) && $_GET['role'] === 'gym_owner'); ?>
                     <div style="display: flex; gap: 20px; margin-top: 10px;">
                         <label style="display: flex; align-items: center; gap: 5px; cursor: pointer; text-transform: none; letter-spacing: normal;">
-                            <input type="radio" name="account_type" value="member" checked onchange="toggleGymFields()">
+                            <input type="radio" name="account_type" value="member" <?= !$isGymOwner ? 'checked' : '' ?> onchange="toggleGymFields()">
                             Member
                         </label>
                         <label style="display: flex; align-items: center; gap: 5px; cursor: pointer; text-transform: none; letter-spacing: normal;">
-                            <input type="radio" name="account_type" value="gym_owner" onchange="toggleGymFields()">
+                            <input type="radio" name="account_type" value="gym_owner" <?= $isGymOwner ? 'checked' : '' ?> onchange="toggleGymFields()">
                             Gym Owner
                         </label>
                     </div>

@@ -5,8 +5,17 @@ function admin_dashboard(PDO $pdo, array $user): void
 {
     $isPlatformAdmin = $user['role'] === 'platform_admin';
     $gymId = null;
+    $subPlan = 'Professional';
+    $subStatus = 'active';
+    $subRenewal = 'N/A';
     if (!$isPlatformAdmin) {
-        $gymId = (int) scalar('SELECT gym_id FROM gyms WHERE owner_user_id = ?', [$user['user_id']]);
+        $gymRow = $pdo->query('SELECT gym_id, subscription_plan, subscription_status, subscription_renewal_date FROM gyms WHERE owner_user_id = ' . (int)$user['user_id'])->fetch(PDO::FETCH_ASSOC);
+        if ($gymRow) {
+            $gymId = (int) $gymRow['gym_id'];
+            $subPlan = $gymRow['subscription_plan'] ?: 'Professional';
+            $subStatus = $gymRow['subscription_status'] ?: 'active';
+            $subRenewal = $gymRow['subscription_renewal_date'] ? date('M j, Y', strtotime($gymRow['subscription_renewal_date'])) : 'N/A';
+        }
     }
 
     if ($isPlatformAdmin) {
@@ -150,6 +159,49 @@ function admin_dashboard(PDO $pdo, array $user): void
         window.apexDashboardCharts = <?= json_encode($chartPayload, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT) ?>;
     </script>
     <script src="assets/dashboard-charts.js" defer></script>
+    <?php if (!$isPlatformAdmin): 
+        $platformFee = $revenue * 0.01;
+        $netRevenue = $revenue - $platformFee;
+    ?>
+    <section class="dash-grid chart-row" style="margin-bottom: 24px;">
+        <article class="panel">
+            <h2>Subscription</h2>
+            <div style="margin-top: 16px;">
+                <h3 style="margin: 0; font-size: 18px;"><?= h($subPlan) ?> Plan</h3>
+                <p style="color: var(--muted); margin: 4px 0 16px;">
+                    <?php if (strtolower($subPlan) === 'starter') echo '₱499 / month'; ?>
+                    <?php if (strtolower($subPlan) === 'professional') echo '₱999 / month'; ?>
+                    <?php if (strtolower($subPlan) === 'business') echo '₱1,999 / month'; ?>
+                </p>
+                <div style="display:flex; gap:12px; align-items:center; margin-bottom: 16px;">
+                    <span class="badge" style="background: color-mix(in srgb, var(--teal) 15%, transparent); color: var(--teal);"><?= h(ucfirst($subStatus)) ?></span>
+                    <small style="color: var(--muted);">Renews on <?= h($subRenewal) ?></small>
+                </div>
+                <a href="#" class="btn btn-primary" style="width: 100%; text-align: center;">Manage Subscription</a>
+            </div>
+        </article>
+        <article class="panel">
+            <h2>Platform Earnings / Fees</h2>
+            <div style="margin-top: 16px;">
+                <div style="display:flex; justify-content:space-between; margin-bottom: 12px; padding-bottom: 12px; border-bottom: 1px solid var(--line);">
+                    <span style="color: var(--muted);">Total Revenue This Month:</span>
+                    <strong><?= money($revenue) ?></strong>
+                </div>
+                <div style="display:flex; justify-content:space-between; margin-bottom: 12px; padding-bottom: 12px; border-bottom: 1px solid var(--line);">
+                    <span style="color: var(--danger);">Transaction Fees (1%):</span>
+                    <strong style="color: var(--danger);">-<?= money($platformFee) ?></strong>
+                </div>
+                <div style="display:flex; justify-content:space-between; font-size: 18px;">
+                    <span>Gym Net Amount:</span>
+                    <strong style="color: var(--teal);"><?= money($netRevenue) ?></strong>
+                </div>
+                <p style="font-size: 12px; color: var(--muted); margin-top: 16px; line-height: 1.4;">
+                    FitTrack platform fees are calculated as 1% of your total recorded revenue (both online and cash).
+                </p>
+            </div>
+        </article>
+    </section>
+    <?php endif; ?>
     <div class="skeleton-wrapper"><section class="dash-grid lower-row" style="margin-top:24px">
         <div class="sk-card"><div class="sk sk-title" style="width:130px;margin-bottom:14px"></div><div class="list-stack" style="gap:10px"><?php for($s=0;$s<4;$s++): ?><div class="sk-list-item"><div class="sk" style="width:8px;height:8px;border-radius:50%"></div><div class="sk-list-item-lines"><div class="sk sk-text medium" style="margin:0"></div><div class="sk sk-text short" style="margin:0;height:11px"></div></div><div class="sk sk-text" style="width:40px;margin:0;height:11px"></div></div><?php endfor; ?></div></div>
         <div class="sk-card"><div class="sk sk-title" style="width:130px;margin-bottom:14px"></div><div class="list-stack" style="gap:10px"><?php for($s=0;$s<4;$s++): ?><div class="sk-list-item"><div class="sk sk-circle"></div><div class="sk-list-item-lines"><div class="sk sk-text medium" style="margin:0"></div><div class="sk sk-text short" style="margin:0;height:11px"></div></div><div class="sk sk-text" style="width:60px;margin:0;height:11px"></div></div><?php endfor; ?></div></div>

@@ -25,6 +25,9 @@ function gyms_page(): void
                 ->execute([$gymId]);
             $pdo->commit();
             flash('Gym reactivated.', 'success');
+        } elseif ($action === 'delete') {
+            $pdo->prepare('DELETE FROM gyms WHERE gym_id = ?')->execute([$gymId]);
+            flash('Gym deleted successfully.', 'success');
         }
         redirect('gyms');
     }
@@ -88,8 +91,13 @@ function gyms_page(): void
                                             <input type="hidden" name="gym_id" value="<?= (int) $gym['gym_id'] ?>">
                                             <input type="hidden" name="action" value="reactivate">
                                             <button type="submit" class="btn-sm btn-primary" data-confirm="Reactivate this gym?">Reactivate</button>
-                                        </form>
                                     <?php endif; ?>
+                                    <form method="post" action="index.php?page=gyms" style="margin:0;">
+                                        <?= csrf_field() ?>
+                                        <input type="hidden" name="gym_id" value="<?= (int) $gym['gym_id'] ?>">
+                                        <input type="hidden" name="action" value="delete">
+                                        <button type="submit" class="btn-sm btn-secondary" style="color:var(--danger); border-color:var(--danger);" data-confirm="Are you sure you want to permanently delete this gym? This cannot be undone.">Delete</button>
+                                    </form>
                                 </div>
                             </td>
                         </tr>

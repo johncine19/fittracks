@@ -337,6 +337,9 @@ CREATE TABLE `gyms` (
   `valid_id_url` varchar(255) DEFAULT NULL,
   `logo_url` varchar(255) DEFAULT NULL,
   `brand_color` varchar(20) DEFAULT '#c7ff22',
+  `subscription_plan` varchar(50) DEFAULT 'Professional',
+  `subscription_status` varchar(20) DEFAULT 'active',
+  `subscription_renewal_date` date DEFAULT NULL,
   `status` enum('pending','approved','rejected','suspended') NOT NULL DEFAULT 'pending',
   `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
