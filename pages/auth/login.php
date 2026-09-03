@@ -64,8 +64,8 @@ function handle_login(): void
                 redirect('login');
             }
 
-            // Block unverified members and gym owners from accessing the app
-            if (in_array($user['role'], ['member', 'gym_owner'], true) && empty($user['email_verified_at'])) {
+            // Block unverified members from accessing the app
+            if ($user['role'] === 'member' && empty($user['email_verified_at'])) {
                 $_SESSION['pending_verify_uid'] = (int) $user['user_id'];
                 flash('Please verify your email address before signing in. Check your inbox or use the resend option below.', 'danger');
                 redirect('login');

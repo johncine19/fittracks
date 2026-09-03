@@ -110,6 +110,17 @@ function render_header(string $title, ?array $user = null): void
         /* Ensure links inside SweetAlert toasts are always clickable */
         .swal2-toast .swal2-html-container { pointer-events: auto !important; }
         .swal2-toast a { pointer-events: auto !important; position: relative; z-index: 2; }
+
+        /* Disable native browser password reveal icon (Microsoft Edge / Chromium) to prevent duplicate eye icons */
+        input[type="password"]::-ms-reveal,
+        input[type="password"]::-ms-clear,
+        input::-ms-reveal,
+        input::-ms-clear {
+            display: none !important;
+            width: 0 !important;
+            height: 0 !important;
+            pointer-events: none !important;
+        }
     </style>
 
     <?php if ($flash): ?>
@@ -288,7 +299,7 @@ function render_header(string $title, ?array $user = null): void
                     </div>
                 </header>
                 <main class="shell">
-                    <?php if ($user && array_key_exists('email_verified_at', $user) && !$user['email_verified_at']): ?>
+                    <?php if ($user && $user['role'] === 'member' && array_key_exists('email_verified_at', $user) && !$user['email_verified_at']): ?>
                         <div class="panel" style="margin-bottom:16px;padding:12px 16px;display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:10px;border-left:3px solid var(--lime,#ccff00);">
                             <span>Please verify your email address (<?= h($user['email']) ?>) to secure your account.</span>
                             <form method="post" action="index.php?page=verify_email" style="margin:0;">

@@ -7,20 +7,20 @@ function handle_register(): void
     if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $validator = new Validator();
         $rules = [
-            'account_type' => 'required',
-            'first_name' => 'required|min:1|max:100',
-            'last_name'  => 'required|min:1|max:100',
-            'email'      => 'required|email|max:255',
-            'password'   => 'required|min:8',
+            'account_type'     => 'required',
+            'first_name'       => 'required|min:1|max:100',
+            'last_name'        => 'required|min:1|max:100',
+            'email'            => 'required|email|max:255',
+            'password'         => 'required|min:8',
+            'confirm_password' => 'required',
         ];
-
-        if (post('account_type') === 'gym_owner') {
-            // Gym owners will fill these out in the onboarding wizard
-        }
 
         $valid = $validator->validate($_POST, $rules);
 
-        if ($valid && empty($_POST['agree_terms'])) {
+        if ($valid && (string) post('password') !== (string) post('confirm_password')) {
+            $valid = false;
+            flash('Passwords do not match. Please re-enter your password.', 'danger');
+        } elseif ($valid && empty($_POST['agree_terms'])) {
             $valid = false;
             flash('You must agree to the Terms of Service and Privacy Policy to create an account.', 'danger');
         } elseif ($valid && !is_acceptable_password((string) post('password'))) {
@@ -58,9 +58,12 @@ function handle_register(): void
                 $firstName = mb_convert_case(trim((string) post('first_name')), MB_CASE_TITLE, 'UTF-8');
                 $lastName  = mb_convert_case(trim((string) post('last_name')), MB_CASE_TITLE, 'UTF-8');
 
+                // Gym owners proceed directly to gym onboarding and are marked verified immediately
+                $emailVerifiedAt = ($role === 'gym_owner') ? date('Y-m-d H:i:s') : null;
+
                 $stmt = $pdo->prepare(
-                    'INSERT INTO users (role, first_name, last_name, email, password_hash, phone, status)
-                     VALUES (?, ?, ?, ?, ?, ?, "active")'
+                    'INSERT INTO users (role, first_name, last_name, email, password_hash, phone, status, email_verified_at)
+                     VALUES (?, ?, ?, ?, ?, ?, "active", ?)'
                 );
                 $stmt->execute([
                     $role,
@@ -69,20 +72,25 @@ function handle_register(): void
                     trim((string) post('email')),
                     password_hash((string) post('password'), PASSWORD_DEFAULT),
                     $phone ?: null,
+                    $emailVerifiedAt,
                 ]);
                 $userId = (int) $pdo->lastInsertId();
 
-                if ($role === 'gym_owner') {
-                    // Gym creation is deferred to the onboarding wizard
-                }
-
                 $pdo->commit();
 
+                // If gym owner, log in and proceed straight into the gym onboarding wizard
                 if ($role === 'gym_owner') {
-                    flash('Registration successful! Please check your email to verify your account before logging in to set up your gym.', 'success');
-                } else {
-                    flash('Registration successful! Please check your email to verify your account.', 'success');
+                    session_regenerate_id(true);
+                    $_SESSION['user_id'] = $userId;
+                    unset($_SESSION['pending_verify_uid']);
+
+                    flash('Welcome to FitTrack! Let\'s set up your gym facility profile.', 'success');
+                    redirect('gym_onboarding');
+                    return;
                 }
+
+                // Member flow: Send verification email before login
+                flash('Registration successful! Please check your email to verify your account.', 'success');
 
                 // Send a verification email. Login is blocked until the member verifies.
                 $emailSent = false;
@@ -113,7 +121,7 @@ function handle_register(): void
                 <h1 class="auth-title">FITTRACKS</h1>
                 <p class="auth-subtitle">Create your account</p>
             </div>
-            <form method="post" class="auth-form" enctype="multipart/form-data" novalidate onsubmit="const btn = this.querySelector('button[type=submit]'); btn.disabled = true; btn.innerHTML = '<span class=\'loader\' style=\'width:16px;height:16px;border:2px solid var(--bg);border-bottom-color:transparent;border-radius:50%;display:inline-block;box-sizing:border-box;animation:rotation 1s linear infinite;margin-right:8px;\'></span> CREATING ACCOUNT...';">
+            <form method="post" class="auth-form" novalidate onsubmit="const btn = this.querySelector('button[type=submit]'); btn.disabled = true; btn.innerHTML = '<span class=\'loader\' style=\'width:16px;height:16px;border:2px solid var(--bg);border-bottom-color:transparent;border-radius:50%;display:inline-block;box-sizing:border-box;animation:rotation 1s linear infinite;margin-right:8px;\'></span> CREATING ACCOUNT...';">
                 <?= csrf_field() ?>
                 
                 <div class="auth-field" style="margin-bottom: 20px;">
@@ -121,21 +129,15 @@ function handle_register(): void
                     <?php $isGymOwner = (isset($_GET['role']) && $_GET['role'] === 'gym_owner'); ?>
                     <div style="display: flex; gap: 20px; margin-top: 10px;">
                         <label style="display: flex; align-items: center; gap: 5px; cursor: pointer; text-transform: none; letter-spacing: normal;">
-                            <input type="radio" name="account_type" value="member" <?= !$isGymOwner ? 'checked' : '' ?> onchange="toggleGymFields()">
+                            <input type="radio" name="account_type" value="member" <?= !$isGymOwner ? 'checked' : '' ?>>
                             Member
                         </label>
                         <label style="display: flex; align-items: center; gap: 5px; cursor: pointer; text-transform: none; letter-spacing: normal;">
-                            <input type="radio" name="account_type" value="gym_owner" <?= $isGymOwner ? 'checked' : '' ?> onchange="toggleGymFields()">
+                            <input type="radio" name="account_type" value="gym_owner" <?= $isGymOwner ? 'checked' : '' ?>>
                             Gym Owner
                         </label>
                     </div>
                 </div>
-
-                <script>
-                    function toggleGymFields() {
-                        // Registration is now streamlined. Gym owners will complete setup in the onboarding wizard.
-                    }
-                </script>
 
                 <div class="auth-form-row">
                     <div class="auth-field">
@@ -193,7 +195,7 @@ function handle_register(): void
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
                         <input type="password" name="password" id="register_password" required minlength="8"
                                placeholder="Min. 8 characters, with a letter and a number"
-                               oninput="checkPasswordStrength(this.value)">
+                               oninput="checkPasswordStrength(this.value); checkPasswordMatch();">
                     </div>
                 </div>
 
@@ -205,6 +207,17 @@ function handle_register(): void
                         <div id="pw-str-4" style="height: 4px; flex: 1; border-radius: 2px; background: var(--line);"></div>
                     </div>
                     <p id="pw-str-text" class="muted" style="font-size:12px;margin:0;">Must include at least one letter and one number.</p>
+                </div>
+
+                <div class="auth-field">
+                    <label>CONFIRM PASSWORD</label>
+                    <div class="auth-input-group">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
+                        <input type="password" name="confirm_password" id="register_confirm_password" required minlength="8"
+                               placeholder="Re-enter your password"
+                               oninput="checkPasswordMatch();">
+                    </div>
+                    <p id="pw-match-text" class="muted" style="font-size:12px;margin:4px 0 0;display:none;"></p>
                 </div>
 
                 <div class="auth-field" style="margin-top: 14px; margin-bottom: 20px;">
@@ -264,6 +277,35 @@ function handle_register(): void
             input.setCustomValidity('Password is too weak. Please follow the guidelines.');
         } else {
             input.setCustomValidity('');
+        }
+    }
+
+    function checkPasswordMatch() {
+        const pw = document.getElementById('register_password');
+        const cpw = document.getElementById('register_confirm_password');
+        const matchText = document.getElementById('pw-match-text');
+        if (!cpw || !pw) return;
+
+        if (cpw.value === '') {
+            cpw.setCustomValidity('');
+            if (matchText) matchText.style.display = 'none';
+            return;
+        }
+
+        if (cpw.value !== pw.value) {
+            cpw.setCustomValidity('Passwords do not match.');
+            if (matchText) {
+                matchText.style.display = 'block';
+                matchText.style.color = '#ff4d5d';
+                matchText.textContent = 'Passwords do not match.';
+            }
+        } else {
+            cpw.setCustomValidity('');
+            if (matchText) {
+                matchText.style.display = 'block';
+                matchText.style.color = 'var(--lime)';
+                matchText.textContent = '✓ Passwords match';
+            }
         }
     }
     </script>
