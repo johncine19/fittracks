@@ -2669,28 +2669,44 @@ body.loaded .skeleton-content.sk-display-flex {
 }
 
 /* ==========================================================================
-   Split-Screen Modern Login-page Showcase
+   Split-Screen Modern Login-page Showcase & Subscription Flow
    ========================================================================== */
-body:has(.split-login-viewport) {
+body:has(.split-login-viewport),
+body:has(.subscription-viewport) {
     background-color: #07090d !important;
     background-image: none !important;
     overflow-x: hidden !important;
 }
 
-.split-login-viewport {
+body:has(.subscription-viewport) .auth-shell {
+    width: 100% !important;
+    max-width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    min-height: 100vh !important;
+    min-height: 100dvh !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+}
+
+.split-login-viewport,
+.subscription-viewport {
     min-height: 100vh;
     min-height: 100dvh;
     display: flex;
     align-items: center;
     justify-content: center;
-    padding: 30px 16px;
+    padding: 40px 16px;
     width: 100%;
     position: relative;
-    overflow: hidden;
+    overflow-x: hidden;
+    box-sizing: border-box;
 }
 
 /* Full-bleed fixed background layer extending 110% to eliminate edge vignetting */
-.split-login-viewport::before {
+.split-login-viewport::before,
+.subscription-viewport::before {
     content: '';
     position: fixed;
     top: -5vh;
@@ -2698,8 +2714,8 @@ body:has(.split-login-viewport) {
     width: 110vw;
     height: 110vh;
     background-image: 
-        radial-gradient(ellipse at 50% 50%, rgba(132, 204, 22, 0.1) 0%, transparent 65%),
-        linear-gradient(180deg, rgba(7, 9, 13, 0.65) 0%, rgba(9, 12, 18, 0.75) 100%),
+        radial-gradient(ellipse at 50% 50%, rgba(132, 204, 22, 0.12) 0%, transparent 65%),
+        linear-gradient(180deg, rgba(7, 9, 13, 0.70) 0%, rgba(9, 12, 18, 0.80) 100%),
         url('images/loginback.png?v=3');
     background-size: cover;
     background-position: center center;

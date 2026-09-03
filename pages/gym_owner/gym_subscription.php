@@ -25,7 +25,7 @@ function gym_subscription_page(): void
 
     $plans = get_platform_subscription_plans();
 
-    if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         verify_csrf();
         $selectedKey = strtolower(trim((string) post('plan_key')));
         $paymentMethod = trim((string) post('payment_method')) ?: 'gcash';
@@ -113,74 +113,76 @@ function gym_subscription_page(): void
     $currentPlan = strtolower((string)($gym['subscription_plan'] ?? ''));
     $hasActiveSub = ($gym['subscription_status'] === 'active' && !empty($gym['subscription_plan']));
     ?>
-    <section style="padding: 40px 20px; max-width: 1200px; margin: 0 auto;">
-        <div style="text-align: center; margin-bottom: 40px;">
-            <a class="brand" href="index.php" style="margin-bottom: 20px; display: inline-flex; align-items: center; gap: 10px; text-decoration: none;">
-                <div style="width:36px;height:36px;background:var(--lime, #22c55e);border-radius:6px;display:flex;align-items:center;justify-content:center;color:#0b110e;font-weight:900;font-size:18px;">FT</div>
-                <span style="font-weight:700;font-size:1.4rem;line-height:1;letter-spacing:-0.2px;color:var(--ink, #fff);">FitTrack</span>
-            </a>
-            <h1 style="font-size: 2.4rem; font-weight: 800; margin: 10px 0; color: #fff; letter-spacing: -0.5px;">
-                Choose Your Subscription Plan
-            </h1>
-            <p style="color: var(--muted, #94a3b8); font-size: 1.1rem; max-width: 600px; margin: 0 auto; line-height: 1.5;">
-                Select the plan that fits your gym operations. You can upgrade, downgrade, or renew at any time.
-            </p>
-        </div>
-
-        <div class="pricing-grid">
-            <?php foreach ($plans as $key => $plan): 
-                $isPopular = $plan['popular'];
-                $isCurrent = ($hasActiveSub && $currentPlan === $key);
-            ?>
-                <div class="pricing-card <?= $isPopular ? 'popular' : '' ?>">
-                    <?php if ($isPopular): ?>
-                        <div class="popular-badge">MOST POPULAR</div>
-                    <?php endif; ?>
-
-                    <h2 class="pricing-title <?= $isPopular ? 'popular-title' : '' ?>">
-                        <?= h($plan['name']) ?>
-                        <?php if ($isCurrent): ?>
-                            <span class="current-badge">CURRENT</span>
-                        <?php endif; ?>
-                    </h2>
-                    <p class="pricing-desc"><?= h($plan['desc']) ?></p>
-
-                    <div class="pricing-price">
-                        <span class="amount"><?= h($plan['price_label']) ?></span>
-                        <span class="period">/mo</span>
-                    </div>
-
-                    <ul class="pricing-features">
-                        <?php foreach ($plan['features'] as $feat): ?>
-                            <li>
-                                <span class="checkmark">✓</span>
-                                <span><?= h($feat) ?></span>
-                            </li>
-                        <?php endforeach; ?>
-                    </ul>
-
-                    <div style="margin-top: auto; padding-top: 24px;">
-                        <button type="button" 
-                                class="pricing-btn <?= $isPopular ? 'popular-btn' : 'standard-btn' ?>"
-                                onclick="openPaymentModal('<?= h($key) ?>', '<?= h($plan['name']) ?>', '<?= h($plan['price_label']) ?>')">
-                            <?= $isCurrent ? 'Renew Plan' : 'Get Started' ?>
-                        </button>
-                    </div>
-                </div>
-            <?php endforeach; ?>
-        </div>
-
-        <div style="text-align: center; margin-top: 40px; padding-bottom: 20px;">
-            <?php if ($hasActiveSub): ?>
-                <a href="index.php?page=dashboard" style="color: var(--muted, #94a3b8); text-decoration: none; font-size: 14px; margin-right: 20px; transition: color 0.2s;" onmouseover="this.style.color='#fff'" onmouseout="this.style.color='var(--muted)'">
-                    ← Back to Dashboard
+    <div class="subscription-viewport">
+        <section class="subscription-container">
+            <div style="text-align: center; margin-bottom: 40px;">
+                <a class="brand" href="index.php" style="margin-bottom: 20px; display: inline-flex; align-items: center; gap: 10px; text-decoration: none;">
+                    <div style="width:36px;height:36px;background:var(--lime, #84cc16);border-radius:6px;display:flex;align-items:center;justify-content:center;color:#0b110e;font-weight:900;font-size:18px;">FT</div>
+                    <span style="font-weight:700;font-size:1.4rem;line-height:1;letter-spacing:-0.2px;color:#ffffff;">FitTrack</span>
                 </a>
-            <?php endif; ?>
-            <a href="index.php?page=logout" style="color: var(--muted, #94a3b8); text-decoration: none; font-size: 14px; transition: color 0.2s;" onmouseover="this.style.color='#ef4444'" onmouseout="this.style.color='var(--muted)'">
-                Sign Out
-            </a>
-        </div>
-    </section>
+                <h1 style="font-size: 2.4rem; font-weight: 800; margin: 10px 0; color: #ffffff; letter-spacing: -0.5px;">
+                    Choose Your Subscription Plan
+                </h1>
+                <p style="color: rgba(226, 232, 240, 0.75); font-size: 1.1rem; max-width: 600px; margin: 0 auto; line-height: 1.5;">
+                    Select the plan that fits your gym operations. You can upgrade, downgrade, or renew at any time.
+                </p>
+            </div>
+
+            <div class="pricing-grid">
+                <?php foreach ($plans as $key => $plan): 
+                    $isPopular = $plan['popular'];
+                    $isCurrent = ($hasActiveSub && $currentPlan === $key);
+                ?>
+                    <div class="pricing-card <?= $isPopular ? 'popular' : '' ?>">
+                        <?php if ($isPopular): ?>
+                            <div class="popular-badge">MOST POPULAR</div>
+                        <?php endif; ?>
+
+                        <h2 class="pricing-title <?= $isPopular ? 'popular-title' : '' ?>">
+                            <?= h($plan['name']) ?>
+                            <?php if ($isCurrent): ?>
+                                <span class="current-badge">CURRENT</span>
+                            <?php endif; ?>
+                        </h2>
+                        <p class="pricing-desc"><?= h($plan['desc']) ?></p>
+
+                        <div class="pricing-price">
+                            <span class="amount"><?= h($plan['price_label']) ?></span>
+                            <span class="period">/mo</span>
+                        </div>
+
+                        <ul class="pricing-features">
+                            <?php foreach ($plan['features'] as $feat): ?>
+                                <li>
+                                    <span class="checkmark">✓</span>
+                                    <span><?= h($feat) ?></span>
+                                </li>
+                            <?php endforeach; ?>
+                        </ul>
+
+                        <div style="margin-top: auto; padding-top: 24px;">
+                            <button type="button" 
+                                    class="pricing-btn <?= $isPopular ? 'popular-btn' : 'standard-btn' ?>"
+                                    onclick="openPaymentModal('<?= h($key) ?>', '<?= h($plan['name']) ?>', '<?= h($plan['price_label']) ?>')">
+                                <?= $isCurrent ? 'Renew Plan' : 'Get Started' ?>
+                            </button>
+                        </div>
+                    </div>
+                <?php endforeach; ?>
+            </div>
+
+            <div style="text-align: center; margin-top: 40px; padding-bottom: 20px;">
+                <?php if ($hasActiveSub): ?>
+                    <a href="index.php?page=dashboard" style="color: #94a3b8; text-decoration: none; font-size: 14px; margin-right: 20px; transition: color 0.2s;" onmouseover="this.style.color='#fff'" onmouseout="this.style.color='#94a3b8'">
+                        ← Back to Dashboard
+                    </a>
+                <?php endif; ?>
+                <a href="index.php?page=logout" style="color: #94a3b8; text-decoration: none; font-size: 14px; transition: color 0.2s;" onmouseover="this.style.color='#ef4444'" onmouseout="this.style.color='#94a3b8'">
+                    Sign Out
+                </a>
+            </div>
+        </section>
+    </div>
 
     <!-- Modal for Payment Method Selection -->
     <div id="payment-modal" style="display:none; position:fixed; inset:0; z-index:9999; background:rgba(0,0,0,0.8); backdrop-filter:blur(6px); align-items:center; justify-content:center; padding:20px;">
@@ -241,6 +243,63 @@ function gym_subscription_page(): void
     </div>
 
     <style>
+        body {
+            background-color: #07090d !important;
+            background-image: none !important;
+            overflow-x: hidden !important;
+        }
+
+        .auth-shell {
+            width: 100% !important;
+            max-width: 100% !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            min-height: 100vh !important;
+            min-height: 100dvh !important;
+            display: flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+        }
+
+        .subscription-viewport {
+            min-height: 100vh;
+            min-height: 100dvh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 48px 16px;
+            width: 100%;
+            position: relative;
+            overflow-x: hidden;
+            box-sizing: border-box;
+        }
+
+        .subscription-viewport::before {
+            content: '';
+            position: fixed;
+            top: -5vh;
+            left: -5vw;
+            width: 110vw;
+            height: 110vh;
+            background-image: 
+                radial-gradient(ellipse at 50% 50%, rgba(132, 204, 22, 0.12) 0%, transparent 65%),
+                linear-gradient(180deg, rgba(7, 9, 13, 0.70) 0%, rgba(9, 12, 18, 0.80) 100%),
+                url('assets/images/loginback.png?v=3');
+            background-size: cover;
+            background-position: center center;
+            background-repeat: no-repeat;
+            z-index: 0;
+            pointer-events: none;
+        }
+
+        .subscription-container {
+            width: 100%;
+            max-width: 1200px;
+            margin: 0 auto;
+            position: relative;
+            z-index: 1;
+        }
+
         .pricing-grid {
             display: grid;
             grid-template-columns: repeat(3, 1fr);
@@ -249,24 +308,33 @@ function gym_subscription_page(): void
         }
 
         .pricing-card {
-            background: #0f1512;
+            background: rgba(15, 21, 18, 0.88);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
             border: 1px solid rgba(255, 255, 255, 0.08);
-            border-radius: 20px;
-            padding: 36px 30px;
+            border-radius: 24px;
+            padding: 38px 30px;
             display: flex;
             flex-direction: column;
             position: relative;
-            transition: transform 0.2s ease, box-shadow 0.2s ease;
+            transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.25s ease, border-color 0.25s ease;
+            box-shadow: 0 20px 45px -10px rgba(0, 0, 0, 0.7);
         }
 
         .pricing-card:hover {
-            transform: translateY(-4px);
-            box-shadow: 0 12px 30px rgba(0, 0, 0, 0.4);
+            transform: translateY(-5px);
+            box-shadow: 0 25px 55px -10px rgba(0, 0, 0, 0.85);
+            border-color: rgba(255, 255, 255, 0.2);
         }
 
         .pricing-card.popular {
-            border: 2px solid var(--lime, #22c55e);
-            box-shadow: 0 0 35px rgba(34, 197, 94, 0.15);
+            border: 2px solid var(--lime, #84cc16);
+            background: rgba(16, 25, 20, 0.92);
+            box-shadow: 0 0 35px rgba(132, 204, 22, 0.18), 0 25px 55px -10px rgba(0, 0, 0, 0.85);
+        }
+
+        .pricing-card.popular:hover {
+            box-shadow: 0 0 45px rgba(132, 204, 22, 0.28), 0 30px 65px -10px rgba(0, 0, 0, 0.9);
         }
 
         .popular-badge {
