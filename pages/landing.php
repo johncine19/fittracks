@@ -84,8 +84,8 @@ function landing_page(): void
         <a href="#what-you-get" class="nav-link">What You Get</a>
         <a href="#engagement-score" class="nav-link">Engagement</a>
         <a href="#fitness-tiers" class="nav-link">Tiers</a>
-        <a href="#pricing" class="nav-link">Pricing</a>
         <a href="#faq" class="nav-link">FAQ</a>
+        <a href="#pricing" class="nav-link">Pricing</a>
         <a href="index.php?page=login" class="btn-landing btn-landing-outline">Sign In</a>
         <a href="index.php?page=register" class="btn-landing btn-landing-primary">Get Started</a>
     </div>
@@ -126,12 +126,12 @@ function landing_page(): void
                 <span>Tiers</span>
                 <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"></polyline></svg>
             </a>
-            <a href="#pricing" class="mobile-nav-link">
-                <span>Pricing</span>
-                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"></polyline></svg>
-            </a>
             <a href="#faq" class="mobile-nav-link">
                 <span>FAQ</span>
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"></polyline></svg>
+            </a>
+            <a href="#pricing" class="mobile-nav-link">
+                <span>Pricing</span>
                 <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"></polyline></svg>
             </a>
         </div>
@@ -751,58 +751,28 @@ function landing_page(): void
     </div>
     
     <div class="pricing-cards-container" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 24px; max-width: 1000px; margin: 0 auto; padding: 0 20px;">
-        
-        <!-- Starter Plan -->
-        <div class="pricing-card" style="background: rgba(255, 255, 255, 0.02); border: 1px solid var(--line); border-radius: 16px; padding: 32px; display: flex; flex-direction: column; visibility: hidden;">
-            <h3 style="font-size: 1.5rem; margin: 0 0 8px 0;">Starter</h3>
-            <p style="color: var(--muted); font-size: 0.9rem; margin-bottom: 24px;">Best for small, independent gyms.</p>
-            <div style="font-size: 2.5rem; font-weight: 700; margin-bottom: 24px;">
-                ₱499<span style="font-size: 1rem; font-weight: 400; color: var(--muted);">/mo</span>
+        <?php 
+        $publicPlans = get_platform_subscription_plans();
+        foreach ($publicPlans as $pKey => $p): 
+            $isPop = !empty($p['popular']);
+        ?>
+            <div class="pricing-card" style="background: <?= $isPop ? 'color-mix(in srgb, var(--lime) 5%, rgba(0,0,0,0.4))' : 'rgba(255, 255, 255, 0.02)' ?>; border: 1px solid <?= $isPop ? 'var(--lime)' : 'var(--line)' ?>; border-radius: 16px; padding: 32px; display: flex; flex-direction: column; <?= $isPop ? 'position: relative; transform: scale(1.05); z-index: 2; box-shadow: 0 20px 40px rgba(0,0,0,0.4);' : '' ?> visibility: hidden;">
+                <?php if ($isPop): ?>
+                    <div style="position: absolute; top: -12px; left: 50%; transform: translateX(-50%); background: var(--lime); color: #000; font-size: 0.75rem; font-weight: 700; padding: 4px 12px; border-radius: 999px; text-transform: uppercase; letter-spacing: 1px;">Most Popular</div>
+                <?php endif; ?>
+                <h3 style="font-size: 1.5rem; margin: 0 0 8px 0; <?= $isPop ? 'color: var(--lime);' : '' ?>"><?= h($p['name']) ?></h3>
+                <p style="color: var(--muted); font-size: 0.9rem; margin-bottom: 24px;"><?= h($p['desc']) ?></p>
+                <div style="font-size: 2.5rem; font-weight: 700; margin-bottom: 24px;">
+                    <?= h($p['price_label']) ?><span style="font-size: 1rem; font-weight: 400; color: var(--muted);">/mo</span>
+                </div>
+                <ul style="list-style: none; padding: 0; margin: 0 0 32px 0; color: <?= $isPop ? 'var(--ink)' : 'var(--muted)' ?>; font-size: 0.95rem; display: flex; flex-direction: column; gap: 12px; flex: 1;">
+                    <?php foreach ($p['features'] as $feat): ?>
+                        <li>✓ <?= h($feat) ?></li>
+                    <?php endforeach; ?>
+                </ul>
+                <a href="index.php?page=register&role=gym_owner" class="btn-landing <?= $isPop ? 'btn-landing-primary' : 'btn-landing-outline' ?>" style="text-align: center; width: 100%;">Get Started</a>
             </div>
-            <ul style="list-style: none; padding: 0; margin: 0 0 32px 0; color: var(--muted); font-size: 0.95rem; display: flex; flex-direction: column; gap: 12px; flex: 1;">
-                <li>✓ Up to 100 Active Members</li>
-                <li>✓ Basic Analytics & Reports</li>
-                <li>✓ Walk-in Management</li>
-                <li>✓ Online Member Registration</li>
-            </ul>
-            <a href="index.php?page=register&role=gym_owner" class="btn-landing btn-landing-outline" style="text-align: center; width: 100%;">Get Started</a>
-        </div>
-        
-        <!-- Professional Plan (Highlighted) -->
-        <div class="pricing-card" style="background: color-mix(in srgb, var(--lime) 5%, rgba(0,0,0,0.4)); border: 1px solid var(--lime); border-radius: 16px; padding: 32px; display: flex; flex-direction: column; position: relative; transform: scale(1.05); z-index: 2; box-shadow: 0 20px 40px rgba(0,0,0,0.4); visibility: hidden;">
-            <div style="position: absolute; top: -12px; left: 50%; transform: translateX(-50%); background: var(--lime); color: #000; font-size: 0.75rem; font-weight: 700; padding: 4px 12px; border-radius: 999px; text-transform: uppercase; letter-spacing: 1px;">Most Popular</div>
-            <h3 style="font-size: 1.5rem; margin: 0 0 8px 0; color: var(--lime);">Professional</h3>
-            <p style="color: var(--muted); font-size: 0.9rem; margin-bottom: 24px;">Best for growing, high-traffic gyms.</p>
-            <div style="font-size: 2.5rem; font-weight: 700; margin-bottom: 24px;">
-                ₱999<span style="font-size: 1rem; font-weight: 400; color: var(--muted);">/mo</span>
-            </div>
-            <ul style="list-style: none; padding: 0; margin: 0 0 32px 0; color: var(--ink); font-size: 0.95rem; display: flex; flex-direction: column; gap: 12px; flex: 1;">
-                <li>✓ Up to 500 Active Members</li>
-                <li>✓ Advanced Dashboard & Charts</li>
-                <li>✓ Automated Renewal Reminders</li>
-                <li>✓ Class Scheduling & Booking</li>
-                <li>✓ Member Engagement Tracking</li>
-            </ul>
-            <a href="index.php?page=register&role=gym_owner" class="btn-landing btn-landing-primary" style="text-align: center; width: 100%;">Get Started</a>
-        </div>
-        
-        <!-- Business Plan -->
-        <div class="pricing-card" style="background: rgba(255, 255, 255, 0.02); border: 1px solid var(--line); border-radius: 16px; padding: 32px; display: flex; flex-direction: column; visibility: hidden;">
-            <h3 style="font-size: 1.5rem; margin: 0 0 8px 0;">Business</h3>
-            <p style="color: var(--muted); font-size: 0.9rem; margin-bottom: 24px;">Best for large or multi-branch facilities.</p>
-            <div style="font-size: 2.5rem; font-weight: 700; margin-bottom: 24px;">
-                ₱1,999<span style="font-size: 1rem; font-weight: 400; color: var(--muted);">/mo</span>
-            </div>
-            <ul style="list-style: none; padding: 0; margin: 0 0 32px 0; color: var(--muted); font-size: 0.95rem; display: flex; flex-direction: column; gap: 12px; flex: 1;">
-                <li>✓ Unlimited Members</li>
-                <li>✓ Multi-Branch Support</li>
-                <li>✓ Dedicated Account Manager</li>
-                <li>✓ Custom Branded App Theme</li>
-                <li>✓ Priority 24/7 Support</li>
-            </ul>
-            <a href="index.php?page=register&role=gym_owner" class="btn-landing btn-landing-outline" style="text-align: center; width: 100%;">Get Started</a>
-        </div>
-        
+        <?php endforeach; ?>
     </div>
 </section>
 
