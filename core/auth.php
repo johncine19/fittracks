@@ -74,9 +74,13 @@ function require_roles(array $roles): array
 
 function handle_logout(): never
 {
+    $silent = isset($_GET['silent']) || (isset($_SERVER['HTTP_REFERER']) && str_contains($_SERVER['HTTP_REFERER'], 'gym_rejected'));
     session_destroy();
     session_start();
-    flash('You have successfully logged out.', 'success');
+    if (!$silent) {
+        flash('You have successfully logged out.', 'success');
+    }
     redirect('login');
 }
+
 
