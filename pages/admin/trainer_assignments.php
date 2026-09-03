@@ -16,8 +16,11 @@ function trainer_assignments_page(): void
                 flash('A user with that email already exists.', 'danger');
             } else {
                 $plainPassword = (string) post('password');
+                $firstName = mb_convert_case(trim((string) post('first_name')), MB_CASE_TITLE, 'UTF-8');
+                $lastName  = mb_convert_case(trim((string) post('last_name')), MB_CASE_TITLE, 'UTF-8');
+
                 db()->prepare('INSERT INTO users (role, first_name, last_name, email, password_hash, status, email_verified_at) VALUES ("trainer", ?, ?, ?, ?, "active", NOW())')
-                    ->execute([post('first_name'), post('last_name'), $email, password_hash($plainPassword, PASSWORD_DEFAULT)]);
+                    ->execute([$firstName, $lastName, $email, password_hash($plainPassword, PASSWORD_DEFAULT)]);
                 $newUserId = (int) db()->lastInsertId();
                 db()->prepare('INSERT INTO trainer_profiles (user_id, specialization, gym_id) VALUES (?, ?, ?)')
                     ->execute([$newUserId, post('specialization'), $gymId]);
@@ -223,10 +226,10 @@ function trainer_assignments_page(): void
                     <input type="hidden" name="action" value="create_trainer">
                     
                     <label style="display:block; color: var(--muted); font-size: 14px;">First Name *
-                        <input name="first_name" class="form-control" style="width: 100%; box-sizing: border-box;" required>
+                        <input name="first_name" class="form-control" style="width: 100%; box-sizing: border-box; text-transform: capitalize;" autocapitalize="words" onblur="this.value = this.value.trim().replace(/\b\w/g, l => l.toUpperCase())" required>
                     </label>
                     <label style="display:block; color: var(--muted); font-size: 14px;">Last Name *
-                        <input name="last_name" class="form-control" style="width: 100%; box-sizing: border-box;" required>
+                        <input name="last_name" class="form-control" style="width: 100%; box-sizing: border-box; text-transform: capitalize;" autocapitalize="words" onblur="this.value = this.value.trim().replace(/\b\w/g, l => l.toUpperCase())" required>
                     </label>
                     <label style="display:block; color: var(--muted); font-size: 14px;">Email *
                         <input type="email" name="email" class="form-control" style="width: 100%; box-sizing: border-box;" required>

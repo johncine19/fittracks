@@ -12,8 +12,8 @@ function profile_page(): void
         if (isset($_POST['update_account'])) {
             $email    = trim((string) ($_POST['email']    ?? ''));
             $phone    = trim((string) ($_POST['phone']    ?? ''));
-            $fname    = trim((string) ($_POST['first_name'] ?? ''));
-            $lname    = trim((string) ($_POST['last_name']  ?? ''));
+            $fname    = mb_convert_case(trim((string) ($_POST['first_name'] ?? '')), MB_CASE_TITLE, 'UTF-8');
+            $lname    = mb_convert_case(trim((string) ($_POST['last_name']  ?? '')), MB_CASE_TITLE, 'UTF-8');
             $password = (string) ($_POST['password'] ?? '');
 
             $validator = new Validator();
@@ -729,8 +729,8 @@ function profile_page(): void
                         <input type="file" name="profile_picture" accept="image/*">
                     </label>
                 </div>
-                <label>First name <input name="first_name" required value="<?= h($user['first_name']) ?>"></label>
-                <label>Last name <input name="last_name" required value="<?= h($user['last_name']) ?>"></label>
+                <label>First name <input name="first_name" required value="<?= h($user['first_name']) ?>" autocapitalize="words" style="text-transform: capitalize;" onblur="this.value = this.value.trim().replace(/\b\w/g, l => l.toUpperCase())"></label>
+                <label>Last name <input name="last_name" required value="<?= h($user['last_name']) ?>" autocapitalize="words" style="text-transform: capitalize;" onblur="this.value = this.value.trim().replace(/\b\w/g, l => l.toUpperCase())"></label>
                 <label>Email <input type="email" name="email" required value="<?= h($user['email']) ?>"></label>
                 <label>Phone <input name="phone" type="tel" maxlength="11" placeholder="09xxxxxxxxx" value="<?= h($user['phone'] ?? '') ?>" oninput="this.value=this.value.replace(/[^0-9]/g,'').slice(0,11)"></label>
                 <label style="grid-column:1/-1">New password

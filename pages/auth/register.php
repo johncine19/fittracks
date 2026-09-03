@@ -54,15 +54,19 @@ function handle_register(): void
 
                 $role = (post('account_type') === 'gym_owner') ? 'gym_owner' : 'member';
 
+                // Capitalize first letter of each word (Title Case)
+                $firstName = mb_convert_case(trim((string) post('first_name')), MB_CASE_TITLE, 'UTF-8');
+                $lastName  = mb_convert_case(trim((string) post('last_name')), MB_CASE_TITLE, 'UTF-8');
+
                 $stmt = $pdo->prepare(
                     'INSERT INTO users (role, first_name, last_name, email, password_hash, phone, status)
                      VALUES (?, ?, ?, ?, ?, ?, "active")'
                 );
                 $stmt->execute([
                     $role,
-                    post('first_name'),
-                    post('last_name'),
-                    post('email'),
+                    $firstName,
+                    $lastName,
+                    trim((string) post('email')),
                     password_hash((string) post('password'), PASSWORD_DEFAULT),
                     $phone ?: null,
                 ]);
@@ -84,7 +88,7 @@ function handle_register(): void
                 $emailSent = false;
                 try {
                     $token = create_email_verification_token($userId);
-                    $emailSent = send_verification_email((string) post('email'), (string) post('first_name'), $token);
+                    $emailSent = send_verification_email((string) post('email'), $firstName, $token);
                 } catch (Throwable) {
                     // ignore — user can request a resend from the login page
                 }
@@ -139,7 +143,10 @@ function handle_register(): void
                         <div class="auth-input-group">
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
                             <input name="first_name" required placeholder="First name"
+                                   autocapitalize="words"
+                                   style="text-transform: capitalize;"
                                    value="<?= h(post('first_name')) ?>"
+                                   onblur="this.value = this.value.trim().replace(/\b\w/g, l => l.toUpperCase())"
                                    oninvalid="this.setCustomValidity('Please enter your first name.')"
                                    oninput="this.setCustomValidity('')">
                         </div>
@@ -149,7 +156,10 @@ function handle_register(): void
                         <div class="auth-input-group">
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
                             <input name="last_name" required placeholder="Last name"
+                                   autocapitalize="words"
+                                   style="text-transform: capitalize;"
                                    value="<?= h(post('last_name')) ?>"
+                                   onblur="this.value = this.value.trim().replace(/\b\w/g, l => l.toUpperCase())"
                                    oninvalid="this.setCustomValidity('Please enter your last name.')"
                                    oninput="this.setCustomValidity('')">
                         </div>

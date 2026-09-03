@@ -101,7 +101,7 @@ function privacy_page(): void
             <section>
                 <h2 style="font-size: 1.25rem; font-weight: 700; color: var(--ink); margin-bottom: 10px;">7. Privacy Questions & Data Protection Officer</h2>
                 <p style="color: var(--muted); margin: 0;">
-                    If you have questions about this Privacy Policy or wish to exercise your privacy rights, please reach out to our team at <a href="mailto:johncinemartil596gmail.com" style="color: var(--lime); text-decoration: underline;">privacy@fittrack.com</a>.
+                    If you have questions about this Privacy Policy or wish to exercise your privacy rights, please reach out to our team at <a href="mailto:johncinemartil596@gmail.com" style="color: var(--lime); text-decoration: underline;">johncinemartil596@gmail.com</a>.
                 </p>
             </section>
         </div>

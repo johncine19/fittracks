@@ -61,8 +61,11 @@ function users_page(): void
             }
 
             $plainPassword = (string) post('password');
+            $firstName = mb_convert_case(trim((string) post('first_name')), MB_CASE_TITLE, 'UTF-8');
+            $lastName  = mb_convert_case(trim((string) post('last_name')), MB_CASE_TITLE, 'UTF-8');
+
             $stmt = db()->prepare('INSERT INTO users (role, first_name, last_name, email, password_hash, phone, status, email_verified_at) VALUES (?, ?, ?, ?, ?, ?, "active", NOW())');
-            $stmt->execute([$roleToCreate, post('first_name'), post('last_name'), $email, password_hash($plainPassword, PASSWORD_DEFAULT), $phone ?: null]);
+            $stmt->execute([$roleToCreate, $firstName, $lastName, $email, password_hash($plainPassword, PASSWORD_DEFAULT), $phone ?: null]);
             $newUserId = (int) db()->lastInsertId();
             if ($roleToCreate === 'trainer') {
                 $trainerGymId = $isAdmin ? null : $gymId;
@@ -70,12 +73,12 @@ function users_page(): void
             } elseif ($roleToCreate === 'member' && !$isAdmin) {
                 db()->prepare('INSERT IGNORE INTO gym_members (gym_id, user_id) VALUES (?, ?)')->execute([$gymId, $newUserId]);
             }
-            audit_log($user['user_id'], 'create', 'user', (string) $newUserId, json_encode(['role' => $roleToCreate, 'email' => $email, 'name' => post('first_name') . ' ' . post('last_name')]));
+            audit_log($user['user_id'], 'create', 'user', (string) $newUserId, json_encode(['role' => $roleToCreate, 'email' => $email, 'name' => $firstName . ' ' . $lastName]));
 
             // Send credentials email via background queue
             Emails::sendAccountCreated(
                 $email,
-                post('first_name') . ' ' . post('last_name'),
+                $firstName . ' ' . $lastName,
                 $plainPassword
             );
 
@@ -121,6 +124,8 @@ function users_page(): void
             
             $newPassword = (string) post('new_password');
             $phone = post('phone') !== '' ? preg_replace('/[^0-9]/', '', (string)post('phone')) : null;
+            $editFirstName = mb_convert_case(trim((string) post('first_name')), MB_CASE_TITLE, 'UTF-8');
+            $editLastName  = mb_convert_case(trim((string) post('last_name')), MB_CASE_TITLE, 'UTF-8');
             
             if ($newPassword !== '') {
                 if (!is_acceptable_password($newPassword)) {
@@ -130,10 +135,10 @@ function users_page(): void
                 }
                 $hash = password_hash($newPassword, PASSWORD_DEFAULT);
                 db()->prepare('UPDATE users SET first_name=?, last_name=?, email=?, phone=?, role=?, password_hash=? WHERE user_id=?')
-                    ->execute([post('first_name'), post('last_name'), post('email'), $phone, post('role'), $hash, $editUserId]);
+                    ->execute([$editFirstName, $editLastName, post('email'), $phone, post('role'), $hash, $editUserId]);
             } else {
                 db()->prepare('UPDATE users SET first_name=?, last_name=?, email=?, phone=?, role=? WHERE user_id=?')
-                    ->execute([post('first_name'), post('last_name'), post('email'), $phone, post('role'), $editUserId]);
+                    ->execute([$editFirstName, $editLastName, post('email'), $phone, post('role'), $editUserId]);
             }
             
             if (post('role') === 'trainer') {
@@ -281,10 +286,10 @@ function users_page(): void
                     <?= csrf_field() ?>
                     <input type="hidden" name="action" value="create">
                     <label>First name
-                        <input name="first_name" placeholder="John" required>
+                        <input name="first_name" placeholder="John" required autocapitalize="words" style="text-transform: capitalize;" onblur="this.value = this.value.trim().replace(/\b\w/g, l => l.toUpperCase())">
                     </label>
                     <label>Last name
-                        <input name="last_name" placeholder="Doe" required>
+                        <input name="last_name" placeholder="Doe" required autocapitalize="words" style="text-transform: capitalize;" onblur="this.value = this.value.trim().replace(/\b\w/g, l => l.toUpperCase())">
                     </label>
                     <label>Email
                         <input name="email" type="email" placeholder="john@example.com" required>
@@ -496,8 +501,8 @@ function users_page(): void
                     <input type="hidden" name="user_id" id="eu_id">
                     <input type="hidden" name="admin_password" id="eu_admin_pass">
                     <div style="display:flex;gap:12px;">
-                        <label style="display:block; flex:1; color: var(--muted); font-size: 14px;">First name * <input name="first_name" id="eu_fn" class="form-control" required style="width: 100%; box-sizing: border-box;"></label>
-                        <label style="display:block; flex:1; color: var(--muted); font-size: 14px;">Last name * <input name="last_name" id="eu_ln" class="form-control" required style="width: 100%; box-sizing: border-box;"></label>
+                        <label style="display:block; flex:1; color: var(--muted); font-size: 14px;">First name * <input name="first_name" id="eu_fn" class="form-control" required autocapitalize="words" style="width: 100%; box-sizing: border-box; text-transform: capitalize;" onblur="this.value = this.value.trim().replace(/\b\w/g, l => l.toUpperCase())"></label>
+                        <label style="display:block; flex:1; color: var(--muted); font-size: 14px;">Last name * <input name="last_name" id="eu_ln" class="form-control" required autocapitalize="words" style="width: 100%; box-sizing: border-box; text-transform: capitalize;" onblur="this.value = this.value.trim().replace(/\b\w/g, l => l.toUpperCase())"></label>
                     </div>
                     <label style="display:block; color: var(--muted); font-size: 14px;">Email * <input type="email" name="email" id="eu_email" class="form-control" required style="width: 100%; box-sizing: border-box;"></label>
                     <label style="display:block; color: var(--muted); font-size: 14px;">Phone <input type="tel" name="phone" id="eu_phone" class="form-control" style="width: 100%; box-sizing: border-box;"></label>

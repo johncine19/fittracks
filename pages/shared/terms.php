@@ -90,7 +90,7 @@ function terms_page(): void
             <section>
                 <h2 style="font-size: 1.25rem; font-weight: 700; color: var(--ink); margin-bottom: 10px;">7. Contact & Inquiries</h2>
                 <p style="color: var(--muted); margin: 0;">
-                    For questions regarding these Terms of Service, please contact our support team at <a href="mailto:johncinemartil596gmail.com" style="color: var(--lime); text-decoration: underline;">support@fittrack.com</a>.
+                    For questions regarding these Terms of Service, please contact our support team at <a href="mailto:johncinemartil596@gmail.com" style="color: var(--lime); text-decoration: underline;">johncinemartil596@gmail.com</a>.
                 </p>
             </section>
         </div>

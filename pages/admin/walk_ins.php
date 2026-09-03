@@ -14,8 +14,8 @@ function walk_ins_page(): void
     if ($_SERVER['REQUEST_METHOD'] === 'POST' && post('action') === 'convert') {
         $transactionId = (int) post('transaction_id');
         $email = trim((string) post('convert_email'));
-        $firstName = trim((string) post('convert_first_name'));
-        $lastName = trim((string) post('convert_last_name'));
+        $firstName = mb_convert_case(trim((string) post('convert_first_name')), MB_CASE_TITLE, 'UTF-8');
+        $lastName = mb_convert_case(trim((string) post('convert_last_name')), MB_CASE_TITLE, 'UTF-8');
 
         if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
             flash('Please enter a valid email address.', 'danger');
@@ -99,17 +99,18 @@ function walk_ins_page(): void
             redirect('walk_ins');
         }
         $contact_info = $contact_info ?: 'N/A';
+        $guestName = mb_convert_case(trim((string) post('guest_name')), MB_CASE_TITLE, 'UTF-8');
 
         $stmt = db()->prepare('INSERT INTO walk_in_transactions (gym_id, guest_name, contact_info, amount_paid, payment_method, visit_date, processed_by) VALUES (?, ?, ?, ?, ?, NOW(), ?)');
         $stmt->execute([
             $gymId,
-            post('guest_name'),
+            $guestName,
             $contact_info,
             post('amount_paid'),
             post('payment_method') ?: 'cash',
             $user['user_id']
         ]);
-        audit_log($user['user_id'], 'create', 'walk_in', (string) db()->lastInsertId(), json_encode(['guest_name' => post('guest_name'), 'amount' => post('amount_paid')]));
+        audit_log($user['user_id'], 'create', 'walk_in', (string) db()->lastInsertId(), json_encode(['guest_name' => $guestName, 'amount' => post('amount_paid')]));
         flash('Walk-in transaction recorded successfully.', 'success');
         redirect('walk_ins');
     }
@@ -152,7 +153,7 @@ function walk_ins_page(): void
                 <form method="post" class="form grid-form">
                     <?= csrf_field() ?>
                     <label>Guest Name
-                        <input name="guest_name" placeholder="John Doe" required>
+                        <input name="guest_name" placeholder="John Doe" required autocapitalize="words" style="text-transform: capitalize;" onblur="this.value = this.value.trim().replace(/\b\w/g, l => l.toUpperCase())">
                     </label>
                     <label>Contact Info (Optional)
                         <input name="contact_info" type="tel" pattern="[0-9]{11}" maxlength="11" title="Please enter exactly 11 digits" placeholder="09123456789">
@@ -188,10 +189,10 @@ function walk_ins_page(): void
                     <input type="hidden" name="action" value="convert">
                     <input type="hidden" name="transaction_id" id="convert_transaction_id">
                     <label>First Name
-                        <input name="convert_first_name" id="convert_first_name" required placeholder="First name">
+                        <input name="convert_first_name" id="convert_first_name" required placeholder="First name" autocapitalize="words" style="text-transform: capitalize;" onblur="this.value = this.value.trim().replace(/\b\w/g, l => l.toUpperCase())">
                     </label>
                     <label>Last Name
-                        <input name="convert_last_name" id="convert_last_name" required placeholder="Last name">
+                        <input name="convert_last_name" id="convert_last_name" required placeholder="Last name" autocapitalize="words" style="text-transform: capitalize;" onblur="this.value = this.value.trim().replace(/\b\w/g, l => l.toUpperCase())">
                     </label>
                     <label style="grid-column:1/-1">Email Address
                         <input name="convert_email" type="email" required placeholder="member@example.com">
