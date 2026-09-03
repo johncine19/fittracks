@@ -4,26 +4,36 @@ declare(strict_types=1);
 
 function calc_revenue_trend(PDO $pdo, ?int $gymId = null): string
 {
-    $cacheKey = 'dashboard_revenue_trend' . ($gymId ? '_' . $gymId : '');
+    $cacheKey = 'dashboard_revenue_trend' . ($gymId ? '_' . $gymId : '_platform');
     return Cache::remember($cacheKey, 300, function () use ($pdo, $gymId) {
-        $gymFilterPay = $gymId ? " AND membership_id IN (SELECT membership_id FROM memberships m JOIN membership_plans mp ON mp.plan_id = m.plan_id WHERE mp.gym_id = $gymId)" : "";
-        $gymFilterWalk = $gymId ? " AND gym_id = $gymId" : "";
-        
-        $thisMonth = (float) $pdo->query(
-            "SELECT SUM(revenue) FROM (
-                SELECT amount AS revenue FROM payments WHERE status='paid' AND DATE_FORMAT(payment_date,'%Y-%m')=DATE_FORMAT(CURDATE(),'%Y-%m') $gymFilterPay
-                UNION ALL
-                SELECT amount_paid AS revenue FROM walk_in_transactions WHERE DATE_FORMAT(visit_date,'%Y-%m')=DATE_FORMAT(CURDATE(),'%Y-%m') $gymFilterWalk
-            ) AS combined"
-        )->fetchColumn();
-        $lastMonth = (float) $pdo->query(
-            "SELECT SUM(revenue) FROM (
-                SELECT amount AS revenue FROM payments WHERE status='paid' AND DATE_FORMAT(payment_date,'%Y-%m')=DATE_FORMAT(DATE_SUB(CURDATE(),INTERVAL 1 MONTH),'%Y-%m') $gymFilterPay
-                UNION ALL
-                SELECT amount_paid AS revenue FROM walk_in_transactions WHERE DATE_FORMAT(visit_date,'%Y-%m')=DATE_FORMAT(DATE_SUB(CURDATE(),INTERVAL 1 MONTH),'%Y-%m') $gymFilterWalk
-            ) AS combined"
-        )->fetchColumn();
-        if ($lastMonth == 0) return 'No data last month';
+        if ($gymId === null) {
+            // Platform Admin: revenue is from gym owner subscription payments
+            $thisMonth = (float) $pdo->query(
+                "SELECT COALESCE(SUM(amount), 0) FROM gym_subscription_payments WHERE status='paid' AND DATE_FORMAT(payment_date,'%Y-%m')=DATE_FORMAT(CURDATE(),'%Y-%m')"
+            )->fetchColumn();
+            $lastMonth = (float) $pdo->query(
+                "SELECT COALESCE(SUM(amount), 0) FROM gym_subscription_payments WHERE status='paid' AND DATE_FORMAT(payment_date,'%Y-%m')=DATE_FORMAT(DATE_SUB(CURDATE(),INTERVAL 1 MONTH),'%Y-%m')"
+            )->fetchColumn();
+        } else {
+            $gymFilterPay = " AND membership_id IN (SELECT membership_id FROM memberships m JOIN membership_plans mp ON mp.plan_id = m.plan_id WHERE mp.gym_id = $gymId)";
+            $gymFilterWalk = " AND gym_id = $gymId";
+            
+            $thisMonth = (float) $pdo->query(
+                "SELECT SUM(revenue) FROM (
+                    SELECT amount AS revenue FROM payments WHERE status='paid' AND DATE_FORMAT(payment_date,'%Y-%m')=DATE_FORMAT(CURDATE(),'%Y-%m') $gymFilterPay
+                    UNION ALL
+                    SELECT amount_paid AS revenue FROM walk_in_transactions WHERE DATE_FORMAT(visit_date,'%Y-%m')=DATE_FORMAT(CURDATE(),'%Y-%m') $gymFilterWalk
+                ) AS combined"
+            )->fetchColumn();
+            $lastMonth = (float) $pdo->query(
+                "SELECT SUM(revenue) FROM (
+                    SELECT amount AS revenue FROM payments WHERE status='paid' AND DATE_FORMAT(payment_date,'%Y-%m')=DATE_FORMAT(DATE_SUB(CURDATE(),INTERVAL 1 MONTH),'%Y-%m') $gymFilterPay
+                    UNION ALL
+                    SELECT amount_paid AS revenue FROM walk_in_transactions WHERE DATE_FORMAT(visit_date,'%Y-%m')=DATE_FORMAT(DATE_SUB(CURDATE(),INTERVAL 1 MONTH),'%Y-%m') $gymFilterWalk
+                ) AS combined"
+            )->fetchColumn();
+        }
+        if ($lastMonth == 0) return $thisMonth > 0 ? money($thisMonth) . ' this month' : 'No data last month';
         $pct = round((($thisMonth - $lastMonth) / $lastMonth) * 100, 1);
         return ($pct >= 0 ? '▲ ' : '▼ ') . abs($pct) . '% vs last month';
     });

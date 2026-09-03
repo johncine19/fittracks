@@ -158,8 +158,82 @@ function nav_icon(string $key): string
         'gym_profile' => '<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="2" width="16" height="20" rx="2" ry="2"/><line x1="9" y1="22" x2="9" y2="22"/><line x1="15" y1="22" x2="15" y2="22"/><line x1="9" y1="6" x2="9" y2="6"/><line x1="15" y1="6" x2="15" y2="6"/><line x1="9" y1="10" x2="9" y2="10"/><line x1="15" y1="10" x2="15" y2="10"/><line x1="9" y1="14" x2="9" y2="14"/><line x1="15" y1="14" x2="15" y2="14"/><line x1="9" y1="18" x2="9" y2="18"/><line x1="15" y1="18" x2="15" y2="18"/></svg>',
         'admin_workouts' => '<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/><line x1="8" y1="11" x2="16" y2="11"/><line x1="8" y1="15" x2="16" y2="15"/></svg>',
         'diet' => '<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8h1a4 4 0 0 1 0 8h-1"/><path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z"/><line x1="6" y1="1" x2="6" y2="4"/><line x1="10" y1="1" x2="10" y2="4"/><line x1="14" y1="1" x2="14" y2="4"/></svg>',
+        'platform_plans' => '<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="14" rx="2" ry="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>',
     ];
     return $icons[$key] ?? '<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/></svg>';
+}
+
+function get_platform_subscription_plans(): array
+{
+    $pdo = db();
+    try {
+        $rows = $pdo->query('SELECT * FROM platform_subscription_plans WHERE is_active = 1 ORDER BY price ASC')->fetchAll(PDO::FETCH_ASSOC);
+    } catch (Throwable $e) {
+        $rows = [];
+    }
+
+    if (!$rows) {
+        return [
+            'starter' => [
+                'name' => 'Starter',
+                'price' => 499,
+                'price_label' => '₱499',
+                'desc' => 'Best for small, independent gyms.',
+                'popular' => false,
+                'features' => [
+                    'Up to 100 Active Members',
+                    'Basic Analytics & Reports',
+                    'Walk-in Management',
+                    'Online Member Registration',
+                ],
+            ],
+            'professional' => [
+                'name' => 'Professional',
+                'price' => 999,
+                'price_label' => '₱999',
+                'desc' => 'Best for growing, high-traffic gyms.',
+                'popular' => true,
+                'features' => [
+                    'Up to 500 Active Members',
+                    'Advanced Dashboard & Charts',
+                    'Automated Renewal Reminders',
+                    'Class Scheduling & Booking',
+                    'Member Engagement Tracking',
+                ],
+            ],
+            'business' => [
+                'name' => 'Business',
+                'price' => 1999,
+                'price_label' => '₱1,999',
+                'desc' => 'Best for large or multi-branch facilities.',
+                'popular' => false,
+                'features' => [
+                    'Unlimited Members',
+                    'Multi-Branch Support',
+                    'Dedicated Account Manager',
+                    'Custom Branded App Theme',
+                    'Priority 24/7 Support',
+                ],
+            ],
+        ];
+    }
+
+    $plans = [];
+    foreach ($rows as $row) {
+        $features = array_values(array_filter(array_map('trim', explode("\n", (string)$row['features']))));
+        $plans[$row['plan_key']] = [
+            'id' => (int)$row['id'],
+            'key' => $row['plan_key'],
+            'name' => $row['name'],
+            'price' => (float)$row['price'],
+            'price_label' => '₱' . number_format((float)$row['price']),
+            'desc' => $row['description'],
+            'popular' => (bool)$row['is_popular'],
+            'features' => $features,
+            'raw_features' => $row['features'],
+        ];
+    }
+    return $plans;
 }
 
 

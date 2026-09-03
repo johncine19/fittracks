@@ -44,6 +44,7 @@ try {
         'gym_onboarding' => ['file' => 'pages/gym_owner/gym_onboarding.php', 'handler' => 'gym_onboarding_page'],
         'gym_pending' => ['file' => 'pages/gym_owner/gym_pending.php', 'handler' => 'gym_pending_page'],
         'gym_rejected' => ['file' => 'pages/gym_owner/gym_rejected.php', 'handler' => 'gym_rejected_page'],
+        'gym_subscription' => ['file' => 'pages/gym_owner/gym_subscription.php', 'handler' => 'gym_subscription_page'],
 
         'notification_action' => ['file' => 'pages/shared/notifications.php', 'handler' => 'handle_notification_actions'],
         'notification_click'  => ['file' => 'pages/shared/notifications.php', 'handler' => 'handle_notification_click'],
@@ -82,6 +83,7 @@ try {
         'admin_workouts' => ['file' => 'pages/admin/workout_plans.php', 'handler' => 'admin_workouts_page'],
         'gym_applications' => ['file' => 'pages/admin/gym_applications.php', 'handler' => 'gym_applications_page'],
         'gyms' => ['file' => 'pages/admin/gyms.php', 'handler' => 'gyms_page'],
+        'platform_plans' => ['file' => 'pages/platform_admin/subscription_plans.php', 'handler' => 'platform_subscription_plans_page'],
         'gym_profile' => ['file' => 'pages/admin/gym_profile.php', 'handler' => 'gym_profile_page'],
         'view_gym' => ['file' => 'pages/member/view_gym.php', 'handler' => 'view_gym_page'],
         'gym_selection' => ['file' => 'pages/member/gym_selection.php', 'handler' => 'gym_selection_page'],

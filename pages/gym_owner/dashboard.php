@@ -5,16 +5,16 @@ function admin_dashboard(PDO $pdo, array $user): void
 {
     $isPlatformAdmin = $user['role'] === 'platform_admin';
     $gymId = null;
-    $subPlan = 'Professional';
-    $subStatus = 'active';
+    $subPlan = 'No Active Plan';
+    $subStatus = 'inactive';
     $subRenewal = 'N/A';
     if (!$isPlatformAdmin) {
         $gymRow = $pdo->query('SELECT gym_id, subscription_plan, subscription_status, subscription_renewal_date FROM gyms WHERE owner_user_id = ' . (int)$user['user_id'])->fetch(PDO::FETCH_ASSOC);
         if ($gymRow) {
             $gymId = (int) $gymRow['gym_id'];
-            $subPlan = $gymRow['subscription_plan'] ?: 'Professional';
-            $subStatus = $gymRow['subscription_status'] ?: 'active';
-            $subRenewal = $gymRow['subscription_renewal_date'] ? date('M j, Y', strtotime($gymRow['subscription_renewal_date'])) : 'N/A';
+            $subPlan = $gymRow['subscription_plan'] ?: 'No Active Plan';
+            $subStatus = $gymRow['subscription_status'] ?: 'inactive';
+            $subRenewal = !empty($gymRow['subscription_renewal_date']) ? date('M j, Y', strtotime($gymRow['subscription_renewal_date'])) : 'N/A';
         }
     }
 
@@ -167,17 +167,33 @@ function admin_dashboard(PDO $pdo, array $user): void
         <article class="panel">
             <h2>Subscription</h2>
             <div style="margin-top: 16px;">
-                <h3 style="margin: 0; font-size: 18px;"><?= h($subPlan) ?> Plan</h3>
+                <h3 style="margin: 0; font-size: 18px;"><?= h($subPlan) ?><?= $subPlan !== 'No Active Plan' ? ' Plan' : '' ?></h3>
+                <?php
+                    $allPlatformPlans = get_platform_subscription_plans();
+                    $matchedPlan = null;
+                    foreach ($allPlatformPlans as $p) {
+                        if (strtolower($p['name']) === strtolower($subPlan) || strtolower($p['key']) === strtolower($subPlan)) {
+                            $matchedPlan = $p;
+                            break;
+                        }
+                    }
+                ?>
                 <p style="color: var(--muted); margin: 4px 0 16px;">
-                    <?php if (strtolower($subPlan) === 'starter') echo '₱499 / month'; ?>
-                    <?php if (strtolower($subPlan) === 'professional') echo '₱999 / month'; ?>
-                    <?php if (strtolower($subPlan) === 'business') echo '₱1,999 / month'; ?>
+                    <?php if ($matchedPlan): ?>
+                        <?= h($matchedPlan['price_label']) ?> / month &bull; <?= h($matchedPlan['desc']) ?>
+                    <?php elseif ($subPlan === 'No Active Plan'): ?>
+                        Select a subscription plan to get full access.
+                    <?php else: ?>
+                        <?= h($subPlan) ?>
+                    <?php endif; ?>
                 </p>
                 <div style="display:flex; gap:12px; align-items:center; margin-bottom: 16px;">
-                    <span class="badge" style="background: color-mix(in srgb, var(--teal) 15%, transparent); color: var(--teal);"><?= h(ucfirst($subStatus)) ?></span>
-                    <small style="color: var(--muted);">Renews on <?= h($subRenewal) ?></small>
+                    <span class="badge" style="background: <?= $subStatus === 'active' ? 'color-mix(in srgb, var(--teal) 15%, transparent)' : 'rgba(239, 68, 68, 0.15)' ?>; color: <?= $subStatus === 'active' ? 'var(--teal)' : 'var(--danger)' ?>;"><?= h(ucfirst($subStatus)) ?></span>
+                    <?php if ($subRenewal !== 'N/A'): ?>
+                        <small style="color: var(--muted);">Renews on <?= h($subRenewal) ?></small>
+                    <?php endif; ?>
                 </div>
-                <a href="#" class="btn btn-primary" style="width: 100%; text-align: center;">Manage Subscription</a>
+                <a href="index.php?page=gym_subscription" class="btn btn-primary" style="width: 100%; text-align: center;"><?= $subStatus === 'active' ? 'Manage Subscription' : 'Choose Subscription' ?></a>
             </div>
         </article>
         <article class="panel">

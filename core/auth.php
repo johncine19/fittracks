@@ -32,9 +32,9 @@ function require_login(): array
         }
     }
 
-    // Handle Gym Owner onboarding interception
-    if ($user['role'] === 'gym_owner' && !in_array($page, ['gym_onboarding', 'gym_pending', 'gym_rejected', 'logout'], true)) {
-        $gym = db()->query('SELECT status FROM gyms WHERE owner_user_id = ' . (int)$user['user_id'])->fetch();
+    // Handle Gym Owner onboarding & subscription interception
+    if ($user['role'] === 'gym_owner' && !in_array($page, ['gym_onboarding', 'gym_pending', 'gym_rejected', 'gym_subscription', 'logout'], true)) {
+        $gym = db()->query('SELECT gym_id, status, subscription_plan, subscription_status, subscription_renewal_date FROM gyms WHERE owner_user_id = ' . (int)$user['user_id'])->fetch();
         
         if (!$gym) {
             redirect('gym_onboarding');
@@ -42,6 +42,12 @@ function require_login(): array
             redirect('gym_pending');
         } elseif ($gym['status'] === 'rejected') {
             redirect('gym_rejected');
+        } elseif ($gym['status'] === 'approved') {
+            // Require gym owner to have an active subscription
+            $isActiveSub = ($gym['subscription_status'] === 'active' && !empty($gym['subscription_plan']));
+            if (!$isActiveSub) {
+                redirect('gym_subscription');
+            }
         }
     }
 

@@ -6,12 +6,9 @@ function platform_admin_dashboard(PDO $pdo, array $user): void
     $members = (int) $pdo->query('SELECT COUNT(*) FROM users WHERE role = "member" AND status = "active"')->fetchColumn();
     $gyms = (int) $pdo->query('SELECT COUNT(*) FROM gyms WHERE status = "approved"')->fetchColumn();
     $pendingGyms = (int) $pdo->query('SELECT COUNT(*) FROM gyms WHERE status = "pending"')->fetchColumn();
+    // Platform Revenue = Total gym subscriptions collected this month
     $revenue = (float) $pdo->query(
-        'SELECT SUM(revenue) FROM (
-            SELECT amount AS revenue FROM payments WHERE status = "paid" AND payment_date >= DATE_FORMAT(CURDATE(), "%Y-%m-01")
-            UNION ALL
-            SELECT amount_paid AS revenue FROM walk_in_transactions WHERE visit_date >= DATE_FORMAT(CURDATE(), "%Y-%m-01")
-        ) AS combined'
+        'SELECT COALESCE(SUM(amount), 0) FROM gym_subscription_payments WHERE status = "paid" AND payment_date >= DATE_FORMAT(CURDATE(), "%Y-%m-01")'
     )->fetchColumn();
 
     $revenueTrend = calc_revenue_trend($pdo);
@@ -19,12 +16,11 @@ function platform_admin_dashboard(PDO $pdo, array $user): void
 
     $monthStart = (new DateTime('first day of this month'))->modify('-5 months');
     $monthlyRows = query_all(
-        'SELECT month_key, COALESCE(SUM(total), 0) AS total FROM (
-            SELECT DATE_FORMAT(payment_date, "%Y-%m") AS month_key, amount AS total FROM payments WHERE status = "paid" AND payment_date >= ?
-            UNION ALL
-            SELECT DATE_FORMAT(visit_date, "%Y-%m") AS month_key, amount_paid AS total FROM walk_in_transactions WHERE visit_date >= ?
-        ) AS combined GROUP BY month_key',
-        [$monthStart->format('Y-m-01'), $monthStart->format('Y-m-01')]
+        'SELECT DATE_FORMAT(payment_date, "%Y-%m") AS month_key, COALESCE(SUM(amount), 0) AS total 
+         FROM gym_subscription_payments 
+         WHERE status = "paid" AND payment_date >= ?
+         GROUP BY month_key',
+        [$monthStart->format('Y-m-01')]
     );
     $monthlyTotals = [];
     foreach ($monthlyRows as $row) {
@@ -38,11 +34,7 @@ function platform_admin_dashboard(PDO $pdo, array $user): void
     }
 
     $lastMonthRevenue = (float) $pdo->query(
-        'SELECT SUM(revenue) FROM (
-            SELECT amount AS revenue FROM payments WHERE status="paid" AND DATE_FORMAT(payment_date,"%Y-%m")=DATE_FORMAT(DATE_SUB(CURDATE(),INTERVAL 1 MONTH),"%Y-%m")
-            UNION ALL
-            SELECT amount_paid AS revenue FROM walk_in_transactions WHERE DATE_FORMAT(visit_date,"%Y-%m")=DATE_FORMAT(DATE_SUB(CURDATE(),INTERVAL 1 MONTH),"%Y-%m")
-        ) AS combined'
+        'SELECT COALESCE(SUM(amount), 0) FROM gym_subscription_payments WHERE status = "paid" AND DATE_FORMAT(payment_date, "%Y-%m") = DATE_FORMAT(DATE_SUB(CURDATE(), INTERVAL 1 MONTH), "%Y-%m")'
     )->fetchColumn();
     $revPct = $lastMonthRevenue > 0
         ? round((($revenue - $lastMonthRevenue) / $lastMonthRevenue) * 100, 1)
@@ -55,7 +47,15 @@ function platform_admin_dashboard(PDO $pdo, array $user): void
     ];
 
     $recentGyms = $pdo->query('SELECT name, created_at, status FROM gyms ORDER BY created_at DESC LIMIT 5')->fetchAll();
-    $recentPayments = $pdo->query('SELECT p.amount, p.payment_date, u.first_name, u.last_name, g.name AS gym_name FROM payments p JOIN memberships m ON m.membership_id = p.membership_id JOIN membership_plans mp ON mp.plan_id = m.plan_id JOIN gyms g ON g.gym_id = mp.gym_id JOIN users u ON u.user_id = m.user_id ORDER BY p.payment_date DESC LIMIT 5')->fetchAll();
+    $recentPayments = $pdo->query('
+        SELECT sp.amount, sp.payment_date, sp.plan_name, sp.payment_method, g.name AS gym_name, u.first_name, u.last_name
+        FROM gym_subscription_payments sp
+        JOIN gyms g ON g.gym_id = sp.gym_id
+        JOIN users u ON u.user_id = sp.owner_user_id
+        WHERE sp.status = "paid"
+        ORDER BY sp.payment_date DESC
+        LIMIT 5
+    ')->fetchAll();
 
 ?>
     <?php render_skeleton_stats(4); ?>
@@ -120,18 +120,23 @@ function platform_admin_dashboard(PDO $pdo, array $user): void
 
         <article class="panel">
             <div style="display:flex; justify-content:space-between; align-items:center;">
-                <h2>Recent Payments</h2>
+                <h2>Recent Subscriptions</h2>
                 <a href="index.php?page=payments" style="font-size: 13px; color: var(--lime); text-decoration: none;">View all →</a>
             </div>
             <div class="list-stack">
                 <?php foreach ($recentPayments as $payment): ?>
                     <div class="checkin-row" style="display:flex; align-items:center; gap:14px; padding:14px 0; border-bottom:1px solid rgba(255,255,255,0.04);">
                         <div style="width: 40px; height: 40px; background: rgba(34, 197, 94, 0.15); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 18px; font-weight: bold; color: #22c55e;">₱</div>
-                        <div style="flex:1"><strong><?= h($payment['first_name'] . ' ' . $payment['last_name']) ?></strong><small style="display:block; font-size:12px; color:var(--muted);"><?= h($payment['gym_name']) ?></small></div>
+                        <div style="flex:1">
+                            <strong><?= h($payment['gym_name']) ?></strong>
+                            <small style="display:block; font-size:12px; color:var(--muted);">
+                                <?= h($payment['first_name'] . ' ' . $payment['last_name']) ?> &bull; <?= h($payment['plan_name']) ?> Plan (<?= strtoupper(h($payment['payment_method'])) ?>)
+                            </small>
+                        </div>
                         <time style="color:var(--lime); font-size:13px; font-weight:bold;"><?= money((float)$payment['amount']) ?></time>
                     </div>
                 <?php endforeach;
-                if (!$recentPayments): ?><p class="muted">No recent payments.</p><?php endif; ?>
+                if (!$recentPayments): ?><p class="muted">No subscription payments recorded yet.</p><?php endif; ?>
             </div>
         </article>
     </section>

@@ -4,7 +4,10 @@ declare(strict_types=1);
 function payments_page(): void
 {
     $user = require_roles(['platform_admin', 'gym_owner', 'member']);
-    if (can($user, ['platform_admin', 'gym_owner']) && $_SERVER['REQUEST_METHOD'] === 'POST') {
+    $isPlatformAdmin = ($user['role'] === 'platform_admin');
+
+    // Gym owners can record membership payments
+    if ($user['role'] === 'gym_owner' && $_SERVER['REQUEST_METHOD'] === 'POST') {
         $receipt = post('receipt_number') ?: 'RCPT-' . date('Ymd') . '-' . random_int(1000, 9999);
         $membershipId = (int) post('membership_id');
         $status = post('status');
@@ -41,6 +44,117 @@ function payments_page(): void
         redirect('payments');
     }
 
+    $page = max(1, (int)($_GET['p'] ?? 1));
+    $limit = 10;
+    $offset = ($page - 1) * $limit;
+
+    if ($isPlatformAdmin) {
+        // Platform Admin: Manage and view Gym Owner Platform Subscriptions
+        $totalCollected = (float) scalar('SELECT COALESCE(SUM(amount), 0) FROM gym_subscription_payments WHERE status = "paid"');
+        $activeSubs = (int) scalar('SELECT COUNT(*) FROM gyms WHERE status = "approved" AND subscription_status = "active"');
+
+        $countSql = 'SELECT COUNT(*) FROM gym_subscription_payments';
+        $total = (int) scalar($countSql);
+        $totalPages = (int) ceil($total / $limit);
+
+        $rows = db()->query('
+            SELECT sp.*, g.name AS gym_name, u.first_name, u.last_name, u.email
+            FROM gym_subscription_payments sp
+            JOIN gyms g ON g.gym_id = sp.gym_id
+            JOIN users u ON u.user_id = sp.owner_user_id
+            ORDER BY sp.payment_date DESC
+            LIMIT ' . $limit . ' OFFSET ' . $offset
+        )->fetchAll();
+
+        render_header('Platform Subscriptions', $user);
+        ?>
+        <div class="skeleton-wrapper">
+            <section class="panel">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:24px">
+                    <div>
+                        <div class="sk sk-title" style="width:140px;margin-bottom:8px"></div>
+                        <div class="sk sk-text" style="width:280px;height:12px"></div>
+                    </div>
+                </div>
+                <div class="sk sk-text short" style="margin-bottom:12px;height:14px;width:120px"></div>
+                <?php render_skeleton_table(7, 8); ?>
+            </section>
+        </div>
+        <section class="panel skeleton-content sk-display-block">
+            <div class="page-header">
+                <div>
+                    <h1>Platform Subscriptions</h1>
+                    <p>Track all platform subscription payments collected from registered gym owners.</p>
+                </div>
+            </div>
+
+            <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr)); gap:15px; margin-bottom: 24px;">
+                <div style="background:var(--bg); padding:16px; border-radius:8px; border:1px solid var(--line);">
+                    <div style="color:var(--muted); font-size:13px; margin-bottom:4px;">Total Subscriptions Collected</div>
+                    <div style="font-size:24px; font-weight:bold; color:var(--lime);"><?= h(money($totalCollected)) ?></div>
+                </div>
+                <div style="background:var(--bg); padding:16px; border-radius:8px; border:1px solid var(--line);">
+                    <div style="color:var(--muted); font-size:13px; margin-bottom:4px;">Active Subscriptions</div>
+                    <div style="font-size:24px; font-weight:bold; color:var(--ink);"><?= $activeSubs ?> Gyms</div>
+                </div>
+            </div>
+
+            <p class="section-label">Subscription Transactions</p>
+            <?php if (!$rows): ?>
+                <div class="empty-state">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>
+                    <p>No subscription payment records yet.</p>
+                </div>
+            <?php else: ?>
+            <div class="table-wrap">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Gym / Facility</th>
+                            <th>Gym Owner</th>
+                            <th>Plan</th>
+                            <th>Amount</th>
+                            <th>Payment Date</th>
+                            <th>Method</th>
+                            <th>Status</th>
+                            <th>Receipt</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                    <?php foreach ($rows as $row):
+                        $initials = strtoupper(substr($row['first_name'], 0, 1) . substr($row['last_name'], 0, 1));
+                        $statusClass = 'badge badge-' . ($row['status'] === 'paid' ? 'paid' : 'pending');
+                    ?>
+                        <tr>
+                            <td>
+                                <strong><?= h($row['gym_name']) ?></strong>
+                            </td>
+                            <td>
+                                <div class="user-cell">
+                                    <span class="avatar small"><?= h($initials) ?></span>
+                                    <span><?= h($row['first_name'] . ' ' . $row['last_name']) ?></span>
+                                </div>
+                            </td>
+                            <td><span class="badge" style="background: rgba(34,197,94,0.1); color: var(--lime);"><?= h($row['plan_name']) ?></span></td>
+                            <td><strong><?= h(money((float)$row['amount'])) ?></strong></td>
+                            <td><?= h(date('M j, Y', strtotime($row['payment_date']))) ?></td>
+                            <td><span style="color:var(--muted);font-size:12px"><?= strtoupper(h($row['payment_method'])) ?></span></td>
+                            <td><span class="<?= $statusClass ?>"><?= h(ucfirst($row['status'])) ?></span></td>
+                            <td><span style="color:var(--muted);font-size:12px;font-family:monospace"><?= h($row['receipt_number']) ?></span></td>
+                        </tr>
+                    <?php endforeach; ?>
+                    </tbody>
+                </table>
+            </div>
+            <?php render_pagination($page, $totalPages, '?page=payments'); ?>
+            <?php endif; ?>
+        </section>
+        <?php
+        render_footer();
+        return;
+    }
+
+    // Gym Owner / Member Flow: Membership payments for specific gym
     $membershipWhere = '';
     $paymentWhere = '';
     if ($user['role'] === 'member') {
@@ -54,11 +168,6 @@ function payments_page(): void
     }
 
     $memberships = db()->query('SELECT m.membership_id, CONCAT(u.first_name, " ", u.last_name, " — ", p.plan_name, " (", m.status, ")") AS label, p.price FROM memberships m JOIN users u ON u.user_id = m.user_id JOIN membership_plans p ON p.plan_id = m.plan_id ' . $membershipWhere . ' ORDER BY m.created_at DESC')->fetchAll();
-
-
-    $page = max(1, (int)($_GET['p'] ?? 1));
-    $limit = 10;
-    $offset = ($page - 1) * $limit;
 
     $countSql = 'SELECT COUNT(*) FROM payments pay JOIN memberships m ON m.membership_id = pay.membership_id JOIN users u ON u.user_id = m.user_id JOIN membership_plans p ON p.plan_id = m.plan_id ' . $paymentWhere;
     $total = (int) scalar($countSql);
@@ -75,7 +184,7 @@ function payments_page(): void
                     <div class="sk sk-title" style="width:140px;margin-bottom:8px"></div>
                     <div class="sk sk-text" style="width:280px;height:12px"></div>
                 </div>
-                <?php if (can($user, ['platform_admin', 'gym_owner'])): ?>
+                <?php if ($user['role'] === 'gym_owner'): ?>
                     <div class="sk sk-rect" style="width:140px;height:36px;border-radius:18px"></div>
                 <?php endif; ?>
             </div>
@@ -89,7 +198,7 @@ function payments_page(): void
                 <h1>Payments</h1>
                 <p>Record and track membership payment transactions.</p>
             </div>
-            <?php if (can($user, ['platform_admin', 'gym_owner'])): ?>
+            <?php if ($user['role'] === 'gym_owner'): ?>
                 <button onclick="recordPayment()" class="btn" style="background: var(--lime); color: var(--bg); font-weight: bold;">+ New Payment</button>
             <?php endif; ?>
         </div>
@@ -164,7 +273,7 @@ function payments_page(): void
         <?php endif; ?>
     </section>
     
-    <?php if (can($user, ['platform_admin', 'gym_owner'])): ?>
+    <?php if ($user['role'] === 'gym_owner'): ?>
     <script>
     function recordPayment() {
         Swal.fire({

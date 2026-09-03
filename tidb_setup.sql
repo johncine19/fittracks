@@ -337,8 +337,8 @@ CREATE TABLE `gyms` (
   `valid_id_url` varchar(255) DEFAULT NULL,
   `logo_url` varchar(255) DEFAULT NULL,
   `brand_color` varchar(20) DEFAULT '#c7ff22',
-  `subscription_plan` varchar(50) DEFAULT 'Professional',
-  `subscription_status` varchar(20) DEFAULT 'active',
+  `subscription_plan` varchar(50) DEFAULT NULL,
+  `subscription_status` varchar(20) DEFAULT 'inactive',
   `subscription_renewal_date` date DEFAULT NULL,
   `status` enum('pending','approved','rejected','suspended') NOT NULL DEFAULT 'pending',
   `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -351,6 +351,51 @@ CREATE TABLE `gyms` (
 
 INSERT INTO `gyms` (`gym_id`, `owner_user_id`, `name`, `address`, `contact_info`, `business_permit_url`, `status`, `created_at`, `updated_at`) VALUES
 (2, 25, 'Elite Fitness Center', '123 Fit Street', '09703736380', 'permit_6a55c0d2a45f9.png', 'approved', '2026-07-14 04:19:41', '2026-07-14 04:53:38');
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `gym_subscription_payments`
+--
+
+CREATE TABLE `gym_subscription_payments` (
+  `id` int UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  `gym_id` int UNSIGNED NOT NULL,
+  `owner_user_id` int UNSIGNED NOT NULL,
+  `plan_name` varchar(50) NOT NULL,
+  `amount` decimal(10,2) NOT NULL,
+  `billing_cycle` enum('monthly','yearly') NOT NULL DEFAULT 'monthly',
+  `payment_method` enum('gcash','card','bank_transfer','cash') NOT NULL DEFAULT 'gcash',
+  `status` enum('paid','pending','failed') NOT NULL DEFAULT 'paid',
+  `receipt_number` varchar(50) DEFAULT NULL,
+  `payment_date` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `start_date` date NOT NULL,
+  `end_date` date NOT NULL,
+  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `platform_subscription_plans`
+--
+
+CREATE TABLE `platform_subscription_plans` (
+  `id` int UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  `plan_key` varchar(50) NOT NULL UNIQUE,
+  `name` varchar(50) NOT NULL,
+  `price` decimal(10,2) NOT NULL,
+  `description` varchar(255) NOT NULL,
+  `features` text NOT NULL,
+  `is_popular` tinyint(1) NOT NULL DEFAULT 0,
+  `is_active` tinyint(1) NOT NULL DEFAULT 1,
+  `updated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+INSERT INTO `platform_subscription_plans` (`id`, `plan_key`, `name`, `price`, `description`, `features`, `is_popular`, `is_active`) VALUES
+(1, 'starter', 'Starter', 499.00, 'Best for small, independent gyms.', 'Up to 100 Active Members\nBasic Analytics & Reports\nWalk-in Management\nOnline Member Registration', 0, 1),
+(2, 'professional', 'Professional', 999.00, 'Best for growing, high-traffic gyms.', 'Up to 500 Active Members\nAdvanced Dashboard & Charts\nAutomated Renewal Reminders\nClass Scheduling & Booking\nMember Engagement Tracking', 1, 1),
+(3, 'business', 'Business', 1999.00, 'Best for large or multi-branch facilities.', 'Unlimited Members\nMulti-Branch Support\nDedicated Account Manager\nCustom Branded App Theme\nPriority 24/7 Support', 0, 1);
 
 -- --------------------------------------------------------
 
@@ -851,6 +896,13 @@ ALTER TABLE `member_profiles`
   ADD UNIQUE KEY `user_id` (`user_id`);
 
 --
+-- Indexes for table `gym_subscription_payments`
+--
+ALTER TABLE `gym_subscription_payments`
+  ADD KEY `fk_sub_gym` (`gym_id`),
+  ADD KEY `fk_sub_owner` (`owner_user_id`);
+
+--
 -- Indexes for table `notifications`
 --
 ALTER TABLE `notifications`
@@ -1033,6 +1085,13 @@ ALTER TABLE `membership_plans`
 --
 ALTER TABLE `member_profiles`
   ADD CONSTRAINT `fk_profile_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`user_id`) ON DELETE CASCADE;
+
+--
+-- Constraints for table `gym_subscription_payments`
+--
+ALTER TABLE `gym_subscription_payments`
+  ADD CONSTRAINT `fk_sub_gym` FOREIGN KEY (`gym_id`) REFERENCES `gyms` (`gym_id`) ON DELETE CASCADE,
+  ADD CONSTRAINT `fk_sub_owner` FOREIGN KEY (`owner_user_id`) REFERENCES `users` (`user_id`) ON DELETE CASCADE;
 
 --
 -- Constraints for table `notifications`

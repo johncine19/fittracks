@@ -18,6 +18,7 @@ function render_header(string $title, ?array $user = null): void
                 'gym_applications' => 'Gym Applications',
                 'gyms' => 'All Gyms',
                 'users' => 'Users Accounts',
+                'platform_plans' => 'Subscription Plans',
                 'reports' => 'Reports',
                 'audit_logs' => 'Audit Logs',
                 'announcements' => 'Announcements',
