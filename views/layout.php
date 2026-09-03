@@ -20,7 +20,6 @@ function render_header(string $title, ?array $user = null): void
                 'users' => 'Users Accounts',
                 'reports' => 'Reports',
                 'audit_logs' => 'Audit Logs',
-                'member_transfers' => 'Member Transfers',
                 'announcements' => 'Announcements',
             ];
         }
@@ -41,7 +40,6 @@ function render_header(string $title, ?array $user = null): void
                 'attendance' => 'Attendance',
                 'exercises' => 'Exercises',
                 'reports' => 'Reports',
-                'gym_owner_transfers' => 'Member Transfers',
                 'messages' => 'Messages',
                 'notifications' => 'Notifications'
             ];

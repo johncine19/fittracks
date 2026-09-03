@@ -424,20 +424,6 @@ CREATE TABLE `member_profiles` (
 
 -- --------------------------------------------------------
 
---
--- Table structure for table `member_transfers`
---
-
-CREATE TABLE `member_transfers` (
-  `transfer_id` int UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
-  `user_id` int UNSIGNED NOT NULL,
-  `from_gym_id` int UNSIGNED NOT NULL,
-  `to_gym_id` int UNSIGNED NOT NULL,
-  `status` enum('pending_current_gym','pending_receiving_gym','approved','rejected') NOT NULL DEFAULT 'pending_current_gym',
-  `requested_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  `resolved_at` timestamp NULL DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
-
 -- --------------------------------------------------------
 
 --
@@ -865,14 +851,6 @@ ALTER TABLE `member_profiles`
   ADD UNIQUE KEY `user_id` (`user_id`);
 
 --
--- Indexes for table `member_transfers`
---
-ALTER TABLE `member_transfers`
-  ADD KEY `fk_transfer_user` (`user_id`),
-  ADD KEY `fk_transfer_from_gym` (`from_gym_id`),
-  ADD KEY `fk_transfer_to_gym` (`to_gym_id`);
-
---
 -- Indexes for table `notifications`
 --
 ALTER TABLE `notifications`
@@ -1055,14 +1033,6 @@ ALTER TABLE `membership_plans`
 --
 ALTER TABLE `member_profiles`
   ADD CONSTRAINT `fk_profile_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`user_id`) ON DELETE CASCADE;
-
---
--- Constraints for table `member_transfers`
---
-ALTER TABLE `member_transfers`
-  ADD CONSTRAINT `fk_transfer_from_gym` FOREIGN KEY (`from_gym_id`) REFERENCES `gyms` (`gym_id`) ON DELETE CASCADE,
-  ADD CONSTRAINT `fk_transfer_to_gym` FOREIGN KEY (`to_gym_id`) REFERENCES `gyms` (`gym_id`) ON DELETE CASCADE,
-  ADD CONSTRAINT `fk_transfer_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`user_id`) ON DELETE CASCADE;
 
 --
 -- Constraints for table `notifications`

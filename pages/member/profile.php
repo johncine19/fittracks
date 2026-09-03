@@ -137,30 +137,6 @@ function profile_page(): void
             ]));
             flash('Platform settings updated successfully.', 'success');
             redirect('profile');
-        } elseif (isset($_POST['request_transfer']) && $is_member) {
-            $toGymId = (int) post('to_gym_id');
-            $fromGymId = (int) post('from_gym_id');
-            if ($toGymId && $fromGymId && $toGymId !== $fromGymId) {
-                // Check if already has pending transfer
-                $pending = scalar('SELECT transfer_id FROM member_transfers WHERE user_id = ? AND status IN ("pending_current_gym", "pending_receiving_gym")', [$user['user_id']]);
-                if ($pending) {
-                    flash('You already have a pending transfer request.', 'warning');
-                } else {
-                    db()->prepare('INSERT INTO member_transfers (user_id, from_gym_id, to_gym_id, status) VALUES (?, ?, ?, "pending_current_gym")')
-                        ->execute([$user['user_id'], $fromGymId, $toGymId]);
-                    
-                    // Notify current gym owner
-                    $currentGymOwner = scalar('SELECT owner_user_id FROM gyms WHERE gym_id = ?', [$fromGymId]);
-                    if ($currentGymOwner) {
-                        notify_user((int) $currentGymOwner, 'system', 'New Transfer Request', $user['first_name'] . ' requested a gym transfer. Please review in Member Transfers.');
-                    }
-                    
-                    flash('Transfer request submitted successfully. Waiting for your current gym owner to approve.', 'success');
-                }
-            } else {
-                flash('Invalid gym selected.', 'danger');
-            }
-            redirect('profile');
         } elseif (isset($_POST['switch_home_gym']) && $is_member) {
             $newGymId = (int) post('new_gym_id');
             $gym = db()->query("SELECT name FROM gyms WHERE gym_id = $newGymId AND status = 'approved'")->fetch();
@@ -488,7 +464,7 @@ function profile_page(): void
                     <h2 class="settings-section-title">Gym Affiliation</h2>
                     <p class="settings-section-desc">
                         <?php if ($currentGymId): ?>
-                            Manage your active membership and transfer options.
+                            View your active gym membership details.
                         <?php else: ?>
                             Set your home gym to access trainers, classes, and plans.
                         <?php endif; ?>
@@ -530,85 +506,9 @@ function profile_page(): void
                 </div>
             </div>
 
-            <?php if ($currentGymId): ?>
-                <!-- Scenario B: Active Membership Transfer -->
-                <?php 
-                $pendingTransfer = db()->query("SELECT t.*, g.name as to_gym FROM member_transfers t JOIN gyms g ON g.gym_id = t.to_gym_id WHERE t.user_id = {$user['user_id']} AND t.status IN ('pending_current_gym', 'pending_receiving_gym')")->fetch();
-                if ($pendingTransfer): 
-                    $statusMsg = $pendingTransfer['status'] === 'pending_current_gym' ? 'Waiting for your current gym to approve the release.' : 'Waiting for the destination gym to accept.';
-                    $statusColor = $pendingTransfer['status'] === 'pending_current_gym' ? 'var(--orange)' : 'var(--teal)';
-                ?>
-                    <div class="settings-transfer-status">
-                        <div class="settings-transfer-status-icon" style="color: <?= $statusColor ?>;">
-                            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-                        </div>
-                        <div>
-                            <strong style="display:block;margin-bottom:2px;">Transfer Pending</strong>
-                            <span class="muted" style="font-size:13px;">Transferring to <strong><?= h($pendingTransfer['to_gym']) ?></strong> — <?= h($statusMsg) ?></span>
-                        </div>
-                    </div>
-                <?php else: ?>
-                    <div class="settings-transfer-form-wrapper">
-                        <h3 class="settings-group-title" style="margin-top:1.5rem;">
-                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>
-                            Transfer Membership
-                        </h3>
-                        <form method="post" id="transfer-form" class="form" style="margin-bottom:0;" onsubmit="handleTransferSubmit(event);">
-                            <?= csrf_field() ?>
-                            <input type="hidden" name="request_transfer" value="1">
-                            <input type="hidden" name="from_gym_id" value="<?= $currentGymId ?>">
-                            <div class="settings-select-wrapper">
-                                <label class="settings-select-label">Destination Gym</label>
-                                <select name="to_gym_id" id="to_gym_id" class="settings-select" required>
-                                    <option value="">Choose a gym...</option>
-                                    <?php foreach ($allGyms as $g): if ((int)$g['gym_id'] === $currentGymId) continue; ?>
-                                        <option value="<?= (int) $g['gym_id'] ?>"><?= h($g['name']) ?></option>
-                                    <?php endforeach; ?>
-                                </select>
-                            </div>
-                            <button type="submit" class="settings-action-btn danger" style="margin-top:12px;">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>
-                                Request Transfer
-                            </button>
-                        </form>
-                    </div>
-                    <script>
-                    function handleTransferSubmit(e) {
-                        e.preventDefault();
-                        const select = document.getElementById('to_gym_id');
-                        const selectedText = select.options[select.selectedIndex].text;
-                        if (!select.value) return;
-
-                        Swal.fire({
-                            title: 'Transfer Membership?',
-                            html: '<p style="font-size:14px;color:var(--muted);margin-bottom:15px;">You are requesting to transfer your active membership to <strong>' + selectedText + '</strong>.</p>' +
-                                  '<div style="text-align:left;background:rgba(239, 68, 68, 0.1);border:1px solid rgba(239, 68, 68, 0.3);padding:12px 14px;border-radius:10px;">' +
-                                  '<strong style="color:#ef4444;display:block;margin-bottom:6px;font-size:13px;">⚠ Before you proceed:</strong>' +
-                                  '<ul style="margin:0;padding-left:18px;font-size:13px;color:var(--muted);line-height:1.7;">' +
-                                  '<li>Your current gym owner must approve the release.</li>' +
-                                  '<li>The destination gym must accept your transfer.</li>' +
-                                  '<li>You will <strong>forfeit</strong> any remaining sessions, credits, or benefits at your current gym.</li>' +
-                                  '</ul></div>',
-                            icon: 'warning',
-                            showCancelButton: true,
-                            confirmButtonColor: '#ef4444',
-                            cancelButtonColor: 'transparent',
-                            confirmButtonText: 'Yes, Request Transfer',
-                            cancelButtonText: 'Cancel',
-                            background: 'var(--surface-color, #18251eff)',
-                            color: 'var(--text-color, #ffffff)',
-                            customClass: { cancelButton: 'swal-skip-btn' }
-                        }).then((result) => {
-                            if (result.isConfirmed) {
-                                document.getElementById('transfer-form').submit();
-                            }
-                        });
-                    }
-                    </script>
-                <?php endif; ?>
-            <?php else: ?>
-                <!-- Scenario A: Switch Home Gym -->
-                <div class="settings-transfer-form-wrapper">
+            <?php if (!$currentGymId): ?>
+                <!-- Switch Home Gym -->
+                <div class="settings-homegym-form-wrapper">
                     <h3 class="settings-group-title" style="margin-top:1.5rem;">
                         <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
                         Switch Home Gym
@@ -1196,27 +1096,6 @@ function profile_page(): void
     .settings-gym-plan, .settings-gym-days {
         font-size: 12px;
         color: var(--muted);
-    }
-
-    /* ── Transfer Status ── */
-    .settings-transfer-status {
-        display: flex;
-        align-items: flex-start;
-        gap: 14px;
-        margin-top: 1.25rem;
-        padding: 16px 18px;
-        border-radius: 12px;
-        background: color-mix(in srgb, var(--orange) 6%, transparent);
-        border: 1px solid color-mix(in srgb, var(--orange) 20%, transparent);
-    }
-    .settings-transfer-status-icon {
-        flex-shrink: 0;
-        margin-top: 2px;
-        animation: pulse-icon 2s ease-in-out infinite;
-    }
-    @keyframes pulse-icon {
-        0%, 100% { opacity: 1; }
-        50% { opacity: 0.5; }
     }
 
     /* ── Select Wrapper ── */
