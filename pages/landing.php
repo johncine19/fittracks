@@ -49,7 +49,7 @@ function landing_page(): void
     <meta name="description" content="FitTrack is your all-in-one fitness management platform. Track workouts, connect with expert coaches, and monitor your progress in real time.">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400..800&family=IBM+Plex+Mono:wght@400;500&family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400..800&family=IBM+Plex+Mono:wght@400;500&family=Inter:wght@400;500;600;700;800;900&family=Oswald:wght@500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="assets/app.css">
     <link rel="stylesheet" href="assets/landing.css?v=<?= time() ?>">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.css" />
@@ -81,12 +81,66 @@ function landing_page(): void
     <div class="landing-nav-links">
         <a href="#features" class="nav-link">Features</a>
         <a href="#how-it-works" class="nav-link">How It Works</a>
+        <a href="#what-you-get" class="nav-link">What You Get</a>
+        <a href="#engagement-score" class="nav-link">Engagement</a>
+        <a href="#fitness-tiers" class="nav-link">Tiers</a>
         <a href="#pricing" class="nav-link">Pricing</a>
         <a href="#faq" class="nav-link">FAQ</a>
         <a href="index.php?page=login" class="btn-landing btn-landing-outline">Sign In</a>
         <a href="index.php?page=register" class="btn-landing btn-landing-primary">Get Started</a>
     </div>
+
+    <!-- Mobile actions & hamburger button -->
+    <div class="landing-nav-mobile">
+        <a href="index.php?page=login" class="btn-landing btn-landing-outline mobile-auth-btn">Sign In</a>
+        <a href="index.php?page=register" class="btn-landing btn-landing-primary mobile-auth-btn">Get Started</a>
+        <button class="landing-hamburger" id="landing-hamburger" type="button" aria-label="Toggle Navigation" aria-expanded="false">
+            <span class="hamburger-line"></span>
+            <span class="hamburger-line"></span>
+            <span class="hamburger-line"></span>
+        </button>
+    </div>
 </nav>
+
+<!-- Mobile Navigation Menu Overlay -->
+<div class="landing-mobile-menu" id="landing-mobile-menu">
+    <div class="mobile-menu-inner">
+        <div class="mobile-menu-links">
+            <a href="#features" class="mobile-nav-link">
+                <span>Features</span>
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"></polyline></svg>
+            </a>
+            <a href="#how-it-works" class="mobile-nav-link">
+                <span>How It Works</span>
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"></polyline></svg>
+            </a>
+            <a href="#what-you-get" class="mobile-nav-link">
+                <span>What You Get</span>
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"></polyline></svg>
+            </a>
+            <a href="#engagement-score" class="mobile-nav-link">
+                <span>Engagement</span>
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"></polyline></svg>
+            </a>
+            <a href="#fitness-tiers" class="mobile-nav-link">
+                <span>Tiers</span>
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"></polyline></svg>
+            </a>
+            <a href="#pricing" class="mobile-nav-link">
+                <span>Pricing</span>
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"></polyline></svg>
+            </a>
+            <a href="#faq" class="mobile-nav-link">
+                <span>FAQ</span>
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"></polyline></svg>
+            </a>
+        </div>
+        <div class="mobile-menu-footer">
+            <a href="index.php?page=login" class="btn-landing btn-landing-outline" style="width: 100%; justify-content: center;">Sign In</a>
+            <a href="index.php?page=register" class="btn-landing btn-landing-primary" style="width: 100%; justify-content: center;">Get Started</a>
+        </div>
+    </div>
+</div>
 
 <!-- ═══════════════ HERO ═══════════════ -->
 <section class="landing-hero" id="hero">
@@ -352,6 +406,229 @@ function landing_page(): void
             <div class="step-number">3</div>
             <h3>Track & Crush Goals</h3>
             <p>Log workouts, book classes, message your coach, and watch your progress climb every week.</p>
+        </div>
+    </div>
+</section>
+
+<!-- ═══════════════ WHAT YOU GET ═══════════════ -->
+<section class="landing-wyg" id="what-you-get">
+    <div class="wyg-header">
+        <div>
+            <div class="wyg-kicker">WHAT YOU GET</div>
+            <h2 class="wyg-title">SIX THINGS,<br>NO CLUTTER.</h2>
+        </div>
+        <p class="wyg-desc">
+            Each one exists because a member touches it at a specific moment. Nothing here is a dashboard for its own sake.
+        </p>
+    </div>
+
+    <div class="wyg-list">
+        <!-- 1. AT THE DOOR -->
+        <div class="wyg-row">
+            <div class="wyg-timing">AT THE DOOR</div>
+            <div class="wyg-action">SCAN IN</div>
+            <p class="wyg-detail">
+                Your personal QR opens the turnstile. No card to lose, no queue at the desk, and attendance lands in your record before you've reached the changing room.
+            </p>
+        </div>
+
+        <!-- 2. BETWEEN SETS -->
+        <div class="wyg-row">
+            <div class="wyg-timing">BETWEEN SETS</div>
+            <div class="wyg-action">LOG THE WORK</div>
+            <p class="wyg-detail">
+                Sets, reps, load, distance. Your plan adjusts to what you actually completed rather than what was planned three weeks ago.
+            </p>
+        </div>
+
+        <!-- 3. WHENEVER -->
+        <div class="wyg-row">
+            <div class="wyg-timing">WHENEVER</div>
+            <div class="wyg-action">MESSAGE YOUR COACH</div>
+            <p class="wyg-detail">
+                Certified trainers, in a thread, with your full log next to them. They can see the sets you skipped before you explain them.
+            </p>
+        </div>
+
+        <!-- 4. SUNDAY NIGHT -->
+        <div class="wyg-row">
+            <div class="wyg-timing">SUNDAY NIGHT</div>
+            <div class="wyg-action">BOOK THE WEEK</div>
+            <p class="wyg-detail">
+                Reserve group classes and hold your spot. Reminders arrive before the session, and a cancellation frees the slot for someone on the waitlist.
+            </p>
+        </div>
+
+        <!-- 5. EVERY 30 DAYS -->
+        <div class="wyg-row">
+            <div class="wyg-timing">EVERY 30 DAYS</div>
+            <div class="wyg-action">ENGAGEMENT SCORE</div>
+            <p class="wyg-detail">
+                A single 0–100 figure built from attendance, classes, consistency, completed sessions, and logged progress. It moves when your habits move.
+            </p>
+        </div>
+
+        <!-- 6. EVERY 4 WEEKS -->
+        <div class="wyg-row">
+            <div class="wyg-timing">EVERY 4 WEEKS</div>
+            <div class="wyg-action">BODY COMPOSITION</div>
+            <p class="wyg-detail">
+                The U.S. Navy circumference method from tape measurements. An estimate within roughly ±3–4%, useful as a trend, never as a diagnosis.
+            </p>
+        </div>
+    </div>
+</section>
+
+<!-- ═══════════════ ENGAGEMENT SCORE BREAKDOWN ═══════════════ -->
+<section class="landing-engagement" id="engagement-score">
+    <div class="eng-header">
+        <div>
+            <div class="eng-kicker">ENGAGEMENT SCORE</div>
+            <h2 class="eng-title">WHAT THE<br>NUMBER IS MADE OF.</h2>
+        </div>
+        <p class="eng-desc">
+            Published in full, because a score you can't inspect is a score you can't trust.
+        </p>
+    </div>
+
+    <div class="eng-grid">
+        <!-- Left: Metrics Breakdown -->
+        <div class="eng-metrics-list">
+            <!-- Attendance frequency (40% weight -> 80% bar) -->
+            <div class="eng-metric-row">
+                <span class="eng-metric-label">Attendance frequency</span>
+                <div class="eng-bar-track">
+                    <div class="eng-bar-fill eng-bar-red" data-width="80%"></div>
+                </div>
+                <span class="eng-metric-val">40%</span>
+            </div>
+
+            <!-- Class participation (20% weight -> 40% bar) -->
+            <div class="eng-metric-row">
+                <span class="eng-metric-label">Class participation</span>
+                <div class="eng-bar-track">
+                    <div class="eng-bar-fill eng-bar-blue" data-width="40%"></div>
+                </div>
+                <span class="eng-metric-val">20%</span>
+            </div>
+
+            <!-- Consistency (20% weight -> 40% bar) -->
+            <div class="eng-metric-row">
+                <span class="eng-metric-label">Consistency</span>
+                <div class="eng-bar-track">
+                    <div class="eng-bar-fill eng-bar-blue" data-width="40%"></div>
+                </div>
+                <span class="eng-metric-val">20%</span>
+            </div>
+
+            <!-- Completed workouts (10% weight -> 20% bar) -->
+            <div class="eng-metric-row">
+                <span class="eng-metric-label">Completed workouts</span>
+                <div class="eng-bar-track">
+                    <div class="eng-bar-fill eng-bar-yellow" data-width="20%"></div>
+                </div>
+                <span class="eng-metric-val">10%</span>
+            </div>
+
+            <!-- Progress updates (10% weight -> 20% bar) -->
+            <div class="eng-metric-row">
+                <span class="eng-metric-label">Progress updates</span>
+                <div class="eng-bar-track">
+                    <div class="eng-bar-fill eng-bar-yellow" data-width="20%"></div>
+                </div>
+                <span class="eng-metric-val">10%</span>
+            </div>
+        </div>
+
+        <!-- Right: Where You Land Card -->
+        <div class="eng-land-wrap">
+            <div class="eng-land-kicker">WHERE YOU LAND</div>
+            <div class="eng-land-card">
+                <!-- Highly Engaged -->
+                <div class="eng-tier-row">
+                    <div class="eng-tier-indicator red"></div>
+                    <span class="eng-tier-name">HIGHLY ENGAGED</span>
+                    <span class="eng-tier-range">75 – 100</span>
+                </div>
+                <!-- Moderately Engaged -->
+                <div class="eng-tier-row">
+                    <div class="eng-tier-indicator blue"></div>
+                    <span class="eng-tier-name">MODERATELY ENGAGED</span>
+                    <span class="eng-tier-range">40 – 74</span>
+                </div>
+                <!-- At Risk -->
+                <div class="eng-tier-row">
+                    <div class="eng-tier-indicator yellow"></div>
+                    <span class="eng-tier-name">AT RISK</span>
+                    <span class="eng-tier-range">0 – 39</span>
+                </div>
+            </div>
+            <p class="eng-land-note">
+                Drop below 40 and your coach gets a prompt to check in. That's the whole point of measuring it.
+            </p>
+        </div>
+    </div>
+</section>
+
+<!-- ═══════════════ FITNESS TIERS ═══════════════ -->
+<section class="landing-tiers" id="fitness-tiers">
+    <div class="tiers-header">
+        <div>
+            <div class="tiers-kicker">FITNESS TIERS</div>
+            <h2 class="tiers-title">EARNED IN WEEKS,<br>NOT WORKOUTS.</h2>
+        </div>
+        <p class="tiers-desc">
+            A tier moves when you complete a full training week. One heroic session doesn't count, and it shouldn't.
+        </p>
+    </div>
+
+    <div class="tiers-block">
+        <!-- Level 01 -->
+        <div class="tier-col" data-tier="01">
+            <div class="tier-accent-bar"></div>
+            <div class="tier-level">Level 01</div>
+            <div class="tier-name">NEWBIE</div>
+            <div class="tier-duration">Week 0</div>
+        </div>
+
+        <!-- Level 02 -->
+        <div class="tier-col" data-tier="02">
+            <div class="tier-accent-bar"></div>
+            <div class="tier-level">Level 02</div>
+            <div class="tier-name">IRON RECRUIT</div>
+            <div class="tier-duration">1+ weeks</div>
+        </div>
+
+        <!-- Level 03 -->
+        <div class="tier-col" data-tier="03">
+            <div class="tier-accent-bar"></div>
+            <div class="tier-level">Level 03</div>
+            <div class="tier-name">BRONZE BEAST</div>
+            <div class="tier-duration">4+ weeks</div>
+        </div>
+
+        <!-- Level 04 -->
+        <div class="tier-col" data-tier="04">
+            <div class="tier-accent-bar"></div>
+            <div class="tier-level">Level 04</div>
+            <div class="tier-name">SILVER SPARTAN</div>
+            <div class="tier-duration">12+ weeks</div>
+        </div>
+
+        <!-- Level 05 -->
+        <div class="tier-col" data-tier="05">
+            <div class="tier-accent-bar"></div>
+            <div class="tier-level">Level 05</div>
+            <div class="tier-name">GOLD GLADIATOR</div>
+            <div class="tier-duration">24+ weeks</div>
+        </div>
+
+        <!-- Level 06 -->
+        <div class="tier-col" data-tier="06">
+            <div class="tier-accent-bar"></div>
+            <div class="tier-level">Level 06</div>
+            <div class="tier-name">APEX LEGEND</div>
+            <div class="tier-duration">52+ weeks</div>
         </div>
     </div>
 </section>
@@ -870,6 +1147,30 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
+    // ─── WHAT YOU GET — stagger rows ───
+    gsap.from('.wyg-row', {
+        scrollTrigger: { trigger: '#what-you-get', start: 'top 80%' },
+        y: 30, opacity: 0, duration: 0.6, stagger: 0.1, ease: 'power2.out'
+    });
+
+    // ─── ENGAGEMENT SCORE — animated bar fill ───
+    ScrollTrigger.create({
+        trigger: '#engagement-score',
+        start: 'top 75%',
+        once: true,
+        onEnter() {
+            document.querySelectorAll('.eng-bar-fill').forEach(bar => {
+                bar.style.width = bar.dataset.width;
+            });
+        }
+    });
+
+    // ─── FITNESS TIERS — stagger columns ───
+    gsap.from('.tier-col', {
+        scrollTrigger: { trigger: '#fitness-tiers', start: 'top 80%' },
+        y: 24, opacity: 0, duration: 0.5, stagger: 0.08, ease: 'power2.out'
+    });
+
     // ─── CTA — zoom-in entrance ───
     gsap.from('.cta-content', {
         scrollTrigger: { trigger: '.landing-cta', start: 'top 80%' },
@@ -899,28 +1200,69 @@ document.addEventListener('DOMContentLoaded', () => {
                 gsap.to(window, { duration: 1, scrollTo: { y: target, offsetY: 60 }, ease: 'power2.inOut' });
             }
         });
-        // ─── HERO CAROUSEL (SWIPER) ───
-        if (typeof Swiper !== 'undefined') {
-            new Swiper('.hero-swiper', {
-                effect: 'coverflow',
-                grabCursor: true,
-                centeredSlides: true,
-                slidesPerView: 'auto',
-                loop: true,
-                autoplay: {
-                    delay: 3500,
-                    disableOnInteraction: false,
-                },
-                coverflowEffect: {
-                    rotate: 15,
-                    stretch: 0,
-                    depth: 250,
-                    modifier: 1,
-                    slideShadows: true,
-                },
-            });
-        }
     });
+
+    // ─── HERO CAROUSEL (SWIPER) ───
+    if (typeof Swiper !== 'undefined') {
+        new Swiper('.hero-swiper', {
+            effect: 'coverflow',
+            grabCursor: true,
+            centeredSlides: true,
+            slidesPerView: 'auto',
+            loop: true,
+            autoplay: {
+                delay: 3500,
+                disableOnInteraction: false,
+            },
+            coverflowEffect: {
+                rotate: 15,
+                stretch: 0,
+                depth: 250,
+                modifier: 1,
+                slideShadows: true,
+            },
+        });
+    }
+
+    // ─── MOBILE HAMBURGER MENU ───
+    const hamburgerBtn = document.getElementById('landing-hamburger');
+    const mobileMenu = document.getElementById('landing-mobile-menu');
+
+    if (hamburgerBtn && mobileMenu) {
+        function toggleMobileMenu(forceClose = false) {
+            const isOpen = forceClose ? false : !mobileMenu.classList.contains('open');
+            hamburgerBtn.classList.toggle('active', isOpen);
+            mobileMenu.classList.toggle('open', isOpen);
+            hamburgerBtn.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+            document.body.style.overflow = isOpen ? 'hidden' : '';
+        }
+
+        hamburgerBtn.addEventListener('click', () => toggleMobileMenu());
+
+        mobileMenu.querySelectorAll('.mobile-nav-link, .mobile-menu-footer a').forEach(link => {
+            link.addEventListener('click', e => {
+                const href = link.getAttribute('href');
+                toggleMobileMenu(true);
+                if (href && href.startsWith('#')) {
+                    e.preventDefault();
+                    const target = document.querySelector(href);
+                    if (target) {
+                        if (lenis) {
+                            lenis.scrollTo(target, { offset: -60, duration: 1.1 });
+                        } else {
+                            gsap.to(window, { duration: 1, scrollTo: { y: target, offsetY: 60 }, ease: 'power2.inOut' });
+                        }
+                    }
+                }
+            });
+        });
+
+        document.addEventListener('keydown', e => {
+            if (e.key === 'Escape' && mobileMenu.classList.contains('open')) {
+                toggleMobileMenu(true);
+            }
+        });
+    }
 });
 
 </script>
