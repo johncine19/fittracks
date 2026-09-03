@@ -89,6 +89,8 @@ try {
         'announcements' => ['file' => 'pages/admin/announcements.php', 'handler' => 'announcements_page'],
         'member_transfers' => ['file' => 'pages/admin/member_transfers.php', 'handler' => 'member_transfers_page'],
         'gym_owner_transfers' => ['file' => 'pages/gym_owner/transfers.php', 'handler' => 'gym_owner_transfers_page'],
+        'terms' => ['file' => 'pages/shared/terms.php', 'handler' => 'terms_page'],
+        'privacy' => ['file' => 'pages/shared/privacy.php', 'handler' => 'privacy_page'],
     ];
 
     $route = $routes[$page] ?? $routes['dashboard'];

@@ -828,6 +828,8 @@ function landing_page(): void
 <footer class="landing-footer">
     <span>&copy; <?= date('Y') ?> FitTrack. All rights reserved.</span>
     <span>
+        <a href="index.php?page=terms">Terms of Service</a> &middot;
+        <a href="index.php?page=privacy">Privacy Policy</a> &middot;
         <a href="index.php?page=login">Sign In</a> &middot;
         <a href="index.php?page=register">Register</a>
     </span>

@@ -20,7 +20,10 @@ function handle_register(): void
 
         $valid = $validator->validate($_POST, $rules);
 
-        if ($valid && !is_acceptable_password((string) post('password'))) {
+        if ($valid && empty($_POST['agree_terms'])) {
+            $valid = false;
+            flash('You must agree to the Terms of Service and Privacy Policy to create an account.', 'danger');
+        } elseif ($valid && !is_acceptable_password((string) post('password'))) {
             $valid = false;
             flash('Password must be at least 8 characters with a letter and a number, and not be too common.', 'danger');
         } elseif (!$valid) {
@@ -192,6 +195,18 @@ function handle_register(): void
                         <div id="pw-str-4" style="height: 4px; flex: 1; border-radius: 2px; background: var(--line);"></div>
                     </div>
                     <p id="pw-str-text" class="muted" style="font-size:12px;margin:0;">Must include at least one letter and one number.</p>
+                </div>
+
+                <div class="auth-field" style="margin-top: 14px; margin-bottom: 20px;">
+                    <label style="display: flex; align-items: flex-start; gap: 10px; cursor: pointer; text-transform: none; letter-spacing: normal; font-size: 13px; color: var(--muted); line-height: 1.5;">
+                        <input type="checkbox" name="agree_terms" value="1" required style="width: 17px; height: 17px; margin-top: 2px; accent-color: var(--lime); cursor: pointer; flex-shrink: 0;"
+                               <?= !empty($_POST['agree_terms']) ? 'checked' : '' ?>
+                               oninvalid="this.setCustomValidity('Please accept the Terms of Service and Privacy Policy to proceed.')"
+                               oninput="this.setCustomValidity('')">
+                        <span>
+                            I agree to the <a href="index.php?page=terms" target="_blank" style="color: var(--lime); text-decoration: underline; font-weight: 500;">Terms of Service</a> and <a href="index.php?page=privacy" target="_blank" style="color: var(--lime); text-decoration: underline; font-weight: 500;">Privacy Policy</a>.
+                        </span>
+                    </label>
                 </div>
 
                 <button type="submit" class="auth-submit-btn">CREATE ACCOUNT <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14"></path><path d="M12 5l7 7-7 7"></path></svg></button>
