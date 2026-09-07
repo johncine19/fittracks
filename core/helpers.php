@@ -279,23 +279,12 @@ function gym_subscription_tier(?array $gym = null): string
 function gym_member_limit(?array $gym = null): int
 {
     $tier = gym_subscription_tier($gym);
-    if ($tier !== 'none') {
-        return match ($tier) {
-            'starter' => 100,
-            'professional' => 500,
-            'business' => PHP_INT_MAX,
-            default => 100,
-        };
-    }
-
-    // Default allowance: Any officially approved gym is granted starter capacity (100 members)
-    // so approved gyms can onboard members even if a paid SaaS subscription plan has not yet been selected.
-    $status = (string)($gym['status'] ?? '');
-    if ($status === 'approved') {
-        return 100;
-    }
-
-    return 0;
+    return match ($tier) {
+        'starter' => 100,
+        'professional' => 500,
+        'business' => PHP_INT_MAX,
+        default => 0,
+    };
 }
 
 function gym_active_member_count(int $gymId): int
@@ -316,7 +305,7 @@ function gym_can_add_member(int $gymId, ?array $gym = null): bool
     if (!$gym) {
         $gym = db()->query("SELECT * FROM gyms WHERE gym_id = " . (int)$gymId)->fetch(PDO::FETCH_ASSOC);
     }
-    if (!$gym || ($gym['status'] ?? '') !== 'approved') {
+    if (!$gym || ($gym['status'] ?? '') !== 'approved' || gym_subscription_tier($gym) === 'none') {
         return false;
     }
     $limit = gym_member_limit($gym);

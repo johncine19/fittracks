@@ -9,9 +9,25 @@ declare(strict_types=1);
 function save_member_profile(int $userId): void
 {
     $pdo = db();
-    $stmt = $pdo->prepare('INSERT INTO member_profiles (user_id, height_cm, weight_kg, neck_cm, waist_cm, hip_cm, age, biological_sex, activity_level, primary_goal, dietary_restrictions, target_weight_kg, target_body_fat_percent)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        ON DUPLICATE KEY UPDATE height_cm = VALUES(height_cm), weight_kg = VALUES(weight_kg), neck_cm = VALUES(neck_cm), waist_cm = VALUES(waist_cm), hip_cm = VALUES(hip_cm), age = VALUES(age), biological_sex = VALUES(biological_sex), activity_level = VALUES(activity_level), primary_goal = VALUES(primary_goal), dietary_restrictions = VALUES(dietary_restrictions), target_weight_kg = VALUES(target_weight_kg), target_body_fat_percent = VALUES(target_body_fat_percent)');
+
+    // Ensure new target measurement columns exist (self-healing for seamless live operation)
+    static $columnsChecked = false;
+    if (!$columnsChecked) {
+        try {
+            $pdo->query("SELECT target_arm_cm, target_chest_cm, target_waist_cm FROM member_profiles LIMIT 1");
+        } catch (Throwable) {
+            try {
+                $pdo->exec("ALTER TABLE member_profiles ADD COLUMN target_arm_cm DECIMAL(5,2) DEFAULT NULL");
+                $pdo->exec("ALTER TABLE member_profiles ADD COLUMN target_chest_cm DECIMAL(5,2) DEFAULT NULL");
+                $pdo->exec("ALTER TABLE member_profiles ADD COLUMN target_waist_cm DECIMAL(5,2) DEFAULT NULL");
+            } catch (Throwable) {}
+        }
+        $columnsChecked = true;
+    }
+
+    $stmt = $pdo->prepare('INSERT INTO member_profiles (user_id, height_cm, weight_kg, neck_cm, waist_cm, hip_cm, age, biological_sex, activity_level, primary_goal, dietary_restrictions, target_weight_kg, target_body_fat_percent, target_arm_cm, target_chest_cm, target_waist_cm)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON DUPLICATE KEY UPDATE height_cm = VALUES(height_cm), weight_kg = VALUES(weight_kg), neck_cm = VALUES(neck_cm), waist_cm = VALUES(waist_cm), hip_cm = VALUES(hip_cm), age = VALUES(age), biological_sex = VALUES(biological_sex), activity_level = VALUES(activity_level), primary_goal = VALUES(primary_goal), dietary_restrictions = VALUES(dietary_restrictions), target_weight_kg = VALUES(target_weight_kg), target_body_fat_percent = VALUES(target_body_fat_percent), target_arm_cm = VALUES(target_arm_cm), target_chest_cm = VALUES(target_chest_cm), target_waist_cm = VALUES(target_waist_cm)');
     $stmt->execute([
         $userId,
         post('height_cm') ?: 0.0,
@@ -26,6 +42,9 @@ function save_member_profile(int $userId): void
         post('dietary_restrictions') ?: 'none',
         post('target_weight_kg') ?: null,
         post('target_body_fat_percent') ?: null,
+        post('target_arm_cm') ?: null,
+        post('target_chest_cm') ?: null,
+        post('target_waist_cm') ?: null,
     ]);
 
     // Update fitness_tier based on selected experience_level

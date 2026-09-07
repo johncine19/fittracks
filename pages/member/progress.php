@@ -9,7 +9,7 @@ function progress_page(): void
         : (int) $user['user_id'];
 
     // Fetch member details
-    $stmt = db()->prepare('SELECT u.first_name, u.last_name, u.profile_picture, mp.target_weight_kg, mp.target_body_fat_percent, mp.primary_goal FROM users u LEFT JOIN member_profiles mp ON u.user_id = mp.user_id WHERE u.user_id = ?');
+    $stmt = db()->prepare('SELECT u.first_name, u.last_name, u.profile_picture, mp.* FROM users u LEFT JOIN member_profiles mp ON u.user_id = mp.user_id WHERE u.user_id = ?');
     $stmt->execute([$memberId]);
     $member = $stmt->fetch();
 
@@ -222,10 +222,10 @@ function progress_page(): void
 
             <?php 
             $extraMetrics = [
-                ['key' => 'arm_cm', 'label' => 'Arm Size', 'unit' => 'cm', 'show' => $showArm, 'better' => 'up'],
-                ['key' => 'chest_cm', 'label' => 'Chest Size', 'unit' => 'cm', 'show' => $showChest, 'better' => 'up'],
-                ['key' => 'waist_cm', 'label' => 'Waist Size', 'unit' => 'cm', 'show' => $showWaist, 'better' => 'down'],
-                ['key' => 'hips_cm', 'label' => 'Hip Size', 'unit' => 'cm', 'show' => $showHips, 'better' => 'down'],
+                ['key' => 'arm_cm', 'label' => 'Arm Size', 'unit' => 'cm', 'show' => $showArm, 'better' => 'up', 'target' => !empty($member['target_arm_cm']) ? (float)$member['target_arm_cm'] : null],
+                ['key' => 'chest_cm', 'label' => 'Chest Size', 'unit' => 'cm', 'show' => $showChest, 'better' => 'up', 'target' => !empty($member['target_chest_cm']) ? (float)$member['target_chest_cm'] : null],
+                ['key' => 'waist_cm', 'label' => 'Waist Size', 'unit' => 'cm', 'show' => $showWaist, 'better' => 'down', 'target' => !empty($member['target_waist_cm']) ? (float)$member['target_waist_cm'] : null],
+                ['key' => 'hips_cm', 'label' => 'Hip Size', 'unit' => 'cm', 'show' => $showHips, 'better' => 'down', 'target' => null],
             ];
             foreach ($extraMetrics as $m):
                 if (!$m['show']) continue;
@@ -250,7 +250,18 @@ function progress_page(): void
                         <div style="font-size: 24px; font-weight: bold; color: var(--ink);"><?= h(number_format($mCurr, 1)) ?> <span style="font-size: 14px; font-weight: normal; color: var(--muted);"><?= $m['unit'] ?></span></div>
                         <div style="font-size: 13px; color: var(--muted);">Start: <?= h(number_format($mStart, 1)) ?> <?= $m['unit'] ?></div>
                     </div>
-                    <?php if ($mDelta !== 0.0): ?>
+                    <?php if ($m['target'] !== null): 
+                        $dist = $m['better'] === 'up' ? ($m['target'] - $mCurr) : ($mCurr - $m['target']);
+                    ?>
+                        <div style="text-align: right;">
+                            <div style="font-size: 13px; color: var(--muted); margin-bottom: 4px;">Target: <?= h($m['target']) ?> <?= $m['unit'] ?></div>
+                            <?php if ($dist <= 0): ?>
+                                <div style="padding: 4px 8px; border-radius: 4px; font-size: 13px; font-weight: bold; background: var(--lime)20; color: var(--lime);">Goal Reached! 🏆</div>
+                            <?php else: ?>
+                                <div style="padding: 4px 8px; border-radius: 4px; font-size: 13px; font-weight: bold; background: var(--panel-soft); color: var(--ink);"><?= h(number_format(abs($dist), 1)) ?> <?= $m['unit'] ?> to go</div>
+                            <?php endif; ?>
+                        </div>
+                    <?php elseif ($mDelta !== 0.0): ?>
                         <div style="padding: 4px 8px; border-radius: 4px; font-size: 13px; font-weight: bold; background: <?= $mColor ?>20; color: <?= $mColor ?>;">
                             <?= $mSign ?><?= h(number_format($mDelta, 1)) ?>
                         </div>

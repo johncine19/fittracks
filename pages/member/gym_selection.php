@@ -11,7 +11,7 @@ function gym_selection_page(): void
         $gymId = (int) ($_POST['gym_id'] ?? 0);
         if ($gymId > 0) {
             $targetGym = db()->query("SELECT * FROM gyms WHERE gym_id = " . $gymId)->fetch(PDO::FETCH_ASSOC);
-            if (!$targetGym || !gym_can_add_member($gymId, $targetGym)) {
+            if (!$targetGym || gym_subscription_tier($targetGym) === 'none' || !gym_can_add_member($gymId, $targetGym)) {
                 $limit = gym_member_limit($targetGym);
                 $current = gym_active_member_count($gymId);
                 if ($limit > 0 && $current >= $limit) {
@@ -30,10 +30,19 @@ function gym_selection_page(): void
         }
     }
 
-    $gyms = db()->query('SELECT * FROM gyms WHERE status = "approved"')->fetchAll();
+    // Only display gyms that are approved AND have an active, unexpired SaaS subscription
+    $gyms = db()->query("
+        SELECT * FROM gyms 
+        WHERE status = 'approved' 
+          AND subscription_status = 'active' 
+          AND (subscription_renewal_date IS NULL OR subscription_renewal_date >= CURDATE())
+    ")->fetchAll();
 
     $gymData = [];
     foreach ($gyms as $gym) {
+        if (gym_subscription_tier($gym) === 'none') {
+            continue;
+        }
         $classes = db()->prepare('SELECT * FROM classes WHERE gym_id = ? ORDER BY class_name ASC');
         $classes->execute([$gym['gym_id']]);
         $gym['classes'] = $classes->fetchAll();

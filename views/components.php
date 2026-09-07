@@ -89,7 +89,7 @@ function render_member_form(string $context, ?array $user = null, ?array $profil
             </select>
         </label>
         <label>Primary goal
-            <select name="primary_goal" <?= $context !== 'profile' ? 'required' : '' ?>>
+            <select name="primary_goal" id="primaryGoalSelect_<?= h($context) ?>" onchange="updateTargetMetrics_<?= h($context) ?>(this.value)" <?= $context !== 'profile' ? 'required' : '' ?>>
                 <optgroup label="Aesthetic & Muscle Building">
                     <option value="Building a visible six-pack" <?= selected("Building a visible six-pack", $profile['primary_goal'] ?? null) ?>>Building a visible six-pack</option>
                     <option value="Growing larger biceps and arms" <?= selected("Growing larger biceps and arms", $profile['primary_goal'] ?? null) ?>>Growing larger biceps and arms</option>
@@ -116,14 +116,105 @@ function render_member_form(string $context, ?array $user = null, ?array $profil
                 </optgroup>
             </select>
         </label>
-        <div class="split">
-            <label>Target Weight (kg) <span class="muted">(Optional)</span>
-                <input type="number" step="0.1" name="target_weight_kg" value="<?= h((string)($profile['target_weight_kg'] ?? '')) ?>" placeholder="e.g. 75">
-            </label>
-            <label>Target Body Fat (%) <span class="muted">(Optional)</span>
-                <input type="number" step="0.1" name="target_body_fat_percent" value="<?= h((string)($profile['target_body_fat_percent'] ?? '')) ?>" placeholder="e.g. 15">
-            </label>
+
+        <!-- Dynamic Context-Aware Target Metrics -->
+        <div id="targetMetricsBox_<?= h($context) ?>" style="margin-top: 4px; margin-bottom: 6px;">
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px;">
+                <!-- Arm Target (Primary for Arm Goal) -->
+                <label id="targetArmField_<?= h($context) ?>" style="display: none;">
+                    Target Arm Size (cm) <span class="muted">(Peak Flexed)</span>
+                    <input type="number" step="0.1" name="target_arm_cm" value="<?= h((string)($profile['target_arm_cm'] ?? '')) ?>" placeholder="e.g. 38.0">
+                </label>
+
+                <!-- Chest Target (Primary for Chest Goal) -->
+                <label id="targetChestField_<?= h($context) ?>" style="display: none;">
+                    Target Chest Size (cm) <span class="muted">(Fullest Point)</span>
+                    <input type="number" step="0.1" name="target_chest_cm" value="<?= h((string)($profile['target_chest_cm'] ?? '')) ?>" placeholder="e.g. 105.0">
+                </label>
+
+                <!-- Waist Target (Primary for Abs / Fat Loss) -->
+                <label id="targetWaistField_<?= h($context) ?>" style="display: none;">
+                    Target Waist Size (cm) <span class="muted">(At Navel)</span>
+                    <input type="number" step="0.1" name="target_waist_cm" value="<?= h((string)($profile['target_waist_cm'] ?? '')) ?>" placeholder="e.g. 78.0">
+                </label>
+
+                <!-- Target Weight (kg) -->
+                <label id="targetWeightField_<?= h($context) ?>">
+                    Target Weight (kg) <span class="muted">(Optional)</span>
+                    <input type="number" step="0.1" name="target_weight_kg" value="<?= h((string)($profile['target_weight_kg'] ?? '')) ?>" placeholder="e.g. 75.0">
+                </label>
+
+                <!-- Target Body Fat (%) -->
+                <label id="targetBodyFatField_<?= h($context) ?>">
+                    Target Body Fat (%) <span class="muted">(Optional)</span>
+                    <input type="number" step="0.1" name="target_body_fat_percent" value="<?= h((string)($profile['target_body_fat_percent'] ?? '')) ?>" placeholder="e.g. 15.0">
+                </label>
+            </div>
+
+            <!-- Contextual Fitness Guidance Tip -->
+            <div id="targetGoalTip_<?= h($context) ?>" style="margin-top: 8px; padding: 8px 12px; border-radius: 6px; font-size: 12px; line-height: 1.4; display: flex; align-items: center; gap: 8px; background: var(--panel-soft); border: 1px solid var(--line); color: var(--ink);">
+                <span id="targetGoalTipIcon_<?= h($context) ?>">🎯</span>
+                <span id="targetGoalTipText_<?= h($context) ?>">Set target metrics to track your fitness milestones over time.</span>
+            </div>
         </div>
+
+        <script>
+        function updateTargetMetrics_<?= h($context) ?>(goal) {
+            const armF = document.getElementById('targetArmField_<?= h($context) ?>');
+            const chestF = document.getElementById('targetChestField_<?= h($context) ?>');
+            const waistF = document.getElementById('targetWaistField_<?= h($context) ?>');
+            const weightF = document.getElementById('targetWeightField_<?= h($context) ?>');
+            const bfF = document.getElementById('targetBodyFatField_<?= h($context) ?>');
+            const tip = document.getElementById('targetGoalTip_<?= h($context) ?>');
+            const tipIcon = document.getElementById('targetGoalTipIcon_<?= h($context) ?>');
+            const tipText = document.getElementById('targetGoalTipText_<?= h($context) ?>');
+
+            if (!armF) return;
+
+            // Reset visibility
+            armF.style.display = 'none';
+            chestF.style.display = 'none';
+            waistF.style.display = 'none';
+            weightF.style.display = 'block';
+            bfF.style.display = 'block';
+
+            if (goal === 'Growing larger biceps and arms') {
+                armF.style.display = 'block';
+                bfF.style.display = 'none'; // Arm circumference is primary; body fat is secondary
+                tipIcon.textContent = '💪';
+                tipText.innerHTML = '<strong>Target Arm Circumference</strong> is the gold standard metric for bicep & tricep hypertrophy. Measure flexed around the peak of the arm.';
+            } else if (goal === 'Developing a wide chest') {
+                chestF.style.display = 'block';
+                bfF.style.display = 'none';
+                tipIcon.textContent = '📐';
+                tipText.innerHTML = '<strong>Target Chest Circumference</strong> measures pectoral hypertrophy. Measure horizontally across the fullest point of the chest.';
+            } else if (goal === 'Building a visible six-pack' || goal === 'Losing excess body fat' || goal === 'fat_loss') {
+                waistF.style.display = 'block';
+                tipIcon.textContent = '🔥';
+                tipText.innerHTML = '<strong>Waist Circumference & Body Fat %</strong> directly track abdominal definition and visceral fat loss around the midsection.';
+            } else if (goal === 'Gaining lean body mass' || goal === 'muscle_gain') {
+                armF.style.display = 'block';
+                tipIcon.textContent = '⚖️';
+                tipText.innerHTML = 'For lean mass gain, track your scale weight alongside arm and muscle circumference to ensure lean hypertrophy.';
+            } else {
+                tipIcon.textContent = '🎯';
+                tipText.innerHTML = 'Set target weight or body fat % to monitor your body transformation over time in your Progress dashboard.';
+            }
+        }
+        document.addEventListener('DOMContentLoaded', function() {
+            const selectEl = document.getElementById('primaryGoalSelect_<?= h($context) ?>');
+            if (selectEl) {
+                updateTargetMetrics_<?= h($context) ?>(selectEl.value);
+            }
+        });
+        // Also trigger if inside a dialog modal when opened
+        setTimeout(function() {
+            const selectEl = document.getElementById('primaryGoalSelect_<?= h($context) ?>');
+            if (selectEl) {
+                updateTargetMetrics_<?= h($context) ?>(selectEl.value);
+            }
+        }, 100);
+        </script>
         <label>Dietary Restrictions
             <select name="dietary_restrictions" required>
                 <?php foreach (['none', 'vegetarian', 'vegan', 'pescatarian', 'halal', 'gluten-free', 'keto', 'paleo', 'nut-allergy', 'dairy-free'] as $diet): ?>

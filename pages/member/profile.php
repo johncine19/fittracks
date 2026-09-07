@@ -96,6 +96,9 @@ function profile_page(): void
                 'hip_cm'    => 'numeric|min_num:30|max_num:200',
                 'target_weight_kg'        => 'numeric|min_num:20|max_num:300',
                 'target_body_fat_percent' => 'numeric|min_num:1|max_num:70',
+                'target_arm_cm'           => 'numeric|min_num:15|max_num:70',
+                'target_chest_cm'         => 'numeric|min_num:40|max_num:180',
+                'target_waist_cm'         => 'numeric|min_num:30|max_num:200',
             ]);
             
             if (!$valid) {
