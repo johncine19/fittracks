@@ -10,8 +10,15 @@ function gym_selection_page(): void
         verify_csrf();
         $gymId = (int) ($_POST['gym_id'] ?? 0);
         if ($gymId > 0) {
-            if (!gym_can_add_member($gymId)) {
-                flash('This gym has reached its maximum active member capacity. Please select another gym or contact the gym owner.', 'warning');
+            $targetGym = db()->query("SELECT * FROM gyms WHERE gym_id = " . $gymId)->fetch(PDO::FETCH_ASSOC);
+            if (!$targetGym || !gym_can_add_member($gymId, $targetGym)) {
+                $limit = gym_member_limit($targetGym);
+                $current = gym_active_member_count($gymId);
+                if ($limit > 0 && $current >= $limit) {
+                    flash("This gym has reached its maximum active member capacity ({$current}/{$limit} members). Please select another gym or contact the gym owner.", 'warning');
+                } else {
+                    flash('This gym is currently not accepting new members. Please select another gym or contact the gym owner.', 'warning');
+                }
                 redirect('index.php?page=gym_selection');
                 return;
             }

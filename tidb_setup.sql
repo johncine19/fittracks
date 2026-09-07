@@ -349,8 +349,8 @@ CREATE TABLE `gyms` (
 -- Dumping data for table `gyms`
 --
 
-INSERT INTO `gyms` (`gym_id`, `owner_user_id`, `name`, `address`, `contact_info`, `business_permit_url`, `status`, `created_at`, `updated_at`) VALUES
-(2, 25, 'Elite Fitness Center', '123 Fit Street', '09703736380', 'permit_6a55c0d2a45f9.png', 'approved', '2026-07-14 04:19:41', '2026-07-14 04:53:38');
+INSERT INTO `gyms` (`gym_id`, `owner_user_id`, `name`, `address`, `contact_info`, `business_permit_url`, `subscription_plan`, `subscription_status`, `subscription_renewal_date`, `status`, `created_at`, `updated_at`) VALUES
+(2, 25, 'Elite Fitness Center', '123 Fit Street', '09703736380', 'permit_6a55c0d2a45f9.png', 'Professional', 'active', '2027-12-31', 'approved', '2026-07-14 04:19:41', '2026-07-14 04:53:38');
 
 -- --------------------------------------------------------
 
