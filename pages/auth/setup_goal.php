@@ -148,6 +148,21 @@ function setup_goal_page(): void
     render_header('Select Your Goal', null);
     ?>
     <style>
+        .goal-wizard-card {
+            background: var(--panel);
+            border: 1px solid var(--line);
+            border-radius: 16px;
+            box-shadow: var(--shadow);
+            padding: 32px 36px;
+            max-width: 860px;
+            width: 100%;
+            position: relative;
+            z-index: 1;
+            margin: 0 auto;
+            overflow: hidden;
+            transition: all 0.3s ease;
+        }
+
         .goal-bg-decor {
             position: absolute;
             inset: 0;
@@ -167,11 +182,6 @@ function setup_goal_page(): void
         .goal-blob--a { background: var(--lime); top: -100px; left: -80px; }
         .goal-blob--b { background: #38bdf8; bottom: -120px; right: -90px; }
 
-        .goal-card-wrap {
-            position: relative;
-            z-index: 1;
-        }
-
         /* Stepper header */
         .onboarding-stepper {
             display: flex;
@@ -187,19 +197,19 @@ function setup_goal_page(): void
             padding: 4px 12px;
             border-radius: 999px;
             font-size: 0.78rem;
-            font-weight: 600;
+            font-weight: 700;
             letter-spacing: 0.5px;
             text-transform: uppercase;
         }
         .stepper-pill.done {
-            background: rgba(255, 255, 255, 0.05);
+            background: var(--panel-soft);
             color: var(--muted);
-            border: 1px solid rgba(255, 255, 255, 0.08);
+            border: 1px solid var(--line);
         }
         .stepper-pill.active {
-            background: rgba(199, 255, 34, 0.12);
+            background: color-mix(in srgb, var(--lime) 15%, var(--panel));
             color: var(--lime);
-            border: 1px solid rgba(199, 255, 34, 0.35);
+            border: 1.5px solid var(--lime);
         }
         .stepper-arrow {
             color: var(--muted);
@@ -211,7 +221,7 @@ function setup_goal_page(): void
             display: flex;
             flex-direction: column;
             gap: 12px;
-            margin-bottom: 18px;
+            margin-bottom: 20px;
         }
         
         .goal-search-wrap {
@@ -223,27 +233,29 @@ function setup_goal_page(): void
             left: 14px;
             top: 50%;
             transform: translateY(-50%);
-            width: 17px;
-            height: 17px;
+            width: 18px;
+            height: 18px;
             color: var(--muted);
             pointer-events: none;
             transition: color 0.2s;
         }
         #goal-search {
             width: 100%;
-            background: rgba(255, 255, 255, 0.04);
-            border: 1px solid rgba(255, 255, 255, 0.1);
+            background: var(--panel);
+            border: 1.5px solid var(--line);
             border-radius: 10px;
-            padding: 10px 14px 10px 42px;
+            padding: 12px 14px 12px 42px;
             color: var(--ink);
-            font-size: 0.9rem;
+            font-size: 0.92rem;
+            font-weight: 500;
             outline: none;
             transition: all 0.2s;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.05);
         }
         #goal-search:focus {
-            background: rgba(255, 255, 255, 0.06);
+            background: var(--panel);
             border-color: var(--lime);
-            box-shadow: 0 0 0 3px rgba(199, 255, 34, 0.12);
+            box-shadow: 0 0 0 3px color-mix(in srgb, var(--lime) 25%, transparent);
         }
         #goal-search:focus + svg {
             color: var(--lime);
@@ -254,19 +266,19 @@ function setup_goal_page(): void
             display: flex;
             gap: 8px;
             overflow-x: auto;
-            padding-bottom: 2px;
+            padding-bottom: 4px;
             scrollbar-width: none;
         }
         .category-tabs::-webkit-scrollbar { display: none; }
         
         .category-tab-btn {
-            background: rgba(255, 255, 255, 0.04);
-            border: 1px solid rgba(255, 255, 255, 0.08);
+            background: var(--panel);
+            border: 1.5px solid var(--line);
             color: var(--muted);
-            border-radius: 8px;
-            padding: 7px 13px;
+            border-radius: 10px;
+            padding: 8px 14px;
             font-size: 0.82rem;
-            font-weight: 500;
+            font-weight: 600;
             cursor: pointer;
             display: inline-flex;
             align-items: center;
@@ -277,26 +289,27 @@ function setup_goal_page(): void
         }
         .category-tab-btn:hover {
             color: var(--ink);
-            background: rgba(255, 255, 255, 0.08);
-            border-color: rgba(255, 255, 255, 0.16);
+            border-color: var(--lime);
+            background: color-mix(in srgb, var(--lime) 5%, var(--panel));
         }
         .category-tab-btn.active {
-            background: rgba(199, 255, 34, 0.14);
+            background: color-mix(in srgb, var(--lime) 15%, var(--panel));
             border-color: var(--lime);
-            color: var(--lime);
-            font-weight: 600;
-            box-shadow: 0 0 12px rgba(199, 255, 34, 0.12);
+            color: var(--ink);
+            font-weight: 700;
+            box-shadow: 0 0 0 2px color-mix(in srgb, var(--lime) 20%, transparent);
         }
         .category-tab-btn .badge-count {
-            background: rgba(255, 255, 255, 0.08);
-            padding: 1px 6px;
+            background: var(--panel-soft);
+            color: var(--muted);
+            padding: 2px 7px;
             border-radius: 999px;
             font-size: 0.72rem;
-            font-weight: 600;
+            font-weight: 700;
         }
         .category-tab-btn.active .badge-count {
-            background: rgba(199, 255, 34, 0.25);
-            color: #fff;
+            background: var(--lime);
+            color: #090b10;
         }
 
         /* Responsive 2-Column Grid (No internal scroll fatigue) */
@@ -309,27 +322,27 @@ function setup_goal_page(): void
 
         .goal-card {
             position: relative;
-            background: rgba(255, 255, 255, 0.03);
-            border: 1.5px solid rgba(255, 255, 255, 0.07);
+            background: var(--panel);
+            border: 1.5px solid var(--line);
             border-radius: 12px;
             padding: 14px 16px;
             cursor: pointer;
             display: flex;
             align-items: flex-start;
             gap: 14px;
-            transition: transform 0.2s ease, border-color 0.2s ease, background 0.2s ease, box-shadow 0.2s ease;
+            transition: all 0.2s ease;
             user-select: none;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.04);
         }
         .goal-card:hover {
             transform: translateY(-2px);
-            border-color: rgba(199, 255, 34, 0.4);
-            background: rgba(255, 255, 255, 0.05);
-            box-shadow: 0 6px 16px rgba(0, 0, 0, 0.25);
+            border-color: var(--lime);
+            box-shadow: 0 6px 16px rgba(0, 0, 0, 0.08);
         }
         .goal-card.selected {
             border-color: var(--lime);
-            background: rgba(199, 255, 34, 0.07);
-            box-shadow: 0 0 18px rgba(199, 255, 34, 0.16);
+            background: color-mix(in srgb, var(--lime) 10%, var(--panel));
+            box-shadow: 0 0 0 3px color-mix(in srgb, var(--lime) 20%, transparent);
         }
 
         .goal-card input[type="radio"] {
@@ -342,26 +355,26 @@ function setup_goal_page(): void
 
         /* Icon Badge */
         .goal-icon-box {
-            width: 40px;
-            height: 40px;
+            width: 42px;
+            height: 42px;
             border-radius: 10px;
-            background: rgba(255, 255, 255, 0.05);
-            border: 1px solid rgba(255, 255, 255, 0.08);
+            background: var(--panel-soft);
+            border: 1px solid var(--line);
             display: flex;
             align-items: center;
             justify-content: center;
             flex-shrink: 0;
-            color: var(--muted);
+            color: var(--ink);
             transition: all 0.2s;
         }
         .goal-card:hover .goal-icon-box {
             color: var(--lime);
-            border-color: rgba(199, 255, 34, 0.3);
+            border-color: var(--lime);
         }
         .goal-card.selected .goal-icon-box {
-            background: rgba(199, 255, 34, 0.18);
+            background: var(--lime);
+            color: #090b10;
             border-color: var(--lime);
-            color: var(--lime);
         }
 
         .goal-content {
@@ -369,7 +382,7 @@ function setup_goal_page(): void
             min-width: 0;
         }
         .goal-title {
-            font-weight: 600;
+            font-weight: 700;
             font-size: 0.95rem;
             color: var(--ink);
             line-height: 1.3;
@@ -387,22 +400,23 @@ function setup_goal_page(): void
 
         /* Checkmark / Radio Pill */
         .goal-check-indicator {
-            width: 20px;
-            height: 20px;
+            width: 22px;
+            height: 22px;
             border-radius: 50%;
-            border: 2px solid rgba(255, 255, 255, 0.25);
+            border: 2px solid var(--line);
             display: flex;
             align-items: center;
             justify-content: center;
             flex-shrink: 0;
             margin-top: 2px;
             transition: all 0.2s;
+            background: var(--panel);
         }
         .goal-check-indicator svg {
             display: none;
             width: 12px;
             height: 12px;
-            color: var(--bg);
+            color: #090b10;
             stroke-width: 3;
         }
         .goal-card.selected .goal-check-indicator {
@@ -420,16 +434,16 @@ function setup_goal_page(): void
             padding: 36px 16px;
             color: var(--muted);
             grid-column: 1 / -1;
-            background: rgba(255, 255, 255, 0.02);
+            background: var(--panel-soft);
             border-radius: 12px;
-            border: 1px dashed rgba(255, 255, 255, 0.1);
+            border: 1.5px dashed var(--line);
         }
         .goal-no-results.show { display: block; }
 
         /* Footer & Submit */
         .goal-action-bar {
-            border-top: 1px solid rgba(255, 255, 255, 0.08);
-            padding-top: 16px;
+            border-top: 1px solid var(--line);
+            padding-top: 18px;
             display: flex;
             align-items: center;
             justify-content: space-between;
@@ -437,18 +451,37 @@ function setup_goal_page(): void
             flex-wrap: wrap;
         }
         .goal-selected-status {
-            font-size: 0.85rem;
+            font-size: 0.88rem;
             color: var(--muted);
             display: flex;
             align-items: center;
             gap: 6px;
         }
         .goal-selected-status strong {
-            color: var(--lime);
-            font-weight: 600;
+            color: var(--ink);
+            font-weight: 700;
+        }
+
+        .auth-submit-btn {
+            background: var(--lime);
+            color: #090b10;
+            font-weight: 800;
+            border: none;
+            border-radius: 10px;
+            letter-spacing: 0.3px;
+            transition: all 0.2s;
+        }
+        .auth-submit-btn:hover {
+            opacity: 0.95;
+            transform: translateY(-1px);
+            box-shadow: 0 6px 20px color-mix(in srgb, var(--lime) 30%, transparent);
         }
 
         @media (max-width: 680px) {
+            .goal-wizard-card {
+                padding: 20px 16px;
+                border-radius: 14px;
+            }
             .goals-grid {
                 grid-template-columns: 1fr;
             }
@@ -463,7 +496,7 @@ function setup_goal_page(): void
     </style>
 
     <section style="padding: 30px 16px; min-height: 85vh; display:flex; align-items:center; justify-content:center;">
-        <div class="auth-card goal-card-wrap" style="max-width:860px; width:100%; position:relative; overflow:hidden;">
+        <div class="goal-wizard-card">
             <div class="goal-bg-decor" aria-hidden="true">
                 <div class="goal-blob goal-blob--a"></div>
                 <div class="goal-blob goal-blob--b"></div>
