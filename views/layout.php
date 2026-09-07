@@ -182,10 +182,28 @@ function render_header(string $title, ?array $user = null): void
                 <!-- Role badge (replaces non-functional role-switch select) -->
                 <div class="role-badge"><?= h(ucfirst($user['role'])) ?></div>
                 <nav class="side-nav">
-                    <?php foreach ($nav as $key => $label): ?>
+                    <?php foreach ($nav as $key => $label): 
+                        $tierBadge = null;
+                        if ($role === 'gym_owner' && $gym) {
+                            $mappedFeature = match ($key) {
+                                'trainer_assignments' => 'trainers',
+                                'commissions' => 'commissions',
+                                'classes' => 'classes',
+                                'reports' => 'advanced_reports',
+                                'audit_logs' => 'audit_logs',
+                                default => null,
+                            };
+                            if ($mappedFeature !== null && !gym_has_feature($mappedFeature, $gym)) {
+                                $tierBadge = in_array($mappedFeature, ['audit_logs'], true) ? 'BIZ' : 'PRO';
+                            }
+                        }
+                    ?>
                         <a class="<?= $page === $key ? 'active' : '' ?>" href="index.php?page=<?= h($key) ?>">
                             <span class="nav-icon"><?= nav_icon($key) ?></span>
                             <span class="nav-label"><?= h($label) ?></span>
+                            <?php if ($tierBadge): ?>
+                                <span style="margin-left: auto; font-size: 9px; font-weight: 800; padding: 1px 5px; border-radius: 4px; background: rgba(132, 204, 22, 0.12); color: #84cc16; border: 1px solid rgba(132, 204, 22, 0.25); letter-spacing: 0.5px;"><?= $tierBadge ?></span>
+                            <?php endif; ?>
                         </a>
                     <?php endforeach; ?>
                 </nav>

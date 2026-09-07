@@ -4,6 +4,9 @@ declare(strict_types=1);
 function commissions_page(): void
 {
     $user = require_roles(['platform_admin', 'gym_owner']);
+    if ($user['role'] === 'gym_owner') {
+        require_gym_feature('commissions');
+    }
 
     if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $action = post('action');

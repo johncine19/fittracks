@@ -182,9 +182,10 @@ function get_platform_subscription_plans(): array
                 'popular' => false,
                 'features' => [
                     'Up to 100 Active Members',
-                    'Basic Analytics & Reports',
-                    'Walk-in Management',
-                    'Online Member Registration',
+                    'Workout Builder & Exercise Library',
+                    'Walk-in Pass & QR Scanner',
+                    'Membership Plans & Payments',
+                    'Basic Dashboard Analytics',
                 ],
             ],
             'professional' => [
@@ -195,10 +196,10 @@ function get_platform_subscription_plans(): array
                 'popular' => true,
                 'features' => [
                     'Up to 500 Active Members',
-                    'Advanced Dashboard & Charts',
-                    'Automated Renewal Reminders',
+                    'Trainers & Commission Tracking',
                     'Class Scheduling & Booking',
-                    'Member Engagement Tracking',
+                    'Advanced Analytics & Reports',
+                    'Automated Renewal Reminders',
                 ],
             ],
             'business' => [
@@ -208,10 +209,10 @@ function get_platform_subscription_plans(): array
                 'desc' => 'Best for large or multi-branch facilities.',
                 'popular' => false,
                 'features' => [
-                    'Unlimited Members',
-                    'Multi-Branch Support',
+                    'Unlimited Active Members',
+                    'Custom App Brand Color & Theme',
+                    'Security Audit Logs Access',
                     'Dedicated Account Manager',
-                    'Custom Branded App Theme',
                     'Priority 24/7 Support',
                 ],
             ],
@@ -235,6 +236,197 @@ function get_platform_subscription_plans(): array
     }
     return $plans;
 }
+
+/**
+ * Subscription Tier & Feature Entitlement Helpers
+ */
+function gym_subscription_tier(?array $gym = null): string
+{
+    if (!$gym) {
+        $user = current_user();
+        if ($user) {
+            $gym = get_user_gym($user);
+        }
+    }
+    if (!$gym) {
+        return 'none';
+    }
+    
+    $status = (string)($gym['subscription_status'] ?? '');
+    if ($status !== 'active') {
+        return 'none';
+    }
+
+    $renewalDate = $gym['subscription_renewal_date'] ?? null;
+    if (!empty($renewalDate) && strtotime((string)$renewalDate) < strtotime('today')) {
+        return 'none'; // expired
+    }
+
+    $rawPlan = strtolower(trim((string)($gym['subscription_plan'] ?? '')));
+    if (str_contains($rawPlan, 'business')) {
+        return 'business';
+    }
+    if (str_contains($rawPlan, 'pro')) {
+        return 'professional';
+    }
+    if (str_contains($rawPlan, 'starter')) {
+        return 'starter';
+    }
+
+    return !empty($rawPlan) ? 'starter' : 'none';
+}
+
+function gym_member_limit(?array $gym = null): int
+{
+    $tier = gym_subscription_tier($gym);
+    return match ($tier) {
+        'starter' => 100,
+        'professional' => 500,
+        'business' => PHP_INT_MAX,
+        default => 0,
+    };
+}
+
+function gym_active_member_count(int $gymId): int
+{
+    if ($gymId <= 0) return 0;
+    $count = (int) scalar(
+        'SELECT COUNT(DISTINCT gm.user_id) 
+         FROM gym_members gm 
+         JOIN users u ON u.user_id = gm.user_id 
+         WHERE gm.gym_id = ? AND u.status = "active"',
+        [$gymId]
+    );
+    return $count;
+}
+
+function gym_can_add_member(int $gymId, ?array $gym = null): bool
+{
+    if (!$gym) {
+        $gym = db()->query("SELECT * FROM gyms WHERE gym_id = " . (int)$gymId)->fetch(PDO::FETCH_ASSOC);
+    }
+    $limit = gym_member_limit($gym);
+    if ($limit === PHP_INT_MAX) {
+        return true;
+    }
+    $current = gym_active_member_count($gymId);
+    return $current < $limit;
+}
+
+function gym_has_feature(string $feature, ?array $gym = null): bool
+{
+    $tier = gym_subscription_tier($gym);
+    if ($tier === 'none') {
+        return false;
+    }
+
+    // Business tier has access to everything
+    if ($tier === 'business') {
+        return true;
+    }
+
+    $tierWeights = [
+        'starter' => 1,
+        'professional' => 2,
+        'business' => 3,
+    ];
+
+    $featureRequirements = [
+        // Starter & above
+        'scanner' => 'starter',
+        'attendance' => 'starter',
+        'walk_ins' => 'starter',
+        'memberships' => 'starter',
+        'payments' => 'starter',
+        'workouts' => 'starter',
+        'exercises' => 'starter',
+        'training' => 'starter',
+        'admin_workouts' => 'starter',
+        'basic_dashboard' => 'starter',
+        'users' => 'starter',
+        'gym_profile' => 'starter',
+        'plans' => 'starter',
+        
+        // Professional & above
+        'trainers' => 'professional',
+        'trainer_assignments' => 'professional',
+        'commissions' => 'professional',
+        'classes' => 'professional',
+        'advanced_reports' => 'professional',
+        'renewal_reminders' => 'professional',
+        'engagement_tracking' => 'professional',
+
+        // Business only
+        'custom_branding' => 'business',
+        'audit_logs' => 'business',
+    ];
+
+    $requiredTier = $featureRequirements[$feature] ?? 'professional';
+    $currentWeight = $tierWeights[$tier] ?? 0;
+    $requiredWeight = $tierWeights[$requiredTier] ?? 2;
+
+    return $currentWeight >= $requiredWeight;
+}
+
+function require_gym_feature(string $feature): void
+{
+    $user = current_user();
+    if ($user && ($user['role'] ?? '') === 'platform_admin') {
+        return;
+    }
+
+    $gym = $user ? get_user_gym($user) : null;
+    if (!$gym || !gym_has_feature($feature, $gym)) {
+        http_response_code(403);
+        $featureTitles = [
+            'trainers' => 'Trainers & Staff Management',
+            'trainer_assignments' => 'Trainer Assignments',
+            'commissions' => 'Trainer Commission Tracking',
+            'classes' => 'Class Scheduling & Booking',
+            'advanced_reports' => 'Advanced Financial & Performance Reports',
+            'custom_branding' => 'Custom App Brand Theme',
+            'audit_logs' => 'Security Audit Logs',
+            'workouts' => 'Workout Builder & Plans',
+        ];
+        $featureName = $featureTitles[$feature] ?? ucwords(str_replace('_', ' ', $feature));
+        $tier = gym_subscription_tier($gym);
+        $planName = $tier !== 'none' ? ucfirst($tier) : 'Inactive';
+        
+        $neededTier = in_array($feature, ['custom_branding', 'audit_logs'], true) ? 'Business' : 'Professional';
+
+        render_header('Upgrade Required', $user);
+        ?>
+        <div style="max-width: 640px; margin: 60px auto; padding: 40px 32px; background: rgba(15, 21, 18, 0.9); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 20px; box-shadow: 0 25px 60px rgba(0,0,0,0.6); text-align: center; backdrop-filter: blur(16px);">
+            <div style="width: 64px; height: 64px; margin: 0 auto 20px; background: rgba(132, 204, 22, 0.12); border: 1px solid rgba(132, 204, 22, 0.3); border-radius: 50%; display: flex; align-items: center; justify-content: center;">
+                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#84cc16" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                    <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+                    <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+                </svg>
+            </div>
+            <span style="display: inline-block; padding: 4px 12px; background: rgba(132, 204, 22, 0.15); color: #84cc16; font-size: 11px; font-weight: 800; letter-spacing: 0.8px; border-radius: 20px; text-transform: uppercase; margin-bottom: 12px;">
+                <?= h($neededTier) ?> Plan Feature
+            </span>
+            <h1 style="font-size: 1.8rem; font-weight: 800; color: #fff; margin: 0 0 12px; letter-spacing: -0.5px;">
+                <?= h($featureName) ?>
+            </h1>
+            <p style="color: #94a3b8; font-size: 15px; line-height: 1.6; margin: 0 auto 28px; max-width: 480px;">
+                This module is not included in your current <strong style="color: #fff;"><?= h($planName) ?></strong> subscription. Upgrade to the <strong style="color: #84cc16;"><?= h($neededTier) ?></strong> tier to unlock full access.
+            </p>
+            <div style="display: flex; gap: 14px; justify-content: center; flex-wrap: wrap;">
+                <a href="index.php?page=dashboard" class="btn" style="background: rgba(255,255,255,0.06); color: #fff; border: 1px solid rgba(255,255,255,0.12); padding: 12px 24px; border-radius: 12px; font-weight: 600; text-decoration: none;">
+                    Back to Dashboard
+                </a>
+                <a href="index.php?page=gym_subscription" class="btn btn-primary" style="padding: 12px 28px; border-radius: 12px; font-weight: 700; text-decoration: none;">
+                    Upgrade Subscription →
+                </a>
+            </div>
+        </div>
+        <?php
+        render_footer();
+        exit;
+    }
+}
+
 
 
 function upload_url(?string $filename, string $folder = 'uploads', string $fallback = ''): string

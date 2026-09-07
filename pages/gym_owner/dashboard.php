@@ -187,12 +187,35 @@ function admin_dashboard(PDO $pdo, array $user): void
                         <?= h($subPlan) ?>
                     <?php endif; ?>
                 </p>
-                <div style="display:flex; gap:12px; align-items:center; margin-bottom: 16px;">
+                <div style="display:flex; gap:12px; align-items:center; margin-bottom: 14px;">
                     <span class="badge" style="background: <?= $subStatus === 'active' ? 'color-mix(in srgb, var(--teal) 15%, transparent)' : 'rgba(239, 68, 68, 0.15)' ?>; color: <?= $subStatus === 'active' ? 'var(--teal)' : 'var(--danger)' ?>;"><?= h(ucfirst($subStatus)) ?></span>
                     <?php if ($subRenewal !== 'N/A'): ?>
                         <small style="color: var(--muted);">Renews on <?= h($subRenewal) ?></small>
                     <?php endif; ?>
                 </div>
+
+                <?php
+                    $memberLimit = gym_member_limit($gymRow);
+                    $activeMemberCount = $gymId ? gym_active_member_count($gymId) : 0;
+                    $usagePercent = ($memberLimit > 0 && $memberLimit !== PHP_INT_MAX) 
+                        ? min(100, round(($activeMemberCount / $memberLimit) * 100)) 
+                        : null;
+                ?>
+                <div style="margin-bottom: 16px; padding: 12px; border-radius: 8px; background: rgba(255,255,255,0.03); border: 1px solid var(--line);">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; font-size: 13px;">
+                        <span style="color: var(--muted);">Member Capacity</span>
+                        <strong style="color: var(--ink);">
+                            <?= $activeMemberCount ?> / <?= $memberLimit === PHP_INT_MAX ? '∞ Unlimited' : $memberLimit ?>
+                            <?= $usagePercent !== null ? "({$usagePercent}%)" : '' ?>
+                        </strong>
+                    </div>
+                    <?php if ($usagePercent !== null): ?>
+                        <div style="width: 100%; height: 6px; background: rgba(255,255,255,0.08); border-radius: 3px; overflow: hidden;">
+                            <div style="width: <?= $usagePercent ?>%; height: 100%; background: <?= $usagePercent >= 90 ? 'var(--danger, #ef4444)' : 'var(--lime, #84cc16)' ?>; transition: width 0.3s ease;"></div>
+                        </div>
+                    <?php endif; ?>
+                </div>
+
                 <a href="index.php?page=gym_subscription" class="btn btn-primary" style="width: 100%; text-align: center;"><?= $subStatus === 'active' ? 'Manage Subscription' : 'Choose Subscription' ?></a>
             </div>
         </article>

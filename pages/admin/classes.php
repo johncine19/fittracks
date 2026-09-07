@@ -4,6 +4,9 @@ declare(strict_types=1);
 function classes_page(): void
 {
     $user = require_roles(['platform_admin', 'gym_owner', 'trainer']);
+    if ($user['role'] === 'gym_owner') {
+        require_gym_feature('classes');
+    }
     $isAdmin = $user['role'] === 'platform_admin';
     $gymId = null;
     if ($user['role'] === 'gym_owner') {

@@ -191,8 +191,13 @@ function my_workout_page(): void
                         videoEl.style.display = 'none';
                         fallbackDiv.style.display = 'none';
 
-                        // Prioritize custom animation URL from DB
-                        let sourceUrl = ex.animation_url ? `assets/exercise_animations/${ex.animation_url}` : '';
+                        // Prioritize custom animation URL from DB (CDN or local)
+                        let sourceUrl = '';
+                        if (ex.animation_url) {
+                            sourceUrl = (ex.animation_url.startsWith('http://') || ex.animation_url.startsWith('https://'))
+                                ? ex.animation_url
+                                : `assets/exercise_animations/${ex.animation_url}`;
+                        }
                         
                         // If no DB URL, try guessing by exercise name
                         if (!sourceUrl) {

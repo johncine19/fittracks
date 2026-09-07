@@ -107,8 +107,7 @@ final class FileUpload
     }
 
     /**
-     * Stores an exercise animation locally under assets/exercise_animations/.
-     * We save locally to avoid Cloudinary video limits.
+     * Stores an exercise animation on ImageKit CDN (with automatic local fallback).
      */
     public static function storeExerciseAnimation(array $file, int $exerciseId): string
     {
@@ -119,18 +118,71 @@ final class FileUpload
         finfo_close($finfo);
         
         $extension = self::ALLOWED_MIME_ANIMATION[$mime];
+        $filename = 'ex_' . $exerciseId . '_' . bin2hex(random_bytes(6)) . '.' . $extension;
 
+        // Attempt upload to ImageKit CDN first
+        $imageKitUrl = self::uploadToImageKit($file['tmp_name'], $mime, $filename, '/exercise_animations');
+        if ($imageKitUrl) {
+            return $imageKitUrl;
+        }
+
+        // Fallback to local storage under assets/exercise_animations/
         $uploadDir = __DIR__ . '/../assets/exercise_animations/';
         if (!is_dir($uploadDir)) {
             mkdir($uploadDir, 0775, true);
         }
 
-        $filename = 'ex_' . $exerciseId . '_' . bin2hex(random_bytes(6)) . '.' . $extension;
         if (!move_uploaded_file($file['tmp_name'], $uploadDir . $filename)) {
             throw new RuntimeException('Could not save the exercise animation.');
         }
 
         return $filename;
+    }
+
+    /**
+     * Uploads an exercise animation to ImageKit via REST API.
+     * Returns the full CDN URL if successful, or false on failure.
+     */
+    private static function uploadToImageKit(string $filePath, string $mimeType, string $fileName, string $folder = '/exercise_animations'): string|false
+    {
+        $privateKey = trim((string)app_env('IMAGEKIT_PRIVATE_KEY'));
+        if (!$privateKey) {
+            return false;
+        }
+
+        $ch = curl_init('https://upload.imagekit.io/api/v1/files/upload');
+        $cFile = new CURLFile($filePath, $mimeType, $fileName);
+
+        curl_setopt_array($ch, [
+            CURLOPT_POST => true,
+            CURLOPT_USERPWD => $privateKey . ':',
+            CURLOPT_POSTFIELDS => [
+                'file' => $cFile,
+                'fileName' => $fileName,
+                'folder' => $folder,
+                'useUniqueFileName' => 'true'
+            ],
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_TIMEOUT => 45,
+            CURLOPT_IPRESOLVE => CURL_IPRESOLVE_V4,
+            CURLOPT_SSL_VERIFYPEER => false,
+            CURLOPT_SSL_VERIFYHOST => 0,
+        ]);
+
+        $response = curl_exec($ch);
+        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $curlError = curl_error($ch);
+        curl_close($ch);
+
+        if ($httpCode >= 200 && $httpCode < 300 && $response) {
+            $data = json_decode($response, true);
+            if (!empty($data['url'])) {
+                return $data['url'];
+            }
+        }
+
+        error_log("ImageKit upload failed (HTTP {$httpCode}): {$curlError} - Response: {$response}");
+        return false;
     }
 
     /**

@@ -232,7 +232,7 @@ function maybe_notify_membership_renewal(int $userId): void
     }
 
     $rows = query_all(
-        'SELECT m.end_date, p.plan_name
+        'SELECT m.end_date, p.plan_name, p.gym_id
          FROM memberships m
          JOIN membership_plans p ON p.plan_id = m.plan_id
          WHERE m.user_id = ? AND m.status = "active"
@@ -246,6 +246,12 @@ function maybe_notify_membership_renewal(int $userId): void
     }
 
     $membership = $rows[0];
+    if (!empty($membership['gym_id'])) {
+        $gym = db()->query("SELECT * FROM gyms WHERE gym_id = " . (int)$membership['gym_id'])->fetch(PDO::FETCH_ASSOC);
+        if ($gym && !gym_has_feature('renewal_reminders', $gym)) {
+            return; // Only Professional & Business tiers include automated renewal reminder notifications
+        }
+    }
     $endDate = $membership['end_date'];
     $daysLeft = (int) ((strtotime($endDate) - strtotime(date('Y-m-d'))) / 86400);
     $message = 'Your ' . $membership['plan_name'] . ' membership expires on '

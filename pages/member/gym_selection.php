@@ -10,6 +10,11 @@ function gym_selection_page(): void
         verify_csrf();
         $gymId = (int) ($_POST['gym_id'] ?? 0);
         if ($gymId > 0) {
+            if (!gym_can_add_member($gymId)) {
+                flash('This gym has reached its maximum active member capacity. Please select another gym or contact the gym owner.', 'warning');
+                redirect('index.php?page=gym_selection');
+                return;
+            }
             db()->prepare('INSERT IGNORE INTO gym_members (user_id, gym_id) VALUES (?, ?)')
                 ->execute([$user['user_id'], $gymId]);
             $_SESSION['current_gym_id'] = $gymId;

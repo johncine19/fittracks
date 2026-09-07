@@ -84,6 +84,9 @@ function handle_export(string $type, string $format, array $data): void
 function reports_page(): void
 {
     $user = require_roles(['platform_admin', 'gym_owner']);
+    if ($user['role'] === 'gym_owner') {
+        require_gym_feature('advanced_reports');
+    }
     $pdo = db();
     $isPlatformAdmin = $user['role'] === 'platform_admin';
     

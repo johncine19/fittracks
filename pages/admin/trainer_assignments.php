@@ -4,6 +4,9 @@ declare(strict_types=1);
 function trainer_assignments_page(): void
 {
     $user = require_roles(['platform_admin', 'gym_owner']);
+    if ($user['role'] === 'gym_owner') {
+        require_gym_feature('trainers');
+    }
     $gymId = null;
     if ($user['role'] === 'gym_owner') {
         $gymId = (int) scalar('SELECT gym_id FROM gyms WHERE owner_user_id = ?', [$user['user_id']]);

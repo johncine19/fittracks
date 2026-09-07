@@ -194,7 +194,7 @@ function exercises_page(): void
                 </p>
             </div>
             <div style="display:flex; gap:12px;">
-                <button type="button" onclick="document.getElementById('exModal').showModal(); document.getElementById('exForm').reset(); document.getElementById('exFormAction').value='create'; document.getElementById('exModalTitle').innerText='Add New Exercise';" style="background: var(--lime); border: none; color: var(--bg); padding: 10px 16px; border-radius: 8px; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 8px; transition: opacity 0.2s;">
+                <button type="button" onclick="openNewExerciseModal()" style="background: var(--lime); border: none; color: var(--bg); padding: 10px 16px; border-radius: 8px; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 8px; transition: opacity 0.2s;">
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
                     New Exercise
                 </button>
@@ -259,6 +259,17 @@ function exercises_page(): void
                                 <?php if ($ex['muscle_group']): ?>
                                     <span class="ex-pill muscle"><?= h($ex['muscle_group']) ?></span>
                                 <?php endif; ?>
+                                <?php if (!empty($ex['animation_url'])): ?>
+                                    <?php 
+                                        $animUrl = (str_starts_with($ex['animation_url'], 'http://') || str_starts_with($ex['animation_url'], 'https://'))
+                                            ? $ex['animation_url']
+                                            : 'assets/exercise_animations/' . $ex['animation_url'];
+                                    ?>
+                                    <a href="<?= h($animUrl) ?>" target="_blank" class="ex-pill" style="background: rgba(163, 230, 53, 0.15); color: #84cc16; text-decoration: none; display: inline-flex; align-items: center; gap: 4px; font-size: 11px; font-weight: 600;" title="View exercise animation">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+                                        Animation
+                                    </a>
+                                <?php endif; ?>
                             </div>
 
                             <p style="margin:0; font-size:14px; color:var(--muted); flex-grow:1; margin-top: 8px;">
@@ -321,6 +332,10 @@ function exercises_page(): void
                 <label>Animation <span style="color:var(--muted); font-size:12px;">(Optional, Max 5MB, MP4/GIF/WebP)</span>
                     <input type="file" name="animation" id="exAnimation" class="form-control" accept="video/mp4,image/gif,image/webp">
                 </label>
+                <div id="exCurrentAnimContainer" style="display:none; font-size: 13px; padding: 6px 10px; background: rgba(255,255,255,0.04); border-radius: 6px; border: 1px solid var(--line);">
+                    <span style="color:var(--muted);">Current animation:</span> 
+                    <a id="exCurrentAnimLink" href="#" target="_blank" style="color:var(--lime); font-weight: 500; text-decoration: underline; margin-left: 4px;">View Animation ↗</a>
+                </div>
 
                 <button type="submit" class="btn btn-primary" style="margin-top:8px;">Save Exercise</button>
             </form>
@@ -328,6 +343,15 @@ function exercises_page(): void
     </dialog>
 
     <script>
+    function openNewExerciseModal() {
+        document.getElementById('exForm').reset();
+        document.getElementById('exFormAction').value = 'create';
+        document.getElementById('exFormId').value = '';
+        document.getElementById('exModalTitle').innerText = 'Add New Exercise';
+        document.getElementById('exCurrentAnimContainer').style.display = 'none';
+        document.getElementById('exModal').showModal();
+    }
+
     function editExercise(ex) {
         document.getElementById('exForm').reset();
         document.getElementById('exFormAction').value = 'edit';
@@ -342,6 +366,18 @@ function exercises_page(): void
         var gymIdSelect = document.getElementById('exGymId');
         if (gymIdSelect) {
             gymIdSelect.value = ex.gym_id || '';
+        }
+
+        const animContainer = document.getElementById('exCurrentAnimContainer');
+        const animLink = document.getElementById('exCurrentAnimLink');
+        if (ex.animation_url) {
+            const src = (ex.animation_url.startsWith('http://') || ex.animation_url.startsWith('https://'))
+                ? ex.animation_url
+                : 'assets/exercise_animations/' + ex.animation_url;
+            animLink.href = src;
+            animContainer.style.display = 'block';
+        } else {
+            animContainer.style.display = 'none';
         }
         
         document.getElementById('exModal').showModal();

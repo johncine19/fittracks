@@ -24,7 +24,7 @@ WORKDIR /var/www/html
 RUN composer install --no-dev --optimize-autoloader --no-interaction
 
 # Set correct permissions
-RUN mkdir -p /var/www/html/storage /var/www/html/assets/uploads /var/www/html/assets/permits \
-    && chown -R www-data:www-data /var/www/html/storage /var/www/html/assets/uploads /var/www/html/assets/permits
+RUN mkdir -p /var/www/html/storage /var/www/html/assets/uploads /var/www/html/assets/permits /var/www/html/assets/exercise_animations \
+    && chown -R www-data:www-data /var/www/html/storage /var/www/html/assets/uploads /var/www/html/assets/permits /var/www/html/assets/exercise_animations
 
 EXPOSE 80

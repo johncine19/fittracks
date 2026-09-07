@@ -60,6 +60,19 @@ function users_page(): void
                 return;
             }
 
+            if ($roleToCreate === 'member' && !$isAdmin && !gym_can_add_member($gymId)) {
+                $limit = gym_member_limit();
+                $activeCount = gym_active_member_count($gymId);
+                flash("Active member capacity reached ({$activeCount}/{$limit} members). Please upgrade your subscription plan to add more members.", 'warning');
+                redirect('users');
+                return;
+            }
+            if ($roleToCreate === 'trainer' && !$isAdmin && !gym_has_feature('trainers')) {
+                flash("Trainer management is a Professional & Business plan feature. Please upgrade your subscription.", 'warning');
+                redirect('users');
+                return;
+            }
+
             $plainPassword = (string) post('password');
             $firstName = mb_convert_case(trim((string) post('first_name')), MB_CASE_TITLE, 'UTF-8');
             $lastName  = mb_convert_case(trim((string) post('last_name')), MB_CASE_TITLE, 'UTF-8');
