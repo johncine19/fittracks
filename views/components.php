@@ -32,207 +32,376 @@ function render_simple_table(array $rows, array $columns): string
 function render_member_form(string $context, ?array $user = null, ?array $profile = null): void
 {
     ?>
-    <form method="post" class="form grid-form" onsubmit="const btn = this.querySelector('button[type=submit]'); btn.disabled = true; btn.innerHTML = '<span class=\'loader\' style=\'width:16px;height:16px;border:2px solid var(--bg);border-bottom-color:transparent;border-radius:50%;display:inline-block;box-sizing:border-box;animation:rotation 1s linear infinite;margin-right:8px;vertical-align:-2px;\'></span> Saving...';">
-        <?= csrf_field() ?>
-        <?php if ($context !== 'profile'): ?>
-            <label>First name <input name="first_name" required value="<?= h($user['first_name'] ?? '') ?>"></label>
-            <label>Last name  <input name="last_name"  required value="<?= h($user['last_name']  ?? '') ?>"></label>
-            <label>Email      <input type="email" name="email" required value="<?= h($user['email'] ?? '') ?>"></label>
-            <label>Phone
-                <input name="phone" type="tel" pattern="[0-9]{11}" maxlength="11"
-                       title="Please enter exactly 11 digits" placeholder="09123456789"
-                       value="<?= h($user['phone'] ?? '') ?>"
-                       oninput="this.value=this.value.replace(/[^0-9]/g,'').slice(0,11)">
-            </label>
-            <label>Password   <input type="password" name="password" <?= $context === 'register' ? 'required minlength="8"' : '' ?> placeholder="<?= $context === 'register' ? 'Min. 8 characters' : 'Leave blank to keep current' ?>"></label>
-        <?php endif; ?>
-        <label>Height (cm)
-            <input name="height_cm" type="number" step="0.01" min="1"
-                   <?= $context !== 'profile' ? 'required' : '' ?>
-                   value="<?= h($profile['height_cm'] ?? '') ?>">
-        </label>
-        <label>Weight (kg)
-            <input name="weight_kg" type="number" step="0.01" min="1"
-                   <?= $context !== 'profile' ? 'required' : '' ?>
-                   value="<?= h($profile['weight_kg'] ?? '') ?>">
-        </label>
-        <label>Age
-            <input name="age" type="number" min="16" max="120"
-                   class="input <?= isset($errors['age']) ? 'input-error' : '' ?>"
-                   value="<?= h($profile['age'] ?? '') ?>">
-        </label>
-        <label>Neck (cm)
-            <input name="neck_cm" type="number" step="0.01" min="1"
-                   value="<?= h($profile['neck_cm'] ?? '') ?>">
-        </label>
-        <label>Waist (cm)
-            <input name="waist_cm" type="number" step="0.01" min="1"
-                   value="<?= h($profile['waist_cm'] ?? '') ?>">
-        </label>
-        <label id="hipContainer_<?= h($context) ?>" style="display: <?= ($profile['biological_sex'] ?? 'male') === 'female' ? 'block' : 'none' ?>;">Hip (cm)
-            <input name="hip_cm" type="number" step="0.01" min="1"
-                   value="<?= h($profile['hip_cm'] ?? '') ?>">
-        </label>
-        <label>Biological sex
-            <select name="biological_sex" onchange="document.getElementById('hipContainer_<?= h($context) ?>').style.display = this.value === 'female' ? 'block' : 'none';" <?= $context !== 'profile' ? 'required' : '' ?>>
-                <option value="male"   <?= selected('male',   $profile['biological_sex'] ?? null) ?>>Male</option>
-                <option value="female" <?= selected('female', $profile['biological_sex'] ?? null) ?>>Female</option>
-            </select>
-        </label>
-        <label>Activity level
-            <select name="activity_level" <?= $context !== 'profile' ? 'required' : '' ?>>
-                <?php foreach (['sedentary', 'lightly_active', 'moderately_active', 'very_active', 'extra_active'] as $level): ?>
-                    <option value="<?= h($level) ?>" <?= selected($level, $profile['activity_level'] ?? null) ?>>
-                        <?= h(ucwords(str_replace('_', ' ', $level))) ?>
-                    </option>
-                <?php endforeach; ?>
-            </select>
-        </label>
-        <label>Primary goal
-            <select name="primary_goal" id="primaryGoalSelect_<?= h($context) ?>" onchange="updateTargetMetrics_<?= h($context) ?>(this.value)" <?= $context !== 'profile' ? 'required' : '' ?>>
-                <optgroup label="Aesthetic & Muscle Building">
-                    <option value="Building a visible six-pack" <?= selected("Building a visible six-pack", $profile['primary_goal'] ?? null) ?>>Building a visible six-pack</option>
-                    <option value="Growing larger biceps and arms" <?= selected("Growing larger biceps and arms", $profile['primary_goal'] ?? null) ?>>Growing larger biceps and arms</option>
-                    <option value="Developing a wide chest" <?= selected("Developing a wide chest", $profile['primary_goal'] ?? null) ?>>Developing a wide chest</option>
-                    <option value="Sculpting a V-tapered back" <?= selected("Sculpting a V-tapered back", $profile['primary_goal'] ?? null) ?>>Sculpting a V-tapered back</option>
-                    <option value="Shaping the lower body" <?= selected("Shaping the lower body", $profile['primary_goal'] ?? null) ?>>Shaping the lower body</option>
-                </optgroup>
-                <optgroup label="Athletic & Performance">
-                    <option value="Increasing maximum strength" <?= selected("Increasing maximum strength", $profile['primary_goal'] ?? null) ?>>Increasing maximum strength</option>
-                    <option value="Boosting explosive power" <?= selected("Boosting explosive power", $profile['primary_goal'] ?? null) ?>>Boosting explosive power</option>
-                    <option value="Enhancing physical endurance" <?= selected("Enhancing physical endurance", $profile['primary_goal'] ?? null) ?>>Enhancing physical endurance</option>
-                    <option value="Improving body flexibility" <?= selected("Improving body flexibility", $profile['primary_goal'] ?? null) ?>>Improving body flexibility</option>
-                </optgroup>
-                <optgroup label="Body Composition">
-                    <option value="Losing excess body fat" <?= selected("Losing excess body fat", $profile['primary_goal'] ?? null) ?>>Losing excess body fat</option>
-                    <option value="Gaining lean body mass" <?= selected("Gaining lean body mass", $profile['primary_goal'] ?? null) ?>>Gaining lean body mass</option>
-                    <option value="Reaching body recomposition" <?= selected("Reaching body recomposition", $profile['primary_goal'] ?? null) ?>>Reaching body recomposition</option>
-                </optgroup>
-                <optgroup label="General">
-                    <option value="fat_loss" <?= selected("fat_loss", $profile['primary_goal'] ?? null) ?>>Fat Loss</option>
-                    <option value="muscle_gain" <?= selected("muscle_gain", $profile['primary_goal'] ?? null) ?>>Muscle Gain</option>
-                    <option value="maintenance" <?= selected("maintenance", $profile['primary_goal'] ?? null) ?>>Maintenance</option>
-                    <option value="general_health" <?= selected("general_health", $profile['primary_goal'] ?? null) ?>>General Health</option>
-                </optgroup>
-            </select>
-        </label>
+    <style>
+        .pm-tab-bar {
+            display: flex;
+            background: var(--panel-soft);
+            padding: 4px;
+            border-radius: 10px;
+            gap: 4px;
+            margin-bottom: 18px;
+            border: 1px solid var(--line);
+        }
+        .pm-tab-btn {
+            flex: 1;
+            padding: 8px 10px;
+            border: 1px solid transparent;
+            background: transparent;
+            color: var(--muted);
+            border-radius: 8px;
+            font-size: 12.5px;
+            font-weight: 600;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            transition: all 0.18s ease;
+        }
+        .pm-tab-btn:hover {
+            color: var(--ink);
+        }
+        .pm-tab-btn.active {
+            background: var(--panel);
+            color: var(--ink);
+            border-color: var(--line);
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+        }
+        .pm-pane {
+            display: none;
+            animation: pmFadeIn 0.2s ease;
+        }
+        .pm-pane.active {
+            display: block;
+        }
+        @keyframes pmFadeIn {
+            from { opacity: 0; transform: translateY(4px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .pm-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px 14px;
+        }
+        .pm-grid .full-span {
+            grid-column: 1 / -1;
+        }
+        .pm-field {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--muted);
+        }
+        .pm-field input, .pm-field select {
+            width: 100%;
+            box-sizing: border-box;
+            background: var(--panel);
+            border: 1.5px solid var(--line);
+            color: var(--ink);
+            border-radius: 8px;
+            padding: 9px 12px;
+            font-size: 13.5px;
+            font-family: inherit;
+            transition: border-color 0.15s, box-shadow 0.15s;
+        }
+        .pm-field input:focus, .pm-field select:focus {
+            border-color: var(--lime);
+            outline: none;
+            box-shadow: 0 0 0 3px rgba(199, 255, 34, 0.18);
+        }
+        .pm-footer {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-top: 20px;
+            padding-top: 14px;
+            border-top: 1px solid var(--line);
+            gap: 10px;
+        }
+        @media (max-width: 520px) {
+            .pm-grid { grid-template-columns: 1fr; }
+            .pm-tab-btn span.tab-title { display: none; }
+        }
+    </style>
 
-        <!-- Dynamic Context-Aware Target Metrics -->
-        <div id="targetMetricsBox_<?= h($context) ?>" style="margin-top: 4px; margin-bottom: 6px;">
-            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px;">
-                <!-- Arm Target (Primary for Arm Goal) -->
-                <label id="targetArmField_<?= h($context) ?>" style="display: none;">
+    <form method="post" class="pm-form" onsubmit="const btn = this.querySelector('button[type=submit]'); btn.disabled = true; btn.innerHTML = '<span class=\'loader\' style=\'width:14px;height:14px;border:2px solid var(--bg);border-bottom-color:transparent;border-radius:50%;display:inline-block;box-sizing:border-box;animation:rotation 1s linear infinite;margin-right:6px;vertical-align:-2px;\'></span> Saving...';">
+        <?= csrf_field() ?>
+
+        <!-- Segmented Tab Header -->
+        <div class="pm-tab-bar" role="tablist">
+            <button type="button" class="pm-tab-btn active" id="tabBtn_<?= h($context) ?>_body" onclick="switchProfileTab_<?= h($context) ?>('body')">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.3 15.3a2.4 2.4 0 0 1 0 3.4l-2.6 2.6a2.4 2.4 0 0 1-3.4 0L2.7 8.7a2.41 2.41 0 0 1 0-3.4l2.6-2.6a2.41 2.41 0 0 1 3.4 0Z"/><path d="m14.5 12.5 2-2"/><path d="m11.5 9.5 2-2"/><path d="m8.5 6.5 2-2"/><path d="m17.5 15.5 2-2"/></svg>
+                <span class="tab-title">Body Stats</span>
+            </button>
+            <button type="button" class="pm-tab-btn" id="tabBtn_<?= h($context) ?>_goal" onclick="switchProfileTab_<?= h($context) ?>('goal')">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>
+                <span class="tab-title">Goal & Targets</span>
+            </button>
+            <button type="button" class="pm-tab-btn" id="tabBtn_<?= h($context) ?>_lifestyle" onclick="switchProfileTab_<?= h($context) ?>('lifestyle')">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+                <span class="tab-title">Lifestyle</span>
+            </button>
+        </div>
+
+        <!-- TAB 1: BODY STATS -->
+        <div class="pm-pane active" id="tabPane_<?= h($context) ?>_body">
+            <div class="pm-grid">
+                <?php if ($context !== 'profile'): ?>
+                    <label class="pm-field">First name <input name="first_name" required value="<?= h($user['first_name'] ?? '') ?>"></label>
+                    <label class="pm-field">Last name  <input name="last_name"  required value="<?= h($user['last_name']  ?? '') ?>"></label>
+                    <label class="pm-field">Email      <input type="email" name="email" required value="<?= h($user['email'] ?? '') ?>"></label>
+                    <label class="pm-field">Phone
+                        <input name="phone" type="tel" pattern="[0-9]{11}" maxlength="11"
+                               title="Please enter exactly 11 digits" placeholder="09123456789"
+                               value="<?= h($user['phone'] ?? '') ?>"
+                               oninput="this.value=this.value.replace(/[^0-9]/g,'').slice(0,11)">
+                    </label>
+                    <label class="pm-field full-span">Password   <input type="password" name="password" <?= $context === 'register' ? 'required minlength="8"' : '' ?> placeholder="<?= $context === 'register' ? 'Min. 8 characters' : 'Leave blank to keep current' ?>"></label>
+                <?php endif; ?>
+
+                <label class="pm-field">Height (cm)
+                    <input name="height_cm" type="number" step="0.01" min="1"
+                           <?= $context !== 'profile' ? 'required' : '' ?>
+                           value="<?= h($profile['height_cm'] ?? '') ?>">
+                </label>
+                <label class="pm-field">Weight (kg)
+                    <input name="weight_kg" type="number" step="0.01" min="1"
+                           <?= $context !== 'profile' ? 'required' : '' ?>
+                           value="<?= h($profile['weight_kg'] ?? '') ?>">
+                </label>
+                <label class="pm-field">Age
+                    <input name="age" type="number" min="16" max="120"
+                           class="<?= isset($errors['age']) ? 'input-error' : '' ?>"
+                           value="<?= h($profile['age'] ?? '') ?>">
+                </label>
+                <label class="pm-field">Biological sex
+                    <select name="biological_sex" onchange="document.getElementById('hipContainer_<?= h($context) ?>').style.display = this.value === 'female' ? 'flex' : 'none';" <?= $context !== 'profile' ? 'required' : '' ?>>
+                        <option value="male"   <?= selected('male',   $profile['biological_sex'] ?? null) ?>>Male</option>
+                        <option value="female" <?= selected('female', $profile['biological_sex'] ?? null) ?>>Female</option>
+                    </select>
+                </label>
+                <label class="pm-field">Neck (cm)
+                    <input name="neck_cm" type="number" step="0.01" min="1"
+                           value="<?= h($profile['neck_cm'] ?? '') ?>">
+                </label>
+                <label class="pm-field">Waist (cm)
+                    <input name="waist_cm" type="number" step="0.01" min="1"
+                           value="<?= h($profile['waist_cm'] ?? '') ?>">
+                </label>
+                <label class="pm-field full-span" id="hipContainer_<?= h($context) ?>" style="display: <?= ($profile['biological_sex'] ?? 'male') === 'female' ? 'flex' : 'none' ?>;">Hip (cm)
+                    <input name="hip_cm" type="number" step="0.01" min="1"
+                           value="<?= h($profile['hip_cm'] ?? '') ?>">
+                </label>
+            </div>
+        </div>
+
+        <!-- TAB 2: GOAL & TARGETS -->
+        <div class="pm-pane" id="tabPane_<?= h($context) ?>_goal">
+            <div class="pm-grid">
+                <label class="pm-field full-span">Primary goal
+                    <select name="primary_goal" id="primaryGoalSelect_<?= h($context) ?>" onchange="updateTargetMetrics_<?= h($context) ?>(this.value)" <?= $context !== 'profile' ? 'required' : '' ?>>
+                        <optgroup label="Aesthetic & Muscle Building">
+                            <option value="Building a visible six-pack" <?= selected("Building a visible six-pack", $profile['primary_goal'] ?? null) ?>>Building a visible six-pack</option>
+                            <option value="Growing larger biceps and arms" <?= selected("Growing larger biceps and arms", $profile['primary_goal'] ?? null) ?>>Growing larger biceps and arms</option>
+                            <option value="Developing a wide chest" <?= selected("Developing a wide chest", $profile['primary_goal'] ?? null) ?>>Developing a wide chest</option>
+                            <option value="Sculpting a V-tapered back" <?= selected("Sculpting a V-tapered back", $profile['primary_goal'] ?? null) ?>>Sculpting a V-tapered back</option>
+                            <option value="Shaping the lower body" <?= selected("Shaping the lower body", $profile['primary_goal'] ?? null) ?>>Shaping the lower body</option>
+                        </optgroup>
+                        <optgroup label="Athletic & Performance">
+                            <option value="Increasing maximum strength" <?= selected("Increasing maximum strength", $profile['primary_goal'] ?? null) ?>>Increasing maximum strength</option>
+                            <option value="Boosting explosive power" <?= selected("Boosting explosive power", $profile['primary_goal'] ?? null) ?>>Boosting explosive power</option>
+                            <option value="Enhancing physical endurance" <?= selected("Enhancing physical endurance", $profile['primary_goal'] ?? null) ?>>Enhancing physical endurance</option>
+                            <option value="Improving body flexibility" <?= selected("Improving body flexibility", $profile['primary_goal'] ?? null) ?>>Improving body flexibility</option>
+                        </optgroup>
+                        <optgroup label="Body Composition">
+                            <option value="Losing excess body fat" <?= selected("Losing excess body fat", $profile['primary_goal'] ?? null) ?>>Losing excess body fat</option>
+                            <option value="Gaining lean body mass" <?= selected("Gaining lean body mass", $profile['primary_goal'] ?? null) ?>>Gaining lean body mass</option>
+                            <option value="Reaching body recomposition" <?= selected("Reaching body recomposition", $profile['primary_goal'] ?? null) ?>>Reaching body recomposition</option>
+                        </optgroup>
+                        <optgroup label="General">
+                            <option value="fat_loss" <?= selected("fat_loss", $profile['primary_goal'] ?? null) ?>>Fat Loss</option>
+                            <option value="muscle_gain" <?= selected("muscle_gain", $profile['primary_goal'] ?? null) ?>>Muscle Gain</option>
+                            <option value="maintenance" <?= selected("maintenance", $profile['primary_goal'] ?? null) ?>>Maintenance</option>
+                            <option value="general_health" <?= selected("general_health", $profile['primary_goal'] ?? null) ?>>General Health</option>
+                        </optgroup>
+                    </select>
+                </label>
+
+                <!-- Arm Target -->
+                <label class="pm-field" id="targetArmField_<?= h($context) ?>" style="display: none;">
                     Target Arm Size (cm) <span class="muted">(Peak Flexed)</span>
                     <input type="number" step="0.1" name="target_arm_cm" value="<?= h((string)($profile['target_arm_cm'] ?? '')) ?>" placeholder="e.g. 38.0">
                 </label>
 
-                <!-- Chest Target (Primary for Chest Goal) -->
-                <label id="targetChestField_<?= h($context) ?>" style="display: none;">
+                <!-- Chest Target -->
+                <label class="pm-field" id="targetChestField_<?= h($context) ?>" style="display: none;">
                     Target Chest Size (cm) <span class="muted">(Fullest Point)</span>
                     <input type="number" step="0.1" name="target_chest_cm" value="<?= h((string)($profile['target_chest_cm'] ?? '')) ?>" placeholder="e.g. 105.0">
                 </label>
 
-                <!-- Waist Target (Primary for Abs / Fat Loss) -->
-                <label id="targetWaistField_<?= h($context) ?>" style="display: none;">
+                <!-- Waist Target -->
+                <label class="pm-field" id="targetWaistField_<?= h($context) ?>" style="display: none;">
                     Target Waist Size (cm) <span class="muted">(At Navel)</span>
                     <input type="number" step="0.1" name="target_waist_cm" value="<?= h((string)($profile['target_waist_cm'] ?? '')) ?>" placeholder="e.g. 78.0">
                 </label>
 
                 <!-- Target Weight (kg) -->
-                <label id="targetWeightField_<?= h($context) ?>">
+                <label class="pm-field" id="targetWeightField_<?= h($context) ?>">
                     Target Weight (kg) <span class="muted">(Optional)</span>
                     <input type="number" step="0.1" name="target_weight_kg" value="<?= h((string)($profile['target_weight_kg'] ?? '')) ?>" placeholder="e.g. 75.0">
                 </label>
 
                 <!-- Target Body Fat (%) -->
-                <label id="targetBodyFatField_<?= h($context) ?>">
+                <label class="pm-field" id="targetBodyFatField_<?= h($context) ?>">
                     Target Body Fat (%) <span class="muted">(Optional)</span>
                     <input type="number" step="0.1" name="target_body_fat_percent" value="<?= h((string)($profile['target_body_fat_percent'] ?? '')) ?>" placeholder="e.g. 15.0">
                 </label>
-            </div>
 
-            <!-- Contextual Fitness Guidance Tip -->
-            <div id="targetGoalTip_<?= h($context) ?>" style="margin-top: 8px; padding: 8px 12px; border-radius: 6px; font-size: 12px; line-height: 1.4; display: flex; align-items: center; gap: 8px; background: var(--panel-soft); border: 1px solid var(--line); color: var(--ink);">
-                <span id="targetGoalTipIcon_<?= h($context) ?>">🎯</span>
-                <span id="targetGoalTipText_<?= h($context) ?>">Set target metrics to track your fitness milestones over time.</span>
+                <!-- Contextual Fitness Guidance Tip -->
+                <div class="full-span" id="targetGoalTip_<?= h($context) ?>" style="margin-top: 4px; padding: 10px 14px; border-radius: 8px; font-size: 12px; line-height: 1.4; display: flex; align-items: center; gap: 10px; background: var(--panel-soft); border: 1px solid var(--line); color: var(--ink);">
+                    <span id="targetGoalTipIcon_<?= h($context) ?>" style="display: flex; align-items: center; justify-content: center; width: 24px; height: 24px; border-radius: 6px; background: rgba(199,255,34,0.12); color: var(--lime); flex-shrink: 0;">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>
+                    </span>
+                    <span id="targetGoalTipText_<?= h($context) ?>">Set target metrics to track your fitness milestones over time.</span>
+                </div>
             </div>
         </div>
 
-        <script>
-        function updateTargetMetrics_<?= h($context) ?>(goal) {
-            const armF = document.getElementById('targetArmField_<?= h($context) ?>');
-            const chestF = document.getElementById('targetChestField_<?= h($context) ?>');
-            const waistF = document.getElementById('targetWaistField_<?= h($context) ?>');
-            const weightF = document.getElementById('targetWeightField_<?= h($context) ?>');
-            const bfF = document.getElementById('targetBodyFatField_<?= h($context) ?>');
-            const tip = document.getElementById('targetGoalTip_<?= h($context) ?>');
-            const tipIcon = document.getElementById('targetGoalTipIcon_<?= h($context) ?>');
-            const tipText = document.getElementById('targetGoalTipText_<?= h($context) ?>');
+        <!-- TAB 3: LIFESTYLE & DIET -->
+        <div class="pm-pane" id="tabPane_<?= h($context) ?>_lifestyle">
+            <div class="pm-grid">
+                <label class="pm-field">Activity level
+                    <select name="activity_level" <?= $context !== 'profile' ? 'required' : '' ?>>
+                        <?php foreach (['sedentary', 'lightly_active', 'moderately_active', 'very_active', 'extra_active'] as $level): ?>
+                            <option value="<?= h($level) ?>" <?= selected($level, $profile['activity_level'] ?? null) ?>>
+                                <?= h(ucwords(str_replace('_', ' ', $level))) ?>
+                            </option>
+                        <?php endforeach; ?>
+                    </select>
+                </label>
 
-            if (!armF) return;
+                <label class="pm-field">Dietary Restrictions
+                    <select name="dietary_restrictions" required>
+                        <?php foreach (['none', 'vegetarian', 'vegan', 'pescatarian', 'halal', 'gluten-free', 'keto', 'paleo', 'nut-allergy', 'dairy-free'] as $diet): ?>
+                            <option value="<?= h($diet) ?>" <?= selected($diet, $profile['dietary_restrictions'] ?? 'none') ?>>
+                                <?= h(ucwords(str_replace('-', ' ', $diet))) ?>
+                            </option>
+                        <?php endforeach; ?>
+                    </select>
+                </label>
 
-            // Reset visibility
-            armF.style.display = 'none';
-            chestF.style.display = 'none';
-            waistF.style.display = 'none';
-            weightF.style.display = 'block';
-            bfF.style.display = 'block';
+                <label class="pm-field full-span">Experience level
+                    <select name="experience_level" <?= $context !== 'profile' ? 'required' : '' ?>>
+                        <option value="1" <?= selected('1', isset($profile['fitness_tier']) ? (string)(in_array((int)$profile['fitness_tier'], [1,2]) ? 1 : (in_array((int)$profile['fitness_tier'], [3,4]) ? 2 : 3)) : null) ?>>Starter</option>
+                        <option value="2" <?= selected('2', isset($profile['fitness_tier']) ? (string)(in_array((int)$profile['fitness_tier'], [1,2]) ? 1 : (in_array((int)$profile['fitness_tier'], [3,4]) ? 2 : 3)) : null) ?>>Intermediate</option>
+                        <option value="3" <?= selected('3', isset($profile['fitness_tier']) ? (string)(in_array((int)$profile['fitness_tier'], [1,2]) ? 1 : (in_array((int)$profile['fitness_tier'], [3,4]) ? 2 : 3)) : null) ?>>Advanced</option>
+                    </select>
+                </label>
+            </div>
+        </div>
 
-            if (goal === 'Growing larger biceps and arms') {
-                armF.style.display = 'block';
-                bfF.style.display = 'none'; // Arm circumference is primary; body fat is secondary
-                tipIcon.textContent = '💪';
-                tipText.innerHTML = '<strong>Target Arm Circumference</strong> is the gold standard metric for bicep & tricep hypertrophy. Measure flexed around the peak of the arm.';
-            } else if (goal === 'Developing a wide chest') {
-                chestF.style.display = 'block';
-                bfF.style.display = 'none';
-                tipIcon.textContent = '📐';
-                tipText.innerHTML = '<strong>Target Chest Circumference</strong> measures pectoral hypertrophy. Measure horizontally across the fullest point of the chest.';
-            } else if (goal === 'Building a visible six-pack' || goal === 'Losing excess body fat' || goal === 'fat_loss') {
-                waistF.style.display = 'block';
-                tipIcon.textContent = '🔥';
-                tipText.innerHTML = '<strong>Waist Circumference & Body Fat %</strong> directly track abdominal definition and visceral fat loss around the midsection.';
-            } else if (goal === 'Gaining lean body mass' || goal === 'muscle_gain') {
-                armF.style.display = 'block';
-                tipIcon.textContent = '⚖️';
-                tipText.innerHTML = 'For lean mass gain, track your scale weight alongside arm and muscle circumference to ensure lean hypertrophy.';
-            } else {
-                tipIcon.textContent = '🎯';
-                tipText.innerHTML = 'Set target weight or body fat % to monitor your body transformation over time in your Progress dashboard.';
-            }
-        }
-        document.addEventListener('DOMContentLoaded', function() {
-            const selectEl = document.getElementById('primaryGoalSelect_<?= h($context) ?>');
-            if (selectEl) {
-                updateTargetMetrics_<?= h($context) ?>(selectEl.value);
-            }
-        });
-        // Also trigger if inside a dialog modal when opened
-        setTimeout(function() {
-            const selectEl = document.getElementById('primaryGoalSelect_<?= h($context) ?>');
-            if (selectEl) {
-                updateTargetMetrics_<?= h($context) ?>(selectEl.value);
-            }
-        }, 100);
-        </script>
-        <label>Dietary Restrictions
-            <select name="dietary_restrictions" required>
-                <?php foreach (['none', 'vegetarian', 'vegan', 'pescatarian', 'halal', 'gluten-free', 'keto', 'paleo', 'nut-allergy', 'dairy-free'] as $diet): ?>
-                    <option value="<?= h($diet) ?>" <?= selected($diet, $profile['dietary_restrictions'] ?? 'none') ?>>
-                        <?= h(ucwords(str_replace('-', ' ', $diet))) ?>
-                    </option>
-                <?php endforeach; ?>
-            </select>
-        </label>
-        <label>Experience level
-            <select name="experience_level" <?= $context !== 'profile' ? 'required' : '' ?>>
-                <option value="1" <?= selected('1', isset($profile['fitness_tier']) ? (string)(in_array((int)$profile['fitness_tier'], [1,2]) ? 1 : (in_array((int)$profile['fitness_tier'], [3,4]) ? 2 : 3)) : null) ?>>Starter</option>
-                <option value="2" <?= selected('2', isset($profile['fitness_tier']) ? (string)(in_array((int)$profile['fitness_tier'], [1,2]) ? 1 : (in_array((int)$profile['fitness_tier'], [3,4]) ? 2 : 3)) : null) ?>>Intermediate</option>
-                <option value="3" <?= selected('3', isset($profile['fitness_tier']) ? (string)(in_array((int)$profile['fitness_tier'], [1,2]) ? 1 : (in_array((int)$profile['fitness_tier'], [3,4]) ? 2 : 3)) : null) ?>>Advanced</option>
-            </select>
-        </label>
-        <button type="submit" class="full-width btn-primary" style="margin-top:10px;">Save</button>
+        <!-- Persistent Action Footer -->
+        <div class="pm-footer">
+            <div style="display: flex; gap: 8px;">
+                <button type="button" class="btn btn-secondary" id="pmPrevBtn_<?= h($context) ?>" onclick="navProfileTab_<?= h($context) ?>(-1)" style="display: none; padding: 7px 14px; font-size: 13px;">
+                    ← Back
+                </button>
+                <button type="button" class="btn btn-secondary" id="pmNextBtn_<?= h($context) ?>" onclick="navProfileTab_<?= h($context) ?>(1)" style="padding: 7px 14px; font-size: 13px;">
+                    Next Step →
+                </button>
+            </div>
+            <button type="submit" class="btn btn-primary" style="padding: 7px 20px; font-size: 13px; font-weight: 600;">
+                Save Profile
+            </button>
+        </div>
     </form>
+
+    <script>
+    const PM_TABS_<?= h($context) ?> = ['body', 'goal', 'lifestyle'];
+    let currentPmTabIndex_<?= h($context) ?> = 0;
+
+    function switchProfileTab_<?= h($context) ?>(tabName) {
+        currentPmTabIndex_<?= h($context) ?> = PM_TABS_<?= h($context) ?>.indexOf(tabName);
+        if (currentPmTabIndex_<?= h($context) ?> === -1) currentPmTabIndex_<?= h($context) ?> = 0;
+
+        PM_TABS_<?= h($context) ?>.forEach(t => {
+            const btn = document.getElementById('tabBtn_<?= h($context) ?>_' + t);
+            const pane = document.getElementById('tabPane_<?= h($context) ?>_' + t);
+            if (btn) btn.classList.toggle('active', t === tabName);
+            if (pane) pane.classList.toggle('active', t === tabName);
+        });
+
+        const prevBtn = document.getElementById('pmPrevBtn_<?= h($context) ?>');
+        const nextBtn = document.getElementById('pmNextBtn_<?= h($context) ?>');
+        if (prevBtn) prevBtn.style.display = currentPmTabIndex_<?= h($context) ?> > 0 ? 'inline-block' : 'none';
+        if (nextBtn) nextBtn.style.display = currentPmTabIndex_<?= h($context) ?> < PM_TABS_<?= h($context) ?>.length - 1 ? 'inline-block' : 'none';
+    }
+
+    function navProfileTab_<?= h($context) ?>(dir) {
+        const nextIdx = currentPmTabIndex_<?= h($context) ?> + dir;
+        if (nextIdx >= 0 && nextIdx < PM_TABS_<?= h($context) ?>.length) {
+            switchProfileTab_<?= h($context) ?>(PM_TABS_<?= h($context) ?>[nextIdx]);
+        }
+    }
+
+    function updateTargetMetrics_<?= h($context) ?>(goal) {
+        const armF = document.getElementById('targetArmField_<?= h($context) ?>');
+        const chestF = document.getElementById('targetChestField_<?= h($context) ?>');
+        const waistF = document.getElementById('targetWaistField_<?= h($context) ?>');
+        const weightF = document.getElementById('targetWeightField_<?= h($context) ?>');
+        const bfF = document.getElementById('targetBodyFatField_<?= h($context) ?>');
+        const tip = document.getElementById('targetGoalTip_<?= h($context) ?>');
+        const tipIcon = document.getElementById('targetGoalTipIcon_<?= h($context) ?>');
+        const tipText = document.getElementById('targetGoalTipText_<?= h($context) ?>');
+
+        if (!armF) return;
+
+        // Reset visibility
+        armF.style.display = 'none';
+        chestF.style.display = 'none';
+        waistF.style.display = 'none';
+        weightF.style.display = 'flex';
+        bfF.style.display = 'flex';
+
+        if (goal === 'Growing larger biceps and arms') {
+            armF.style.display = 'flex';
+            bfF.style.display = 'none';
+            tipIcon.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m6.5 6.5 11 11"/><path d="m21 21-1-1"/><path d="m3 3 1 1"/><path d="m18 22 4-4"/><path d="m2 6 4-4"/><path d="m3 10 7-7"/><path d="m14 21 7-7"/></svg>';
+            tipText.innerHTML = '<strong>Target Arm Circumference</strong> is the gold standard metric for bicep & tricep hypertrophy. Measure flexed around the peak of the arm.';
+        } else if (goal === 'Developing a wide chest') {
+            chestF.style.display = 'flex';
+            bfF.style.display = 'none';
+            tipIcon.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>';
+            tipText.innerHTML = '<strong>Target Chest Circumference</strong> measures pectoral hypertrophy. Measure horizontally across the fullest point of the chest.';
+        } else if (goal === 'Building a visible six-pack' || goal === 'Losing excess body fat' || goal === 'fat_loss') {
+            waistF.style.display = 'flex';
+            tipIcon.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z"/></svg>';
+            tipText.innerHTML = '<strong>Waist Circumference & Body Fat %</strong> directly track abdominal definition and visceral fat loss around the midsection.';
+        } else if (goal === 'Gaining lean body mass' || goal === 'muscle_gain') {
+            armF.style.display = 'flex';
+            tipIcon.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m6.5 6.5 11 11"/><path d="m21 21-1-1"/><path d="m3 3 1 1"/><path d="m18 22 4-4"/><path d="m2 6 4-4"/><path d="m3 10 7-7"/><path d="m14 21 7-7"/></svg>';
+            tipText.innerHTML = 'For lean mass gain, track your scale weight alongside arm and muscle circumference to ensure lean hypertrophy.';
+        } else {
+            tipIcon.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>';
+            tipText.innerHTML = 'Set target weight or body fat % to monitor your body transformation over time in your Progress dashboard.';
+        }
+    }
+
+    document.addEventListener('DOMContentLoaded', function() {
+        const selectEl = document.getElementById('primaryGoalSelect_<?= h($context) ?>');
+        if (selectEl) {
+            updateTargetMetrics_<?= h($context) ?>(selectEl.value);
+        }
+    });
+    setTimeout(function() {
+        const selectEl = document.getElementById('primaryGoalSelect_<?= h($context) ?>');
+        if (selectEl) {
+            updateTargetMetrics_<?= h($context) ?>(selectEl.value);
+        }
+    }, 80);
+    </script>
     <?php
 }
 

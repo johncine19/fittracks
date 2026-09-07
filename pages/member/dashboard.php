@@ -63,7 +63,7 @@ function member_dashboard(PDO $pdo, array $user): void
     
     // Leaderboard
     echo '<section class="panel" style="padding: 20px;">';
-    echo '<h3 style="margin: 0 0 16px; color: var(--ink); display: flex; align-items: center; gap: 8px;">👑 Gym Leaderboard</h3>';
+    echo '<h3 style="margin: 0 0 16px; color: var(--ink); display: flex; align-items: center; gap: 8px;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--lime);"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/></svg> Gym Leaderboard</h3>';
     
     // Get member's gym ID safely
     $gymId = $user['gym_id'] ?? scalar('SELECT gym_id FROM gym_members WHERE user_id = ? LIMIT 1', [$user['user_id']]);
@@ -93,23 +93,39 @@ function member_dashboard(PDO $pdo, array $user): void
 
     // Badges
     echo '<section class="panel" style="padding: 20px;">';
-    echo '<h3 style="margin: 0 0 16px; color: var(--ink); display: flex; align-items: center; gap: 8px;">🎖️ My Badges</h3>';
+    echo '<h3 style="margin: 0 0 16px; color: var(--ink); display: flex; align-items: center; gap: 8px;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--lime);"><circle cx="12" cy="8" r="6"/><path d="M15.477 12.89 17 22l-5-3-5 3 1.523-9.11"/></svg> My Badges</h3>';
     $stmtBadges = $pdo->prepare('SELECT badge_type, unlocked_at FROM member_badges WHERE user_id = ? ORDER BY unlocked_at DESC');
     $stmtBadges->execute([$user['user_id']]);
     $badges = $stmtBadges->fetchAll(PDO::FETCH_ASSOC);
     
     $badgeDefs = [
-        'early_bird' => ['icon' => '🌅', 'name' => 'Early Bird', 'desc' => 'Checked in before 7 AM'],
-        'iron_lifter' => ['icon' => '🏋️', 'name' => 'Iron Lifter', 'desc' => 'Completed 50 exercises'],
-        'century_club' => ['icon' => '💯', 'name' => 'Century Club', 'desc' => 'Reached 100 Engagement Score']
+        'early_bird' => [
+            'icon' => '<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color:var(--lime); display:inline-block;"><circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/></svg>',
+            'name' => 'Early Bird',
+            'desc' => 'Checked in before 7 AM'
+        ],
+        'iron_lifter' => [
+            'icon' => '<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color:var(--lime); display:inline-block;"><path d="m6.5 6.5 11 11"/><path d="m21 21-1-1"/><path d="m3 3 1 1"/><path d="m18 22 4-4"/><path d="m2 6 4-4"/><path d="m3 10 7-7"/><path d="m14 21 7-7"/></svg>',
+            'name' => 'Iron Lifter',
+            'desc' => 'Completed 50 exercises'
+        ],
+        'century_club' => [
+            'icon' => '<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color:var(--lime); display:inline-block;"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>',
+            'name' => 'Century Club',
+            'desc' => 'Reached 100 Engagement Score'
+        ]
     ];
 
     if ($badges) {
         echo '<div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(80px, 1fr)); gap: 16px;">';
         foreach ($badges as $b) {
-            $def = $badgeDefs[$b['badge_type']] ?? ['icon' => '🏆', 'name' => 'Unknown', 'desc' => 'Achievement Unlocked'];
+            $def = $badgeDefs[$b['badge_type']] ?? [
+                'icon' => '<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color:var(--lime); display:inline-block;"><circle cx="12" cy="8" r="6"/><path d="M15.477 12.89 17 22l-5-3-5 3 1.523-9.11"/></svg>',
+                'name' => 'Unknown',
+                'desc' => 'Achievement Unlocked'
+            ];
             echo '<div style="text-align: center; background: rgba(255,255,255,0.03); padding: 12px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.1);" title="'.h($def['desc']).' - Unlocked '.date('M j', strtotime($b['unlocked_at'])).'">';
-            echo '<div style="font-size: 32px; margin-bottom: 8px;">'.$def['icon'].'</div>';
+            echo '<div style="margin-bottom: 8px; display: flex; align-items: center; justify-content: center;">'.$def['icon'].'</div>';
             echo '<div style="font-size: 11px; font-weight: bold; color: var(--ink); line-height: 1.2;">'.$def['name'].'</div>';
             echo '</div>';
         }

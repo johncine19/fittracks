@@ -25,8 +25,8 @@ function my_workout_page(): void
     $stmt->execute([$user['user_id']]);
     $plan = $stmt->fetch();
     
-    $trainerName = $plan['trainer_id'] ? h($plan['t_first'] . ' ' . $plan['t_last']) : 'Auto-generated';
-    $hasTrainerPlan = (bool)($plan && $plan['trainer_id']);
+    $hasTrainerPlan = !empty($plan['trainer_id']);
+    $trainerName = $hasTrainerPlan ? h(trim(($plan['t_first'] ?? '') . ' ' . ($plan['t_last'] ?? ''))) : 'Auto-generated';
     ?>
     <div>
         <!-- Glassmorphic Banner -->
@@ -298,7 +298,7 @@ function my_workout_page(): void
              <div class="panel" style="text-align: center; padding: 50px 20px;">
                 <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="var(--line)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="margin-bottom: 16px;"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="21" x2="9" y2="9"/></svg>
                 <h2 style="color: var(--muted); margin-bottom: 10px;">No Active Workout Plan</h2>
-                <p>Generate an AI workout plan above to get started!</p>
+                <p>Generate workout plan above to get started!</p>
              </div>
         <?php endif; ?>
     </div>
