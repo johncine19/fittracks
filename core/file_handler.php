@@ -26,6 +26,8 @@ final class FileUpload
 
     private const ALLOWED_MIME_ANIMATION = [
         'video/mp4'  => 'mp4',
+        'video/webm' => 'webm',
+        'video/quicktime' => 'mp4',
         'image/gif'  => 'gif',
         'image/webp' => 'webp',
     ];
@@ -92,17 +94,25 @@ final class FileUpload
             throw new RuntimeException('Invalid upload.');
         }
 
-        // Enforce 5MB limit for animations to save storage
-        if ($file['size'] > 5 * 1024 * 1024) {
-            throw new RuntimeException('Animation file is too large (max 5MB).');
+        // Enforce 15MB limit for animations
+        if ($file['size'] > 15 * 1024 * 1024) {
+            throw new RuntimeException('Animation file is too large (max 15MB).');
         }
 
         $finfo = finfo_open(FILEINFO_MIME_TYPE);
         $mime = finfo_file($finfo, $file['tmp_name']);
         finfo_close($finfo);
 
+        if ($mime === 'application/octet-stream' || !isset(self::ALLOWED_MIME_ANIMATION[$mime])) {
+            $ext = strtolower(pathinfo($file['name'] ?? '', PATHINFO_EXTENSION));
+            $extToMime = ['mp4' => 'video/mp4', 'webm' => 'video/webm', 'gif' => 'image/gif', 'webp' => 'image/webp'];
+            if (isset($extToMime[$ext])) {
+                $mime = $extToMime[$ext];
+            }
+        }
+
         if (!isset(self::ALLOWED_MIME_ANIMATION[$mime])) {
-            throw new RuntimeException('Unsupported animation format. Please upload an MP4, GIF, or WebP file.');
+            throw new RuntimeException('Unsupported animation format. Please upload an MP4, WebM, GIF, or WebP file.');
         }
     }
 
@@ -117,7 +127,15 @@ final class FileUpload
         $mime = finfo_file($finfo, $file['tmp_name']);
         finfo_close($finfo);
         
-        $extension = self::ALLOWED_MIME_ANIMATION[$mime];
+        if ($mime === 'application/octet-stream' || !isset(self::ALLOWED_MIME_ANIMATION[$mime])) {
+            $ext = strtolower(pathinfo($file['name'] ?? '', PATHINFO_EXTENSION));
+            $extToMime = ['mp4' => 'video/mp4', 'webm' => 'video/webm', 'gif' => 'image/gif', 'webp' => 'image/webp'];
+            if (isset($extToMime[$ext])) {
+                $mime = $extToMime[$ext];
+            }
+        }
+
+        $extension = self::ALLOWED_MIME_ANIMATION[$mime] ?? 'mp4';
         $filename = 'ex_' . $exerciseId . '_' . bin2hex(random_bytes(6)) . '.' . $extension;
 
         // Attempt upload to ImageKit CDN first

@@ -1,11 +1,12 @@
 <?php
+
 declare(strict_types=1);
 
 function my_workout_page(): void
 {
     $user = require_roles(['member']);
     $pdo = db();
-    
+
     if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $hasTrainerPlan = scalar('SELECT 1 FROM training_plans WHERE member_user_id = ? AND trainer_id IS NOT NULL AND status = "active" LIMIT 1', [$user['user_id']]);
         if ($hasTrainerPlan) {
@@ -17,23 +18,29 @@ function my_workout_page(): void
         }
         redirect('my_workout');
     }
-    
+
     render_header('My Workout Plan', $user);
-    
+
     // Check if they have an active plan
     $stmt = $pdo->prepare('SELECT p.*, tp.user_id as t_user_id, u.first_name as t_first, u.last_name as t_last FROM training_plans p LEFT JOIN trainer_profiles tp ON p.trainer_id = tp.trainer_id LEFT JOIN users u ON u.user_id = tp.user_id WHERE p.member_user_id = ? AND p.status = "active" ORDER BY p.plan_id DESC LIMIT 1');
     $stmt->execute([$user['user_id']]);
     $plan = $stmt->fetch();
-    
+
     $hasTrainerPlan = !empty($plan['trainer_id']);
     $trainerName = $hasTrainerPlan ? h(trim(($plan['t_first'] ?? '') . ' ' . ($plan['t_last'] ?? ''))) : 'Auto-generated';
-    ?>
+?>
     <div>
         <!-- Glassmorphic Banner -->
         <div class="animate-fade-in" style="background: linear-gradient(135deg, color-mix(in srgb, var(--lime) 10%, transparent) 0%, color-mix(in srgb, var(--lime) 5%, transparent) 100%); border: 1px solid color-mix(in srgb, var(--lime) 20%, transparent); border-radius: 16px; padding: 28px 32px; margin-bottom: 24px; box-shadow: 0 4px 24px rgba(0,0,0,0.1); backdrop-filter: blur(16px); display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 16px;">
             <div>
                 <h1 style="margin: 0; font-size: 26px; color: var(--ink); display: flex; align-items: center; gap: 12px;">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="var(--lime)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8h1a4 4 0 0 1 0 8h-1"/><path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z"/><line x1="6" y1="1" x2="6" y2="4"/><line x1="10" y1="1" x2="10" y2="4"/><line x1="14" y1="1" x2="14" y2="4"/></svg>
+                    <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="var(--lime)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M18 8h1a4 4 0 0 1 0 8h-1" />
+                        <path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z" />
+                        <line x1="6" y1="1" x2="6" y2="4" />
+                        <line x1="10" y1="1" x2="10" y2="4" />
+                        <line x1="14" y1="1" x2="14" y2="4" />
+                    </svg>
                     My Workout Plan
                 </h1>
                 <p style="margin: 8px 0 0 0; color: var(--muted); font-size: 15px; max-width: 600px;">
@@ -44,24 +51,26 @@ function my_workout_page(): void
                     <?php endif; ?>
                 </p>
             </div>
-            
+
             <?php if (!$hasTrainerPlan): ?>
-            <div style="display:flex; gap:12px;">
-                <form method="post" style="margin:0;">
-                    <?= csrf_field() ?>
-                    <button type="submit" data-confirm="<?= $plan ? 'This will archive your current plan and generate a new one. Continue?' : 'Generate a new AI workout plan?' ?>" data-confirm-btn="<?= $plan ? 'Yes, regenerate' : 'Yes, generate' ?>" style="background: var(--lime); border: none; color: var(--bg); padding: 10px 16px; border-radius: 8px; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 8px; transition: opacity 0.2s;">
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.92-10.26l5.67-5.67"/></svg>
-                        <?= $plan ? 'Regenerate Plan' : 'Generate Plan' ?>
-                    </button>
-                </form>
-            </div>
+                <div style="display:flex; gap:12px;">
+                    <form method="post" style="margin:0;">
+                        <?= csrf_field() ?>
+                        <button type="submit" data-confirm="<?= $plan ? 'This will archive your current plan and generate a new one. Continue?' : 'Generate a new AI workout plan?' ?>" data-confirm-btn="<?= $plan ? 'Yes, regenerate' : 'Yes, generate' ?>" style="background: var(--lime); border: none; color: var(--bg); padding: 10px 16px; border-radius: 8px; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 8px; transition: opacity 0.2s;">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.92-10.26l5.67-5.67" />
+                            </svg>
+                            <?= $plan ? 'Regenerate Plan' : 'Generate Plan' ?>
+                        </button>
+                    </form>
+                </div>
             <?php else: ?>
                 <div style="background: rgba(0,0,0,0.2); padding: 8px 16px; border-radius: 8px; border: 1px solid var(--line);">
                     <p style="margin:0; color: var(--muted); font-size: 13px;">Managed by your trainer</p>
                 </div>
             <?php endif; ?>
         </div>
-        
+
         <?php if ($plan): ?>
             <?php
             // Fetch today's exercises for the Live Player
@@ -79,7 +88,7 @@ function my_workout_page(): void
             $stmtComp->execute([$user['user_id'], $plan['plan_id'], date('Y-m-d')]);
             $completedIds = $stmtComp->fetchAll(PDO::FETCH_COLUMN);
 
-            $pendingExercises = array_values(array_filter($todaysExercises, function($ex) use ($completedIds) {
+            $pendingExercises = array_values(array_filter($todaysExercises, function ($ex) use ($completedIds) {
                 return !in_array($ex['exercise_id'], $completedIds);
             }));
             ?>
@@ -96,16 +105,18 @@ function my_workout_page(): void
             <?php else: ?>
                 <div style="margin-bottom: 24px; display: flex; justify-content: center;">
                     <button onclick="startLiveWorkout()" style="background: var(--accent, #7c5cfc); color: #fff; border: none; padding: 16px 32px; border-radius: 30px; font-size: 18px; font-weight: 800; display: flex; align-items: center; gap: 12px; cursor: pointer; box-shadow: 0 4px 20px rgba(124,92,252,0.4); transition: transform 0.2s;">
-                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <polygon points="5 3 19 12 5 21 5 3"></polygon>
+                        </svg>
                         Start Live Workout
                     </button>
                 </div>
-                
+
                 <!-- Live Player Modal -->
                 <div id="workout-player-modal" class="workout-player-modal" style="display: none;">
                     <div class="player-container">
                         <button class="player-close" onclick="closeLiveWorkout()">&times;</button>
-                        
+
                         <div id="player-progress" class="player-progress-bar">
                             <div class="progress-fill" style="width: 0%;"></div>
                         </div>
@@ -115,11 +126,15 @@ function my_workout_page(): void
                                 <span id="player-exercise-count" class="player-pill">Exercise 1 of X</span>
                                 <h2 id="player-exercise-name">Exercise Name</h2>
                                 <p id="player-exercise-target" style="color: var(--muted); font-size: 18px; margin-top: 8px;">3 Sets &times; 10 Reps</p>
-                                
-                                <div id="player-animation-container" style="display: none; justify-content: center; margin-top: 24px; position: relative; min-height: 200px; align-items: center; background: rgba(0,0,0,0.2); border: 1px solid var(--line); border-radius: 12px;">
-                                    <video id="player-animation-video" width="100%" style="max-height: 250px; border-radius: 12px; object-fit: contain;" autoplay loop muted playsinline></video>
-                                    <div id="player-animation-fallback" style="display: none; color: var(--muted); text-align: center; font-size: 14px; position: absolute;">
-                                        <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="margin-bottom:8px; opacity:0.5;"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg><br>
+
+                                <div id="player-animation-container" style="display: none; justify-content: center; margin-top: 24px; position: relative; min-height: 200px; align-items: center; background: rgba(0,0,0,0.2); border: 1px solid var(--line); border-radius: 12px; overflow: hidden;">
+                                    <video id="player-animation-video" width="100%" style="max-height: 250px; border-radius: 12px; object-fit: contain; display: none;" autoplay loop muted playsinline></video>
+                                    <img id="player-animation-img" style="max-height: 250px; width: 100%; border-radius: 12px; object-fit: contain; display: none;" alt="Exercise animation">
+                                    <div id="player-animation-fallback" style="display: none; color: var(--muted); text-align: center; font-size: 14px; position: absolute; padding: 16px;">
+                                        <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="margin-bottom:8px; opacity:0.5;">
+                                            <polygon points="23 7 16 12 23 17 23 7" />
+                                            <rect x="1" y="5" width="15" height="14" rx="2" ry="2" />
+                                        </svg><br>
                                         Animation not available at the moment
                                     </div>
                                 </div>
@@ -155,7 +170,7 @@ function my_workout_page(): void
                     }
 
                     function closeLiveWorkout() {
-                        if(confirm('Are you sure you want to exit your live workout? Progress is saved per exercise.')) {
+                        if (confirm('Are you sure you want to exit your live workout? Progress is saved per exercise.')) {
                             document.getElementById('workout-player-modal').style.display = 'none';
                             clearInterval(restTimer);
                             window.location.reload();
@@ -167,66 +182,138 @@ function my_workout_page(): void
                             finishWorkout();
                             return;
                         }
-                        
+
                         document.getElementById('player-timer-screen').style.display = 'none';
                         document.getElementById('player-controls').style.display = 'block';
 
                         const ex = exercises[currentExIndex];
                         const totalEx = exercises.length;
-                        
+
                         document.getElementById('player-exercise-count').innerText = `Exercise ${currentExIndex + 1} of ${totalEx}`;
                         document.getElementById('player-exercise-name').innerText = ex.name;
                         document.getElementById('player-exercise-target').innerHTML = `${ex.sets} Sets &times; ${ex.reps} Reps <br><span style="font-size:14px; opacity:0.7;">Rest: ${ex.rest_seconds}s</span>`;
-                        
-                        document.getElementById('btn-complete-set').innerText = `Complete Set ${currentSet} of ${ex.sets}`;
-                        
-                        const videoEl = document.getElementById('player-animation-video');
-                        const animationContainer = document.getElementById('player-animation-container');
-                        
-                        if (videoEl) videoEl.style.opacity = '1';
 
+                        document.getElementById('btn-complete-set').innerText = `Complete Set ${currentSet} of ${ex.sets}`;
+
+                        const videoEl = document.getElementById('player-animation-video');
+                        const imgEl = document.getElementById('player-animation-img');
+                        const animationContainer = document.getElementById('player-animation-container');
                         const fallbackDiv = document.getElementById('player-animation-fallback');
-                        
+
                         animationContainer.style.display = 'flex';
                         videoEl.style.display = 'none';
+                        if (imgEl) imgEl.style.display = 'none';
                         fallbackDiv.style.display = 'none';
 
                         // Prioritize custom animation URL from DB (CDN or local)
-                        let sourceUrl = '';
-                        if (ex.animation_url) {
-                            sourceUrl = (ex.animation_url.startsWith('http://') || ex.animation_url.startsWith('https://'))
-                                ? ex.animation_url
-                                : `assets/exercise_animations/${ex.animation_url}`;
-                        }
-                        
-                        // If no DB URL, try guessing by exercise name
-                        if (!sourceUrl) {
-                            sourceUrl = `assets/exercise animation/${ex.name.toLowerCase().replace(/ /g, '_')}.mp4`;
+                        let rawUrl = (ex.animation_url || '').trim();
+                        let primaryUrl = '';
+                        if (rawUrl) {
+                            if (rawUrl.startsWith('http://') || rawUrl.startsWith('https://')) {
+                                primaryUrl = rawUrl;
+                            } else if (rawUrl.startsWith('assets/')) {
+                                primaryUrl = rawUrl;
+                            } else if (rawUrl.startsWith('/assets/')) {
+                                primaryUrl = rawUrl.substring(1);
+                            } else {
+                                primaryUrl = 'assets/exercise_animations/' + rawUrl;
+                            }
                         }
 
-                        videoEl.onloadeddata = () => { 
-                            videoEl.style.display = 'block'; 
-                            fallbackDiv.style.display = 'none';
-                        };
-                        videoEl.onerror = () => { 
-                            // If we tried the 'exercise animation' folder guess, fallback to 'assets/' directly
-                            if (!ex.animation_url && videoEl.src.includes('exercise%20animation')) {
-                                videoEl.src = `assets/${ex.name.toLowerCase().replace(/ /g, '_')}.mp4`;
-                            } else {
+                        // Generate fallback candidate URLs
+                        const cleanName = ex.name.toLowerCase().replace(/[^a-z0-9]/g, '_').replace(/_+/g, '_');
+                        const spacedName = ex.name.toLowerCase().replace(/ /g, '_');
+                        const candidateUrls = [];
+
+                        if (primaryUrl) {
+                            candidateUrls.push(primaryUrl);
+                        }
+                        candidateUrls.push(`assets/exercise_animations/${cleanName}.mp4`);
+                        candidateUrls.push(`assets/exercise_animations/${cleanName}.gif`);
+                        candidateUrls.push(`assets/exercise_animations/${cleanName}.webp`);
+                        candidateUrls.push(`assets/exercise animation/${spacedName}.mp4`);
+                        candidateUrls.push(`assets/exercise animation/${cleanName}.mp4`);
+                        candidateUrls.push(`assets/${cleanName}.mp4`);
+
+                        function isImageFormat(url) {
+                            if (!url) return false;
+                            const clean = url.split('?')[0].toLowerCase();
+                            return clean.endsWith('.gif') || clean.endsWith('.webp') || clean.endsWith('.png') || clean.endsWith('.jpg') || clean.endsWith('.jpeg');
+                        }
+
+                        function loadNextCandidate(candidates) {
+                            if (!candidates || candidates.length === 0) {
                                 videoEl.style.display = 'none';
+                                if (imgEl) imgEl.style.display = 'none';
                                 fallbackDiv.style.display = 'block';
+                                return;
                             }
-                        };
-                        
-                        videoEl.src = sourceUrl;
-                        
+
+                            const currentUrl = candidates[0];
+                            const remaining = candidates.slice(1);
+
+                            if (isImageFormat(currentUrl)) {
+                                videoEl.style.display = 'none';
+                                try {
+                                    videoEl.pause();
+                                } catch (e) {}
+
+                                if (!imgEl) {
+                                    loadNextCandidate(remaining);
+                                    return;
+                                }
+
+                                imgEl.onload = () => {
+                                    imgEl.style.display = 'block';
+                                    videoEl.style.display = 'none';
+                                    fallbackDiv.style.display = 'none';
+                                };
+                                imgEl.onerror = () => {
+                                    imgEl.style.display = 'none';
+                                    loadNextCandidate(remaining);
+                                };
+                                imgEl.src = currentUrl;
+                            } else {
+                                if (imgEl) imgEl.style.display = 'none';
+                                videoEl.muted = true;
+                                videoEl.setAttribute('playsinline', '');
+                                videoEl.setAttribute('muted', '');
+
+                                let loaded = false;
+                                const onReady = () => {
+                                    if (loaded) return;
+                                    loaded = true;
+                                    videoEl.style.display = 'block';
+                                    if (imgEl) imgEl.style.display = 'none';
+                                    fallbackDiv.style.display = 'none';
+                                    videoEl.play().catch(() => {});
+                                };
+
+                                videoEl.onloadeddata = onReady;
+                                videoEl.oncanplay = onReady;
+                                videoEl.onloadedmetadata = onReady;
+
+                                videoEl.onerror = () => {
+                                    videoEl.style.display = 'none';
+                                    loadNextCandidate(remaining);
+                                };
+
+                                videoEl.src = currentUrl;
+                                try {
+                                    videoEl.load();
+                                } catch (e) {}
+                            }
+                        }
+
+                        loadNextCandidate(candidateUrls);
+
                         const progress = ((currentExIndex) / totalEx) * 100;
                         document.querySelector('.progress-fill').style.width = progress + '%';
                     }
 
                     function completeSet() {
                         const ex = exercises[currentExIndex];
-                        
+
                         if (currentSet < ex.sets) {
                             currentSet++;
                             startRest(ex.rest_seconds);
@@ -238,13 +325,15 @@ function my_workout_page(): void
 
                             fetch('index.php?page=complete_exercise', {
                                 method: 'POST',
-                                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                                headers: {
+                                    'Content-Type': 'application/x-www-form-urlencoded'
+                                },
                                 body: `csrf_token=<?= csrf_token() ?>&plan_id=${planId}&exercise_id=${ex.exercise_id}`
                             }).then(() => {
                                 btn.disabled = false;
                                 currentExIndex++;
                                 currentSet = 1;
-                                
+
                                 if (currentExIndex < exercises.length) {
                                     startRest(ex.rest_seconds);
                                 } else {
@@ -258,16 +347,16 @@ function my_workout_page(): void
                         document.getElementById('player-controls').style.display = 'none';
                         const timerScreen = document.getElementById('player-timer-screen');
                         timerScreen.style.display = 'block';
-                        
+
                         const videoEl = document.getElementById('player-animation-video');
                         if (videoEl) {
                             videoEl.pause();
                             videoEl.style.opacity = '0.5';
                         }
-                        
+
                         let remaining = seconds;
                         document.getElementById('player-timer-text').innerText = remaining;
-                        
+
                         clearInterval(restTimer);
                         restTimer = setInterval(() => {
                             remaining--;
@@ -295,13 +384,17 @@ function my_workout_page(): void
             <?php render_current_workout((int) $user['user_id'], false); ?>
             <?php render_exercise_recommendations((int) $user['user_id'], false); ?>
         <?php else: ?>
-             <div class="panel" style="text-align: center; padding: 50px 20px;">
-                <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="var(--line)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="margin-bottom: 16px;"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="21" x2="9" y2="9"/></svg>
+            <div class="panel" style="text-align: center; padding: 50px 20px;">
+                <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="var(--line)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="margin-bottom: 16px;">
+                    <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
+                    <line x1="3" y1="9" x2="21" y2="9" />
+                    <line x1="9" y1="21" x2="9" y2="9" />
+                </svg>
                 <h2 style="color: var(--muted); margin-bottom: 10px;">No Active Workout Plan</h2>
                 <p>Generate workout plan above to get started!</p>
-             </div>
+            </div>
         <?php endif; ?>
     </div>
-    <?php
+<?php
     render_footer();
 }

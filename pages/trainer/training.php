@@ -189,17 +189,17 @@ function training_page(): void
     </section>
 
     <!-- Add Training Plan Modal -->
-    <div id="planModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.6);align-items:center;justify-content:center;z-index:1000;padding:1rem">
-        <div style="background:#0f172a;padding:2rem;border-radius:8px;width:100%;max-width:400px;box-shadow:0 20px 25px -5px rgba(0,0,0,0.5);border:1px solid #334155">
-            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1.5rem">
-                <h2 style="margin:0; font-size:1.5rem; color:var(--ink)">Add Training Plan</h2>
-                <button type="button" onclick="document.getElementById('planModal').style.display='none'" style="background:transparent;border:none;color:#94a3b8;font-size:1.5rem;cursor:pointer;padding:0">&times;</button>
+    <div id="planModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.6);backdrop-filter:blur(4px);align-items:center;justify-content:center;z-index:1000;padding:1rem">
+        <div style="background:var(--panel);padding:24px 28px;border-radius:12px;width:100%;max-width:440px;box-shadow:0 20px 40px rgba(0,0,0,0.25);border:1px solid var(--line)">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:18px">
+                <h2 style="margin:0; font-size:1.35rem; font-weight:700; color:var(--ink)">Add Training Plan</h2>
+                <button type="button" onclick="document.getElementById('planModal').style.display='none'" style="background:transparent;border:none;color:var(--muted);font-size:1.5rem;cursor:pointer;padding:0;line-height:1;transition:color 0.2s;" onmouseover="this.style.color='var(--ink)'" onmouseout="this.style.color='var(--muted)'">&times;</button>
             </div>
-            <form method="post" class="form" style="display:flex;flex-direction:column;gap:12px">
+            <form method="post" class="form" style="display:flex;flex-direction:column;gap:14px">
                 <?= csrf_field() ?>
                 <input type="hidden" name="action" value="add_plan">
-                <label style="display:block; color:var(--muted); font-size:14px">Member
-                    <select name="member_user_id" class="form-control" style="width:100%;box-sizing:border-box" required onchange="updateGoalField(this)">
+                <label style="display:block; color:var(--muted); font-size:13px; font-weight:600">Member
+                    <select name="member_user_id" class="form-control" style="width:100%;box-sizing:border-box;margin-top:5px;background:var(--panel);color:var(--ink);border:1.5px solid var(--line);border-radius:8px;padding:9px 12px;" required onchange="updateGoalField(this)">
                         <option value="" data-goal="">-- Select Member --</option>
                         <?php foreach ($members as $member): ?>
                             <?php $statusText = empty($member['has_membership']) ? ' (No Membership)' : ' (Active Plan)'; ?>
@@ -207,53 +207,53 @@ function training_page(): void
                         <?php endforeach; ?>
                     </select>
                 </label>
-                <label style="display:block; color:var(--muted); font-size:14px">Plan title 
-                    <input name="title" class="form-control" placeholder="e.g. Personalized Workout Plan" style="width:100%;box-sizing:border-box" required>
+                <label style="display:block; color:var(--muted); font-size:13px; font-weight:600">Plan title 
+                    <input name="title" class="form-control" placeholder="e.g. Personalized Workout Plan" style="width:100%;box-sizing:border-box;margin-top:5px;background:var(--panel);color:var(--ink);border:1.5px solid var(--line);border-radius:8px;padding:9px 12px;" required>
                 </label>
-                <label style="display:block; color:var(--muted); font-size:14px">Goal 
-                    <input name="goal" class="form-control" placeholder="e.g. muscle_gain" style="width:100%;box-sizing:border-box">
+                <label style="display:block; color:var(--muted); font-size:13px; font-weight:600">Goal 
+                    <input name="goal" class="form-control" placeholder="e.g. muscle_gain" style="width:100%;box-sizing:border-box;margin-top:5px;background:var(--panel);color:var(--ink);border:1.5px solid var(--line);border-radius:8px;padding:9px 12px;">
                 </label>
-                <div style="display:flex;justify-content:flex-end;gap:1rem;margin-top:1rem">
-                    <button type="button" onclick="document.getElementById('planModal').style.display='none'" style="background:transparent;color:#94a3b8;border:1px solid #475569">Cancel</button>
-                    <button>Create Plan</button>
+                <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:14px;padding-top:14px;border-top:1px solid var(--line)">
+                    <button type="button" onclick="document.getElementById('planModal').style.display='none'" class="btn btn-secondary" style="background:var(--panel-soft);color:var(--ink);border:1px solid var(--line);padding:8px 16px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;">Cancel</button>
+                    <button type="submit" class="btn btn-primary" style="padding:8px 20px;font-size:13px;font-weight:600;">Create Plan</button>
                 </div>
             </form>
         </div>
     </div>
     
     <!-- Edit Training Plan Modal -->
-    <div id="editModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.6);align-items:center;justify-content:center;z-index:1000;padding:1rem">
-        <div style="background:#0f172a;padding:2rem;border-radius:8px;width:100%;max-width:400px;box-shadow:0 20px 25px -5px rgba(0,0,0,0.5);border:1px solid #334155">
-            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1.5rem">
-                <h2 style="margin:0; font-size:1.5rem; color:var(--ink)">Edit Training Plan</h2>
-                <button type="button" onclick="document.getElementById('editModal').style.display='none'" style="background:transparent;border:none;color:#94a3b8;font-size:1.5rem;cursor:pointer;padding:0">&times;</button>
+    <div id="editModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.6);backdrop-filter:blur(4px);align-items:center;justify-content:center;z-index:1000;padding:1rem">
+        <div style="background:var(--panel);padding:24px 28px;border-radius:12px;width:100%;max-width:440px;box-shadow:0 20px 40px rgba(0,0,0,0.25);border:1px solid var(--line)">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:18px">
+                <h2 style="margin:0; font-size:1.35rem; font-weight:700; color:var(--ink)">Edit Training Plan</h2>
+                <button type="button" onclick="document.getElementById('editModal').style.display='none'" style="background:transparent;border:none;color:var(--muted);font-size:1.5rem;cursor:pointer;padding:0;line-height:1;transition:color 0.2s;" onmouseover="this.style.color='var(--ink)'" onmouseout="this.style.color='var(--muted)'">&times;</button>
             </div>
-            <form id="editForm" method="post" style="display:flex;flex-direction:column;gap:12px">
+            <form id="editForm" method="post" style="display:flex;flex-direction:column;gap:14px">
                 <?= csrf_field() ?>
                 <input type="hidden" name="action" value="edit_plan">
                 <input type="hidden" name="plan_id" id="edit_plan_id">
-                <label style="display:block; color:var(--muted); font-size:14px">Member
-                    <select name="member_user_id" id="edit_member_id" class="form-control" style="width:100%;box-sizing:border-box" required onchange="updateGoalField(this)">
+                <label style="display:block; color:var(--muted); font-size:13px; font-weight:600">Member
+                    <select name="member_user_id" id="edit_member_id" class="form-control" style="width:100%;box-sizing:border-box;margin-top:5px;background:var(--panel);color:var(--ink);border:1.5px solid var(--line);border-radius:8px;padding:9px 12px;" required onchange="updateGoalField(this)">
                         <?php foreach ($members as $member): ?>
                             <option value="<?= (int) $member['member_user_id'] ?>" data-goal="<?= h($member['primary_goal'] ?? '') ?>"><?= h($member['name']) ?></option>
                         <?php endforeach; ?>
                     </select>
                 </label>
-                <label style="display:block; color:var(--muted); font-size:14px">Title 
-                    <input name="title" id="edit_title" class="form-control" style="width:100%;box-sizing:border-box" required>
+                <label style="display:block; color:var(--muted); font-size:13px; font-weight:600">Title 
+                    <input name="title" id="edit_title" class="form-control" style="width:100%;box-sizing:border-box;margin-top:5px;background:var(--panel);color:var(--ink);border:1.5px solid var(--line);border-radius:8px;padding:9px 12px;" required>
                 </label>
-                <label style="display:block; color:var(--muted); font-size:14px">Goal 
-                    <input name="goal" id="edit_goal" class="form-control" style="width:100%;box-sizing:border-box">
+                <label style="display:block; color:var(--muted); font-size:13px; font-weight:600">Goal 
+                    <input name="goal" id="edit_goal" class="form-control" style="width:100%;box-sizing:border-box;margin-top:5px;background:var(--panel);color:var(--ink);border:1.5px solid var(--line);border-radius:8px;padding:9px 12px;">
                 </label>
-                <label style="display:block; color:var(--muted); font-size:14px">Start Date 
-                    <input name="start_date" id="edit_start_date" type="date" class="form-control" style="width:100%;box-sizing:border-box">
+                <label style="display:block; color:var(--muted); font-size:13px; font-weight:600">Start Date 
+                    <input name="start_date" id="edit_start_date" type="date" class="form-control" style="width:100%;box-sizing:border-box;margin-top:5px;background:var(--panel);color:var(--ink);border:1.5px solid var(--line);border-radius:8px;padding:9px 12px;">
                 </label>
-                <label style="display:block; color:var(--muted); font-size:14px">End Date 
-                    <input name="end_date" id="edit_end_date" type="date" class="form-control" style="width:100%;box-sizing:border-box">
+                <label style="display:block; color:var(--muted); font-size:13px; font-weight:600">End Date 
+                    <input name="end_date" id="edit_end_date" type="date" class="form-control" style="width:100%;box-sizing:border-box;margin-top:5px;background:var(--panel);color:var(--ink);border:1.5px solid var(--line);border-radius:8px;padding:9px 12px;">
                 </label>
-                <div style="display:flex;justify-content:flex-end;gap:1rem;margin-top:1rem">
-                    <button type="button" onclick="document.getElementById('editModal').style.display='none'" style="background:transparent;color:#94a3b8;border:1px solid #475569">Cancel</button>
-                    <button class="btn-primary">Save Changes</button>
+                <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:14px;padding-top:14px;border-top:1px solid var(--line)">
+                    <button type="button" onclick="document.getElementById('editModal').style.display='none'" class="btn btn-secondary" style="background:var(--panel-soft);color:var(--ink);border:1px solid var(--line);padding:8px 16px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;">Cancel</button>
+                    <button type="submit" class="btn btn-primary" style="padding:8px 20px;font-size:13px;font-weight:600;">Save Changes</button>
                 </div>
             </form>
         </div>
@@ -319,8 +319,8 @@ function training_page(): void
             showCancelButton: true,
             confirmButtonText: 'Save Changes',
             confirmButtonColor: 'var(--lime)',
-            cancelButtonColor: '#334155',
-            background: '#0f172a',
+            cancelButtonColor: 'var(--line)',
+            background: 'var(--panel)',
             color: 'var(--ink)',
             preConfirm: () => {
                 const form = document.getElementById('editPlanForm');
@@ -360,8 +360,8 @@ function training_page(): void
             showCancelButton: true,
             confirmButtonText: 'Duplicate',
             confirmButtonColor: 'var(--lime)',
-            cancelButtonColor: '#334155',
-            background: '#0f172a',
+            cancelButtonColor: 'var(--line)',
+            background: 'var(--panel)',
             color: 'var(--ink)',
             preConfirm: () => {
                 const form = document.getElementById('duplicatePlanForm');

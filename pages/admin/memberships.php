@@ -474,8 +474,8 @@ function memberships_page(): void
                 showCancelButton: true,
                 confirmButtonText: 'Save',
                 confirmButtonColor: 'var(--lime)',
-                cancelButtonColor: '#334155',
-                background: '#0f172a',
+                cancelButtonColor: 'var(--line)',
+                background: 'var(--panel)',
                 color: 'var(--ink)',
                 preConfirm: () => {
                     Swal.showLoading();

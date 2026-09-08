@@ -62,9 +62,10 @@ function exercises_page(): void
             } elseif (!$targetGymId) {
                 flash('You must select a gym for this exercise.', 'danger');
             } else {
+                $urlInput = trim((string) post('animation_url_input'));
                 if ($postAction === 'create') {
-                    $stmt = $pdo->prepare('INSERT INTO exercises (name, category, muscle_group, description, gym_id) VALUES (?, ?, ?, ?, ?)');
-                    $stmt->execute([$name, $category, $muscle_group, $description, $targetGymId]);
+                    $stmt = $pdo->prepare('INSERT INTO exercises (name, category, muscle_group, description, gym_id, animation_url) VALUES (?, ?, ?, ?, ?, ?)');
+                    $stmt->execute([$name, $category, $muscle_group, $description, $targetGymId, $urlInput ?: null]);
                     $newId = (int) $pdo->lastInsertId();
                     
                     if (isset($_FILES['animation']) && $_FILES['animation']['error'] !== UPLOAD_ERR_NO_FILE) {
@@ -88,6 +89,10 @@ function exercises_page(): void
                     } else {
                         $stmt = $pdo->prepare('UPDATE exercises SET name = ?, category = ?, muscle_group = ?, description = ? WHERE exercise_id = ?');
                         $stmt->execute([$name, $category, $muscle_group, $description, $editId]);
+                        
+                        if ($urlInput) {
+                            $pdo->prepare('UPDATE exercises SET animation_url = ? WHERE exercise_id = ?')->execute([$urlInput, $editId]);
+                        }
                         
                         if (isset($_FILES['animation']) && $_FILES['animation']['error'] !== UPLOAD_ERR_NO_FILE) {
                             try {
@@ -329,12 +334,25 @@ function exercises_page(): void
                 
                 <label>Description <textarea name="description" id="exDesc" class="form-control" placeholder="Form cues or notes..." rows="3"></textarea></label>
                 
-                <label>Animation <span style="color:var(--muted); font-size:12px;">(Optional, Max 5MB, MP4/GIF/WebP)</span>
-                    <input type="file" name="animation" id="exAnimation" class="form-control" accept="video/mp4,image/gif,image/webp">
+                <label>Upload Animation File <span style="color:var(--muted); font-size:12px;">(MP4, WebM, GIF, WebP - Max 15MB)</span>
+                    <input type="file" name="animation" id="exAnimation" class="form-control" accept="video/mp4,video/webm,image/gif,image/webp">
                 </label>
-                <div id="exCurrentAnimContainer" style="display:none; font-size: 13px; padding: 6px 10px; background: rgba(255,255,255,0.04); border-radius: 6px; border: 1px solid var(--line);">
-                    <span style="color:var(--muted);">Current animation:</span> 
-                    <a id="exCurrentAnimLink" href="#" target="_blank" style="color:var(--lime); font-weight: 500; text-decoration: underline; margin-left: 4px;">View Animation ↗</a>
+                
+                <label style="margin-top:-6px;">
+                    <span style="color:var(--muted); font-size:12px; font-weight:600;">Or Animation URL <span style="font-weight:normal;">(ImageKit, Cloudinary, or direct video/GIF link)</span></span>
+                    <input type="url" name="animation_url_input" id="exAnimationUrlInput" class="form-control" placeholder="https://ik.imagekit.io/... or https://.../anim.gif">
+                </label>
+
+                <div id="exCurrentAnimContainer" style="display:none; font-size: 13px; padding: 12px; background: color-mix(in srgb, var(--surface) 60%, transparent); border-radius: 8px; border: 1px solid var(--line);">
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+                        <span style="color:var(--muted); font-weight:600;">Current Animation Preview:</span> 
+                        <a id="exCurrentAnimLink" href="#" target="_blank" style="color:var(--lime); font-weight: 600; text-decoration: underline;">Open Link ↗</a>
+                    </div>
+                    <div id="exPreviewBox" style="display:flex; justify-content:center; align-items:center; min-height:140px; max-height:220px; background:rgba(0,0,0,0.25); border-radius:6px; overflow:hidden; border:1px solid var(--line);">
+                        <video id="exPreviewVideo" style="max-height:200px; max-width:100%; border-radius:6px; display:none;" autoplay loop muted playsinline></video>
+                        <img id="exPreviewImg" style="max-height:200px; max-width:100%; object-fit:contain; border-radius:6px; display:none;" alt="Preview">
+                        <span id="exPreviewError" style="display:none; color:var(--muted); font-size:12px;">Preview unavailable</span>
+                    </div>
                 </div>
 
                 <button type="submit" class="btn btn-primary" style="margin-top:8px;">Save Exercise</button>
@@ -349,6 +367,8 @@ function exercises_page(): void
         document.getElementById('exFormId').value = '';
         document.getElementById('exModalTitle').innerText = 'Add New Exercise';
         document.getElementById('exCurrentAnimContainer').style.display = 'none';
+        document.getElementById('exPreviewVideo').style.display = 'none';
+        document.getElementById('exPreviewImg').style.display = 'none';
         document.getElementById('exModal').showModal();
     }
 
@@ -370,14 +390,46 @@ function exercises_page(): void
 
         const animContainer = document.getElementById('exCurrentAnimContainer');
         const animLink = document.getElementById('exCurrentAnimLink');
-        if (ex.animation_url) {
-            const src = (ex.animation_url.startsWith('http://') || ex.animation_url.startsWith('https://'))
-                ? ex.animation_url
-                : 'assets/exercise_animations/' + ex.animation_url;
+        const previewVideo = document.getElementById('exPreviewVideo');
+        const previewImg = document.getElementById('exPreviewImg');
+        const previewError = document.getElementById('exPreviewError');
+        const urlInput = document.getElementById('exAnimationUrlInput');
+
+        previewVideo.style.display = 'none';
+        previewImg.style.display = 'none';
+        previewError.style.display = 'none';
+
+        if (ex.animation_url && ex.animation_url.trim() !== '') {
+            let raw = ex.animation_url.trim();
+            const src = (raw.startsWith('http://') || raw.startsWith('https://'))
+                ? raw
+                : (raw.startsWith('assets/') ? raw : 'assets/exercise_animations/' + raw);
+            
             animLink.href = src;
             animContainer.style.display = 'block';
+
+            if (raw.startsWith('http://') || raw.startsWith('https://')) {
+                urlInput.value = raw;
+            } else {
+                urlInput.value = '';
+            }
+
+            const isImg = raw.toLowerCase().endsWith('.gif') || raw.toLowerCase().endsWith('.webp') || raw.toLowerCase().endsWith('.png') || raw.toLowerCase().endsWith('.jpg');
+            if (isImg) {
+                previewImg.onload = () => { previewImg.style.display = 'block'; };
+                previewImg.onerror = () => { previewError.style.display = 'block'; };
+                previewImg.src = src;
+            } else {
+                previewVideo.muted = true;
+                previewVideo.setAttribute('playsinline', '');
+                previewVideo.onloadeddata = () => { previewVideo.style.display = 'block'; previewVideo.play().catch(()=>{}); };
+                previewVideo.onerror = () => { previewError.style.display = 'block'; };
+                previewVideo.src = src;
+                try { previewVideo.load(); } catch(e) {}
+            }
         } else {
             animContainer.style.display = 'none';
+            urlInput.value = '';
         }
         
         document.getElementById('exModal').showModal();
