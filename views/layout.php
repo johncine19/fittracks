@@ -189,7 +189,6 @@ function render_header(string $title, ?array $user = null): void
                                 'trainer_assignments' => 'trainers',
                                 'commissions' => 'commissions',
                                 'classes' => 'classes',
-                                'reports' => 'advanced_reports',
                                 'audit_logs' => 'audit_logs',
                                 default => null,
                             };

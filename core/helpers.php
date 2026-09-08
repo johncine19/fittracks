@@ -185,7 +185,7 @@ function get_platform_subscription_plans(): array
                     'Workout Builder & Exercise Library',
                     'Walk-in Pass & QR Scanner',
                     'Membership Plans & Payments',
-                    'Basic Dashboard Analytics',
+                    'Basic Reports & Analytics',
                 ],
             ],
             'professional' => [
@@ -349,13 +349,14 @@ function gym_has_feature(string $feature, ?array $gym = null): bool
         'users' => 'starter',
         'gym_profile' => 'starter',
         'plans' => 'starter',
+        'reports' => 'starter',
+        'advanced_reports' => 'starter',
         
         // Professional & above
         'trainers' => 'professional',
         'trainer_assignments' => 'professional',
         'commissions' => 'professional',
         'classes' => 'professional',
-        'advanced_reports' => 'professional',
         'renewal_reminders' => 'professional',
         'engagement_tracking' => 'professional',
 
@@ -386,7 +387,8 @@ function require_gym_feature(string $feature): void
             'trainer_assignments' => 'Trainer Assignments',
             'commissions' => 'Trainer Commission Tracking',
             'classes' => 'Class Scheduling & Booking',
-            'advanced_reports' => 'Advanced Financial & Performance Reports',
+            'reports' => 'Financial & Attendance Reports',
+            'advanced_reports' => 'Financial & Attendance Reports',
             'custom_branding' => 'Custom App Brand Theme',
             'audit_logs' => 'Security Audit Logs',
             'workouts' => 'Workout Builder & Plans',
@@ -395,7 +397,11 @@ function require_gym_feature(string $feature): void
         $tier = gym_subscription_tier($gym);
         $planName = $tier !== 'none' ? ucfirst($tier) : 'Inactive';
         
-        $neededTier = in_array($feature, ['custom_branding', 'audit_logs'], true) ? 'Business' : 'Professional';
+        $neededTier = in_array($feature, ['custom_branding', 'audit_logs'], true)
+            ? 'Business'
+            : (in_array($feature, ['trainers', 'trainer_assignments', 'commissions', 'classes', 'renewal_reminders', 'engagement_tracking'], true)
+                ? 'Professional'
+                : 'Starter');
 
         render_header('Upgrade Required', $user);
         ?>

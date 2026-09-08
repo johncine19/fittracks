@@ -414,7 +414,8 @@ function exercises_page(): void
                 urlInput.value = '';
             }
 
-            const isImg = raw.toLowerCase().endsWith('.gif') || raw.toLowerCase().endsWith('.webp') || raw.toLowerCase().endsWith('.png') || raw.toLowerCase().endsWith('.jpg');
+            const cleanUrl = raw.split('?')[0].toLowerCase();
+            const isImg = cleanUrl.endsWith('.gif') || cleanUrl.endsWith('.webp') || cleanUrl.endsWith('.png') || cleanUrl.endsWith('.jpg') || cleanUrl.endsWith('.jpeg');
             if (isImg) {
                 previewImg.onload = () => { previewImg.style.display = 'block'; };
                 previewImg.onerror = () => { previewError.style.display = 'block'; };
