@@ -55,123 +55,29 @@ function setup_profile_page(): void
     render_header('Complete your profile', null);
     ?>
     <style>
-        .profile-wizard-card {
-            background: var(--panel);
-            border: 1px solid var(--line);
-            border-radius: 16px;
-            box-shadow: var(--shadow);
-            padding: 32px 36px;
-            width: 100%;
-            max-width: 620px;
-            position: relative;
-            z-index: 1;
-            margin: 0 auto;
-            transition: all 0.3s ease;
+        .split-login-frame.profile-mode {
+            max-width: 1100px;
         }
-
-        /* Ambient glowing background */
-        .profile-bg-decor {
-            position: absolute;
-            inset: 0;
-            overflow: hidden;
-            pointer-events: none;
-            z-index: 0;
-        }
-        .profile-blob {
-            position: absolute;
-            width: 320px;
-            height: 320px;
-            border-radius: 50%;
-            filter: blur(80px);
-            opacity: 0.15;
-        }
-        .profile-blob--a { background: var(--lime); top: -80px; left: -80px; }
-        .profile-blob--b { background: #0284c7; bottom: -100px; right: -80px; }
-
-        /* Stepper progress */
-        .wizard-stepper-wrap {
-            margin-bottom: 24px;
-        }
-        .wizard-step-info {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            margin-bottom: 8px;
-            font-size: 0.85rem;
-        }
-        .wizard-step-badge {
-            font-weight: 700;
-            color: var(--lime);
-            letter-spacing: 0.5px;
-            text-transform: uppercase;
-            font-size: 0.78rem;
-            display: inline-flex;
-            align-items: center;
-            gap: 6px;
-        }
-        .wizard-step-count {
-            color: var(--muted);
-            font-size: 0.8rem;
-            font-weight: 500;
-        }
-        .wizard-progress-bar {
-            width: 100%;
-            height: 6px;
-            background: var(--panel-soft);
-            border-radius: 999px;
-            overflow: hidden;
-            position: relative;
-        }
-        .wizard-progress-fill {
-            height: 100%;
-            width: 33.33%;
-            background: linear-gradient(90deg, var(--lime), #42dba5);
-            border-radius: 999px;
-            transition: width 0.35s cubic-bezier(0.4, 0, 0.2, 1);
-        }
-
-        /* Step containers */
-        .wizard-step {
+        .profile-step-pane {
             display: none;
-            animation: fadeInStep 0.25s ease-out;
+            animation: fadeInStep 0.3s ease forwards;
         }
-        .wizard-step.active {
+        .profile-step-pane.active {
             display: block;
         }
         @keyframes fadeInStep {
             from { opacity: 0; transform: translateY(8px); }
             to { opacity: 1; transform: translateY(0); }
         }
-
-        .step-heading {
-            margin-bottom: 20px;
-            text-align: center;
-        }
-        .step-title {
-            font-size: 1.45rem;
-            font-weight: 800;
-            color: var(--ink);
-            margin: 0 0 6px;
-            letter-spacing: -0.01em;
-        }
-        .step-desc {
-            color: var(--muted);
-            font-size: 0.88rem;
-            margin: 0 auto;
-            max-width: 440px;
-            line-height: 1.45;
-        }
-
-        /* Sex toggle pills */
-        .sex-toggle-wrap {
+        .sex-select-grid {
             display: grid;
             grid-template-columns: 1fr 1fr;
             gap: 12px;
             margin-bottom: 20px;
         }
-        .sex-btn {
-            background: var(--panel);
+        .sex-card {
             border: 1.5px solid var(--line);
+            background: var(--panel-soft);
             border-radius: 12px;
             padding: 14px 16px;
             cursor: pointer;
@@ -179,555 +85,674 @@ function setup_profile_page(): void
             align-items: center;
             gap: 12px;
             transition: all 0.2s ease;
-            user-select: none;
+            position: relative;
         }
-        .sex-btn:hover {
+        .sex-card:hover {
             border-color: var(--lime);
-            transform: translateY(-2px);
+            transform: translateY(-1px);
         }
-        .sex-btn.selected {
+        .sex-card.selected {
             border-color: var(--lime);
-            background: color-mix(in srgb, var(--lime) 10%, var(--panel));
-            box-shadow: 0 0 0 3px color-mix(in srgb, var(--lime) 20%, transparent);
+            background: color-mix(in srgb, var(--lime) 10%, var(--panel-soft));
+            box-shadow: 0 0 0 1px var(--lime);
         }
-        .sex-btn input[type="radio"] {
-            display: none;
+        .sex-card input[type="radio"] {
+            position: absolute;
+            opacity: 0;
+            pointer-events: none;
         }
-        .sex-icon-circle {
+        .sex-card-icon {
             width: 36px;
             height: 36px;
             border-radius: 50%;
-            background: var(--panel-soft);
-            color: var(--ink);
+            background: var(--panel);
+            border: 1px solid var(--line);
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 1.2rem;
-            font-weight: bold;
+            font-size: 17px;
+            font-weight: 700;
+            color: var(--ink);
             flex-shrink: 0;
             transition: all 0.2s;
         }
-        .sex-btn.selected .sex-icon-circle {
+        .sex-card.selected .sex-card-icon {
             background: var(--lime);
             color: #090b10;
-        }
-
-        /* Form Inputs */
-        .input-grid-3 {
-            display: grid;
-            grid-template-columns: repeat(3, 1fr);
-            gap: 12px;
-            margin-bottom: 20px;
-        }
-        .input-grid-2 {
-            display: grid;
-            grid-template-columns: repeat(2, 1fr);
-            gap: 12px;
-            margin-bottom: 20px;
-        }
-        .input-group {
-            display: flex;
-            flex-direction: column;
-            gap: 6px;
-            text-align: left;
-        }
-        .input-label {
-            font-size: 0.82rem;
-            font-weight: 600;
-            color: var(--ink);
-            display: flex;
-            justify-content: space-between;
-        }
-        .input-label .sub {
-            color: var(--muted);
-            font-weight: normal;
-            font-size: 0.75rem;
-        }
-        .input-field-wrap {
-            position: relative;
-            display: flex;
-            align-items: center;
-        }
-        .input-field-wrap input {
-            width: 100%;
-            background: var(--panel);
-            border: 1.5px solid var(--line);
-            border-radius: 10px;
-            padding: 12px 44px 12px 14px;
-            color: var(--ink);
-            font-size: 0.95rem;
-            font-weight: 600;
-            outline: none;
-            transition: border-color 0.2s, box-shadow 0.2s, background 0.2s;
-            box-shadow: 0 1px 2px rgba(0,0,0,0.05);
-        }
-        .input-field-wrap input:focus {
             border-color: var(--lime);
-            box-shadow: 0 0 0 3px color-mix(in srgb, var(--lime) 25%, transparent);
-            background: var(--panel);
         }
-        .input-field-wrap input.has-error {
-            border-color: var(--danger) !important;
-            box-shadow: 0 0 0 3px color-mix(in srgb, var(--danger) 25%, transparent) !important;
-        }
-        .input-unit {
-            position: absolute;
-            right: 12px;
-            font-size: 0.78rem;
-            font-weight: 700;
-            color: var(--muted);
-            pointer-events: none;
-            text-transform: lowercase;
-        }
-
-        /* Info hint box */
-        .info-hint-box {
-            background: color-mix(in srgb, var(--panel-soft) 70%, transparent);
-            border: 1px solid var(--line);
-            border-radius: 10px;
-            padding: 10px 14px;
-            margin-bottom: 20px;
-            font-size: 0.8rem;
-            color: var(--muted);
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            line-height: 1.4;
-        }
-        .info-hint-box svg {
-            color: var(--lime);
-            flex-shrink: 0;
-        }
-
-        /* Experience cards */
-        .experience-grid {
+        .exp-select-grid {
             display: grid;
             grid-template-columns: repeat(3, 1fr);
             gap: 10px;
-            margin-bottom: 18px;
+            margin-bottom: 20px;
         }
-        .exp-btn {
-            background: var(--panel);
+        .exp-card {
             border: 1.5px solid var(--line);
-            border-radius: 10px;
+            background: var(--panel-soft);
+            border-radius: 12px;
             padding: 12px 10px;
             cursor: pointer;
             text-align: center;
-            transition: all 0.2s;
-            user-select: none;
+            transition: all 0.2s ease;
+            position: relative;
         }
-        .exp-btn:hover {
+        .exp-card:hover {
             border-color: var(--lime);
-            transform: translateY(-2px);
         }
-        .exp-btn.selected {
+        .exp-card.selected {
             border-color: var(--lime);
-            background: color-mix(in srgb, var(--lime) 10%, var(--panel));
-            box-shadow: 0 0 0 3px color-mix(in srgb, var(--lime) 20%, transparent);
+            background: color-mix(in srgb, var(--lime) 10%, var(--panel-soft));
+            box-shadow: 0 0 0 1px var(--lime);
         }
-        .exp-btn input[type="radio"] {
-            display: none;
+        .exp-card input[type="radio"] {
+            position: absolute;
+            opacity: 0;
+            pointer-events: none;
         }
-        .exp-title {
-            font-size: 0.88rem;
+        .metric-unit-tag {
+            position: absolute;
+            right: 14px;
+            top: 50%;
+            transform: translateY(-50%);
+            font-size: 12px;
             font-weight: 700;
-            color: var(--ink);
-            margin-bottom: 3px;
-        }
-        .exp-desc {
-            font-size: 0.72rem;
             color: var(--muted);
-            line-height: 1.3;
+            pointer-events: none;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
         }
-
-        /* Select controls */
-        .select-field {
-            width: 100%;
-            background: var(--panel);
-            border: 1.5px solid var(--line);
-            border-radius: 10px;
-            padding: 12px 14px;
-            color: var(--ink);
-            font-size: 0.92rem;
-            font-weight: 500;
-            outline: none;
-            transition: all 0.2s;
-            box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+        .input-with-unit input {
+            padding-right: 48px !important;
         }
-        .select-field:focus {
-            border-color: var(--lime);
-            box-shadow: 0 0 0 3px color-mix(in srgb, var(--lime) 25%, transparent);
-        }
-        .select-field option {
-            background: var(--panel);
-            color: var(--ink);
-        }
-
-        /* Action buttons */
-        .wizard-actions {
+        .stepper-header-bar {
             display: flex;
             align-items: center;
-            gap: 12px;
-            margin-top: 10px;
+            justify-content: space-between;
+            margin-bottom: 20px;
+            padding-bottom: 14px;
+            border-bottom: 1px solid var(--line);
         }
-        .wizard-btn-prev {
-            background: var(--panel-soft);
-            border: 1.5px solid var(--line);
-            color: var(--ink);
-            font-weight: 600;
-            padding: 13px 20px;
-            border-radius: 10px;
-            cursor: pointer;
-            font-size: 0.9rem;
+        .step-pill-indicator {
             display: inline-flex;
             align-items: center;
             gap: 6px;
-            transition: all 0.2s;
-            user-select: none;
+            font-size: 12px;
+            font-weight: 700;
+            color: var(--lime);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
         }
-        .wizard-btn-prev:hover {
-            background: var(--panel);
-            border-color: var(--ink);
+        .step-dots-row {
+            display: flex;
+            align-items: center;
+            gap: 6px;
         }
-        .wizard-btn-next {
-            flex-grow: 1;
+        .step-dot {
+            width: 28px;
+            height: 5px;
+            border-radius: 3px;
+            background: var(--line);
+            transition: all 0.3s ease;
+        }
+        .step-dot.active {
             background: var(--lime);
-            color: #090b10;
-            border: none;
-            font-weight: 800;
-            font-size: 0.92rem;
-            padding: 13px 24px;
+            box-shadow: 0 0 8px color-mix(in srgb, var(--lime) 50%, transparent);
+        }
+        .step-dot.done {
+            background: color-mix(in srgb, var(--lime) 60%, var(--line));
+        }
+        .step-nav-actions {
+            display: flex;
+            gap: 12px;
+            margin-top: 24px;
+        }
+        .btn-step-prev {
+            flex: 0 0 110px;
+            background: var(--panel-soft);
+            border: 1px solid var(--line);
+            color: var(--ink);
+            padding: 12px 18px;
             border-radius: 10px;
+            font-size: 14px;
+            font-weight: 600;
             cursor: pointer;
-            display: inline-flex;
+            display: flex;
             align-items: center;
             justify-content: center;
-            gap: 8px;
+            gap: 6px;
             transition: all 0.2s;
-            letter-spacing: 0.3px;
         }
-        .wizard-btn-next:hover {
-            opacity: 0.95;
-            transform: translateY(-1px);
-            box-shadow: 0 6px 20px color-mix(in srgb, var(--lime) 30%, transparent);
+        .btn-step-prev:hover {
+            background: var(--line);
         }
-
-        /* Mobile responsiveness */
+        .btn-step-next {
+            flex: 1;
+            margin: 0 !important;
+        }
+        .live-preview-box {
+            background: var(--panel-soft);
+            border: 1px solid var(--line);
+            border-radius: 12px;
+            padding: 14px 16px;
+            margin-top: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: space-around;
+            text-align: center;
+        }
+        .live-preview-val {
+            font-size: 18px;
+            font-weight: 800;
+            color: var(--lime);
+            font-family: -apple-system, BlinkMacSystemFont, monospace;
+        }
+        .live-preview-lbl {
+            font-size: 11px;
+            color: var(--muted);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-top: 2px;
+        }
         @media (max-width: 640px) {
-            .profile-wizard-card {
-                padding: 20px 16px;
-                border-radius: 14px;
-            }
-            .input-grid-3, .input-grid-2, .experience-grid {
-                grid-template-columns: 1fr;
-                gap: 14px;
-            }
-            .sex-toggle-wrap {
+            .exp-select-grid {
                 grid-template-columns: 1fr;
             }
-            .step-title {
-                font-size: 1.25rem;
-            }
-            .wizard-actions {
-                flex-direction: column-reverse;
-            }
-            .wizard-btn-prev, .wizard-btn-next {
-                width: 100%;
-                justify-content: center;
+            .sex-select-grid {
+                grid-template-columns: 1fr;
             }
         }
     </style>
 
-    <section style="padding: 30px 16px; min-height: 85vh; display:flex; align-items:center; justify-content:center; position:relative;">
-        <div class="profile-bg-decor" aria-hidden="true">
-            <div class="profile-blob profile-blob--a"></div>
-            <div class="profile-blob profile-blob--b"></div>
-        </div>
+    <div class="split-login-viewport">
+        <div class="split-login-frame profile-mode">
+            <!-- Left Hero Showcase -->
+            <div class="split-login-showcase">
+                <!-- Decorative Dot Matrix SVG -->
+                <svg class="showcase-decor-dots" width="70" height="70" viewBox="0 0 70 70" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <circle cx="10" cy="10" r="2.5" fill="#ffffff" />
+                    <circle cx="26" cy="10" r="2.5" fill="#ffffff" />
+                    <circle cx="42" cy="10" r="2.5" fill="#ffffff" />
+                    <circle cx="58" cy="10" r="2.5" fill="#ffffff" />
+                    <circle cx="10" cy="26" r="2.5" fill="#ffffff" />
+                    <circle cx="26" cy="26" r="2.5" fill="#ffffff" />
+                    <circle cx="42" cy="26" r="2.5" fill="#ffffff" />
+                    <circle cx="58" cy="26" r="2.5" fill="#ffffff" />
+                    <circle cx="10" cy="42" r="2.5" fill="#ffffff" />
+                    <circle cx="26" cy="42" r="2.5" fill="#ffffff" />
+                    <circle cx="42" cy="42" r="2.5" fill="#ffffff" />
+                    <circle cx="58" cy="42" r="2.5" fill="#ffffff" />
+                    <circle cx="10" cy="58" r="2.5" fill="#ffffff" />
+                    <circle cx="26" cy="58" r="2.5" fill="#ffffff" />
+                    <circle cx="42" cy="58" r="2.5" fill="#ffffff" />
+                    <circle cx="58" cy="58" r="2.5" fill="#ffffff" />
+                </svg>
 
-        <div class="profile-wizard-card">
-            <!-- Stepper Progress Bar -->
-            <div class="wizard-stepper-wrap">
-                <div class="wizard-step-info">
-                    <span class="wizard-step-badge" id="step-badge-text">
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
-                        Step 1 of 3: Core Stats
-                    </span>
-                    <span class="wizard-step-count" id="step-indicator-text">33% Complete</span>
-                </div>
-                <div class="wizard-progress-bar">
-                    <div class="wizard-progress-fill" id="wizard-progress-fill"></div>
+                <!-- Decorative Diagonal Speed Stripes SVG -->
+                <svg class="showcase-decor-stripes" viewBox="0 0 260 260" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <polygon points="120,260 220,0 260,0 160,260" fill="url(#limeGradient1)" opacity="0.65" />
+                    <polygon points="40,260 140,0 170,0 70,260" fill="url(#limeGradient2)" opacity="0.45" />
+                    <polygon points="0,260 90,0 110,0 20,260" fill="url(#limeGradient1)" opacity="0.25" />
+                    <defs>
+                        <linearGradient id="limeGradient1" x1="0%" y1="100%" x2="100%" y2="0%">
+                            <stop offset="0%" stop-color="#4d7c0f" />
+                            <stop offset="50%" stop-color="#84cc16" />
+                            <stop offset="100%" stop-color="#bef264" />
+                        </linearGradient>
+                        <linearGradient id="limeGradient2" x1="0%" y1="100%" x2="100%" y2="0%">
+                            <stop offset="0%" stop-color="#3f6212" />
+                            <stop offset="100%" stop-color="#a3e635" />
+                        </linearGradient>
+                    </defs>
+                </svg>
+
+                <div class="split-login-showcase-content">
+                    <!-- Top Brand Header -->
+                    <div class="showcase-brand">
+                        <div class="showcase-brand-icon">
+                            <svg viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg" style="width: 100%; height: 100%;">
+                                <path d="M6 8 L32 8 L29 14 L15 14 L13 18 L26 18 L23 24 L10 24 L5 34 L1 34 L6 8 Z" fill="#84cc16" />
+                                <polygon points="12,5 36,5 34,9 10,9" fill="#a3e635" opacity="0.8" />
+                                <polygon points="2,32 10,32 8,36 0,36" fill="#65a30d" />
+                            </svg>
+                        </div>
+                        <div class="showcase-brand-text">
+                            <div class="showcase-brand-name">FIT<span>TRACK</span></div>
+                            <div class="showcase-brand-tagline">Manage. Engage. Grow.</div>
+                        </div>
+                    </div>
+
+                    <!-- Middle Headline & Copy -->
+                    <div class="showcase-hero-copy">
+                        <h1 class="showcase-title">
+                            Physical Baseline.
+                            <span class="highlight">Biometric Precision.</span>
+                        </h1>
+                        <p class="showcase-desc">
+                            FitTrack turns your physical measurements into personalized workout splits, Navy Body Fat analysis, and adaptive nutrition targets.
+                        </p>
+                    </div>
+
+                    <!-- Three Feature Items -->
+                    <div class="showcase-features">
+                        <div class="showcase-feature-item">
+                            <div class="showcase-feature-icon">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="M20.24 12.24a6 6 0 0 0-8.49-8.49L5 10.5V19h8.5z"/>
+                                    <line x1="16" y1="8" x2="2" y2="22"/>
+                                    <line x1="17.5" y1="15" x2="9" y2="15"/>
+                                </svg>
+                            </div>
+                            <div class="showcase-feature-body">
+                                <h4>US Navy Body Fat Formula</h4>
+                                <p>Scientific circumference ratios provide accurate lean mass estimates.</p>
+                            </div>
+                        </div>
+
+                        <div class="showcase-feature-item">
+                            <div class="showcase-feature-icon">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                                    <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
+                                </svg>
+                            </div>
+                            <div class="showcase-feature-body">
+                                <h4>Metabolic Expenditure</h4>
+                                <p>Calculates your BMR and activity energy burn to guide nutrition.</p>
+                            </div>
+                        </div>
+
+                        <div class="showcase-feature-item">
+                            <div class="showcase-feature-icon">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                                    <circle cx="12" cy="12" r="10"/>
+                                    <polyline points="12 6 12 12 14 14"/>
+                                </svg>
+                            </div>
+                            <div class="showcase-feature-body">
+                                <h4>Adaptive Fitness Tier</h4>
+                                <p>Calibrates exercise volume and rest intervals suited to your level.</p>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
 
-            <form method="post" action="index.php?page=setup_profile" id="profile-form">
-                <?= csrf_field() ?>
-
-                <!-- ================= STEP 1: Core Stats ================= -->
-                <div class="wizard-step active" id="step-1">
-                    <div class="step-heading">
-                        <h1 class="step-title">Basic Physical Profile</h1>
-                        <p class="step-desc">Enter your core physical stats so we can establish your baseline metrics.</p>
+            <!-- Right Side Elevated Card Pane -->
+            <div class="split-login-card-pane">
+                <div class="split-login-card onboarding-card">
+                    <div class="split-card-header">
+                        <h2 class="split-card-title">Setup Profile</h2>
+                        <p class="split-card-subtitle">Establish your physical baseline for <span class="brand-highlight">FitTrack</span></p>
                     </div>
 
-                    <!-- Biological Sex Toggle -->
-                    <div class="sex-toggle-wrap">
-                        <label class="sex-btn selected" id="sex-male-btn">
-                            <input type="radio" name="biological_sex" value="male" checked>
-                            <div class="sex-icon-circle">♂</div>
-                            <div style="text-align:left;">
-                                <div style="font-weight:700; font-size:0.95rem; color:var(--ink);">Male</div>
-                                <div style="font-size:0.75rem; color:var(--muted);">Standard formula</div>
-                            </div>
-                        </label>
-                        <label class="sex-btn" id="sex-female-btn">
-                            <input type="radio" name="biological_sex" value="female">
-                            <div class="sex-icon-circle">♀</div>
-                            <div style="text-align:left;">
-                                <div style="font-weight:700; font-size:0.95rem; color:var(--ink);">Female</div>
-                                <div style="font-size:0.75rem; color:var(--muted);">Includes hip calculation</div>
-                            </div>
-                        </label>
-                    </div>
-
-                    <!-- Age, Height, Weight -->
-                    <div class="input-grid-3">
-                        <div class="input-group">
-                            <label class="input-label" for="field-age">Age <span class="sub">16-120</span></label>
-                            <div class="input-field-wrap">
-                                <input id="field-age" name="age" type="number" min="16" max="120" placeholder="e.g. 25" required>
-                                <span class="input-unit">yrs</span>
-                            </div>
-                        </div>
-
-                        <div class="input-group">
-                            <label class="input-label" for="field-height">Height <span class="sub">100-250</span></label>
-                            <div class="input-field-wrap">
-                                <input id="field-height" name="height_cm" type="number" step="0.1" min="100" max="250" placeholder="e.g. 175" required>
-                                <span class="input-unit">cm</span>
-                            </div>
-                        </div>
-
-                        <div class="input-group">
-                            <label class="input-label" for="field-weight">Weight <span class="sub">20-300</span></label>
-                            <div class="input-field-wrap">
-                                <input id="field-weight" name="weight_kg" type="number" step="0.1" min="20" max="300" placeholder="e.g. 70" required>
-                                <span class="input-unit">kg</span>
-                            </div>
+                    <!-- Stepper Header -->
+                    <div class="stepper-header-bar">
+                        <span class="step-pill-indicator" id="step-badge-text">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+                            Step 1 of 3: Core Stats
+                        </span>
+                        <div class="step-dots-row">
+                            <div class="step-dot active" id="sdot-1"></div>
+                            <div class="step-dot" id="sdot-2"></div>
+                            <div class="step-dot" id="sdot-3"></div>
                         </div>
                     </div>
 
-                    <div class="wizard-actions">
-                        <button type="button" class="wizard-btn-next" onclick="goToStep(2)">
-                            Continue to Measurements
-                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
-                        </button>
-                    </div>
+                    <form method="post" action="index.php?page=setup_profile" id="profile-form" class="split-card-form" novalidate onsubmit="const btn = document.getElementById('submit-profile-btn'); if (btn) { btn.disabled = true; btn.innerHTML = '<svg class=\'fitness-loader mini\' viewBox=\'0 0 24 24\' fill=\'none\' stroke=\'currentColor\' stroke-width=\'2\' stroke-linecap=\'round\' stroke-linejoin=\'round\' style=\'margin-right:8px;\'><line x1=\'6\' y1=\'12\' x2=\'18\' y2=\'12\'></line><rect x=\'4\' y=\'8\' width=\'2\' height=\'8\' rx=\'1\'></rect><rect x=\'18\' y=\'8\' width=\'2\' height=\'8\' rx=\'1\'></rect><rect x=\'2\' y=\'10\' width=\'2\' height=\'4\' rx=\'1\'></rect><rect x=\'20\' y=\'10\' width=\'2\' height=\'4\' rx=\'1\'></rect></svg> SAVING PROFILE...'; }">
+                        <?= csrf_field() ?>
+
+                        <!-- STEP 1: Core Stats -->
+                        <div class="profile-step-pane active" id="pane-step-1">
+                            <label style="font-size: 13px; font-weight: 700; color: var(--ink); margin-bottom: 8px; display: block;">Biological Sex</label>
+                            <div class="sex-select-grid">
+                                <label class="sex-card selected" id="sex-male-btn">
+                                    <input type="radio" name="biological_sex" value="male" checked>
+                                    <div class="sex-card-icon">♂</div>
+                                    <div>
+                                        <div style="font-weight: 700; font-size: 14px; color: var(--ink);">Male</div>
+                                        <div style="font-size: 12px; color: var(--muted);">Standard formula</div>
+                                    </div>
+                                </label>
+                                <label class="sex-card" id="sex-female-btn">
+                                    <input type="radio" name="biological_sex" value="female">
+                                    <div class="sex-card-icon">♀</div>
+                                    <div>
+                                        <div style="font-weight: 700; font-size: 14px; color: var(--ink);">Female</div>
+                                        <div style="font-size: 12px; color: var(--muted);">Includes hip metric</div>
+                                    </div>
+                                </label>
+                            </div>
+
+                            <div class="split-form-row-2col">
+                                <div class="split-form-group">
+                                    <label>Age (16–120)</label>
+                                    <div class="split-input-wrap auth-input-group input-with-unit">
+                                        <svg class="split-input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                            <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 14 14"/>
+                                        </svg>
+                                        <input id="field-age" name="age" type="number" min="16" max="120" placeholder="e.g. 25" required>
+                                        <span class="metric-unit-tag">yrs</span>
+                                    </div>
+                                </div>
+
+                                <div class="split-form-group">
+                                    <label>Height (100–250)</label>
+                                    <div class="split-input-wrap auth-input-group input-with-unit">
+                                        <svg class="split-input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                            <line x1="12" y1="5" x2="12" y2="19"/><polyline points="19 12 12 19 5 12"/>
+                                        </svg>
+                                        <input id="field-height" name="height_cm" type="number" step="0.1" min="100" max="250" placeholder="e.g. 175" required>
+                                        <span class="metric-unit-tag">cm</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="split-form-group">
+                                <label>Current Weight (20–300)</label>
+                                <div class="split-input-wrap auth-input-group input-with-unit">
+                                    <svg class="split-input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/>
+                                    </svg>
+                                    <input id="field-weight" name="weight_kg" type="number" step="0.1" min="20" max="300" placeholder="e.g. 70" required>
+                                    <span class="metric-unit-tag">kg</span>
+                                </div>
+                            </div>
+
+                            <button type="button" class="split-submit-btn btn-step-next" onclick="goToProfileStep(2)">
+                                <span>Continue to Measurements</span>
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                                    <line x1="5" y1="12" x2="19" y2="12"></line>
+                                    <polyline points="12 5 19 12 12 19"></polyline>
+                                </svg>
+                            </button>
+                        </div>
+
+                        <!-- STEP 2: Body Circumference -->
+                        <div class="profile-step-pane" id="pane-step-2">
+                            <div style="background: var(--panel-soft); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; margin-bottom: 18px; display: flex; align-items: center; gap: 10px; font-size: 13px; color: var(--muted);">
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--lime)" stroke-width="2" style="flex-shrink:0;">
+                                    <circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/>
+                                </svg>
+                                <span>Use a flexible tape measure snug against skin without compressing tissue.</span>
+                            </div>
+
+                            <div class="split-form-row-2col">
+                                <div class="split-form-group">
+                                    <label>Neck (Narrowest point)</label>
+                                    <div class="split-input-wrap auth-input-group input-with-unit">
+                                        <svg class="split-input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                            <circle cx="12" cy="12" r="8"/>
+                                        </svg>
+                                        <input id="field-neck" name="neck_cm" type="number" step="0.1" min="20" max="100" placeholder="e.g. 38" required>
+                                        <span class="metric-unit-tag">cm</span>
+                                    </div>
+                                </div>
+
+                                <div class="split-form-group">
+                                    <label>Waist (At navel level)</label>
+                                    <div class="split-input-wrap auth-input-group input-with-unit">
+                                        <svg class="split-input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                            <circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/>
+                                        </svg>
+                                        <input id="field-waist" name="waist_cm" type="number" step="0.1" min="30" max="200" placeholder="e.g. 82" required>
+                                        <span class="metric-unit-tag">cm</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="split-form-group" id="hip-group" style="display: none;">
+                                <label style="color: var(--lime);">Hip (Widest glute point)</label>
+                                <div class="split-input-wrap auth-input-group input-with-unit">
+                                    <svg class="split-input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <ellipse cx="12" cy="12" rx="10" ry="6"/>
+                                    </svg>
+                                    <input id="field-hip" name="hip_cm" type="number" step="0.1" min="30" max="200" placeholder="e.g. 96">
+                                    <span class="metric-unit-tag">cm</span>
+                                </div>
+                            </div>
+
+                            <!-- Live Metric Preview -->
+                            <div class="live-preview-box">
+                                <div>
+                                    <div class="live-preview-val" id="preview-bmi">—</div>
+                                    <div class="live-preview-lbl">Est. BMI</div>
+                                </div>
+                                <div style="width: 1px; height: 30px; background: var(--line);"></div>
+                                <div>
+                                    <div class="live-preview-val" id="preview-bf">—</div>
+                                    <div class="live-preview-lbl">Navy Body Fat %</div>
+                                </div>
+                                <div style="width: 1px; height: 30px; background: var(--line);"></div>
+                                <div>
+                                    <div class="live-preview-val" id="preview-bmr">—</div>
+                                    <div class="live-preview-lbl">Basal Burn (BMR)</div>
+                                </div>
+                            </div>
+
+                            <div class="step-nav-actions">
+                                <button type="button" class="btn-step-prev" onclick="goToProfileStep(1)">
+                                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+                                    Back
+                                </button>
+                                <button type="button" class="split-submit-btn btn-step-next" onclick="goToProfileStep(3)">
+                                    <span>Continue to Lifestyle</span>
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                                        <line x1="5" y1="12" x2="19" y2="12"></line>
+                                        <polyline points="12 5 19 12 12 19"></polyline>
+                                    </svg>
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- STEP 3: Lifestyle & Diet -->
+                        <div class="profile-step-pane" id="pane-step-3">
+                            <label style="font-size: 13px; font-weight: 700; color: var(--ink); margin-bottom: 8px; display: block;">Experience Level</label>
+                            <div class="exp-select-grid">
+                                <label class="exp-card selected" id="exp-1">
+                                    <input type="radio" name="experience_level" value="1" checked>
+                                    <div style="font-size: 14px; font-weight: 700; color: var(--ink);">🟢 Starter</div>
+                                    <div style="font-size: 11px; color: var(--muted); margin-top: 4px;">&lt; 6 months</div>
+                                </label>
+                                <label class="exp-card" id="exp-2">
+                                    <input type="radio" name="experience_level" value="2">
+                                    <div style="font-size: 14px; font-weight: 700; color: var(--ink);">🔵 Intermediate</div>
+                                    <div style="font-size: 11px; color: var(--muted); margin-top: 4px;">6mo – 2 yrs</div>
+                                </label>
+                                <label class="exp-card" id="exp-3">
+                                    <input type="radio" name="experience_level" value="3">
+                                    <div style="font-size: 14px; font-weight: 700; color: var(--ink);">🟣 Advanced</div>
+                                    <div style="font-size: 11px; color: var(--muted); margin-top: 4px;">2+ yrs lifting</div>
+                                </label>
+                            </div>
+
+                            <div class="split-form-group">
+                                <label>Daily Activity Level</label>
+                                <div class="split-input-wrap auth-input-group">
+                                    <svg class="split-input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
+                                    </svg>
+                                    <select name="activity_level" id="field-activity" required style="background: transparent; border: none; color: var(--ink); width: 100%; font-size: 14px; padding: 10px 0; outline: none; cursor: pointer;">
+                                        <option value="sedentary">Sedentary (Desk job, minimal movement)</option>
+                                        <option value="lightly_active" selected>Lightly Active (1–3 days exercise)</option>
+                                        <option value="moderately_active">Moderately Active (3–5 days workout)</option>
+                                        <option value="very_active">Very Active (6–7 days intense)</option>
+                                        <option value="extra_active">Extra Active (Physical job + training)</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <div class="split-form-group">
+                                <label>Dietary Preference</label>
+                                <div class="split-input-wrap auth-input-group">
+                                    <svg class="split-input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <path d="M18 8h1a4 4 0 0 1 0 8h-1"></path>
+                                        <path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z"></path>
+                                        <line x1="6" y1="1" x2="6" y2="4"></line>
+                                        <line x1="10" y1="1" x2="10" y2="4"></line>
+                                        <line x1="14" y1="1" x2="14" y2="4"></line>
+                                    </svg>
+                                    <select name="dietary_restrictions" id="field-diet" required style="background: transparent; border: none; color: var(--ink); width: 100%; font-size: 14px; padding: 10px 0; outline: none; cursor: pointer;">
+                                        <option value="none" selected>Standard (No restrictions)</option>
+                                        <option value="vegetarian">Vegetarian</option>
+                                        <option value="vegan">Vegan</option>
+                                        <option value="pescatarian">Pescatarian</option>
+                                        <option value="halal">Halal</option>
+                                        <option value="gluten-free">Gluten-Free</option>
+                                        <option value="keto">Keto</option>
+                                        <option value="paleo">Paleo</option>
+                                        <option value="nut-allergy">Nut Allergy</option>
+                                        <option value="dairy-free">Dairy-Free</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <div class="step-nav-actions">
+                                <button type="button" class="btn-step-prev" onclick="goToProfileStep(2)">
+                                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+                                    Back
+                                </button>
+                                <button type="submit" class="split-submit-btn btn-step-next" id="submit-profile-btn">
+                                    <span>Finish & Pick Goal</span>
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                                        <polyline points="20 6 9 17 4 12"/>
+                                    </svg>
+                                </button>
+                            </div>
+                        </div>
+                    </form>
                 </div>
-
-                <!-- ================= STEP 2: Body Circumference ================= -->
-                <div class="wizard-step" id="step-2">
-                    <div class="step-heading">
-                        <h1 class="step-title">Body Circumference</h1>
-                        <p class="step-desc">Used by the US Navy body fat formula to accurately calculate your lean mass and target calories.</p>
-                    </div>
-
-                    <div class="info-hint-box">
-                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
-                        <span>Use a tape measure snug against the skin without compressing the tissue.</span>
-                    </div>
-
-                    <div class="input-grid-2" id="measurements-grid">
-                        <div class="input-group">
-                            <label class="input-label" for="field-neck">Neck <span class="sub">Narrowest point</span></label>
-                            <div class="input-field-wrap">
-                                <input id="field-neck" name="neck_cm" type="number" step="0.1" min="20" max="100" placeholder="e.g. 38" required>
-                                <span class="input-unit">cm</span>
-                            </div>
-                        </div>
-
-                        <div class="input-group">
-                            <label class="input-label" for="field-waist">Waist <span class="sub">At navel level</span></label>
-                            <div class="input-field-wrap">
-                                <input id="field-waist" name="waist_cm" type="number" step="0.1" min="30" max="200" placeholder="e.g. 82" required>
-                                <span class="input-unit">cm</span>
-                            </div>
-                        </div>
-
-                        <div class="input-group" id="hip-group" style="display: none; grid-column: 1 / -1;">
-                            <label class="input-label" for="field-hip" style="color:var(--lime);">Hip <span class="sub">Widest glute point</span></label>
-                            <div class="input-field-wrap">
-                                <input id="field-hip" name="hip_cm" type="number" step="0.1" min="30" max="200" placeholder="e.g. 96">
-                                <span class="input-unit">cm</span>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="wizard-actions">
-                        <button type="button" class="wizard-btn-prev" onclick="goToStep(1)">
-                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
-                            Back
-                        </button>
-                        <button type="button" class="wizard-btn-next" onclick="goToStep(3)">
-                            Continue to Habits
-                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
-                        </button>
-                    </div>
-                </div>
-
-                <!-- ================= STEP 3: Lifestyle & Experience ================= -->
-                <div class="wizard-step" id="step-3">
-                    <div class="step-heading">
-                        <h1 class="step-title">Fitness Habits & Experience</h1>
-                        <p class="step-desc">Tailor your workout volume and nutritional macro distribution to your lifestyle.</p>
-                    </div>
-
-                    <div class="input-label" style="margin-bottom: 8px;">Experience Level</div>
-                    <div class="experience-grid">
-                        <label class="exp-btn selected" id="exp-1">
-                            <input type="radio" name="experience_level" value="1" checked>
-                            <div class="exp-title">🟢 Starter</div>
-                            <div class="exp-desc">&lt; 6 months, building form</div>
-                        </label>
-                        <label class="exp-btn" id="exp-2">
-                            <input type="radio" name="experience_level" value="2">
-                            <div class="exp-title">🔵 Intermediate</div>
-                            <div class="exp-desc">6mo – 2 yrs regular gym</div>
-                        </label>
-                        <label class="exp-btn" id="exp-3">
-                            <input type="radio" name="experience_level" value="3">
-                            <div class="exp-title">🟣 Advanced</div>
-                            <div class="exp-desc">2+ yrs dedicated lifting</div>
-                        </label>
-                    </div>
-
-                    <div class="input-grid-2">
-                        <div class="input-group">
-                            <label class="input-label" for="field-activity">Daily Activity Level</label>
-                            <select name="activity_level" id="field-activity" class="select-field" required>
-                                <option value="sedentary">Sedentary (Desk job, minimal movement)</option>
-                                <option value="lightly_active" selected>Lightly Active (1-3 days exercise)</option>
-                                <option value="moderately_active">Moderately Active (3-5 days workout)</option>
-                                <option value="very_active">Very Active (6-7 days intense)</option>
-                                <option value="extra_active">Extra Active (Physical job + training)</option>
-                            </select>
-                        </div>
-
-                        <div class="input-group">
-                            <label class="input-label" for="field-diet">Dietary Preference</label>
-                            <select name="dietary_restrictions" id="field-diet" class="select-field" required>
-                                <option value="none" selected>Standard (No restrictions)</option>
-                                <option value="vegetarian">Vegetarian</option>
-                                <option value="vegan">Vegan</option>
-                                <option value="pescatarian">Pescatarian</option>
-                                <option value="halal">Halal</option>
-                                <option value="gluten-free">Gluten-Free</option>
-                                <option value="keto">Keto</option>
-                                <option value="paleo">Paleo</option>
-                                <option value="nut-allergy">Nut Allergy</option>
-                                <option value="dairy-free">Dairy-Free</option>
-                            </select>
-                        </div>
-                    </div>
-
-                    <div class="wizard-actions">
-                        <button type="button" class="wizard-btn-prev" onclick="goToStep(2)">
-                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
-                            Back
-                        </button>
-                        <button type="submit" class="wizard-btn-next" id="submit-profile-btn" style="background:var(--lime); color:#090b10;">
-                            FINISH & SELECT GOAL
-                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
-                        </button>
-                    </div>
-                </div>
-            </form>
+            </div>
         </div>
-    </section>
+    </div>
 
     <script>
-    let currentStep = 1;
+    let currentProfileStep = 1;
 
-    function goToStep(targetStep) {
-        // Validate current step before advancing
-        if (targetStep > currentStep) {
-            if (currentStep === 1) {
+    function goToProfileStep(targetStep) {
+        if (targetStep > currentProfileStep) {
+            if (currentProfileStep === 1) {
                 const age = document.getElementById('field-age');
                 const height = document.getElementById('field-height');
                 const weight = document.getElementById('field-weight');
 
                 let valid = true;
-                [age, height, weight].forEach(el => el.classList.remove('has-error'));
+                [age, height, weight].forEach(el => el.closest('.split-input-wrap')?.classList.remove('has-error'));
 
                 if (!age.value || parseFloat(age.value) < 16 || parseFloat(age.value) > 120) {
-                    age.classList.add('has-error');
+                    age.closest('.split-input-wrap')?.classList.add('has-error');
                     age.focus();
                     valid = false;
                 } else if (!height.value || parseFloat(height.value) < 100 || parseFloat(height.value) > 250) {
-                    height.classList.add('has-error');
+                    height.closest('.split-input-wrap')?.classList.add('has-error');
                     height.focus();
                     valid = false;
                 } else if (!weight.value || parseFloat(weight.value) < 20 || parseFloat(weight.value) > 300) {
-                    weight.classList.add('has-error');
+                    weight.closest('.split-input-wrap')?.classList.add('has-error');
                     weight.focus();
                     valid = false;
                 }
-
                 if (!valid) return;
-            } else if (currentStep === 2) {
+            } else if (currentProfileStep === 2) {
                 const neck = document.getElementById('field-neck');
                 const waist = document.getElementById('field-waist');
                 const hip = document.getElementById('field-hip');
                 const isFemale = document.querySelector('input[name="biological_sex"]:checked')?.value === 'female';
 
                 let valid = true;
-                [neck, waist, hip].forEach(el => el.classList.remove('has-error'));
+                [neck, waist, hip].forEach(el => el?.closest('.split-input-wrap')?.classList.remove('has-error'));
 
                 if (!neck.value || parseFloat(neck.value) < 20 || parseFloat(neck.value) > 100) {
-                    neck.classList.add('has-error');
+                    neck.closest('.split-input-wrap')?.classList.add('has-error');
                     neck.focus();
                     valid = false;
                 } else if (!waist.value || parseFloat(waist.value) < 30 || parseFloat(waist.value) > 200) {
-                    waist.classList.add('has-error');
+                    waist.closest('.split-input-wrap')?.classList.add('has-error');
                     waist.focus();
                     valid = false;
                 } else if (isFemale && (!hip.value || parseFloat(hip.value) < 30 || parseFloat(hip.value) > 200)) {
-                    hip.classList.add('has-error');
+                    hip.closest('.split-input-wrap')?.classList.add('has-error');
                     hip.focus();
                     valid = false;
                 }
-
                 if (!valid) return;
             }
         }
 
-        // Switch active step
-        document.querySelectorAll('.wizard-step').forEach(el => el.classList.remove('active'));
-        document.getElementById(`step-${targetStep}`).classList.add('active');
+        // Switch active step pane
+        document.querySelectorAll('.profile-step-pane').forEach(el => el.classList.remove('active'));
+        document.getElementById(`pane-step-${targetStep}`)?.classList.add('active');
 
-        // Update progress bar & labels
-        currentStep = targetStep;
-        const fill = document.getElementById('wizard-progress-fill');
+        // Update dots and pill
+        currentProfileStep = targetStep;
+        for (let i = 1; i <= 3; i++) {
+            const dot = document.getElementById(`sdot-${i}`);
+            if (dot) {
+                dot.className = 'step-dot' + (i === targetStep ? ' active' : (i < targetStep ? ' done' : ''));
+            }
+        }
+
         const badge = document.getElementById('step-badge-text');
-        const count = document.getElementById('step-indicator-text');
+        if (badge) {
+            const titles = {
+                1: 'Step 1 of 3: Core Stats',
+                2: 'Step 2 of 3: Measurements',
+                3: 'Step 3 of 3: Lifestyle & Diet'
+            };
+            badge.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg> ${titles[targetStep] || ''}`;
+        }
 
-        if (targetStep === 1) {
-            fill.style.width = '33.33%';
-            badge.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg> Step 1 of 3: Core Stats';
-            count.innerText = '33% Complete';
-        } else if (targetStep === 2) {
-            fill.style.width = '66.66%';
-            badge.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg> Step 2 of 3: Measurements';
-            count.innerText = '66% Complete';
-        } else if (targetStep === 3) {
-            fill.style.width = '100%';
-            badge.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg> Step 3 of 3: Fitness & Diet';
-            count.innerText = 'Almost Done!';
+        updateLiveMetrics();
+    }
+
+    function updateLiveMetrics() {
+        const height = parseFloat(document.getElementById('field-height')?.value || '0');
+        const weight = parseFloat(document.getElementById('field-weight')?.value || '0');
+        const age = parseFloat(document.getElementById('field-age')?.value || '0');
+        const neck = parseFloat(document.getElementById('field-neck')?.value || '0');
+        const waist = parseFloat(document.getElementById('field-waist')?.value || '0');
+        const hip = parseFloat(document.getElementById('field-hip')?.value || '0');
+        const isFemale = document.querySelector('input[name="biological_sex"]:checked')?.value === 'female';
+
+        const bmiEl = document.getElementById('preview-bmi');
+        const bfEl = document.getElementById('preview-bf');
+        const bmrEl = document.getElementById('preview-bmr');
+
+        if (height > 0 && weight > 0) {
+            const hM = height / 100;
+            const bmi = weight / (hM * hM);
+            if (bmiEl) bmiEl.textContent = bmi.toFixed(1);
+
+            // BMR estimation (Mifflin-St Jeor)
+            if (age > 0) {
+                let bmr = 0;
+                if (!isFemale) {
+                    bmr = 10 * weight + 6.25 * height - 5 * age + 5;
+                } else {
+                    bmr = 10 * weight + 6.25 * height - 5 * age - 161;
+                }
+                if (bmrEl) bmrEl.textContent = Math.round(bmr) + ' kcal';
+            }
+        }
+
+        // Navy Body Fat Formula estimation
+        if (height > 0 && waist > 0 && neck > 0) {
+            try {
+                let bf = 0;
+                if (!isFemale && waist > neck) {
+                    bf = 495 / (1.0324 - 0.19077 * Math.log10(waist - neck) + 0.15456 * Math.log10(height)) - 450;
+                } else if (isFemale && hip > 0 && (waist + hip) > neck) {
+                    bf = 495 / (1.29579 - 0.35004 * Math.log10(waist + hip - neck) + 0.22100 * Math.log10(height)) - 450;
+                }
+                if (bf > 3 && bf < 65) {
+                    if (bfEl) bfEl.textContent = bf.toFixed(1) + '%';
+                }
+            } catch (e) {}
         }
     }
 
     (function() {
         // Sex Selector Toggle
-        const sexBtns = document.querySelectorAll('.sex-btn');
+        const sexBtns = document.querySelectorAll('.sex-card');
         const hipGroup = document.getElementById('hip-group');
         const hipInput = document.getElementById('field-hip');
 
@@ -736,27 +761,36 @@ function setup_profile_page(): void
                 sexBtns.forEach(b => b.classList.remove('selected'));
                 this.classList.add('selected');
                 const radio = this.querySelector('input[type="radio"]');
-                radio.checked = true;
+                if (radio) radio.checked = true;
 
-                if (radio.value === 'female') {
-                    hipGroup.style.display = 'flex';
-                    hipInput.required = true;
+                if (radio && radio.value === 'female') {
+                    if (hipGroup) hipGroup.style.display = 'block';
+                    if (hipInput) hipInput.required = true;
                 } else {
-                    hipGroup.style.display = 'none';
-                    hipInput.required = false;
-                    hipInput.value = '';
+                    if (hipGroup) hipGroup.style.display = 'none';
+                    if (hipInput) {
+                        hipInput.required = false;
+                        hipInput.value = '';
+                    }
                 }
+                updateLiveMetrics();
             });
         });
 
         // Experience Level Selector
-        const expBtns = document.querySelectorAll('.exp-btn');
+        const expBtns = document.querySelectorAll('.exp-card');
         expBtns.forEach(btn => {
             btn.addEventListener('click', function() {
                 expBtns.forEach(b => b.classList.remove('selected'));
                 this.classList.add('selected');
-                this.querySelector('input[type="radio"]').checked = true;
+                const radio = this.querySelector('input[type="radio"]');
+                if (radio) radio.checked = true;
             });
+        });
+
+        // Live calculation inputs
+        ['field-height', 'field-weight', 'field-age', 'field-neck', 'field-waist', 'field-hip'].forEach(id => {
+            document.getElementById(id)?.addEventListener('input', updateLiveMetrics);
         });
     })();
     </script>

@@ -120,12 +120,7 @@ function setup_goal_page(): void
         'Reaching body recomposition' => '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 3h5v5M4 20L21 3M21 16v5h-5M15 15l6 6M4 4l5 5"/></svg>'
     ];
 
-    $categories = [
-        'all' => [
-            'name' => 'All Goals',
-            'count' => 12,
-            'icon' => '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>'
-        ],
+    $categoryMeta = [
         'Aesthetic & Muscle Building Goals' => [
             'name' => 'Muscle & Aesthetics',
             'count' => 5,
@@ -148,82 +143,15 @@ function setup_goal_page(): void
     render_header('Select Your Goal', null);
     ?>
     <style>
-        .goal-wizard-card {
-            background: var(--panel);
-            border: 1px solid var(--line);
-            border-radius: 16px;
-            box-shadow: var(--shadow);
-            padding: 32px 36px;
-            max-width: 860px;
-            width: 100%;
-            position: relative;
-            z-index: 1;
-            margin: 0 auto;
-            overflow: hidden;
-            transition: all 0.3s ease;
+        .split-login-frame.goal-mode {
+            max-width: 1180px;
         }
-
-        .goal-bg-decor {
-            position: absolute;
-            inset: 0;
-            overflow: hidden;
-            pointer-events: none;
-            z-index: 0;
-            border-radius: inherit;
-        }
-        .goal-blob {
-            position: absolute;
-            width: 320px;
-            height: 320px;
-            border-radius: 50%;
-            filter: blur(80px);
-            opacity: 0.12;
-        }
-        .goal-blob--a { background: var(--lime); top: -100px; left: -80px; }
-        .goal-blob--b { background: #38bdf8; bottom: -120px; right: -90px; }
-
-        /* Stepper header */
-        .onboarding-stepper {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 10px;
-            margin-bottom: 16px;
-        }
-        .stepper-pill {
-            display: inline-flex;
-            align-items: center;
-            gap: 6px;
-            padding: 4px 12px;
-            border-radius: 999px;
-            font-size: 0.78rem;
-            font-weight: 700;
-            letter-spacing: 0.5px;
-            text-transform: uppercase;
-        }
-        .stepper-pill.done {
-            background: var(--panel-soft);
-            color: var(--muted);
-            border: 1px solid var(--line);
-        }
-        .stepper-pill.active {
-            background: color-mix(in srgb, var(--lime) 15%, var(--panel));
-            color: var(--lime);
-            border: 1.5px solid var(--lime);
-        }
-        .stepper-arrow {
-            color: var(--muted);
-            opacity: 0.4;
-        }
-
-        /* Controls Toolbar: Search & Tabs */
         .goal-toolbar {
             display: flex;
             flex-direction: column;
             gap: 12px;
-            margin-bottom: 20px;
+            margin-bottom: 18px;
         }
-        
         .goal-search-wrap {
             position: relative;
             width: 100%;
@@ -241,48 +169,43 @@ function setup_goal_page(): void
         }
         #goal-search {
             width: 100%;
-            background: var(--panel);
+            background: var(--panel-soft);
             border: 1.5px solid var(--line);
             border-radius: 10px;
-            padding: 12px 14px 12px 42px;
+            padding: 11px 14px 11px 42px;
             color: var(--ink);
-            font-size: 0.92rem;
+            font-size: 13px;
             font-weight: 500;
             outline: none;
+            box-sizing: border-box;
             transition: all 0.2s;
-            box-shadow: 0 1px 2px rgba(0,0,0,0.05);
         }
         #goal-search:focus {
             background: var(--panel);
             border-color: var(--lime);
-            box-shadow: 0 0 0 3px color-mix(in srgb, var(--lime) 25%, transparent);
+            box-shadow: 0 0 0 2px color-mix(in srgb, var(--lime) 25%, transparent);
         }
-        #goal-search:focus + svg {
-            color: var(--lime);
-        }
-
-        /* Category Filter Tabs */
         .category-tabs {
             display: flex;
             gap: 8px;
             overflow-x: auto;
             padding-bottom: 4px;
             scrollbar-width: none;
+            -webkit-overflow-scrolling: touch;
         }
         .category-tabs::-webkit-scrollbar { display: none; }
-        
         .category-tab-btn {
-            background: var(--panel);
-            border: 1.5px solid var(--line);
+            background: var(--panel-soft);
+            border: 1px solid var(--line);
             color: var(--muted);
-            border-radius: 10px;
-            padding: 8px 14px;
-            font-size: 0.82rem;
+            border-radius: 8px;
+            padding: 7px 13px;
+            font-size: 12px;
             font-weight: 600;
             cursor: pointer;
             display: inline-flex;
             align-items: center;
-            gap: 7px;
+            gap: 6px;
             white-space: nowrap;
             transition: all 0.2s ease;
             user-select: none;
@@ -290,75 +213,73 @@ function setup_goal_page(): void
         .category-tab-btn:hover {
             color: var(--ink);
             border-color: var(--lime);
-            background: color-mix(in srgb, var(--lime) 5%, var(--panel));
         }
         .category-tab-btn.active {
-            background: color-mix(in srgb, var(--lime) 15%, var(--panel));
+            background: color-mix(in srgb, var(--lime) 12%, var(--panel));
             border-color: var(--lime);
             color: var(--ink);
             font-weight: 700;
-            box-shadow: 0 0 0 2px color-mix(in srgb, var(--lime) 20%, transparent);
         }
         .category-tab-btn .badge-count {
-            background: var(--panel-soft);
+            background: var(--panel);
             color: var(--muted);
-            padding: 2px 7px;
+            padding: 2px 6px;
             border-radius: 999px;
-            font-size: 0.72rem;
+            font-size: 11px;
             font-weight: 700;
         }
         .category-tab-btn.active .badge-count {
             background: var(--lime);
             color: #090b10;
         }
-
-        /* Responsive 2-Column Grid (No internal scroll fatigue) */
         .goals-grid {
             display: grid;
             grid-template-columns: repeat(2, 1fr);
             gap: 12px;
             margin-bottom: 20px;
+            max-height: 400px;
+            overflow-y: auto;
+            padding-right: 4px;
         }
-
+        .goals-grid::-webkit-scrollbar {
+            width: 5px;
+        }
+        .goals-grid::-webkit-scrollbar-thumb {
+            background: var(--line);
+            border-radius: 4px;
+        }
         .goal-card {
             position: relative;
-            background: var(--panel);
+            background: var(--panel-soft);
             border: 1.5px solid var(--line);
             border-radius: 12px;
-            padding: 14px 16px;
+            padding: 13px 14px;
             cursor: pointer;
             display: flex;
             align-items: flex-start;
-            gap: 14px;
+            gap: 12px;
             transition: all 0.2s ease;
             user-select: none;
-            box-shadow: 0 1px 2px rgba(0,0,0,0.04);
         }
         .goal-card:hover {
             transform: translateY(-2px);
             border-color: var(--lime);
-            box-shadow: 0 6px 16px rgba(0, 0, 0, 0.08);
         }
         .goal-card.selected {
             border-color: var(--lime);
             background: color-mix(in srgb, var(--lime) 10%, var(--panel));
-            box-shadow: 0 0 0 3px color-mix(in srgb, var(--lime) 20%, transparent);
+            box-shadow: 0 0 0 2px color-mix(in srgb, var(--lime) 30%, transparent);
         }
-
         .goal-card input[type="radio"] {
             position: absolute;
             opacity: 0;
-            width: 0;
-            height: 0;
             pointer-events: none;
         }
-
-        /* Icon Badge */
         .goal-icon-box {
-            width: 42px;
-            height: 42px;
+            width: 38px;
+            height: 38px;
             border-radius: 10px;
-            background: var(--panel-soft);
+            background: var(--panel);
             border: 1px solid var(--line);
             display: flex;
             align-items: center;
@@ -376,20 +297,19 @@ function setup_goal_page(): void
             color: #090b10;
             border-color: var(--lime);
         }
-
         .goal-content {
             flex-grow: 1;
             min-width: 0;
         }
         .goal-title {
             font-weight: 700;
-            font-size: 0.95rem;
+            font-size: 13px;
             color: var(--ink);
             line-height: 1.3;
-            margin-bottom: 4px;
+            margin-bottom: 3px;
         }
         .goal-desc {
-            font-size: 0.8rem;
+            font-size: 11px;
             color: var(--muted);
             line-height: 1.4;
             display: -webkit-box;
@@ -397,11 +317,9 @@ function setup_goal_page(): void
             -webkit-box-orient: vertical;
             overflow: hidden;
         }
-
-        /* Checkmark / Radio Pill */
         .goal-check-indicator {
-            width: 22px;
-            height: 22px;
+            width: 20px;
+            height: 20px;
             border-radius: 50%;
             border: 2px solid var(--line);
             display: flex;
@@ -414,8 +332,8 @@ function setup_goal_page(): void
         }
         .goal-check-indicator svg {
             display: none;
-            width: 12px;
-            height: 12px;
+            width: 11px;
+            height: 11px;
             color: #090b10;
             stroke-width: 3;
         }
@@ -426,265 +344,323 @@ function setup_goal_page(): void
         .goal-card.selected .goal-check-indicator svg {
             display: block;
         }
-
-        /* No Results State */
         .goal-no-results {
             display: none;
             text-align: center;
-            padding: 36px 16px;
+            padding: 30px 16px;
             color: var(--muted);
             grid-column: 1 / -1;
             background: var(--panel-soft);
             border-radius: 12px;
             border: 1.5px dashed var(--line);
+            font-size: 13px;
         }
         .goal-no-results.show { display: block; }
-
-        /* Footer & Submit */
-        .goal-action-bar {
-            border-top: 1px solid var(--line);
-            padding-top: 18px;
+        .goal-selected-callout {
+            background: var(--panel-soft);
+            border: 1px solid var(--line);
+            border-radius: 10px;
+            padding: 10px 14px;
+            margin-bottom: 16px;
             display: flex;
             align-items: center;
             justify-content: space-between;
-            gap: 16px;
-            flex-wrap: wrap;
+            font-size: 13px;
         }
-        .goal-selected-status {
-            font-size: 0.88rem;
-            color: var(--muted);
-            display: flex;
-            align-items: center;
-            gap: 6px;
-        }
-        .goal-selected-status strong {
-            color: var(--ink);
-            font-weight: 700;
-        }
-
-        .auth-submit-btn {
-            background: var(--lime);
-            color: #090b10;
-            font-weight: 800;
-            border: none;
-            border-radius: 10px;
-            letter-spacing: 0.3px;
-            transition: all 0.2s;
-        }
-        .auth-submit-btn:hover {
-            opacity: 0.95;
-            transform: translateY(-1px);
-            box-shadow: 0 6px 20px color-mix(in srgb, var(--lime) 30%, transparent);
-        }
-
-        @media (max-width: 680px) {
-            .goal-wizard-card {
-                padding: 20px 16px;
-                border-radius: 14px;
-            }
+        @media (max-width: 768px) {
             .goals-grid {
                 grid-template-columns: 1fr;
-            }
-            .goal-action-bar {
-                flex-direction: column;
-                align-items: stretch;
-            }
-            .goal-action-bar button {
-                width: 100%;
+                max-height: 340px;
             }
         }
     </style>
 
-    <section style="padding: 30px 16px; min-height: 85vh; display:flex; align-items:center; justify-content:center;">
-        <div class="goal-wizard-card">
-            <div class="goal-bg-decor" aria-hidden="true">
-                <div class="goal-blob goal-blob--a"></div>
-                <div class="goal-blob goal-blob--b"></div>
-            </div>
+    <div class="split-login-viewport">
+        <div class="split-login-frame goal-mode">
+            <!-- Left Hero Showcase -->
+            <div class="split-login-showcase">
+                <!-- Decorative Dot Matrix SVG -->
+                <svg class="showcase-decor-dots" width="70" height="70" viewBox="0 0 70 70" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <circle cx="10" cy="10" r="2.5" fill="#ffffff" />
+                    <circle cx="26" cy="10" r="2.5" fill="#ffffff" />
+                    <circle cx="42" cy="10" r="2.5" fill="#ffffff" />
+                    <circle cx="58" cy="10" r="2.5" fill="#ffffff" />
+                    <circle cx="10" cy="26" r="2.5" fill="#ffffff" />
+                    <circle cx="26" cy="26" r="2.5" fill="#ffffff" />
+                    <circle cx="42" cy="26" r="2.5" fill="#ffffff" />
+                    <circle cx="58" cy="26" r="2.5" fill="#ffffff" />
+                    <circle cx="10" cy="42" r="2.5" fill="#ffffff" />
+                    <circle cx="26" cy="42" r="2.5" fill="#ffffff" />
+                    <circle cx="42" cy="42" r="2.5" fill="#ffffff" />
+                    <circle cx="58" cy="42" r="2.5" fill="#ffffff" />
+                    <circle cx="10" cy="58" r="2.5" fill="#ffffff" />
+                    <circle cx="26" cy="58" r="2.5" fill="#ffffff" />
+                    <circle cx="42" cy="58" r="2.5" fill="#ffffff" />
+                    <circle cx="58" cy="58" r="2.5" fill="#ffffff" />
+                </svg>
 
-            <!-- Onboarding Stepper Indicator -->
-            <div class="onboarding-stepper" style="position:relative; z-index:1;">
-                <span class="stepper-pill done">
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"></polyline></svg>
-                    Step 1: Measurements
-                </span>
-                <span class="stepper-arrow">›</span>
-                <span class="stepper-pill active">
-                    Step 2: Primary Goal
-                </span>
-            </div>
+                <!-- Decorative Diagonal Speed Stripes SVG -->
+                <svg class="showcase-decor-stripes" viewBox="0 0 260 260" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <polygon points="120,260 220,0 260,0 160,260" fill="url(#limeGradient1)" opacity="0.65" />
+                    <polygon points="40,260 140,0 170,0 70,260" fill="url(#limeGradient2)" opacity="0.45" />
+                    <polygon points="0,260 90,0 110,0 20,260" fill="url(#limeGradient1)" opacity="0.25" />
+                    <defs>
+                        <linearGradient id="limeGradient1" x1="0%" y1="100%" x2="100%" y2="0%">
+                            <stop offset="0%" stop-color="#4d7c0f" />
+                            <stop offset="50%" stop-color="#84cc16" />
+                            <stop offset="100%" stop-color="#bef264" />
+                        </linearGradient>
+                        <linearGradient id="limeGradient2" x1="0%" y1="100%" x2="100%" y2="0%">
+                            <stop offset="0%" stop-color="#3f6212" />
+                            <stop offset="100%" stop-color="#a3e635" />
+                        </linearGradient>
+                    </defs>
+                </svg>
 
-            <div class="auth-card-header" style="position:relative; z-index:1; margin-bottom: 20px; text-align: center;">
-                <h1 class="auth-title" style="font-size:1.75rem; margin-bottom: 6px;">What's Your Main Fitness Goal?</h1>
-                <p class="auth-subtitle" style="max-width: 520px; margin: 0 auto;">Select your target focus. FitTracks will customize your workout split, exercise selection, and nutrition guidelines.</p>
-            </div>
-
-            <form method="post" action="index.php?page=setup_goal" id="goal-form" style="position:relative; z-index:1;">
-                <?= csrf_field() ?>
-
-                <!-- Toolbar: Instant Search + Category Tabs -->
-                <div class="goal-toolbar">
-                    <div class="goal-search-wrap">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <circle cx="11" cy="11" r="7"></circle>
-                            <path d="M21 21l-3.8-3.8"></path>
-                        </svg>
-                        <input type="text" id="goal-search" placeholder="Search goals (e.g. 'six-pack', 'strength', 'fat loss')..." autocomplete="off">
+                <div class="split-login-showcase-content">
+                    <!-- Top Brand Header -->
+                    <div class="showcase-brand">
+                        <div class="showcase-brand-icon">
+                            <svg viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg" style="width: 100%; height: 100%;">
+                                <path d="M6 8 L32 8 L29 14 L15 14 L13 18 L26 18 L23 24 L10 24 L5 34 L1 34 L6 8 Z" fill="#84cc16" />
+                                <polygon points="12,5 36,5 34,9 10,9" fill="#a3e635" opacity="0.8" />
+                                <polygon points="2,32 10,32 8,36 0,36" fill="#65a30d" />
+                            </svg>
+                        </div>
+                        <div class="showcase-brand-text">
+                            <div class="showcase-brand-name">FIT<span>TRACK</span></div>
+                            <div class="showcase-brand-tagline">Manage. Engage. Grow.</div>
+                        </div>
                     </div>
 
-                    <div class="category-tabs" role="tablist">
-                        <?php foreach ($categories as $catKey => $cat): ?>
-                            <button type="button" 
-                                    class="category-tab-btn <?= $catKey === 'all' ? 'active' : '' ?>" 
-                                    data-category="<?= h($catKey) ?>">
-                                <span><?= $cat['icon'] ?></span>
-                                <span><?= h($cat['name']) ?></span>
-                                <span class="badge-count"><?= (int) $cat['count'] ?></span>
+                    <!-- Middle Headline & Copy -->
+                    <div class="showcase-hero-copy">
+                        <h1 class="showcase-title">
+                            Fitness Ambition.
+                            <span class="highlight">Customized Routine.</span>
+                        </h1>
+                        <p class="showcase-desc">
+                            Select your main focus. FitTrack's recommendation engine will automatically configure your starter workout split and daily macro split.
+                        </p>
+                    </div>
+
+                    <!-- Three Feature Items -->
+                    <div class="showcase-features">
+                        <div class="showcase-feature-item">
+                            <div class="showcase-feature-icon">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="M6 5v14M18 5v14M6 12h12M3 8v8M21 8v8"/>
+                                </svg>
+                            </div>
+                            <div class="showcase-feature-body">
+                                <h4>Tailored Exercise Structure</h4>
+                                <p>Curated movements prioritizing your specific muscular or athletic targets.</p>
+                            </div>
+                        </div>
+
+                        <div class="showcase-feature-item">
+                            <div class="showcase-feature-icon">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="M21.21 15.89A10 10 0 1 1 8 2.83"></path>
+                                    <path d="M22 12A10 10 0 0 0 12 2v10z"></path>
+                                </svg>
+                            </div>
+                            <div class="showcase-feature-body">
+                                <h4>Macro Distribution</h4>
+                                <p>Balanced protein, carbohydrate, and fat ratios tuned for recovery.</p>
+                            </div>
+                        </div>
+
+                        <div class="showcase-feature-item">
+                            <div class="showcase-feature-icon">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                                    <line x1="18" y1="20" x2="18" y2="10"></line>
+                                    <line x1="12" y1="20" x2="12" y2="4"></line>
+                                    <line x1="6" y1="20" x2="6" y2="14"></line>
+                                </svg>
+                            </div>
+                            <div class="showcase-feature-body">
+                                <h4>Workout Plan Generation</h4>
+                                <p>Your first 4-week starter guide is instantly populated to your profile.</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right Side Elevated Goal Card -->
+            <div class="split-login-card-pane">
+                <div class="split-login-card onboarding-card">
+                    <div class="split-card-header">
+                        <h2 class="split-card-title">Primary Goal</h2>
+                        <p class="split-card-subtitle">Choose your focus for <span class="brand-highlight">FitTrack</span> starter plans</p>
+                    </div>
+
+                    <!-- Stepper Header -->
+                    <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; padding-bottom: 12px; border-bottom: 1px solid var(--line);">
+                        <span style="display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 700; color: var(--lime); text-transform: uppercase; letter-spacing: 0.05em;">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+                            Step 2 of 2: Fitness Goal
+                        </span>
+                        <div style="display: flex; gap: 6px;">
+                            <div style="width: 28px; height: 5px; border-radius: 3px; background: color-mix(in srgb, var(--lime) 60%, var(--line));"></div>
+                            <div style="width: 28px; height: 5px; border-radius: 3px; background: var(--lime); box-shadow: 0 0 8px color-mix(in srgb, var(--lime) 50%, transparent);"></div>
+                        </div>
+                    </div>
+
+                    <!-- Search & Filter Controls -->
+                    <div class="goal-toolbar">
+                        <div class="goal-search-wrap">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <circle cx="11" cy="11" r="8"></circle>
+                                <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                            </svg>
+                            <input type="text" id="goal-search" placeholder="Search goals (e.g., strength, abs, fat loss)..." autocomplete="off">
+                        </div>
+
+                        <div class="category-tabs" role="tablist">
+                            <button type="button" class="category-tab-btn active" data-category="all">
+                                <span>All Goals</span>
+                                <span class="badge-count"><?= $totalGoals ?></span>
                             </button>
-                        <?php endforeach; ?>
-                    </div>
-                </div>
-
-                <!-- 2-Column Responsive Card Grid (Zero nested scrollbars) -->
-                <div class="goals-grid" id="goals-grid">
-                    <?php foreach ($goals as $category => $items): ?>
-                        <?php foreach ($items as $title => $desc): ?>
-                            <label class="goal-card" 
-                                   data-category="<?= h($category) ?>" 
-                                   data-search="<?= h(mb_strtolower($title . ' ' . $desc)) ?>">
-                                <input type="radio" name="primary_goal" value="<?= h($title) ?>" class="goal-radio" required>
-                                
-                                <div class="goal-icon-box" aria-hidden="true">
-                                    <?= $goalIcons[$title] ?? '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/></svg>' ?>
-                                </div>
-
-                                <div class="goal-content">
-                                    <div class="goal-title"><?= h($title) ?></div>
-                                    <div class="goal-desc"><?= h($desc) ?></div>
-                                </div>
-
-                                <div class="goal-check-indicator" aria-hidden="true">
-                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><polyline points="20 6 9 17 4 12"></polyline></svg>
-                                </div>
-                            </label>
-                        <?php endforeach; ?>
-                    <?php endforeach; ?>
-
-                    <div class="goal-no-results" id="goal-no-results">
-                        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="margin-bottom: 8px; opacity: 0.5;"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-                        <p style="margin:0; font-size: 0.9rem;">No goals found matching your search.</p>
-                        <button type="button" onclick="document.getElementById('goal-search').value=''; document.getElementById('goal-search').dispatchEvent(new Event('input'));" style="background: transparent; border: none; color: var(--lime); font-size: 0.85rem; margin-top: 6px; cursor: pointer; text-decoration: underline;">Clear search filter</button>
-                    </div>
-                </div>
-
-                <!-- Bottom Action Bar -->
-                <div class="goal-action-bar">
-                    <div class="goal-selected-status" id="goal-selected-status">
-                        <span style="opacity: 0.6;">Select a goal above to continue</span>
+                            <?php foreach ($categoryMeta as $catKey => $meta): ?>
+                                <button type="button" class="category-tab-btn" data-category="<?= htmlspecialchars($catKey, ENT_QUOTES) ?>">
+                                    <?= $meta['icon'] ?>
+                                    <span><?= htmlspecialchars($meta['name']) ?></span>
+                                    <span class="badge-count"><?= $meta['count'] ?></span>
+                                </button>
+                            <?php endforeach; ?>
+                        </div>
                     </div>
 
-                    <button type="submit" class="auth-submit-btn" id="submit-btn" disabled style="opacity: 0.45; cursor: not-allowed; padding: 12px 28px;">
-                        FINISH SETUP & GENERATE PLAN
-                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-left: 6px;"><path d="M5 12h14"></path><path d="M12 5l7 7-7 7"></path></svg>
-                    </button>
+                    <form method="post" action="index.php?page=setup_goal" id="goal-form" class="split-card-form" novalidate onsubmit="const btn = document.getElementById('submit-goal-btn'); if (btn) { btn.disabled = true; btn.innerHTML = '<svg class=\'fitness-loader mini\' viewBox=\'0 0 24 24\' fill=\'none\' stroke=\'currentColor\' stroke-width=\'2\' stroke-linecap=\'round\' stroke-linejoin=\'round\' style=\'margin-right:8px;\'><line x1=\'6\' y1=\'12\' x2=\'18\' y2=\'12\'></line><rect x=\'4\' y=\'8\' width=\'2\' height=\'8\' rx=\'1\'></rect><rect x=\'18\' y=\'8\' width=\'2\' height=\'8\' rx=\'1\'></rect><rect x=\'2\' y=\'10\' width=\'2\' height=\'4\' rx=\'1\'></rect><rect x=\'20\' y=\'10\' width=\'2\' height=\'4\' rx=\'1\'></rect></svg> GENERATING PLAN...'; }">
+                        <?= csrf_field() ?>
+
+                        <!-- Interactive Goal Cards Grid -->
+                        <div class="goals-grid" id="goals-grid">
+                            <?php foreach ($goals as $catName => $catGoals): ?>
+                                <?php foreach ($catGoals as $gName => $gDesc): ?>
+                                    <?php 
+                                        $icon = $goalIcons[$gName] ?? '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/></svg>';
+                                    ?>
+                                    <label class="goal-card" data-category="<?= htmlspecialchars($catName, ENT_QUOTES) ?>" data-title="<?= strtolower(htmlspecialchars($gName, ENT_QUOTES)) ?>" data-desc="<?= strtolower(htmlspecialchars($gDesc, ENT_QUOTES)) ?>">
+                                        <input type="radio" name="primary_goal" value="<?= htmlspecialchars($gName, ENT_QUOTES) ?>" required>
+                                        <div class="goal-icon-box">
+                                            <?= $icon ?>
+                                        </div>
+                                        <div class="goal-content">
+                                            <div class="goal-title"><?= htmlspecialchars($gName) ?></div>
+                                            <div class="goal-desc"><?= htmlspecialchars($gDesc) ?></div>
+                                        </div>
+                                        <div class="goal-check-indicator">
+                                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><polyline points="20 6 9 17 4 12"/></svg>
+                                        </div>
+                                    </label>
+                                <?php endforeach; ?>
+                            <?php endforeach; ?>
+
+                            <div class="goal-no-results" id="no-results-box">
+                                No goals match your search. Try another keyword or clear the search.
+                            </div>
+                        </div>
+
+                        <!-- Live Selected Goal Confirmation Box -->
+                        <div class="goal-selected-callout">
+                            <span style="color: var(--muted);">Selected Goal:</span>
+                            <strong style="color: var(--lime);" id="selected-goal-display">None chosen yet</strong>
+                        </div>
+
+                        <button type="submit" class="split-submit-btn" id="submit-goal-btn" disabled style="opacity: 0.6; cursor: not-allowed;">
+                            <span>Confirm Goal & Generate Plan</span>
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                                <line x1="5" y1="12" x2="19" y2="12"></line>
+                                <polyline points="12 5 19 12 12 19"></polyline>
+                            </svg>
+                        </button>
+                    </form>
                 </div>
-            </form>
+            </div>
         </div>
-    </section>
+    </div>
 
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
     <script>
-    (function () {
-        const cards = Array.from(document.querySelectorAll('.goal-card'));
-        const tabBtns = Array.from(document.querySelectorAll('.category-tab-btn'));
+    (function() {
+        const goalCards = document.querySelectorAll('.goal-card');
+        const submitBtn = document.getElementById('submit-goal-btn');
+        const selectedDisplay = document.getElementById('selected-goal-display');
         const searchInput = document.getElementById('goal-search');
-        const noResults = document.getElementById('goal-no-results');
-        const submitBtn = document.getElementById('submit-btn');
-        const selectedStatus = document.getElementById('goal-selected-status');
-        const hasGSAP = typeof gsap !== 'undefined';
+        const categoryTabs = document.querySelectorAll('.category-tab-btn');
+        const noResults = document.getElementById('no-results-box');
 
         let activeCategory = 'all';
         let searchQuery = '';
 
-        // GSAP Entrance
-        if (hasGSAP) {
-            gsap.fromTo('.auth-card', { opacity: 0, y: 20 }, { opacity: 1, y: 0, duration: 0.45, ease: 'power3.out' });
-            gsap.fromTo('.goal-card', { opacity: 0, y: 15 }, { opacity: 1, y: 0, duration: 0.4, stagger: 0.03, ease: 'power2.out', delay: 0.1 });
-        }
+        // Card Selection Logic
+        goalCards.forEach(card => {
+            card.addEventListener('click', function() {
+                goalCards.forEach(c => c.classList.remove('selected'));
+                this.classList.add('selected');
+                const radio = this.querySelector('input[type="radio"]');
+                if (radio) radio.checked = true;
 
-        // Category Tab Switching
-        tabBtns.forEach(btn => {
-            btn.addEventListener('click', function () {
-                tabBtns.forEach(b => b.classList.remove('active'));
-                this.classList.add('active');
-                activeCategory = this.dataset.category;
-                filterCards();
+                const goalTitle = this.querySelector('.goal-title')?.textContent || 'Selected';
+                selectedDisplay.textContent = goalTitle;
+
+                if (submitBtn) {
+                    submitBtn.disabled = false;
+                    submitBtn.style.opacity = '1';
+                    submitBtn.style.cursor = 'pointer';
+                }
             });
         });
 
-        // Live Search Input
-        let debounceTimer;
-        searchInput.addEventListener('input', function () {
-            clearTimeout(debounceTimer);
-            searchQuery = this.value.trim().toLowerCase();
-            debounceTimer = setTimeout(filterCards, 60);
+        // Category Tab Filter
+        categoryTabs.forEach(tab => {
+            tab.addEventListener('click', function() {
+                categoryTabs.forEach(t => t.classList.remove('active'));
+                this.classList.add('active');
+                activeCategory = this.getAttribute('data-category');
+                filterGoals();
+            });
         });
 
-        function filterCards() {
+        // Search Input Filter
+        if (searchInput) {
+            searchInput.addEventListener('input', function() {
+                searchQuery = this.value.trim().toLowerCase();
+                filterGoals();
+            });
+        }
+
+        function filterGoals() {
             let visibleCount = 0;
 
-            cards.forEach(card => {
-                const matchesCategory = (activeCategory === 'all') || (card.dataset.category === activeCategory);
-                const matchesSearch = !searchQuery || (card.dataset.search.indexOf(searchQuery) !== -1);
+            goalCards.forEach(card => {
+                const cardCat = card.getAttribute('data-category');
+                const title = card.getAttribute('data-title');
+                const desc = card.getAttribute('data-desc');
 
-                if (matchesCategory && matchesSearch) {
-                    if (card.style.display === 'none') {
-                        card.style.display = 'flex';
-                        if (hasGSAP) {
-                            gsap.fromTo(card, { opacity: 0, scale: 0.96 }, { opacity: 1, scale: 1, duration: 0.25, ease: 'power2.out' });
-                        }
-                    }
+                const matchesCat = (activeCategory === 'all' || cardCat === activeCategory);
+                const matchesSearch = (!searchQuery || title.includes(searchQuery) || desc.includes(searchQuery));
+
+                if (matchesCat && matchesSearch) {
+                    card.style.display = 'flex';
                     visibleCount++;
                 } else {
                     card.style.display = 'none';
                 }
             });
 
-            if (visibleCount === 0) {
-                noResults.classList.add('show');
-            } else {
-                noResults.classList.remove('show');
+            if (noResults) {
+                if (visibleCount === 0) {
+                    noResults.classList.add('show');
+                } else {
+                    noResults.classList.remove('show');
+                }
             }
         }
-
-        // Card Selection Handler
-        document.querySelectorAll('.goal-radio').forEach(radio => {
-            radio.addEventListener('change', function () {
-                cards.forEach(c => c.classList.remove('selected'));
-                const selectedCard = this.closest('.goal-card');
-                selectedCard.classList.add('selected');
-
-                // Animate check indicator
-                if (hasGSAP) {
-                    const indicator = selectedCard.querySelector('.goal-check-indicator');
-                    gsap.fromTo(indicator, { scale: 0.6 }, { scale: 1, duration: 0.35, ease: 'back.out(2.5)' });
-                }
-
-                // Update status display
-                selectedStatus.innerHTML = `Selected: <strong>${this.value}</strong>`;
-
-                // Activate submit button
-                submitBtn.disabled = false;
-                submitBtn.style.opacity = '1';
-                submitBtn.style.cursor = 'pointer';
-
-                if (hasGSAP && !submitBtn.dataset.activated) {
-                    submitBtn.dataset.activated = 'true';
-                    gsap.fromTo(submitBtn, { scale: 0.96 }, { scale: 1, duration: 0.4, ease: 'back.out(2)' });
-                }
-            });
-        });
     })();
     </script>
     <?php
+    render_footer();
 }
