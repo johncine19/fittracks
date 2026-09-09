@@ -31,8 +31,7 @@ function render_header(string $title, ?array $user = null): void
                 'users' => 'Users Accounts',
                 'trainer_assignments' => 'Trainers',
                 'plans' => 'Plans',
-                'training' => 'Create Workouts',
-                'admin_workouts' => 'All Workouts',
+                'training' => 'Workouts',
                 'memberships' => 'Memberships',
                 'payments' => 'Payments',
                 'commissions' => 'Commissions',
@@ -46,7 +45,7 @@ function render_header(string $title, ?array $user = null): void
             ];
         }
         if ($role === 'trainer') {
-            $nav += ['qr_attendance' => 'My QR', 'my_commissions' => 'Commissions', 'trainer_members' => 'Clients', 'training' => 'Training', 'classes' => 'My Classes', 'messages' => 'Messages', 'notifications' => 'Notifications'];
+            $nav += ['qr_attendance' => 'My QR', 'my_commissions' => 'Commissions', 'trainer_members' => 'Clients', 'training' => 'Workouts', 'classes' => 'My Classes', 'messages' => 'Messages', 'notifications' => 'Notifications'];
         }
         if ($role === 'member') {
             $isGymMember = db()->prepare('SELECT 1 FROM gym_members WHERE user_id = ?');
@@ -196,8 +195,9 @@ function render_header(string $title, ?array $user = null): void
                                 $tierBadge = in_array($mappedFeature, ['audit_logs'], true) ? 'BIZ' : 'PRO';
                             }
                         }
+                        $isActive = ($page === $key || ($key === 'training' && in_array($page, ['training', 'admin_workouts', 'workout_builder'], true)));
                     ?>
-                        <a class="<?= $page === $key ? 'active' : '' ?>" href="index.php?page=<?= h($key) ?>">
+                        <a class="<?= $isActive ? 'active' : '' ?>" href="index.php?page=<?= h($key) ?>">
                             <span class="nav-icon"><?= nav_icon($key) ?></span>
                             <span class="nav-label"><?= h($label) ?></span>
                             <?php if ($tierBadge): ?>
