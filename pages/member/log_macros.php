@@ -12,49 +12,89 @@ function log_macros_page(): void
     $isAjax = isset($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest';
 
     $mode = (string) (post('mode') ?: 'add'); // 'add', 'set', or 'reset'
-    $addedCals = (int) post('calories');
-    $addedPro = (int) post('protein_g');
-    $addedCarbs = (int) post('carbs_g');
-    $addedFat = (int) post('fat_g');
+    
+    // Validate that inputs are not negative
+    $rawCals  = post('calories');
+    $rawPro   = post('protein_g');
+    $rawCarbs = post('carbs_g');
+    $rawFat   = post('fat_g');
+
+    if ($mode !== 'reset') {
+        if ((is_numeric($rawCals) && (float)$rawCals < 0) ||
+            (is_numeric($rawPro) && (float)$rawPro < 0) ||
+            (is_numeric($rawCarbs) && (float)$rawCarbs < 0) ||
+            (is_numeric($rawFat) && (float)$rawFat < 0)) {
+            if ($isAjax) {
+                if (ob_get_level()) ob_clean();
+                header('Content-Type: application/json');
+                echo json_encode([
+                    'success' => false,
+                    'error'   => 'Calories and macros cannot be negative numbers. Please enter 0 or higher.'
+                ]);
+                exit;
+            }
+            flash('Calories and macros cannot be negative numbers.', 'error');
+            redirect('diet');
+        }
+    }
+
+    $addedCals  = max(0, (int) $rawCals);
+    $addedPro   = max(0, (float) $rawPro);
+    $addedCarbs = max(0, (float) $rawCarbs);
+    $addedFat   = max(0, (float) $rawFat);
     
     $userId = (int) $user['user_id'];
     $pdo = db();
 
-    if ($mode === 'reset') {
-        $stmt = $pdo->prepare('INSERT INTO daily_macros (user_id, log_date, calories, protein_g, carbs_g, fat_g) 
-                               VALUES (?, CURDATE(), 0, 0, 0, 0)
-                               ON DUPLICATE KEY UPDATE calories = 0, protein_g = 0, carbs_g = 0, fat_g = 0');
-        $stmt->execute([$userId]);
-        $calories = $protein = $carbs = $fat = 0;
-    } elseif ($mode === 'add') {
-        $stmt = $pdo->prepare('INSERT INTO daily_macros (user_id, log_date, calories, protein_g, carbs_g, fat_g) 
-                               VALUES (?, CURDATE(), ?, ?, ?, ?)
-                               ON DUPLICATE KEY UPDATE 
-                                   calories = calories + VALUES(calories), 
-                                   protein_g = protein_g + VALUES(protein_g), 
-                                   carbs_g = carbs_g + VALUES(carbs_g), 
-                                   fat_g = fat_g + VALUES(fat_g)');
-        $stmt->execute([$userId, $addedCals, $addedPro, $addedCarbs, $addedFat]);
+    try {
+        if ($mode === 'reset') {
+            $stmt = $pdo->prepare('INSERT INTO daily_macros (user_id, log_date, calories, protein_g, carbs_g, fat_g) 
+                                   VALUES (?, CURDATE(), 0, 0, 0, 0)
+                                   ON DUPLICATE KEY UPDATE calories = 0, protein_g = 0, carbs_g = 0, fat_g = 0');
+            $stmt->execute([$userId]);
+            $calories = $protein = $carbs = $fat = 0;
+        } elseif ($mode === 'add') {
+            $stmt = $pdo->prepare('INSERT INTO daily_macros (user_id, log_date, calories, protein_g, carbs_g, fat_g) 
+                                   VALUES (?, CURDATE(), ?, ?, ?, ?)
+                                   ON DUPLICATE KEY UPDATE 
+                                       calories = calories + VALUES(calories), 
+                                       protein_g = protein_g + VALUES(protein_g), 
+                                       carbs_g = carbs_g + VALUES(carbs_g), 
+                                       fat_g = fat_g + VALUES(fat_g)');
+            $stmt->execute([$userId, $addedCals, $addedPro, $addedCarbs, $addedFat]);
 
-        $curr = $pdo->query("SELECT calories, protein_g, carbs_g, fat_g FROM daily_macros WHERE user_id = {$userId} AND log_date = CURDATE()")->fetch();
-        $calories = (int) ($curr['calories'] ?? 0);
-        $protein  = (int) ($curr['protein_g'] ?? 0);
-        $carbs    = (int) ($curr['carbs_g'] ?? 0);
-        $fat      = (int) ($curr['fat_g'] ?? 0);
-    } else { // 'set' / replace total
-        $calories = $addedCals;
-        $protein = $addedPro;
-        $carbs = $addedCarbs;
-        $fat = $addedFat;
+            $curr = $pdo->query("SELECT calories, protein_g, carbs_g, fat_g FROM daily_macros WHERE user_id = {$userId} AND log_date = CURDATE()")->fetch();
+            $calories = (int) ($curr['calories'] ?? 0);
+            $protein  = (float) ($curr['protein_g'] ?? 0);
+            $carbs    = (float) ($curr['carbs_g'] ?? 0);
+            $fat      = (float) ($curr['fat_g'] ?? 0);
+        } else { // 'set' / replace total
+            $calories = $addedCals;
+            $protein  = $addedPro;
+            $carbs    = $addedCarbs;
+            $fat      = $addedFat;
 
-        $stmt = $pdo->prepare('INSERT INTO daily_macros (user_id, log_date, calories, protein_g, carbs_g, fat_g) 
-                               VALUES (?, CURDATE(), ?, ?, ?, ?)
-                               ON DUPLICATE KEY UPDATE 
-                                   calories = VALUES(calories), 
-                                   protein_g = VALUES(protein_g), 
-                                   carbs_g = VALUES(carbs_g), 
-                                   fat_g = VALUES(fat_g)');
-        $stmt->execute([$userId, $calories, $protein, $carbs, $fat]);
+            $stmt = $pdo->prepare('INSERT INTO daily_macros (user_id, log_date, calories, protein_g, carbs_g, fat_g) 
+                                   VALUES (?, CURDATE(), ?, ?, ?, ?)
+                                   ON DUPLICATE KEY UPDATE 
+                                       calories = VALUES(calories), 
+                                       protein_g = VALUES(protein_g), 
+                                       carbs_g = VALUES(carbs_g), 
+                                       fat_g = VALUES(fat_g)');
+            $stmt->execute([$userId, $calories, $protein, $carbs, $fat]);
+        }
+    } catch (Throwable $e) {
+        if ($isAjax) {
+            if (ob_get_level()) ob_clean();
+            header('Content-Type: application/json');
+            echo json_encode([
+                'success' => false,
+                'error'   => 'Could not record macros. Please try again.'
+            ]);
+            exit;
+        }
+        flash('Could not record macros. Please try again.', 'error');
+        redirect('diet');
     }
 
     if ($isAjax) {
