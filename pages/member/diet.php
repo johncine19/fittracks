@@ -1,14 +1,411 @@
 <?php
 declare(strict_types=1);
 
+function get_swap_meal_catalog(): array
+{
+    return [
+        'Breakfast' => [
+            [
+                'id' => 'brk_1',
+                'title' => 'Tapsilog (Lean Beef Tapa, Garlic Brown Rice, Sunny-Side Egg)',
+                'tags' => ['High Protein', 'Filipino Fit', 'Gluten-Free Safe'],
+                'restrictions' => ['none', 'halal', 'gluten-free', 'dairy-free'],
+                'pro_pct' => 0.35, 'carbs_pct' => 0.45, 'fat_pct' => 0.20,
+                'desc' => 'Tender lean cured beef with fragrant garlic brown rice and a sunny-side egg.'
+            ],
+            [
+                'id' => 'brk_2',
+                'title' => 'Bangsilog (Marinated Grilled Milkfish, Garlic Rice, Poached Egg)',
+                'tags' => ['Pescatarian', 'High Omega-3', 'Gluten-Free'],
+                'restrictions' => ['none', 'pescatarian', 'gluten-free', 'dairy-free', 'halal'],
+                'pro_pct' => 0.35, 'carbs_pct' => 0.45, 'fat_pct' => 0.20,
+                'desc' => 'Grilled Filipino bangus belly seasoned with garlic and vinegar, served with garlic rice.'
+            ],
+            [
+                'id' => 'brk_3',
+                'title' => 'Tortang Talong (Grilled Eggplant Omelet) with Brown Rice',
+                'tags' => ['Vegetarian', 'Fiber Rich', 'Gluten-Free'],
+                'restrictions' => ['none', 'vegetarian', 'gluten-free', 'halal'],
+                'pro_pct' => 0.25, 'carbs_pct' => 0.50, 'fat_pct' => 0.25,
+                'desc' => 'Smoky roasted eggplant dipped in whisked eggs, pan-seared with olive oil and brown rice.'
+            ],
+            [
+                'id' => 'brk_4',
+                'title' => 'Tofu Scramble Adobo Style with Garlic Cauliflower & Brown Rice',
+                'tags' => ['Vegan', 'Plant Protein', 'Dairy-Free'],
+                'restrictions' => ['none', 'vegetarian', 'vegan', 'dairy-free', 'gluten-free', 'halal'],
+                'pro_pct' => 0.30, 'carbs_pct' => 0.50, 'fat_pct' => 0.20,
+                'desc' => 'Crumbled firm tofu seasoned with soy sauce, garlic, and vinegar over brown rice.'
+            ],
+            [
+                'id' => 'brk_5',
+                'title' => 'Oatmeal Protein Champorado with Chia Seeds & Almond Butter',
+                'tags' => ['High Fiber', 'Vegetarian', 'Sustained Energy'],
+                'restrictions' => ['none', 'vegetarian', 'dairy-free', 'halal'],
+                'pro_pct' => 0.25, 'carbs_pct' => 0.55, 'fat_pct' => 0.20,
+                'desc' => 'Warm whole rolled oats simmered with pure tablea cocoa, whey or plant protein, and chia.'
+            ],
+            [
+                'id' => 'brk_6',
+                'title' => 'Keto Bacon, Spinach & Cheddar 3-Egg Omelet with Avocado',
+                'tags' => ['Keto', 'Low Carb', 'High Fat'],
+                'restrictions' => ['none', 'keto', 'gluten-free'],
+                'pro_pct' => 0.30, 'carbs_pct' => 0.05, 'fat_pct' => 0.65,
+                'desc' => 'Fluffy 3-egg omelet folded with baby spinach, aged cheddar, uncured bacon, and sliced avocado.'
+            ],
+            [
+                'id' => 'brk_7',
+                'title' => 'Chicken Longsilog (Skinless Lean Chicken Longganisa, Garlic Rice, Egg)',
+                'tags' => ['High Protein', 'Halal', 'Filipino Fit'],
+                'restrictions' => ['none', 'halal', 'dairy-free'],
+                'pro_pct' => 0.38, 'carbs_pct' => 0.42, 'fat_pct' => 0.20,
+                'desc' => 'Lean ground chicken breast cured with garlic and spices, pan-grilled with garlic brown rice.'
+            ],
+            [
+                'id' => 'brk_8',
+                'title' => 'Smoked Salmon Avocado Sourdough Toast with Soft Boiled Eggs',
+                'tags' => ['Pescatarian', 'High Protein', 'Healthy Fats'],
+                'restrictions' => ['none', 'pescatarian', 'dairy-free', 'halal'],
+                'pro_pct' => 0.32, 'carbs_pct' => 0.45, 'fat_pct' => 0.23,
+                'desc' => 'Wild smoked salmon on toasted artisanal sourdough with smashed avocado and eggs.'
+            ],
+        ],
+        'Lunch' => [
+            [
+                'id' => 'lch_1',
+                'title' => 'Chicken Breast Adobo with Garlic Brown Rice & Steamed Cabbage',
+                'tags' => ['High Protein', 'Filipino Classic', 'Meal Prep'],
+                'restrictions' => ['none', 'halal', 'dairy-free', 'gluten-free'],
+                'pro_pct' => 0.40, 'carbs_pct' => 0.40, 'fat_pct' => 0.20,
+                'desc' => 'Skinless chicken breast braised in soy, garlic, and vinegar with fiber-rich brown rice and greens.'
+            ],
+            [
+                'id' => 'lch_2',
+                'title' => 'Sinigang na Hipon (Shrimp & Water Spinach in Tamarind Broth) with Rice',
+                'tags' => ['Pescatarian', 'Low Fat', 'Hydrating'],
+                'restrictions' => ['none', 'pescatarian', 'gluten-free', 'dairy-free', 'halal'],
+                'pro_pct' => 0.35, 'carbs_pct' => 0.50, 'fat_pct' => 0.15,
+                'desc' => 'Succulent wild shrimp simmered in sour tamarind broth with kangkong, radish, and steamed rice.'
+            ],
+            [
+                'id' => 'lch_3',
+                'title' => 'Ginisang Munggo (Mung Bean Stew) with Crispy Tofu & Brown Rice',
+                'tags' => ['Vegetarian', 'Vegan', 'High Fiber'],
+                'restrictions' => ['none', 'vegetarian', 'vegan', 'dairy-free', 'halal', 'gluten-free'],
+                'pro_pct' => 0.28, 'carbs_pct' => 0.55, 'fat_pct' => 0.17,
+                'desc' => 'Nutritious mung bean stew simmered with moringa leaves, topped with air-fried golden tofu.'
+            ],
+            [
+                'id' => 'lch_4',
+                'title' => 'Grilled Chicken Inasal with Brown Rice & Atchara (Pickled Papaya)',
+                'tags' => ['High Protein', 'Halal', 'Low Fat'],
+                'restrictions' => ['none', 'halal', 'dairy-free', 'gluten-free'],
+                'pro_pct' => 0.42, 'carbs_pct' => 0.40, 'fat_pct' => 0.18,
+                'desc' => 'Char-grilled chicken marinated in calamansi, lemongrass, and annatto with brown rice.'
+            ],
+            [
+                'id' => 'lch_5',
+                'title' => 'Grilled Salmon Teriyaki Bowl with Quinoa, Edamame & Avocado',
+                'tags' => ['Pescatarian', 'High Omega-3', 'Clean Eating'],
+                'restrictions' => ['none', 'pescatarian', 'gluten-free', 'dairy-free', 'halal'],
+                'pro_pct' => 0.36, 'carbs_pct' => 0.38, 'fat_pct' => 0.26,
+                'desc' => 'Seared Atlantic salmon glazed lightly with teriyaki over fluffy quinoa and steamed edamame.'
+            ],
+            [
+                'id' => 'lch_6',
+                'title' => 'Adobong Sitaw & Firm Tofu with Quinoa & Roasted Sesame',
+                'tags' => ['Vegan', 'Vegetarian', 'Plant Powered'],
+                'restrictions' => ['none', 'vegetarian', 'vegan', 'dairy-free', 'halal'],
+                'pro_pct' => 0.28, 'carbs_pct' => 0.52, 'fat_pct' => 0.20,
+                'desc' => 'Crisp green yard-long beans and protein-packed firm tofu stir-fried in aromatic adobo sauce.'
+            ],
+            [
+                'id' => 'lch_7',
+                'title' => 'Keto Inihaw na Liempo (Grilled Pork Belly) with Ensaladang Talong',
+                'tags' => ['Keto', 'Low Carb', 'Paleo'],
+                'restrictions' => ['none', 'keto', 'paleo', 'gluten-free', 'dairy-free'],
+                'pro_pct' => 0.32, 'carbs_pct' => 0.08, 'fat_pct' => 0.60,
+                'desc' => 'Grilled seasoned pork strips paired with grilled eggplant salad dressed in calamansi and tomatoes.'
+            ],
+            [
+                'id' => 'lch_8',
+                'title' => 'Lean Ground Beef Picadillo with Diced Potatoes & Green Peas',
+                'tags' => ['High Protein', 'Iron Rich', 'Gluten-Free'],
+                'restrictions' => ['none', 'halal', 'gluten-free', 'dairy-free'],
+                'pro_pct' => 0.38, 'carbs_pct' => 0.40, 'fat_pct' => 0.22,
+                'desc' => 'Lean 90/10 ground beef simmered in tomato reduction with sweet peas, carrots, and potatoes.'
+            ],
+        ],
+        'Dinner' => [
+            [
+                'id' => 'dnr_1',
+                'title' => 'Chicken Tinola with Sayote, Moringa Leaves & Brown Rice',
+                'tags' => ['Immunity Boost', 'High Protein', 'Filipino Classic'],
+                'restrictions' => ['none', 'halal', 'gluten-free', 'dairy-free'],
+                'pro_pct' => 0.40, 'carbs_pct' => 0.42, 'fat_pct' => 0.18,
+                'desc' => 'Comforting ginger chicken soup loaded with antioxidant moringa leaves and tender chayote.'
+            ],
+            [
+                'id' => 'dnr_2',
+                'title' => 'Inihaw na Bangus (Milkfish) stuffed with Tomatoes, Onions & Rice',
+                'tags' => ['Pescatarian', 'Heart Healthy', 'Filipino Fit'],
+                'restrictions' => ['none', 'pescatarian', 'gluten-free', 'dairy-free', 'halal'],
+                'pro_pct' => 0.36, 'carbs_pct' => 0.44, 'fat_pct' => 0.20,
+                'desc' => 'Whole milkfish stuffed with fresh tomatoes and red onions, char-grilled to perfection.'
+            ],
+            [
+                'id' => 'dnr_3',
+                'title' => 'Vegetable Pinakbet with Pan-Seared Tofu & Brown Rice',
+                'tags' => ['Vegetarian', 'High Fiber', 'Nutrient Dense'],
+                'restrictions' => ['none', 'vegetarian', 'vegan', 'halal', 'dairy-free'],
+                'pro_pct' => 0.26, 'carbs_pct' => 0.54, 'fat_pct' => 0.20,
+                'desc' => 'Squash, okra, string beans, and eggplant simmered with crispy tofu cubes (no shrimp paste).'
+            ],
+            [
+                'id' => 'dnr_4',
+                'title' => 'Lean Beef & Broccoli Stir-Fry with Steamed Jasmine Rice',
+                'tags' => ['High Protein', 'Quick & Healthy', 'Balanced'],
+                'restrictions' => ['none', 'halal', 'dairy-free'],
+                'pro_pct' => 0.42, 'carbs_pct' => 0.40, 'fat_pct' => 0.18,
+                'desc' => 'Tender flank steak strips wok-tossed with fresh broccoli florets in ginger-garlic sauce.'
+            ],
+            [
+                'id' => 'dnr_5',
+                'title' => 'Ginataang Salmon with Spinach & Garlic Brown Rice',
+                'tags' => ['Pescatarian', 'Healthy Coconut Fats', 'Gluten-Free'],
+                'restrictions' => ['none', 'pescatarian', 'gluten-free', 'dairy-free', 'halal'],
+                'pro_pct' => 0.34, 'carbs_pct' => 0.40, 'fat_pct' => 0.26,
+                'desc' => 'Fresh salmon simmered in light coconut milk and baby spinach with garlic brown rice.'
+            ],
+            [
+                'id' => 'dnr_6',
+                'title' => 'Gising-Gising with Tofu, Green Beans & Coconut Cream',
+                'tags' => ['Vegetarian', 'Vegan', 'Dairy-Free'],
+                'restrictions' => ['none', 'vegetarian', 'vegan', 'gluten-free', 'dairy-free', 'halal'],
+                'pro_pct' => 0.26, 'carbs_pct' => 0.48, 'fat_pct' => 0.26,
+                'desc' => 'Finely chopped green beans cooked in mildly spiced coconut cream with pan-crisped tofu.'
+            ],
+            [
+                'id' => 'dnr_7',
+                'title' => 'Keto Baked Salmon Fillet with Lemon Butter & Roasted Asparagus',
+                'tags' => ['Keto', 'High Omega-3', 'Low Carb'],
+                'restrictions' => ['none', 'keto', 'pescatarian', 'gluten-free'],
+                'pro_pct' => 0.35, 'carbs_pct' => 0.05, 'fat_pct' => 0.60,
+                'desc' => 'Oven-baked wild salmon fillet topped with garlic herb butter and tender grilled asparagus.'
+            ],
+            [
+                'id' => 'dnr_8',
+                'title' => 'Halal Inihaw na Manok (Grilled Chicken Skewers) with Ensalada & Rice',
+                'tags' => ['Halal', 'High Protein', 'Clean Eating'],
+                'restrictions' => ['none', 'halal', 'gluten-free', 'dairy-free'],
+                'pro_pct' => 0.44, 'carbs_pct' => 0.40, 'fat_pct' => 0.16,
+                'desc' => 'Skewered spiced chicken breast grilled over open flames, served with tomato-cucumber salad.'
+            ],
+        ],
+        'Snack' => [
+            [
+                'id' => 'snk_1',
+                'title' => 'Boiled Saba Banana with Light Natural Peanut Butter',
+                'tags' => ['Pre-Workout', 'Potassium Rich', 'Vegetarian'],
+                'restrictions' => ['none', 'vegetarian', 'vegan', 'dairy-free', 'gluten-free', 'halal'],
+                'pro_pct' => 0.15, 'carbs_pct' => 0.65, 'fat_pct' => 0.20,
+                'desc' => 'Steamed Filipino saba banana paired with natural unsweetened peanut butter.'
+            ],
+            [
+                'id' => 'snk_2',
+                'title' => 'Boiled Kamote (Sweet Potato) with Cinnamon',
+                'tags' => ['Clean Carb', 'Slow Digesting', 'Vegan'],
+                'restrictions' => ['none', 'vegetarian', 'vegan', 'dairy-free', 'gluten-free', 'halal'],
+                'pro_pct' => 0.10, 'carbs_pct' => 0.80, 'fat_pct' => 0.10,
+                'desc' => 'Steamed purple or orange sweet potato sprinkled with fragrant Ceylon cinnamon.'
+            ],
+            [
+                'id' => 'snk_3',
+                'title' => 'Whey Protein Shake with Skim Milk & Half Banana',
+                'tags' => ['Post-Workout', 'High Protein', 'Fast Absorbing'],
+                'restrictions' => ['none', 'vegetarian', 'halal', 'gluten-free'],
+                'pro_pct' => 0.55, 'carbs_pct' => 0.35, 'fat_pct' => 0.10,
+                'desc' => 'Premium whey protein isolate blended with cold milk and potassium-rich banana.'
+            ],
+            [
+                'id' => 'snk_4',
+                'title' => 'Hard-Boiled Eggs with Himalayan Pink Salt & Black Pepper',
+                'tags' => ['Keto Friendly', 'High Protein', 'Gluten-Free'],
+                'restrictions' => ['none', 'keto', 'paleo', 'vegetarian', 'gluten-free', 'dairy-free', 'halal'],
+                'pro_pct' => 0.38, 'carbs_pct' => 0.04, 'fat_pct' => 0.58,
+                'desc' => 'Fresh large farm eggs boiled firm, seasoned with pink salt and cracked black pepper.'
+            ],
+            [
+                'id' => 'snk_5',
+                'title' => 'Greek Yogurt Cup with Blueberries & Roasted Almonds',
+                'tags' => ['Gut Health', 'High Protein', 'Vegetarian'],
+                'restrictions' => ['none', 'vegetarian', 'gluten-free'],
+                'pro_pct' => 0.40, 'carbs_pct' => 0.35, 'fat_pct' => 0.25,
+                'desc' => 'Thick strained plain Greek yogurt topped with antioxidant blueberries and raw almonds.'
+            ],
+            [
+                'id' => 'snk_6',
+                'title' => 'Steamed Edamame Beans with Coarse Sea Salt',
+                'tags' => ['Vegan', 'Fiber Rich', 'Gluten-Free'],
+                'restrictions' => ['none', 'vegetarian', 'vegan', 'dairy-free', 'gluten-free', 'halal'],
+                'pro_pct' => 0.35, 'carbs_pct' => 0.40, 'fat_pct' => 0.25,
+                'desc' => 'Tender young soybeans steamed in the pod with mineral coarse sea salt.'
+            ],
+            [
+                'id' => 'snk_7',
+                'title' => 'Keto Pork Chicharon (Rinds) with Spiced Vinegar Dip',
+                'tags' => ['Zero Carb', 'Keto', 'Crunchy'],
+                'restrictions' => ['none', 'keto', 'gluten-free', 'dairy-free'],
+                'pro_pct' => 0.60, 'carbs_pct' => 0.01, 'fat_pct' => 0.39,
+                'desc' => 'Crispy baked pork rinds with spicy garlic-infused native cane vinegar.'
+            ],
+        ]
+    ];
+}
+
 function diet_page(): void
 {
     $user = require_roles(['member']);
     $pdo = db();
     $userId = (int) $user['user_id'];
+
+    $action = (string) (post('action') ?: ($_GET['action'] ?? ''));
+
+    // ----------------------------------------------------
+    // AJAX: Get Meal Swap Alternatives
+    // ----------------------------------------------------
+    if ($action === 'get_swap_options') {
+        $mealType = (string) (post('meal_type') ?: ($_GET['meal_type'] ?? 'Lunch'));
+        $targetCals = max(100, (int) (post('calories') ?: ($_GET['calories'] ?? 400)));
+
+        $profile = $pdo->query('SELECT dietary_restrictions, primary_goal FROM member_profiles WHERE user_id = ' . $userId)->fetch();
+        $userRest = (string) ($profile['dietary_restrictions'] ?? 'none');
+
+        $catalog = get_swap_meal_catalog();
+        $candidates = $catalog[$mealType] ?? ($catalog['Lunch'] ?? []);
+
+        $options = [];
+        foreach ($candidates as $rec) {
+            $p_g = (float) round(($targetCals * $rec['pro_pct']) / 4, 1);
+            $c_g = (float) round(($targetCals * $rec['carbs_pct']) / 4, 1);
+            $f_g = (float) round(($targetCals * $rec['fat_pct']) / 9, 1);
+            $grams = (int) round($targetCals / 1.5);
+            $foodStr = "{$grams}g of {$rec['title']}";
+
+            $isMatched = in_array($userRest, $rec['restrictions'], true);
+
+            $options[] = [
+                'id' => $rec['id'],
+                'title' => $rec['title'],
+                'food_items' => $foodStr,
+                'calories' => $targetCals,
+                'protein_g' => $p_g,
+                'carbs_g' => $c_g,
+                'fat_g' => $f_g,
+                'grams' => $grams,
+                'tags' => $rec['tags'],
+                'desc' => $rec['desc'],
+                'is_diet_match' => $isMatched,
+            ];
+        }
+
+        // Sort: matching user restriction first
+        usort($options, function ($a, $b) {
+            if ($a['is_diet_match'] === $b['is_diet_match']) return 0;
+            return $a['is_diet_match'] ? -1 : 1;
+        });
+
+        if (ob_get_level()) ob_clean();
+        header('Content-Type: application/json');
+        echo json_encode([
+            'success' => true,
+            'meal_type' => $mealType,
+            'user_restriction' => $userRest,
+            'target_calories' => $targetCals,
+            'options' => $options
+        ]);
+        exit;
+    }
+
+    // ----------------------------------------------------
+    // AJAX: Swap Planned Meal
+    // ----------------------------------------------------
+    if ($action === 'swap_meal' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+        $mealId = (int) post('meal_id');
+        $foodItems = trim((string) post('food_items'));
+        $calories = max(0, (int) post('calories'));
+        $protein = max(0, (float) post('protein_g'));
+        $carbs = max(0, (float) post('carbs_g'));
+        $fat = max(0, (float) post('fat_g'));
+
+        // Check ownership: ensure this meal belongs to an active plan for $userId
+        $stmtCheck = $pdo->prepare(
+            'SELECT dpm.meal_id, dpm.plan_id, dpm.day_of_week, dpm.meal_type 
+             FROM dietary_plan_meals dpm
+             JOIN dietary_plans dp ON dp.plan_id = dpm.plan_id
+             WHERE dpm.meal_id = ? AND dp.member_user_id = ?'
+        );
+        $stmtCheck->execute([$mealId, $userId]);
+        $mealRow = $stmtCheck->fetch();
+
+        if (!$mealRow) {
+            if (ob_get_level()) ob_clean();
+            header('Content-Type: application/json');
+            echo json_encode(['success' => false, 'error' => 'Meal not found or unauthorized.']);
+            exit;
+        }
+
+        if (empty($foodItems)) {
+            if (ob_get_level()) ob_clean();
+            header('Content-Type: application/json');
+            echo json_encode(['success' => false, 'error' => 'Meal description cannot be empty.']);
+            exit;
+        }
+
+        $stmtUpdate = $pdo->prepare('UPDATE dietary_plan_meals SET food_items = ?, calories = ?, protein_g = ?, carbs_g = ?, fat_g = ? WHERE meal_id = ?');
+        $stmtUpdate->execute([$foodItems, $calories, $protein, $carbs, $fat, $mealId]);
+
+        // Recalculate day totals
+        $dayNum = (int) $mealRow['day_of_week'];
+        $planId = (int) $mealRow['plan_id'];
+        $dayTotals = $pdo->query("SELECT SUM(calories) as cals, SUM(protein_g) as pro, SUM(carbs_g) as carbs, SUM(fat_g) as fat FROM dietary_plan_meals WHERE plan_id = {$planId} AND day_of_week = {$dayNum}")->fetch();
+
+        $isToday = ($dayNum === (int) date('N'));
+        $todayTargets = null;
+        if ($isToday) {
+            $todayTargets = [
+                'target_cals' => (int) ($dayTotals['cals'] ?? 0),
+                'target_pro' => (float) ($dayTotals['pro'] ?? 0),
+                'target_carbs' => (float) ($dayTotals['carbs'] ?? 0),
+                'target_fat' => (float) ($dayTotals['fat'] ?? 0),
+            ];
+        }
+
+        if (ob_get_level()) ob_clean();
+        header('Content-Type: application/json');
+        echo json_encode([
+            'success' => true,
+            'meal_id' => $mealId,
+            'day_of_week' => $dayNum,
+            'meal_type' => $mealRow['meal_type'],
+            'food_items' => $foodItems,
+            'calories' => $calories,
+            'protein_g' => $protein,
+            'carbs_g' => $carbs,
+            'fat_g' => $fat,
+            'is_today' => $isToday,
+            'today_targets' => $todayTargets,
+            'day_totals' => [
+                'calories' => (int) ($dayTotals['cals'] ?? 0),
+                'protein_g' => (float) ($dayTotals['pro'] ?? 0),
+                'carbs_g' => (float) ($dayTotals['carbs'] ?? 0),
+                'fat_g' => (float) ($dayTotals['fat'] ?? 0),
+            ]
+        ]);
+        exit;
+    }
     
     if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-        $action = post('action');
         if ($action === 'generate_plan') {
             $profile = $pdo->query('SELECT * FROM member_profiles WHERE user_id = ' . $userId)->fetch();
             if (!$profile || !(float)$profile['weight_kg'] || !(float)$profile['height_cm'] || !(int)$profile['age']) {
@@ -240,6 +637,26 @@ $loggedCals = $loggedMacros ? (int)$loggedMacros['calories'] : 0;
 $loggedPro = $loggedMacros ? (int)$loggedMacros['protein_g'] : 0;
 $loggedCarbs = $loggedMacros ? (int)$loggedMacros['carbs_g'] : 0;
 $loggedFat = $loggedMacros ? (int)$loggedMacros['fat_g'] : 0;
+
+// Fetch logged meal slots for today (guard rail to prevent duplicate logs)
+$loggedMealsTodayRaw = $pdo->query("SELECT meal_type, meal_id, logged_at FROM member_meal_logs WHERE user_id = {$userId} AND log_date = CURDATE()")->fetchAll();
+$loggedMealsTodayMap = [];
+foreach ($loggedMealsTodayRaw as $lm) {
+    $norm = ucfirst(strtolower(trim($lm['meal_type'])));
+    if (strpos(strtolower($norm), 'snack') !== false) {
+        $norm = 'Snack';
+    }
+    $loggedMealsTodayMap[$norm] = [
+        'time' => date('g:i A', strtotime($lm['logged_at'])),
+        'meal_id' => (int) $lm['meal_id']
+    ];
+}
+?>
+<script>
+window.FT_LOGGED_MEALS_TODAY = <?= json_encode($loggedMealsTodayMap) ?>;
+window.FT_CURRENT_DAY_NUM = <?= $todayNum ?>;
+</script>
+<?php
 
 $calcMacroStatus = function(int $logged, int $target, string $type): array {
     if ($target <= 0) {
@@ -2336,7 +2753,21 @@ $stFat   = $calcMacroStatus($loggedFat, $targetFat, 'fat');
             return;
         }
 
-        if (data && data.success) {
+        window.applyMacroLogResultToUI = function(data, isManual = false, activeMode = 'add') {
+            if (!data || !data.success) return;
+
+            // If user reset today's macros, reset meal slot cards too
+            if (activeMode === 'reset') {
+                if (typeof resetTodayMealCardsUI === 'function') {
+                    resetTodayMealCardsUI();
+                }
+            }
+
+            const prevPro   = parseFloat(proDisp?.textContent   || 0) || 0;
+            const prevCals  = parseFloat(calsDisp?.textContent  || 0) || 0;
+            const prevCarbs = parseFloat(carbsDisp?.textContent || 0) || 0;
+            const prevFat   = parseFloat(fatDisp?.textContent   || 0) || 0;
+
             const newCals  = data.logged_cals;
             const newPro   = data.logged_pro;
             const newCarbs = data.logged_carbs;
@@ -2424,12 +2855,10 @@ $stFat   = $calcMacroStatus($loggedFat, $targetFat, 'fat');
                 barFat.style.background = fatProg.barBg;
             }
 
-            // In 'add' or 'reset' mode, clear inputs ready for the next food entry
-            if (activeMode === 'add' || activeMode === 'reset') {
-                inCals.value = '';
-                inPro.value = '';
-                inCarbs.value = '';
-                inFat.value = '';
+            // Update top tab navigation badge
+            const trackerBadge = document.querySelector('.diet-nav-badge.tracker-badge');
+            if (trackerBadge && targetCals) {
+                trackerBadge.textContent = `${newCals} / ${targetCals} kcal`;
             }
 
             // Detect newly reached goals
@@ -2529,7 +2958,7 @@ $stFat   = $calcMacroStatus($loggedFat, $targetFat, 'fat');
                         btnBg: '#f43f5e'
                     });
                 }, 250);
-            } else {
+            } else if (isManual) {
                 // Standard Toast feedback with clean text, no emojis
                 const Toast = Swal.mixin({
                     toast: true, position: 'top-end', showConfirmButton: false,
@@ -2548,6 +2977,18 @@ $stFat   = $calcMacroStatus($loggedFat, $targetFat, 'fat');
                 }
 
                 Toast.fire({ icon: 'success', title: toastMsg });
+            }
+        };
+
+        if (data && data.success) {
+            window.applyMacroLogResultToUI(data, true, activeMode);
+
+            // In 'add' or 'reset' mode, clear inputs ready for the next food entry
+            if (activeMode === 'add' || activeMode === 'reset') {
+                inCals.value = '';
+                inPro.value = '';
+                inCarbs.value = '';
+                inFat.value = '';
             }
         } else {
             const bgVal  = getComputedStyle(document.documentElement).getPropertyValue('--bg').trim() || '#121721';
@@ -2647,33 +3088,104 @@ $stFat   = $calcMacroStatus($loggedFat, $targetFat, 'fat');
                     <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr)); gap: 20px;">
                         <?php 
                         $dayCals = 0; $dayPro = 0; $dayCarbs = 0; $dayFat = 0;
+                        $isToday = ($dayNum === $todayNum);
                         foreach ($mealsByDay[$dayNum] as $meal): 
                             $dayCals += $meal['calories'];
                             $dayPro += $meal['protein_g'];
                             $dayCarbs += $meal['carbs_g'];
                             $dayFat += $meal['fat_g'];
+
+                            $mealTypeRaw = $meal['meal_type'];
+                            $mealTypeNorm = ucfirst(strtolower(trim($mealTypeRaw)));
+                            if (strpos(strtolower($mealTypeNorm), 'snack') !== false) {
+                                $mealTypeNorm = 'Snack';
+                            }
+                            $isLoggedToday = $isToday && isset($loggedMealsTodayMap[$mealTypeNorm]);
+                            $loggedTimeStr = $isLoggedToday ? $loggedMealsTodayMap[$mealTypeNorm]['time'] : '';
                         ?>
-                            <div style="background: var(--bg); padding: 20px; border-radius: 12px; border: 1px solid var(--line); position: relative; overflow: hidden;">
+                            <div class="meal-card" id="meal-card-<?= $meal['meal_id'] ?>"
+                                 data-meal-id="<?= $meal['meal_id'] ?>"
+                                 data-day="<?= $dayNum ?>"
+                                 data-type="<?= h($meal['meal_type']) ?>"
+                                 data-cals="<?= $meal['calories'] ?>"
+                                 data-pro="<?= $meal['protein_g'] ?>"
+                                 data-carbs="<?= $meal['carbs_g'] ?>"
+                                 data-fat="<?= $meal['fat_g'] ?>"
+                                 data-food="<?= htmlspecialchars($meal['food_items'], ENT_QUOTES, 'UTF-8') ?>"
+                                 style="background: var(--bg); padding: 20px; border-radius: 12px; border: 1px solid var(--line); position: relative; overflow: hidden; display: flex; flex-direction: column; justify-content: space-between;">
                                 <!-- Left accent line -->
-                                <div style="position: absolute; left: 0; top: 0; bottom: 0; width: 4px; background: var(--lime);"></div>
+                                <div style="position: absolute; left: 0; top: 0; bottom: 0; width: 4px; background: <?= $isLoggedToday ? '#22c55e' : 'var(--lime)' ?>;"></div>
                                 
-                                <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px;">
-                                    <strong style="color: var(--ink); font-size: 1.15rem;"><?= h($meal['meal_type']) ?></strong>
-                                    <span style="background: color-mix(in srgb, var(--lime) 20%, transparent); color: var(--lime); padding: 4px 10px; border-radius: 20px; font-size: 0.85rem; font-weight: bold; border: 1px solid color-mix(in srgb, var(--lime) 30%, transparent);">
-                                        <?= $meal['calories'] ?> kcal
-                                    </span>
+                                <div>
+                                    <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px;">
+                                        <div style="display: flex; align-items: center; gap: 8px;">
+                                            <strong style="color: var(--ink); font-size: 1.15rem;"><?= h($meal['meal_type']) ?></strong>
+                                            <span id="meal-check-<?= $meal['meal_id'] ?>" class="meal-logged-check" style="<?= $isLoggedToday ? 'display:inline-flex;' : 'display:none;' ?>" title="Logged for today">✓</span>
+                                        </div>
+                                        <span id="meal-cals-badge-<?= $meal['meal_id'] ?>" style="background: color-mix(in srgb, var(--lime) 20%, transparent); color: var(--lime); padding: 4px 10px; border-radius: 20px; font-size: 0.85rem; font-weight: bold; border: 1px solid color-mix(in srgb, var(--lime) 30%, transparent);">
+                                            <?= $meal['calories'] ?> kcal
+                                        </span>
+                                    </div>
+
+                                    <!-- Dynamic Meal Card State / Pill -->
+                                    <div class="meal-status-pill-wrap" style="margin-bottom: 12px;">
+                                        <?php if ($isToday && $isLoggedToday): ?>
+                                            <span id="meal-status-pill-<?= $meal['meal_id'] ?>" class="meal-status-pill pill-logged">
+                                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                                                <span class="status-txt">Logged today at <?= h($loggedTimeStr) ?></span>
+                                            </span>
+                                        <?php elseif ($isToday): ?>
+                                            <span id="meal-status-pill-<?= $meal['meal_id'] ?>" class="meal-status-pill pill-unlogged">
+                                                <span class="meal-status-dot"></span>
+                                                <span class="status-txt">No meal logged yet</span>
+                                            </span>
+                                        <?php else: ?>
+                                            <span id="meal-status-pill-<?= $meal['meal_id'] ?>" class="meal-status-pill pill-scheduled">
+                                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                                                <span class="status-txt"><?= h($dayName) ?> schedule (View only)</span>
+                                            </span>
+                                        <?php endif; ?>
+                                    </div>
+                                    
+                                    <div id="meal-food-<?= $meal['meal_id'] ?>" class="meal-food-text" style="color: var(--muted); font-size: 0.96rem; margin-bottom: 16px; line-height: 1.5; min-height: 48px;">
+                                        <?= nl2br(h($meal['food_items'])) ?>
+                                    </div>
+                                    
+                                    <div style="display: flex; gap: 10px; font-size: 0.85rem; color: var(--ink); background: color-mix(in srgb, var(--surface) 50%, var(--bg)); padding: 10px; border-radius: 8px; justify-content: space-between; margin-bottom: 14px;">
+                                        <div style="text-align: center; flex: 1;"><strong style="display:block; color:var(--muted); font-size:10px; text-transform:uppercase;">Protein</strong> <span id="meal-pro-<?= $meal['meal_id'] ?>"><?= $meal['protein_g'] ?></span>g</div>
+                                        <div style="width:1px; background:var(--line);"></div>
+                                        <div style="text-align: center; flex: 1;"><strong style="display:block; color:var(--muted); font-size:10px; text-transform:uppercase;">Carbs</strong> <span id="meal-carbs-<?= $meal['meal_id'] ?>"><?= $meal['carbs_g'] ?></span>g</div>
+                                        <div style="width:1px; background:var(--line);"></div>
+                                        <div style="text-align: center; flex: 1;"><strong style="display:block; color:var(--muted); font-size:10px; text-transform:uppercase;">Fat</strong> <span id="meal-fat-<?= $meal['meal_id'] ?>"><?= $meal['fat_g'] ?></span>g</div>
+                                    </div>
                                 </div>
-                                
-                                <div style="color: var(--muted); font-size: 1rem; margin-bottom: 16px; line-height: 1.5; min-height: 48px;">
-                                    <?= nl2br(h($meal['food_items'])) ?>
-                                </div>
-                                
-                                <div style="display: flex; gap: 10px; font-size: 0.85rem; color: var(--ink); background: color-mix(in srgb, var(--surface) 50%, var(--bg)); padding: 10px; border-radius: 8px; justify-content: space-between;">
-                                    <div style="text-align: center; flex: 1;"><strong style="display:block; color:var(--muted); font-size:10px; text-transform:uppercase;">Protein</strong> <?= $meal['protein_g'] ?>g</div>
-                                    <div style="width:1px; background:var(--line);"></div>
-                                    <div style="text-align: center; flex: 1;"><strong style="display:block; color:var(--muted); font-size:10px; text-transform:uppercase;">Carbs</strong> <?= $meal['carbs_g'] ?>g</div>
-                                    <div style="width:1px; background:var(--line);"></div>
-                                    <div style="text-align: center; flex: 1;"><strong style="display:block; color:var(--muted); font-size:10px; text-transform:uppercase;">Fat</strong> <?= $meal['fat_g'] ?>g</div>
+
+                                <!-- Actions toolbar: Log Meal, Inspect Ingredients, Swap Meal -->
+                                <div class="meal-card-actions">
+                                    <?php if ($isToday && $isLoggedToday): ?>
+                                        <button type="button" id="btn-log-<?= $meal['meal_id'] ?>" class="meal-action-btn btn-log-meal logged-completed" onclick="handleAlreadyLoggedClick('<?= h($mealTypeNorm) ?>', '<?= h($loggedTimeStr) ?>')" title="<?= h($mealTypeNorm) ?> already logged today at <?= h($loggedTimeStr) ?>. Click for details.">
+                                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                                            <span>Logged ✓</span>
+                                        </button>
+                                    <?php elseif ($isToday): ?>
+                                        <button type="button" id="btn-log-<?= $meal['meal_id'] ?>" class="meal-action-btn btn-log-meal" onclick="quickLogPlannedMeal(<?= $meal['meal_id'] ?>)" title="Log your <?= h(strtolower($meal['meal_type'])) ?> to track your daily nutrition">
+                                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                                            <span>+ Log Meal</span>
+                                        </button>
+                                    <?php else: ?>
+                                        <button type="button" id="btn-log-<?= $meal['meal_id'] ?>" class="meal-action-btn btn-log-meal btn-view-only" disabled title="Scheduled for <?= h($dayName) ?>. Only today's meals can be logged.">
+                                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>
+                                            <span>View Only</span>
+                                        </button>
+                                    <?php endif; ?>
+                                    <button type="button" class="meal-action-btn btn-inspect-meal" onclick="inspectPlannedMeal(<?= $meal['meal_id'] ?>)" title="Inspect itemized ingredients & micronutrients">
+                                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                                        <span>Ingredients</span>
+                                    </button>
+                                    <button type="button" class="meal-action-btn btn-swap-meal" onclick="openSwapMealModal(<?= $meal['meal_id'] ?>)" title="Swap with alternative healthy recipes">
+                                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 3h5v5"/><path d="M4 20L21 3"/><path d="M21 16v5h-5"/><path d="M15 15l6 6"/><path d="M4 4l5 5"/></svg>
+                                        <span>Swap</span>
+                                    </button>
                                 </div>
                             </div>
                         <?php endforeach; ?>
@@ -2687,21 +3199,21 @@ $stFat   = $calcMacroStatus($loggedFat, $targetFat, 'fat');
                             </div>
                             <div>
                                 <div style="font-size: 0.85rem; color: var(--muted); text-transform: uppercase; letter-spacing: 1px;">Daily Total Calories</div>
-                                <div style="font-size: 1.4rem; font-weight: bold; color: var(--lime);"><?= $dayCals ?> kcal</div>
+                                <div style="font-size: 1.4rem; font-weight: bold; color: var(--lime);"><span id="day-total-cals-<?= $dayNum ?>"><?= $dayCals ?></span> kcal</div>
                             </div>
                         </div>
                         <div style="display: flex; gap: 24px; font-size: 1rem;">
                             <div style="display: flex; flex-direction: column; align-items: flex-end;">
                                 <span style="font-size: 0.8rem; color: var(--muted); text-transform: uppercase;">Protein</span>
-                                <strong><?= $dayPro ?>g</strong>
+                                <strong><span id="day-total-pro-<?= $dayNum ?>"><?= $dayPro ?></span>g</strong>
                             </div>
                             <div style="display: flex; flex-direction: column; align-items: flex-end;">
                                 <span style="font-size: 0.8rem; color: var(--muted); text-transform: uppercase;">Carbs</span>
-                                <strong><?= $dayCarbs ?>g</strong>
+                                <strong><span id="day-total-carbs-<?= $dayNum ?>"><?= $dayCarbs ?></span>g</strong>
                             </div>
                             <div style="display: flex; flex-direction: column; align-items: flex-end;">
                                 <span style="font-size: 0.8rem; color: var(--muted); text-transform: uppercase;">Fat</span>
-                                <strong><?= $dayFat ?>g</strong>
+                                <strong><span id="day-total-fat-<?= $dayNum ?>"><?= $dayFat ?></span>g</strong>
                             </div>
                         </div>
                     </div>
@@ -2712,6 +3224,160 @@ $stFat   = $calcMacroStatus($loggedFat, $targetFat, 'fat');
 </div>
 </div> <!-- Close #view-meal-plan -->
 
+<!-- ==================================================== -->
+<!-- MODAL: INGREDIENT & MICRONUTRIENT INSPECTION         -->
+<!-- ==================================================== -->
+<div id="modal-inspect-meal" class="ft-modal-overlay" style="display:none;" onclick="if(event.target===this)closeInspectModal()">
+    <div class="ft-modal-box ft-modal-wide">
+        <div class="ft-modal-header">
+            <div>
+                <h3 class="ft-modal-title" id="inspect-modal-title">Meal Ingredient Breakdown</h3>
+                <p class="ft-modal-subtitle" id="inspect-modal-subtitle">Itemized ingredients & micronutrients via CalorieNinjas</p>
+            </div>
+            <button type="button" class="ft-modal-close" onclick="closeInspectModal()" aria-label="Close modal">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+            </button>
+        </div>
+
+        <div class="ft-modal-body">
+            <!-- Planned Meal Header Bar -->
+            <div class="inspect-meal-summary">
+                <div class="inspect-meal-name" id="inspect-meal-name">Loading meal...</div>
+                <div class="inspect-macro-chips">
+                    <span class="inspect-chip chip-cals" id="inspect-chip-cals">0 kcal</span>
+                    <span class="inspect-chip chip-pro" id="inspect-chip-pro">0g P</span>
+                    <span class="inspect-chip chip-carbs" id="inspect-chip-carbs">0g C</span>
+                    <span class="inspect-chip chip-fat" id="inspect-chip-fat">0g F</span>
+                </div>
+            </div>
+
+            <!-- Loading spinner -->
+            <div id="inspect-loading" style="display:none; padding:35px 20px; text-align:center;">
+                <div class="ft-spinner"></div>
+                <p style="margin-top:14px; color:var(--muted); font-size:13px;">Analyzing ingredient proportions & micronutrients...</p>
+            </div>
+
+            <!-- Content Body -->
+            <div id="inspect-content" style="display:none;">
+                <div style="font-size: 11.5px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 10px;">
+                    Itemized Ingredients & Macronutrients
+                </div>
+                <div class="inspect-items-wrap" id="inspect-items-container"></div>
+                
+                <!-- Micronutrient Highlights Banner -->
+                <div id="inspect-micro-banner" class="inspect-micro-banner" style="display:none; margin-top: 14px;"></div>
+            </div>
+
+            <!-- Fallback/Notice -->
+            <div id="inspect-fallback" style="display:none; padding:22px; text-align:center; background:var(--bg); border-radius:10px; border:1px dashed var(--line); margin:15px 0;">
+                <p style="margin:0 0 6px 0; color:var(--ink); font-weight:700; font-size: 14px;" id="inspect-fallback-title">Planned Meal Targets</p>
+                <p style="margin:0; color:var(--muted); font-size:12.5px;" id="inspect-fallback-msg">Detailed ingredient breakdown is being mapped from your assigned nutrition plan.</p>
+            </div>
+        </div>
+
+        <!-- Modal Actions Footer -->
+        <div class="ft-modal-footer">
+            <button type="button" class="btn-cancel" onclick="closeInspectModal()">Close</button>
+            <button type="button" id="btn-inspect-quick-log" class="btn-primary-action" onclick="quickLogFromInspection()">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                <span>+ Log This Meal to Today</span>
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- ==================================================== -->
+<!-- MODAL: SWAP MEAL                                     -->
+<!-- ==================================================== -->
+<div id="modal-swap-meal" class="ft-modal-overlay" style="display:none;" onclick="if(event.target===this)closeSwapModal()">
+    <div class="ft-modal-box ft-modal-wide">
+        <div class="ft-modal-header">
+            <div>
+                <h3 class="ft-modal-title" id="swap-modal-title">Swap Meal</h3>
+                <p class="ft-modal-subtitle" id="swap-modal-subtitle">Choose a healthy alternative tailored to your dietary goals</p>
+            </div>
+            <button type="button" class="ft-modal-close" onclick="closeSwapModal()" aria-label="Close modal">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+            </button>
+        </div>
+
+        <div class="ft-modal-body">
+            <!-- Current Meal Reference Banner -->
+            <div class="swap-current-ref">
+                <span class="swap-current-badge">CURRENT SELECTION</span>
+                <div class="swap-current-food" id="swap-current-food">Loading current meal...</div>
+                <div class="swap-current-macros" id="swap-current-macros"></div>
+            </div>
+
+            <!-- Tab Controls: Curated Options vs Custom Search -->
+            <div class="swap-tabs-bar">
+                <button type="button" id="tab-swap-curated" class="swap-tab-btn active" onclick="switchSwapTab('curated')">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+                    <span>Healthy Recipes</span>
+                </button>
+                <button type="button" id="tab-swap-custom" class="swap-tab-btn" onclick="switchSwapTab('custom')">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                    <span>Custom Meal Search</span>
+                </button>
+            </div>
+
+            <!-- Curated Recipes Panel -->
+            <div id="swap-panel-curated" class="swap-panel">
+                <!-- Filter Pills -->
+                <div class="swap-filters-row">
+                    <button type="button" class="swap-filter-pill active" onclick="filterSwapRecipes('all', this)">All Alternatives</button>
+                    <button type="button" class="swap-filter-pill" onclick="filterSwapRecipes('diet', this)" id="pill-filter-diet">Matched to My Diet</button>
+                    <button type="button" class="swap-filter-pill" onclick="filterSwapRecipes('high-protein', this)">High Protein</button>
+                </div>
+
+                <!-- Loading spinner -->
+                <div id="swap-loading" style="display:none; padding:35px 20px; text-align:center;">
+                    <div class="ft-spinner"></div>
+                    <p style="margin-top:14px; color:var(--muted); font-size:13px;">Finding balanced recipe alternatives...</p>
+                </div>
+
+                <!-- Recipe Grid -->
+                <div id="swap-recipes-grid" class="swap-recipes-grid"></div>
+            </div>
+
+            <!-- Custom Search Panel -->
+            <div id="swap-panel-custom" class="swap-panel" style="display:none;">
+                <p style="margin:0 0 12px 0; font-size:13px; color:var(--muted); line-height:1.5;">
+                    Type your custom meal or ingredients. Our nutrition engine calculates exact calories and macros on the fly:
+                </p>
+                <div class="swap-custom-input-row">
+                    <input type="text" id="swap-custom-input" class="swap-custom-field" placeholder="e.g. 200g grilled salmon, 1 cup quinoa, steamed broccoli" autocomplete="off" onkeydown="if(event.key==='Enter'){event.preventDefault();calculateCustomSwap();}">
+                    <button type="button" id="btn-calc-custom-swap" class="btn-calc-custom" onclick="calculateCustomSwap()">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+                        <span id="btn-calc-custom-text">Calculate</span>
+                    </button>
+                </div>
+
+                <div id="swap-custom-loading" style="display:none; padding:20px; text-align:center;">
+                    <div class="ft-spinner" style="width:20px; height:20px;"></div>
+                    <span style="font-size:12px; color:var(--muted); display:inline-block; margin-top:8px;">Calculating nutrition breakdown...</span>
+                </div>
+
+                <div id="swap-custom-result" style="display:none; margin-top:14px;" class="swap-custom-card">
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; flex-wrap:wrap; gap:6px;">
+                        <strong style="color:var(--ink); font-size:13.5px;" id="swap-custom-name">Custom Meal</strong>
+                        <span id="swap-custom-cals" style="color:var(--lime); font-weight:800; font-size:14px;">0 kcal</span>
+                    </div>
+                    <div id="swap-custom-macros-row" style="display:flex; gap:10px; font-size:12px; color:var(--muted); margin-bottom:14px; background:var(--bg); padding:8px 12px; border-radius:6px; border:1px solid var(--line);"></div>
+                    <button type="button" id="btn-apply-custom-swap" class="btn-primary-action" style="width:100%; justify-content:center;" onclick="applyCustomSwap()">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                        <span>Confirm & Swap to this Meal</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <div class="ft-modal-footer">
+            <button type="button" class="btn-cancel" onclick="closeSwapModal()">Cancel</button>
+        </div>
+    </div>
+</div>
+
 <style>
 @keyframes fadeIn {
     from { opacity: 0; transform: translateY(5px); }
@@ -2720,24 +3386,657 @@ $stFat   = $calcMacroStatus($loggedFat, $targetFat, 'fat');
 .diet-tab-btn:hover {
     background: rgba(255,255,255,0.05) !important;
 }
+
+/* ==================================================== */
+/* MEAL CARD ACTION BUTTONS                             */
+/* ==================================================== */
+.meal-card-actions {
+    display: flex;
+    gap: 8px;
+    margin-top: 14px;
+    padding-top: 12px;
+    border-top: 1px solid color-mix(in srgb, var(--line) 70%, transparent);
+    flex-wrap: wrap;
+}
+.meal-action-btn {
+    flex: 1 1 auto;
+    min-width: 78px;
+    padding: 7px 10px;
+    font-size: 11.5px;
+    font-weight: 700;
+    border-radius: 8px;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+    transition: all 0.2s ease;
+    white-space: nowrap;
+    text-decoration: none;
+}
+.meal-action-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+.btn-log-meal {
+    background: color-mix(in srgb, var(--lime) 15%, transparent);
+    color: var(--lime);
+    border: 1px solid color-mix(in srgb, var(--lime) 35%, transparent);
+}
+.btn-log-meal:hover:not(:disabled):not(.logged-completed) {
+    background: var(--lime);
+    color: var(--bg);
+    box-shadow: 0 4px 14px color-mix(in srgb, var(--lime) 30%, transparent);
+}
+.btn-log-meal.logged-completed {
+    background: color-mix(in srgb, #22c55e 14%, transparent) !important;
+    color: #22c55e !important;
+    border: 1px solid color-mix(in srgb, #22c55e 35%, transparent) !important;
+    cursor: pointer !important;
+    opacity: 0.95;
+}
+.btn-log-meal.logged-completed:hover {
+    background: color-mix(in srgb, #22c55e 22%, transparent) !important;
+}
+.btn-log-meal.btn-view-only {
+    background: color-mix(in srgb, var(--surface) 50%, var(--bg)) !important;
+    color: var(--muted) !important;
+    border: 1px solid var(--line) !important;
+    cursor: not-allowed !important;
+    opacity: 0.65;
+}
+
+/* Dynamic Meal Card States & Status Pills */
+.meal-logged-check {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 19px;
+    height: 19px;
+    border-radius: 50%;
+    background: #22c55e;
+    color: #ffffff;
+    font-size: 11px;
+    font-weight: 800;
+    line-height: 1;
+    box-shadow: 0 0 8px rgba(34, 197, 94, 0.4);
+}
+
+.meal-status-pill-wrap {
+    display: flex;
+    align-items: center;
+}
+
+.meal-status-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11.5px;
+    font-weight: 600;
+    padding: 3px 10px;
+    border-radius: 20px;
+    line-height: 1.4;
+    transition: all 0.25s ease;
+}
+
+.meal-status-pill.pill-logged {
+    background: color-mix(in srgb, #22c55e 14%, transparent);
+    color: #22c55e;
+    border: 1px solid color-mix(in srgb, #22c55e 30%, transparent);
+}
+
+.meal-status-pill.pill-unlogged {
+    background: color-mix(in srgb, var(--ink) 5%, transparent);
+    color: var(--muted);
+    border: 1px solid color-mix(in srgb, var(--line) 70%, transparent);
+}
+
+.meal-status-pill.pill-scheduled {
+    background: color-mix(in srgb, var(--ink) 4%, transparent);
+    color: var(--muted);
+    border: 1px dashed color-mix(in srgb, var(--line) 80%, transparent);
+    opacity: 0.85;
+}
+
+.meal-status-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--muted);
+    opacity: 0.7;
+}
+.btn-inspect-meal {
+    background: color-mix(in srgb, var(--surface) 60%, var(--bg));
+    color: var(--ink);
+    border: 1px solid var(--line);
+}
+.btn-inspect-meal:hover:not(:disabled) {
+    border-color: var(--lime);
+    color: var(--lime);
+}
+.btn-swap-meal {
+    background: color-mix(in srgb, var(--surface) 60%, var(--bg));
+    color: var(--ink);
+    border: 1px solid var(--line);
+}
+.btn-swap-meal:hover:not(:disabled) {
+    border-color: #38bdf8;
+    color: #38bdf8;
+}
+
+/* ==================================================== */
+/* MODAL SYSTEM STYLES                                  */
+/* ==================================================== */
+.ft-modal-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 99999;
+    background: rgba(0, 0, 0, 0.75);
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 16px;
+    animation: ftModalFadeIn 0.2s ease;
+}
+@keyframes ftModalFadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+.ft-modal-box {
+    background: var(--panel-bg, #121721);
+    color: var(--ink);
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    width: 100%;
+    max-width: 660px;
+    max-height: 88vh;
+    display: flex;
+    flex-direction: column;
+    box-shadow: 0 24px 60px rgba(0,0,0,0.6);
+    overflow: hidden;
+    animation: ftModalSlideUp 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+@keyframes ftModalSlideUp {
+    from { opacity: 0; transform: translateY(14px) scale(0.98); }
+    to { opacity: 1; transform: translateY(0) scale(1); }
+}
+.ft-modal-header {
+    padding: 18px 22px;
+    border-bottom: 1px solid var(--line);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-shrink: 0;
+}
+.ft-modal-title {
+    margin: 0;
+    font-size: 1.15rem;
+    font-weight: 800;
+    color: var(--ink);
+}
+.ft-modal-subtitle {
+    margin: 3px 0 0 0;
+    font-size: 12px;
+    color: var(--muted);
+}
+.ft-modal-close {
+    background: transparent;
+    border: none;
+    color: var(--muted);
+    cursor: pointer;
+    padding: 6px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s ease;
+}
+.ft-modal-close:hover {
+    background: rgba(255,255,255,0.08);
+    color: var(--ink);
+}
+.ft-modal-body {
+    padding: 20px 22px;
+    overflow-y: auto;
+    flex: 1 1 auto;
+}
+.ft-modal-footer {
+    padding: 14px 22px;
+    border-top: 1px solid var(--line);
+    display: flex;
+    justify-content: flex-end;
+    align-items: center;
+    gap: 10px;
+    flex-shrink: 0;
+    background: color-mix(in srgb, var(--bg) 40%, var(--panel-bg, #121721));
+}
+.btn-cancel {
+    background: transparent;
+    color: var(--muted);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 8px 16px;
+    font-weight: 600;
+    font-size: 13px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+.btn-cancel:hover {
+    color: var(--ink);
+    border-color: var(--muted);
+}
+.btn-primary-action {
+    background: var(--lime);
+    color: var(--bg);
+    border: none;
+    border-radius: 8px;
+    padding: 8px 18px;
+    font-weight: 800;
+    font-size: 13px;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    transition: all 0.2s ease;
+}
+.btn-primary-action:hover {
+    opacity: 0.92;
+    box-shadow: 0 4px 14px color-mix(in srgb, var(--lime) 35%, transparent);
+}
+.ft-spinner {
+    width: 26px;
+    height: 26px;
+    border: 3px solid var(--line);
+    border-top-color: var(--lime);
+    border-radius: 50%;
+    margin: 0 auto;
+    animation: ftSpin 0.7s linear infinite;
+}
+@keyframes ftSpin {
+    to { transform: rotate(360deg); }
+}
+
+/* ==================================================== */
+/* INSPECTION MODAL SPECIFICS                           */
+/* ==================================================== */
+.inspect-meal-summary {
+    background: color-mix(in srgb, var(--surface) 70%, var(--bg));
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 14px 16px;
+    margin-bottom: 16px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+.inspect-meal-name {
+    font-size: 14.5px;
+    font-weight: 700;
+    color: var(--ink);
+    max-width: 340px;
+}
+.inspect-macro-chips {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+}
+.inspect-chip {
+    font-size: 11px;
+    font-weight: 700;
+    padding: 3px 8px;
+    border-radius: 12px;
+    border: 1px solid transparent;
+}
+.chip-cals {
+    background: color-mix(in srgb, var(--lime) 18%, transparent);
+    color: var(--lime);
+    border-color: color-mix(in srgb, var(--lime) 30%, transparent);
+}
+.chip-pro {
+    background: color-mix(in srgb, #38bdf8 18%, transparent);
+    color: #38bdf8;
+    border-color: color-mix(in srgb, #38bdf8 30%, transparent);
+}
+.chip-carbs {
+    background: color-mix(in srgb, #fbbf24 18%, transparent);
+    color: #fbbf24;
+    border-color: color-mix(in srgb, #fbbf24 30%, transparent);
+}
+.chip-fat {
+    background: color-mix(in srgb, #f43f5e 18%, transparent);
+    color: #f43f5e;
+    border-color: color-mix(in srgb, #f43f5e 30%, transparent);
+}
+
+.inspect-items-wrap {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+.inspect-item-row {
+    background: var(--bg);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 10px 14px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+.inspect-item-left {
+    display: flex;
+    flex-direction: column;
+}
+.inspect-item-title {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--ink);
+}
+.inspect-item-portion {
+    font-size: 11px;
+    color: var(--muted);
+}
+.inspect-item-macros {
+    display: flex;
+    gap: 8px;
+    font-size: 11px;
+}
+.inspect-micro-banner {
+    background: color-mix(in srgb, var(--surface) 40%, var(--bg));
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 10px 14px;
+    display: flex;
+    justify-content: space-around;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+.inspect-micro-stat {
+    text-align: center;
+}
+.inspect-micro-stat-label {
+    font-size: 10px;
+    text-transform: uppercase;
+    color: var(--muted);
+    font-weight: 700;
+    display: block;
+}
+.inspect-micro-stat-val {
+    font-size: 12.5px;
+    font-weight: 800;
+    color: var(--ink);
+}
+
+/* ==================================================== */
+/* SWAP MODAL SPECIFICS                                 */
+/* ==================================================== */
+.swap-current-ref {
+    background: color-mix(in srgb, var(--surface) 60%, var(--bg));
+    border: 1px solid var(--line);
+    border-left: 4px solid var(--lime);
+    border-radius: 8px;
+    padding: 12px 14px;
+    margin-bottom: 14px;
+}
+.swap-current-badge {
+    font-size: 9.5px;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--lime);
+    display: block;
+    margin-bottom: 4px;
+}
+.swap-current-food {
+    font-size: 13.5px;
+    font-weight: 700;
+    color: var(--ink);
+    margin-bottom: 4px;
+}
+.swap-current-macros {
+    font-size: 11.5px;
+    color: var(--muted);
+}
+
+.swap-tabs-bar {
+    display: flex;
+    gap: 6px;
+    margin-bottom: 14px;
+    border-bottom: 1px solid var(--line);
+    padding-bottom: 10px;
+}
+.swap-tab-btn {
+    background: transparent;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    color: var(--muted);
+    padding: 6px 14px;
+    font-size: 12px;
+    font-weight: 700;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    transition: all 0.2s ease;
+}
+.swap-tab-btn.active {
+    background: var(--surface);
+    color: var(--lime);
+    border-color: var(--lime);
+}
+
+.swap-filters-row {
+    display: flex;
+    gap: 6px;
+    margin-bottom: 12px;
+    flex-wrap: wrap;
+}
+.swap-filter-pill {
+    background: transparent;
+    border: 1px solid var(--line);
+    border-radius: 20px;
+    color: var(--muted);
+    padding: 4px 12px;
+    font-size: 11px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+.swap-filter-pill.active {
+    background: color-mix(in srgb, var(--lime) 15%, transparent);
+    color: var(--lime);
+    border-color: var(--lime);
+}
+
+.swap-recipes-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    max-height: 380px;
+    overflow-y: auto;
+    padding-right: 4px;
+}
+.swap-recipe-card {
+    background: var(--bg);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 12px 14px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    transition: all 0.2s ease;
+}
+.swap-recipe-card:hover {
+    border-color: color-mix(in srgb, var(--lime) 50%, transparent);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 16px rgba(0,0,0,0.2);
+}
+.swap-recipe-info {
+    flex: 1 1 auto;
+}
+.swap-recipe-title {
+    font-size: 13.5px;
+    font-weight: 700;
+    color: var(--ink);
+    margin-bottom: 4px;
+}
+.swap-recipe-tags {
+    display: flex;
+    gap: 5px;
+    flex-wrap: wrap;
+    margin-bottom: 6px;
+}
+.swap-tag {
+    font-size: 10px;
+    padding: 2px 6px;
+    border-radius: 4px;
+    background: color-mix(in srgb, var(--surface) 60%, var(--bg));
+    color: var(--muted);
+    border: 1px solid var(--line);
+}
+.swap-tag.tag-diet {
+    background: color-mix(in srgb, var(--lime) 15%, transparent);
+    color: var(--lime);
+    border-color: color-mix(in srgb, var(--lime) 30%, transparent);
+    font-weight: 700;
+}
+.swap-recipe-macros {
+    display: flex;
+    gap: 10px;
+    font-size: 11px;
+    color: var(--muted);
+}
+.swap-recipe-macros strong {
+    color: var(--ink);
+}
+.btn-select-swap {
+    background: color-mix(in srgb, var(--lime) 15%, transparent);
+    color: var(--lime);
+    border: 1px solid color-mix(in srgb, var(--lime) 35%, transparent);
+    border-radius: 8px;
+    padding: 8px 14px;
+    font-size: 11.5px;
+    font-weight: 800;
+    cursor: pointer;
+    white-space: nowrap;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    transition: all 0.2s ease;
+    flex-shrink: 0;
+}
+.btn-select-swap:hover {
+    background: var(--lime);
+    color: var(--bg);
+    box-shadow: 0 4px 12px color-mix(in srgb, var(--lime) 30%, transparent);
+}
+
+.swap-custom-input-row {
+    display: flex;
+    gap: 8px;
+}
+.swap-custom-field {
+    flex: 1 1 auto;
+    background: var(--bg);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 10px 14px;
+    color: var(--ink);
+    font-size: 13px;
+    outline: none;
+    transition: border-color 0.2s ease;
+}
+.swap-custom-field:focus {
+    border-color: var(--lime);
+}
+.btn-calc-custom {
+    background: var(--surface);
+    color: var(--lime);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 10px 16px;
+    font-size: 12.5px;
+    font-weight: 700;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    white-space: nowrap;
+    transition: all 0.2s ease;
+}
+.btn-calc-custom:hover {
+    border-color: var(--lime);
+    background: color-mix(in srgb, var(--lime) 10%, transparent);
+}
+.swap-custom-card {
+    background: color-mix(in srgb, var(--surface) 60%, var(--bg));
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 14px;
+}
+
+/* ==================================================== */
+/* MOBILE RESPONSIVENESS (<= 640px)                     */
+/* ==================================================== */
+@media (max-width: 640px) {
+    .meal-card-actions {
+        display: grid;
+        grid-template-columns: 1fr 1fr 1fr;
+        gap: 6px;
+    }
+    .meal-action-btn {
+        padding: 7px 4px;
+        font-size: 10.5px;
+        min-width: 0;
+    }
+    .ft-modal-box {
+        max-height: 94vh;
+        border-radius: 12px;
+    }
+    .ft-modal-header, .ft-modal-body, .ft-modal-footer {
+        padding-left: 16px;
+        padding-right: 16px;
+    }
+    .swap-recipe-card {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+    .btn-select-swap {
+        width: 100%;
+        justify-content: center;
+        margin-top: 6px;
+    }
+}
 </style>
 
 <script>
+const FT_CSRF_TOKEN = <?= json_encode(csrf_token()) ?>;
+
+// State management for modals
+let currentInspectingMeal = null;
+let currentSwappingMeal = null;
+let swapOptionsData = [];
+let activeSwapFilter = 'all';
+let calculatedCustomMealData = null;
+
+// Switch weekly meal plan day tab
 function switchDietTab(dayNum) {
-    // Hide all contents
     document.querySelectorAll('.diet-tab-content').forEach(el => el.style.display = 'none');
-    // Reset all buttons
     document.querySelectorAll('.diet-tab-btn').forEach(btn => {
         btn.style.color = 'var(--muted)';
         btn.style.fontWeight = '500';
         btn.style.borderBottomColor = 'transparent';
     });
     
-    // Show selected content
     const targetContent = document.getElementById('diet-tab-' + dayNum);
     if (targetContent) targetContent.style.display = 'block';
     
-    // Highlight selected button
     const activeBtn = document.querySelector('.diet-tab-btn:nth-child(' + dayNum + ')');
     if (activeBtn) {
         activeBtn.style.color = 'var(--lime)';
@@ -2766,6 +4065,800 @@ function switchDietView(view) {
         if (viewPlan) viewPlan.style.display = 'none';
         try { localStorage.setItem('fittracks_diet_active_tab', 'tracker'); } catch (e) {}
     }
+}
+
+// ----------------------------------------------------
+// FEATURE 1: ONE-CLICK QUICK LOG PLANNED MEAL (WITH GUARD RAILS)
+// ----------------------------------------------------
+function normalizeMealType(rawType) {
+    let t = (rawType || 'Meal').trim();
+    if (t.toLowerCase().includes('snack')) return 'Snack';
+    return t.charAt(0).toUpperCase() + t.slice(1).toLowerCase();
+}
+
+function handleAlreadyLoggedClick(mealType, timeStr) {
+    const timeTxt = timeStr ? ` at <strong>${timeStr}</strong>` : ' earlier today';
+    Swal.fire({
+        icon: 'info',
+        title: `${mealType} already logged today`,
+        html: `<p style="margin:0 0 10px 0; font-size:14px; color:var(--ink);">${mealType} was recorded${timeTxt}.</p><p style="margin:0; font-size:13px; color:var(--muted);">You can log ${mealType.toLowerCase()} again tomorrow.</p>`,
+        background: getComputedStyle(document.documentElement).getPropertyValue('--bg').trim() || '#121721',
+        color: getComputedStyle(document.documentElement).getPropertyValue('--ink').trim() || '#ffffff',
+        confirmButtonColor: 'var(--lime, #c7ff22)',
+        confirmButtonText: 'Understood'
+    });
+}
+
+function markMealAsLoggedUI(mealId, normType, timeStr) {
+    const timeDisplay = timeStr || 'Today';
+    
+    // Update all cards matching this meal type for today
+    const cards = document.querySelectorAll(`.meal-card[data-day="${window.FT_CURRENT_DAY_NUM}"]`);
+    cards.forEach(c => {
+        const cType = normalizeMealType(c.dataset.type);
+        if (cType === normType) {
+            const mId = c.dataset.mealId;
+            const cBtn = c.querySelector('.btn-log-meal');
+            if (cBtn) {
+                cBtn.disabled = false; // keep accessible so clicking displays the gentle "already logged" message
+                cBtn.className = 'meal-action-btn btn-log-meal logged-completed';
+                cBtn.innerHTML = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg> <span>Logged ✓</span>`;
+                cBtn.title = `${normType} already logged today at ${timeDisplay}. Click for details.`;
+                cBtn.onclick = function() { handleAlreadyLoggedClick(normType, timeDisplay); };
+            }
+            const checkEl = document.getElementById('meal-check-' + mId);
+            if (checkEl) checkEl.style.display = 'inline-flex';
+
+            const statusEl = document.getElementById('meal-status-pill-' + mId);
+            if (statusEl) {
+                statusEl.className = 'meal-status-pill pill-logged';
+                statusEl.innerHTML = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg> <span class="status-txt">Logged today at ${timeDisplay}</span>`;
+            }
+        }
+    });
+
+    // Also update inspection modal button if open
+    const inspectBtn = document.getElementById('btn-inspect-quick-log');
+    if (inspectBtn && currentInspectingMeal && normalizeMealType(currentInspectingMeal.type) === normType) {
+        inspectBtn.disabled = false;
+        inspectBtn.style.opacity = '0.9';
+        inspectBtn.style.cursor = 'pointer';
+        inspectBtn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg> <span>${normType} Already Logged Today</span>`;
+        inspectBtn.onclick = function() {
+            closeInspectModal();
+            handleAlreadyLoggedClick(normType, timeDisplay);
+        };
+    }
+}
+
+function resetTodayMealCardsUI() {
+    window.FT_LOGGED_MEALS_TODAY = {};
+    const cards = document.querySelectorAll(`.meal-card[data-day="${window.FT_CURRENT_DAY_NUM}"]`);
+    cards.forEach(c => {
+        const mId = c.dataset.mealId;
+        const normType = normalizeMealType(c.dataset.type);
+        const cBtn = c.querySelector('.btn-log-meal');
+        if (cBtn) {
+            cBtn.disabled = false;
+            cBtn.className = 'meal-action-btn btn-log-meal';
+            cBtn.innerHTML = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg> <span>+ Log Meal</span>`;
+            cBtn.title = `Log your ${normType.toLowerCase()} to track your daily nutrition`;
+            cBtn.onclick = function() { quickLogPlannedMeal(parseInt(mId, 10)); };
+        }
+        const checkEl = document.getElementById('meal-check-' + mId);
+        if (checkEl) checkEl.style.display = 'none';
+
+        const statusEl = document.getElementById('meal-status-pill-' + mId);
+        if (statusEl) {
+            statusEl.className = 'meal-status-pill pill-unlogged';
+            statusEl.innerHTML = `<span class="meal-status-dot"></span> <span class="status-txt">No meal logged yet</span>`;
+        }
+    });
+}
+
+async function quickLogPlannedMeal(mealId) {
+    const card = document.getElementById('meal-card-' + mealId);
+    if (!card) return;
+
+    if (card._isLogging) return; // Prevent double clicks
+
+    const rawType = card.dataset.type || 'Meal';
+    const normType = normalizeMealType(rawType);
+    const dayNum = parseInt(card.dataset.day || 0, 10);
+    const cals = parseFloat(card.dataset.cals || 0);
+    const pro = parseFloat(card.dataset.pro || 0);
+    const carbs = parseFloat(card.dataset.carbs || 0);
+    const fat = parseFloat(card.dataset.fat || 0);
+
+    // Guard 1: Only today can be logged
+    if (dayNum !== window.FT_CURRENT_DAY_NUM) {
+        Swal.fire({
+            icon: 'info',
+            title: 'Only Today\'s Meals Can Be Logged',
+            text: 'This meal is scheduled for another day. Daily meal logging is restricted to today only.',
+            background: getComputedStyle(document.documentElement).getPropertyValue('--bg').trim() || '#121721',
+            color: getComputedStyle(document.documentElement).getPropertyValue('--ink').trim() || '#ffffff',
+            confirmButtonColor: 'var(--lime, #c7ff22)',
+            confirmButtonText: 'Understood'
+        });
+        return;
+    }
+
+    // Guard 2: Already logged today
+    if (window.FT_LOGGED_MEALS_TODAY && window.FT_LOGGED_MEALS_TODAY[normType]) {
+        handleAlreadyLoggedClick(normType, window.FT_LOGGED_MEALS_TODAY[normType].time);
+        return;
+    }
+
+    const btn = card.querySelector('.btn-log-meal');
+    const originalHtml = btn ? btn.innerHTML : '';
+    if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = `<span class="ft-spinner" style="width:12px; height:12px; border-width:2px; display:inline-block;"></span> <span>Saving...</span>`;
+    }
+    card._isLogging = true;
+
+    try {
+        const body = new URLSearchParams({
+            mode: 'add',
+            meal_id: mealId.toString(),
+            day_of_week: dayNum.toString(),
+            meal_type: normType,
+            calories: cals.toString(),
+            protein_g: pro.toString(),
+            carbs_g: carbs.toString(),
+            fat_g: fat.toString(),
+            csrf_token: FT_CSRF_TOKEN
+        });
+
+        const res = await fetch('index.php?page=log_macros', {
+            method: 'POST',
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest',
+                'Content-Type': 'application/x-www-form-urlencoded'
+            },
+            body: body.toString()
+        });
+
+        const data = await res.json();
+        card._isLogging = false;
+
+        if (data && data.already_logged) {
+            // Already logged (duplicate prevented by backend/DB)
+            const logTime = data.logged_time || 'earlier today';
+            if (!window.FT_LOGGED_MEALS_TODAY) window.FT_LOGGED_MEALS_TODAY = {};
+            window.FT_LOGGED_MEALS_TODAY[normType] = { time: logTime, meal_id: mealId };
+            markMealAsLoggedUI(mealId, normType, logTime);
+            handleAlreadyLoggedClick(normType, logTime);
+            return;
+        }
+
+        if (data && data.can_log_today_only) {
+            if (btn) {
+                btn.disabled = false;
+                btn.innerHTML = originalHtml;
+            }
+            Swal.fire({
+                icon: 'info',
+                title: 'Today Only',
+                text: data.error || 'Only meals for today can be logged.',
+                background: getComputedStyle(document.documentElement).getPropertyValue('--bg').trim() || '#121721',
+                color: getComputedStyle(document.documentElement).getPropertyValue('--ink').trim() || '#ffffff',
+                confirmButtonColor: 'var(--lime, #c7ff22)',
+            });
+            return;
+        }
+
+        if (data && data.success) {
+            const loggedTime = data.logged_time || new Date().toLocaleTimeString([], {hour: 'numeric', minute: '2-digit'});
+            if (!window.FT_LOGGED_MEALS_TODAY) window.FT_LOGGED_MEALS_TODAY = {};
+            window.FT_LOGGED_MEALS_TODAY[normType] = { time: loggedTime, meal_id: mealId };
+
+            // Apply live UI updates to the meal cards immediately
+            markMealAsLoggedUI(mealId, normType, loggedTime);
+
+            // Apply live update to Today's Macro Tracker DOM
+            if (typeof window.applyMacroLogResultToUI === 'function') {
+                window.applyMacroLogResultToUI(data, false);
+            }
+
+            // Toast feedback with subtle notification
+            Swal.fire({
+                toast: true,
+                position: 'top-end',
+                icon: 'success',
+                title: `${normType} Logged!`,
+                html: `${normType} logged today at ${loggedTime}.<br><strong>+${cals} kcal</strong> (${pro}g P • ${carbs}g C • ${fat}g F) added.`,
+                showConfirmButton: true,
+                confirmButtonText: 'View Tracker',
+                confirmButtonColor: 'var(--lime, #c7ff22)',
+                showCancelButton: false,
+                timer: 4000,
+                timerProgressBar: true,
+                background: getComputedStyle(document.documentElement).getPropertyValue('--bg').trim() || '#121721',
+                color: getComputedStyle(document.documentElement).getPropertyValue('--ink').trim() || '#ffffff',
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    switchDietView('tracker');
+                }
+            });
+        } else {
+            throw new Error(data.error || 'Failed to log meal');
+        }
+    } catch (err) {
+        console.error(err);
+        card._isLogging = false;
+        if (btn) {
+            btn.innerHTML = originalHtml;
+            btn.disabled = false;
+        }
+        Swal.fire({
+            icon: 'error',
+            title: 'Unable to Log Meal',
+            text: err.message || 'Could not record meal to daily macros.',
+            background: getComputedStyle(document.documentElement).getPropertyValue('--bg').trim() || '#121721',
+            color: getComputedStyle(document.documentElement).getPropertyValue('--ink').trim() || '#ffffff',
+            confirmButtonColor: 'var(--lime, #c7ff22)',
+        });
+    }
+}
+
+// ----------------------------------------------------
+// FEATURE 1: INGREDIENT & MICRONUTRIENT INSPECTION
+// ----------------------------------------------------
+async function inspectPlannedMeal(mealId) {
+    const card = document.getElementById('meal-card-' + mealId);
+    if (!card) return;
+
+    currentInspectingMeal = {
+        mealId: mealId,
+        type: card.dataset.type || 'Meal',
+        food: card.dataset.food || '',
+        cals: parseFloat(card.dataset.cals || 0),
+        pro: parseFloat(card.dataset.pro || 0),
+        carbs: parseFloat(card.dataset.carbs || 0),
+        fat: parseFloat(card.dataset.fat || 0)
+    };
+
+    const modal = document.getElementById('modal-inspect-meal');
+    const title = document.getElementById('inspect-modal-title');
+    const subtitle = document.getElementById('inspect-modal-subtitle');
+    const nameEl = document.getElementById('inspect-meal-name');
+    const chipCals = document.getElementById('inspect-chip-cals');
+    const chipPro = document.getElementById('inspect-chip-pro');
+    const chipCarbs = document.getElementById('inspect-chip-carbs');
+    const chipFat = document.getElementById('inspect-chip-fat');
+    const loadingEl = document.getElementById('inspect-loading');
+    const contentEl = document.getElementById('inspect-content');
+    const fallbackEl = document.getElementById('inspect-fallback');
+    const itemsCont = document.getElementById('inspect-items-container');
+    const microBanner = document.getElementById('inspect-micro-banner');
+
+    title.textContent = `${currentInspectingMeal.type} Breakdown`;
+    subtitle.textContent = `Ingredient inspection & micronutrient profile`;
+    nameEl.textContent = currentInspectingMeal.food;
+    chipCals.textContent = `${currentInspectingMeal.cals} kcal`;
+    chipPro.textContent = `${currentInspectingMeal.pro}g P`;
+    chipCarbs.textContent = `${currentInspectingMeal.carbs}g C`;
+    chipFat.textContent = `${currentInspectingMeal.fat}g F`;
+
+    // Configure inspect quick log button state
+    const inspectLogBtn = document.getElementById('btn-inspect-quick-log');
+    const dayNum = parseInt(card.dataset.day || 0, 10);
+    const normType = normalizeMealType(currentInspectingMeal.type);
+
+    if (inspectLogBtn) {
+        if (dayNum !== window.FT_CURRENT_DAY_NUM) {
+            inspectLogBtn.disabled = true;
+            inspectLogBtn.style.opacity = '0.6';
+            inspectLogBtn.style.cursor = 'not-allowed';
+            inspectLogBtn.onclick = null;
+            inspectLogBtn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg> <span>View Only (Scheduled for Another Day)</span>`;
+        } else if (window.FT_LOGGED_MEALS_TODAY && window.FT_LOGGED_MEALS_TODAY[normType]) {
+            const logTime = window.FT_LOGGED_MEALS_TODAY[normType].time;
+            inspectLogBtn.disabled = false;
+            inspectLogBtn.style.opacity = '0.9';
+            inspectLogBtn.style.cursor = 'pointer';
+            inspectLogBtn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg> <span>${normType} Already Logged Today</span>`;
+            inspectLogBtn.onclick = function() {
+                closeInspectModal();
+                handleAlreadyLoggedClick(normType, logTime);
+            };
+        } else {
+            inspectLogBtn.disabled = false;
+            inspectLogBtn.style.opacity = '1';
+            inspectLogBtn.style.cursor = 'pointer';
+            inspectLogBtn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg> <span>+ Log This Meal to Today</span>`;
+            inspectLogBtn.onclick = function() { quickLogFromInspection(); };
+        }
+    }
+
+    itemsCont.innerHTML = '';
+    microBanner.style.display = 'none';
+    fallbackEl.style.display = 'none';
+    contentEl.style.display = 'none';
+    loadingEl.style.display = 'block';
+    modal.style.display = 'flex';
+
+    // Prepare clean search query (e.g., "350g of Chicken Adobo" -> "350g Chicken Adobo")
+    const cleanQuery = currentInspectingMeal.food.replace(/\b(\d+g)\s+of\s+/i, '$1 ');
+
+    try {
+        const res = await fetch('index.php?page=food_lookup&action=calorieninjas&query=' + encodeURIComponent(cleanQuery));
+        const data = await res.json();
+        loadingEl.style.display = 'none';
+
+        if (data && data.success && Array.isArray(data.items) && data.items.length > 0) {
+            contentEl.style.display = 'block';
+
+            let totFiber = 0, totSugar = 0, totSodium = 0, totPotassium = 0;
+
+            itemsCont.innerHTML = data.items.map(item => {
+                totFiber += (item.fiber_g || 0);
+                totSugar += (item.sugar_g || 0);
+                totSodium += (item.sodium_mg || 0);
+                totPotassium += (item.potassium_mg || 0);
+
+                return `
+                    <div class="inspect-item-row">
+                        <div class="inspect-item-left">
+                            <span class="inspect-item-title">${escapeHtml(item.name)}</span>
+                            <span class="inspect-item-portion">${item.serving_size_g ? Math.round(item.serving_size_g) + 'g serving' : '1 serving'}</span>
+                        </div>
+                        <div class="inspect-item-macros">
+                            <span class="inspect-chip chip-cals">${item.calories} kcal</span>
+                            <span class="inspect-chip chip-pro">${item.protein_g}g P</span>
+                            <span class="inspect-chip chip-carbs">${item.carbs_g}g C</span>
+                            <span class="inspect-chip chip-fat">${item.fat_g}g F</span>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+
+            // Micronutrient banner
+            microBanner.style.display = 'flex';
+            microBanner.innerHTML = `
+                <div class="inspect-micro-stat">
+                    <span class="inspect-micro-stat-label">Dietary Fiber</span>
+                    <span class="inspect-micro-stat-val">${totFiber.toFixed(1)}g</span>
+                </div>
+                <div class="inspect-micro-stat">
+                    <span class="inspect-micro-stat-label">Sugars</span>
+                    <span class="inspect-micro-stat-val">${totSugar.toFixed(1)}g</span>
+                </div>
+                <div class="inspect-micro-stat">
+                    <span class="inspect-micro-stat-label">Sodium</span>
+                    <span class="inspect-micro-stat-val">${Math.round(totSodium)}mg</span>
+                </div>
+                <div class="inspect-micro-stat">
+                    <span class="inspect-micro-stat-label">Potassium</span>
+                    <span class="inspect-micro-stat-val">${Math.round(totPotassium)}mg</span>
+                </div>
+            `;
+        } else {
+            // Graceful fallback to planned targets
+            fallbackEl.style.display = 'block';
+            document.getElementById('inspect-fallback-title').textContent = 'Scheduled Meal Nutrition';
+            document.getElementById('inspect-fallback-msg').textContent = `Target: ${currentInspectingMeal.cals} kcal | ${currentInspectingMeal.pro}g Protein | ${currentInspectingMeal.carbs}g Carbs | ${currentInspectingMeal.fat}g Fat`;
+        }
+    } catch (err) {
+        console.error("Inspection error:", err);
+        loadingEl.style.display = 'none';
+        fallbackEl.style.display = 'block';
+        document.getElementById('inspect-fallback-title').textContent = 'Scheduled Meal Nutrition';
+        document.getElementById('inspect-fallback-msg').textContent = `Target: ${currentInspectingMeal.cals} kcal | ${currentInspectingMeal.pro}g Protein | ${currentInspectingMeal.carbs}g Carbs | ${currentInspectingMeal.fat}g Fat`;
+    }
+}
+
+function closeInspectModal() {
+    const modal = document.getElementById('modal-inspect-meal');
+    if (modal) modal.style.display = 'none';
+    currentInspectingMeal = null;
+}
+
+function quickLogFromInspection() {
+    if (!currentInspectingMeal) return;
+    const mealId = currentInspectingMeal.mealId;
+    closeInspectModal();
+    quickLogPlannedMeal(mealId);
+}
+
+// ----------------------------------------------------
+// FEATURE 2: SWAP MEAL WITH ALTERNATIVE HEALTHY RECIPES
+// ----------------------------------------------------
+async function openSwapMealModal(mealId) {
+    const card = document.getElementById('meal-card-' + mealId);
+    if (!card) return;
+
+    currentSwappingMeal = {
+        mealId: mealId,
+        dayNum: card.dataset.day || '1',
+        type: card.dataset.type || 'Meal',
+        food: card.dataset.food || '',
+        cals: parseFloat(card.dataset.cals || 0),
+        pro: parseFloat(card.dataset.pro || 0),
+        carbs: parseFloat(card.dataset.carbs || 0),
+        fat: parseFloat(card.dataset.fat || 0)
+    };
+
+    const modal = document.getElementById('modal-swap-meal');
+    const title = document.getElementById('swap-modal-title');
+    const subtitle = document.getElementById('swap-modal-subtitle');
+    const currentFood = document.getElementById('swap-current-food');
+    const currentMacros = document.getElementById('swap-current-macros');
+    const loadingEl = document.getElementById('swap-loading');
+    const gridEl = document.getElementById('swap-recipes-grid');
+
+    title.textContent = `Swap ${currentSwappingMeal.type}`;
+    subtitle.textContent = `Choose an alternative recipe balanced around ${currentSwappingMeal.cals} kcal`;
+    currentFood.textContent = currentSwappingMeal.food;
+    currentMacros.textContent = `${currentSwappingMeal.cals} kcal • ${currentSwappingMeal.pro}g Protein • ${currentSwappingMeal.carbs}g Carbs • ${currentSwappingMeal.fat}g Fat`;
+
+    // Reset tabs
+    switchSwapTab('curated');
+    document.getElementById('swap-custom-input').value = '';
+    document.getElementById('swap-custom-result').style.display = 'none';
+    calculatedCustomMealData = null;
+
+    gridEl.innerHTML = '';
+    loadingEl.style.display = 'block';
+    modal.style.display = 'flex';
+
+    try {
+        const url = `index.php?page=diet&action=get_swap_options&meal_type=${encodeURIComponent(currentSwappingMeal.type)}&calories=${currentSwappingMeal.cals}&meal_id=${mealId}`;
+        const res = await fetch(url);
+        const data = await res.json();
+        loadingEl.style.display = 'none';
+
+        if (data && data.success && Array.isArray(data.options)) {
+            swapOptionsData = data.options;
+            
+            // Set user diet restriction on filter pill
+            const dietPill = document.getElementById('pill-filter-diet');
+            if (dietPill) {
+                const restName = data.user_restriction && data.user_restriction !== 'none'
+                    ? data.user_restriction.replace('-', ' ')
+                    : 'Balanced';
+                dietPill.textContent = `Matched: ${capitalize(restName)}`;
+            }
+
+            renderSwapRecipes();
+        } else {
+            gridEl.innerHTML = `<div style="padding:24px; text-align:center; color:var(--muted);">No alternative recipes found. You can enter a custom meal below.</div>`;
+        }
+    } catch (err) {
+        console.error("Swap options fetch error:", err);
+        loadingEl.style.display = 'none';
+        gridEl.innerHTML = `<div style="padding:24px; text-align:center; color:var(--muted);">Could not load alternatives. Please check your connection or use Custom Meal Search.</div>`;
+    }
+}
+
+function renderSwapRecipes() {
+    const gridEl = document.getElementById('swap-recipes-grid');
+    if (!gridEl) return;
+
+    let filtered = swapOptionsData;
+    if (activeSwapFilter === 'diet') {
+        filtered = swapOptionsData.filter(o => o.is_diet_match);
+    } else if (activeSwapFilter === 'high-protein') {
+        filtered = swapOptionsData.filter(o => o.protein_g >= 30 || (o.tags && o.tags.some(t => t.toLowerCase().includes('protein'))));
+    }
+
+    if (filtered.length === 0) {
+        gridEl.innerHTML = `<div style="padding:30px 10px; text-align:center; color:var(--muted); font-size:13px;">No recipes match the "${activeSwapFilter}" filter. Showing all options.</div>`;
+        setTimeout(() => { filterSwapRecipes('all', document.querySelector('.swap-filter-pill')); }, 1200);
+        return;
+    }
+
+    gridEl.innerHTML = filtered.map(opt => {
+        const tagBadges = (opt.tags || []).map(t => {
+            const isDietTag = opt.is_diet_match && t.toLowerCase().includes('diet');
+            return `<span class="swap-tag ${isDietTag ? 'tag-diet' : ''}">${escapeHtml(t)}</span>`;
+        }).join('');
+
+        const dietMatchBadge = opt.is_diet_match ? `<span class="swap-tag tag-diet">✓ Diet Match</span>` : '';
+
+        return `
+            <div class="swap-recipe-card">
+                <div class="swap-recipe-info">
+                    <div class="swap-recipe-title">${escapeHtml(opt.title)}</div>
+                    <div class="swap-recipe-tags">${dietMatchBadge}${tagBadges}</div>
+                    <div class="swap-recipe-macros">
+                        <span><strong>${opt.calories}</strong> kcal</span>
+                        <span>•</span>
+                        <span><strong>${opt.protein_g}g</strong> Protein</span>
+                        <span>•</span>
+                        <span><strong>${opt.carbs_g}g</strong> Carbs</span>
+                        <span>•</span>
+                        <span><strong>${opt.fat_g}g</strong> Fat</span>
+                        <span style="color:var(--muted); font-size:10.5px;">(${opt.grams}g portion)</span>
+                    </div>
+                </div>
+                <button type="button" class="btn-select-swap" onclick="confirmSwapRecipe('${escapeHtml(opt.food_items)}', ${opt.calories}, ${opt.protein_g}, ${opt.carbs_g}, ${opt.fat_g})">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M16 3h5v5"/><path d="M4 20L21 3"/><path d="M21 16v5h-5"/><path d="M15 15l6 6"/><path d="M4 4l5 5"/></svg>
+                    <span>Swap to This</span>
+                </button>
+            </div>
+        `;
+    }).join('');
+}
+
+function filterSwapRecipes(filter, btnEl) {
+    activeSwapFilter = filter;
+    document.querySelectorAll('.swap-filter-pill').forEach(b => b.classList.remove('active'));
+    if (btnEl) btnEl.classList.add('active');
+    renderSwapRecipes();
+}
+
+function switchSwapTab(tab) {
+    const tabCurated = document.getElementById('tab-swap-curated');
+    const tabCustom  = document.getElementById('tab-swap-custom');
+    const panelCurated = document.getElementById('swap-panel-curated');
+    const panelCustom  = document.getElementById('swap-panel-custom');
+
+    if (tab === 'custom') {
+        tabCustom.classList.add('active');
+        tabCurated.classList.remove('active');
+        panelCustom.style.display = 'block';
+        panelCurated.style.display = 'none';
+    } else {
+        tabCurated.classList.add('active');
+        tabCustom.classList.remove('active');
+        panelCurated.style.display = 'block';
+        panelCustom.style.display = 'none';
+    }
+}
+
+// Custom Search calculation via CalorieNinjas
+async function calculateCustomSwap() {
+    const input = document.getElementById('swap-custom-input');
+    const query = input ? input.value.trim() : '';
+    if (!query) {
+        Swal.fire({
+            icon: 'warning',
+            title: 'Enter Meal Description',
+            text: 'Please enter a food item or ingredients (e.g., 200g chicken breast, 1 cup brown rice).',
+            background: getComputedStyle(document.documentElement).getPropertyValue('--bg').trim() || '#121721',
+            color: getComputedStyle(document.documentElement).getPropertyValue('--ink').trim() || '#ffffff',
+            confirmButtonColor: 'var(--lime, #c7ff22)',
+        });
+        return;
+    }
+
+    const btn = document.getElementById('btn-calc-custom-swap');
+    const btnText = document.getElementById('btn-calc-custom-text');
+    const loadingEl = document.getElementById('swap-custom-loading');
+    const resultCard = document.getElementById('swap-custom-result');
+
+    btn.disabled = true;
+    btnText.textContent = 'Calculating...';
+    loadingEl.style.display = 'block';
+    resultCard.style.display = 'none';
+
+    try {
+        const res = await fetch('index.php?page=food_lookup&action=calorieninjas&query=' + encodeURIComponent(query));
+        const data = await res.json();
+        loadingEl.style.display = 'none';
+        btn.disabled = false;
+        btnText.textContent = 'Calculate';
+
+        if (data && data.success) {
+            calculatedCustomMealData = {
+                food_items: query,
+                calories: Math.round(data.total_calories || 0),
+                protein_g: parseFloat(data.total_protein || 0),
+                carbs_g: parseFloat(data.total_carbs || 0),
+                fat_g: parseFloat(data.total_fat || 0)
+            };
+
+            document.getElementById('swap-custom-name').textContent = query;
+            document.getElementById('swap-custom-cals').textContent = `${calculatedCustomMealData.calories} kcal`;
+            document.getElementById('swap-custom-macros-row').innerHTML = `
+                <span><strong>${calculatedCustomMealData.protein_g}g</strong> Protein</span>
+                <span>•</span>
+                <span><strong>${calculatedCustomMealData.carbs_g}g</strong> Carbs</span>
+                <span>•</span>
+                <span><strong>${calculatedCustomMealData.fat_g}g</strong> Fat</span>
+            `;
+            resultCard.style.display = 'block';
+        } else {
+            Swal.fire({
+                icon: 'warning',
+                title: 'No Nutrition Data',
+                text: data.error || 'Could not find nutrition values for this query. Try adding portions like "150g" or "1 cup".',
+                background: getComputedStyle(document.documentElement).getPropertyValue('--bg').trim() || '#121721',
+                color: getComputedStyle(document.documentElement).getPropertyValue('--ink').trim() || '#ffffff',
+                confirmButtonColor: 'var(--lime, #c7ff22)',
+            });
+        }
+    } catch (err) {
+        console.error("Custom swap calc error:", err);
+        loadingEl.style.display = 'none';
+        btn.disabled = false;
+        btnText.textContent = 'Calculate';
+        Swal.fire({
+            icon: 'error',
+            title: 'Connection Error',
+            text: 'Could not connect to nutrition engine. Please check your network.',
+            background: getComputedStyle(document.documentElement).getPropertyValue('--bg').trim() || '#121721',
+            color: getComputedStyle(document.documentElement).getPropertyValue('--ink').trim() || '#ffffff',
+            confirmButtonColor: 'var(--lime, #c7ff22)',
+        });
+    }
+}
+
+function applyCustomSwap() {
+    if (!calculatedCustomMealData) return;
+    confirmSwapRecipe(
+        calculatedCustomMealData.food_items,
+        calculatedCustomMealData.calories,
+        calculatedCustomMealData.protein_g,
+        calculatedCustomMealData.carbs_g,
+        calculatedCustomMealData.fat_g
+    );
+}
+
+// Send swap action to backend
+async function confirmSwapRecipe(foodItems, cals, pro, carbs, fat) {
+    if (!currentSwappingMeal) return;
+
+    const mealId = currentSwappingMeal.mealId;
+    const dayNum = currentSwappingMeal.dayNum;
+    const mealType = currentSwappingMeal.type;
+
+    try {
+        const body = new URLSearchParams({
+            action: 'swap_meal',
+            meal_id: mealId.toString(),
+            food_items: foodItems,
+            calories: cals.toString(),
+            protein_g: pro.toString(),
+            carbs_g: carbs.toString(),
+            fat_g: fat.toString(),
+            csrf_token: FT_CSRF_TOKEN
+        });
+
+        const res = await fetch('index.php?page=diet', {
+            method: 'POST',
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest',
+                'Content-Type': 'application/x-www-form-urlencoded'
+            },
+            body: body.toString()
+        });
+
+        const data = await res.json();
+        if (data && data.success) {
+            closeSwapModal();
+
+            // 1. Update meal card DOM in place
+            const card = document.getElementById('meal-card-' + mealId);
+            if (card) {
+                card.dataset.food = foodItems;
+                card.dataset.cals = cals;
+                card.dataset.pro = pro;
+                card.dataset.carbs = carbs;
+                card.dataset.fat = fat;
+
+                const calsBadge = document.getElementById('meal-cals-badge-' + mealId);
+                const foodText  = document.getElementById('meal-food-' + mealId);
+                const proEl     = document.getElementById('meal-pro-' + mealId);
+                const carbsEl   = document.getElementById('meal-carbs-' + mealId);
+                const fatEl     = document.getElementById('meal-fat-' + mealId);
+
+                if (calsBadge) calsBadge.textContent = `${cals} kcal`;
+                if (foodText)  foodText.textContent = foodItems;
+                if (proEl)     proEl.textContent = pro;
+                if (carbsEl)   carbsEl.textContent = carbs;
+                if (fatEl)     fatEl.textContent = fat;
+
+                // Subtle flash animation on updated card
+                card.style.transition = 'box-shadow 0.3s ease, border-color 0.3s ease';
+                card.style.borderColor = 'var(--lime)';
+                card.style.boxShadow = '0 0 20px color-mix(in srgb, var(--lime) 30%, transparent)';
+                setTimeout(() => {
+                    card.style.borderColor = 'var(--line)';
+                    card.style.boxShadow = 'none';
+                }, 1600);
+            }
+
+            // 2. Update day totals in DOM
+            if (data.day_totals) {
+                const dayCalsEl  = document.getElementById('day-total-cals-' + dayNum);
+                const dayProEl   = document.getElementById('day-total-pro-' + dayNum);
+                const dayCarbsEl = document.getElementById('day-total-carbs-' + dayNum);
+                const dayFatEl   = document.getElementById('day-total-fat-' + dayNum);
+
+                if (dayCalsEl)  dayCalsEl.textContent = data.day_totals.calories;
+                if (dayProEl)   dayProEl.textContent = data.day_totals.protein_g;
+                if (dayCarbsEl) dayCarbsEl.textContent = data.day_totals.carbs_g;
+                if (dayFatEl)   dayFatEl.textContent = data.day_totals.fat_g;
+            }
+
+            // 3. If swapped meal is today's schedule, update today's targets in Macro Tracker
+            if (data.is_today && data.today_targets) {
+                const tarDisp  = document.getElementById('macro-target-cals');
+                const tarPro   = document.getElementById('macro-target-pro');
+                const tarCarbs = document.getElementById('macro-target-carbs');
+                const tarFat   = document.getElementById('macro-target-fat');
+
+                if (tarDisp)  tarDisp.textContent = data.today_targets.target_cals;
+                if (tarPro)   tarPro.textContent = data.today_targets.target_pro;
+                if (tarCarbs) tarCarbs.textContent = data.today_targets.target_carbs;
+                if (tarFat)   tarFat.textContent = data.today_targets.target_fat;
+
+                // Re-evaluate Macro Tracker progress percentages
+                const loggedCals = parseFloat(document.getElementById('macro-logged-cals')?.textContent || 0);
+                const loggedPro  = parseFloat(document.getElementById('macro-logged-pro')?.textContent || 0);
+                const loggedCarbs = parseFloat(document.getElementById('macro-logged-carbs')?.textContent || 0);
+                const loggedFat  = parseFloat(document.getElementById('macro-logged-fat')?.textContent || 0);
+
+                if (typeof window.applyMacroLogResultToUI === 'function') {
+                    window.applyMacroLogResultToUI({
+                        success: true,
+                        logged_cals: loggedCals,
+                        logged_pro: loggedPro,
+                        logged_carbs: loggedCarbs,
+                        logged_fat: loggedFat,
+                        target_cals: data.today_targets.target_cals,
+                        target_pro: data.today_targets.target_pro,
+                        target_carbs: data.today_targets.target_carbs,
+                        target_fat: data.today_targets.target_fat
+                    }, false);
+                }
+            }
+
+            // Toast feedback
+            Swal.fire({
+                toast: true,
+                position: 'top-end',
+                icon: 'success',
+                title: `${mealType} Swapped!`,
+                html: `New meal: <strong>${escapeHtml(foodItems)}</strong> (${cals} kcal)`,
+                showConfirmButton: false,
+                timer: 3500,
+                timerProgressBar: true,
+                background: getComputedStyle(document.documentElement).getPropertyValue('--bg').trim() || '#121721',
+                color: getComputedStyle(document.documentElement).getPropertyValue('--ink').trim() || '#ffffff',
+            });
+        } else {
+            throw new Error(data.error || 'Could not swap meal.');
+        }
+    } catch (err) {
+        console.error("Swap meal error:", err);
+        Swal.fire({
+            icon: 'error',
+            title: 'Swap Failed',
+            text: err.message || 'Could not update meal plan. Please try again.',
+            background: getComputedStyle(document.documentElement).getPropertyValue('--bg').trim() || '#121721',
+            color: getComputedStyle(document.documentElement).getPropertyValue('--ink').trim() || '#ffffff',
+            confirmButtonColor: 'var(--lime, #c7ff22)',
+        });
+    }
+}
+
+function closeSwapModal() {
+    const modal = document.getElementById('modal-swap-meal');
+    if (modal) modal.style.display = 'none';
+    currentSwappingMeal = null;
+    swapOptionsData = [];
+}
+
+// Utility: escape HTML
+function escapeHtml(str) {
+    if (!str) return '';
+    return str.toString()
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+}
+
+// Utility: capitalize
+function capitalize(str) {
+    if (!str) return '';
+    return str.charAt(0).toUpperCase() + str.slice(1);
 }
 
 document.addEventListener('DOMContentLoaded', function() {

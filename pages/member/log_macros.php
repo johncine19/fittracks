@@ -46,14 +46,124 @@ function log_macros_page(): void
     $userId = (int) $user['user_id'];
     $pdo = db();
 
+    // ----------------------------------------------------
+    // GUARD RAILS: Only Allow Today & One Log per Meal Type
+    // ----------------------------------------------------
+    $mealId = post('meal_id') ? (int) post('meal_id') : null;
+    $rawMealType = (string) (post('meal_type') ?: '');
+    $dayNum = post('day_of_week') ? (int) post('day_of_week') : null;
+    $foodItems = (string) (post('food_items') ?: '');
+
+    $planMeal = null;
+    if ($mealId) {
+        $stmtPlanMeal = $pdo->prepare(
+            "SELECT dpm.meal_id, dpm.plan_id, dpm.day_of_week, dpm.meal_type, dpm.food_items, dpm.calories, dpm.protein_g, dpm.carbs_g, dpm.fat_g 
+             FROM dietary_plan_meals dpm 
+             JOIN dietary_plans dp ON dp.plan_id = dpm.plan_id 
+             WHERE dpm.meal_id = ? AND dp.member_user_id = ? AND dp.status = 'active'"
+        );
+        $stmtPlanMeal->execute([$mealId, $userId]);
+        $planMeal = $stmtPlanMeal->fetch();
+        if ($planMeal) {
+            $dayNum = (int) $planMeal['day_of_week'];
+            if (empty($rawMealType)) {
+                $rawMealType = $planMeal['meal_type'];
+            }
+            if (empty($foodItems)) {
+                $foodItems = $planMeal['food_items'];
+            }
+        }
+    }
+
+    // Guard 1: Only Allow Logging for the Current Date
+    $todayDayOfWeek = (int) date('N'); // 1 = Monday, 7 = Sunday
+    if ($dayNum !== null && $dayNum !== $todayDayOfWeek) {
+        $dayNames = [1=>'Monday', 2=>'Tuesday', 3=>'Wednesday', 4=>'Thursday', 5=>'Friday', 6=>'Saturday', 7=>'Sunday'];
+        $todayName = $dayNames[$todayDayOfWeek] ?? 'today';
+        $errMsg = "You can only log meals scheduled for today ({$todayName}). Past and upcoming scheduled days are view-only.";
+        if ($isAjax) {
+            if (ob_get_level()) ob_clean();
+            header('Content-Type: application/json');
+            echo json_encode([
+                'success' => false,
+                'can_log_today_only' => true,
+                'error' => $errMsg
+            ]);
+            exit;
+        }
+        flash($errMsg, 'warning');
+        redirect('diet');
+    }
+
+    // Guard 2: Prevent Duplicate Meal Logging (1 Log Per Meal Type Per Day)
+    $normalizedType = '';
+    if (!empty($rawMealType) && $mode === 'add') {
+        $normalizedType = ucfirst(strtolower(trim($rawMealType)));
+        if (strpos(strtolower($normalizedType), 'snack') !== false) {
+            $normalizedType = 'Snack';
+        }
+
+        $stmtCheckLog = $pdo->prepare(
+            "SELECT log_id, logged_at FROM member_meal_logs WHERE user_id = ? AND meal_type = ? AND log_date = CURDATE()"
+        );
+        $stmtCheckLog->execute([$userId, $normalizedType]);
+        $existingLog = $stmtCheckLog->fetch();
+
+        if ($existingLog) {
+            $loggedTime = date('g:i A', strtotime($existingLog['logged_at']));
+            $errMsg = "{$normalizedType} already logged today at {$loggedTime}. You can log {$normalizedType} again tomorrow.";
+            if ($isAjax) {
+                if (ob_get_level()) ob_clean();
+                header('Content-Type: application/json');
+                echo json_encode([
+                    'success' => false,
+                    'already_logged' => true,
+                    'meal_type' => $normalizedType,
+                    'logged_at' => $existingLog['logged_at'],
+                    'logged_time' => $loggedTime,
+                    'error' => $errMsg
+                ]);
+                exit;
+            }
+            flash($errMsg, 'warning');
+            redirect('diet');
+        }
+    }
+
+    $loggedAt = null;
+    $loggedTime = null;
+
     try {
         if ($mode === 'reset') {
             $stmt = $pdo->prepare('INSERT INTO daily_macros (user_id, log_date, calories, protein_g, carbs_g, fat_g) 
                                    VALUES (?, CURDATE(), 0, 0, 0, 0)
                                    ON DUPLICATE KEY UPDATE calories = 0, protein_g = 0, carbs_g = 0, fat_g = 0');
             $stmt->execute([$userId]);
+            // Clear today's meal logs on reset so member can re-log if needed
+            $pdo->prepare('DELETE FROM member_meal_logs WHERE user_id = ? AND log_date = CURDATE()')->execute([$userId]);
             $calories = $protein = $carbs = $fat = 0;
         } elseif ($mode === 'add') {
+            // Save specific meal slot to member_meal_logs
+            if (!empty($normalizedType)) {
+                $stmtInsertMeal = $pdo->prepare(
+                    "INSERT INTO member_meal_logs 
+                     (user_id, meal_type, log_date, meal_id, food_items, calories, protein_g, carbs_g, fat_g, logged_at) 
+                     VALUES (?, ?, CURDATE(), ?, ?, ?, ?, ?, ?, NOW())"
+                );
+                $stmtInsertMeal->execute([
+                    $userId,
+                    $normalizedType,
+                    $mealId ?: null,
+                    $foodItems ?: null,
+                    $addedCals,
+                    $addedPro,
+                    $addedCarbs,
+                    $addedFat
+                ]);
+                $loggedAt = date('Y-m-d H:i:s');
+                $loggedTime = date('g:i A');
+            }
+
             $stmt = $pdo->prepare('INSERT INTO daily_macros (user_id, log_date, calories, protein_g, carbs_g, fat_g) 
                                    VALUES (?, CURDATE(), ?, ?, ?, ?)
                                    ON DUPLICATE KEY UPDATE 
@@ -84,6 +194,21 @@ function log_macros_page(): void
             $stmt->execute([$userId, $calories, $protein, $carbs, $fat]);
         }
     } catch (Throwable $e) {
+        // If DB duplicate key error
+        if ($e instanceof PDOException && ($e->getCode() == 23000 || strpos($e->getMessage(), 'Duplicate entry') !== false)) {
+            $timeFormatted = date('g:i A');
+            if ($isAjax) {
+                if (ob_get_level()) ob_clean();
+                header('Content-Type: application/json');
+                echo json_encode([
+                    'success' => false,
+                    'already_logged' => true,
+                    'meal_type' => $normalizedType,
+                    'error' => "{$normalizedType} already logged today. You can log {$normalizedType} again tomorrow."
+                ]);
+                exit;
+            }
+        }
         if ($isAjax) {
             if (ob_get_level()) ob_clean();
             header('Content-Type: application/json');
@@ -126,6 +251,10 @@ function log_macros_page(): void
         echo json_encode([
             'success'      => true,
             'mode'         => $mode,
+            'meal_type'    => $normalizedType,
+            'meal_id'      => $mealId,
+            'logged_at'    => $loggedAt ?? date('Y-m-d H:i:s'),
+            'logged_time'  => $loggedTime ?? date('g:i A'),
             'added_cals'   => $addedCals,
             'logged_cals'  => $calories,
             'logged_pro'   => $protein,

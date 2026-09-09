@@ -71,6 +71,10 @@ function food_lookup_page(): void
                 'protein_g' => round($pro, 1),
                 'carbs_g' => round($carbs, 1),
                 'fat_g' => round($fat, 1),
+                'fiber_g' => round((float) ($item['fiber_g'] ?? 0), 1),
+                'sugar_g' => round((float) ($item['sugar_g'] ?? 0), 1),
+                'sodium_mg' => round((float) ($item['sodium_mg'] ?? 0)),
+                'potassium_mg' => round((float) ($item['potassium_mg'] ?? 0)),
             ];
         }
 
