@@ -958,14 +958,19 @@ function render_notification_bell(array $user, string $currentPage): void
                         <span id="notif-bell-new-badge" style="font-size:10px;font-weight:700;padding:2px 6px;border-radius:10px;background:rgba(199,255,34,0.15);color:var(--lime);display:none;"></span>
                     <?php endif; ?>
                 </div>
-                <form method="post" action="index.php?page=notification_action" class="notif-mark-all" id="notif-mark-all-form">
-                    <?= csrf_field() ?>
-                    <input type="hidden" name="notification_action" value="mark_all_read">
-                    <input type="hidden" name="return_page" value="<?= h($currentPage) ?>">
-                    <button type="button" id="notif-mark-all-btn" <?= $unread > 0 ? '' : 'disabled class="is-disabled"' ?>>
-                        <?= $unread > 0 ? 'Mark all as read' : 'All read' ?>
+                <div style="display:flex;align-items:center;gap:6px;">
+                    <button type="button" class="btn-sound-toggle notif-sound-btn" aria-label="Toggle notification sounds" title="Sound: Enabled (Click to mute)" style="background:transparent;border:none;color:var(--muted);cursor:pointer;padding:4px 6px;border-radius:6px;display:inline-flex;align-items:center;transition:all 0.2s;" onmouseover="this.style.color='var(--ink)'" onmouseout="this.style.color='var(--muted)'">
+                        <span class="sound-toggle-icon"></span>
                     </button>
-                </form>
+                    <form method="post" action="index.php?page=notification_action" class="notif-mark-all" id="notif-mark-all-form">
+                        <?= csrf_field() ?>
+                        <input type="hidden" name="notification_action" value="mark_all_read">
+                        <input type="hidden" name="return_page" value="<?= h($currentPage) ?>">
+                        <button type="button" id="notif-mark-all-btn" <?= $unread > 0 ? '' : 'disabled class="is-disabled"' ?>>
+                            <?= $unread > 0 ? 'Mark all as read' : 'All read' ?>
+                        </button>
+                    </form>
+                </div>
             </div>
             <?php if (!$items): ?>
                 <p class="notif-empty">No notifications yet.</p>
@@ -1118,6 +1123,7 @@ function render_notification_bell(array $user, string $currentPage): void
         }
 
         // ── 30-second badge polling ─────────────────────────────────
+        let lastUnreadCount = <?= (int) $unread ?>;
         setInterval(async function() {
             if (document.hidden) return;
             const data = await ajaxNotifAction({
@@ -1125,6 +1131,12 @@ function render_notification_bell(array $user, string $currentPage): void
                 csrf_token: csrfToken
             });
             if (data && typeof data.unread === 'number') {
+                if (data.unread > lastUnreadCount) {
+                    if (window.playNotifSound) {
+                        window.playNotifSound('chime');
+                    }
+                }
+                lastUnreadCount = data.unread;
                 updateBadges(data.unread);
             }
         }, 30000);

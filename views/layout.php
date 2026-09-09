@@ -39,6 +39,7 @@ function render_header(string $title, ?array $user = null): void
                 'classes' => 'Classes',
                 'attendance' => 'Attendance',
                 'exercises' => 'Exercises',
+                'gym_equipment' => 'Equipment',
                 'reports' => 'Reports',
                 'messages' => 'Messages',
                 'notifications' => 'Notifications'
@@ -55,7 +56,7 @@ function render_header(string $title, ?array $user = null): void
             $nav += ['qr_attendance' => 'My QR', 'my_workout' => 'Workouts', 'diet' => 'Diet Plan'];
             
             if ($hasGym) {
-                $nav += ['trainers' => 'Trainers', 'memberships' => 'Membership', 'book_classes' => 'Classes', 'gym_selection' => 'Browse Gyms'];
+                $nav += ['equipment' => 'Equipment', 'trainers' => 'Trainers', 'memberships' => 'Membership', 'book_classes' => 'Classes', 'gym_selection' => 'Browse Gyms'];
             } else {
                 $nav += ['gym_selection' => 'Select Gym'];
             }
@@ -93,6 +94,7 @@ function render_header(string $title, ?array $user = null): void
         </script>
         <script src="https://cdn.jsdelivr.net/npm/chart.js" defer></script>
         <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+        <script src="assets/audio.js?v=<?= filemtime(__DIR__ . '/../assets/audio.js') ?>"></script>
     </head>
     <body class="<?= $user ? 'app-body' : 'auth-body' ?>">
     
@@ -108,6 +110,33 @@ function render_header(string $title, ?array $user = null): void
         /* Ensure links inside SweetAlert toasts are always clickable */
         .swal2-toast .swal2-html-container { pointer-events: auto !important; }
         .swal2-toast a { pointer-events: auto !important; position: relative; z-index: 2; }
+
+        /* SweetAlert Opaque Modal Theming (Prevents transparent see-through popups in dark mode) */
+        .swal2-popup {
+            background: #11141d !important;
+            color: #f8fafc !important;
+            border: 1px solid rgba(255, 255, 255, 0.12) !important;
+            border-radius: 14px !important;
+            box-shadow: 0 24px 48px rgba(0, 0, 0, 0.75) !important;
+        }
+        [data-theme="light"] .swal2-popup {
+            background: #ffffff !important;
+            color: #0f172a !important;
+            border: 1px solid #cbd5e1 !important;
+            box-shadow: 0 16px 36px rgba(0, 0, 0, 0.12) !important;
+        }
+        .swal2-title {
+            color: #f8fafc !important;
+        }
+        [data-theme="light"] .swal2-title {
+            color: #0f172a !important;
+        }
+        .swal2-html-container {
+            color: #94a3b8 !important;
+        }
+        [data-theme="light"] .swal2-html-container {
+            color: #475569 !important;
+        }
 
         /* Disable native browser password reveal icon (Microsoft Edge / Chromium) to prevent duplicate eye icons */
         input[type="password"]::-ms-reveal,

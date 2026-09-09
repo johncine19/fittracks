@@ -3811,6 +3811,29 @@ body:has(.subscription-viewport) .auth-shell {
     }
 }
 
-
-
-
+/* SweetAlert Opaque Modal Theming (Ensures popups are never transparent/see-through in dark mode) */
+.swal2-popup {
+    background: #11141d !important;
+    color: #f8fafc !important;
+    border: 1px solid rgba(255, 255, 255, 0.12) !important;
+    border-radius: 14px !important;
+    box-shadow: 0 24px 48px rgba(0, 0, 0, 0.75) !important;
+}
+[data-theme="light"] .swal2-popup {
+    background: #ffffff !important;
+    color: #0f172a !important;
+    border: 1px solid #cbd5e1 !important;
+    box-shadow: 0 16px 36px rgba(0, 0, 0, 0.12) !important;
+}
+.swal2-title {
+    color: #f8fafc !important;
+}
+[data-theme="light"] .swal2-title {
+    color: #0f172a !important;
+}
+.swal2-html-container {
+    color: #94a3b8 !important;
+}
+[data-theme="light"] .swal2-html-container {
+    color: #475569 !important;
+}

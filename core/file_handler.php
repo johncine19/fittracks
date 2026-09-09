@@ -158,6 +158,66 @@ final class FileUpload
     }
 
     /**
+     * Validates a gym equipment image file with a 5MB size limit.
+     */
+    public static function validateEquipmentImage(array $file): void
+    {
+        if (!isset($file['error']) || $file['error'] !== UPLOAD_ERR_OK) {
+            throw new RuntimeException('Equipment image upload failed. Please try again.');
+        }
+
+        if (!is_uploaded_file($file['tmp_name'])) {
+            throw new RuntimeException('Invalid upload.');
+        }
+
+        // Enforce 5MB limit requested by user
+        if ($file['size'] > 5 * 1024 * 1024) {
+            throw new RuntimeException('Equipment image is too large. Maximum allowed size is 5MB.');
+        }
+
+        $finfo = finfo_open(FILEINFO_MIME_TYPE);
+        $mime = finfo_file($finfo, $file['tmp_name']);
+        finfo_close($finfo);
+
+        if (!isset(self::ALLOWED_MIME[$mime])) {
+            throw new RuntimeException('Unsupported image type. Please upload a JPG, PNG, WebP, or GIF file.');
+        }
+    }
+
+    /**
+     * Stores a gym equipment image on ImageKit CDN (folder: /equipment) with automatic local fallback.
+     */
+    public static function storeEquipmentImage(array $file, int $gymId = 0): string
+    {
+        self::validateEquipmentImage($file);
+
+        $finfo = finfo_open(FILEINFO_MIME_TYPE);
+        $mime = finfo_file($finfo, $file['tmp_name']);
+        finfo_close($finfo);
+
+        $extension = self::ALLOWED_MIME[$mime] ?? 'jpg';
+        $filename = 'equip_' . ($gymId > 0 ? $gymId . '_' : '') . bin2hex(random_bytes(6)) . '.' . $extension;
+
+        // Upload to ImageKit CDN (/equipment folder)
+        $imageKitUrl = self::uploadToImageKit($file['tmp_name'], $mime, $filename, '/equipment');
+        if ($imageKitUrl) {
+            return $imageKitUrl;
+        }
+
+        // Fallback to local storage under assets/equipment/
+        $uploadDir = __DIR__ . '/../assets/equipment/';
+        if (!is_dir($uploadDir)) {
+            mkdir($uploadDir, 0775, true);
+        }
+
+        if (!move_uploaded_file($file['tmp_name'], $uploadDir . $filename)) {
+            throw new RuntimeException('Could not save the equipment image locally.');
+        }
+
+        return 'assets/equipment/' . $filename;
+    }
+
+    /**
      * Uploads an exercise animation to ImageKit via REST API.
      * Returns the full CDN URL if successful, or false on failure.
      */

@@ -346,7 +346,7 @@ function training_page(): void
         </div>
 
         <div class="panel" style="margin-bottom: 20px;">
-            <div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 14px;">
+            <div class="view-plan-header-card" style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 14px;">
                 <div style="display: flex; align-items: center; gap: 12px;">
                     <?php if ($viewPlan['member_pic']): ?>
                         <img src="<?= h(upload_url($viewPlan['member_pic'])) ?>" alt="Member" style="width: 44px; height: 44px; border-radius: 50%; object-fit: cover;">
@@ -384,7 +384,7 @@ function training_page(): void
 
             <!-- Instant Real-Time Search & Status Filter Toolbar -->
             <div class="all-workouts-toolbar" style="display:flex; justify-content:space-between; align-items:center; gap:12px; margin-bottom:16px; flex-wrap:wrap;">
-                <div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap;">
+                <div class="all-workout-filters-wrap" style="display:flex; align-items:center; gap:6px; flex-wrap:wrap;">
                     <button type="button" class="all-workout-filter-pill active" onclick="setAllWorkoutsStatusFilter('all', this)">
                         All (<?= count($allPlans) ?>)
                     </button>
@@ -630,6 +630,20 @@ function training_page(): void
     100% { opacity: 1; transform: translateY(0); }
 }
 
+/* Responsive Table Wrappers */
+.table-wrap,
+.table-responsive {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    width: 100%;
+    border-radius: 8px;
+}
+.table-wrap table,
+.table-responsive table {
+    min-width: 780px;
+    width: 100%;
+}
+
 /* Toolbar & Filter Pills for All Workouts */
 .all-workout-filter-pill {
     background: transparent;
@@ -650,6 +664,68 @@ function training_page(): void
     background: color-mix(in srgb, var(--lime) 15%, transparent);
     color: var(--lime);
     border-color: var(--lime);
+}
+
+/* Multi-Device Responsive Breakpoints */
+@media (max-width: 768px) {
+    .all-workouts-toolbar {
+        flex-direction: column;
+        align-items: stretch !important;
+        gap: 12px;
+    }
+    .all-workout-filters-wrap {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+        padding-bottom: 4px;
+        max-width: 100%;
+    }
+    .all-workout-filter-pill {
+        white-space: nowrap;
+        flex-shrink: 0;
+    }
+    .all-workouts-search-wrap {
+        width: 100% !important;
+        max-width: 100% !important;
+        flex: 1 1 100% !important;
+    }
+    .view-plan-header-card {
+        flex-direction: column;
+        align-items: stretch !important;
+        gap: 14px;
+    }
+    .view-plan-header-card .btn {
+        width: 100%;
+        text-align: center;
+        justify-content: center;
+    }
+}
+
+@media (max-width: 640px) {
+    .workout-main-nav {
+        display: flex;
+        width: 100%;
+        box-sizing: border-box;
+    }
+    .workout-nav-pill {
+        flex: 1 1 0;
+        justify-content: center;
+        padding: 8px 10px;
+        font-size: 12.5px;
+        gap: 6px;
+    }
+    .workout-nav-title-full { display: none; }
+    .workout-nav-title-short { display: inline; }
+    .workout-nav-badge { padding: 1px 6px; font-size: 10px; }
+}
+
+@media (max-width: 480px) {
+    #planModal > div {
+        padding: 20px 16px !important;
+        max-width: 100% !important;
+    }
 }
 </style>
 

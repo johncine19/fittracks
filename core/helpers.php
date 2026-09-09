@@ -159,6 +159,8 @@ function nav_icon(string $key): string
         'admin_workouts' => '<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/><line x1="8" y1="11" x2="16" y2="11"/><line x1="8" y1="15" x2="16" y2="15"/></svg>',
         'diet' => '<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8h1a4 4 0 0 1 0 8h-1"/><path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z"/><line x1="6" y1="1" x2="6" y2="4"/><line x1="10" y1="1" x2="10" y2="4"/><line x1="14" y1="1" x2="14" y2="4"/></svg>',
         'platform_plans' => '<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="14" rx="2" ry="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>',
+        'equipment' => '<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="6" width="4" height="12" rx="1"/><rect x="18" y="6" width="4" height="12" rx="1"/><path d="M6 12h12"/><path d="M6 9h1a2 2 0 0 1 2 2v2a2 2 0 0 1-2 2H6"/><path d="M18 9h-1a2 2 0 0 0-2 2v2a2 2 0 0 0 2 2h1"/></svg>',
+        'gym_equipment' => '<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="6" width="4" height="12" rx="1"/><rect x="18" y="6" width="4" height="12" rx="1"/><path d="M6 12h12"/><path d="M6 9h1a2 2 0 0 1 2 2v2a2 2 0 0 1-2 2H6"/><path d="M18 9h-1a2 2 0 0 0-2 2v2a2 2 0 0 0 2 2h1"/></svg>',
     ];
     return $icons[$key] ?? '<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/></svg>';
 }
@@ -869,5 +871,50 @@ function ensure_coach_profile(int $userId): int
         $coachId = (int) db()->lastInsertId();
     }
     return $coachId;
+}
+
+function get_user_gym_id(array $user): ?int
+{
+    if (isset($user['gym_id']) && (int)$user['gym_id'] > 0) {
+        return (int)$user['gym_id'];
+    }
+
+    $role = $user['role'] ?? '';
+    $userId = (int)($user['user_id'] ?? 0);
+    if ($userId <= 0) {
+        return null;
+    }
+
+    if ($role === 'gym_owner' || $role === 'admin') {
+        $gymId = scalar('SELECT gym_id FROM gyms WHERE owner_user_id = ? LIMIT 1', [$userId]);
+        return $gymId ? (int)$gymId : null;
+    }
+
+    if ($role === 'member') {
+        $gymId = scalar('SELECT gym_id FROM gym_members WHERE user_id = ? LIMIT 1', [$userId]);
+        return $gymId ? (int)$gymId : null;
+    }
+
+    if ($role === 'trainer') {
+        $gymId = scalar('SELECT gym_id FROM gym_members WHERE user_id = ? LIMIT 1', [$userId]);
+        if (!$gymId) {
+            $gymId = scalar('SELECT gym_id FROM classes WHERE trainer_user_id = ? LIMIT 1', [$userId]);
+        }
+        return $gymId ? (int)$gymId : null;
+    }
+
+    return null;
+}
+
+function format_equipment_duration(int $seconds): string
+{
+    if ($seconds <= 0) return '00:00';
+    $hours = floor($seconds / 3600);
+    $minutes = floor(($seconds % 3600) / 60);
+    $secs = $seconds % 60;
+    if ($hours > 0) {
+        return sprintf('%02d:%02d:%02d', $hours, $minutes, $secs);
+    }
+    return sprintf('%02d:%02d', $minutes, $secs);
 }
 
