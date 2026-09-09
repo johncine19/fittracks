@@ -229,7 +229,10 @@ function confirmRegeneratePlan() {
 // Calculate today's targets
 $todayNum = (int) date('N');
 $targetMacros = $pdo->query("SELECT SUM(calories) as cals, SUM(protein_g) as protein, SUM(carbs_g) as carbs, SUM(fat_g) as fat FROM dietary_plan_meals WHERE plan_id = {$planId} AND day_of_week = {$todayNum}")->fetch();
-$targetCals = (int)$targetMacros['cals'];
+$targetCals = (int)($targetMacros['cals'] ?? 0);
+$targetPro = (int)($targetMacros['protein'] ?? 0);
+$targetCarbs = (int)($targetMacros['carbs'] ?? 0);
+$targetFat = (int)($targetMacros['fat'] ?? 0);
 
 // Fetch logged macros for today
 $loggedMacros = $pdo->query("SELECT * FROM daily_macros WHERE user_id = {$userId} AND log_date = CURDATE()")->fetch();
@@ -238,71 +241,877 @@ $loggedPro = $loggedMacros ? (int)$loggedMacros['protein_g'] : 0;
 $loggedCarbs = $loggedMacros ? (int)$loggedMacros['carbs_g'] : 0;
 $loggedFat = $loggedMacros ? (int)$loggedMacros['fat_g'] : 0;
 
-$pctCals = $targetCals > 0 ? min(100, round(($loggedCals / $targetCals) * 100)) : 0;
+$calcMacroStatus = function(int $logged, int $target, string $type): array {
+    if ($target <= 0) {
+        return ['text' => '0%', 'color' => 'var(--muted)', 'pct' => 0, 'barBg' => "var(--macro-{$type})"];
+    }
+    $diff = $logged - $target;
+    $pct = (int) round(($logged / $target) * 100);
+
+    if ($diff > 0) {
+        if ($type === 'pro') {
+            return [
+                'text'  => "+{$diff}g Over",
+                'color' => '#22c55e',
+                'pct'   => 100,
+                'barBg' => '#22c55e'
+            ];
+        } elseif ($type === 'cals') {
+            return [
+                'text'  => "+{$diff} kcal Over",
+                'color' => '#f59e0b',
+                'pct'   => 100,
+                'barBg' => '#f59e0b'
+            ];
+        } elseif ($type === 'carbs') {
+            return [
+                'text'  => "+{$diff}g Over",
+                'color' => '#f59e0b',
+                'pct'   => 100,
+                'barBg' => '#f59e0b'
+            ];
+        } else { // fat
+            return [
+                'text'  => "+{$diff}g Over",
+                'color' => '#f43f5e',
+                'pct'   => 100,
+                'barBg' => '#f43f5e'
+            ];
+        }
+    } elseif ($diff === 0) {
+        return [
+            'text'  => '100% ✓ Met',
+            'color' => '#22c55e',
+            'pct'   => 100,
+            'barBg' => '#22c55e'
+        ];
+    } else {
+        return [
+            'text'  => "{$pct}%",
+            'color' => 'var(--muted)',
+            'pct'   => min(100, $pct),
+            'barBg' => "var(--macro-{$type})"
+        ];
+    }
+};
+
+$stCals  = $calcMacroStatus($loggedCals, $targetCals, 'cals');
+$stPro   = $calcMacroStatus($loggedPro, $targetPro, 'pro');
+$stCarbs = $calcMacroStatus($loggedCarbs, $targetCarbs, 'carbs');
+$stFat   = $calcMacroStatus($loggedFat, $targetFat, 'fat');
 ?>
 
-<div class="skeleton-content animate-fade-in" style="background: linear-gradient(135deg, rgba(199,255,34,0.1) 0%, rgba(66,219,165,0.05) 100%); border: 1px solid rgba(199,255,34,0.3); border-radius: 12px; padding: 24px; margin-bottom: 24px; box-shadow: 0 4px 20px rgba(0,0,0,0.15); backdrop-filter: blur(16px);">
-    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; flex-wrap: wrap; gap: 16px;">
+<div class="macro-tracker-card skeleton-content animate-fade-in">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 12px;">
         <div>
-            <h2 style="margin: 0; font-size: 20px; color: var(--ink);">Today's Macro Tracker</h2>
-            <p style="margin: 4px 0 0; color: var(--muted); font-size: 13px;">Log your food intake to stay on target.</p>
+            <h2 style="margin: 0; font-size: 20px; color: var(--ink); display: flex; align-items: center; gap: 8px;">
+                <span>Today's Macro Tracker</span>
+            </h2>
+            <p style="margin: 4px 0 0; color: var(--muted); font-size: 13px;">Track your daily calorie and macronutrient targets.</p>
         </div>
-        <div style="text-align: right;">
-            <span id="macro-logged-cals" style="font-size: 24px; font-weight: 800; color: var(--lime);"><?= $loggedCals ?></span>
-            <span style="color: var(--muted);">/ <span id="macro-target-cals"><?= $targetCals ?></span> kcal</span>
+        <div>
+            <button type="button" id="btn-auto-calc-cals" class="macro-aux-btn">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+                Auto-calc Calories (4P + 4C + 9F)
+            </button>
         </div>
     </div>
 
-    <!-- Progress Bar -->
-    <div style="height: 8px; background: rgba(255,255,255,0.1); border-radius: 4px; overflow: hidden; margin-bottom: 24px;">
-        <div id="macro-progress-bar" style="height: 100%; width: <?= $pctCals ?>%; background: var(--lime); transition: width 0.7s ease; <?= $pctCals >= 100 ? 'background: #22c55e;' : '' ?>"></div>
+    <!-- 4 Macro Progress Cards Grid -->
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; margin-bottom: 22px;">
+        <!-- Calories -->
+        <div class="macro-stat-card card-cals">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                <span class="macro-stat-label label-cals">
+                    <span class="macro-stat-dot dot-cals"></span>
+                    Calories
+                </span>
+                <span id="macro-pct-cals" style="font-size: 11px; font-weight: 700; color: <?= $stCals['color'] ?>;"><?= $stCals['text'] ?></span>
+            </div>
+            <div style="font-size: 18px; font-weight: 800; color: var(--ink); margin-bottom: 10px;">
+                <span id="macro-logged-cals" style="color: var(--macro-cals);"><?= $loggedCals ?></span>
+                <span style="font-size: 13px; font-weight: 400; color: var(--muted);">/ <span id="macro-target-cals"><?= $targetCals ?></span> kcal</span>
+            </div>
+            <div class="macro-progress-track">
+                <div id="macro-progress-bar-cals" style="height: 100%; width: <?= $stCals['pct'] ?>%; background: <?= $stCals['barBg'] ?>; transition: width 0.7s ease, background 0.3s ease;"></div>
+            </div>
+        </div>
+
+        <!-- Protein -->
+        <div class="macro-stat-card card-pro">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                <span class="macro-stat-label label-pro">
+                    <span class="macro-stat-dot dot-pro"></span>
+                    Protein
+                </span>
+                <span id="macro-pct-pro" style="font-size: 11px; font-weight: 700; color: <?= $stPro['color'] ?>;"><?= $stPro['text'] ?></span>
+            </div>
+            <div style="font-size: 18px; font-weight: 800; color: var(--ink); margin-bottom: 10px;">
+                <span id="macro-logged-pro" style="color: var(--macro-pro);"><?= $loggedPro ?></span>
+                <span style="font-size: 13px; font-weight: 400; color: var(--muted);">/ <span id="macro-target-pro"><?= $targetPro ?></span> g</span>
+            </div>
+            <div class="macro-progress-track">
+                <div id="macro-progress-bar-pro" style="height: 100%; width: <?= $stPro['pct'] ?>%; background: <?= $stPro['barBg'] ?>; transition: width 0.7s ease, background 0.3s ease;"></div>
+            </div>
+        </div>
+
+        <!-- Carbs -->
+        <div class="macro-stat-card card-carbs">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                <span class="macro-stat-label label-carbs">
+                    <span class="macro-stat-dot dot-carbs"></span>
+                    Carbs
+                </span>
+                <span id="macro-pct-carbs" style="font-size: 11px; font-weight: 700; color: <?= $stCarbs['color'] ?>;"><?= $stCarbs['text'] ?></span>
+            </div>
+            <div style="font-size: 18px; font-weight: 800; color: var(--ink); margin-bottom: 10px;">
+                <span id="macro-logged-carbs" style="color: var(--macro-carbs);"><?= $loggedCarbs ?></span>
+                <span style="font-size: 13px; font-weight: 400; color: var(--muted);">/ <span id="macro-target-carbs"><?= $targetCarbs ?></span> g</span>
+            </div>
+            <div class="macro-progress-track">
+                <div id="macro-progress-bar-carbs" style="height: 100%; width: <?= $stCarbs['pct'] ?>%; background: <?= $stCarbs['barBg'] ?>; transition: width 0.7s ease, background 0.3s ease;"></div>
+            </div>
+        </div>
+
+        <!-- Fat -->
+        <div class="macro-stat-card card-fat">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                <span class="macro-stat-label label-fat">
+                    <span class="macro-stat-dot dot-fat"></span>
+                    Fat
+                </span>
+                <span id="macro-pct-fat" style="font-size: 11px; font-weight: 700; color: <?= $stFat['color'] ?>;"><?= $stFat['text'] ?></span>
+            </div>
+            <div style="font-size: 18px; font-weight: 800; color: var(--ink); margin-bottom: 10px;">
+                <span id="macro-logged-fat" style="color: var(--macro-fat);"><?= $loggedFat ?></span>
+                <span style="font-size: 13px; font-weight: 400; color: var(--muted);">/ <span id="macro-target-fat"><?= $targetFat ?></span> g</span>
+            </div>
+            <div class="macro-progress-track">
+                <div id="macro-progress-bar-fat" style="height: 100%; width: <?= $stFat['pct'] ?>%; background: <?= $stFat['barBg'] ?>; transition: width 0.7s ease, background 0.3s ease;"></div>
+            </div>
+        </div>
     </div>
 
-    <form id="macro-log-form" action="index.php?page=log_macros" method="post" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(100px, 1fr)); gap: 12px; align-items: end; margin: 0;">
+    <!-- Macro Log Form Controls -->
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; flex-wrap: wrap; gap: 10px;">
+        <div class="macro-mode-tabs">
+            <button type="button" id="tab-mode-add" class="macro-tab-btn active" onclick="setMacroLogMode('add')">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+                <span>Add Meal / Intake</span>
+            </button>
+            <button type="button" id="tab-mode-set" class="macro-tab-btn" onclick="setMacroLogMode('set')">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg>
+                <span>Edit Total Directly</span>
+            </button>
+        </div>
+        <div style="display: flex; align-items: center; gap: 8px;">
+            <button type="button" id="btn-reset-macros" class="macro-reset-btn">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                Reset Today
+            </button>
+        </div>
+    </div>
+
+    <!-- Macro Log Form -->
+    <form id="macro-log-form" action="index.php?page=log_macros" method="post" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 12px; align-items: end; margin: 0;">
         <?= csrf_field() ?>
+        <input type="hidden" id="macro-input-mode" name="mode" value="add">
         <div>
-            <label style="display:block; font-size:11px; color:var(--muted); margin-bottom:4px; text-transform:uppercase;">Calories (kcal)</label>
-            <input id="macro-input-cals" type="number" name="calories" value="<?= $loggedCals ?: '' ?>" required style="width:100%; background:rgba(0,0,0,0.2); border:1px solid var(--line); color:var(--ink); padding:10px; border-radius:8px;">
+            <label id="macro-lbl-cals" class="macro-input-lbl label-cals">
+                <span class="macro-stat-dot dot-cals"></span>
+                <span id="lbl-text-cals">+ Add Calories</span>
+            </label>
+            <input id="macro-input-cals" class="macro-field field-cals" type="number" name="calories" value="" required placeholder="+0">
         </div>
         <div>
-            <label style="display:block; font-size:11px; color:var(--muted); margin-bottom:4px; text-transform:uppercase;">Protein (g)</label>
-            <input id="macro-input-pro" type="number" name="protein_g" value="<?= $loggedPro ?: '' ?>" style="width:100%; background:rgba(0,0,0,0.2); border:1px solid var(--line); color:var(--ink); padding:10px; border-radius:8px;">
+            <label id="macro-lbl-pro" class="macro-input-lbl label-pro">
+                <span class="macro-stat-dot dot-pro"></span>
+                <span id="lbl-text-pro">+ Add Protein (g)</span>
+            </label>
+            <input id="macro-input-pro" class="macro-field field-pro" type="number" name="protein_g" value="" placeholder="+0">
         </div>
         <div>
-            <label style="display:block; font-size:11px; color:var(--muted); margin-bottom:4px; text-transform:uppercase;">Carbs (g)</label>
-            <input id="macro-input-carbs" type="number" name="carbs_g" value="<?= $loggedCarbs ?: '' ?>" style="width:100%; background:rgba(0,0,0,0.2); border:1px solid var(--line); color:var(--ink); padding:10px; border-radius:8px;">
+            <label id="macro-lbl-carbs" class="macro-input-lbl label-carbs">
+                <span class="macro-stat-dot dot-carbs"></span>
+                <span id="lbl-text-carbs">+ Add Carbs (g)</span>
+            </label>
+            <input id="macro-input-carbs" class="macro-field field-carbs" type="number" name="carbs_g" value="" placeholder="+0">
         </div>
         <div>
-            <label style="display:block; font-size:11px; color:var(--muted); margin-bottom:4px; text-transform:uppercase;">Fat (g)</label>
-            <input id="macro-input-fat" type="number" name="fat_g" value="<?= $loggedFat ?: '' ?>" style="width:100%; background:rgba(0,0,0,0.2); border:1px solid var(--line); color:var(--ink); padding:10px; border-radius:8px;">
+            <label id="macro-lbl-fat" class="macro-input-lbl label-fat">
+                <span class="macro-stat-dot dot-fat"></span>
+                <span id="lbl-text-fat">+ Add Fat (g)</span>
+            </label>
+            <input id="macro-input-fat" class="macro-field field-fat" type="number" name="fat_g" value="" placeholder="+0">
         </div>
         <div>
-            <button id="macro-save-btn" type="submit" style="width:100%; background:var(--lime); color:var(--bg); border:none; padding:11px; border-radius:8px; font-weight:bold; cursor:pointer; transition: opacity 0.2s;">Save Log</button>
+            <button id="macro-save-btn" type="submit" class="macro-save-btn">
+                <span id="btn-save-text">+ Add to Log</span>
+            </button>
         </div>
     </form>
 
+<style>
+/* Adaptive Macro Tracker Theme System */
+:root {
+    --surface: var(--panel);
+    --macro-cals: var(--lime);
+    --macro-pro: #38bdf8;
+    --macro-carbs: #fbbf24;
+    --macro-fat: #f43f5e;
+    --macro-card-bg: rgba(0, 0, 0, 0.28);
+    --macro-input-bg: rgba(0, 0, 0, 0.32);
+    --macro-track-bg: rgba(255, 255, 255, 0.08);
+    --macro-tabs-bg: rgba(0, 0, 0, 0.35);
+    --macro-btn-ink: #090b10;
+    --macro-card-glow: 0 4px 20px rgba(0, 0, 0, 0.25);
+    --macro-box-bg: linear-gradient(135deg, rgba(199,255,34,0.06) 0%, rgba(56,189,248,0.04) 50%, rgba(244,63,94,0.04) 100%), var(--panel);
+    --macro-box-border: color-mix(in srgb, var(--lime) 25%, var(--line));
+    --macro-cals-border: rgba(199, 255, 34, 0.22);
+    --macro-pro-border: rgba(56, 189, 248, 0.22);
+    --macro-carbs-border: rgba(251, 191, 36, 0.22);
+    --macro-fat-border: rgba(244, 63, 94, 0.22);
+}
+
+[data-theme="light"] {
+    --surface: #ffffff;
+    --macro-cals: var(--lime);       /* deep forest lime */
+    --macro-pro: #0284c7;           /* rich accessible sky blue */
+    --macro-carbs: #d97706;         /* rich warm amber */
+    --macro-fat: #e11d48;           /* rich berry rose */
+    --macro-card-bg: #f8fafc;
+    --macro-input-bg: #ffffff;
+    --macro-track-bg: #e2e8f0;
+    --macro-tabs-bg: var(--panel-soft);
+    --macro-btn-ink: #ffffff;
+    --macro-card-glow: 0 4px 18px rgba(0, 0, 0, 0.05);
+    --macro-box-bg: #ffffff;
+    --macro-box-border: var(--line);
+    --macro-cals-border: color-mix(in srgb, var(--lime) 30%, var(--line));
+    --macro-pro-border: color-mix(in srgb, #0284c7 30%, var(--line));
+    --macro-carbs-border: color-mix(in srgb, #d97706 30%, var(--line));
+    --macro-fat-border: color-mix(in srgb, #e11d48 30%, var(--line));
+}
+
+.macro-tracker-card {
+    background: var(--macro-box-bg);
+    border: 1px solid var(--macro-box-border);
+    border-radius: 14px;
+    padding: 24px;
+    margin-bottom: 24px;
+    box-shadow: var(--macro-card-glow);
+    backdrop-filter: blur(16px);
+    transition: background 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease;
+}
+
+.macro-aux-btn {
+    background: var(--panel-soft);
+    border: 1px solid var(--line);
+    color: var(--muted);
+    padding: 6px 12px;
+    border-radius: 6px;
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    transition: all 0.2s ease;
+}
+.macro-aux-btn:hover {
+    color: var(--ink);
+    border-color: color-mix(in srgb, var(--ink) 25%, var(--line));
+}
+
+.macro-stat-card {
+    background: var(--macro-card-bg);
+    border-radius: 10px;
+    padding: 14px 16px;
+    transition: background 0.25s ease, border-color 0.25s ease, box-shadow 0.25s ease;
+}
+.macro-stat-card:hover {
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+}
+.macro-stat-card.card-cals  { border: 1px solid var(--macro-cals-border); }
+.macro-stat-card.card-pro   { border: 1px solid var(--macro-pro-border); }
+.macro-stat-card.card-carbs { border: 1px solid var(--macro-carbs-border); }
+.macro-stat-card.card-fat   { border: 1px solid var(--macro-fat-border); }
+
+.macro-stat-label {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+.macro-stat-label.label-cals  { color: var(--macro-cals); }
+.macro-stat-label.label-pro   { color: var(--macro-pro); }
+.macro-stat-label.label-carbs { color: var(--macro-carbs); }
+.macro-stat-label.label-fat   { color: var(--macro-fat); }
+
+.macro-stat-dot {
+    display: inline-block;
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+}
+.macro-stat-dot.dot-cals  { background: var(--macro-cals); }
+.macro-stat-dot.dot-pro   { background: var(--macro-pro); }
+.macro-stat-dot.dot-carbs { background: var(--macro-carbs); }
+.macro-stat-dot.dot-fat   { background: var(--macro-fat); }
+
+.macro-progress-track {
+    height: 6px;
+    background: var(--macro-track-bg);
+    border-radius: 3px;
+    overflow: hidden;
+}
+
+.macro-mode-tabs {
+    display: inline-flex;
+    background: var(--macro-tabs-bg);
+    padding: 3px;
+    border-radius: 8px;
+    border: 1px solid var(--line);
+}
+.macro-tab-btn {
+    background: transparent;
+    color: var(--muted);
+    border: none;
+    padding: 6px 14px;
+    border-radius: 6px;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+}
+.macro-tab-btn:hover {
+    color: var(--ink);
+}
+.macro-tab-btn.active {
+    background: var(--lime);
+    color: var(--macro-btn-ink);
+    font-weight: 700;
+}
+
+.macro-reset-btn {
+    background: rgba(239, 68, 68, 0.08);
+    border: 1px solid rgba(239, 68, 68, 0.25);
+    color: #ef4444;
+    padding: 6px 12px;
+    border-radius: 6px;
+    font-size: 12px;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    transition: all 0.2s ease;
+}
+.macro-reset-btn:hover {
+    background: rgba(239, 68, 68, 0.15);
+    border-color: #ef4444;
+}
+
+.macro-input-lbl {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 11px;
+    margin-bottom: 5px;
+    text-transform: uppercase;
+    font-weight: 600;
+}
+.macro-input-lbl.label-cals  { color: var(--macro-cals); }
+.macro-input-lbl.label-pro   { color: var(--macro-pro); }
+.macro-input-lbl.label-carbs { color: var(--macro-carbs); }
+.macro-input-lbl.label-fat   { color: var(--macro-fat); }
+
+.macro-field {
+    width: 100%;
+    background: var(--macro-input-bg);
+    color: var(--ink);
+    padding: 10px 12px;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 600;
+    box-sizing: border-box;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
+}
+.macro-field::placeholder {
+    color: var(--muted);
+    opacity: 0.7;
+}
+.macro-field.field-cals  { border: 1px solid var(--macro-cals-border); }
+.macro-field.field-pro   { border: 1px solid var(--macro-pro-border); }
+.macro-field.field-carbs { border: 1px solid var(--macro-carbs-border); }
+.macro-field.field-fat   { border: 1px solid var(--macro-fat-border); }
+
+.macro-field.field-cals:focus  { outline: none; border-color: var(--macro-cals); box-shadow: 0 0 0 3px color-mix(in srgb, var(--macro-cals) 20%, transparent); }
+.macro-field.field-pro:focus   { outline: none; border-color: var(--macro-pro); box-shadow: 0 0 0 3px color-mix(in srgb, var(--macro-pro) 20%, transparent); }
+.macro-field.field-carbs:focus { outline: none; border-color: var(--macro-carbs); box-shadow: 0 0 0 3px color-mix(in srgb, var(--macro-carbs) 20%, transparent); }
+.macro-field.field-fat:focus   { outline: none; border-color: var(--macro-fat); box-shadow: 0 0 0 3px color-mix(in srgb, var(--macro-fat) 20%, transparent); }
+
+.macro-save-btn {
+    width: 100%;
+    background: var(--lime);
+    color: var(--macro-btn-ink);
+    border: none;
+    padding: 11px 16px;
+    border-radius: 8px;
+    font-weight: bold;
+    cursor: pointer;
+    transition: opacity 0.2s ease, transform 0.15s ease;
+    font-size: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+}
+.macro-save-btn:hover {
+    opacity: 0.92;
+    transform: translateY(-1px);
+}
+
+/* Celebration Popup Theme Support */
+.diet-celebration-popup {
+    background: linear-gradient(155deg, rgba(22, 28, 36, 0.96) 0%, rgba(10, 14, 18, 0.98) 100%) !important;
+    border: 1px solid rgba(255, 255, 255, 0.12) !important;
+    border-radius: 22px !important;
+    box-shadow: 0 28px 70px -15px rgba(0, 0, 0, 0.9), 0 0 45px rgba(0, 0, 0, 0.6) !important;
+    backdrop-filter: blur(28px) !important;
+    -webkit-backdrop-filter: blur(28px) !important;
+    padding: 26px 22px 22px !important;
+}
+[data-theme="light"] .diet-celebration-popup {
+    background: #ffffff !important;
+    border: 1px solid var(--line) !important;
+    box-shadow: 0 25px 60px -10px rgba(0, 0, 0, 0.18), 0 0 30px rgba(0, 0, 0, 0.05) !important;
+    color: var(--ink) !important;
+}
+[data-theme="light"] .celebration-title {
+    color: #0f172a !important;
+}
+[data-theme="light"] .celebration-desc {
+    color: #475569 !important;
+}
+[data-theme="light"] .celebration-card-wrap {
+    background: #f8fafc !important;
+    border: 1px solid #e2e8f0 !important;
+}
+[data-theme="light"] .celebration-mini-stat {
+    background: #ffffff !important;
+    border-color: #e2e8f0 !important;
+}
+[data-theme="light"] .celebration-mini-stat .mini-val {
+    color: #0f172a !important;
+}
+[data-theme="light"] .celebration-track {
+    background: #e2e8f0 !important;
+}
+.diet-celebration-popup.swal2-show {
+    animation: celebrationScaleIn 0.28s cubic-bezier(0.16, 1, 0.3, 1) forwards !important;
+}
+.diet-celebration-popup.swal2-hide {
+    animation: celebrationScaleOut 0.15s cubic-bezier(0.4, 0, 1, 1) forwards !important;
+}
+@keyframes celebrationScaleIn {
+    0% { transform: scale(0.9) translateY(10px); opacity: 0; }
+    100% { transform: scale(1) translateY(0); opacity: 1; }
+}
+@keyframes celebrationScaleOut {
+    0% { transform: scale(1) translateY(0); opacity: 1; }
+    100% { transform: scale(0.92) translateY(8px); opacity: 0; }
+}
+.diet-celebration-popup .swal2-close {
+    color: #94a3b8 !important;
+    top: 14px !important;
+    right: 14px !important;
+    z-index: 99999 !important;
+    pointer-events: auto !important;
+    cursor: pointer !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    width: 34px !important;
+    height: 34px !important;
+    border-radius: 50% !important;
+    background: rgba(255, 255, 255, 0.08) !important;
+    border: none !important;
+    transition: all 0.2s ease !important;
+    font-size: 22px !important;
+    line-height: 1 !important;
+}
+.diet-celebration-popup .swal2-close:hover {
+    color: #ffffff !important;
+    background: rgba(255, 255, 255, 0.18) !important;
+    transform: scale(1.06) !important;
+}
+[data-theme="light"] .diet-celebration-popup .swal2-close {
+    color: #64748b !important;
+    background: rgba(0, 0, 0, 0.05) !important;
+}
+[data-theme="light"] .diet-celebration-popup .swal2-close:hover {
+    color: #0f172a !important;
+    background: rgba(0, 0, 0, 0.1) !important;
+}
+.diet-celebration-popup .swal2-html-container {
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: visible !important;
+}
+.celebration-hero-pulse {
+    animation: heroIconPulse 2.4s infinite ease-in-out;
+}
+@keyframes heroIconPulse {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.06); }
+}
+.celebration-action-btn {
+    transition: all 0.18s ease !important;
+}
+.celebration-action-btn:hover {
+    transform: translateY(-2px);
+    filter: brightness(1.08);
+}
+.celebration-secondary-btn {
+    transition: all 0.18s ease !important;
+}
+.celebration-secondary-btn:hover {
+    color: var(--ink) !important;
+    border-color: color-mix(in srgb, var(--ink) 30%, var(--line)) !important;
+    background: rgba(255, 255, 255, 0.06) !important;
+    transform: translateY(-2px);
+}
+[data-theme="light"] .celebration-secondary-btn:hover {
+    background: rgba(0, 0, 0, 0.04) !important;
+}
+</style>
+<script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.min.js"></script>
 <script>
 (function() {
-    const form     = document.getElementById('macro-log-form');
-    const saveBtn  = document.getElementById('macro-save-btn');
-    const bar      = document.getElementById('macro-progress-bar');
-    const calsDisp = document.getElementById('macro-logged-cals');
-    const tarDisp  = document.getElementById('macro-target-cals');
+    const form       = document.getElementById('macro-log-form');
+    const saveBtn    = document.getElementById('macro-save-btn');
+    const saveBtnTxt = document.getElementById('btn-save-text');
+    const btnAutoCal = document.getElementById('btn-auto-calc-cals');
+    const btnReset   = document.getElementById('btn-reset-macros');
+    const modeInput  = document.getElementById('macro-input-mode');
+
+    const tabAdd = document.getElementById('tab-mode-add');
+    const tabSet = document.getElementById('tab-mode-set');
+
+    const lblCals  = document.getElementById('lbl-text-cals');
+    const lblPro   = document.getElementById('lbl-text-pro');
+    const lblCarbs = document.getElementById('lbl-text-carbs');
+    const lblFat   = document.getElementById('lbl-text-fat');
+    
+    // Inputs
+    const inCals  = document.getElementById('macro-input-cals');
+    const inPro   = document.getElementById('macro-input-pro');
+    const inCarbs = document.getElementById('macro-input-carbs');
+    const inFat   = document.getElementById('macro-input-fat');
+
+    // Displays
+    const calsDisp  = document.getElementById('macro-logged-cals');
+    const tarDisp   = document.getElementById('macro-target-cals');
+    const pctCals   = document.getElementById('macro-pct-cals');
+    const barCals   = document.getElementById('macro-progress-bar-cals');
+
+    const proDisp   = document.getElementById('macro-logged-pro');
+    const tarPro    = document.getElementById('macro-target-pro');
+    const pctPro    = document.getElementById('macro-pct-pro');
+    const barPro    = document.getElementById('macro-progress-bar-pro');
+
+    const carbsDisp = document.getElementById('macro-logged-carbs');
+    const tarCarbs  = document.getElementById('macro-target-carbs');
+    const pctCarbs  = document.getElementById('macro-pct-carbs');
+    const barCarbs  = document.getElementById('macro-progress-bar-carbs');
+
+    const fatDisp   = document.getElementById('macro-logged-fat');
+    const tarFat    = document.getElementById('macro-target-fat');
+    const pctFat    = document.getElementById('macro-pct-fat');
+    const barFat    = document.getElementById('macro-progress-bar-fat');
+
     if (!form) return;
     const csrf = form.querySelector('[name="csrf_token"]').value;
 
-    form.addEventListener('submit', async function(e) {
-        e.preventDefault();
+    window.setMacroLogMode = function(mode) {
+        if (!modeInput) return;
+        modeInput.value = mode;
+
+        if (mode === 'add') {
+            tabAdd?.classList.add('active');
+            tabSet?.classList.remove('active');
+
+            if (lblCals)  lblCals.textContent  = '+ Add Calories';
+            if (lblPro)   lblPro.textContent   = '+ Add Protein (g)';
+            if (lblCarbs) lblCarbs.textContent = '+ Add Carbs (g)';
+            if (lblFat)   lblFat.textContent   = '+ Add Fat (g)';
+
+            if (inCals)  inCals.placeholder  = '+0';
+            if (inPro)   inPro.placeholder   = '+0';
+            if (inCarbs) inCarbs.placeholder = '+0';
+            if (inFat)   inFat.placeholder   = '+0';
+
+            if (inCals)  inCals.value  = '';
+            if (inPro)   inPro.value   = '';
+            if (inCarbs) inCarbs.value = '';
+            if (inFat)   inFat.value   = '';
+
+            if (saveBtnTxt) saveBtnTxt.textContent = '+ Add to Log';
+        } else {
+            tabSet?.classList.add('active');
+            tabAdd?.classList.remove('active');
+
+            if (lblCals)  lblCals.textContent  = 'Total Calories';
+            if (lblPro)   lblPro.textContent   = 'Total Protein (g)';
+            if (lblCarbs) lblCarbs.textContent = 'Total Carbs (g)';
+            if (lblFat)   lblFat.textContent   = 'Total Fat (g)';
+
+            if (inCals)  inCals.placeholder  = '0';
+            if (inPro)   inPro.placeholder   = '0';
+            if (inCarbs) inCarbs.placeholder = '0';
+            if (inFat)   inFat.placeholder   = '0';
+
+            // Populate with current daily totals
+            if (inCals)  inCals.value  = (calsDisp?.textContent?.trim()  || '0');
+            if (inPro)   inPro.value   = (proDisp?.textContent?.trim()   || '0');
+            if (inCarbs) inCarbs.value = (carbsDisp?.textContent?.trim() || '0');
+            if (inFat)   inFat.value   = (fatDisp?.textContent?.trim()   || '0');
+
+            if (saveBtnTxt) saveBtnTxt.textContent = 'Update Total';
+        }
+    };
+
+    // Helper: auto calculate calories from macros: (P * 4) + (C * 4) + (F * 9)
+    function calcCaloriesFromMacros() {
+        const p = parseFloat(inPro?.value || 0) || 0;
+        const c = parseFloat(inCarbs?.value || 0) || 0;
+        const f = parseFloat(inFat?.value || 0) || 0;
+        return Math.round((p * 4) + (c * 4) + (f * 9));
+    }
+
+    if (btnAutoCal) {
+        btnAutoCal.addEventListener('click', function() {
+            const calculated = calcCaloriesFromMacros();
+            if (calculated > 0 && inCals) {
+                inCals.value = calculated;
+                inCals.style.transition = 'background 0.3s ease';
+                inCals.style.background = 'rgba(199,255,34,0.25)';
+                setTimeout(() => { inCals.style.background = ''; }, 400);
+            }
+        });
+    }
+
+    function shootConfetti(particleCount = 70) {
+        if (typeof confetti === 'function') {
+            try {
+                confetti({
+                    particleCount: particleCount,
+                    spread: 70,
+                    origin: { y: 0.6 }
+                });
+            } catch (e) {}
+        }
+    }
+
+    function fireCelebrationModal({
+        themeColor,
+        themeGlow,
+        badgeText,
+        iconSvg,
+        title,
+        metricLabel,
+        loggedVal,
+        targetVal,
+        description,
+        btnText,
+        btnBg,
+        isAll = false,
+        allStats = null
+    }) {
+        let statsCardHtml = '';
+        if (isAll && allStats) {
+            statsCardHtml = `
+                <div class="celebration-card-wrap" style="background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); border-radius: 12px; padding: 14px 10px; margin: 16px 0; display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px;">
+                    <div class="celebration-mini-stat" style="background: rgba(0,0,0,0.3); border: 1px solid color-mix(in srgb, var(--macro-cals) 25%, transparent); border-radius: 8px; padding: 8px 4px; text-align:center;">
+                        <div style="font-size: 10px; font-weight: 700; color: var(--macro-cals); text-transform: uppercase;">Calories</div>
+                        <div class="mini-val" style="font-size: 14px; font-weight: 800; color: #fff; margin: 3px 0;">${allStats.cals}</div>
+                        <div style="font-size: 10px; color: #22c55e; font-weight: 700;">Target Met</div>
+                    </div>
+                    <div class="celebration-mini-stat" style="background: rgba(0,0,0,0.3); border: 1px solid color-mix(in srgb, var(--macro-pro) 25%, transparent); border-radius: 8px; padding: 8px 4px; text-align:center;">
+                        <div style="font-size: 10px; font-weight: 700; color: var(--macro-pro); text-transform: uppercase;">Protein</div>
+                        <div class="mini-val" style="font-size: 14px; font-weight: 800; color: #fff; margin: 3px 0;">${allStats.pro}g</div>
+                        <div style="font-size: 10px; color: #22c55e; font-weight: 700;">Target Met</div>
+                    </div>
+                    <div class="celebration-mini-stat" style="background: rgba(0,0,0,0.3); border: 1px solid color-mix(in srgb, var(--macro-carbs) 25%, transparent); border-radius: 8px; padding: 8px 4px; text-align:center;">
+                        <div style="font-size: 10px; font-weight: 700; color: var(--macro-carbs); text-transform: uppercase;">Carbs</div>
+                        <div class="mini-val" style="font-size: 14px; font-weight: 800; color: #fff; margin: 3px 0;">${allStats.carbs}g</div>
+                        <div style="font-size: 10px; color: #22c55e; font-weight: 700;">Target Met</div>
+                    </div>
+                    <div class="celebration-mini-stat" style="background: rgba(0,0,0,0.3); border: 1px solid color-mix(in srgb, var(--macro-fat) 25%, transparent); border-radius: 8px; padding: 8px 4px; text-align:center;">
+                        <div style="font-size: 10px; font-weight: 700; color: var(--macro-fat); text-transform: uppercase;">Fat</div>
+                        <div class="mini-val" style="font-size: 14px; font-weight: 800; color: #fff; margin: 3px 0;">${allStats.fat}g</div>
+                        <div style="font-size: 10px; color: #22c55e; font-weight: 700;">Target Met</div>
+                    </div>
+                </div>`;
+        } else {
+            statsCardHtml = `
+                <div class="celebration-card-wrap" style="background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); border-radius: 12px; padding: 14px 18px; margin: 16px 0; text-align: left;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                        <span style="font-size: 11px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px;">${metricLabel} Goal</span>
+                        <span style="font-size: 11px; font-weight: 800; color: #22c55e; background: rgba(34,197,94,0.12); padding: 2px 8px; border-radius: 12px; border: 1px solid rgba(34,197,94,0.3); display: inline-flex; align-items: center; gap: 4px;">
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                            Target Met
+                        </span>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 10px;">
+                        <div>
+                            <span style="font-size: 26px; font-weight: 900; color: ${themeColor};">${loggedVal}</span>
+                            <span style="font-size: 12px; color: var(--muted); margin-left: 4px;">logged</span>
+                        </div>
+                        <span style="font-size: 13px; color: var(--muted); font-weight: 500;">Goal: <strong style="color:var(--ink);">${targetVal}</strong></span>
+                    </div>
+                    <div class="celebration-track" style="height: 6px; background: rgba(255,255,255,0.08); border-radius: 3px; overflow: hidden;">
+                        <div style="height: 100%; width: 100%; background: #22c55e; border-radius: 3px;"></div>
+                    </div>
+                </div>`;
+        }
+
+        const modalHtml = `
+            <div style="text-align: center; padding: 6px 4px;">
+                <!-- Glowing Hero Icon -->
+                <div class="celebration-hero-pulse" style="width: 76px; height: 76px; margin: 0 auto 16px; border-radius: 50%; background: radial-gradient(circle, ${themeGlow} 0%, rgba(15,20,17,0.92) 100%); border: 2px solid ${themeColor}; display: flex; align-items: center; justify-content: center; box-shadow: 0 0 40px ${themeGlow};">
+                    ${iconSvg}
+                </div>
+
+                <!-- Milestone Tag -->
+                <div style="display: inline-flex; align-items: center; gap: 6px; padding: 4px 12px; background: rgba(255,255,255,0.05); border: 1px solid ${themeColor}50; border-radius: 20px; font-size: 11px; font-weight: 800; color: ${themeColor}; letter-spacing: 0.8px; text-transform: uppercase; margin-bottom: 10px;">
+                    <span style="width: 6px; height: 6px; border-radius: 50%; background: ${themeColor};"></span>
+                    ${badgeText}
+                </div>
+
+                <!-- Title -->
+                <h2 class="celebration-title">
+                    ${title}
+                </h2>
+
+                <!-- Metric Breakdown -->
+                ${statsCardHtml}
+
+                <!-- Tip / Description -->
+                <p class="celebration-desc">
+                    ${description}
+                </p>
+
+                <!-- Action Buttons: Clear Affirmative + Explicit Close -->
+                <div style="display: flex; justify-content: center; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 4px;">
+                    <button type="button" class="celebration-action-btn celebration-close-trigger" style="background: ${btnBg}; color: var(--macro-btn-ink); font-weight: 800; font-size: 13.5px; border: none; padding: 11px 24px; border-radius: 9px; cursor: pointer; display: inline-flex; align-items: center; gap: 8px; box-shadow: 0 8px 24px ${themeGlow};">
+                        <span>Got it, continue!</span>
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                    </button>
+                    <button type="button" class="celebration-secondary-btn celebration-close-trigger" style="background: transparent; color: var(--muted); font-weight: 600; font-size: 13px; border: 1px solid var(--line); padding: 10px 18px; border-radius: 9px; cursor: pointer; display: inline-flex; align-items: center; gap: 6px;">
+                        Close
+                    </button>
+                </div>
+                <div style="font-size: 11.5px; color: var(--muted); margin-top: 13px;">
+                    This milestone has been recorded in today's daily log.
+                </div>
+            </div>
+        `;
+
+        Swal.fire({
+            html: modalHtml,
+            showConfirmButton: false,
+            showCloseButton: true,
+            allowOutsideClick: true,
+            allowEscapeKey: true,
+            background: 'transparent',
+            color: '#ffffff',
+            width: 460,
+            padding: '24px 20px 20px',
+            customClass: {
+                popup: 'diet-celebration-popup'
+            },
+            didOpen: (popup) => {
+                const dismissModal = (e) => {
+                    if (e) {
+                        e.preventDefault();
+                    }
+                    Swal.close();
+                    // Fallback to guarantee backdrop and popup cleanup in case of animation delay
+                    setTimeout(() => {
+                        const activeContainer = document.querySelector('.swal2-container');
+                        if (activeContainer && activeContainer.querySelector('.diet-celebration-popup')) {
+                            activeContainer.remove();
+                            document.body.classList.remove('swal2-shown', 'swal2-height-auto');
+                        }
+                    }, 240);
+                };
+
+                // Ensure top-right 'X' button always dismisses reliably
+                const closeBtn = popup.querySelector('.swal2-close');
+                if (closeBtn) {
+                    closeBtn.setAttribute('title', 'Close dialog');
+                    closeBtn.onclick = dismissModal;
+                }
+                // Ensure all close buttons dismiss reliably
+                popup.querySelectorAll('.celebration-close-trigger').forEach(function(btn) {
+                    btn.onclick = dismissModal;
+                });
+            }
+        });
+    }
+
+    // Reset button handler
+    if (btnReset) {
+        btnReset.addEventListener('click', function() {
+            Swal.fire({
+                title: 'Reset Today\'s Log?',
+                text: 'This will reset your logged calories, protein, carbs, and fat for today back to 0.',
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonColor: '#ef4444',
+                cancelButtonColor: 'transparent',
+                confirmButtonText: 'Yes, Reset Today',
+                cancelButtonText: 'Cancel',
+                background: getComputedStyle(document.documentElement).getPropertyValue('--bg').trim() || '#121721',
+                color: getComputedStyle(document.documentElement).getPropertyValue('--ink').trim() || '#ffffff',
+            }).then(async (result) => {
+                if (result.isConfirmed) {
+                    await submitMacroLog('reset');
+                }
+            });
+        });
+    }
+
+    async function submitMacroLog(forcedMode = null) {
         saveBtn.disabled = true;
-        saveBtn.textContent = 'Saving…';
         saveBtn.style.opacity = '0.7';
 
-        // Build POST body explicitly so CSRF token is always included
+        const activeMode = forcedMode || modeInput?.value || 'add';
+
+        // Capture previous values before update to detect newly unlocked milestones
+        const prevPro   = parseFloat(proDisp?.textContent   || 0) || 0;
+        const prevCals  = parseFloat(calsDisp?.textContent  || 0) || 0;
+        const prevCarbs = parseFloat(carbsDisp?.textContent || 0) || 0;
+        const prevFat   = parseFloat(fatDisp?.textContent   || 0) || 0;
+
+        // In 'add' mode, auto-fill calories if left empty but macros were entered
+        if (activeMode === 'add' && (!inCals.value || inCals.value === '0') && (inPro.value || inCarbs.value || inFat.value)) {
+            inCals.value = calcCaloriesFromMacros();
+        }
+
         const body = new URLSearchParams({
-            calories:   document.getElementById('macro-input-cals')?.value  || '0',
-            protein_g:  document.getElementById('macro-input-pro')?.value   || '0',
-            carbs_g:    document.getElementById('macro-input-carbs')?.value || '0',
-            fat_g:      document.getElementById('macro-input-fat')?.value   || '0',
+            mode:       activeMode,
+            calories:   activeMode === 'reset' ? '0' : (inCals?.value  || '0'),
+            protein_g:  activeMode === 'reset' ? '0' : (inPro?.value   || '0'),
+            carbs_g:    activeMode === 'reset' ? '0' : (inCarbs?.value || '0'),
+            fat_g:      activeMode === 'reset' ? '0' : (inFat?.value   || '0'),
             csrf_token: csrf
         });
 
@@ -320,38 +1129,235 @@ $pctCals = $targetCals > 0 ? min(100, round(($loggedCals / $targetCals) * 100)) 
         } catch (err) {
             Swal.fire({ icon: 'error', title: 'Error', text: 'Could not reach the server. Please try again.', background: 'var(--bg)', color: 'var(--ink)' });
             saveBtn.disabled = false;
-            saveBtn.textContent = 'Save Log';
             saveBtn.style.opacity = '1';
             return;
         }
 
         if (data && data.success) {
-            // Animate calorie counter
-            if (calsDisp) calsDisp.textContent = data.logged_cals;
-            if (tarDisp && data.target_cals) tarDisp.textContent = data.target_cals;
+            const newCals  = data.logged_cals;
+            const newPro   = data.logged_pro;
+            const newCarbs = data.logged_carbs;
+            const newFat   = data.logged_fat;
 
-            // Animate progress bar
-            if (bar) {
-                bar.style.width = data.pct_cals + '%';
-                bar.style.background = data.pct_cals >= 100 ? '#22c55e' : 'var(--lime)';
+            const targetCals  = data.target_cals;
+            const targetPro   = data.target_pro;
+            const targetCarbs = data.target_carbs;
+            const targetFat   = data.target_fat;
+
+            function formatStatus(logged, target, type) {
+                if (target <= 0) {
+                    return { text: '0%', color: 'var(--muted)', width: '0%', barBg: `var(--macro-${type})` };
+                }
+                const diff = logged - target;
+                const pct = Math.round((logged / target) * 100);
+
+                if (diff > 0) {
+                    if (type === 'pro') {
+                        return { text: `+${diff}g Over`, color: '#22c55e', width: '100%', barBg: '#22c55e' };
+                    } else if (type === 'cals') {
+                        return { text: `+${diff} kcal Over`, color: '#f59e0b', width: '100%', barBg: '#f59e0b' };
+                    } else if (type === 'carbs') {
+                        return { text: `+${diff}g Over`, color: '#f59e0b', width: '100%', barBg: '#f59e0b' };
+                    } else { // fat
+                        return { text: `+${diff}g Over`, color: '#f43f5e', width: '100%', barBg: '#f43f5e' };
+                    }
+                } else if (diff === 0) {
+                    return { text: '100% ✓ Met', color: '#22c55e', width: '100%', barBg: '#22c55e' };
+                } else {
+                    return { text: `${pct}%`, color: 'var(--muted)', width: `${Math.min(100, pct)}%`, barBg: `var(--macro-${type})` };
+                }
             }
 
-            // SweetAlert toast
-            const Toast = Swal.mixin({
-                toast: true, position: 'top-end', showConfirmButton: false,
-                timer: 3000, timerProgressBar: true,
-                background: getComputedStyle(document.documentElement).getPropertyValue('--bg').trim() || '#121721',
-                color: getComputedStyle(document.documentElement).getPropertyValue('--ink').trim() || '#ffffff',
-            });
-            Toast.fire({ icon: 'success', title: 'Macros saved for today! 🍏' });
+            const calsProg  = formatStatus(newCals, targetCals, 'cals');
+            const proProg   = formatStatus(newPro, targetPro, 'pro');
+            const carbsProg = formatStatus(newCarbs, targetCarbs, 'carbs');
+            const fatProg   = formatStatus(newFat, targetFat, 'fat');
+
+            // Calories update
+            if (calsDisp) calsDisp.textContent = newCals;
+            if (tarDisp && targetCals) tarDisp.textContent = targetCals;
+            if (pctCals) {
+                pctCals.textContent = calsProg.text;
+                pctCals.style.color = calsProg.color;
+            }
+            if (barCals) {
+                barCals.style.width = calsProg.width;
+                barCals.style.background = calsProg.barBg;
+            }
+
+            // Protein update
+            if (proDisp) proDisp.textContent = newPro;
+            if (tarPro && targetPro) tarPro.textContent = targetPro;
+            if (pctPro) {
+                pctPro.textContent = proProg.text;
+                pctPro.style.color = proProg.color;
+            }
+            if (barPro) {
+                barPro.style.width = proProg.width;
+                barPro.style.background = proProg.barBg;
+            }
+
+            // Carbs update
+            if (carbsDisp) carbsDisp.textContent = newCarbs;
+            if (tarCarbs && targetCarbs) tarCarbs.textContent = targetCarbs;
+            if (pctCarbs) {
+                pctCarbs.textContent = carbsProg.text;
+                pctCarbs.style.color = carbsProg.color;
+            }
+            if (barCarbs) {
+                barCarbs.style.width = carbsProg.width;
+                barCarbs.style.background = carbsProg.barBg;
+            }
+
+            // Fat update
+            if (fatDisp) fatDisp.textContent = newFat;
+            if (tarFat && targetFat) tarFat.textContent = targetFat;
+            if (pctFat) {
+                pctFat.textContent = fatProg.text;
+                pctFat.style.color = fatProg.color;
+            }
+            if (barFat) {
+                barFat.style.width = fatProg.width;
+                barFat.style.background = fatProg.barBg;
+            }
+
+            // In 'add' or 'reset' mode, clear inputs ready for the next food entry
+            if (activeMode === 'add' || activeMode === 'reset') {
+                inCals.value = '';
+                inPro.value = '';
+                inCarbs.value = '';
+                inFat.value = '';
+            }
+
+            // Detect newly reached goals
+            const reachedPro   = (prevPro < targetPro) && (newPro >= targetPro) && (targetPro > 0);
+            const reachedCals  = (prevCals < targetCals) && (newCals >= targetCals) && (targetCals > 0);
+            const reachedCarbs = (prevCarbs < targetCarbs) && (newCarbs >= targetCarbs) && (targetCarbs > 0);
+            const reachedFat   = (prevFat < targetFat) && (newFat >= targetFat) && (targetFat > 0);
+
+            const allNowMet  = (newCals >= targetCals && newPro >= targetPro && newCarbs >= targetCarbs && newFat >= targetFat) && (targetCals > 0 && targetPro > 0);
+            const prevAllMet = (prevCals >= targetCals && prevPro >= targetPro && prevCarbs >= targetCarbs && prevFat >= targetFat);
+            const reachedAll = allNowMet && !prevAllMet;
+
+            const bgVal  = getComputedStyle(document.documentElement).getPropertyValue('--bg').trim() || '#121721';
+            const inkVal = getComputedStyle(document.documentElement).getPropertyValue('--ink').trim() || '#ffffff';
+
+            if (reachedAll) {
+                shootConfetti(120);
+                setTimeout(() => {
+                    fireCelebrationModal({
+                        themeColor: 'var(--lime, #c7ff22)',
+                        themeGlow: 'rgba(199, 255, 34, 0.45)',
+                        badgeText: 'DAILY TARGETS COMPLETED',
+                        iconSvg: '<svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="var(--lime)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"></path><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"></path><path d="M4 22h16"></path><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"></path><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"></path><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"></path></svg>',
+                        title: 'Perfect Macro Day!',
+                        description: 'Incredible dedication! You have successfully reached every single nutritional target scheduled for today.',
+                        btnText: 'Keep the Streak',
+                        btnBg: 'var(--lime, #c7ff22)',
+                        isAll: true,
+                        allStats: { cals: newCals, pro: newPro, carbs: newCarbs, fat: newFat }
+                    });
+                }, 250);
+            } else if (reachedPro) {
+                shootConfetti(80);
+                setTimeout(() => {
+                    fireCelebrationModal({
+                        themeColor: '#38bdf8',
+                        themeGlow: 'rgba(56, 189, 248, 0.45)',
+                        badgeText: 'PROTEIN GOAL ACHIEVED',
+                        iconSvg: '<svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="#38bdf8" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m6.5 6.5 11 11"/><path d="m21 21-1-1"/><path d="m3 3 1 1"/><path d="m18 22 4-4"/><path d="m2 6 4-4"/><path d="m3 10 7-7"/><path d="m14 21 7-7"/></svg>',
+                        title: 'Protein Target Crushed!',
+                        metricLabel: 'Protein',
+                        loggedVal: newPro + 'g',
+                        targetVal: targetPro + 'g',
+                        description: 'Hitting your daily protein goal accelerates muscle recovery, preserves lean tissue, and sustains your strength.',
+                        btnText: 'Keep Building',
+                        btnBg: '#38bdf8'
+                    });
+                }, 250);
+            } else if (reachedCals) {
+                shootConfetti(70);
+                setTimeout(() => {
+                    fireCelebrationModal({
+                        themeColor: 'var(--lime, #c7ff22)',
+                        themeGlow: 'rgba(199, 255, 34, 0.45)',
+                        badgeText: 'CALORIE GOAL ACHIEVED',
+                        iconSvg: '<svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="var(--lime)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z"/></svg>',
+                        title: 'Calorie Target Reached!',
+                        metricLabel: 'Calories',
+                        loggedVal: newCals + ' kcal',
+                        targetVal: targetCals + ' kcal',
+                        description: 'You reached your planned daily energy intake, keeping your nutrition perfectly aligned with your fitness goal.',
+                        btnText: 'Continue',
+                        btnBg: 'var(--lime, #c7ff22)'
+                    });
+                }, 250);
+            } else if (reachedCarbs) {
+                shootConfetti(60);
+                setTimeout(() => {
+                    fireCelebrationModal({
+                        themeColor: '#fbbf24',
+                        themeGlow: 'rgba(251, 191, 36, 0.45)',
+                        badgeText: 'CARBOHYDRATES TARGET MET',
+                        iconSvg: '<svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="#fbbf24" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg>',
+                        title: 'Carbs Target Met!',
+                        metricLabel: 'Carbs',
+                        loggedVal: newCarbs + 'g',
+                        targetVal: targetCarbs + 'g',
+                        description: 'Your glycogen stores are refueled and ready to power your next training session.',
+                        btnText: 'Awesome',
+                        btnBg: '#fbbf24'
+                    });
+                }, 250);
+            } else if (reachedFat) {
+                shootConfetti(60);
+                setTimeout(() => {
+                    fireCelebrationModal({
+                        themeColor: '#f43f5e',
+                        themeGlow: 'rgba(244, 63, 94, 0.45)',
+                        badgeText: 'HEALTHY FATS TARGET MET',
+                        iconSvg: '<svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="#f43f5e" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path><path d="m9 12 2 2 4-4"></path></svg>',
+                        title: 'Healthy Fat Target Met!',
+                        metricLabel: 'Fat',
+                        loggedVal: newFat + 'g',
+                        targetVal: targetFat + 'g',
+                        description: 'Healthy fats optimize hormone balance, joint health, and steady long-term energy.',
+                        btnText: 'Awesome',
+                        btnBg: '#f43f5e'
+                    });
+                }, 250);
+            } else {
+                // Standard Toast feedback with clean text, no emojis
+                const Toast = Swal.mixin({
+                    toast: true, position: 'top-end', showConfirmButton: false,
+                    timer: 3000, timerProgressBar: true,
+                    background: bgVal,
+                    color: inkVal,
+                });
+
+                let toastMsg = 'Macros saved for today.';
+                if (activeMode === 'add') {
+                    toastMsg = `Added to today's log. Total: <strong>${data.logged_cals} kcal</strong>`;
+                } else if (activeMode === 'reset') {
+                    toastMsg = 'Today\'s log reset to 0.';
+                } else {
+                    toastMsg = `Today's totals updated. Total: <strong>${data.logged_cals} kcal</strong>`;
+                }
+
+                Toast.fire({ icon: 'success', title: toastMsg });
+            }
         } else {
             const msg = (data && data.error) ? data.error : 'Could not save macros. Please try again.';
             Swal.fire({ icon: 'error', title: 'Error', text: msg, background: 'var(--bg)', color: 'var(--ink)' });
         }
 
         saveBtn.disabled = false;
-        saveBtn.textContent = 'Save Log';
         saveBtn.style.opacity = '1';
+    }
+
+    form.addEventListener('submit', function(e) {
+        e.preventDefault();
+        submitMacroLog();
     });
 })();
 </script>
