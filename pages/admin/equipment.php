@@ -689,6 +689,106 @@ function gym_equipment_page(): void
                 grid-template-columns: 1fr !important;
             }
         }
+
+        /* Equipment Inventory Pagination */
+        .equip-pagination-bar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            gap: 12px;
+            margin-top: 18px;
+            padding: 14px 18px;
+            background: var(--panel);
+            border: 1px solid var(--line);
+            border-radius: 12px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+        }
+        .equip-page-info {
+            font-size: 13px;
+            color: var(--muted);
+            font-weight: 500;
+        }
+        .equip-page-info strong {
+            color: var(--ink);
+            font-weight: 700;
+        }
+        .equip-page-controls {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            user-select: none;
+        }
+        .btn-equip-page {
+            min-width: 36px;
+            height: 36px;
+            padding: 0 10px;
+            border-radius: 8px;
+            border: 1px solid var(--line);
+            background: var(--panel-soft);
+            color: var(--ink);
+            font-size: 13px;
+            font-weight: 600;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+            text-decoration: none;
+            line-height: 1;
+        }
+        .btn-equip-page:hover:not(.disabled):not(.active) {
+            border-color: #eab308;
+            color: #eab308;
+            background: color-mix(in srgb, #eab308 12%, var(--panel-soft));
+            transform: translateY(-1px);
+        }
+        .btn-equip-page.active {
+            background: #eab308 !important;
+            color: #0b0e14 !important;
+            border-color: #eab308 !important;
+            font-weight: 800 !important;
+            box-shadow: 0 2px 10px rgba(234, 179, 8, 0.35);
+            cursor: default;
+            transform: none;
+        }
+        .btn-equip-page.disabled {
+            opacity: 0.35;
+            cursor: not-allowed;
+            pointer-events: none;
+        }
+        .equip-page-ellipsis {
+            min-width: 24px;
+            height: 36px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--muted);
+            font-weight: 700;
+            font-size: 13px;
+            letter-spacing: 0.08em;
+        }
+        .equip-page-size-wrap {
+            display: inline-flex;
+            align-items: center;
+        }
+        @media (max-width: 768px) {
+            .equip-pagination-bar {
+                justify-content: center;
+                flex-direction: column;
+                gap: 12px;
+                text-align: center;
+            }
+            .equip-page-controls {
+                order: 1;
+            }
+            .equip-page-info {
+                order: 2;
+            }
+            .equip-page-size-wrap {
+                order: 3;
+            }
+        }
     </style>
 
     <div class="equipment-admin-container" style="max-width: 1300px; margin: 0 auto; padding-bottom: 60px;">
@@ -831,6 +931,27 @@ function gym_equipment_page(): void
                 <!-- Responsive Mobile Cards (Phone Screens <= 768px) -->
                 <div id="admin-mobile-cards" class="equip-mobile-cards">
                     <div style="padding: 30px; text-align: center; color: var(--muted);">Loading equipment data...</div>
+                </div>
+
+                <!-- Inventory Pagination Bar -->
+                <div id="admin-equip-pagination" class="equip-pagination-bar" style="display: none;">
+                    <div class="equip-page-info" id="admin-equip-page-info">
+                        Showing 0 of 0 units
+                    </div>
+                    <div class="equip-page-controls" id="admin-equip-page-buttons">
+                        <!-- Dynamic page buttons -->
+                    </div>
+                    <div class="equip-page-size-wrap">
+                        <label for="admin-equip-pagesize" style="font-size: 12px; color: var(--muted); margin-right: 6px;">Per page:</label>
+                        <select id="admin-equip-pagesize" class="equip-select-filter" style="padding: 4px 10px; font-size: 12px; height: 34px; border-radius: 8px;">
+                            <option value="6">6</option>
+                            <option value="8" selected>8</option>
+                            <option value="12">12</option>
+                            <option value="24">24</option>
+                            <option value="50">50</option>
+                            <option value="100000">All</option>
+                        </select>
+                    </div>
                 </div>
             </div>
         </div>
@@ -1190,6 +1311,8 @@ function gym_equipment_page(): void
         let searchQuery = '';
         let categoryFilter = 'all';
         let statusFilter = 'all';
+        let currentEquipPage = 1;
+        let equipPageSize = 8;
 
         async function adminEquipPost(action, formData) {
             formData.append('csrf_token', CSRF_TOKEN);
@@ -1232,6 +1355,7 @@ function gym_equipment_page(): void
             const mobileCards = document.getElementById('admin-mobile-cards');
             const countPill = document.getElementById('equip-count-pill');
             const unitsBadge = document.querySelector('.units-badge');
+            const paginationBar = document.getElementById('admin-equip-pagination');
 
             const filtered = equipmentData.filter(item => {
                 if (categoryFilter !== 'all' && item.category !== categoryFilter) return false;
@@ -1256,6 +1380,7 @@ function gym_equipment_page(): void
             }
 
             if (filtered.length === 0) {
+                if (paginationBar) paginationBar.style.display = 'none';
                 tbody.innerHTML = `<tr><td colspan="8" style="padding: 40px; text-align: center; color: var(--muted);">No matching equipment units found.</td></tr>`;
                 if (mobileCards) {
                     mobileCards.innerHTML = `<div style="padding: 36px 20px; text-align: center; color: var(--muted); background: var(--panel-soft); border-radius: 10px; border: 1px dashed var(--line); font-size: 13px;">No matching equipment units found.</div>`;
@@ -1263,10 +1388,29 @@ function gym_equipment_page(): void
                 return;
             }
 
+            // Pagination calculation
+            const totalFiltered = filtered.length;
+            const totalPages = Math.max(1, Math.ceil(totalFiltered / equipPageSize));
+            if (currentEquipPage > totalPages) {
+                currentEquipPage = totalPages;
+            }
+            if (currentEquipPage < 1) {
+                currentEquipPage = 1;
+            }
+
+            const startIndex = (currentEquipPage - 1) * equipPageSize;
+            const endIndex = Math.min(startIndex + equipPageSize, totalFiltered);
+            const pagedItems = filtered.slice(startIndex, endIndex);
+
+            if (paginationBar) {
+                paginationBar.style.display = 'flex';
+                renderAdminPagination(totalFiltered, totalPages, startIndex, endIndex);
+            }
+
             let tableHtml = '';
             let cardsHtml = '';
 
-            filtered.forEach(eq => {
+            pagedItems.forEach(eq => {
                 const status = eq.status || 'available';
                 const statusLabel = {
                     'available': 'Available',
@@ -1419,6 +1563,75 @@ function gym_equipment_page(): void
                 mobileCards.innerHTML = cardsHtml;
             }
         }
+
+        function renderAdminPagination(totalItems, totalPages, startIndex, endIndex) {
+            const infoEl = document.getElementById('admin-equip-page-info');
+            const buttonsEl = document.getElementById('admin-equip-page-buttons');
+            if (!infoEl || !buttonsEl) return;
+
+            infoEl.innerHTML = `Showing <strong>${startIndex + 1}–${endIndex}</strong> of <strong>${totalItems}</strong> units`;
+
+            if (totalPages <= 1) {
+                buttonsEl.innerHTML = `
+                    <button type="button" class="btn-equip-page disabled" aria-label="Previous page">&lt;</button>
+                    <button type="button" class="btn-equip-page active">1</button>
+                    <button type="button" class="btn-equip-page disabled" aria-label="Next page">&gt;</button>
+                `;
+                return;
+            }
+
+            let pages = [];
+            if (totalPages <= 5) {
+                for (let i = 1; i <= totalPages; i++) pages.push(i);
+            } else {
+                if (currentEquipPage <= 3) {
+                    pages = [1, 2, 3, '...', totalPages];
+                } else if (currentEquipPage >= totalPages - 2) {
+                    pages = [1, '...', totalPages - 2, totalPages - 1, totalPages];
+                } else {
+                    pages = [1, '...', currentEquipPage - 1, currentEquipPage, currentEquipPage + 1, '...', totalPages];
+                }
+            }
+
+            let btnsHtml = '';
+            // Previous button (<)
+            const prevDisabled = currentEquipPage <= 1 ? 'disabled' : '';
+            btnsHtml += `<button type="button" class="btn-equip-page ${prevDisabled}" onclick="goToEquipPage(${currentEquipPage - 1})" aria-label="Previous page">&lt;</button>`;
+
+            // Page numbers
+            pages.forEach(p => {
+                if (p === '...') {
+                    btnsHtml += `<span class="equip-page-ellipsis">...</span>`;
+                } else {
+                    const isActive = p === currentEquipPage ? 'active' : '';
+                    btnsHtml += `<button type="button" class="btn-equip-page ${isActive}" onclick="goToEquipPage(${p})">${p}</button>`;
+                }
+            });
+
+            // Next button (>)
+            const nextDisabled = currentEquipPage >= totalPages ? 'disabled' : '';
+            btnsHtml += `<button type="button" class="btn-equip-page ${nextDisabled}" onclick="goToEquipPage(${currentEquipPage + 1})" aria-label="Next page">&gt;</button>`;
+
+            buttonsEl.innerHTML = btnsHtml;
+        }
+
+        window.goToEquipPage = function(page) {
+            currentEquipPage = page;
+            renderAdminTable();
+            const tableWrap = document.querySelector('.equip-table-wrap');
+            if (tableWrap) {
+                const rect = tableWrap.getBoundingClientRect();
+                if (rect.top < 0) {
+                    tableWrap.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                }
+            }
+        };
+
+        window.changeEquipPageSize = function(size) {
+            equipPageSize = parseInt(size, 10) || 8;
+            currentEquipPage = 1;
+            renderAdminTable();
+        };
 
         // ADD MODAL
         window.openAddModal = function() {
@@ -1834,18 +2047,28 @@ function gym_equipment_page(): void
         // Filtering events
         document.getElementById('admin-search').addEventListener('input', function() {
             searchQuery = this.value.trim().toLowerCase();
+            currentEquipPage = 1;
             renderAdminTable();
         });
 
         document.getElementById('admin-category-filter').addEventListener('change', function() {
             categoryFilter = this.value;
+            currentEquipPage = 1;
             renderAdminTable();
         });
 
         document.getElementById('admin-status-filter').addEventListener('change', function() {
             statusFilter = this.value;
+            currentEquipPage = 1;
             renderAdminTable();
         });
+
+        const pageSizeSelect = document.getElementById('admin-equip-pagesize');
+        if (pageSizeSelect) {
+            pageSizeSelect.addEventListener('change', function() {
+                changeEquipPageSize(this.value);
+            });
+        }
 
         function escapeHtml(text) {
             if (!text) return '';
