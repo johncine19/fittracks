@@ -157,6 +157,105 @@ function member_equipment_page(): void
         @keyframes spin {
             to { transform: rotate(360deg); }
         }
+
+        /* Member Equipment Inventory Pagination */
+        .equip-pagination-bar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            gap: 12px;
+            padding: 14px 18px;
+            background: var(--panel);
+            border: 1px solid var(--line);
+            border-radius: 12px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+        }
+        .equip-page-info {
+            font-size: 13px;
+            color: var(--muted);
+            font-weight: 500;
+        }
+        .equip-page-info strong {
+            color: var(--ink);
+            font-weight: 700;
+        }
+        .equip-page-controls {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            user-select: none;
+        }
+        .btn-equip-page {
+            min-width: 36px;
+            height: 36px;
+            padding: 0 10px;
+            border-radius: 8px;
+            border: 1px solid var(--line);
+            background: var(--panel-soft);
+            color: var(--ink);
+            font-size: 13px;
+            font-weight: 600;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+            text-decoration: none;
+            line-height: 1;
+        }
+        .btn-equip-page:hover:not(.disabled):not(.active) {
+            border-color: #eab308;
+            color: #eab308;
+            background: color-mix(in srgb, #eab308 12%, var(--panel-soft));
+            transform: translateY(-1px);
+        }
+        .btn-equip-page.active {
+            background: #eab308 !important;
+            color: #0b0e14 !important;
+            border-color: #eab308 !important;
+            font-weight: 800 !important;
+            box-shadow: 0 2px 10px rgba(234, 179, 8, 0.35);
+            cursor: default;
+            transform: none;
+        }
+        .btn-equip-page.disabled {
+            opacity: 0.35;
+            cursor: not-allowed;
+            pointer-events: none;
+        }
+        .equip-page-ellipsis {
+            min-width: 24px;
+            height: 36px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--muted);
+            font-weight: 700;
+            font-size: 13px;
+            letter-spacing: 0.08em;
+        }
+        .equip-page-size-wrap {
+            display: inline-flex;
+            align-items: center;
+        }
+        @media (max-width: 768px) {
+            .equip-pagination-bar {
+                justify-content: center;
+                flex-direction: column;
+                gap: 12px;
+                text-align: center;
+            }
+            .equip-page-controls {
+                order: 1;
+            }
+            .equip-page-info {
+                order: 2;
+            }
+            .equip-page-size-wrap {
+                order: 3;
+            }
+        }
     </style>
 
     <div class="equipment-member-container" style="max-width: 1200px; margin: 0 auto; padding-bottom: 60px;">
@@ -242,6 +341,27 @@ function member_equipment_page(): void
             <h3 style="margin: 0 0 8px; color: var(--ink);">No equipment matches your filter</h3>
             <p style="margin: 0; color: var(--muted); font-size: 14px;">Try adjusting your search terms or filter selection.</p>
         </div>
+
+        <!-- MEMBER EQUIPMENT PAGINATION -->
+        <div id="member-equip-pagination" class="equip-pagination-bar" style="display: none; margin-top: 24px;">
+            <div class="equip-page-info" id="member-equip-page-info">
+                Showing 0 of 0 units
+            </div>
+            <div class="equip-page-controls" id="member-equip-page-buttons">
+                <!-- Dynamic page buttons -->
+            </div>
+            <div class="equip-page-size-wrap">
+                <label for="member-equip-pagesize" style="font-size: 12px; color: var(--muted); margin-right: 6px;">Per page:</label>
+                <select id="member-equip-pagesize" style="padding: 4px 10px; font-size: 12px; height: 34px; border-radius: 8px; background: var(--bg); border: 1px solid var(--line); color: var(--ink); cursor: pointer;">
+                    <option value="6">6</option>
+                    <option value="8" selected>8</option>
+                    <option value="12">12</option>
+                    <option value="24">24</option>
+                    <option value="50">50</option>
+                    <option value="100000">All</option>
+                </select>
+            </div>
+        </div>
     </div>
 
     <script>
@@ -256,6 +376,8 @@ function member_equipment_page(): void
         let activeFilter = 'all';
         let categoryFilter = 'all';
         let searchQuery = '';
+        let currentMemberPage = 1;
+        let memberPageSize = 8;
         let timerInterval = null;
         let pollInterval = null;
 
@@ -466,6 +588,7 @@ function member_equipment_page(): void
         function renderEquipmentGrid() {
             const grid = document.getElementById('equipment-grid');
             const empty = document.getElementById('empty-state');
+            const paginationBar = document.getElementById('member-equip-pagination');
 
             const filtered = allEquipment.filter(item => {
                 if (activeFilter !== 'all') {
@@ -487,13 +610,33 @@ function member_equipment_page(): void
             if (filtered.length === 0) {
                 grid.innerHTML = '';
                 empty.style.display = 'block';
+                if (paginationBar) paginationBar.style.display = 'none';
                 return;
             }
 
             empty.style.display = 'none';
 
+            // Pagination calculation
+            const totalFiltered = filtered.length;
+            const totalPages = Math.max(1, Math.ceil(totalFiltered / memberPageSize));
+            if (currentMemberPage > totalPages) {
+                currentMemberPage = totalPages;
+            }
+            if (currentMemberPage < 1) {
+                currentMemberPage = 1;
+            }
+
+            const startIndex = (currentMemberPage - 1) * memberPageSize;
+            const endIndex = Math.min(startIndex + memberPageSize, totalFiltered);
+            const pagedItems = filtered.slice(startIndex, endIndex);
+
+            if (paginationBar) {
+                paginationBar.style.display = 'flex';
+                renderMemberPagination(totalFiltered, totalPages, startIndex, endIndex);
+            }
+
             let html = '';
-            filtered.forEach(eq => {
+            pagedItems.forEach(eq => {
                 const status = eq.status || 'available';
                 const isUserUsing = activeSession && (parseInt(activeSession.equipment_id) === parseInt(eq.equipment_id));
                 const userQueue = myQueues.find(q => parseInt(q.equipment_id) === parseInt(eq.equipment_id));
@@ -667,6 +810,75 @@ function member_equipment_page(): void
 
             grid.innerHTML = html;
         }
+
+        function renderMemberPagination(totalItems, totalPages, startIndex, endIndex) {
+            const infoEl = document.getElementById('member-equip-page-info');
+            const buttonsEl = document.getElementById('member-equip-page-buttons');
+            if (!infoEl || !buttonsEl) return;
+
+            infoEl.innerHTML = `Showing <strong>${startIndex + 1}–${endIndex}</strong> of <strong>${totalItems}</strong> units`;
+
+            if (totalPages <= 1) {
+                buttonsEl.innerHTML = `
+                    <button type="button" class="btn-equip-page disabled" aria-label="Previous page">&lt;</button>
+                    <button type="button" class="btn-equip-page active">1</button>
+                    <button type="button" class="btn-equip-page disabled" aria-label="Next page">&gt;</button>
+                `;
+                return;
+            }
+
+            let pages = [];
+            if (totalPages <= 5) {
+                for (let i = 1; i <= totalPages; i++) pages.push(i);
+            } else {
+                if (currentMemberPage <= 3) {
+                    pages = [1, 2, 3, '...', totalPages];
+                } else if (currentMemberPage >= totalPages - 2) {
+                    pages = [1, '...', totalPages - 2, totalPages - 1, totalPages];
+                } else {
+                    pages = [1, '...', currentMemberPage - 1, currentMemberPage, currentMemberPage + 1, '...', totalPages];
+                }
+            }
+
+            let btnsHtml = '';
+            // Previous button (<)
+            const prevDisabled = currentMemberPage <= 1 ? 'disabled' : '';
+            btnsHtml += `<button type="button" class="btn-equip-page ${prevDisabled}" onclick="goToMemberPage(${currentMemberPage - 1})" aria-label="Previous page">&lt;</button>`;
+
+            // Page numbers
+            pages.forEach(p => {
+                if (p === '...') {
+                    btnsHtml += `<span class="equip-page-ellipsis">...</span>`;
+                } else {
+                    const isActive = p === currentMemberPage ? 'active' : '';
+                    btnsHtml += `<button type="button" class="btn-equip-page ${isActive}" onclick="goToMemberPage(${p})">${p}</button>`;
+                }
+            });
+
+            // Next button (>)
+            const nextDisabled = currentMemberPage >= totalPages ? 'disabled' : '';
+            btnsHtml += `<button type="button" class="btn-equip-page ${nextDisabled}" onclick="goToMemberPage(${currentMemberPage + 1})" aria-label="Next page">&gt;</button>`;
+
+            buttonsEl.innerHTML = btnsHtml;
+        }
+
+        window.goToMemberPage = function(page) {
+            currentMemberPage = page;
+            renderEquipmentGrid();
+            const gridEl = document.getElementById('equipment-grid');
+            if (gridEl) {
+                const rect = gridEl.getBoundingClientRect();
+                if (rect.top < 0) {
+                    gridEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                }
+            }
+        };
+
+        window.changeMemberPageSize = function(size) {
+            memberPageSize = parseInt(size, 10) || 8;
+            currentMemberPage = 1;
+            renderEquipmentGrid();
+        };
 
         // CONFIRM START SESSION
         window.confirmStartSession = function(equipmentId, equipName, unitNumber) {
@@ -990,19 +1202,29 @@ function member_equipment_page(): void
                 document.querySelectorAll('#status-filters .filter-btn').forEach(b => b.classList.remove('active'));
                 this.classList.add('active');
                 activeFilter = this.getAttribute('data-status');
+                currentMemberPage = 1;
                 renderEquipmentGrid();
             });
         });
 
         document.getElementById('category-filter').addEventListener('change', function() {
             categoryFilter = this.value;
+            currentMemberPage = 1;
             renderEquipmentGrid();
         });
 
         document.getElementById('equipment-search').addEventListener('input', function() {
             searchQuery = this.value.trim().toLowerCase();
+            currentMemberPage = 1;
             renderEquipmentGrid();
         });
+
+        const memberPageSizeSelect = document.getElementById('member-equip-pagesize');
+        if (memberPageSizeSelect) {
+            memberPageSizeSelect.addEventListener('change', function() {
+                changeMemberPageSize(this.value);
+            });
+        }
 
         function escapeHtml(text) {
             if (!text) return '';
