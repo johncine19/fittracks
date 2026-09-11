@@ -69,6 +69,18 @@ function gym_equipment_page(): void
     ?>
 
     <style>
+        :root {
+            --lime-btn-text: #090b10;
+        }
+        [data-theme="light"] {
+            --lime-btn-text: #ffffff;
+        }
+        .btn[style*="var(--lime)"],
+        button[style*="var(--lime)"] {
+            color: var(--lime-btn-text) !important;
+            font-weight: 800 !important;
+        }
+
         /* Equipment Admin Styling & Theme Adaptability */
         .equip-admin-card {
             background: var(--panel);

@@ -148,6 +148,71 @@ function render_header(string $title, ?array $user = null): void
             height: 0 !important;
             pointer-events: none !important;
         }
+
+        /* Topbar Header Mobile Responsive Rules */
+        .topbar-title {
+            min-width: 0;
+            flex: 1 1 auto;
+        }
+        .topbar-title > div {
+            min-width: 0;
+        }
+        .topbar h1 {
+            white-space: nowrap !important;
+            overflow: hidden !important;
+            text-overflow: ellipsis !important;
+            line-height: 1.25 !important;
+        }
+        .topbar p {
+            white-space: nowrap !important;
+            overflow: hidden !important;
+            text-overflow: ellipsis !important;
+        }
+        @media (max-width: 640px) {
+            .topbar {
+                gap: 8px !important;
+                padding: 10px 14px !important;
+                min-height: 58px !important;
+            }
+            .topbar-title {
+                gap: 10px !important;
+            }
+            .topbar h1 {
+                font-size: 16px !important;
+            }
+            .topbar p {
+                font-size: 11px !important;
+            }
+            .user-chip {
+                gap: 6px !important;
+                flex-shrink: 0 !important;
+            }
+        }
+        @media (max-width: 440px) {
+            .topbar {
+                padding: 8px 10px !important;
+                gap: 6px !important;
+            }
+            .topbar-title {
+                gap: 8px !important;
+            }
+            .topbar h1 {
+                font-size: 15px !important;
+            }
+            .topbar p {
+                display: none !important;
+            }
+            .user-chip {
+                gap: 4px !important;
+            }
+            .menu-button,
+            .theme-toggle,
+            .notif-bell,
+            .user-chip .avatar {
+                width: 32px !important;
+                height: 32px !important;
+            }
+        }
     </style>
 
     <?php if ($flash): ?>

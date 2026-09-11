@@ -584,19 +584,156 @@ function diet_page(): void
     
     $daysMap = [1=>'Monday', 2=>'Tuesday', 3=>'Wednesday', 4=>'Thursday', 5=>'Friday', 6=>'Saturday', 7=>'Sunday'];
 ?>
-<div style="display:flex; justify-content:space-between; align-items:flex-end; margin-bottom: 20px; flex-wrap: wrap; gap: 12px;">
-    <div>
-        <h1 style="margin: 0 0 5px 0;">My Diet Plan</h1>
-        <p class="muted" style="margin: 0;">Goal: <?= h(ucwords(str_replace('_', ' ', $activePlan['goal']))) ?> | Assigned by: <?= $trainerName ?></p>
+<style>
+.diet-action-strip {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 22px;
+    gap: 14px;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    padding: 12px 18px;
+    border-radius: 14px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.03);
+}
+.diet-strip-meta {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+    min-width: 0;
+}
+.diet-goal-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: color-mix(in srgb, var(--lime) 12%, transparent);
+    color: var(--ink);
+    border: 1px solid color-mix(in srgb, var(--lime) 30%, transparent);
+    padding: 5px 12px;
+    border-radius: 20px;
+    font-size: 13px;
+    font-weight: 600;
+    max-width: 100%;
+    min-width: 0;
+}
+.diet-goal-pill .goal-text {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.diet-assigned-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: var(--panel-soft);
+    color: var(--ink);
+    border: 1px solid var(--line);
+    padding: 5px 12px;
+    border-radius: 20px;
+    font-size: 13px;
+    font-weight: 600;
+    max-width: 100%;
+    min-width: 0;
+    white-space: nowrap;
+}
+.diet-assigned-pill .trainer-text {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.diet-action-form {
+    margin: 0;
+    flex-shrink: 0;
+}
+.btn-diet-action {
+    background: var(--panel-soft);
+    color: var(--ink);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 8px 16px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    transition: all 0.2s ease;
+    white-space: nowrap;
+}
+.btn-diet-action:hover {
+    border-color: var(--lime);
+    color: var(--lime);
+}
+
+@media (max-width: 768px) {
+    .diet-action-strip {
+        flex-direction: column !important;
+        align-items: stretch !important;
+        gap: 12px !important;
+        padding: 14px 16px !important;
+        margin-bottom: 18px !important;
+    }
+    .diet-strip-meta {
+        display: flex !important;
+        align-items: center !important;
+        justify-content: space-between !important;
+        width: 100% !important;
+        gap: 8px !important;
+        flex-wrap: wrap !important;
+    }
+    .diet-action-form {
+        width: 100% !important;
+    }
+    .btn-diet-action {
+        width: 100% !important;
+        padding: 11px 16px !important;
+        font-size: 14px !important;
+        border-radius: 10px !important;
+        box-sizing: border-box !important;
+    }
+}
+@media (max-width: 520px) {
+    .diet-strip-meta {
+        flex-direction: column !important;
+        align-items: stretch !important;
+        gap: 8px !important;
+    }
+    .diet-goal-pill,
+    .diet-assigned-pill {
+        width: 100% !important;
+        box-sizing: border-box !important;
+        justify-content: flex-start !important;
+        font-size: 12.5px !important;
+        padding: 6px 12px !important;
+    }
+}
+</style>
+<!-- Contextual Action Strip (Goal, Assigned By, and Plan Actions) -->
+<div class="diet-action-strip">
+    <div class="diet-strip-meta">
+        <span class="diet-goal-pill">
+            <span style="width: 7px; height: 7px; border-radius: 50%; background: var(--lime); display: inline-block; flex-shrink: 0;"></span>
+            <span style="color: var(--muted); font-weight: 500;">Goal:</span>
+            <strong class="goal-text" style="color: var(--ink); font-weight: 700;"><?= h(ucwords(str_replace('_', ' ', $activePlan['goal']))) ?></strong>
+        </span>
+
+        <span class="diet-assigned-pill">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--muted)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+            <span style="color: var(--muted); font-weight: 500;">Assigned by:</span>
+            <strong class="trainer-text" style="color: var(--ink); font-weight: 600;"><?= $trainerName ?></strong>
+        </span>
     </div>
     
     <!-- Generate a new plan overriding the current one -->
-    <form id="regenerate-plan-form" method="post" style="margin: 0;">
+    <form id="regenerate-plan-form" class="diet-action-form" method="post">
         <?= csrf_field() ?>
         <input type="hidden" name="action" value="generate_plan">
-        <button type="button" onclick="confirmRegeneratePlan()" class="btn" style="background: var(--surface); color: var(--ink); border: 1px solid var(--line); border-radius: 8px; padding: 8px 16px; cursor: pointer; display: flex; align-items: center; gap: 6px;">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.92-10.26l5.67-5.67"/></svg>
-            Regenerate Plan
+        <button type="button" onclick="confirmRegeneratePlan()" class="btn btn-diet-action">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.92-10.26l5.67-5.67"/></svg>
+            <span>Regenerate Plan</span>
         </button>
     </form>
 </div>
@@ -610,7 +747,7 @@ function confirmRegeneratePlan() {
         showCancelButton: true,
         confirmButtonColor: 'var(--lime, #c7ff22)',
         cancelButtonColor: 'transparent',
-        confirmButtonText: 'Yes, Regenerate Plan',
+        confirmButtonText: '<span style="color:var(--lime-btn-text, #090b10);font-weight:800;">Yes, Regenerate Plan</span>',
         cancelButtonText: 'Cancel',
         background: getComputedStyle(document.documentElement).getPropertyValue('--panel-bg').trim() || '#121721',
         color: getComputedStyle(document.documentElement).getPropertyValue('--ink').trim() || '#ffffff',

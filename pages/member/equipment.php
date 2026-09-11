@@ -14,7 +14,7 @@ function member_equipment_page(): void
         echo '<svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="var(--muted)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-bottom: 16px;"><rect x="2" y="6" width="4" height="12" rx="1"/><rect x="18" y="6" width="4" height="12" rx="1"/><path d="M6 12h12"/></svg>';
         echo '<h2 style="margin-top:0;">No Gym Selected</h2>';
         echo '<p style="color: var(--muted); margin-bottom: 24px;">To view live equipment availability and join equipment queues, please select and register with a gym first.</p>';
-        echo '<a href="index.php?page=gym_selection" class="btn" style="background: var(--lime); color: #fff; font-weight: 700; padding: 10px 24px; text-decoration: none; border-radius: 8px;">Browse Gyms</a>';
+        echo '<a href="index.php?page=gym_selection" class="btn btn-lime" style="background: var(--lime); color: var(--lime-btn-text, #090b10); font-weight: 800; padding: 10px 24px; text-decoration: none; border-radius: 8px;">Browse Gyms</a>';
         echo '</div>';
         render_footer();
         return;
@@ -22,9 +22,31 @@ function member_equipment_page(): void
 
     $gymName = scalar('SELECT name FROM gyms WHERE gym_id = ?', [$gymId]) ?: 'Your Gym';
     $userId = (int)$user['user_id'];
+    $recentWeight = scalar('SELECT weight_kg FROM progress_logs WHERE user_id = ? ORDER BY log_date DESC, log_id DESC LIMIT 1', [$userId]);
+    if (!$recentWeight) {
+        $recentWeight = scalar('SELECT weight_kg FROM member_profiles WHERE user_id = ?', [$userId]);
+    }
+    $recentBf = scalar('SELECT body_fat_percent FROM progress_logs WHERE user_id = ? AND body_fat_percent IS NOT NULL ORDER BY log_date DESC, log_id DESC LIMIT 1', [$userId]) ?: null;
     ?>
 
     <style>
+        /* Contrast fix for neon lime buttons across themes */
+        :root {
+            --lime-btn-text: #090b10;
+        }
+        [data-theme="light"] {
+            --lime-btn-text: #ffffff;
+        }
+
+        .btn-lime {
+            background: var(--lime) !important;
+            color: var(--lime-btn-text) !important;
+            font-weight: 800 !important;
+        }
+        .btn-lime:hover {
+            opacity: 0.92;
+        }
+
         .filter-btn {
             padding: 8px 16px;
             border-radius: 20px;
@@ -42,10 +64,24 @@ function member_equipment_page(): void
         }
         .filter-btn.active {
             background: var(--lime);
-            color: #fff;
+            color: var(--lime-btn-text);
             border-color: var(--lime);
-            font-weight: 700;
+            font-weight: 800;
             box-shadow: 0 2px 10px rgba(0,0,0,0.12);
+        }
+
+        /* Ensure all lime action buttons have crisp dark text in darkmode */
+        .btn[style*="var(--lime)"],
+        button[style*="var(--lime)"],
+        a[style*="var(--lime)"] {
+            color: var(--lime-btn-text) !important;
+            font-weight: 800 !important;
+        }
+
+        /* SweetAlert confirm buttons contrast */
+        .swal2-styled.swal2-confirm:not([style*="239, 68, 68"]):not([style*="ef4444"]) {
+            color: var(--lime-btn-text) !important;
+            font-weight: 800 !important;
         }
         .equip-card {
             background: var(--panel);
@@ -240,6 +276,9 @@ function member_equipment_page(): void
             align-items: center;
         }
         @media (max-width: 768px) {
+            .equipment-member-container {
+                padding-bottom: 40px;
+            }
             .equip-pagination-bar {
                 justify-content: center;
                 flex-direction: column;
@@ -255,24 +294,142 @@ function member_equipment_page(): void
             .equip-page-size-wrap {
                 order: 3;
             }
+            #equipment-grid {
+                grid-template-columns: 1fr !important;
+                gap: 16px !important;
+            }
+            .equip-card {
+                padding: 16px !important;
+            }
+        }
+        @media (max-width: 480px) {
+            .filter-btn {
+                padding: 6px 12px;
+                font-size: 12px;
+            }
+        }
+
+        .equip-action-strip {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 14px;
+            margin-bottom: 22px;
+            background: var(--panel);
+            border: 1px solid var(--line);
+            padding: 12px 18px;
+            border-radius: 14px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.03);
+        }
+        .equip-strip-meta {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            min-width: 0;
+            flex-wrap: wrap;
+        }
+        .equip-gym-pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            background: color-mix(in srgb, var(--lime) 12%, transparent);
+            color: var(--ink);
+            border: 1px solid color-mix(in srgb, var(--lime) 30%, transparent);
+            padding: 5px 12px;
+            border-radius: 20px;
+            font-size: 13px;
+            font-weight: 600;
+            white-space: nowrap;
+            max-width: 100%;
+            min-width: 0;
+        }
+        .equip-gym-pill .gym-val {
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .equip-strip-desc {
+            color: var(--muted);
+            font-size: 13px;
+        }
+        .equip-strip-status {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex-shrink: 0;
+        }
+        .equip-live-pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 12px;
+            color: var(--lime);
+            background: color-mix(in srgb, var(--lime) 10%, transparent);
+            padding: 5px 14px;
+            border-radius: 20px;
+            border: 1px solid color-mix(in srgb, var(--lime) 25%, transparent);
+            font-weight: 600;
+            white-space: nowrap;
+        }
+
+        @media (max-width: 768px) {
+            .equip-action-strip {
+                display: grid !important;
+                grid-template-columns: 1fr auto !important;
+                grid-template-rows: auto auto !important;
+                align-items: center !important;
+                row-gap: 8px !important;
+                column-gap: 10px !important;
+                padding: 12px 16px !important;
+                margin-bottom: 18px !important;
+            }
+            .equip-strip-meta {
+                display: contents !important;
+            }
+            .equip-gym-pill {
+                grid-column: 1 / 2 !important;
+                grid-row: 1 / 2 !important;
+                justify-self: start !important;
+            }
+            .equip-strip-status {
+                grid-column: 2 / 3 !important;
+                grid-row: 1 / 2 !important;
+                justify-self: end !important;
+            }
+            .equip-strip-desc {
+                grid-column: 1 / -1 !important;
+                grid-row: 2 / 3 !important;
+                font-size: 12px !important;
+                margin: 0 !important;
+                line-height: 1.4 !important;
+            }
+        }
+        @media (max-width: 420px) {
+            .equip-gym-pill {
+                font-size: 12px !important;
+                padding: 4px 10px !important;
+            }
+            .equip-live-pill {
+                font-size: 11px !important;
+                padding: 4px 10px !important;
+            }
         }
     </style>
 
     <div class="equipment-member-container" style="max-width: 1200px; margin: 0 auto; padding-bottom: 60px;">
-        <!-- Header Banner -->
-        <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px; margin-bottom: 24px;">
-            <div>
-                <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 4px;">
-                    <h1 style="margin: 0; font-size: 26px; color: var(--ink);">Gym Equipment</h1>
-                    <span style="background: color-mix(in srgb, var(--lime) 15%, transparent); color: var(--lime); border: 1px solid color-mix(in srgb, var(--lime) 30%, transparent); font-size: 12px; font-weight: 700; padding: 3px 10px; border-radius: 20px;">
-                        <?= h($gymName) ?>
-                    </span>
-                </div>
-                <p style="margin: 0; color: var(--muted); font-size: 14px;">Live machine availability, queue positions, and active workout sessions.</p>
+        <!-- Contextual Action Strip (Gym Info & Live Sync) -->
+        <div class="equip-action-strip">
+            <div class="equip-strip-meta">
+                <span class="equip-gym-pill">
+                    <span style="width: 7px; height: 7px; border-radius: 50%; background: var(--lime); display: inline-block; flex-shrink: 0;"></span>
+                    <span style="color: var(--muted); font-weight: 500;">Gym:</span>
+                    <strong class="gym-val" style="color: var(--ink); font-weight: 700;"><?= h($gymName) ?></strong>
+                </span>
+                <span class="equip-strip-desc">Live machine availability &amp; queue tracking</span>
             </div>
-            <div style="display: flex; align-items: center; gap: 10px;">
-                <span id="live-indicator" style="display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--lime); background: color-mix(in srgb, var(--lime) 10%, transparent); padding: 5px 14px; border-radius: 20px; border: 1px solid color-mix(in srgb, var(--lime) 25%, transparent); font-weight: 600;">
-                    <span style="width: 8px; height: 8px; border-radius: 50%; background: var(--lime); display: inline-block; box-shadow: 0 0 8px var(--lime); animation: pulse 2s infinite;"></span>
+            <div class="equip-strip-status">
+                <span id="live-indicator" class="equip-live-pill">
+                    <span style="width: 8px; height: 8px; border-radius: 50%; background: var(--lime); display: inline-block; box-shadow: 0 0 8px var(--lime); animation: pulse 2s infinite; flex-shrink: 0;"></span>
                     Live Syncing
                 </span>
             </div>
@@ -369,6 +526,8 @@ function member_equipment_page(): void
         const CURRENT_USER_ID = <?= $userId ?>;
         const GYM_ID = <?= $gymId ?>;
         const CSRF_TOKEN = <?= json_encode(csrf_token()) ?>;
+        let RECENT_WEIGHT = <?= json_encode($recentWeight !== null && $recentWeight !== false ? (float)$recentWeight : null) ?>;
+        let RECENT_BF = <?= json_encode($recentBf !== null && $recentBf !== false ? (float)$recentBf : null) ?>;
         let allEquipment = [];
         let activeSession = null;
         let myQueues = [];
@@ -533,7 +692,7 @@ function member_equipment_page(): void
                                 </p>
                             </div>
                             <div style="display: flex; gap: 10px; align-items: center;">
-                                <button type="button" onclick="window.claimEquipmentSession(${q.equipment_id})" class="btn" style="background: var(--lime); color: #fff; font-weight: 700; padding: 10px 20px; border-radius: 8px; border: none; cursor: pointer; display: flex; align-items: center; gap: 6px; box-shadow: 0 2px 8px rgba(0,0,0,0.15);">
+                                <button type="button" onclick="window.claimEquipmentSession(${q.equipment_id})" class="btn btn-lime" style="background: var(--lime); color: var(--lime-btn-text, #090b10); font-weight: 800; padding: 10px 20px; border-radius: 8px; border: none; cursor: pointer; display: flex; align-items: center; gap: 6px; box-shadow: 0 2px 8px rgba(0,0,0,0.15);">
                                     <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg>
                                     Claim & Start Session
                                 </button>
@@ -664,7 +823,7 @@ function member_equipment_page(): void
                 } else if (userQueue) {
                     if (userQueue.queue_status === 'notified') {
                         actionBtnHtml = `
-                            <button type="button" onclick="window.claimEquipmentSession(${eq.equipment_id})" class="btn" style="width: 100%; background: var(--lime); color: #fff; font-weight: 700; padding: 10px; border-radius: 8px; border: none; cursor: pointer; animation: pulse 1.5s infinite;">
+                            <button type="button" onclick="window.claimEquipmentSession(${eq.equipment_id})" class="btn btn-lime" style="width: 100%; background: var(--lime); color: var(--lime-btn-text, #090b10); font-weight: 800; padding: 10px; border-radius: 8px; border: none; cursor: pointer; animation: pulse 1.5s infinite;">
                                 Claim Now (Next in Line!)
                             </button>
                         `;
@@ -690,7 +849,7 @@ function member_equipment_page(): void
                         `;
                     } else {
                         actionBtnHtml = `
-                            <button type="button" onclick="confirmStartSession(${eq.equipment_id}, '${escapeHtml(eq.name)}', '${escapeHtml(eq.unit_number)}')" class="btn" style="width: 100%; background: var(--lime); color: #fff; font-weight: 700; padding: 10px; border-radius: 8px; border: none; cursor: pointer; transition: opacity 0.2s; box-shadow: 0 2px 8px rgba(0,0,0,0.1);"
+                            <button type="button" onclick="confirmStartSession(${eq.equipment_id}, '${escapeHtml(eq.name)}', '${escapeHtml(eq.unit_number)}')" class="btn btn-lime" style="width: 100%; background: var(--lime); color: var(--lime-btn-text, #090b10); font-weight: 800; padding: 10px; border-radius: 8px; border: none; cursor: pointer; transition: opacity 0.2s; box-shadow: 0 2px 8px rgba(0,0,0,0.1);"
                                     onmouseover="this.style.opacity='0.9'" onmouseout="this.style.opacity='1'">
                                 Use Equipment
                             </button>
@@ -992,17 +1151,50 @@ function member_equipment_page(): void
 
                         if (data.success) {
                             if (window.playNotifSound) window.playNotifSound('success');
+                            fetchEquipmentData();
+
+                            // Prompt member to log progress now or later
+                            const formattedDur = formatDuration(data.duration_seconds || 0);
                             Swal.fire({
                                 icon: 'success',
-                                title: 'Session Completed!',
-                                text: data.message,
-                                background: 'var(--panel)',
-                                color: 'var(--ink)',
+                                title: 'Session Completed! 🎉',
+                                html: `
+                                    <div style="text-align: center; margin-top: 6px;">
+                                        <p style="font-size: 15px; margin: 0 0 10px; color: var(--ink);">
+                                            Great workout on <strong>${escapeHtml(fullName)}</strong>!
+                                        </p>
+                                        <div style="display: inline-flex; align-items: center; gap: 6px; background: var(--panel-soft); border: 1px solid var(--line); border-radius: 8px; padding: 6px 14px; margin-bottom: 16px; font-size: 13px; color: var(--muted);">
+                                            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                                            Duration: <strong style="color: var(--ink); font-family: monospace;">${formattedDur}</strong>
+                                        </div>
+                                        <p style="font-size: 14px; color: var(--muted); margin: 0;">
+                                            Would you like to log your progress now?
+                                        </p>
+                                    </div>
+                                `,
+                                showCancelButton: true,
+                                confirmButtonText: '<span style="display:inline-flex;align-items:center;gap:6px;color:var(--lime-btn-text, #090b10);font-weight:800;"><svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>Log Progress Now</span>',
+                                cancelButtonText: 'Later',
                                 confirmButtonColor: 'var(--lime)',
-                                timer: 2000,
-                                showConfirmButton: false
+                                cancelButtonColor: '#64748b',
+                                background: 'var(--panel)',
+                                color: 'var(--ink)'
+                            }).then((promptRes) => {
+                                if (promptRes.isConfirmed) {
+                                    openQuickProgressModal(fullName, data.duration_seconds || 0);
+                                } else {
+                                    Swal.fire({
+                                        toast: true,
+                                        position: 'top-end',
+                                        icon: 'info',
+                                        title: 'No problem! You can log your progress anytime in the Progress tab.',
+                                        showConfirmButton: false,
+                                        timer: 3500,
+                                        background: 'var(--panel)',
+                                        color: 'var(--ink)'
+                                    });
+                                }
                             });
-                            fetchEquipmentData();
                         } else {
                             Swal.fire({
                                 icon: 'error',
@@ -1022,6 +1214,140 @@ function member_equipment_page(): void
                             color: 'var(--ink)'
                         });
                     }
+                }
+            });
+        };
+
+        // QUICK PROGRESS LOGGING MODAL
+        window.openQuickProgressModal = function(fullName, durationSeconds) {
+            const todayStr = new Date().toISOString().split('T')[0];
+            const durationMins = Math.max(1, Math.round((durationSeconds || 0) / 60));
+            const formattedDuration = formatDuration(durationSeconds || 0);
+            const defaultNotes = `Completed workout on ${fullName} (${durationMins} min${durationMins > 1 ? 's' : ''}, ${formattedDuration})`;
+            const weightVal = RECENT_WEIGHT ? Number(RECENT_WEIGHT).toFixed(1) : '';
+            const bfVal = RECENT_BF ? Number(RECENT_BF).toFixed(1) : '';
+
+            Swal.fire({
+                title: 'Log Your Progress',
+                html: `
+                    <div style="text-align: left; font-size: 13.5px; color: var(--ink);">
+                        <div style="background: var(--panel-soft); border: 1px solid var(--line); border-radius: 10px; padding: 10px 14px; margin-bottom: 16px; display: flex; align-items: center; justify-content: space-between; gap: 10px;">
+                            <div>
+                                <div style="font-size: 11px; text-transform: uppercase; font-weight: 700; color: var(--lime); letter-spacing: 0.04em;">Equipment Finished</div>
+                                <strong style="font-size: 14px; color: var(--ink);">${escapeHtml(fullName)}</strong>
+                            </div>
+                            <div style="text-align: right;">
+                                <div style="font-size: 11px; text-transform: uppercase; font-weight: 700; color: var(--muted); letter-spacing: 0.04em;">Duration</div>
+                                <strong style="font-size: 14px; color: var(--ink); font-family: monospace;">${formattedDuration}</strong>
+                            </div>
+                        </div>
+
+                        <form id="quickProgressForm" onsubmit="return false;" style="display: flex; flex-direction: column; gap: 12px;">
+                            <div style="display: flex; gap: 12px;">
+                                <label style="flex: 1; margin: 0; font-size: 13px; color: var(--muted); font-weight: 600;">
+                                    Date *
+                                    <input type="date" id="qp-date" value="${todayStr}" class="form-control" style="width: 100%; box-sizing: border-box; margin-top: 4px; padding: 8px 10px; border-radius: 8px; border: 1px solid var(--line); background: var(--panel-soft); color: var(--ink); font-size: 13px;" required>
+                                </label>
+                                <label style="flex: 1; margin: 0; font-size: 13px; color: var(--muted); font-weight: 600;">
+                                    Weight (kg) *
+                                    <input type="number" id="qp-weight" step="0.1" min="20" max="300" placeholder="e.g. 72.5" value="${weightVal}" class="form-control" style="width: 100%; box-sizing: border-box; margin-top: 4px; padding: 8px 10px; border-radius: 8px; border: 1px solid var(--line); background: var(--panel-soft); color: var(--ink); font-size: 13px;" required>
+                                </label>
+                            </div>
+
+                            <div>
+                                <label style="margin: 0; font-size: 13px; color: var(--muted); font-weight: 600;">
+                                    Body Fat % <span style="font-size: 11px; font-weight: 400; color: var(--muted);">(optional)</span>
+                                    <input type="number" id="qp-bodyfat" step="0.1" min="1" max="70" placeholder="e.g. 18.5" value="${bfVal}" class="form-control" style="width: 100%; box-sizing: border-box; margin-top: 4px; padding: 8px 10px; border-radius: 8px; border: 1px solid var(--line); background: var(--panel-soft); color: var(--ink); font-size: 13px;">
+                                </label>
+                            </div>
+
+                            <div>
+                                <label style="margin: 0; font-size: 13px; color: var(--muted); font-weight: 600;">
+                                    Workout Notes / Sets &amp; Reps <span style="font-size: 11px; font-weight: 400; color: var(--muted);">(optional)</span>
+                                    <textarea id="qp-notes" rows="2" placeholder="e.g., 3 sets of 12 reps at 40kg" class="form-control" style="width: 100%; box-sizing: border-box; margin-top: 4px; padding: 8px 10px; border-radius: 8px; border: 1px solid var(--line); background: var(--panel-soft); color: var(--ink); font-size: 13px; resize: vertical;">${escapeHtml(defaultNotes)}</textarea>
+                                </label>
+                            </div>
+
+                            <div style="text-align: right; margin-top: 2px;">
+                                <a href="index.php?page=progress" style="font-size: 12px; color: var(--lime); text-decoration: none; font-weight: 600;">
+                                    Full measurement form (Chest, Waist, Arms) &rarr;
+                                </a>
+                            </div>
+                        </form>
+                    </div>
+                `,
+                showCancelButton: true,
+                confirmButtonText: '<span style="color:var(--lime-btn-text, #090b10);font-weight:800;">Save Progress</span>',
+                cancelButtonText: 'Cancel',
+                confirmButtonColor: 'var(--lime)',
+                cancelButtonColor: '#64748b',
+                background: 'var(--panel)',
+                color: 'var(--ink)',
+                focusConfirm: false,
+                showLoaderOnConfirm: true,
+                preConfirm: async () => {
+                    const dateEl = document.getElementById('qp-date');
+                    const weightEl = document.getElementById('qp-weight');
+                    const bfEl = document.getElementById('qp-bodyfat');
+                    const notesEl = document.getElementById('qp-notes');
+
+                    if (!dateEl || !weightEl) return false;
+
+                    const dateVal = dateEl.value.trim();
+                    const weightVal = parseFloat(weightEl.value);
+
+                    if (!dateVal) {
+                        Swal.showValidationMessage('Please select a date.');
+                        return false;
+                    }
+                    if (isNaN(weightVal) || weightVal < 20 || weightVal > 300) {
+                        Swal.showValidationMessage('Please enter a valid weight between 20 and 300 kg.');
+                        return false;
+                    }
+
+                    const bfVal = bfEl && bfEl.value.trim() ? parseFloat(bfEl.value) : null;
+                    if (bfVal !== null && (isNaN(bfVal) || bfVal < 1 || bfVal > 70)) {
+                        Swal.showValidationMessage('Body fat percentage must be between 1% and 70%.');
+                        return false;
+                    }
+
+                    const notesVal = notesEl ? notesEl.value.trim() : '';
+
+                    try {
+                        const fd = new FormData();
+                        fd.append('log_date', dateVal);
+                        fd.append('weight_kg', weightVal);
+                        if (bfVal !== null) fd.append('body_fat_percent', bfVal);
+                        if (notesVal) fd.append('notes', notesVal);
+
+                        const res = await memberEquipPost('log_progress', fd);
+                        if (!res.success) {
+                            Swal.showValidationMessage(res.message || 'Failed to save progress.');
+                            return false;
+                        }
+                        return res;
+                    } catch (err) {
+                        console.error(err);
+                        Swal.showValidationMessage('Network error occurred while saving.');
+                        return false;
+                    }
+                }
+            }).then((saveResult) => {
+                if (saveResult.isConfirmed && saveResult.value && saveResult.value.success) {
+                    if (saveResult.value.weight_kg) {
+                        RECENT_WEIGHT = saveResult.value.weight_kg;
+                    }
+                    if (window.playNotifSound) window.playNotifSound('success');
+                    Swal.fire({
+                        icon: 'success',
+                        title: 'Progress Logged!',
+                        text: saveResult.value.message || 'Your progress has been saved.',
+                        background: 'var(--panel)',
+                        color: 'var(--ink)',
+                        confirmButtonColor: 'var(--lime)',
+                        timer: 2500,
+                        showConfirmButton: false
+                    });
                 }
             });
         };

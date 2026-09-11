@@ -67,6 +67,10 @@ function equipment_api_handler(): void
                 handle_finish_session($pdo, $gymId, $user);
                 break;
 
+            case 'log_progress':
+                handle_log_progress($pdo, $gymId, $user);
+                break;
+
             case 'join_queue':
                 handle_join_queue($pdo, $gymId, $user);
                 break;
@@ -452,6 +456,64 @@ function handle_finish_session(PDO $pdo, int $gymId, array $user): void
         'success' => true,
         'duration_seconds' => $durationSeconds,
         'message' => 'Equipment session completed. Great workout!'
+    ]);
+}
+
+function handle_log_progress(PDO $pdo, int $gymId, array $user): void
+{
+    $userId = (int)$user['user_id'];
+    $logDate = trim($_POST['log_date'] ?? date('Y-m-d'));
+    if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $logDate)) {
+        $logDate = date('Y-m-d');
+    }
+
+    $weightKg = isset($_POST['weight_kg']) ? (float)$_POST['weight_kg'] : 0.0;
+    if ($weightKg < 20 || $weightKg > 300) {
+        echo json_encode(['success' => false, 'message' => 'Please enter a valid weight between 20 and 300 kg.']);
+        return;
+    }
+
+    $bodyFat = (isset($_POST['body_fat_percent']) && $_POST['body_fat_percent'] !== '') ? (float)$_POST['body_fat_percent'] : null;
+    if ($bodyFat !== null && ($bodyFat < 1 || $bodyFat > 70)) {
+        echo json_encode(['success' => false, 'message' => 'Body fat percentage must be between 1% and 70%.']);
+        return;
+    }
+
+    $notes = !empty($_POST['notes']) ? trim($_POST['notes']) : null;
+
+    $existingLogId = (int)scalar('SELECT log_id FROM progress_logs WHERE user_id = ? AND log_date = ? LIMIT 1', [$userId, $logDate]);
+
+    if ($existingLogId > 0) {
+        $stmt = $pdo->prepare('UPDATE progress_logs SET weight_kg = ?, body_fat_percent = COALESCE(?, body_fat_percent), notes = COALESCE(?, notes), recorded_by = ? WHERE log_id = ?');
+        $stmt->execute([$weightKg, $bodyFat, $notes, $userId, $existingLogId]);
+    } else {
+        $stmt = $pdo->prepare('INSERT INTO progress_logs (user_id, log_date, weight_kg, body_fat_percent, notes, recorded_by) VALUES (?, ?, ?, ?, ?, ?)');
+        $stmt->execute([$userId, $logDate, $weightKg, $bodyFat, $notes, $userId]);
+    }
+
+    $pdo->prepare('UPDATE member_profiles SET weight_kg = ? WHERE user_id = ?')->execute([$weightKg, $userId]);
+
+    $workoutHelper = __DIR__ . '/workouts.php';
+    if (file_exists($workoutHelper)) {
+        require_once $workoutHelper;
+    }
+    if (function_exists('can_recalculate_workout') && can_recalculate_workout($userId)) {
+        if (function_exists('generate_workout_plan')) {
+            generate_workout_plan($userId);
+        }
+        if (function_exists('notify_user')) {
+            notify_user($userId, 'system', 'Workout plan updated', 'Your workout plan was refreshed after logging new progress.');
+        }
+    }
+
+    if (function_exists('notify_user')) {
+        notify_user($userId, 'milestone', 'Progress logged', 'Nice work — your latest measurements and workout progress were saved.');
+    }
+
+    echo json_encode([
+        'success' => true,
+        'weight_kg' => $weightKg,
+        'message' => 'Progress logged successfully!'
     ]);
 }
 

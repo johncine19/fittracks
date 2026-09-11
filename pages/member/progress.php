@@ -95,14 +95,126 @@ function progress_page(): void
 
     render_header('Progress', $user);
     ?>
+    <style>
+        .progress-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 24px;
+            padding-bottom: 18px;
+            border-bottom: 1px solid var(--line);
+            gap: 16px;
+        }
+        .progress-meta {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            min-width: 0;
+            flex-wrap: wrap;
+        }
+        .progress-goal-pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            background: color-mix(in srgb, var(--lime) 12%, transparent);
+            color: var(--ink);
+            border: 1px solid color-mix(in srgb, var(--lime) 30%, transparent);
+            padding: 5px 12px;
+            border-radius: 20px;
+            font-size: 13px;
+            font-weight: 600;
+            max-width: 100%;
+            min-width: 0;
+        }
+        .progress-goal-pill .goal-val {
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .progress-count-pill {
+            display: inline-flex;
+            align-items: center;
+            padding: 4px 10px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--muted);
+            background: var(--panel-soft, rgba(255, 255, 255, 0.05));
+            border: 1px solid var(--line);
+            white-space: nowrap;
+            flex-shrink: 0;
+        }
+        .btn-log-action {
+            background: var(--lime);
+            color: var(--lime-btn-text, #090b10);
+            font-weight: 800;
+            padding: 9px 20px;
+            border-radius: 8px;
+            border: none;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.12);
+            white-space: nowrap;
+            flex-shrink: 0;
+            transition: transform 0.15s ease, opacity 0.15s ease;
+        }
+        .btn-log-action:hover {
+            transform: translateY(-1px);
+            opacity: 0.94;
+        }
+        .btn-log-action:active {
+            transform: translateY(0);
+        }
+
+        @media (max-width: 768px) {
+            .progress-header {
+                flex-direction: column !important;
+                align-items: stretch !important;
+                gap: 14px !important;
+                padding-bottom: 16px !important;
+                margin-bottom: 20px !important;
+            }
+            .progress-meta {
+                display: flex !important;
+                align-items: center !important;
+                justify-content: space-between !important;
+                width: 100% !important;
+                gap: 8px !important;
+                flex-wrap: nowrap !important;
+            }
+            .btn-log-action {
+                width: 100% !important;
+                display: flex !important;
+                justify-content: center !important;
+                align-items: center !important;
+                padding: 12px 16px !important;
+                font-size: 14px !important;
+                border-radius: 10px !important;
+                box-sizing: border-box !important;
+            }
+        }
+        @media (max-width: 420px) {
+            .progress-goal-pill {
+                font-size: 12px !important;
+                padding: 4px 10px !important;
+            }
+            .progress-count-pill {
+                font-size: 11px !important;
+                padding: 3px 8px !important;
+            }
+        }
+    </style>
     <div class="skeleton-wrapper">
         <section class="panel">
-            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:24px">
-                <div>
-                    <div class="sk sk-title" style="width:140px;margin-bottom:8px"></div>
-                    <div class="sk sk-text" style="width:280px;height:12px"></div>
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;padding-bottom:16px;border-bottom:1px solid var(--line);">
+                <div style="display:flex;gap:10px;align-items:center;">
+                    <div class="sk sk-rect" style="width:140px;height:28px;border-radius:20px"></div>
+                    <div class="sk sk-text" style="width:80px;height:12px"></div>
                 </div>
-                <div class="sk sk-rect" style="width:140px;height:36px;border-radius:18px"></div>
+                <div class="sk sk-rect" style="width:130px;height:36px;border-radius:8px"></div>
             </div>
             <?php render_skeleton_chart(); ?>
             <div style="margin-top:24px">
@@ -112,23 +224,43 @@ function progress_page(): void
         </section>
     </div>
     <section class="panel skeleton-content sk-display-block">
-        <div class="page-header" style="align-items: center;">
-            <div style="display: flex; gap: 15px; align-items: center;">
+        <!-- Progress Action Header -->
+        <div class="progress-header">
+            <div class="progress-meta">
                 <?php if ($user['role'] === 'trainer' && $member): ?>
-                    <?= render_avatar($member, 'large') ?>
-                    <div>
-                        <h1><?= h($member['first_name'] . ' ' . $member['last_name']) ?>'s Progress</h1>
-                        <p>Track their weight, measurements, and body composition over time.</p>
+                    <div style="display:flex;align-items:center;gap:10px;min-width:0;">
+                        <?= render_avatar($member, 'small') ?>
+                        <span class="progress-goal-pill">
+                            <span style="width: 7px; height: 7px; border-radius: 50%; background: var(--lime); display: inline-block; flex-shrink: 0;"></span>
+                            <span style="color: var(--muted); font-weight: 500;">Client:</span>
+                            <strong class="goal-val" style="color: var(--ink); font-weight: 700;"><?= h($member['first_name'] . ' ' . $member['last_name']) ?></strong>
+                        </span>
                     </div>
                 <?php else: ?>
-                    <div>
-                        <h1>Progress logs</h1>
-                        <p>Track your weight, measurements, and body composition over time.</p>
-                    </div>
+                    <?php if (!empty($member['primary_goal'])): ?>
+                        <span class="progress-goal-pill">
+                            <span style="width: 7px; height: 7px; border-radius: 50%; background: var(--lime); display: inline-block; flex-shrink: 0;"></span>
+                            <span style="color: var(--muted); font-weight: 500;">Goal:</span>
+                            <strong class="goal-val" style="color: var(--ink); font-weight: 700;"><?= h(ucwords(str_replace('_', ' ', $member['primary_goal']))) ?></strong>
+                        </span>
+                    <?php else: ?>
+                        <span class="progress-goal-pill">
+                            <span style="width: 7px; height: 7px; border-radius: 50%; background: var(--lime); display: inline-block; flex-shrink: 0;"></span>
+                            <strong class="goal-val" style="color: var(--ink); font-weight: 700;">Progress Overview</strong>
+                        </span>
+                    <?php endif; ?>
                 <?php endif; ?>
+
+                <span class="progress-count-pill">
+                    <?= count($rows) ?> log<?= count($rows) !== 1 ? 's' : '' ?> recorded
+                </span>
             </div>
+
             <?php if ($user['role'] === 'member'): ?>
-                <button onclick="logProgress()" class="btn" style="background: var(--lime); color: var(--bg); font-weight: bold;">+ Log Progress</button>
+                <button onclick="logProgress()" class="btn btn-lime btn-log-action">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                    <span>Log Progress</span>
+                </button>
             <?php endif; ?>
         </div>
 
