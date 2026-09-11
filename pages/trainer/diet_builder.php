@@ -1,6 +1,8 @@
 <?php
 declare(strict_types=1);
 
+require_once __DIR__ . '/../member/diet.php';
+
 function diet_builder_page(): void
 {
     $user = require_roles(['trainer']);
@@ -46,9 +48,9 @@ function diet_builder_page(): void
             $stmtMeals->execute([$activePlan['plan_id']]);
             $meals = $stmtMeals->fetchAll();
             
-            $stmtInsertMeal = $pdo->prepare('INSERT INTO dietary_plan_meals (plan_id, day_of_week, meal_type, food_items, calories, protein_g, carbs_g, fat_g) VALUES (?, ?, ?, ?, ?, ?, ?, ?)');
+            $stmtInsertMeal = $pdo->prepare('INSERT INTO dietary_plan_meals (plan_id, day_of_week, meal_type, food_items, image_url, calories, protein_g, carbs_g, fat_g) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)');
             foreach ($meals as $m) {
-                $stmtInsertMeal->execute([$planId, $m['day_of_week'], $m['meal_type'], $m['food_items'], $m['calories'], $m['protein_g'], $m['carbs_g'], $m['fat_g']]);
+                $stmtInsertMeal->execute([$planId, $m['day_of_week'], $m['meal_type'], $m['food_items'], $m['image_url'] ?? null, $m['calories'], $m['protein_g'], $m['carbs_g'], $m['fat_g']]);
             }
         } else {
             // Create empty draft
@@ -372,23 +374,27 @@ function diet_builder_page(): void
                             $dayPro += $meal['protein_g'];
                             $dayCarbs += $meal['carbs_g'];
                             $dayFat += $meal['fat_g'];
+                            $photoUrl = get_meal_photo_url($meal['image_url'] ?? null, $meal['food_items'], $meal['meal_type']);
                         ?>
-                            <div style="display: flex; justify-content: space-between; align-items: center; padding: 10px; background: var(--surface); border: 1px solid var(--line); border-radius: 6px;">
-                                <div>
-                                    <strong style="color: var(--lime);"><?= h($meal['meal_type']) ?></strong>
-                                    <p style="margin: 4px 0 0; font-size: 13px;"><?= nl2br(h($meal['food_items'])) ?></p>
-                                    <div style="display: flex; gap: 10px; margin-top: 6px; font-size: 12px; color: var(--muted);">
-                                        <span><?= $meal['calories'] ?> kcal</span>
-                                        <span>P: <?= $meal['protein_g'] ?>g</span>
-                                        <span>C: <?= $meal['carbs_g'] ?>g</span>
-                                        <span>F: <?= $meal['fat_g'] ?>g</span>
+                            <div style="display: flex; justify-content: space-between; align-items: center; padding: 10px; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; gap: 12px;">
+                                <div style="display: flex; gap: 12px; align-items: center; min-width: 0;">
+                                    <img src="<?= h($photoUrl) ?>" alt="" style="width: 50px; height: 50px; border-radius: 6px; object-fit: cover; flex-shrink: 0; border: 1px solid var(--line); background: #000;" onerror="this.onerror=null; this.src='https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&w=600&q=80';">
+                                    <div style="min-width: 0;">
+                                        <strong style="color: var(--lime); font-size: 13.5px;"><?= h($meal['meal_type']) ?></strong>
+                                        <p style="margin: 3px 0 0; font-size: 13px; color: var(--ink); line-height: 1.35; overflow: hidden; text-overflow: ellipsis;"><?= nl2br(h($meal['food_items'])) ?></p>
+                                        <div style="display: flex; gap: 10px; margin-top: 5px; font-size: 11.5px; color: var(--muted);">
+                                            <span><strong><?= $meal['calories'] ?></strong> kcal</span>
+                                            <span>P: <?= $meal['protein_g'] ?>g</span>
+                                            <span>C: <?= $meal['carbs_g'] ?>g</span>
+                                            <span>F: <?= $meal['fat_g'] ?>g</span>
+                                        </div>
                                     </div>
                                 </div>
-                                <form method="post" style="margin:0;">
+                                <form method="post" style="margin:0; flex-shrink: 0;">
                                     <?= csrf_field() ?>
                                     <input type="hidden" name="action" value="remove_meal">
                                     <input type="hidden" name="meal_id" value="<?= $meal['meal_id'] ?>">
-                                    <button class="btn btn-sm btn-danger" style="padding: 4px 8px; font-size: 11px;">Remove</button>
+                                    <button class="btn btn-sm btn-danger" style="padding: 5px 10px; font-size: 11px;">Remove</button>
                                 </form>
                             </div>
                         <?php endforeach; ?>

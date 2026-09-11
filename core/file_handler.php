@@ -218,6 +218,39 @@ final class FileUpload
     }
 
     /**
+     * Stores a meal photo on ImageKit CDN (folder: /meals) with automatic local fallback.
+     */
+    public static function storeMealImage(array $file): string
+    {
+        self::validateEquipmentImage($file);
+
+        $finfo = finfo_open(FILEINFO_MIME_TYPE);
+        $mime = finfo_file($finfo, $file['tmp_name']);
+        finfo_close($finfo);
+
+        $extension = self::ALLOWED_MIME[$mime] ?? 'jpg';
+        $filename = 'meal_' . bin2hex(random_bytes(6)) . '.' . $extension;
+
+        // Upload to ImageKit CDN (/meals folder)
+        $imageKitUrl = self::uploadToImageKit($file['tmp_name'], $mime, $filename, '/meals');
+        if ($imageKitUrl) {
+            return $imageKitUrl;
+        }
+
+        // Fallback to local storage under assets/uploads/meals/
+        $uploadDir = __DIR__ . '/../assets/uploads/meals/';
+        if (!is_dir($uploadDir)) {
+            mkdir($uploadDir, 0775, true);
+        }
+
+        if (!move_uploaded_file($file['tmp_name'], $uploadDir . $filename)) {
+            throw new RuntimeException('Could not save the meal image locally.');
+        }
+
+        return 'assets/uploads/meals/' . $filename;
+    }
+
+    /**
      * Uploads an exercise animation to ImageKit via REST API.
      * Returns the full CDN URL if successful, or false on failure.
      */

@@ -219,6 +219,7 @@ CREATE TABLE `dietary_plan_meals` (
   `day_of_week` tinyint UNSIGNED NOT NULL COMMENT '1=Monday...7=Sunday',
   `meal_type` enum('Breakfast','Lunch','Dinner','Snack') NOT NULL,
   `food_items` text NOT NULL,
+  `image_url` varchar(255) DEFAULT NULL,
   `calories` int UNSIGNED DEFAULT '0',
   `protein_g` int UNSIGNED DEFAULT '0',
   `carbs_g` int UNSIGNED DEFAULT '0',

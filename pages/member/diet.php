@@ -263,6 +263,76 @@ function get_swap_meal_catalog(): array
     ];
 }
 
+// ----------------------------------------------------
+// Helper: Smart Food Image Resolver (Global)
+// ----------------------------------------------------
+if (!function_exists('get_meal_photo_url')) {
+    function get_meal_photo_url(?string $customUrl, string $foodItems, string $mealType): string {
+        $cUrl = trim((string) $customUrl);
+        if (!empty($cUrl)) {
+            return $cUrl;
+        }
+
+        $lower = strtolower($foodItems);
+
+        $map = [
+            'adobo'         => 'https://images.unsplash.com/photo-1626082927389-6cd097cdc6ec?auto=format&fit=crop&w=600&q=80',
+            'sinigang'      => 'https://images.unsplash.com/photo-1559847844-5315695dadae?auto=format&fit=crop&w=600&q=80',
+            'tinola'        => 'https://images.unsplash.com/photo-1547592180-85f173990554?auto=format&fit=crop&w=600&q=80',
+            'tapsilog'      => 'https://images.unsplash.com/photo-1525351484163-7529414344d8?auto=format&fit=crop&w=600&q=80',
+            'silog'         => 'https://images.unsplash.com/photo-1525351484163-7529414344d8?auto=format&fit=crop&w=600&q=80',
+            'bangsilog'     => 'https://images.unsplash.com/photo-1519708227418-c8fd9a32b7a2?auto=format&fit=crop&w=600&q=80',
+            'salmon'        => 'https://images.unsplash.com/photo-1467003909585-2f8a72700288?auto=format&fit=crop&w=600&q=80',
+            'bangus'        => 'https://images.unsplash.com/photo-1519708227418-c8fd9a32b7a2?auto=format&fit=crop&w=600&q=80',
+            'fish'          => 'https://images.unsplash.com/photo-1519708227418-c8fd9a32b7a2?auto=format&fit=crop&w=600&q=80',
+            'hipon'         => 'https://images.unsplash.com/photo-1559847844-5315695dadae?auto=format&fit=crop&w=600&q=80',
+            'tofu'          => 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&w=600&q=80',
+            'champorado'    => 'https://images.unsplash.com/photo-1584776296944-ab6fb57b0bdd?auto=format&fit=crop&w=600&q=80',
+            'oat'           => 'https://images.unsplash.com/photo-1584776296944-ab6fb57b0bdd?auto=format&fit=crop&w=600&q=80',
+            'munggo'        => 'https://images.unsplash.com/photo-1547592180-85f173990554?auto=format&fit=crop&w=600&q=80',
+            'pinakbet'      => 'https://images.unsplash.com/photo-1540420773420-3366772f4999?auto=format&fit=crop&w=600&q=80',
+            'laing'         => 'https://images.unsplash.com/photo-1455619452474-d2be8b1e70cd?auto=format&fit=crop&w=600&q=80',
+            'bicol'         => 'https://images.unsplash.com/photo-1455619452474-d2be8b1e70cd?auto=format&fit=crop&w=600&q=80',
+            'gising'        => 'https://images.unsplash.com/photo-1455619452474-d2be8b1e70cd?auto=format&fit=crop&w=600&q=80',
+            'liempo'        => 'https://images.unsplash.com/photo-1544025162-d76694265947?auto=format&fit=crop&w=600&q=80',
+            'pork'          => 'https://images.unsplash.com/photo-1544025162-d76694265947?auto=format&fit=crop&w=600&q=80',
+            'chicken'       => 'https://images.unsplash.com/photo-1626082927389-6cd097cdc6ec?auto=format&fit=crop&w=600&q=80',
+            'talong'        => 'https://images.unsplash.com/photo-1582169296194-e4d644c48063?auto=format&fit=crop&w=600&q=80',
+            'arroz caldo'   => 'https://images.unsplash.com/photo-1563379091339-03b21ab4a4f8?auto=format&fit=crop&w=600&q=80',
+            'lugaw'         => 'https://images.unsplash.com/photo-1563379091339-03b21ab4a4f8?auto=format&fit=crop&w=600&q=80',
+            'banana'        => 'https://images.unsplash.com/photo-1571771894821-ce9b6c11b08e?auto=format&fit=crop&w=600&q=80',
+            'saba'          => 'https://images.unsplash.com/photo-1571771894821-ce9b6c11b08e?auto=format&fit=crop&w=600&q=80',
+            'kamote'        => 'https://images.unsplash.com/photo-1596040033229-a9821ebd058d?auto=format&fit=crop&w=600&q=80',
+            'sweet potato'  => 'https://images.unsplash.com/photo-1596040033229-a9821ebd058d?auto=format&fit=crop&w=600&q=80',
+            'egg'           => 'https://images.unsplash.com/photo-1525351484163-7529414344d8?auto=format&fit=crop&w=600&q=80',
+            'salad'         => 'https://images.unsplash.com/photo-1512621776951-a57141f2eefd?auto=format&fit=crop&w=600&q=80',
+            'smoothie'      => 'https://images.unsplash.com/photo-1553530666-ba11a7da3888?auto=format&fit=crop&w=600&q=80',
+            'shake'         => 'https://images.unsplash.com/photo-1553530666-ba11a7da3888?auto=format&fit=crop&w=600&q=80',
+            'whey'          => 'https://images.unsplash.com/photo-1553530666-ba11a7da3888?auto=format&fit=crop&w=600&q=80',
+            'puto'          => 'https://images.unsplash.com/photo-1509440159596-0249088772ff?auto=format&fit=crop&w=600&q=80',
+            'chicharon'     => 'https://images.unsplash.com/photo-1544025162-d76694265947?auto=format&fit=crop&w=600&q=80',
+            'peanut'        => 'https://images.unsplash.com/photo-1508061253366-f7da158b6d46?auto=format&fit=crop&w=600&q=80',
+            'almond'        => 'https://images.unsplash.com/photo-1508061253366-f7da158b6d46?auto=format&fit=crop&w=600&q=80',
+        ];
+
+        foreach ($map as $keyword => $url) {
+            if (strpos($lower, $keyword) !== false) {
+                return $url;
+            }
+        }
+
+        $typeMap = [
+            'Breakfast' => 'https://images.unsplash.com/photo-1533089860892-a7c6f0a88666?auto=format&fit=crop&w=600&q=80',
+            'Lunch'     => 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&w=600&q=80',
+            'Dinner'    => 'https://images.unsplash.com/photo-1540420773420-3366772f4999?auto=format&fit=crop&w=600&q=80',
+            'Snack'     => 'https://images.unsplash.com/photo-1490818387583-1baba5e638af?auto=format&fit=crop&w=600&q=80',
+        ];
+
+        $normType = ucfirst(strtolower(trim($mealType)));
+        return $typeMap[$normType] ?? $typeMap['Lunch'];
+    }
+}
+
 function diet_page(): void
 {
     $user = require_roles(['member']);
@@ -340,7 +410,7 @@ function diet_page(): void
 
         // Check ownership: ensure this meal belongs to an active plan for $userId
         $stmtCheck = $pdo->prepare(
-            'SELECT dpm.meal_id, dpm.plan_id, dpm.day_of_week, dpm.meal_type 
+            'SELECT dpm.meal_id, dpm.plan_id, dpm.day_of_week, dpm.meal_type, dpm.image_url 
              FROM dietary_plan_meals dpm
              JOIN dietary_plans dp ON dp.plan_id = dpm.plan_id
              WHERE dpm.meal_id = ? AND dp.member_user_id = ?'
@@ -381,6 +451,8 @@ function diet_page(): void
             ];
         }
 
+        $resolvedUrl = get_meal_photo_url($mealRow['image_url'], $foodItems, $mealRow['meal_type']);
+
         if (ob_get_level()) ob_clean();
         header('Content-Type: application/json');
         echo json_encode([
@@ -395,12 +467,87 @@ function diet_page(): void
             'fat_g' => $fat,
             'is_today' => $isToday,
             'today_targets' => $todayTargets,
+            'resolved_url' => $resolvedUrl,
             'day_totals' => [
                 'calories' => (int) ($dayTotals['cals'] ?? 0),
                 'protein_g' => (float) ($dayTotals['pro'] ?? 0),
                 'carbs_g' => (float) ($dayTotals['carbs'] ?? 0),
                 'fat_g' => (float) ($dayTotals['fat'] ?? 0),
             ]
+        ]);
+        exit;
+    }
+
+    // ----------------------------------------------------
+    // AJAX: Update or Reset Meal Photo (ImageKit or Direct URL)
+    // ----------------------------------------------------
+    if ($action === 'update_meal_photo' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+        $mealId = (int) post('meal_id');
+        $photoType = post('photo_type'); // 'upload', 'url', 'reset'
+        $customUrl = trim((string) post('photo_url'));
+
+        // Check ownership: ensure this meal belongs to an active plan for $userId
+        $stmtCheck = $pdo->prepare(
+            'SELECT dpm.meal_id, dpm.plan_id, dpm.day_of_week, dpm.meal_type, dpm.food_items, dpm.image_url 
+             FROM dietary_plan_meals dpm
+             JOIN dietary_plans dp ON dp.plan_id = dpm.plan_id
+             WHERE dpm.meal_id = ? AND dp.member_user_id = ?'
+        );
+        $stmtCheck->execute([$mealId, $userId]);
+        $mealRow = $stmtCheck->fetch();
+
+        if (!$mealRow) {
+            if (ob_get_level()) ob_clean();
+            header('Content-Type: application/json');
+            echo json_encode(['success' => false, 'error' => 'Meal not found or unauthorized.']);
+            exit;
+        }
+
+        $newImageUrl = null;
+
+        if ($photoType === 'reset') {
+            // Revert back to auto-matched smart food image
+            $newImageUrl = null;
+        } elseif ($photoType === 'upload' && !empty($_FILES['photo_file']['tmp_name'])) {
+            try {
+                require_once __DIR__ . '/../../core/file_handler.php';
+                // Upload to ImageKit CDN (/meals folder) with local fallback
+                $newImageUrl = FileUpload::storeMealImage($_FILES['photo_file']);
+            } catch (Throwable $e) {
+                if (ob_get_level()) ob_clean();
+                header('Content-Type: application/json');
+                echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+                exit;
+            }
+        } elseif ($photoType === 'url') {
+            if (empty($customUrl) || !filter_var($customUrl, FILTER_VALIDATE_URL)) {
+                if (ob_get_level()) ob_clean();
+                header('Content-Type: application/json');
+                echo json_encode(['success' => false, 'error' => 'Please provide a valid image URL.']);
+                exit;
+            }
+            $newImageUrl = $customUrl;
+        } else {
+            if (ob_get_level()) ob_clean();
+            header('Content-Type: application/json');
+            echo json_encode(['success' => false, 'error' => 'Invalid photo submission.']);
+            exit;
+        }
+
+        $stmtUpdate = $pdo->prepare('UPDATE dietary_plan_meals SET image_url = ? WHERE meal_id = ?');
+        $stmtUpdate->execute([$newImageUrl, $mealId]);
+
+        $resolvedUrl = get_meal_photo_url($newImageUrl, $mealRow['food_items'], $mealRow['meal_type']);
+
+        if (ob_get_level()) ob_clean();
+        header('Content-Type: application/json');
+        echo json_encode([
+            'success' => true,
+            'meal_id' => $mealId,
+            'image_url' => $newImageUrl,
+            'resolved_url' => $resolvedUrl,
+            'is_custom' => !empty($newImageUrl),
+            'storage_provider' => (!empty($newImageUrl) && str_contains($newImageUrl, 'imagekit.io')) ? 'ImageKit CDN' : 'Custom/Local'
         ]);
         exit;
     }
@@ -583,8 +730,317 @@ function diet_page(): void
     }
     
     $daysMap = [1=>'Monday', 2=>'Tuesday', 3=>'Wednesday', 4=>'Thursday', 5=>'Friday', 6=>'Saturday', 7=>'Sunday'];
+    $shortDaysMap = [1=>'Mon', 2=>'Tue', 3=>'Wed', 4=>'Thu', 5=>'Fri', 6=>'Sat', 7=>'Sun'];
+
+    $dayTotals = [];
+    foreach ($daysMap as $dNum => $dName) {
+        $totCals = 0;
+        foreach ($mealsByDay[$dNum] as $mItem) {
+            $totCals += (int)($mItem['calories'] ?? 0);
+        }
+        $dayTotals[$dNum] = [
+            'cals' => $totCals,
+            'count' => count($mealsByDay[$dNum])
+        ];
+    }
 ?>
 <style>
+/* ==================================================== */
+/* 7-DAY MEAL PLAN SELECTOR NAVIGATION                 */
+/* ==================================================== */
+.diet-days-nav-wrapper {
+    background: color-mix(in srgb, var(--surface) 90%, var(--ink));
+    border-bottom: 1px solid var(--line);
+    padding: 6px;
+}
+.diet-days-grid {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 6px;
+}
+.diet-day-tab {
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: 10px;
+    padding: 10px 6px;
+    cursor: pointer;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 3px;
+    transition: all 0.2s ease;
+    text-decoration: none;
+    color: var(--muted);
+    user-select: none;
+    min-height: 52px;
+}
+.diet-day-tab:hover {
+    background: var(--panel-soft);
+    color: var(--ink);
+}
+.diet-day-tab.active {
+    background: var(--bg);
+    border-color: color-mix(in srgb, var(--lime) 40%, var(--line));
+    color: var(--ink);
+    box-shadow: 0 2px 10px rgba(0,0,0,0.15);
+}
+.diet-day-tab.active .diet-day-full,
+.diet-day-tab.active .diet-day-short {
+    color: var(--lime);
+    font-weight: 800;
+}
+.diet-day-full {
+    font-size: 13px;
+    font-weight: 700;
+    line-height: 1.2;
+}
+.diet-day-short {
+    display: none;
+    font-size: 13px;
+    font-weight: 700;
+    line-height: 1.2;
+}
+.diet-day-cals {
+    font-size: 11px;
+    color: var(--muted);
+    font-weight: 600;
+    white-space: nowrap;
+}
+.diet-day-today-tag {
+    font-size: 9px;
+    font-weight: 800;
+    text-transform: uppercase;
+    background: color-mix(in srgb, var(--lime) 20%, transparent);
+    color: var(--lime);
+    padding: 1px 5px;
+    border-radius: 6px;
+    border: 1px solid color-mix(in srgb, var(--lime) 35%, transparent);
+    line-height: 1.1;
+}
+
+/* Day Header Bar */
+.diet-plan-day-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 22px;
+    padding-bottom: 14px;
+    border-bottom: 1px solid var(--line);
+    flex-wrap: wrap;
+    gap: 12px;
+}
+.day-header-left {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+.day-header-title {
+    margin: 0;
+    font-size: 20px;
+    font-weight: 800;
+    color: var(--ink);
+}
+.diet-today-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: color-mix(in srgb, var(--lime) 15%, transparent);
+    color: var(--lime);
+    border: 1px solid color-mix(in srgb, var(--lime) 30%, transparent);
+    padding: 3px 10px;
+    border-radius: 20px;
+    font-size: 11px;
+    font-weight: 800;
+    text-transform: uppercase;
+}
+.diet-today-chip .chip-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--lime);
+    box-shadow: 0 0 6px var(--lime);
+}
+.day-header-meta {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+.day-meta-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    background: var(--bg);
+    border: 1px solid var(--line);
+    padding: 5px 12px;
+    border-radius: 20px;
+    font-size: 12.5px;
+    color: var(--muted);
+    font-weight: 500;
+}
+.day-meta-pill strong {
+    color: var(--ink);
+    font-weight: 700;
+}
+.day-meta-pill.kcal-pill strong {
+    color: var(--lime);
+}
+
+@media (max-width: 768px) {
+    .diet-days-grid {
+        gap: 3px;
+    }
+    .diet-day-tab {
+        padding: 8px 2px;
+        min-height: 48px;
+    }
+    .diet-day-full {
+        display: none !important;
+    }
+    .diet-day-short {
+        display: block !important;
+    }
+    .diet-day-cals {
+        display: none !important;
+    }
+    .diet-day-today-tag {
+        font-size: 8px !important;
+        padding: 1px 3px !important;
+    }
+    .diet-plan-day-header {
+        flex-direction: column !important;
+        align-items: stretch !important;
+        gap: 8px !important;
+    }
+    .day-header-meta {
+        justify-content: flex-start !important;
+    }
+}
+@media (max-width: 420px) {
+    .diet-day-short {
+        font-size: 12px !important;
+    }
+    .diet-today-chip {
+        font-size: 10px !important;
+    }
+    .day-header-title {
+        font-size: 17px !important;
+    }
+}
+
+/* ==================================================== */
+/* MEAL CARD PHOTO BANNER (IMAGEKIT & SMART AUTO-MATCH) */
+/* ==================================================== */
+.meal-photo-banner {
+    position: relative;
+    width: 100%;
+    height: 145px;
+    overflow: hidden;
+    background: #0b0f17;
+    border-top-left-radius: 11px;
+    border-top-right-radius: 11px;
+}
+.meal-banner-img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    object-position: center;
+    transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+    display: block;
+}
+.meal-card:hover .meal-banner-img {
+    transform: scale(1.06);
+}
+.meal-banner-gradient {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(180deg, rgba(0,0,0,0.55) 0%, rgba(0,0,0,0.05) 45%, rgba(0,0,0,0.75) 100%);
+    pointer-events: none;
+}
+.meal-banner-top {
+    position: absolute;
+    top: 9px;
+    left: 9px;
+    right: 9px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    pointer-events: auto;
+    z-index: 2;
+}
+.meal-banner-type {
+    background: rgba(15, 23, 42, 0.85);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    color: #fff;
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    padding: 3px 8px;
+    border-radius: 6px;
+    border: 1px solid rgba(255,255,255,0.18);
+}
+.btn-edit-meal-photo {
+    background: rgba(15, 23, 42, 0.85);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    color: var(--lime);
+    font-size: 11px;
+    font-weight: 700;
+    border: 1px solid color-mix(in srgb, var(--lime) 40%, transparent);
+    border-radius: 6px;
+    padding: 3px 8px;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    transition: all 0.2s ease;
+}
+.btn-edit-meal-photo:hover {
+    background: var(--lime);
+    color: var(--lime-btn-text, #090b10);
+    border-color: var(--lime);
+}
+.meal-banner-bottom {
+    position: absolute;
+    bottom: 9px;
+    left: 9px;
+    right: 9px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    pointer-events: none;
+    z-index: 2;
+}
+.meal-banner-cals {
+    background: rgba(0, 0, 0, 0.78);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    color: var(--lime);
+    font-size: 12px;
+    font-weight: 800;
+    padding: 2px 8px;
+    border-radius: 12px;
+    border: 1px solid color-mix(in srgb, var(--lime) 35%, transparent);
+}
+.meal-banner-logged-tag {
+    background: rgba(34, 197, 94, 0.9);
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+    color: #ffffff;
+    font-size: 10.5px;
+    font-weight: 800;
+    padding: 2px 8px;
+    border-radius: 12px;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    box-shadow: 0 2px 8px rgba(34, 197, 94, 0.4);
+}
+
 .diet-action-strip {
     display: flex;
     justify-content: space-between;
@@ -3197,25 +3653,55 @@ $stFat   = $calcMacroStatus($loggedFat, $targetFat, 'fat');
 <div id="view-meal-plan" class="diet-view-panel" style="display: none;">
     <div style="background: var(--surface); border-radius: 12px; border: 1px solid var(--line); overflow: hidden; box-shadow: var(--macro-card-glow);">
         <!-- Tabs Header -->
-        <div style="display: flex; overflow-x: auto; background: color-mix(in srgb, var(--surface) 90%, var(--ink)); border-bottom: 1px solid var(--line); scrollbar-width: none;">
-            <?php foreach ($daysMap as $dayNum => $dayName): ?>
-                <button class="diet-tab-btn <?= $dayNum === $todayNum ? 'active' : '' ?>" onclick="switchDietTab(<?= $dayNum ?>)" 
-                        style="flex: 1; padding: 16px 18px; background: transparent; border: none; color: <?= $dayNum === $todayNum ? 'var(--lime)' : 'var(--muted)' ?>; font-weight: <?= $dayNum === $todayNum ? '700' : '500' ?>; cursor: pointer; border-bottom: 2px solid <?= $dayNum === $todayNum ? 'var(--lime)' : 'transparent' ?>; transition: all 0.2s ease; min-width: 100px; display: inline-flex; align-items: center; justify-content: center; gap: 6px;">
-                    <span><?= $dayName ?></span>
-                    <?php if ($dayNum === $todayNum): ?>
-                        <span style="font-size: 10px; background: color-mix(in srgb, var(--lime) 20%, transparent); color: var(--lime); padding: 1px 7px; border-radius: 10px; border: 1px solid color-mix(in srgb, var(--lime) 35%, transparent); font-weight: 800; text-transform: uppercase;">Today</span>
-                    <?php endif; ?>
-                </button>
-            <?php endforeach; ?>
+        <div class="diet-days-nav-wrapper">
+            <div class="diet-days-grid">
+                <?php foreach ($daysMap as $dayNum => $dayName): 
+                    $isToday = ($dayNum === $todayNum);
+                    $dTotals = $dayTotals[$dayNum] ?? ['cals' => 0, 'count' => 0];
+                ?>
+                    <button type="button" 
+                            id="diet-day-btn-<?= $dayNum ?>" 
+                            class="diet-day-tab <?= $isToday ? 'active is-today-tab' : '' ?>" 
+                            onclick="switchDietTab(<?= $dayNum ?>)">
+                        <div style="display: flex; align-items: center; gap: 5px;">
+                            <span class="diet-day-full"><?= $dayName ?></span>
+                            <span class="diet-day-short"><?= $shortDaysMap[$dayNum] ?></span>
+                            <?php if ($isToday): ?>
+                                <span class="diet-day-today-tag">Today</span>
+                            <?php endif; ?>
+                        </div>
+                        <?php if ($dTotals['cals'] > 0): ?>
+                            <span class="diet-day-cals"><?= number_format($dTotals['cals']) ?> kcal</span>
+                        <?php endif; ?>
+                    </button>
+                <?php endforeach; ?>
+            </div>
         </div>
         
         <!-- Tab Contents -->
         <div style="padding: 24px;">
             <?php foreach ($daysMap as $dayNum => $dayName): ?>
                 <div id="diet-tab-<?= $dayNum ?>" class="diet-tab-content" style="display: <?= $dayNum === $todayNum ? 'block' : 'none' ?>; animation: fadeIn 0.3s ease;">
-                <h3 style="margin-top: 0; color: var(--lime); font-size: 1.3rem; margin-bottom: 20px;">
-                    <?= $dayName ?>'s Plan
-                </h3>
+                    <div class="diet-plan-day-header">
+                        <div class="day-header-left">
+                            <h3 class="day-header-title"><?= $dayName ?>'s Plan</h3>
+                            <?php if ($dayNum === $todayNum): ?>
+                                <span class="diet-today-chip">
+                                    <span class="chip-dot"></span> Today
+                                </span>
+                            <?php endif; ?>
+                        </div>
+                        <div class="day-header-meta">
+                            <span class="day-meta-pill">
+                                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8h1a4 4 0 0 1 0 8h-1"/><path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z"/></svg>
+                                <strong><?= count($mealsByDay[$dayNum]) ?></strong> Meals
+                            </span>
+                            <span class="day-meta-pill kcal-pill">
+                                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z"/></svg>
+                                <strong><?= number_format($dayTotals[$dayNum]['cals'] ?? 0) ?></strong> kcal
+                            </span>
+                        </div>
+                    </div>
                 
                 <?php if (empty($mealsByDay[$dayNum])): ?>
                     <div style="padding: 40px; text-align: center; color: var(--muted); background: var(--bg); border-radius: 8px; border: 1px dashed var(--line);">
@@ -3239,6 +3725,7 @@ $stFat   = $calcMacroStatus($loggedFat, $targetFat, 'fat');
                             }
                             $isLoggedToday = $isToday && isset($loggedMealsTodayMap[$mealTypeNorm]);
                             $loggedTimeStr = $isLoggedToday ? $loggedMealsTodayMap[$mealTypeNorm]['time'] : '';
+                            $mealPhotoUrl = get_meal_photo_url($meal['image_url'] ?? null, $meal['food_items'], $meal['meal_type']);
                         ?>
                             <div class="meal-card" id="meal-card-<?= $meal['meal_id'] ?>"
                                  data-meal-id="<?= $meal['meal_id'] ?>"
@@ -3249,80 +3736,109 @@ $stFat   = $calcMacroStatus($loggedFat, $targetFat, 'fat');
                                  data-carbs="<?= $meal['carbs_g'] ?>"
                                  data-fat="<?= $meal['fat_g'] ?>"
                                  data-food="<?= htmlspecialchars($meal['food_items'], ENT_QUOTES, 'UTF-8') ?>"
-                                 style="background: var(--bg); padding: 20px; border-radius: 12px; border: 1px solid var(--line); position: relative; overflow: hidden; display: flex; flex-direction: column; justify-content: space-between;">
-                                <!-- Left accent line -->
-                                <div style="position: absolute; left: 0; top: 0; bottom: 0; width: 4px; background: <?= $isLoggedToday ? '#22c55e' : 'var(--lime)' ?>;"></div>
+                                 style="background: var(--bg); padding: 0; border-radius: 12px; border: 1px solid var(--line); position: relative; overflow: hidden; display: flex; flex-direction: column; justify-content: space-between;">
                                 
-                                <div>
-                                    <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px;">
-                                        <div style="display: flex; align-items: center; gap: 8px;">
-                                            <strong style="color: var(--ink); font-size: 1.15rem;"><?= h($meal['meal_type']) ?></strong>
-                                            <span id="meal-check-<?= $meal['meal_id'] ?>" class="meal-logged-check" style="<?= $isLoggedToday ? 'display:inline-flex;' : 'display:none;' ?>" title="Logged for today">✓</span>
-                                        </div>
-                                        <span id="meal-cals-badge-<?= $meal['meal_id'] ?>" style="background: color-mix(in srgb, var(--lime) 20%, transparent); color: var(--lime); padding: 4px 10px; border-radius: 20px; font-size: 0.85rem; font-weight: bold; border: 1px solid color-mix(in srgb, var(--lime) 30%, transparent);">
-                                            <?= $meal['calories'] ?> kcal
-                                        </span>
+                                <!-- Meal Photo Banner (ImageKit CDN or Auto-Matched) -->
+                                <div class="meal-photo-banner">
+                                    <img id="meal-img-<?= $meal['meal_id'] ?>" 
+                                         src="<?= h($mealPhotoUrl) ?>" 
+                                         alt="<?= h($meal['food_items']) ?>" 
+                                         class="meal-banner-img" 
+                                         loading="lazy"
+                                         onerror="this.onerror=null; this.src='https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&w=600&q=80';">
+                                    <div class="meal-banner-gradient"></div>
+                                    
+                                    <!-- Floating Badges on Top of Photo -->
+                                    <div class="meal-banner-top">
+                                        <span class="meal-banner-type"><?= h($meal['meal_type']) ?></span>
+                                        <button type="button" 
+                                                class="btn-edit-meal-photo" 
+                                                id="btn-edit-photo-<?= $meal['meal_id'] ?>"
+                                                data-meal-id="<?= $meal['meal_id'] ?>"
+                                                data-food="<?= h($meal['food_items']) ?>"
+                                                data-custom-url="<?= h($meal['image_url'] ?? '') ?>"
+                                                data-resolved-url="<?= h($mealPhotoUrl) ?>"
+                                                onclick="openMealPhotoModal(this)" 
+                                                title="Change Photo (ImageKit or Custom Link)">
+                                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+                                            <span>Change</span>
+                                        </button>
                                     </div>
 
-                                    <!-- Dynamic Meal Card State / Pill -->
-                                    <div class="meal-status-pill-wrap" style="margin-bottom: 12px;">
-                                        <?php if ($isToday && $isLoggedToday): ?>
-                                            <span id="meal-status-pill-<?= $meal['meal_id'] ?>" class="meal-status-pill pill-logged">
-                                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
-                                                <span class="status-txt">Logged today at <?= h($loggedTimeStr) ?></span>
-                                            </span>
-                                        <?php elseif ($isToday): ?>
-                                            <span id="meal-status-pill-<?= $meal['meal_id'] ?>" class="meal-status-pill pill-unlogged">
-                                                <span class="meal-status-dot"></span>
-                                                <span class="status-txt">No meal logged yet</span>
-                                            </span>
-                                        <?php else: ?>
-                                            <span id="meal-status-pill-<?= $meal['meal_id'] ?>" class="meal-status-pill pill-scheduled">
-                                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-                                                <span class="status-txt"><?= h($dayName) ?> schedule (View only)</span>
-                                            </span>
-                                        <?php endif; ?>
-                                    </div>
-                                    
-                                    <div id="meal-food-<?= $meal['meal_id'] ?>" class="meal-food-text" style="color: var(--muted); font-size: 0.96rem; margin-bottom: 16px; line-height: 1.5; min-height: 48px;">
-                                        <?= nl2br(h($meal['food_items'])) ?>
-                                    </div>
-                                    
-                                    <div style="display: flex; gap: 10px; font-size: 0.85rem; color: var(--ink); background: color-mix(in srgb, var(--surface) 50%, var(--bg)); padding: 10px; border-radius: 8px; justify-content: space-between; margin-bottom: 14px;">
-                                        <div style="text-align: center; flex: 1;"><strong style="display:block; color:var(--muted); font-size:10px; text-transform:uppercase;">Protein</strong> <span id="meal-pro-<?= $meal['meal_id'] ?>"><?= $meal['protein_g'] ?></span>g</div>
-                                        <div style="width:1px; background:var(--line);"></div>
-                                        <div style="text-align: center; flex: 1;"><strong style="display:block; color:var(--muted); font-size:10px; text-transform:uppercase;">Carbs</strong> <span id="meal-carbs-<?= $meal['meal_id'] ?>"><?= $meal['carbs_g'] ?></span>g</div>
-                                        <div style="width:1px; background:var(--line);"></div>
-                                        <div style="text-align: center; flex: 1;"><strong style="display:block; color:var(--muted); font-size:10px; text-transform:uppercase;">Fat</strong> <span id="meal-fat-<?= $meal['meal_id'] ?>"><?= $meal['fat_g'] ?></span>g</div>
+                                    <div class="meal-banner-bottom">
+                                        <span id="meal-cals-badge-<?= $meal['meal_id'] ?>" class="meal-banner-cals">
+                                            <?= $meal['calories'] ?> kcal
+                                        </span>
+                                        <span id="meal-check-<?= $meal['meal_id'] ?>" class="meal-banner-logged-tag" style="<?= ($isToday && $isLoggedToday) ? 'display:inline-flex;' : 'display:none;' ?>" title="Logged for today">
+                                            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>
+                                            <span>Logged</span>
+                                        </span>
                                     </div>
                                 </div>
 
-                                <!-- Actions toolbar: Log Meal, Inspect Ingredients, Swap Meal -->
-                                <div class="meal-card-actions">
-                                    <?php if ($isToday && $isLoggedToday): ?>
-                                        <button type="button" id="btn-log-<?= $meal['meal_id'] ?>" class="meal-action-btn btn-log-meal logged-completed" onclick="handleAlreadyLoggedClick('<?= h($mealTypeNorm) ?>', '<?= h($loggedTimeStr) ?>')" title="<?= h($mealTypeNorm) ?> already logged today at <?= h($loggedTimeStr) ?>. Click for details.">
-                                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
-                                            <span>Logged ✓</span>
+                                <!-- Inner Card Content -->
+                                <div style="padding: 16px 18px 18px; display: flex; flex-direction: column; flex: 1; justify-content: space-between;">
+                                    <div>
+                                        <!-- Dynamic Meal Card State / Pill -->
+                                        <div class="meal-status-pill-wrap" style="margin-bottom: 12px;">
+                                            <?php if ($isToday && $isLoggedToday): ?>
+                                                <span id="meal-status-pill-<?= $meal['meal_id'] ?>" class="meal-status-pill pill-logged">
+                                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                                                    <span class="status-txt">Logged today at <?= h($loggedTimeStr) ?></span>
+                                                </span>
+                                            <?php elseif ($isToday): ?>
+                                                <span id="meal-status-pill-<?= $meal['meal_id'] ?>" class="meal-status-pill pill-unlogged">
+                                                    <span class="meal-status-dot"></span>
+                                                    <span class="status-txt">No meal logged yet</span>
+                                                </span>
+                                            <?php else: ?>
+                                                <span id="meal-status-pill-<?= $meal['meal_id'] ?>" class="meal-status-pill pill-scheduled">
+                                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                                                    <span class="status-txt"><?= h($dayName) ?> schedule (View only)</span>
+                                                </span>
+                                            <?php endif; ?>
+                                        </div>
+                                        
+                                        <div id="meal-food-<?= $meal['meal_id'] ?>" class="meal-food-text" style="color: var(--ink); font-size: 0.95rem; font-weight: 600; margin-bottom: 14px; line-height: 1.45; min-height: 44px;">
+                                            <?= nl2br(h($meal['food_items'])) ?>
+                                        </div>
+                                        
+                                        <div style="display: flex; gap: 10px; font-size: 0.85rem; color: var(--ink); background: color-mix(in srgb, var(--surface) 50%, var(--bg)); padding: 10px; border-radius: 8px; justify-content: space-between; margin-bottom: 14px;">
+                                            <div style="text-align: center; flex: 1;"><strong style="display:block; color:var(--muted); font-size:10px; text-transform:uppercase;">Protein</strong> <span id="meal-pro-<?= $meal['meal_id'] ?>"><?= $meal['protein_g'] ?></span>g</div>
+                                            <div style="width:1px; background:var(--line);"></div>
+                                            <div style="text-align: center; flex: 1;"><strong style="display:block; color:var(--muted); font-size:10px; text-transform:uppercase;">Carbs</strong> <span id="meal-carbs-<?= $meal['meal_id'] ?>"><?= $meal['carbs_g'] ?></span>g</div>
+                                            <div style="width:1px; background:var(--line);"></div>
+                                            <div style="text-align: center; flex: 1;"><strong style="display:block; color:var(--muted); font-size:10px; text-transform:uppercase;">Fat</strong> <span id="meal-fat-<?= $meal['meal_id'] ?>"><?= $meal['fat_g'] ?></span>g</div>
+                                        </div>
+                                    </div>
+
+                                    <!-- Actions toolbar: Log Meal, Inspect Ingredients, Swap Meal -->
+                                    <div class="meal-card-actions">
+                                        <?php if ($isToday && $isLoggedToday): ?>
+                                            <button type="button" class="meal-action-btn btn-log-meal logged" onclick="handleAlreadyLoggedClick('<?= h($meal['meal_type']) ?>', '<?= h($loggedTimeStr) ?>')" title="Already logged for today">
+                                                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                                                <span>Logged ✓</span>
+                                            </button>
+                                        <?php elseif ($isToday): ?>
+                                            <button type="button" class="meal-action-btn btn-log-meal" id="btn-log-meal-<?= $meal['meal_id'] ?>" onclick="quickLogPlannedMeal(<?= $meal['meal_id'] ?>)" title="Quick-log this meal into today's macros">
+                                                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 5v14M5 12h14"/></svg>
+                                                <span>Log Meal</span>
+                                            </button>
+                                        <?php else: ?>
+                                            <button type="button" class="meal-action-btn btn-view-only" onclick="handleViewOnlyClick('<?= h($dayName) ?>')" title="Scheduled for <?= h($dayName) ?>">
+                                                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>
+                                                <span>View Only</span>
+                                            </button>
+                                        <?php endif; ?>
+                                        <button type="button" class="meal-action-btn btn-inspect-meal" onclick="inspectPlannedMeal(<?= $meal['meal_id'] ?>)" title="Inspect itemized ingredients & micronutrients">
+                                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                                            <span>Ingredients</span>
                                         </button>
-                                    <?php elseif ($isToday): ?>
-                                        <button type="button" id="btn-log-<?= $meal['meal_id'] ?>" class="meal-action-btn btn-log-meal" onclick="quickLogPlannedMeal(<?= $meal['meal_id'] ?>)" title="Log your <?= h(strtolower($meal['meal_type'])) ?> to track your daily nutrition">
-                                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
-                                            <span>+ Log Meal</span>
+                                        <button type="button" class="meal-action-btn btn-swap-meal" onclick="openSwapMealModal(<?= $meal['meal_id'] ?>)" title="Swap with alternative healthy recipes">
+                                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 3h5v5"/><path d="M4 20L21 3"/><path d="M21 16v5h-5"/><path d="M15 15l6 6"/><path d="M4 4l5 5"/></svg>
+                                            <span>Swap</span>
                                         </button>
-                                    <?php else: ?>
-                                        <button type="button" id="btn-log-<?= $meal['meal_id'] ?>" class="meal-action-btn btn-log-meal btn-view-only" disabled title="Scheduled for <?= h($dayName) ?>. Only today's meals can be logged.">
-                                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>
-                                            <span>View Only</span>
-                                        </button>
-                                    <?php endif; ?>
-                                    <button type="button" class="meal-action-btn btn-inspect-meal" onclick="inspectPlannedMeal(<?= $meal['meal_id'] ?>)" title="Inspect itemized ingredients & micronutrients">
-                                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-                                        <span>Ingredients</span>
-                                    </button>
-                                    <button type="button" class="meal-action-btn btn-swap-meal" onclick="openSwapMealModal(<?= $meal['meal_id'] ?>)" title="Swap with alternative healthy recipes">
-                                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 3h5v5"/><path d="M4 20L21 3"/><path d="M21 16v5h-5"/><path d="M15 15l6 6"/><path d="M4 4l5 5"/></svg>
-                                        <span>Swap</span>
-                                    </button>
+                                    </div>
                                 </div>
                             </div>
                         <?php endforeach; ?>
@@ -3511,6 +4027,89 @@ $stFat   = $calcMacroStatus($loggedFat, $targetFat, 'fat');
 
         <div class="ft-modal-footer">
             <button type="button" class="btn-cancel" onclick="closeSwapModal()">Cancel</button>
+        </div>
+    </div>
+</div>
+
+<!-- ==================================================== -->
+<!-- MODAL: CUSTOMIZE MEAL PHOTO (IMAGEKIT & URL)         -->
+<!-- ==================================================== -->
+<div id="modal-meal-photo" class="ft-modal-overlay" style="display:none;" onclick="if(event.target===this)closeMealPhotoModal()">
+    <div class="ft-modal-box" style="max-width: 520px;">
+        <div class="ft-modal-header">
+            <div>
+                <h3 class="ft-modal-title" style="display: flex; align-items: center; gap: 8px;">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--lime)" stroke-width="2.2"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+                    <span>Customize Meal Photo</span>
+                </h3>
+                <p class="ft-modal-subtitle" id="photo-modal-subtitle">Upload to ImageKit or enter a custom link</p>
+            </div>
+            <button type="button" class="ft-modal-close" onclick="closeMealPhotoModal()" aria-label="Close modal">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+            </button>
+        </div>
+
+        <div class="ft-modal-body">
+            <!-- Meal Item Banner Preview -->
+            <div style="background: var(--bg); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; margin-bottom: 16px;">
+                <div style="position: relative; height: 160px; background: #0b0f17; overflow: hidden;">
+                    <img id="photo-modal-preview-img" src="" alt="Preview" style="width: 100%; height: 100%; object-fit: cover; display: block;">
+                    <div style="position: absolute; inset: 0; background: linear-gradient(180deg, rgba(0,0,0,0.2) 0%, rgba(0,0,0,0.75) 100%);"></div>
+                    <div style="position: absolute; bottom: 10px; left: 12px; right: 12px;">
+                        <span id="photo-modal-tag" style="display: inline-block; font-size: 10px; font-weight: 800; text-transform: uppercase; color: var(--lime); background: rgba(0,0,0,0.65); padding: 2px 7px; border-radius: 4px; border: 1px solid color-mix(in srgb, var(--lime) 40%, transparent); margin-bottom: 3px;">Auto-Matched Photo</span>
+                        <div id="photo-modal-food-name" style="font-size: 13.5px; font-weight: 700; color: #fff; line-height: 1.3; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">Meal name</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Tabs: ImageKit Upload vs Direct URL vs Reset -->
+            <div class="swap-tabs-bar" style="margin-bottom: 16px;">
+                <button type="button" class="swap-tab-btn active" id="tab-btn-photo-upload" onclick="switchPhotoTab('upload')">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                    <span>Upload (ImageKit)</span>
+                </button>
+                <button type="button" class="swap-tab-btn" id="tab-btn-photo-url" onclick="switchPhotoTab('url')">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+                    <span>Image URL</span>
+                </button>
+                <button type="button" class="swap-tab-btn" id="tab-btn-photo-reset" onclick="switchPhotoTab('reset')">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/></svg>
+                    <span>Reset to Auto</span>
+                </button>
+            </div>
+
+            <!-- Tab 1: Upload to ImageKit -->
+            <div id="panel-photo-upload" class="photo-tab-panel">
+                <div style="border: 2px dashed var(--line); border-radius: 10px; padding: 22px 16px; text-align: center; background: color-mix(in srgb, var(--surface) 40%, var(--bg)); cursor: pointer; transition: all 0.2s ease;" onclick="document.getElementById('photo-modal-file-input').click()">
+                    <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="var(--lime)" stroke-width="1.8" style="margin-bottom: 8px;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                    <div style="font-size: 13.5px; font-weight: 700; color: var(--ink); margin-bottom: 4px;">Click to select photo</div>
+                    <div style="font-size: 11.5px; color: var(--muted);">PNG, JPG, WebP up to 5MB • Saves directly to ImageKit CDN</div>
+                    <input type="file" id="photo-modal-file-input" accept="image/jpeg,image/png,image/webp,image/gif" style="display: none;" onchange="handlePhotoFileSelected(this)">
+                </div>
+                <div id="photo-file-status" style="margin-top: 10px; font-size: 12px; color: var(--lime); font-weight: 600; display: none;"></div>
+            </div>
+
+            <!-- Tab 2: Direct Image URL -->
+            <div id="panel-photo-url" class="photo-tab-panel" style="display: none;">
+                <label style="display: block; font-size: 12px; font-weight: 700; color: var(--ink); margin-bottom: 6px;">Image Web Address (URL):</label>
+                <input type="url" id="photo-modal-url-input" class="form-control" placeholder="https://... (e.g. Unsplash, ImageKit, Cloudinary)" style="width: 100%; padding: 10px 14px; border-radius: 8px; border: 1px solid var(--line); background: var(--bg); color: var(--ink); font-size: 13px;" oninput="handlePhotoUrlInput(this.value)">
+                <div style="font-size: 11px; color: var(--muted); margin-top: 6px;">Paste any direct image link from the web to display on this meal card.</div>
+            </div>
+
+            <!-- Tab 3: Reset to Auto -->
+            <div id="panel-photo-reset" class="photo-tab-panel" style="display: none;">
+                <div style="background: color-mix(in srgb, var(--surface) 50%, var(--bg)); border: 1px solid var(--line); border-radius: 8px; padding: 16px; text-align: center;">
+                    <div style="font-weight: 700; color: var(--ink); font-size: 13.5px; margin-bottom: 4px;">Revert to Auto-Matched Dish Photo</div>
+                    <div style="font-size: 12px; color: var(--muted); line-height: 1.4;">This will remove any custom uploaded photo and restore the high-definition culinary food photo automatically tailored for this recipe.</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="ft-modal-footer">
+            <button type="button" class="btn-cancel" onclick="closeMealPhotoModal()">Cancel</button>
+            <button type="button" id="btn-save-meal-photo" class="btn-save-swap" onclick="saveMealPhoto()">
+                <span>Save Photo</span>
+            </button>
         </div>
     </div>
 </div>
@@ -4162,23 +4761,248 @@ let swapOptionsData = [];
 let activeSwapFilter = 'all';
 let calculatedCustomMealData = null;
 
+// Photo Modal State
+let currentPhotoMeal = null; // { mealId, foodItems, customUrl, resolvedUrl }
+let currentPhotoTab = 'upload'; // 'upload', 'url', 'reset'
+let selectedPhotoFile = null;
+
+function openMealPhotoModal(btn) {
+    const mealId = btn.getAttribute('data-meal-id');
+    const foodItems = btn.getAttribute('data-food') || '';
+    const customUrl = btn.getAttribute('data-custom-url') || '';
+    const resolvedUrl = btn.getAttribute('data-resolved-url') || '';
+
+    currentPhotoMeal = { mealId, foodItems, customUrl, resolvedUrl };
+    selectedPhotoFile = null;
+
+    document.getElementById('photo-modal-food-name').textContent = foodItems;
+    document.getElementById('photo-modal-preview-img').src = customUrl || resolvedUrl;
+    document.getElementById('photo-modal-tag').textContent = customUrl ? (customUrl.includes('imagekit.io') ? 'ImageKit Photo' : 'Custom Photo') : 'Auto-Matched Photo';
+    document.getElementById('photo-modal-url-input').value = customUrl || '';
+    document.getElementById('photo-modal-file-input').value = '';
+    
+    const fileStatus = document.getElementById('photo-file-status');
+    fileStatus.style.display = 'none';
+    fileStatus.textContent = '';
+
+    if (customUrl && !customUrl.includes('imagekit.io')) {
+        switchPhotoTab('url');
+    } else {
+        switchPhotoTab('upload');
+    }
+
+    const modal = document.getElementById('modal-meal-photo');
+    modal.style.display = 'flex';
+    document.body.style.overflow = 'hidden';
+}
+
+function closeMealPhotoModal() {
+    const modal = document.getElementById('modal-meal-photo');
+    modal.style.display = 'none';
+    document.body.style.overflow = '';
+    currentPhotoMeal = null;
+    selectedPhotoFile = null;
+}
+
+function switchPhotoTab(tab) {
+    currentPhotoTab = tab;
+    ['upload', 'url', 'reset'].forEach(t => {
+        const btn = document.getElementById('tab-btn-photo-' + t);
+        const panel = document.getElementById('panel-photo-' + t);
+        if (btn) btn.classList.toggle('active', t === tab);
+        if (panel) panel.style.display = (t === tab) ? 'block' : 'none';
+    });
+
+    const previewImg = document.getElementById('photo-modal-preview-img');
+    const tag = document.getElementById('photo-modal-tag');
+
+    if (tab === 'reset') {
+        previewImg.src = currentPhotoMeal ? currentPhotoMeal.resolvedUrl : '';
+        tag.textContent = 'Auto-Matched Photo';
+    } else if (tab === 'upload') {
+        if (selectedPhotoFile) {
+            // keep previewing selected file
+        } else if (currentPhotoMeal && currentPhotoMeal.customUrl) {
+            previewImg.src = currentPhotoMeal.customUrl;
+            tag.textContent = currentPhotoMeal.customUrl.includes('imagekit.io') ? 'ImageKit Photo' : 'Custom Photo';
+        } else if (currentPhotoMeal) {
+            previewImg.src = currentPhotoMeal.resolvedUrl;
+            tag.textContent = 'Auto-Matched Photo';
+        }
+    } else if (tab === 'url') {
+        const inputVal = document.getElementById('photo-modal-url-input').value.trim();
+        if (inputVal) {
+            previewImg.src = inputVal;
+            tag.textContent = 'Link Preview';
+        } else if (currentPhotoMeal) {
+            previewImg.src = currentPhotoMeal.customUrl || currentPhotoMeal.resolvedUrl;
+            tag.textContent = currentPhotoMeal.customUrl ? 'Custom Photo' : 'Auto-Matched Photo';
+        }
+    }
+}
+
+function handlePhotoFileSelected(input) {
+    const file = input.files && input.files[0];
+    if (!file) return;
+
+    if (file.size > 5 * 1024 * 1024) {
+        Swal.fire({
+            icon: 'warning',
+            title: 'File Too Large',
+            text: 'Please select an image smaller than 5MB.',
+            confirmButtonColor: 'var(--lime)',
+            background: 'var(--panel-bg, #121721)',
+            color: 'var(--ink)'
+        });
+        input.value = '';
+        return;
+    }
+
+    selectedPhotoFile = file;
+    const fileStatus = document.getElementById('photo-file-status');
+    fileStatus.style.display = 'block';
+    fileStatus.textContent = `✓ Selected: ${file.name} (${(file.size / 1024).toFixed(0)} KB) • Ready for ImageKit`;
+
+    // Local instant preview
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        document.getElementById('photo-modal-preview-img').src = e.target.result;
+        document.getElementById('photo-modal-tag').textContent = 'Local Preview (ImageKit)';
+    };
+    reader.readAsDataURL(file);
+}
+
+function handlePhotoUrlInput(val) {
+    val = val.trim();
+    const previewImg = document.getElementById('photo-modal-preview-img');
+    const tag = document.getElementById('photo-modal-tag');
+    if (val.startsWith('http://') || val.startsWith('https://')) {
+        previewImg.src = val;
+        tag.textContent = 'URL Preview';
+    }
+}
+
+async function saveMealPhoto() {
+    if (!currentPhotoMeal) return;
+
+    const saveBtn = document.getElementById('btn-save-meal-photo');
+    const originalText = saveBtn.innerHTML;
+    saveBtn.disabled = true;
+    saveBtn.innerHTML = '<div class="ft-spinner" style="width:14px; height:14px; border-width:2px; display:inline-block; vertical-align:middle; margin-right:6px;"></div> <span>Uploading to ImageKit...</span>';
+
+    const formData = new FormData();
+    formData.append('action', 'update_meal_photo');
+    formData.append('meal_id', currentPhotoMeal.mealId);
+    formData.append('photo_type', currentPhotoTab);
+    formData.append('csrf_token', FT_CSRF_TOKEN);
+
+    if (currentPhotoTab === 'upload') {
+        if (!selectedPhotoFile) {
+            Swal.fire({
+                icon: 'info',
+                title: 'No Image Chosen',
+                text: 'Please click the box to select an image file to upload to ImageKit.',
+                confirmButtonColor: 'var(--lime)',
+                background: 'var(--panel-bg, #121721)',
+                color: 'var(--ink)'
+            });
+            saveBtn.disabled = false;
+            saveBtn.innerHTML = originalText;
+            return;
+        }
+        formData.append('photo_file', selectedPhotoFile);
+    } else if (currentPhotoTab === 'url') {
+        const urlVal = document.getElementById('photo-modal-url-input').value.trim();
+        if (!urlVal) {
+            Swal.fire({
+                icon: 'warning',
+                title: 'URL Required',
+                text: 'Please enter a valid image web address.',
+                confirmButtonColor: 'var(--lime)',
+                background: 'var(--panel-bg, #121721)',
+                color: 'var(--ink)'
+            });
+            saveBtn.disabled = false;
+            saveBtn.innerHTML = originalText;
+            return;
+        }
+        formData.append('photo_url', urlVal);
+    }
+
+    try {
+        const res = await fetch('index.php?page=diet', {
+            method: 'POST',
+            body: formData
+        });
+        const data = await res.json();
+
+        if (data.success) {
+            // Update image on meal card
+            const cardImg = document.getElementById('meal-img-' + currentPhotoMeal.mealId);
+            if (cardImg) {
+                cardImg.src = data.resolved_url;
+            }
+
+            // Update button data attributes
+            const btn = document.getElementById('btn-edit-photo-' + currentPhotoMeal.mealId);
+            if (btn) {
+                btn.setAttribute('data-custom-url', data.image_url || '');
+                btn.setAttribute('data-resolved-url', data.resolved_url);
+            }
+
+            closeMealPhotoModal();
+
+            const toastMsg = currentPhotoTab === 'upload' 
+                ? 'Saved to ImageKit CDN successfully!' 
+                : (currentPhotoTab === 'reset' ? 'Reverted to auto dish photo!' : 'Custom image URL saved!');
+
+            Swal.fire({
+                toast: true,
+                position: 'top-end',
+                icon: 'success',
+                title: toastMsg,
+                showConfirmButton: false,
+                timer: 3000,
+                background: 'var(--panel-bg, #121721)',
+                color: 'var(--ink)'
+            });
+        } else {
+            Swal.fire({
+                icon: 'error',
+                title: 'Photo Update Failed',
+                text: data.error || 'Could not save photo.',
+                confirmButtonColor: 'var(--lime)',
+                background: 'var(--panel-bg, #121721)',
+                color: 'var(--ink)'
+            });
+        }
+    } catch (err) {
+        console.error("Photo upload error:", err);
+        Swal.fire({
+            icon: 'error',
+            title: 'Network Error',
+            text: 'Could not connect to server to upload photo.',
+            confirmButtonColor: 'var(--lime)',
+            background: 'var(--panel-bg, #121721)',
+            color: 'var(--ink)'
+        });
+    } finally {
+        saveBtn.disabled = false;
+        saveBtn.innerHTML = originalText;
+    }
+}
+
 // Switch weekly meal plan day tab
 function switchDietTab(dayNum) {
     document.querySelectorAll('.diet-tab-content').forEach(el => el.style.display = 'none');
-    document.querySelectorAll('.diet-tab-btn').forEach(btn => {
-        btn.style.color = 'var(--muted)';
-        btn.style.fontWeight = '500';
-        btn.style.borderBottomColor = 'transparent';
-    });
+    document.querySelectorAll('.diet-day-tab').forEach(btn => btn.classList.remove('active'));
     
     const targetContent = document.getElementById('diet-tab-' + dayNum);
     if (targetContent) targetContent.style.display = 'block';
     
-    const activeBtn = document.querySelector('.diet-tab-btn:nth-child(' + dayNum + ')');
+    const activeBtn = document.getElementById('diet-day-btn-' + dayNum);
     if (activeBtn) {
-        activeBtn.style.color = 'var(--lime)';
-        activeBtn.style.fontWeight = '700';
-        activeBtn.style.borderBottomColor = 'var(--lime)';
+        activeBtn.classList.add('active');
     }
 }
 
@@ -4888,6 +5712,17 @@ async function confirmSwapRecipe(foodItems, cals, pro, carbs, fat) {
                 if (proEl)     proEl.textContent = pro;
                 if (carbsEl)   carbsEl.textContent = carbs;
                 if (fatEl)     fatEl.textContent = fat;
+
+                // Update photo if auto-resolved for new food item
+                if (data.resolved_url) {
+                    const cardImg = document.getElementById('meal-img-' + mealId);
+                    if (cardImg) cardImg.src = data.resolved_url;
+                    const editPhotoBtn = document.getElementById('btn-edit-photo-' + mealId);
+                    if (editPhotoBtn) {
+                        editPhotoBtn.setAttribute('data-food', foodItems);
+                        editPhotoBtn.setAttribute('data-resolved-url', data.resolved_url);
+                    }
+                }
 
                 // Subtle flash animation on updated card
                 card.style.transition = 'box-shadow 0.3s ease, border-color 0.3s ease';
