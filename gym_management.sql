@@ -199,7 +199,7 @@ CREATE TABLE `class_schedules` (
 CREATE TABLE `dietary_plans` (
   `plan_id` int UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
   `member_user_id` int UNSIGNED NOT NULL,
-  `trainer_id` int UNSIGNED NOT NULL,
+  `trainer_id` int UNSIGNED DEFAULT NULL,
   `title` varchar(255) NOT NULL,
   `goal` varchar(100) NOT NULL,
   `status` enum('active','completed','cancelled','draft') NOT NULL DEFAULT 'draft',

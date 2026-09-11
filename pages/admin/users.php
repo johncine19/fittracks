@@ -471,6 +471,12 @@ function users_page(): void
                                     <button type="submit" class="btn-sm btn-ghost">Update</button>
                                 </form>
                                 <button onclick="editUser(<?= htmlspecialchars(json_encode($row)) ?>)" class="btn btn-secondary" style="padding:4px 8px;font-size:12px;margin-left:8px;">Edit</button>
+                                <?php if ($row['role'] === 'member'): ?>
+                                    <a href="index.php?page=diet_builder&member_user_id=<?= (int)$row['user_id'] ?>&ref=users" class="btn btn-secondary" style="padding:4px 8px;font-size:12px;text-decoration:none;display:inline-flex;align-items:center;gap:4px;" title="Manage Diet Plan">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+                                        Diet Plan
+                                    </a>
+                                <?php endif; ?>
                                 <?php if ((int) $row['user_id'] !== (int) $user['user_id']): ?>
                                 <form method="post" style="margin:0;" onsubmit="return confirm('Delete this user? This cannot be undone.');">
                                     <?= csrf_field() ?>

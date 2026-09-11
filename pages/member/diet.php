@@ -693,7 +693,7 @@ function diet_page(): void
     }
     
     // Fetch active diet plan
-    $plan = $pdo->prepare('SELECT dp.*, u.first_name as t_first, u.last_name as t_last FROM dietary_plans dp LEFT JOIN trainer_profiles tp ON tp.trainer_id = dp.trainer_id LEFT JOIN users u ON u.user_id = tp.user_id WHERE dp.member_user_id = ? AND dp.status = "active" ORDER BY dp.plan_id DESC LIMIT 1');
+    $plan = $pdo->prepare('SELECT dp.*, u.first_name as t_first, u.last_name as t_last, u.role as t_role FROM dietary_plans dp LEFT JOIN trainer_profiles tp ON tp.trainer_id = dp.trainer_id LEFT JOIN users u ON u.user_id = tp.user_id WHERE dp.member_user_id = ? AND dp.status = "active" ORDER BY dp.plan_id DESC LIMIT 1');
     $plan->execute([$userId]);
     $activePlan = $plan->fetch();
 
@@ -717,7 +717,16 @@ function diet_page(): void
     }
     
     $planId = (int) $activePlan['plan_id'];
-    $trainerName = $activePlan['trainer_id'] ? h($activePlan['t_first'] . ' ' . $activePlan['t_last']) : 'Auto-generated';
+    if ($activePlan['trainer_id']) {
+        $fullName = trim(($activePlan['t_first'] ?? '') . ' ' . ($activePlan['t_last'] ?? ''));
+        if (($activePlan['t_role'] ?? '') === 'gym_owner') {
+            $trainerName = h($fullName ?: 'Gym Owner') . ' <span style="font-size:11px; opacity:0.8; font-weight:500;">(Gym Owner)</span>';
+        } else {
+            $trainerName = h($fullName ?: 'Trainer');
+        }
+    } else {
+        $trainerName = 'Auto-generated';
+    }
     
     $mealsRaw = $pdo->query('SELECT * FROM dietary_plan_meals WHERE plan_id = ' . $planId . ' ORDER BY day_of_week ASC, FIELD(meal_type, "Breakfast", "Lunch", "Dinner", "Snack")')->fetchAll();
     

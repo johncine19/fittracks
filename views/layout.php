@@ -289,7 +289,11 @@ function render_header(string $title, ?array $user = null): void
                                 $tierBadge = in_array($mappedFeature, ['audit_logs'], true) ? 'BIZ' : 'PRO';
                             }
                         }
-                        $isActive = ($page === $key || ($key === 'training' && in_array($page, ['training', 'admin_workouts', 'workout_builder'], true)));
+                        $isActive = ($page === $key 
+                            || ($key === 'training' && in_array($page, ['training', 'admin_workouts', 'workout_builder'], true))
+                            || ($key === 'trainer_assignments' && $page === 'diet_builder' && in_array($role, ['gym_owner', 'platform_admin'], true))
+                            || ($key === 'trainer_members' && $page === 'diet_builder' && $role === 'trainer')
+                        );
                     ?>
                         <a class="<?= $isActive ? 'active' : '' ?>" href="index.php?page=<?= h($key) ?>">
                             <span class="nav-icon"><?= nav_icon($key) ?></span>
