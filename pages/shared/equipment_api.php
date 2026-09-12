@@ -479,19 +479,45 @@ function handle_log_progress(PDO $pdo, int $gymId, array $user): void
         return;
     }
 
+    $waistCm = (isset($_POST['waist_cm']) && $_POST['waist_cm'] !== '') ? (float)$_POST['waist_cm'] : null;
+    if ($waistCm !== null && ($waistCm < 30 || $waistCm > 250)) {
+        echo json_encode(['success' => false, 'message' => 'Waist measurement must be between 30 and 250 cm.']);
+        return;
+    }
+
+    $chestCm = (isset($_POST['chest_cm']) && $_POST['chest_cm'] !== '') ? (float)$_POST['chest_cm'] : null;
+    if ($chestCm !== null && ($chestCm < 30 || $chestCm > 250)) {
+        echo json_encode(['success' => false, 'message' => 'Chest measurement must be between 30 and 250 cm.']);
+        return;
+    }
+
+    $armCm = (isset($_POST['arm_cm']) && $_POST['arm_cm'] !== '') ? (float)$_POST['arm_cm'] : null;
+    if ($armCm !== null && ($armCm < 15 || $armCm > 100)) {
+        echo json_encode(['success' => false, 'message' => 'Arm measurement must be between 15 and 100 cm.']);
+        return;
+    }
+
     $notes = !empty($_POST['notes']) ? trim($_POST['notes']) : null;
 
     $existingLogId = (int)scalar('SELECT log_id FROM progress_logs WHERE user_id = ? AND log_date = ? LIMIT 1', [$userId, $logDate]);
 
     if ($existingLogId > 0) {
-        $stmt = $pdo->prepare('UPDATE progress_logs SET weight_kg = ?, body_fat_percent = COALESCE(?, body_fat_percent), notes = COALESCE(?, notes), recorded_by = ? WHERE log_id = ?');
-        $stmt->execute([$weightKg, $bodyFat, $notes, $userId, $existingLogId]);
+        $stmt = $pdo->prepare('UPDATE progress_logs SET weight_kg = ?, body_fat_percent = COALESCE(?, body_fat_percent), waist_cm = COALESCE(?, waist_cm), chest_cm = COALESCE(?, chest_cm), arm_cm = COALESCE(?, arm_cm), notes = COALESCE(?, notes), recorded_by = ? WHERE log_id = ?');
+        $stmt->execute([$weightKg, $bodyFat, $waistCm, $chestCm, $armCm, $notes, $userId, $existingLogId]);
     } else {
-        $stmt = $pdo->prepare('INSERT INTO progress_logs (user_id, log_date, weight_kg, body_fat_percent, notes, recorded_by) VALUES (?, ?, ?, ?, ?, ?)');
-        $stmt->execute([$userId, $logDate, $weightKg, $bodyFat, $notes, $userId]);
+        $stmt = $pdo->prepare('INSERT INTO progress_logs (user_id, log_date, weight_kg, body_fat_percent, waist_cm, chest_cm, arm_cm, notes, recorded_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)');
+        $stmt->execute([$userId, $logDate, $weightKg, $bodyFat, $waistCm, $chestCm, $armCm, $notes, $userId]);
     }
 
-    $pdo->prepare('UPDATE member_profiles SET weight_kg = ? WHERE user_id = ?')->execute([$weightKg, $userId]);
+    $profileUpdate = 'UPDATE member_profiles SET weight_kg = ?';
+    $profileParams = [$weightKg];
+    if ($waistCm !== null) {
+        $profileUpdate .= ', waist_cm = ?';
+        $profileParams[] = $waistCm;
+    }
+    $profileUpdate .= ' WHERE user_id = ?';
+    $profileParams[] = $userId;
+    $pdo->prepare($profileUpdate)->execute($profileParams);
 
     $workoutHelper = __DIR__ . '/workouts.php';
     if (file_exists($workoutHelper)) {
@@ -513,6 +539,9 @@ function handle_log_progress(PDO $pdo, int $gymId, array $user): void
     echo json_encode([
         'success' => true,
         'weight_kg' => $weightKg,
+        'waist_cm' => $waistCm,
+        'chest_cm' => $chestCm,
+        'arm_cm' => $armCm,
         'message' => 'Progress logged successfully!'
     ]);
 }

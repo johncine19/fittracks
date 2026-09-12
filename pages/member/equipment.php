@@ -22,11 +22,15 @@ function member_equipment_page(): void
 
     $gymName = scalar('SELECT name FROM gyms WHERE gym_id = ?', [$gymId]) ?: 'Your Gym';
     $userId = (int)$user['user_id'];
-    $recentWeight = scalar('SELECT weight_kg FROM progress_logs WHERE user_id = ? ORDER BY log_date DESC, log_id DESC LIMIT 1', [$userId]);
-    if (!$recentWeight) {
-        $recentWeight = scalar('SELECT weight_kg FROM member_profiles WHERE user_id = ?', [$userId]);
-    }
-    $recentBf = scalar('SELECT body_fat_percent FROM progress_logs WHERE user_id = ? AND body_fat_percent IS NOT NULL ORDER BY log_date DESC, log_id DESC LIMIT 1', [$userId]) ?: null;
+    $lastLogStmt = $pdo->prepare('SELECT weight_kg, body_fat_percent, waist_cm, chest_cm, arm_cm FROM progress_logs WHERE user_id = ? ORDER BY log_date DESC, log_id DESC LIMIT 1');
+    $lastLogStmt->execute([$userId]);
+    $lastLog = $lastLogStmt->fetch(PDO::FETCH_ASSOC) ?: [];
+
+    $recentWeight = $lastLog['weight_kg'] ?? scalar('SELECT weight_kg FROM member_profiles WHERE user_id = ?', [$userId]);
+    $recentBf = $lastLog['body_fat_percent'] ?? null;
+    $recentWaist = $lastLog['waist_cm'] ?? scalar('SELECT waist_cm FROM member_profiles WHERE user_id = ?', [$userId]);
+    $recentChest = $lastLog['chest_cm'] ?? null;
+    $recentArm = $lastLog['arm_cm'] ?? null;
     ?>
 
     <style>
@@ -70,12 +74,66 @@ function member_equipment_page(): void
             box-shadow: 0 2px 10px rgba(0,0,0,0.12);
         }
 
-        /* Ensure all lime action buttons have crisp dark text in darkmode */
-        .btn[style*="var(--lime)"],
-        button[style*="var(--lime)"],
-        a[style*="var(--lime)"] {
+        /* Ensure lime-filled action buttons have crisp dark text in darkmode */
+        .btn[style*="background: var(--lime)"],
+        .btn[style*="background:var(--lime)"],
+        button[style*="background: var(--lime)"],
+        button[style*="background:var(--lime)"],
+        a[style*="background: var(--lime)"],
+        a[style*="background:var(--lime)"] {
             color: var(--lime-btn-text) !important;
             font-weight: 800 !important;
+        }
+
+        .btn-toggle-measurements {
+            background: color-mix(in srgb, var(--lime) 12%, transparent);
+            color: var(--lime) !important;
+            border: 1px solid color-mix(in srgb, var(--lime) 30%, transparent);
+            border-radius: 8px;
+            font-size: 13px;
+            font-weight: 700;
+            cursor: pointer;
+            padding: 8px 14px;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            width: 100%;
+            justify-content: center;
+            transition: all 0.2s ease;
+            box-sizing: border-box;
+        }
+        .btn-toggle-measurements:hover {
+            background: color-mix(in srgb, var(--lime) 22%, transparent);
+            border-color: var(--lime);
+            color: var(--lime) !important;
+        }
+        [data-theme="light"] .btn-toggle-measurements {
+            background: #ecfccb;
+            color: #365314 !important;
+            border-color: #bef264;
+        }
+        [data-theme="light"] .btn-toggle-measurements:hover {
+            background: #d9f99d;
+            border-color: #84cc16;
+            color: #365314 !important;
+        }
+
+        .qp-full-link {
+            font-size: 12.5px;
+            color: var(--muted) !important;
+            text-decoration: none;
+            font-weight: 600;
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            transition: color 0.2s ease;
+        }
+        .qp-full-link:hover {
+            color: var(--lime) !important;
+            text-decoration: underline;
+        }
+        [data-theme="light"] .qp-full-link:hover {
+            color: #4d7c0f !important;
         }
 
         /* SweetAlert confirm buttons contrast */
@@ -528,6 +586,9 @@ function member_equipment_page(): void
         const CSRF_TOKEN = <?= json_encode(csrf_token()) ?>;
         let RECENT_WEIGHT = <?= json_encode($recentWeight !== null && $recentWeight !== false ? (float)$recentWeight : null) ?>;
         let RECENT_BF = <?= json_encode($recentBf !== null && $recentBf !== false ? (float)$recentBf : null) ?>;
+        let RECENT_WAIST = <?= json_encode($recentWaist !== null && $recentWaist !== false ? (float)$recentWaist : null) ?>;
+        let RECENT_CHEST = <?= json_encode($recentChest !== null && $recentChest !== false ? (float)$recentChest : null) ?>;
+        let RECENT_ARM = <?= json_encode($recentArm !== null && $recentArm !== false ? (float)$recentArm : null) ?>;
         let allEquipment = [];
         let activeSession = null;
         let myQueues = [];
@@ -1226,6 +1287,9 @@ function member_equipment_page(): void
             const defaultNotes = `Completed workout on ${fullName} (${durationMins} min${durationMins > 1 ? 's' : ''}, ${formattedDuration})`;
             const weightVal = RECENT_WEIGHT ? Number(RECENT_WEIGHT).toFixed(1) : '';
             const bfVal = RECENT_BF ? Number(RECENT_BF).toFixed(1) : '';
+            const waistVal = RECENT_WAIST ? Number(RECENT_WAIST).toFixed(1) : '';
+            const chestVal = RECENT_CHEST ? Number(RECENT_CHEST).toFixed(1) : '';
+            const armVal = RECENT_ARM ? Number(RECENT_ARM).toFixed(1) : '';
 
             Swal.fire({
                 title: 'Log Your Progress',
@@ -1268,9 +1332,32 @@ function member_equipment_page(): void
                                 </label>
                             </div>
 
-                            <div style="text-align: right; margin-top: 2px;">
-                                <a href="index.php?page=progress" style="font-size: 12px; color: var(--lime); text-decoration: none; font-weight: 600;">
-                                    Full measurement form (Chest, Waist, Arms) &rarr;
+                            <!-- Optional Expandable Body Circumference Section -->
+                            <div style="margin-top: 4px;">
+                                <button type="button" id="toggle-extra-measurements" class="btn-toggle-measurements" onclick="const s = document.getElementById('extra-measurements'); const isHidden = s.style.display === 'none'; s.style.display = isHidden ? 'flex' : 'none'; this.innerHTML = isHidden ? '− Hide Body Measurements (Waist, Chest, Arms)' : '+ Add Body Measurements (Waist, Chest, Arms)';">
+                                    + Add Body Measurements (Waist, Chest, Arms)
+                                </button>
+                                <div id="extra-measurements" style="display: none; flex-direction: column; gap: 10px; margin-top: 8px; padding: 12px; border-radius: 8px; background: rgba(255,255,255,0.03); border: 1px solid var(--line);">
+                                    <div style="display: flex; gap: 10px;">
+                                        <label style="flex: 1; margin: 0; font-size: 12.5px; color: var(--muted); font-weight: 600;">
+                                            Waist (cm) <span style="font-size: 11px; font-weight: 400;">(optional)</span>
+                                            <input type="number" id="qp-waist" step="0.1" min="30" max="250" placeholder="e.g. 85" value="${waistVal}" class="form-control" style="width: 100%; box-sizing: border-box; margin-top: 4px; padding: 8px 10px; border-radius: 8px; border: 1px solid var(--line); background: var(--panel-soft); color: var(--ink); font-size: 13px;">
+                                        </label>
+                                        <label style="flex: 1; margin: 0; font-size: 12.5px; color: var(--muted); font-weight: 600;">
+                                            Chest (cm) <span style="font-size: 11px; font-weight: 400;">(optional)</span>
+                                            <input type="number" id="qp-chest" step="0.1" min="30" max="250" placeholder="optional" value="${chestVal}" class="form-control" style="width: 100%; box-sizing: border-box; margin-top: 4px; padding: 8px 10px; border-radius: 8px; border: 1px solid var(--line); background: var(--panel-soft); color: var(--ink); font-size: 13px;">
+                                        </label>
+                                        <label style="flex: 1; margin: 0; font-size: 12.5px; color: var(--muted); font-weight: 600;">
+                                            Arms (cm) <span style="font-size: 11px; font-weight: 400;">(optional)</span>
+                                            <input type="number" id="qp-arm" step="0.1" min="15" max="100" placeholder="optional" value="${armVal}" class="form-control" style="width: 100%; box-sizing: border-box; margin-top: 4px; padding: 8px 10px; border-radius: 8px; border: 1px solid var(--line); background: var(--panel-soft); color: var(--ink); font-size: 13px;">
+                                        </label>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div style="text-align: right; margin-top: 6px;">
+                                <a href="index.php?page=progress" class="qp-full-link">
+                                    Full progress tracking dashboard &rarr;
                                 </a>
                             </div>
                         </form>
@@ -1290,6 +1377,9 @@ function member_equipment_page(): void
                     const weightEl = document.getElementById('qp-weight');
                     const bfEl = document.getElementById('qp-bodyfat');
                     const notesEl = document.getElementById('qp-notes');
+                    const waistEl = document.getElementById('qp-waist');
+                    const chestEl = document.getElementById('qp-chest');
+                    const armEl = document.getElementById('qp-arm');
 
                     if (!dateEl || !weightEl) return false;
 
@@ -1311,6 +1401,24 @@ function member_equipment_page(): void
                         return false;
                     }
 
+                    const waistVal = waistEl && waistEl.value.trim() ? parseFloat(waistEl.value) : null;
+                    if (waistVal !== null && (isNaN(waistVal) || waistVal < 30 || waistVal > 250)) {
+                        Swal.showValidationMessage('Waist measurement must be between 30 and 250 cm.');
+                        return false;
+                    }
+
+                    const chestVal = chestEl && chestEl.value.trim() ? parseFloat(chestEl.value) : null;
+                    if (chestVal !== null && (isNaN(chestVal) || chestVal < 30 || chestVal > 250)) {
+                        Swal.showValidationMessage('Chest measurement must be between 30 and 250 cm.');
+                        return false;
+                    }
+
+                    const armVal = armEl && armEl.value.trim() ? parseFloat(armEl.value) : null;
+                    if (armVal !== null && (isNaN(armVal) || armVal < 15 || armVal > 100)) {
+                        Swal.showValidationMessage('Arm measurement must be between 15 and 100 cm.');
+                        return false;
+                    }
+
                     const notesVal = notesEl ? notesEl.value.trim() : '';
 
                     try {
@@ -1318,6 +1426,9 @@ function member_equipment_page(): void
                         fd.append('log_date', dateVal);
                         fd.append('weight_kg', weightVal);
                         if (bfVal !== null) fd.append('body_fat_percent', bfVal);
+                        if (waistVal !== null) fd.append('waist_cm', waistVal);
+                        if (chestVal !== null) fd.append('chest_cm', chestVal);
+                        if (armVal !== null) fd.append('arm_cm', armVal);
                         if (notesVal) fd.append('notes', notesVal);
 
                         const res = await memberEquipPost('log_progress', fd);
@@ -1336,6 +1447,15 @@ function member_equipment_page(): void
                 if (saveResult.isConfirmed && saveResult.value && saveResult.value.success) {
                     if (saveResult.value.weight_kg) {
                         RECENT_WEIGHT = saveResult.value.weight_kg;
+                    }
+                    if (saveResult.value.waist_cm !== undefined && saveResult.value.waist_cm !== null) {
+                        RECENT_WAIST = saveResult.value.waist_cm;
+                    }
+                    if (saveResult.value.chest_cm !== undefined && saveResult.value.chest_cm !== null) {
+                        RECENT_CHEST = saveResult.value.chest_cm;
+                    }
+                    if (saveResult.value.arm_cm !== undefined && saveResult.value.arm_cm !== null) {
+                        RECENT_ARM = saveResult.value.arm_cm;
                     }
                     if (window.playNotifSound) window.playNotifSound('success');
                     Swal.fire({
