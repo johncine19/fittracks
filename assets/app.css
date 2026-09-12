@@ -353,12 +353,18 @@ input[type="radio"] {
     height: 36px;
     display: grid;
     place-items: center;
-    border: 1px solid rgba(199, 255, 34, .35);
+    border: 1px solid color-mix(in srgb, var(--lime) 35%, transparent);
     border-radius: 50%;
-    background: rgba(199, 255, 34, .18);
+    background: color-mix(in srgb, var(--lime) 15%, transparent);
     color: var(--lime);
     font-size: 12px;
     font-weight: 900;
+}
+
+[data-theme="light"] .avatar {
+    background: #ecfccb;
+    border-color: #bef264;
+    color: #365314;
 }
 
 .avatar.small {

@@ -140,7 +140,12 @@ function render_header(string $title, ?array $user = null): void
             color: #475569 !important;
         }
 
-        /* Disable native browser password reveal icon (Microsoft Edge / Chromium) to prevent duplicate eye icons */
+        /* Light Mode User Avatar */
+        [data-theme="light"] .avatar {
+            background: #ecfccb !important;
+            border: 1px solid #bef264 !important;
+            color: #365314 !important;
+        }
         input[type="password"]::-ms-reveal,
         input[type="password"]::-ms-clear,
         input::-ms-reveal,
