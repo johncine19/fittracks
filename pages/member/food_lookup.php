@@ -14,6 +14,137 @@ function food_lookup_page(): void
     $action = (string) ($_GET['action'] ?? $_POST['action'] ?? '');
     $query = trim((string) ($_GET['query'] ?? $_POST['query'] ?? ''));
 
+    // Action 1: Search local database food library
+    if ($action === 'search_library') {
+        $gymId = get_user_gym_id($user);
+        if (isset($_GET['gym_id']) && in_array($user['role'], ['gym_owner', 'trainer', 'platform_admin'])) {
+            $gymId = (int)$_GET['gym_id'] ?: $gymId;
+        }
+
+        $params = [];
+        $sql = 'SELECT * FROM food_items WHERE is_active = 1 ';
+        if ($gymId) {
+            $sql .= 'AND (gym_id = ? OR gym_id IS NULL) ';
+            $params[] = $gymId;
+        } else {
+            $sql .= 'AND (gym_id IS NULL) ';
+        }
+
+        if (!empty($_GET['meal_type'])) {
+            $sql .= 'AND meal_type = ? ';
+            $params[] = (string)$_GET['meal_type'];
+        }
+
+        if (!empty($_GET['dietary_restriction']) && $_GET['dietary_restriction'] !== 'all') {
+            $sql .= 'AND (dietary_restriction = ? OR dietary_restriction = "none") ';
+            $params[] = (string)$_GET['dietary_restriction'];
+        }
+
+        if (!empty($query)) {
+            $sql .= 'AND (name LIKE ? OR recipe_desc LIKE ?) ';
+            $params[] = '%' . $query . '%';
+            $params[] = '%' . $query . '%';
+        }
+
+        $sql .= 'ORDER BY (gym_id IS NOT NULL) DESC, name ASC LIMIT 30';
+
+        $stmt = db()->prepare($sql);
+        $stmt->execute($params);
+        $items = $stmt->fetchAll();
+
+        echo json_encode([
+            'success' => true,
+            'provider' => 'database_library',
+            'count' => count($items),
+            'items' => array_map(function($row) {
+                return [
+                    'food_id' => (int)$row['food_id'],
+                    'name' => $row['name'],
+                    'meal_type' => $row['meal_type'],
+                    'dietary_restriction' => $row['dietary_restriction'],
+                    'serving_size' => $row['serving_size'],
+                    'calories' => (int)$row['calories'],
+                    'protein_g' => (float)$row['protein_g'],
+                    'carbs_g' => (float)$row['carbs_g'],
+                    'fat_g' => (float)$row['fat_g'],
+                    'image_url' => $row['image_url'],
+                    'recipe_desc' => $row['recipe_desc'],
+                    'is_gym_custom' => !is_null($row['gym_id']),
+                    'source' => $row['source']
+                ];
+            }, $items)
+        ]);
+        exit;
+    }
+
+    // Action 2: Import external food from Open Food Facts or CalorieNinjas into gym's library
+    if ($action === 'import_external_food') {
+        if (!in_array($user['role'], ['gym_owner', 'trainer', 'platform_admin'])) {
+            echo json_encode(['success' => false, 'error' => 'Permission denied. Only gym staff can import foods.']);
+            exit;
+        }
+
+        $gymId = get_user_gym_id($user);
+        $name = trim((string)($_POST['name'] ?? ''));
+        $mealType = (string)($_POST['meal_type'] ?? 'Lunch');
+        if (!in_array($mealType, ['Breakfast', 'Lunch', 'Dinner', 'Snack'])) {
+            $mealType = 'Lunch';
+        }
+
+        $calories = max(0, (int)($_POST['calories'] ?? 0));
+        $protein = max(0.0, (float)($_POST['protein_g'] ?? 0));
+        $carbs = max(0.0, (float)($_POST['carbs_g'] ?? 0));
+        $fat = max(0.0, (float)($_POST['fat_g'] ?? 0));
+        $servingSize = trim((string)($_POST['serving_size'] ?? '1 serving')) ?: '1 serving';
+        $imageUrl = trim((string)($_POST['image_url'] ?? '')) ?: null;
+        $source = trim((string)($_POST['source'] ?? 'openfoodfacts'));
+        $desc = trim((string)($_POST['recipe_desc'] ?? 'Imported from nutrition database.'));
+
+        if (empty($name)) {
+            echo json_encode(['success' => false, 'error' => 'Food name is required.']);
+            exit;
+        }
+
+        $stmt = db()->prepare("
+            INSERT INTO food_items 
+            (gym_id, name, meal_type, dietary_restriction, serving_size, calories, protein_g, carbs_g, fat_g, image_url, recipe_desc, source)
+            VALUES (?, ?, ?, 'none', ?, ?, ?, ?, ?, ?, ?, ?)
+        ");
+        $stmt->execute([
+            $user['role'] === 'platform_admin' ? null : $gymId,
+            $name,
+            $mealType,
+            $servingSize,
+            $calories,
+            $protein,
+            $carbs,
+            $fat,
+            $imageUrl,
+            $desc,
+            $source
+        ]);
+
+        $newFoodId = (int)db()->lastInsertId();
+
+        echo json_encode([
+            'success' => true,
+            'food_id' => $newFoodId,
+            'message' => 'Successfully imported "' . htmlspecialchars($name) . '" into the food library!',
+            'item' => [
+                'food_id' => $newFoodId,
+                'name' => $name,
+                'meal_type' => $mealType,
+                'serving_size' => $servingSize,
+                'calories' => $calories,
+                'protein_g' => $protein,
+                'carbs_g' => $carbs,
+                'fat_g' => $fat,
+                'image_url' => $imageUrl
+            ]
+        ]);
+        exit;
+    }
+
     if (empty($query)) {
         echo json_encode(['success' => false, 'error' => 'Please enter a search query or meal description.']);
         exit;

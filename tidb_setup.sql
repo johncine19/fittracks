@@ -229,6 +229,34 @@ CREATE TABLE `dietary_plan_meals` (
 -- --------------------------------------------------------
 
 --
+-- Table structure for table `food_items`
+--
+
+CREATE TABLE `food_items` (
+  `food_id` int NOT NULL AUTO_INCREMENT,
+  `gym_id` int DEFAULT NULL,
+  `name` varchar(255) NOT NULL,
+  `meal_type` enum('Breakfast','Lunch','Dinner','Snack') NOT NULL,
+  `dietary_restriction` varchar(100) DEFAULT 'none',
+  `serving_size` varchar(100) DEFAULT '1 serving',
+  `calories` int NOT NULL,
+  `protein_g` decimal(6,1) NOT NULL,
+  `carbs_g` decimal(6,1) NOT NULL,
+  `fat_g` decimal(6,1) NOT NULL,
+  `image_url` varchar(255) DEFAULT NULL,
+  `recipe_desc` text DEFAULT NULL,
+  `source` varchar(50) DEFAULT 'system',
+  `is_active` tinyint(1) DEFAULT '1',
+  `created_at` timestamp DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` timestamp DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`food_id`),
+  KEY `idx_food_gym_type` (`gym_id`, `meal_type`),
+  KEY `idx_food_restriction` (`dietary_restriction`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+-- --------------------------------------------------------
+
+--
 -- Table structure for table `diet_rules`
 --
 

@@ -1,266 +1,101 @@
 <?php
 declare(strict_types=1);
 
-function get_swap_meal_catalog(): array
+if (!function_exists('get_swap_meal_catalog')) {
+function get_swap_meal_catalog(?PDO $pdo = null, ?int $gymId = null): array
 {
-    return [
-        'Breakfast' => [
-            [
-                'id' => 'brk_1',
-                'title' => 'Tapsilog (Lean Beef Tapa, Garlic Brown Rice, Sunny-Side Egg)',
-                'tags' => ['High Protein', 'Filipino Fit', 'Gluten-Free Safe'],
-                'restrictions' => ['none', 'halal', 'gluten-free', 'dairy-free'],
-                'pro_pct' => 0.35, 'carbs_pct' => 0.45, 'fat_pct' => 0.20,
-                'desc' => 'Tender lean cured beef with fragrant garlic brown rice and a sunny-side egg.'
-            ],
-            [
-                'id' => 'brk_2',
-                'title' => 'Bangsilog (Marinated Grilled Milkfish, Garlic Rice, Poached Egg)',
-                'tags' => ['Pescatarian', 'High Omega-3', 'Gluten-Free'],
-                'restrictions' => ['none', 'pescatarian', 'gluten-free', 'dairy-free', 'halal'],
-                'pro_pct' => 0.35, 'carbs_pct' => 0.45, 'fat_pct' => 0.20,
-                'desc' => 'Grilled Filipino bangus belly seasoned with garlic and vinegar, served with garlic rice.'
-            ],
-            [
-                'id' => 'brk_3',
-                'title' => 'Tortang Talong (Grilled Eggplant Omelet) with Brown Rice',
-                'tags' => ['Vegetarian', 'Fiber Rich', 'Gluten-Free'],
-                'restrictions' => ['none', 'vegetarian', 'gluten-free', 'halal'],
-                'pro_pct' => 0.25, 'carbs_pct' => 0.50, 'fat_pct' => 0.25,
-                'desc' => 'Smoky roasted eggplant dipped in whisked eggs, pan-seared with olive oil and brown rice.'
-            ],
-            [
-                'id' => 'brk_4',
-                'title' => 'Tofu Scramble Adobo Style with Garlic Cauliflower & Brown Rice',
-                'tags' => ['Vegan', 'Plant Protein', 'Dairy-Free'],
-                'restrictions' => ['none', 'vegetarian', 'vegan', 'dairy-free', 'gluten-free', 'halal'],
-                'pro_pct' => 0.30, 'carbs_pct' => 0.50, 'fat_pct' => 0.20,
-                'desc' => 'Crumbled firm tofu seasoned with soy sauce, garlic, and vinegar over brown rice.'
-            ],
-            [
-                'id' => 'brk_5',
-                'title' => 'Oatmeal Protein Champorado with Chia Seeds & Almond Butter',
-                'tags' => ['High Fiber', 'Vegetarian', 'Sustained Energy'],
-                'restrictions' => ['none', 'vegetarian', 'dairy-free', 'halal'],
-                'pro_pct' => 0.25, 'carbs_pct' => 0.55, 'fat_pct' => 0.20,
-                'desc' => 'Warm whole rolled oats simmered with pure tablea cocoa, whey or plant protein, and chia.'
-            ],
-            [
-                'id' => 'brk_6',
-                'title' => 'Keto Bacon, Spinach & Cheddar 3-Egg Omelet with Avocado',
-                'tags' => ['Keto', 'Low Carb', 'High Fat'],
-                'restrictions' => ['none', 'keto', 'gluten-free'],
-                'pro_pct' => 0.30, 'carbs_pct' => 0.05, 'fat_pct' => 0.65,
-                'desc' => 'Fluffy 3-egg omelet folded with baby spinach, aged cheddar, uncured bacon, and sliced avocado.'
-            ],
-            [
-                'id' => 'brk_7',
-                'title' => 'Chicken Longsilog (Skinless Lean Chicken Longganisa, Garlic Rice, Egg)',
-                'tags' => ['High Protein', 'Halal', 'Filipino Fit'],
-                'restrictions' => ['none', 'halal', 'dairy-free'],
-                'pro_pct' => 0.38, 'carbs_pct' => 0.42, 'fat_pct' => 0.20,
-                'desc' => 'Lean ground chicken breast cured with garlic and spices, pan-grilled with garlic brown rice.'
-            ],
-            [
-                'id' => 'brk_8',
-                'title' => 'Smoked Salmon Avocado Sourdough Toast with Soft Boiled Eggs',
-                'tags' => ['Pescatarian', 'High Protein', 'Healthy Fats'],
-                'restrictions' => ['none', 'pescatarian', 'dairy-free', 'halal'],
-                'pro_pct' => 0.32, 'carbs_pct' => 0.45, 'fat_pct' => 0.23,
-                'desc' => 'Wild smoked salmon on toasted artisanal sourdough with smashed avocado and eggs.'
-            ],
-        ],
-        'Lunch' => [
-            [
-                'id' => 'lch_1',
-                'title' => 'Chicken Breast Adobo with Garlic Brown Rice & Steamed Cabbage',
-                'tags' => ['High Protein', 'Filipino Classic', 'Meal Prep'],
-                'restrictions' => ['none', 'halal', 'dairy-free', 'gluten-free'],
-                'pro_pct' => 0.40, 'carbs_pct' => 0.40, 'fat_pct' => 0.20,
-                'desc' => 'Skinless chicken breast braised in soy, garlic, and vinegar with fiber-rich brown rice and greens.'
-            ],
-            [
-                'id' => 'lch_2',
-                'title' => 'Sinigang na Hipon (Shrimp & Water Spinach in Tamarind Broth) with Rice',
-                'tags' => ['Pescatarian', 'Low Fat', 'Hydrating'],
-                'restrictions' => ['none', 'pescatarian', 'gluten-free', 'dairy-free', 'halal'],
-                'pro_pct' => 0.35, 'carbs_pct' => 0.50, 'fat_pct' => 0.15,
-                'desc' => 'Succulent wild shrimp simmered in sour tamarind broth with kangkong, radish, and steamed rice.'
-            ],
-            [
-                'id' => 'lch_3',
-                'title' => 'Ginisang Munggo (Mung Bean Stew) with Crispy Tofu & Brown Rice',
-                'tags' => ['Vegetarian', 'Vegan', 'High Fiber'],
-                'restrictions' => ['none', 'vegetarian', 'vegan', 'dairy-free', 'halal', 'gluten-free'],
-                'pro_pct' => 0.28, 'carbs_pct' => 0.55, 'fat_pct' => 0.17,
-                'desc' => 'Nutritious mung bean stew simmered with moringa leaves, topped with air-fried golden tofu.'
-            ],
-            [
-                'id' => 'lch_4',
-                'title' => 'Grilled Chicken Inasal with Brown Rice & Atchara (Pickled Papaya)',
-                'tags' => ['High Protein', 'Halal', 'Low Fat'],
-                'restrictions' => ['none', 'halal', 'dairy-free', 'gluten-free'],
-                'pro_pct' => 0.42, 'carbs_pct' => 0.40, 'fat_pct' => 0.18,
-                'desc' => 'Char-grilled chicken marinated in calamansi, lemongrass, and annatto with brown rice.'
-            ],
-            [
-                'id' => 'lch_5',
-                'title' => 'Grilled Salmon Teriyaki Bowl with Quinoa, Edamame & Avocado',
-                'tags' => ['Pescatarian', 'High Omega-3', 'Clean Eating'],
-                'restrictions' => ['none', 'pescatarian', 'gluten-free', 'dairy-free', 'halal'],
-                'pro_pct' => 0.36, 'carbs_pct' => 0.38, 'fat_pct' => 0.26,
-                'desc' => 'Seared Atlantic salmon glazed lightly with teriyaki over fluffy quinoa and steamed edamame.'
-            ],
-            [
-                'id' => 'lch_6',
-                'title' => 'Adobong Sitaw & Firm Tofu with Quinoa & Roasted Sesame',
-                'tags' => ['Vegan', 'Vegetarian', 'Plant Powered'],
-                'restrictions' => ['none', 'vegetarian', 'vegan', 'dairy-free', 'halal'],
-                'pro_pct' => 0.28, 'carbs_pct' => 0.52, 'fat_pct' => 0.20,
-                'desc' => 'Crisp green yard-long beans and protein-packed firm tofu stir-fried in aromatic adobo sauce.'
-            ],
-            [
-                'id' => 'lch_7',
-                'title' => 'Keto Inihaw na Liempo (Grilled Pork Belly) with Ensaladang Talong',
-                'tags' => ['Keto', 'Low Carb', 'Paleo'],
-                'restrictions' => ['none', 'keto', 'paleo', 'gluten-free', 'dairy-free'],
-                'pro_pct' => 0.32, 'carbs_pct' => 0.08, 'fat_pct' => 0.60,
-                'desc' => 'Grilled seasoned pork strips paired with grilled eggplant salad dressed in calamansi and tomatoes.'
-            ],
-            [
-                'id' => 'lch_8',
-                'title' => 'Lean Ground Beef Picadillo with Diced Potatoes & Green Peas',
-                'tags' => ['High Protein', 'Iron Rich', 'Gluten-Free'],
-                'restrictions' => ['none', 'halal', 'gluten-free', 'dairy-free'],
-                'pro_pct' => 0.38, 'carbs_pct' => 0.40, 'fat_pct' => 0.22,
-                'desc' => 'Lean 90/10 ground beef simmered in tomato reduction with sweet peas, carrots, and potatoes.'
-            ],
-        ],
-        'Dinner' => [
-            [
-                'id' => 'dnr_1',
-                'title' => 'Chicken Tinola with Sayote, Moringa Leaves & Brown Rice',
-                'tags' => ['Immunity Boost', 'High Protein', 'Filipino Classic'],
-                'restrictions' => ['none', 'halal', 'gluten-free', 'dairy-free'],
-                'pro_pct' => 0.40, 'carbs_pct' => 0.42, 'fat_pct' => 0.18,
-                'desc' => 'Comforting ginger chicken soup loaded with antioxidant moringa leaves and tender chayote.'
-            ],
-            [
-                'id' => 'dnr_2',
-                'title' => 'Inihaw na Bangus (Milkfish) stuffed with Tomatoes, Onions & Rice',
-                'tags' => ['Pescatarian', 'Heart Healthy', 'Filipino Fit'],
-                'restrictions' => ['none', 'pescatarian', 'gluten-free', 'dairy-free', 'halal'],
-                'pro_pct' => 0.36, 'carbs_pct' => 0.44, 'fat_pct' => 0.20,
-                'desc' => 'Whole milkfish stuffed with fresh tomatoes and red onions, char-grilled to perfection.'
-            ],
-            [
-                'id' => 'dnr_3',
-                'title' => 'Vegetable Pinakbet with Pan-Seared Tofu & Brown Rice',
-                'tags' => ['Vegetarian', 'High Fiber', 'Nutrient Dense'],
-                'restrictions' => ['none', 'vegetarian', 'vegan', 'halal', 'dairy-free'],
-                'pro_pct' => 0.26, 'carbs_pct' => 0.54, 'fat_pct' => 0.20,
-                'desc' => 'Squash, okra, string beans, and eggplant simmered with crispy tofu cubes (no shrimp paste).'
-            ],
-            [
-                'id' => 'dnr_4',
-                'title' => 'Lean Beef & Broccoli Stir-Fry with Steamed Jasmine Rice',
-                'tags' => ['High Protein', 'Quick & Healthy', 'Balanced'],
-                'restrictions' => ['none', 'halal', 'dairy-free'],
-                'pro_pct' => 0.42, 'carbs_pct' => 0.40, 'fat_pct' => 0.18,
-                'desc' => 'Tender flank steak strips wok-tossed with fresh broccoli florets in ginger-garlic sauce.'
-            ],
-            [
-                'id' => 'dnr_5',
-                'title' => 'Ginataang Salmon with Spinach & Garlic Brown Rice',
-                'tags' => ['Pescatarian', 'Healthy Coconut Fats', 'Gluten-Free'],
-                'restrictions' => ['none', 'pescatarian', 'gluten-free', 'dairy-free', 'halal'],
-                'pro_pct' => 0.34, 'carbs_pct' => 0.40, 'fat_pct' => 0.26,
-                'desc' => 'Fresh salmon simmered in light coconut milk and baby spinach with garlic brown rice.'
-            ],
-            [
-                'id' => 'dnr_6',
-                'title' => 'Gising-Gising with Tofu, Green Beans & Coconut Cream',
-                'tags' => ['Vegetarian', 'Vegan', 'Dairy-Free'],
-                'restrictions' => ['none', 'vegetarian', 'vegan', 'gluten-free', 'dairy-free', 'halal'],
-                'pro_pct' => 0.26, 'carbs_pct' => 0.48, 'fat_pct' => 0.26,
-                'desc' => 'Finely chopped green beans cooked in mildly spiced coconut cream with pan-crisped tofu.'
-            ],
-            [
-                'id' => 'dnr_7',
-                'title' => 'Keto Baked Salmon Fillet with Lemon Butter & Roasted Asparagus',
-                'tags' => ['Keto', 'High Omega-3', 'Low Carb'],
-                'restrictions' => ['none', 'keto', 'pescatarian', 'gluten-free'],
-                'pro_pct' => 0.35, 'carbs_pct' => 0.05, 'fat_pct' => 0.60,
-                'desc' => 'Oven-baked wild salmon fillet topped with garlic herb butter and tender grilled asparagus.'
-            ],
-            [
-                'id' => 'dnr_8',
-                'title' => 'Halal Inihaw na Manok (Grilled Chicken Skewers) with Ensalada & Rice',
-                'tags' => ['Halal', 'High Protein', 'Clean Eating'],
-                'restrictions' => ['none', 'halal', 'gluten-free', 'dairy-free'],
-                'pro_pct' => 0.44, 'carbs_pct' => 0.40, 'fat_pct' => 0.16,
-                'desc' => 'Skewered spiced chicken breast grilled over open flames, served with tomato-cucumber salad.'
-            ],
-        ],
-        'Snack' => [
-            [
-                'id' => 'snk_1',
-                'title' => 'Boiled Saba Banana with Light Natural Peanut Butter',
-                'tags' => ['Pre-Workout', 'Potassium Rich', 'Vegetarian'],
-                'restrictions' => ['none', 'vegetarian', 'vegan', 'dairy-free', 'gluten-free', 'halal'],
-                'pro_pct' => 0.15, 'carbs_pct' => 0.65, 'fat_pct' => 0.20,
-                'desc' => 'Steamed Filipino saba banana paired with natural unsweetened peanut butter.'
-            ],
-            [
-                'id' => 'snk_2',
-                'title' => 'Boiled Kamote (Sweet Potato) with Cinnamon',
-                'tags' => ['Clean Carb', 'Slow Digesting', 'Vegan'],
-                'restrictions' => ['none', 'vegetarian', 'vegan', 'dairy-free', 'gluten-free', 'halal'],
-                'pro_pct' => 0.10, 'carbs_pct' => 0.80, 'fat_pct' => 0.10,
-                'desc' => 'Steamed purple or orange sweet potato sprinkled with fragrant Ceylon cinnamon.'
-            ],
-            [
-                'id' => 'snk_3',
-                'title' => 'Whey Protein Shake with Skim Milk & Half Banana',
-                'tags' => ['Post-Workout', 'High Protein', 'Fast Absorbing'],
-                'restrictions' => ['none', 'vegetarian', 'halal', 'gluten-free'],
-                'pro_pct' => 0.55, 'carbs_pct' => 0.35, 'fat_pct' => 0.10,
-                'desc' => 'Premium whey protein isolate blended with cold milk and potassium-rich banana.'
-            ],
-            [
-                'id' => 'snk_4',
-                'title' => 'Hard-Boiled Eggs with Himalayan Pink Salt & Black Pepper',
-                'tags' => ['Keto Friendly', 'High Protein', 'Gluten-Free'],
-                'restrictions' => ['none', 'keto', 'paleo', 'vegetarian', 'gluten-free', 'dairy-free', 'halal'],
-                'pro_pct' => 0.38, 'carbs_pct' => 0.04, 'fat_pct' => 0.58,
-                'desc' => 'Fresh large farm eggs boiled firm, seasoned with pink salt and cracked black pepper.'
-            ],
-            [
-                'id' => 'snk_5',
-                'title' => 'Greek Yogurt Cup with Blueberries & Roasted Almonds',
-                'tags' => ['Gut Health', 'High Protein', 'Vegetarian'],
-                'restrictions' => ['none', 'vegetarian', 'gluten-free'],
-                'pro_pct' => 0.40, 'carbs_pct' => 0.35, 'fat_pct' => 0.25,
-                'desc' => 'Thick strained plain Greek yogurt topped with antioxidant blueberries and raw almonds.'
-            ],
-            [
-                'id' => 'snk_6',
-                'title' => 'Steamed Edamame Beans with Coarse Sea Salt',
-                'tags' => ['Vegan', 'Fiber Rich', 'Gluten-Free'],
-                'restrictions' => ['none', 'vegetarian', 'vegan', 'dairy-free', 'gluten-free', 'halal'],
-                'pro_pct' => 0.35, 'carbs_pct' => 0.40, 'fat_pct' => 0.25,
-                'desc' => 'Tender young soybeans steamed in the pod with mineral coarse sea salt.'
-            ],
-            [
-                'id' => 'snk_7',
-                'title' => 'Keto Pork Chicharon (Rinds) with Spiced Vinegar Dip',
-                'tags' => ['Zero Carb', 'Keto', 'Crunchy'],
-                'restrictions' => ['none', 'keto', 'gluten-free', 'dairy-free'],
-                'pro_pct' => 0.60, 'carbs_pct' => 0.01, 'fat_pct' => 0.39,
-                'desc' => 'Crispy baked pork rinds with spicy garlic-infused native cane vinegar.'
-            ],
-        ]
+    if (!$pdo) {
+        $pdo = db();
+    }
+
+    $query = "
+        SELECT food_id, gym_id, name, meal_type, dietary_restriction, serving_size, 
+               calories, protein_g, carbs_g, fat_g, image_url, recipe_desc 
+        FROM food_items 
+        WHERE is_active = 1 
+          AND (gym_id = ? OR gym_id IS NULL)
+        ORDER BY (gym_id IS NOT NULL) DESC, name ASC
+    ";
+    $stmt = $pdo->prepare($query);
+    $stmt->execute([$gymId]);
+    $items = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+    // Global fallback if no items found
+    if (empty($items)) {
+        $fallbackStmt = $pdo->query("
+            SELECT food_id, gym_id, name, meal_type, dietary_restriction, serving_size, 
+                   calories, protein_g, carbs_g, fat_g, image_url, recipe_desc 
+            FROM food_items 
+            WHERE is_active = 1 AND gym_id IS NULL
+            ORDER BY name ASC
+        ");
+        $items = $fallbackStmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    $catalog = [
+        'Breakfast' => [],
+        'Lunch' => [],
+        'Dinner' => [],
+        'Snack' => []
     ];
+
+    foreach ($items as $item) {
+        $mt = ucfirst(strtolower((string) $item['meal_type']));
+        if (!isset($catalog[$mt])) {
+            $catalog[$mt] = [];
+        }
+
+        $rest = strtolower(trim((string) ($item['dietary_restriction'] ?? 'none')));
+        if ($rest === '') {
+            $rest = 'none';
+        }
+
+        $tags = [];
+        if ($rest !== 'none') {
+            $tags[] = ucwords(str_replace('-', ' ', $rest));
+        }
+        if ((float) $item['protein_g'] >= 25) {
+            $tags[] = 'High Protein';
+        }
+        if ((float) $item['carbs_g'] <= 15 && $rest === 'keto') {
+            $tags[] = 'Low Carb';
+        }
+        if (empty($tags)) {
+            $tags[] = 'Balanced';
+        }
+
+        $restrictions = ['none'];
+        if ($rest !== 'none') {
+            $restrictions[] = $rest;
+        }
+
+        $baseCals = max(50, (float) $item['calories']);
+        $proPct = round(((float) $item['protein_g'] * 4) / $baseCals, 2);
+        $carbsPct = round(((float) $item['carbs_g'] * 4) / $baseCals, 2);
+        $fatPct = max(0.05, round(1 - ($proPct + $carbsPct), 2));
+
+        $catalog[$mt][] = [
+            'id' => 'db_' . $item['food_id'],
+            'food_id' => (int) $item['food_id'],
+            'title' => (string) $item['name'],
+            'tags' => $tags,
+            'restrictions' => $restrictions,
+            'dietary_restriction' => $rest,
+            'base_calories' => (int) $item['calories'],
+            'base_protein' => (float) $item['protein_g'],
+            'base_carbs' => (float) $item['carbs_g'],
+            'base_fat' => (float) $item['fat_g'],
+            'pro_pct' => $proPct,
+            'carbs_pct' => $carbsPct,
+            'fat_pct' => $fatPct,
+            'desc' => !empty($item['recipe_desc']) ? (string) $item['recipe_desc'] : (string) $item['name'],
+            'image_url' => $item['image_url'] ?? null,
+            'serving_size' => $item['serving_size'] ?? '',
+        ];
+    }
+
+    return $catalog;
+}
 }
 
 // ----------------------------------------------------
@@ -351,21 +186,44 @@ function diet_page(): void
         $profile = $pdo->query('SELECT dietary_restrictions, primary_goal FROM member_profiles WHERE user_id = ' . $userId)->fetch();
         $userRest = (string) ($profile['dietary_restrictions'] ?? 'none');
 
-        $catalog = get_swap_meal_catalog();
+        $gymId = get_user_gym_id($user);
+        $catalog = get_swap_meal_catalog($pdo, $gymId);
         $candidates = $catalog[$mealType] ?? ($catalog['Lunch'] ?? []);
+
+        if (empty($candidates)) {
+            $candidates = array_merge(...array_values($catalog));
+        }
 
         $options = [];
         foreach ($candidates as $rec) {
-            $p_g = (float) round(($targetCals * $rec['pro_pct']) / 4, 1);
-            $c_g = (float) round(($targetCals * $rec['carbs_pct']) / 4, 1);
-            $f_g = (float) round(($targetCals * $rec['fat_pct']) / 9, 1);
+            $baseCals = (int) ($rec['base_calories'] ?? 0);
+            if ($baseCals > 0) {
+                $scale = $targetCals / $baseCals;
+                $p_g = (float) round($rec['base_protein'] * $scale, 1);
+                $c_g = (float) round($rec['base_carbs'] * $scale, 1);
+                $f_g = (float) round($rec['base_fat'] * $scale, 1);
+            } else {
+                $p_g = (float) round(($targetCals * ($rec['pro_pct'] ?? 0.30)) / 4, 1);
+                $c_g = (float) round(($targetCals * ($rec['carbs_pct'] ?? 0.40)) / 4, 1);
+                $f_g = (float) round(($targetCals * ($rec['fat_pct'] ?? 0.30)) / 9, 1);
+            }
             $grams = (int) round($targetCals / 1.5);
             $foodStr = "{$grams}g of {$rec['title']}";
 
-            $isMatched = in_array($userRest, $rec['restrictions'], true);
+            $foodRest = $rec['dietary_restriction'] ?? 'none';
+            if ($userRest === 'none') {
+                $isMatched = true;
+            } elseif ($foodRest === $userRest) {
+                $isMatched = true;
+            } elseif (in_array($userRest, $rec['restrictions'] ?? [], true)) {
+                $isMatched = true;
+            } else {
+                $isMatched = false;
+            }
 
             $options[] = [
                 'id' => $rec['id'],
+                'food_id' => $rec['food_id'] ?? null,
                 'title' => $rec['title'],
                 'food_items' => $foodStr,
                 'calories' => $targetCals,
@@ -373,8 +231,9 @@ function diet_page(): void
                 'carbs_g' => $c_g,
                 'fat_g' => $f_g,
                 'grams' => $grams,
-                'tags' => $rec['tags'],
-                'desc' => $rec['desc'],
+                'tags' => $rec['tags'] ?? [],
+                'desc' => $rec['desc'] ?? '',
+                'image_url' => $rec['image_url'] ?? null,
                 'is_diet_match' => $isMatched,
             ];
         }
@@ -602,75 +461,50 @@ function diet_page(): void
             $stmtInsert->execute([$userId, $title, $goal]);
             $planId = (int) $pdo->lastInsertId();
             
-            // 6. Generate Meals
-            $restriction = $profile['dietary_restrictions'] ?? 'none';
-            $foods = [
-                'none' => [
-                    'Breakfast' => ['Tapsilog (Beef Tapa, Garlic Brown Rice, Egg)', 'Chicken Longsilog (Garlic Rice, Egg)', 'Oat Champorado with Tuyo (Dried Fish)'],
-                    'Lunch' => ['Chicken Adobo with Brown Rice & Gasing (Cabbage)', 'Sinigang na Hipon (Shrimp) with Kangkong & Rice', 'Ginisang Munggo with Tinapa & Rice'],
-                    'Dinner' => ['Lean Inihaw na Liempo with Ensaladang Talong', 'Chicken Tinola with Sayote, Moringa & Brown Rice', 'Pinakbet with Grilled Fish & Rice'],
-                    'Snack' => ['Boiled Saba Banana', 'Boiled Kamote (Sweet Potato)', 'Steamed Puto with Cheese']
-                ],
-                'vegetarian' => [
-                    'Breakfast' => ['Tortang Talong (Eggplant Omelet) with Garlic Rice', 'Oat Champorado with Almond Milk', 'Vegetarian Pancit Canton'],
-                    'Lunch' => ['Ginisang Munggo (No Meat) with Brown Rice', 'Adobong Sitaw & Tofu with Rice', 'Tokwa at Baboy (using Soy Meat)'],
-                    'Dinner' => ['Vegetable Pinakbet (No Bagoong) with Tofu & Rice', 'Gising-Gising (Tofu & Green Beans in Coconut Milk)', 'Laing (Taro Leaves in Spicy Coconut Milk)'],
-                    'Snack' => ['Boiled Saba Banana', 'Boiled Kamote', 'Bibingka (Gluten-Free rice cake)']
-                ],
-                'vegan' => [
-                    'Breakfast' => ['Tofu Scramble Adobo Style with Garlic Rice', 'Oat Champorado with Almond Milk', 'Vegan Arroz Caldo (Tofu & Ginger)'],
-                    'Lunch' => ['Ginisang Munggo (Vegan) with Brown Rice', 'Adobong Sitaw & Tofu with Rice', 'Vegan Bicol Express with Tofu'],
-                    'Dinner' => ['Vegetable Pinakbet (Vegan) with Quinoa', 'Laing (Vegan Taro Leaves in Spicy Coconut Milk)', 'Gising-Gising with Tofu & Coconut Cream'],
-                    'Snack' => ['Boiled Saba Banana', 'Boiled Kamote', 'Espasol (Rice flour sweet)']
-                ],
-                'pescatarian' => [
-                    'Breakfast' => ['Tinapasilog (Smoked Fish, Garlic Rice, Egg)', 'Bangsilog (Grilled Milkfish, Garlic Rice, Egg)', 'Oat Champorado with Tuyo'],
-                    'Lunch' => ['Sinigang na Hipon (Shrimp) with Kangkong & Rice', 'Ginisang Munggo with Tinapa & Rice', 'Tuna Bicol Express with Rice'],
-                    'Dinner' => ['Inihaw na Bangus stuffed with Tomatoes & Onions', 'Salmon Sinigang (Sour soup) with Rice', 'Ginataang Salmon with Spinach & Rice'],
-                    'Snack' => ['Boiled Saba Banana', 'Boiled Kamote', 'Puto with Cheese']
-                ],
-                'halal' => [
-                    'Breakfast' => ['Chicken Tapsilog (Chicken Tapa, Garlic Rice, Egg)', 'Chicken Longsilog (Garlic Rice, Egg)', 'Oat Champorado with Tuyo'],
-                    'Lunch' => ['Halal Chicken Adobo with Brown Rice', 'Sinigang na Hipon with Kangkong & Rice', 'Ginisang Munggo with Tinapa & Rice'],
-                    'Dinner' => ['Inihaw na Manok (Grilled Chicken) with Ensaladang Talong', 'Chicken Tinola with Sayote & Moringa', 'Pinakbet with Grilled Fish & Rice'],
-                    'Snack' => ['Boiled Saba Banana', 'Boiled Kamote', 'Puto with Cheese']
-                ],
-                'gluten-free' => [
-                    'Breakfast' => ['Tapsilog (using GF Tamari for Tapa)', 'Champorado (using GF Cocoa and Rice)', 'Bangsilog (Milkfish, GF Garlic Rice, Egg)'],
-                    'Lunch' => ['Sinigang na Hipon (GF sour broth) with Brown Rice', 'Chicken Tinola with Sayote & Moringa', 'Ginisang Munggo with Rice'],
-                    'Dinner' => ['Inihaw na Bangus stuffed with Tomatoes & Onions', 'Salmon Sinigang with Rice', 'Pinakbet (GF version) with Grilled Fish'],
-                    'Snack' => ['Boiled Saba Banana', 'Boiled Kamote', 'Saging na Saba con Yelo (No condensed milk)']
-                ],
-                'keto' => [
-                    'Breakfast' => ['Tortang Talong with Ground Pork (No Rice)', 'Tapsilog (Beef Tapa, Cauliflower Garlic Rice, Fried Egg)', 'Scrambled Eggs with Tinapa Flakes'],
-                    'Lunch' => ['Inihaw na Liempo with Ensaladang Talong', 'Chicken Tinola (No Sayote, Extra Moringa)', 'Adobong Baboy (No sugar, low carb)'],
-                    'Dinner' => ['Salmon Sinigang (No Gabi/Taro, low carb veggies)', 'Ginataang Manok (Chicken in Coconut Cream)', 'Inihaw na Bangus with Tomatoes & Onions'],
-                    'Snack' => ['Chicharon (Pork Rinds)', 'Salted Peanuts', 'Hard-boiled Eggs']
-                ],
-                'paleo' => [
-                    'Breakfast' => ['Tortang Talong with Ground Beef', 'Beef Tapa with Fried Egg (No Rice)', 'Boiled Eggs with Avocado'],
-                    'Lunch' => ['Inihaw na Liempo with Ensaladang Talong', 'Chicken Tinola with Sayote & Moringa', 'Inihaw na Bangus (Grilled Milkfish)'],
-                    'Dinner' => ['Tinola na Manok with Moringa & Sayote', 'Adobong Baboy (using Coconut Aminos)', 'Inihaw na Manok with Cucumber Salad'],
-                    'Snack' => ['Salted Almonds', 'Boiled Kamote (in moderation)', 'Hard-boiled Eggs']
-                ],
-                'nut-allergy' => [
-                    'Breakfast' => ['Tapsilog (Beef Tapa, Garlic Rice, Fried Egg)', 'Chicken Longsilog (Garlic Rice, Egg)', 'Oat Champorado with Tuyo'],
-                    'Lunch' => ['Chicken Adobo with Brown Rice & Cabbage', 'Sinigang na Hipon with Kangkong & Rice', 'Ginisang Munggo with Tinapa & Rice'],
-                    'Dinner' => ['Lean Inihaw na Liempo with Ensaladang Talong', 'Chicken Tinola with Sayote & Moringa', 'Pinakbet with Grilled Fish & Rice'],
-                    'Snack' => ['Boiled Saba Banana', 'Boiled Kamote', 'Steamed Puto with Cheese']
-                ],
-                'dairy-free' => [
-                    'Breakfast' => ['Tapsilog (Beef Tapa, Garlic Rice, Fried Egg)', 'Chicken Longsilog (Garlic Rice, Egg)', 'Oat Champorado (using Coconut Milk) with Tuyo'],
-                    'Lunch' => ['Chicken Adobo with Brown Rice & Cabbage', 'Sinigang na Hipon with Kangkong & Rice', 'Ginisang Munggo with Tinapa & Rice'],
-                    'Dinner' => ['Lean Inihaw na Liempo with Ensaladang Talong', 'Chicken Tinola with Sayote & Moringa', 'Pinakbet with Grilled Fish & Rice'],
-                    'Snack' => ['Boiled Saba Banana', 'Boiled Kamote', 'Steamed Puto (No Cheese)']
-                ],
-            ];
-            $dietFoods = $foods[$restriction] ?? $foods['none'];
-            
-            $dist = ['Breakfast'=>0.25, 'Lunch'=>0.35, 'Dinner'=>0.30, 'Snack'=>0.10];
-            $stmt = $pdo->prepare('INSERT INTO dietary_plan_meals (plan_id, day_of_week, meal_type, food_items, calories, protein_g, carbs_g, fat_g) VALUES (?, ?, ?, ?, ?, ?, ?, ?)');
-            
+            // 6. Generate Meals from Database
+            $restriction = (string) ($profile['dietary_restrictions'] ?? 'none');
+            if (empty($restriction)) {
+                $restriction = 'none';
+            }
+
+            $gymId = get_user_gym_id($user);
+            $foodQuery = "
+                SELECT food_id, name, meal_type, serving_size, calories, protein_g, carbs_g, fat_g, image_url, recipe_desc 
+                FROM food_items 
+                WHERE is_active = 1 
+                  AND (gym_id = ? OR gym_id IS NULL)
+                  AND (dietary_restriction = ? OR dietary_restriction = 'none')
+                ORDER BY (gym_id IS NOT NULL) DESC, RAND()
+            ";
+            $foodStmt = $pdo->prepare($foodQuery);
+            $foodStmt->execute([$gymId, $restriction]);
+            $dbFoods = $foodStmt->fetchAll(PDO::FETCH_ASSOC);
+
+            $foodsByType = ['Breakfast' => [], 'Lunch' => [], 'Dinner' => [], 'Snack' => []];
+            foreach ($dbFoods as $f) {
+                $mt = ucfirst(strtolower((string) $f['meal_type']));
+                if (isset($foodsByType[$mt])) {
+                    $foodsByType[$mt][] = $f;
+                }
+            }
+
+            // Fallback for any meal type that has no matches
+            foreach (['Breakfast', 'Lunch', 'Dinner', 'Snack'] as $mt) {
+                if (empty($foodsByType[$mt])) {
+                    $fallbackStmt = $pdo->prepare("
+                        SELECT food_id, name, meal_type, serving_size, calories, protein_g, carbs_g, fat_g, image_url, recipe_desc 
+                        FROM food_items 
+                        WHERE is_active = 1 AND meal_type = ? 
+                        ORDER BY RAND()
+                    ");
+                    $fallbackStmt->execute([$mt]);
+                    $foodsByType[$mt] = $fallbackStmt->fetchAll(PDO::FETCH_ASSOC);
+                }
+            }
+
+            $dist = ['Breakfast' => 0.25, 'Lunch' => 0.35, 'Dinner' => 0.30, 'Snack' => 0.10];
+            $stmt = $pdo->prepare('INSERT INTO dietary_plan_meals (plan_id, day_of_week, meal_type, food_items, image_url, calories, protein_g, carbs_g, fat_g) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)');
+
             for ($d = 1; $d <= 7; $d++) {
                 foreach ($dist as $mType => $pct) {
                     $mCals = round($targetCals * $pct);
@@ -678,12 +512,19 @@ function diet_page(): void
                     $mC = round($c_g * $pct);
                     $mF = round($f_g * $pct);
                     $portionGrams = round($mCals / 1.5);
-                    
-                    $options = $dietFoods[$mType];
-                    $selectedFood = $options[($d - 1) % count($options)];
-                    
-                    $mFood = $portionGrams . "g of " . $selectedFood;
-                    $stmt->execute([$planId, $d, $mType, $mFood, $mCals, $mP, $mC, $mF]);
+
+                    $options = $foodsByType[$mType];
+                    $selectedFood = !empty($options) ? $options[($d - 1) % count($options)] : null;
+
+                    if ($selectedFood) {
+                        $mFood = $portionGrams . "g of " . $selectedFood['name'];
+                        $mImg = $selectedFood['image_url'] ?? null;
+                    } else {
+                        $mFood = $portionGrams . "g of Healthy " . $mType;
+                        $mImg = null;
+                    }
+
+                    $stmt->execute([$planId, $d, $mType, $mFood, $mImg, $mCals, $mP, $mC, $mF]);
                 }
             }
             
@@ -697,26 +538,42 @@ function diet_page(): void
     $plan->execute([$userId]);
     $activePlan = $plan->fetch();
 
+    $memberProfile = $pdo->query('SELECT dietary_restrictions, primary_goal FROM member_profiles WHERE user_id = ' . $userId)->fetch();
+    $userDietaryRestriction = (string) ($memberProfile['dietary_restrictions'] ?? 'none');
+
     render_header('My Diet Plan', $user);
     
     if (!$activePlan) {
+        $dietLabel = ($userDietaryRestriction !== 'none') ? ucwords(str_replace('-', ' ', $userDietaryRestriction)) : 'Standard';
+        $goalLabel = !empty($memberProfile['primary_goal']) ? ucwords(str_replace('_', ' ', $memberProfile['primary_goal'])) : '';
         echo '<div class="panel" style="text-align: center; padding: 50px 20px;">
-                <h2 style="color: var(--muted); margin-bottom: 10px;">No Active Diet Plan</h2>
-                <p style="margin-bottom: 24px;">You currently do not have an active diet plan.</p>
-                <form method="post" style="display:inline-block;">
-                    ' . csrf_field() . '
-                    <input type="hidden" name="action" value="generate_plan">
-                    <button type="submit" class="btn" style="background: var(--lime); color: var(--bg); font-weight: bold; font-size: 16px; padding: 12px 24px; border-radius: 8px; border: none; cursor: pointer; display: inline-flex; align-items: center; gap: 8px;">
-                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>
-                        Generate Diet Plan
-                    </button>
-                </form>
+                <div style="font-size: 40px; margin-bottom: 12px;">🥗</div>
+                <h2 style="color: var(--ink); margin-bottom: 10px; font-size: 22px; font-weight: 700;">No Active Diet Plan</h2>
+                <p style="margin-bottom: 16px; color: var(--muted); font-size: 14px;">You currently do not have an active diet plan.</p>
+                <div style="display: inline-flex; align-items: center; gap: 8px; margin-bottom: 24px; flex-wrap: wrap; justify-content: center;">
+                    <span style="display: inline-flex; align-items: center; gap: 6px; background: ' . ($userDietaryRestriction !== 'none' ? 'rgba(52, 211, 153, 0.12)' : 'var(--panel-soft)') . '; color: ' . ($userDietaryRestriction !== 'none' ? '#34d399' : 'var(--ink)') . '; border: 1px solid ' . ($userDietaryRestriction !== 'none' ? 'rgba(52, 211, 153, 0.3)' : 'var(--line)') . '; padding: 6px 14px; border-radius: 20px; font-size: 13px; font-weight: 600;">
+                        <span>🥗 Dietary Preference:</span>
+                        <strong>' . h($dietLabel) . '</strong>
+                    </span>' .
+                    ($goalLabel ? '<span style="display: inline-flex; align-items: center; gap: 6px; background: color-mix(in srgb, var(--lime) 12%, transparent); color: var(--ink); border: 1px solid color-mix(in srgb, var(--lime) 30%, transparent); padding: 6px 14px; border-radius: 20px; font-size: 13px; font-weight: 600;"><span>🎯 Target Goal:</span><strong style="color:var(--lime);">' . h($goalLabel) . '</strong></span>' : '') . '
+                </div>
+                <div>
+                    <form method="post" style="display:inline-block;">
+                        ' . csrf_field() . '
+                        <input type="hidden" name="action" value="generate_plan">
+                        <button type="submit" class="btn" style="background: var(--lime); color: var(--bg); font-weight: bold; font-size: 16px; padding: 12px 24px; border-radius: 8px; border: none; cursor: pointer; display: inline-flex; align-items: center; gap: 8px;">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>
+                            Generate Diet Plan
+                        </button>
+                    </form>
+                </div>
               </div>';
         render_footer();
         return;
     }
     
     $planId = (int) $activePlan['plan_id'];
+
     if ($activePlan['trainer_id']) {
         $fullName = trim(($activePlan['t_first'] ?? '') . ' ' . ($activePlan['t_last'] ?? ''));
         if (($activePlan['t_role'] ?? '') === 'gym_owner') {
@@ -1167,6 +1024,7 @@ function diet_page(): void
         gap: 8px !important;
     }
     .diet-goal-pill,
+    .diet-restriction-pill,
     .diet-assigned-pill {
         width: 100% !important;
         box-sizing: border-box !important;
@@ -1184,6 +1042,20 @@ function diet_page(): void
             <span style="color: var(--muted); font-weight: 500;">Goal:</span>
             <strong class="goal-text" style="color: var(--ink); font-weight: 700;"><?= h(ucwords(str_replace('_', ' ', $activePlan['goal']))) ?></strong>
         </span>
+
+        <?php if ($userDietaryRestriction !== 'none'): ?>
+            <span class="diet-restriction-pill" style="display: inline-flex; align-items: center; gap: 6px; background: rgba(52, 211, 153, 0.12); color: #34d399; border: 1px solid rgba(52, 211, 153, 0.3); padding: 5px 12px; border-radius: 20px; font-size: 13px; font-weight: 600;">
+                <span style="font-size: 13px;">🥗</span>
+                <span style="color: var(--muted); font-weight: 500;">Diet:</span>
+                <strong style="color: #34d399; font-weight: 700; text-transform: capitalize;"><?= h(ucwords(str_replace('-', ' ', $userDietaryRestriction))) ?></strong>
+            </span>
+        <?php else: ?>
+            <span class="diet-restriction-pill" style="display: inline-flex; align-items: center; gap: 6px; background: var(--panel-soft); color: var(--ink); border: 1px solid var(--line); padding: 5px 12px; border-radius: 20px; font-size: 13px; font-weight: 600;">
+                <span style="font-size: 13px;">🥗</span>
+                <span style="color: var(--muted); font-weight: 500;">Diet:</span>
+                <strong style="color: var(--ink); font-weight: 700;">Standard</strong>
+            </span>
+        <?php endif; ?>
 
         <span class="diet-assigned-pill">
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--muted)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
@@ -3760,18 +3632,6 @@ $stFat   = $calcMacroStatus($loggedFat, $targetFat, 'fat');
                                     <!-- Floating Badges on Top of Photo -->
                                     <div class="meal-banner-top">
                                         <span class="meal-banner-type"><?= h($meal['meal_type']) ?></span>
-                                        <button type="button" 
-                                                class="btn-edit-meal-photo" 
-                                                id="btn-edit-photo-<?= $meal['meal_id'] ?>"
-                                                data-meal-id="<?= $meal['meal_id'] ?>"
-                                                data-food="<?= h($meal['food_items']) ?>"
-                                                data-custom-url="<?= h($meal['image_url'] ?? '') ?>"
-                                                data-resolved-url="<?= h($mealPhotoUrl) ?>"
-                                                onclick="openMealPhotoModal(this)" 
-                                                title="Change Photo (ImageKit or Custom Link)">
-                                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
-                                            <span>Change</span>
-                                        </button>
                                     </div>
 
                                     <div class="meal-banner-bottom">
@@ -4040,88 +3900,7 @@ $stFat   = $calcMacroStatus($loggedFat, $targetFat, 'fat');
     </div>
 </div>
 
-<!-- ==================================================== -->
-<!-- MODAL: CUSTOMIZE MEAL PHOTO (IMAGEKIT & URL)         -->
-<!-- ==================================================== -->
-<div id="modal-meal-photo" class="ft-modal-overlay" style="display:none;" onclick="if(event.target===this)closeMealPhotoModal()">
-    <div class="ft-modal-box" style="max-width: 520px;">
-        <div class="ft-modal-header">
-            <div>
-                <h3 class="ft-modal-title" style="display: flex; align-items: center; gap: 8px;">
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--lime)" stroke-width="2.2"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
-                    <span>Customize Meal Photo</span>
-                </h3>
-                <p class="ft-modal-subtitle" id="photo-modal-subtitle">Upload to ImageKit or enter a custom link</p>
-            </div>
-            <button type="button" class="ft-modal-close" onclick="closeMealPhotoModal()" aria-label="Close modal">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
-            </button>
-        </div>
 
-        <div class="ft-modal-body">
-            <!-- Meal Item Banner Preview -->
-            <div style="background: var(--bg); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; margin-bottom: 16px;">
-                <div style="position: relative; height: 160px; background: #0b0f17; overflow: hidden;">
-                    <img id="photo-modal-preview-img" src="" alt="Preview" style="width: 100%; height: 100%; object-fit: cover; display: block;">
-                    <div style="position: absolute; inset: 0; background: linear-gradient(180deg, rgba(0,0,0,0.2) 0%, rgba(0,0,0,0.75) 100%);"></div>
-                    <div style="position: absolute; bottom: 10px; left: 12px; right: 12px;">
-                        <span id="photo-modal-tag" style="display: inline-block; font-size: 10px; font-weight: 800; text-transform: uppercase; color: var(--lime); background: rgba(0,0,0,0.65); padding: 2px 7px; border-radius: 4px; border: 1px solid color-mix(in srgb, var(--lime) 40%, transparent); margin-bottom: 3px;">Auto-Matched Photo</span>
-                        <div id="photo-modal-food-name" style="font-size: 13.5px; font-weight: 700; color: #fff; line-height: 1.3; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">Meal name</div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Tabs: ImageKit Upload vs Direct URL vs Reset -->
-            <div class="swap-tabs-bar" style="margin-bottom: 16px;">
-                <button type="button" class="swap-tab-btn active" id="tab-btn-photo-upload" onclick="switchPhotoTab('upload')">
-                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-                    <span>Upload (ImageKit)</span>
-                </button>
-                <button type="button" class="swap-tab-btn" id="tab-btn-photo-url" onclick="switchPhotoTab('url')">
-                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
-                    <span>Image URL</span>
-                </button>
-                <button type="button" class="swap-tab-btn" id="tab-btn-photo-reset" onclick="switchPhotoTab('reset')">
-                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/></svg>
-                    <span>Reset to Auto</span>
-                </button>
-            </div>
-
-            <!-- Tab 1: Upload to ImageKit -->
-            <div id="panel-photo-upload" class="photo-tab-panel">
-                <div style="border: 2px dashed var(--line); border-radius: 10px; padding: 22px 16px; text-align: center; background: color-mix(in srgb, var(--surface) 40%, var(--bg)); cursor: pointer; transition: all 0.2s ease;" onclick="document.getElementById('photo-modal-file-input').click()">
-                    <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="var(--lime)" stroke-width="1.8" style="margin-bottom: 8px;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-                    <div style="font-size: 13.5px; font-weight: 700; color: var(--ink); margin-bottom: 4px;">Click to select photo</div>
-                    <div style="font-size: 11.5px; color: var(--muted);">PNG, JPG, WebP up to 5MB • Saves directly to ImageKit CDN</div>
-                    <input type="file" id="photo-modal-file-input" accept="image/jpeg,image/png,image/webp,image/gif" style="display: none;" onchange="handlePhotoFileSelected(this)">
-                </div>
-                <div id="photo-file-status" style="margin-top: 10px; font-size: 12px; color: var(--lime); font-weight: 600; display: none;"></div>
-            </div>
-
-            <!-- Tab 2: Direct Image URL -->
-            <div id="panel-photo-url" class="photo-tab-panel" style="display: none;">
-                <label style="display: block; font-size: 12px; font-weight: 700; color: var(--ink); margin-bottom: 6px;">Image Web Address (URL):</label>
-                <input type="url" id="photo-modal-url-input" class="form-control" placeholder="https://... (e.g. Unsplash, ImageKit, Cloudinary)" style="width: 100%; padding: 10px 14px; border-radius: 8px; border: 1px solid var(--line); background: var(--bg); color: var(--ink); font-size: 13px;" oninput="handlePhotoUrlInput(this.value)">
-                <div style="font-size: 11px; color: var(--muted); margin-top: 6px;">Paste any direct image link from the web to display on this meal card.</div>
-            </div>
-
-            <!-- Tab 3: Reset to Auto -->
-            <div id="panel-photo-reset" class="photo-tab-panel" style="display: none;">
-                <div style="background: color-mix(in srgb, var(--surface) 50%, var(--bg)); border: 1px solid var(--line); border-radius: 8px; padding: 16px; text-align: center;">
-                    <div style="font-weight: 700; color: var(--ink); font-size: 13.5px; margin-bottom: 4px;">Revert to Auto-Matched Dish Photo</div>
-                    <div style="font-size: 12px; color: var(--muted); line-height: 1.4;">This will remove any custom uploaded photo and restore the high-definition culinary food photo automatically tailored for this recipe.</div>
-                </div>
-            </div>
-        </div>
-
-        <div class="ft-modal-footer">
-            <button type="button" class="btn-cancel" onclick="closeMealPhotoModal()">Cancel</button>
-            <button type="button" id="btn-save-meal-photo" class="btn-save-swap" onclick="saveMealPhoto()">
-                <span>Save Photo</span>
-            </button>
-        </div>
-    </div>
-</div>
 
 <style>
 @keyframes fadeIn {
@@ -4770,236 +4549,7 @@ let swapOptionsData = [];
 let activeSwapFilter = 'all';
 let calculatedCustomMealData = null;
 
-// Photo Modal State
-let currentPhotoMeal = null; // { mealId, foodItems, customUrl, resolvedUrl }
-let currentPhotoTab = 'upload'; // 'upload', 'url', 'reset'
-let selectedPhotoFile = null;
 
-function openMealPhotoModal(btn) {
-    const mealId = btn.getAttribute('data-meal-id');
-    const foodItems = btn.getAttribute('data-food') || '';
-    const customUrl = btn.getAttribute('data-custom-url') || '';
-    const resolvedUrl = btn.getAttribute('data-resolved-url') || '';
-
-    currentPhotoMeal = { mealId, foodItems, customUrl, resolvedUrl };
-    selectedPhotoFile = null;
-
-    document.getElementById('photo-modal-food-name').textContent = foodItems;
-    document.getElementById('photo-modal-preview-img').src = customUrl || resolvedUrl;
-    document.getElementById('photo-modal-tag').textContent = customUrl ? (customUrl.includes('imagekit.io') ? 'ImageKit Photo' : 'Custom Photo') : 'Auto-Matched Photo';
-    document.getElementById('photo-modal-url-input').value = customUrl || '';
-    document.getElementById('photo-modal-file-input').value = '';
-    
-    const fileStatus = document.getElementById('photo-file-status');
-    fileStatus.style.display = 'none';
-    fileStatus.textContent = '';
-
-    if (customUrl && !customUrl.includes('imagekit.io')) {
-        switchPhotoTab('url');
-    } else {
-        switchPhotoTab('upload');
-    }
-
-    const modal = document.getElementById('modal-meal-photo');
-    modal.style.display = 'flex';
-    document.body.style.overflow = 'hidden';
-}
-
-function closeMealPhotoModal() {
-    const modal = document.getElementById('modal-meal-photo');
-    modal.style.display = 'none';
-    document.body.style.overflow = '';
-    currentPhotoMeal = null;
-    selectedPhotoFile = null;
-}
-
-function switchPhotoTab(tab) {
-    currentPhotoTab = tab;
-    ['upload', 'url', 'reset'].forEach(t => {
-        const btn = document.getElementById('tab-btn-photo-' + t);
-        const panel = document.getElementById('panel-photo-' + t);
-        if (btn) btn.classList.toggle('active', t === tab);
-        if (panel) panel.style.display = (t === tab) ? 'block' : 'none';
-    });
-
-    const previewImg = document.getElementById('photo-modal-preview-img');
-    const tag = document.getElementById('photo-modal-tag');
-
-    if (tab === 'reset') {
-        previewImg.src = currentPhotoMeal ? currentPhotoMeal.resolvedUrl : '';
-        tag.textContent = 'Auto-Matched Photo';
-    } else if (tab === 'upload') {
-        if (selectedPhotoFile) {
-            // keep previewing selected file
-        } else if (currentPhotoMeal && currentPhotoMeal.customUrl) {
-            previewImg.src = currentPhotoMeal.customUrl;
-            tag.textContent = currentPhotoMeal.customUrl.includes('imagekit.io') ? 'ImageKit Photo' : 'Custom Photo';
-        } else if (currentPhotoMeal) {
-            previewImg.src = currentPhotoMeal.resolvedUrl;
-            tag.textContent = 'Auto-Matched Photo';
-        }
-    } else if (tab === 'url') {
-        const inputVal = document.getElementById('photo-modal-url-input').value.trim();
-        if (inputVal) {
-            previewImg.src = inputVal;
-            tag.textContent = 'Link Preview';
-        } else if (currentPhotoMeal) {
-            previewImg.src = currentPhotoMeal.customUrl || currentPhotoMeal.resolvedUrl;
-            tag.textContent = currentPhotoMeal.customUrl ? 'Custom Photo' : 'Auto-Matched Photo';
-        }
-    }
-}
-
-function handlePhotoFileSelected(input) {
-    const file = input.files && input.files[0];
-    if (!file) return;
-
-    if (file.size > 5 * 1024 * 1024) {
-        Swal.fire({
-            icon: 'warning',
-            title: 'File Too Large',
-            text: 'Please select an image smaller than 5MB.',
-            confirmButtonColor: 'var(--lime)',
-            background: 'var(--panel-bg, #121721)',
-            color: 'var(--ink)'
-        });
-        input.value = '';
-        return;
-    }
-
-    selectedPhotoFile = file;
-    const fileStatus = document.getElementById('photo-file-status');
-    fileStatus.style.display = 'block';
-    fileStatus.textContent = `✓ Selected: ${file.name} (${(file.size / 1024).toFixed(0)} KB) • Ready for ImageKit`;
-
-    // Local instant preview
-    const reader = new FileReader();
-    reader.onload = function(e) {
-        document.getElementById('photo-modal-preview-img').src = e.target.result;
-        document.getElementById('photo-modal-tag').textContent = 'Local Preview (ImageKit)';
-    };
-    reader.readAsDataURL(file);
-}
-
-function handlePhotoUrlInput(val) {
-    val = val.trim();
-    const previewImg = document.getElementById('photo-modal-preview-img');
-    const tag = document.getElementById('photo-modal-tag');
-    if (val.startsWith('http://') || val.startsWith('https://')) {
-        previewImg.src = val;
-        tag.textContent = 'URL Preview';
-    }
-}
-
-async function saveMealPhoto() {
-    if (!currentPhotoMeal) return;
-
-    const saveBtn = document.getElementById('btn-save-meal-photo');
-    const originalText = saveBtn.innerHTML;
-    saveBtn.disabled = true;
-    saveBtn.innerHTML = '<div class="ft-spinner" style="width:14px; height:14px; border-width:2px; display:inline-block; vertical-align:middle; margin-right:6px;"></div> <span>Uploading to ImageKit...</span>';
-
-    const formData = new FormData();
-    formData.append('action', 'update_meal_photo');
-    formData.append('meal_id', currentPhotoMeal.mealId);
-    formData.append('photo_type', currentPhotoTab);
-    formData.append('csrf_token', FT_CSRF_TOKEN);
-
-    if (currentPhotoTab === 'upload') {
-        if (!selectedPhotoFile) {
-            Swal.fire({
-                icon: 'info',
-                title: 'No Image Chosen',
-                text: 'Please click the box to select an image file to upload to ImageKit.',
-                confirmButtonColor: 'var(--lime)',
-                background: 'var(--panel-bg, #121721)',
-                color: 'var(--ink)'
-            });
-            saveBtn.disabled = false;
-            saveBtn.innerHTML = originalText;
-            return;
-        }
-        formData.append('photo_file', selectedPhotoFile);
-    } else if (currentPhotoTab === 'url') {
-        const urlVal = document.getElementById('photo-modal-url-input').value.trim();
-        if (!urlVal) {
-            Swal.fire({
-                icon: 'warning',
-                title: 'URL Required',
-                text: 'Please enter a valid image web address.',
-                confirmButtonColor: 'var(--lime)',
-                background: 'var(--panel-bg, #121721)',
-                color: 'var(--ink)'
-            });
-            saveBtn.disabled = false;
-            saveBtn.innerHTML = originalText;
-            return;
-        }
-        formData.append('photo_url', urlVal);
-    }
-
-    try {
-        const res = await fetch('index.php?page=diet', {
-            method: 'POST',
-            body: formData
-        });
-        const data = await res.json();
-
-        if (data.success) {
-            // Update image on meal card
-            const cardImg = document.getElementById('meal-img-' + currentPhotoMeal.mealId);
-            if (cardImg) {
-                cardImg.src = data.resolved_url;
-            }
-
-            // Update button data attributes
-            const btn = document.getElementById('btn-edit-photo-' + currentPhotoMeal.mealId);
-            if (btn) {
-                btn.setAttribute('data-custom-url', data.image_url || '');
-                btn.setAttribute('data-resolved-url', data.resolved_url);
-            }
-
-            closeMealPhotoModal();
-
-            const toastMsg = currentPhotoTab === 'upload' 
-                ? 'Saved to ImageKit CDN successfully!' 
-                : (currentPhotoTab === 'reset' ? 'Reverted to auto dish photo!' : 'Custom image URL saved!');
-
-            Swal.fire({
-                toast: true,
-                position: 'top-end',
-                icon: 'success',
-                title: toastMsg,
-                showConfirmButton: false,
-                timer: 3000,
-                background: 'var(--panel-bg, #121721)',
-                color: 'var(--ink)'
-            });
-        } else {
-            Swal.fire({
-                icon: 'error',
-                title: 'Photo Update Failed',
-                text: data.error || 'Could not save photo.',
-                confirmButtonColor: 'var(--lime)',
-                background: 'var(--panel-bg, #121721)',
-                color: 'var(--ink)'
-            });
-        }
-    } catch (err) {
-        console.error("Photo upload error:", err);
-        Swal.fire({
-            icon: 'error',
-            title: 'Network Error',
-            text: 'Could not connect to server to upload photo.',
-            confirmButtonColor: 'var(--lime)',
-            background: 'var(--panel-bg, #121721)',
-            color: 'var(--ink)'
-        });
-    } finally {
-        saveBtn.disabled = false;
-        saveBtn.innerHTML = originalText;
-    }
-}
 
 // Switch weekly meal plan day tab
 function switchDietTab(dayNum) {

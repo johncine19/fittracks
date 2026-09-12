@@ -80,6 +80,7 @@ try {
         'scanner' => ['file' => 'pages/admin/scanner.php', 'handler' => 'scanner_page'],
         'complete_exercise' => ['file' => 'pages/member/complete_exercise.php', 'handler' => 'complete_exercise_action'],
         'exercises' => ['file' => 'pages/admin/exercises.php', 'handler' => 'exercises_page'],
+        'food_library' => ['file' => 'pages/admin/food_library.php', 'handler' => 'food_library_page'],
         'gym_equipment' => ['file' => 'pages/admin/equipment.php', 'handler' => 'gym_equipment_page'],
         'equipment' => ['file' => 'pages/member/equipment.php', 'handler' => 'member_equipment_page'],
         'equipment_api' => ['file' => 'pages/shared/equipment_api.php', 'handler' => 'equipment_api_handler'],

@@ -169,7 +169,7 @@ function diet_builder_page(): void
             $c_g = round(($targetCals * $c_pct) / 4);
             $f_g = round(($targetCals * $f_pct) / 9);
             
-            // 5. Generate Meals for 7 days
+            // 5. Generate Meals for 7 days from food_items table
             $pdo->prepare('DELETE FROM dietary_plan_meals WHERE plan_id = ?')->execute([$planId]);
             
             // Check if dietary_restrictions column exists and get the value (fallback to none)
@@ -179,73 +179,37 @@ function diet_builder_page(): void
             } catch (Exception $e) {
                 $restriction = 'none';
             }
-            
-            $foods = [
-                'none' => [
-                    'Breakfast' => ['Tapsilog (Beef Tapa, Garlic Brown Rice, Egg)', 'Chicken Longsilog (Garlic Rice, Egg)', 'Oat Champorado with Tuyo (Dried Fish)'],
-                    'Lunch' => ['Chicken Adobo with Brown Rice & Gasing (Cabbage)', 'Sinigang na Hipon (Shrimp) with Kangkong & Rice', 'Ginisang Munggo with Tinapa & Rice'],
-                    'Dinner' => ['Lean Inihaw na Liempo with Ensaladang Talong', 'Chicken Tinola with Sayote, Moringa & Brown Rice', 'Pinakbet with Grilled Fish & Rice'],
-                    'Snack' => ['Boiled Saba Banana', 'Boiled Kamote (Sweet Potato)', 'Steamed Puto with Cheese']
-                ],
-                'vegetarian' => [
-                    'Breakfast' => ['Tortang Talong (Eggplant Omelet) with Garlic Rice', 'Oat Champorado with Almond Milk', 'Vegetarian Pancit Canton'],
-                    'Lunch' => ['Ginisang Munggo (No Meat) with Brown Rice', 'Adobong Sitaw & Tofu with Rice', 'Tokwa at Baboy (using Soy Meat)'],
-                    'Dinner' => ['Vegetable Pinakbet (No Bagoong) with Tofu & Rice', 'Gising-Gising (Tofu & Green Beans in Coconut Milk)', 'Laing (Taro Leaves in Spicy Coconut Milk)'],
-                    'Snack' => ['Boiled Saba Banana', 'Boiled Kamote', 'Bibingka (Gluten-Free rice cake)']
-                ],
-                'vegan' => [
-                    'Breakfast' => ['Tofu Scramble Adobo Style with Garlic Rice', 'Oat Champorado with Almond Milk', 'Vegan Arroz Caldo (Tofu & Ginger)'],
-                    'Lunch' => ['Ginisang Munggo (Vegan) with Brown Rice', 'Adobong Sitaw & Tofu with Rice', 'Vegan Bicol Express with Tofu'],
-                    'Dinner' => ['Vegetable Pinakbet (Vegan) with Quinoa', 'Laing (Vegan Taro Leaves in Spicy Coconut Milk)', 'Gising-Gising with Tofu & Coconut Cream'],
-                    'Snack' => ['Boiled Saba Banana', 'Boiled Kamote', 'Espasol (Rice flour sweet)']
-                ],
-                'pescatarian' => [
-                    'Breakfast' => ['Tinapasilog (Smoked Fish, Garlic Rice, Egg)', 'Bangsilog (Grilled Milkfish, Garlic Rice, Egg)', 'Oat Champorado with Tuyo'],
-                    'Lunch' => ['Sinigang na Hipon (Shrimp) with Kangkong & Rice', 'Ginisang Munggo with Tinapa & Rice', 'Tuna Bicol Express with Rice'],
-                    'Dinner' => ['Inihaw na Bangus stuffed with Tomatoes & Onions', 'Salmon Sinigang (Sour soup) with Rice', 'Ginataang Salmon with Spinach & Rice'],
-                    'Snack' => ['Boiled Saba Banana', 'Boiled Kamote', 'Puto with Cheese']
-                ],
-                'halal' => [
-                    'Breakfast' => ['Chicken Tapsilog (Chicken Tapa, Garlic Rice, Egg)', 'Chicken Longsilog (Garlic Rice, Egg)', 'Oat Champorado with Tuyo'],
-                    'Lunch' => ['Halal Chicken Adobo with Brown Rice', 'Sinigang na Hipon with Kangkong & Rice', 'Ginisang Munggo with Tinapa & Rice'],
-                    'Dinner' => ['Inihaw na Manok (Grilled Chicken) with Ensaladang Talong', 'Chicken Tinola with Sayote & Moringa', 'Pinakbet with Grilled Fish & Rice'],
-                    'Snack' => ['Boiled Saba Banana', 'Boiled Kamote', 'Puto with Cheese']
-                ],
-                'gluten-free' => [
-                    'Breakfast' => ['Tapsilog (using GF Tamari for Tapa)', 'Champorado (using GF Cocoa and Rice)', 'Bangsilog (Milkfish, GF Garlic Rice, Egg)'],
-                    'Lunch' => ['Sinigang na Hipon (GF sour broth) with Brown Rice', 'Chicken Tinola with Sayote & Moringa', 'Ginisang Munggo with Rice'],
-                    'Dinner' => ['Inihaw na Bangus stuffed with Tomatoes & Onions', 'Salmon Sinigang with Rice', 'Pinakbet (GF version) with Grilled Fish'],
-                    'Snack' => ['Boiled Saba Banana', 'Boiled Kamote', 'Saging na Saba con Yelo (No condensed milk)']
-                ],
-                'keto' => [
-                    'Breakfast' => ['Tortang Talong with Ground Pork (No Rice)', 'Tapsilog (Beef Tapa, Cauliflower Garlic Rice, Fried Egg)', 'Scrambled Eggs with Tinapa Flakes'],
-                    'Lunch' => ['Inihaw na Liempo with Ensaladang Talong', 'Chicken Tinola (No Sayote, Extra Moringa)', 'Adobong Baboy (No sugar, low carb)'],
-                    'Dinner' => ['Salmon Sinigang (No Gabi/Taro, low carb veggies)', 'Ginataang Manok (Chicken in Coconut Cream)', 'Inihaw na Bangus with Tomatoes & Onions'],
-                    'Snack' => ['Chicharon (Pork Rinds)', 'Salted Peanuts', 'Hard-boiled Eggs']
-                ],
-                'paleo' => [
-                    'Breakfast' => ['Tortang Talong with Ground Beef', 'Beef Tapa with Fried Egg (No Rice)', 'Boiled Eggs with Avocado'],
-                    'Lunch' => ['Inihaw na Liempo with Ensaladang Talong', 'Chicken Tinola with Sayote & Moringa', 'Inihaw na Bangus (Grilled Milkfish)'],
-                    'Dinner' => ['Tinola na Manok with Moringa & Sayote', 'Adobong Baboy (using Coconut Aminos)', 'Inihaw na Manok with Cucumber Salad'],
-                    'Snack' => ['Salted Almonds', 'Boiled Kamote (in moderation)', 'Hard-boiled Eggs']
-                ],
-                'nut-allergy' => [
-                    'Breakfast' => ['Tapsilog (Beef Tapa, Garlic Rice, Fried Egg)', 'Chicken Longsilog (Garlic Rice, Egg)', 'Oat Champorado with Tuyo'],
-                    'Lunch' => ['Chicken Adobo with Brown Rice & Cabbage', 'Sinigang na Hipon with Kangkong & Rice', 'Ginisang Munggo with Tinapa & Rice'],
-                    'Dinner' => ['Lean Inihaw na Liempo with Ensaladang Talong', 'Chicken Tinola with Sayote & Moringa', 'Pinakbet with Grilled Fish & Rice'],
-                    'Snack' => ['Boiled Saba Banana', 'Boiled Kamote', 'Steamed Puto with Cheese']
-                ],
-                'dairy-free' => [
-                    'Breakfast' => ['Tapsilog (Beef Tapa, Garlic Rice, Fried Egg)', 'Chicken Longsilog (Garlic Rice, Egg)', 'Oat Champorado (using Coconut Milk) with Tuyo'],
-                    'Lunch' => ['Chicken Adobo with Brown Rice & Cabbage', 'Sinigang na Hipon with Kangkong & Rice', 'Ginisang Munggo with Tinapa & Rice'],
-                    'Dinner' => ['Lean Inihaw na Liempo with Ensaladang Talong', 'Chicken Tinola with Sayote & Moringa', 'Pinakbet with Grilled Fish & Rice'],
-                    'Snack' => ['Boiled Saba Banana', 'Boiled Kamote', 'Steamed Puto (No Cheese)']
-                ],
-            ];
-            $dietFoods = $foods[$restriction] ?? $foods['none'];
+
+            // Query active foods matching member dietary restriction and gym scope
+            $targetGymId = $gymId ?: get_user_gym_id($user);
+            $foodQuery = "
+                SELECT food_id, name, meal_type, serving_size, calories, protein_g, carbs_g, fat_g, image_url, recipe_desc 
+                FROM food_items 
+                WHERE is_active = 1 
+                  AND (gym_id = ? OR gym_id IS NULL)
+                  AND (dietary_restriction = ? OR dietary_restriction = 'none')
+                ORDER BY (gym_id IS NOT NULL) DESC, RAND()
+            ";
+            $foodStmt = $pdo->prepare($foodQuery);
+            $foodStmt->execute([$targetGymId, $restriction]);
+            $dbFoods = $foodStmt->fetchAll();
+
+            $foodsByType = ['Breakfast' => [], 'Lunch' => [], 'Dinner' => [], 'Snack' => []];
+            foreach ($dbFoods as $f) {
+                $foodsByType[$f['meal_type']][] = $f;
+            }
+
+            // Fallback for any meal type that has no matches
+            foreach (['Breakfast', 'Lunch', 'Dinner', 'Snack'] as $mt) {
+                if (empty($foodsByType[$mt])) {
+                    $fallbackStmt = $pdo->prepare("SELECT food_id, name, meal_type, serving_size, calories, protein_g, carbs_g, fat_g, image_url, recipe_desc FROM food_items WHERE is_active = 1 AND meal_type = ? ORDER BY RAND()");
+                    $fallbackStmt->execute([$mt]);
+                    $foodsByType[$mt] = $fallbackStmt->fetchAll();
+                }
+            }
             
             $dist = ['Breakfast'=>0.25, 'Lunch'=>0.35, 'Dinner'=>0.30, 'Snack'=>0.10];
-            $stmt = $pdo->prepare('INSERT INTO dietary_plan_meals (plan_id, day_of_week, meal_type, food_items, calories, protein_g, carbs_g, fat_g) VALUES (?, ?, ?, ?, ?, ?, ?, ?)');
+            $stmt = $pdo->prepare('INSERT INTO dietary_plan_meals (plan_id, day_of_week, meal_type, food_items, image_url, calories, protein_g, carbs_g, fat_g) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)');
             
             for ($d = 1; $d <= 7; $d++) {
                 foreach ($dist as $mType => $pct) {
@@ -255,16 +219,22 @@ function diet_builder_page(): void
                     $mF = round($f_g * $pct);
                     $portionGrams = round($mCals / 1.5);
                     
-                    // Rotate meal options to vary foods day-by-day
-                    $options = $dietFoods[$mType];
-                    $selectedFood = $options[($d - 1) % count($options)];
+                    $options = $foodsByType[$mType];
+                    $selectedFood = !empty($options) ? $options[($d - 1) % count($options)] : null;
                     
-                    $mFood = $portionGrams . "g of " . $selectedFood;
-                    $stmt->execute([$planId, $d, $mType, $mFood, $mCals, $mP, $mC, $mF]);
+                    if ($selectedFood) {
+                        $mFood = $portionGrams . "g of " . $selectedFood['name'];
+                        $mImg = $selectedFood['image_url'] ?? null;
+                    } else {
+                        $mFood = $portionGrams . "g of Healthy " . $mType;
+                        $mImg = null;
+                    }
+                    
+                    $stmt->execute([$planId, $d, $mType, $mFood, $mImg, $mCals, $mP, $mC, $mF]);
                 }
             }
             
-            flash("Dietary plan generated automatically! Target: {$targetCals}kcal | P: {$p_g}g | C: {$c_g}g | F: {$f_g}g", 'success');
+            flash("Dietary plan generated automatically from Food Library! Target: {$targetCals}kcal | P: {$p_g}g | C: {$c_g}g | F: {$f_g}g", 'success');
             header('Location: index.php?page=diet_builder&member_user_id=' . $memberId . $refQuery);
             exit;
         }
@@ -274,12 +244,13 @@ function diet_builder_page(): void
             $mealType = post('meal_type');
             $foodItems = post('food_items');
             $calories = (int) post('calories');
-            $protein = (int) post('protein_g');
-            $carbs = (int) post('carbs_g');
-            $fat = (int) post('fat_g');
+            $protein = (float) post('protein_g');
+            $carbs = (float) post('carbs_g');
+            $fat = (float) post('fat_g');
+            $imageUrl = trim((string) post('image_url')) ?: null;
             
-            $stmt = $pdo->prepare('INSERT INTO dietary_plan_meals (plan_id, day_of_week, meal_type, food_items, calories, protein_g, carbs_g, fat_g) VALUES (?, ?, ?, ?, ?, ?, ?, ?)');
-            $stmt->execute([$planId, $dayOfWeek, $mealType, $foodItems, $calories, $protein, $carbs, $fat]);
+            $stmt = $pdo->prepare('INSERT INTO dietary_plan_meals (plan_id, day_of_week, meal_type, food_items, image_url, calories, protein_g, carbs_g, fat_g) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)');
+            $stmt->execute([$planId, $dayOfWeek, $mealType, $foodItems, $imageUrl, $calories, $protein, $carbs, $fat]);
             
             header('Location: index.php?page=diet_builder&member_user_id=' . $memberId . $refQuery);
             exit;
@@ -318,8 +289,25 @@ function diet_builder_page(): void
             <?php else: ?>
                 <span class="badge" style="background: rgba(132, 204, 22, 0.15); color: #84cc16; border: 1px solid rgba(132, 204, 22, 0.3); font-size: 11px; padding: 3px 8px; font-weight: 700; border-radius: 6px;">Assigned Trainer</span>
             <?php endif; ?>
+
+            <?php 
+                $memberRestriction = $profile['dietary_restrictions'] ?? 'none';
+                $restColor = ($memberRestriction !== 'none') ? '#34d399' : 'var(--muted)';
+                $restBg = ($memberRestriction !== 'none') ? 'rgba(52, 211, 153, 0.15)' : 'rgba(255,255,255,0.06)';
+                $restBorder = ($memberRestriction !== 'none') ? 'rgba(52, 211, 153, 0.35)' : 'var(--line)';
+            ?>
+            <span class="badge" style="background: <?= $restBg ?>; color: <?= $restColor ?>; border: 1px solid <?= $restBorder ?>; font-size: 11.5px; padding: 3px 10px; font-weight: 700; border-radius: 6px; display: inline-flex; align-items: center; gap: 5px;" title="Member's Dietary Restriction">
+                <span>🥗</span>
+                <span>Diet: <strong><?= h(ucwords(str_replace('-', ' ', $memberRestriction))) ?></strong></span>
+            </span>
+
+            <?php if (!empty($profile['primary_goal'])): ?>
+                <span class="badge" style="background: rgba(163, 230, 53, 0.12); color: var(--lime); border: 1px solid rgba(163, 230, 53, 0.25); font-size: 11.5px; padding: 3px 10px; font-weight: 700; border-radius: 6px;">
+                    🎯 <?= h(ucwords(str_replace('_', ' ', $profile['primary_goal']))) ?>
+                </span>
+            <?php endif; ?>
         </div>
-        <p style="color: var(--muted); font-size: 13px; margin: 4px 0 0;">Manage daily meals, nutrition, and macro targets for this member.</p>
+        <p style="color: var(--muted); font-size: 13px; margin: 4px 0 0;">Manage daily meals, nutrition, and macro targets tailored to this member's goals and dietary needs.</p>
     </div>
     <div style="display: flex; gap: 10px; flex-wrap: wrap; align-items: center;">
         <a href="<?= h($backUrl) ?>" class="btn btn-ghost" style="text-decoration: none;">&larr; Back</a>
@@ -398,8 +386,31 @@ function diet_builder_page(): void
                 </div>
                 
                 <div>
-                    <label style="display:block; font-size: 12px; font-weight: 600; color: var(--muted); margin-bottom: 6px;">Food Items / Description</label>
-                    <textarea name="food_items" required rows="3" placeholder="e.g. 2 boiled eggs, 1 slice whole wheat toast..." style="width: 100%; box-sizing: border-box; padding: 10px 12px; border-radius: 8px; border: 1px solid var(--line); background: var(--bg); color: var(--ink); font-size: 13px; resize: vertical; line-height: 1.4;"></textarea>
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                        <label style="font-size: 12px; font-weight: 600; color: var(--muted); margin: 0;">Search Food Library</label>
+                        <button type="button" id="onlineSearchToggle" onclick="toggleOnlineSearch()" style="background: none; border: none; padding: 0; font-size: 11px; color: var(--lime); cursor: pointer; display: flex; align-items: center; gap: 4px; font-weight: 600;">
+                            <span>🌐 Search Online (OFF)</span>
+                        </button>
+                    </div>
+                    <?php if ($memberRestriction !== 'none'): ?>
+                        <div style="font-size: 11px; color: #34d399; margin-bottom: 6px; display: flex; align-items: center; gap: 4px; font-weight: 500;">
+                            <span>🥗 Prioritizing: <strong><?= h(ucwords(str_replace('-', ' ', $memberRestriction))) ?></strong></span>
+                        </div>
+                    <?php endif; ?>
+                    <div style="position: relative;">
+                        <input type="text" id="food_search_input" placeholder="Search dishes (e.g. Chicken, Salmon...)" autocomplete="off" style="width: 100%; box-sizing: border-box; padding: 9px 30px 9px 12px; border-radius: 8px; border: 1px solid var(--line); background: var(--bg); color: var(--ink); font-size: 13px;">
+                        <span id="food_search_loader" style="display: none; position: absolute; right: 10px; top: 10px; font-size: 12px;">⏳</span>
+                        <div id="food_autocomplete_box" style="display: none; position: absolute; left: 0; right: 0; top: 100%; margin-top: 4px; background: #161f30; border: 1px solid #334155; border-radius: 8px; max-height: 250px; overflow-y: auto; z-index: 999; box-shadow: 0 10px 25px rgba(0,0,0,0.7);"></div>
+                    </div>
+                    <div id="autofill_indicator" style="display: none; font-size: 11px; color: var(--lime); margin-top: 4px; font-weight: 600;">
+                        ✓ Details & macros auto-filled from library!
+                    </div>
+                </div>
+
+                <div>
+                    <label style="display:block; font-size: 12px; font-weight: 600; color: var(--muted); margin-bottom: 6px;">Meal Description / Portion</label>
+                    <textarea name="food_items" id="meal_food_items" required rows="2" placeholder="e.g. 200g Grilled Chicken Breast with Brown Rice" style="width: 100%; box-sizing: border-box; padding: 10px 12px; border-radius: 8px; border: 1px solid var(--line); background: var(--bg); color: var(--ink); font-size: 13px; resize: vertical; line-height: 1.4;"></textarea>
+                    <input type="hidden" name="image_url" id="meal_image_url" value="">
                 </div>
                 
                 <!-- Macro Inputs 2x2 Grid -->
@@ -527,12 +538,152 @@ function diet_builder_page(): void
 
 <script>
 function updateMacros() {
-    const p = parseInt(document.getElementById('calc_p').value) || 0;
-    const c = parseInt(document.getElementById('calc_c').value) || 0;
-    const f = parseInt(document.getElementById('calc_f').value) || 0;
+    const p = parseFloat(document.getElementById('calc_p').value) || 0;
+    const c = parseFloat(document.getElementById('calc_c').value) || 0;
+    const f = parseFloat(document.getElementById('calc_f').value) || 0;
     const calsInput = document.getElementById('calc_cals');
     if (calsInput) {
-        calsInput.value = (p * 4) + (c * 4) + (f * 9);
+        calsInput.value = Math.round((p * 4) + (c * 4) + (f * 9));
+    }
+}
+
+let isOnlineSearch = false;
+let searchDebounce = null;
+
+function toggleOnlineSearch() {
+    isOnlineSearch = !isOnlineSearch;
+    const btn = document.getElementById('onlineSearchToggle');
+    const input = document.getElementById('food_search_input');
+    if (btn) {
+        btn.innerHTML = isOnlineSearch ? '<span style="color:#38bdf8;">🌐 Search Online (ON)</span>' : '<span>🌐 Search Online (OFF)</span>';
+    }
+    if (input) {
+        input.placeholder = isOnlineSearch ? 'Search Open Food Facts (e.g. Greek Yogurt, Quest Bar...)' : 'Search dishes (e.g. Chicken, Salmon, Oats...)';
+        if (input.value.trim().length >= 2) {
+            triggerFoodSearch(input.value.trim());
+        }
+    }
+}
+
+function triggerFoodSearch(query) {
+    const box = document.getElementById('food_autocomplete_box');
+    const loader = document.getElementById('food_search_loader');
+    if (!box) return;
+
+    if (query.length < 2) {
+        box.style.display = 'none';
+        return;
+    }
+
+    if (loader) loader.style.display = 'block';
+
+    const url = isOnlineSearch
+        ? 'index.php?page=food_lookup&action=openfoodfacts&query=' + encodeURIComponent(query)
+        : 'index.php?page=food_lookup&action=search_library&dietary_restriction=<?= urlencode($memberRestriction) ?>&query=' + encodeURIComponent(query);
+
+    fetch(url)
+        .then(res => res.json())
+        .then(data => {
+            if (loader) loader.style.display = 'none';
+            if (!data.success) {
+                box.innerHTML = `<div style="padding: 12px; color: var(--muted); font-size: 12.5px; text-align: center;">${data.error || 'No items found'}</div>`;
+                box.style.display = 'block';
+                return;
+            }
+
+            const items = isOnlineSearch ? (data.products || []) : (data.items || []);
+            if (items.length === 0) {
+                box.innerHTML = '<div style="padding: 12px; color: var(--muted); font-size: 12.5px; text-align: center;">No matching foods found</div>';
+                box.style.display = 'block';
+                return;
+            }
+
+            box.innerHTML = items.map((item, idx) => {
+                const name = item.name;
+                const cals = isOnlineSearch ? (item.calories_100g || 0) : item.calories;
+                const pro = isOnlineSearch ? (item.protein_100g || 0) : item.protein_g;
+                const carbs = isOnlineSearch ? (item.carbs_100g || 0) : item.carbs_g;
+                const fat = isOnlineSearch ? (item.fat_100g || 0) : item.fat_g;
+                const tag = isOnlineSearch ? 'Online (OFF)' : (item.is_gym_custom ? 'Gym Custom' : 'Library');
+                const tagBg = isOnlineSearch ? 'rgba(56, 189, 248, 0.15)' : (item.is_gym_custom ? 'rgba(168, 85, 247, 0.15)' : 'rgba(132, 204, 22, 0.15)');
+                const tagColor = isOnlineSearch ? '#38bdf8' : (item.is_gym_custom ? '#c084fc' : '#a3e635');
+                const img = item.image || item.image_url || '';
+
+                return `
+                    <div class="food-suggest-item" data-idx="${idx}" style="padding: 9px 12px; border-bottom: 1px solid rgba(255,255,255,0.05); cursor: pointer; transition: background 0.15s; display: flex; align-items: center; gap: 10px;">
+                        ${img ? `<img src="${img}" style="width: 34px; height: 34px; border-radius: 6px; object-fit: cover; flex-shrink: 0; background: #000;" onerror="this.style.display='none'">` : ''}
+                        <div style="flex: 1; min-width: 0;">
+                            <div style="display: flex; justify-content: space-between; align-items: center; gap: 6px;">
+                                <span style="color: #ffffff; font-size: 13px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${name}</span>
+                                <span style="font-size: 10px; font-weight: 700; padding: 1px 6px; border-radius: 4px; background: ${tagBg}; color: ${tagColor}; white-space: nowrap;">${tag}</span>
+                            </div>
+                            <div style="display: flex; gap: 8px; font-size: 11px; color: var(--muted); margin-top: 3px;">
+                                <span style="color: var(--lime); font-weight: 700;">${cals} kcal</span>
+                                <span>P: ${pro}g</span>
+                                <span>C: ${carbs}g</span>
+                                <span>F: ${fat}g</span>
+                                ${isOnlineSearch ? '<span style="opacity: 0.7;">(per 100g)</span>' : ''}
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+
+            box.style.display = 'block';
+
+            // Click listener
+            box.querySelectorAll('.food-suggest-item').forEach((row, i) => {
+                row.addEventListener('mouseenter', () => row.style.background = '#253349');
+                row.addEventListener('mouseleave', () => row.style.background = 'transparent');
+                row.addEventListener('click', () => {
+                    const chosen = items[i];
+                    selectFoodItem(chosen);
+                });
+            });
+        })
+        .catch(() => {
+            if (loader) loader.style.display = 'none';
+        });
+}
+
+function selectFoodItem(item) {
+    const foodItemsInput = document.getElementById('meal_food_items');
+    const pInput = document.getElementById('calc_p');
+    const cInput = document.getElementById('calc_c');
+    const fInput = document.getElementById('calc_f');
+    const calsInput = document.getElementById('calc_cals');
+    const imgInput = document.getElementById('meal_image_url');
+    const typeSelect = document.querySelector('select[name="meal_type"]');
+    const searchInput = document.getElementById('food_search_input');
+    const box = document.getElementById('food_autocomplete_box');
+    const indicator = document.getElementById('autofill_indicator');
+
+    const name = item.name;
+    const cals = isOnlineSearch ? (item.calories_100g || 0) : item.calories;
+    const pro = isOnlineSearch ? (item.protein_100g || 0) : item.protein_g;
+    const carbs = isOnlineSearch ? (item.carbs_100g || 0) : item.carbs_g;
+    const fat = isOnlineSearch ? (item.fat_100g || 0) : item.fat_g;
+    const img = item.image || item.image_url || '';
+
+    if (foodItemsInput) {
+        foodItemsInput.value = item.serving_size ? `${item.serving_size} of ${name}` : name;
+    }
+    if (pInput) pInput.value = pro;
+    if (cInput) cInput.value = carbs;
+    if (fInput) fInput.value = fat;
+    if (calsInput) calsInput.value = cals;
+    if (imgInput) imgInput.value = img;
+
+    if (typeSelect && item.meal_type) {
+        typeSelect.value = item.meal_type;
+    }
+
+    if (searchInput) searchInput.value = name;
+    if (box) box.style.display = 'none';
+
+    if (indicator) {
+        indicator.style.display = 'block';
+        setTimeout(() => { indicator.style.display = 'none'; }, 3500);
     }
 }
 
@@ -560,9 +711,35 @@ function switchDay(dayNum) {
         daySelect.value = dayNum;
     }
 }
+
 document.addEventListener("DOMContentLoaded", function() {
     switchDay(1);
     updateMacros();
+
+    const searchInput = document.getElementById('food_search_input');
+    const box = document.getElementById('food_autocomplete_box');
+
+    if (searchInput) {
+        searchInput.addEventListener('input', function() {
+            clearTimeout(searchDebounce);
+            const val = this.value.trim();
+            searchDebounce = setTimeout(() => {
+                triggerFoodSearch(val);
+            }, 250);
+        });
+
+        searchInput.addEventListener('focus', function() {
+            if (this.value.trim().length >= 2) {
+                triggerFoodSearch(this.value.trim());
+            }
+        });
+    }
+
+    document.addEventListener('click', function(e) {
+        if (box && searchInput && !box.contains(e.target) && !searchInput.contains(e.target)) {
+            box.style.display = 'none';
+        }
+    });
 });
 </script>
 <?php
