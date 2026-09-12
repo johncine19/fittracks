@@ -28,7 +28,7 @@ function verify_csrf(): void
         $isAjax = (isset($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest')
             || (isset($_SERVER['HTTP_ACCEPT']) && str_contains($_SERVER['HTTP_ACCEPT'], 'application/json'))
             || (isset($_SERVER['CONTENT_TYPE']) && str_contains($_SERVER['CONTENT_TYPE'], 'application/json'))
-            || (!empty($_GET['page']) && str_ends_with((string)$_GET['page'], '_api'));
+            || (!empty($_GET['page']) && (str_ends_with((string)$_GET['page'], '_api') || in_array($_GET['page'], ['food_lookup', 'equipment_api', 'notification_action'])));
 
         if ($isAjax) {
             if (ob_get_level()) ob_clean();

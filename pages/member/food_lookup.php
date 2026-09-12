@@ -79,70 +79,75 @@ function food_lookup_page(): void
 
     // Action 2: Import external food from Open Food Facts or CalorieNinjas into gym's library
     if ($action === 'import_external_food') {
-        if (!in_array($user['role'], ['gym_owner', 'trainer', 'platform_admin'])) {
-            echo json_encode(['success' => false, 'error' => 'Permission denied. Only gym staff can import foods.']);
-            exit;
-        }
+        try {
+            if (!in_array($user['role'], ['gym_owner', 'trainer', 'platform_admin'])) {
+                echo json_encode(['success' => false, 'error' => 'Permission denied. Only gym staff can import foods.']);
+                exit;
+            }
 
-        $gymId = get_user_gym_id($user);
-        $name = trim((string)($_POST['name'] ?? ''));
-        $mealType = (string)($_POST['meal_type'] ?? 'Lunch');
-        if (!in_array($mealType, ['Breakfast', 'Lunch', 'Dinner', 'Snack'])) {
-            $mealType = 'Lunch';
-        }
+            $gymId = get_user_gym_id($user);
+            $name = trim((string)($_POST['name'] ?? ''));
+            $mealType = (string)($_POST['meal_type'] ?? 'Lunch');
+            if (!in_array($mealType, ['Breakfast', 'Lunch', 'Dinner', 'Snack'])) {
+                $mealType = 'Lunch';
+            }
 
-        $calories = max(0, (int)($_POST['calories'] ?? 0));
-        $protein = max(0.0, (float)($_POST['protein_g'] ?? 0));
-        $carbs = max(0.0, (float)($_POST['carbs_g'] ?? 0));
-        $fat = max(0.0, (float)($_POST['fat_g'] ?? 0));
-        $servingSize = trim((string)($_POST['serving_size'] ?? '1 serving')) ?: '1 serving';
-        $imageUrl = trim((string)($_POST['image_url'] ?? '')) ?: null;
-        $source = trim((string)($_POST['source'] ?? 'openfoodfacts'));
-        $desc = trim((string)($_POST['recipe_desc'] ?? 'Imported from nutrition database.'));
+            $calories = max(0, (int)($_POST['calories'] ?? 0));
+            $protein = max(0.0, (float)($_POST['protein_g'] ?? 0));
+            $carbs = max(0.0, (float)($_POST['carbs_g'] ?? 0));
+            $fat = max(0.0, (float)($_POST['fat_g'] ?? 0));
+            $servingSize = trim((string)($_POST['serving_size'] ?? '1 serving')) ?: '1 serving';
+            $imageUrl = trim((string)($_POST['image_url'] ?? '')) ?: null;
+            $source = trim((string)($_POST['source'] ?? 'openfoodfacts'));
+            $desc = trim((string)($_POST['recipe_desc'] ?? 'Imported from nutrition database.'));
 
-        if (empty($name)) {
-            echo json_encode(['success' => false, 'error' => 'Food name is required.']);
-            exit;
-        }
+            if (empty($name)) {
+                echo json_encode(['success' => false, 'error' => 'Food name is required.']);
+                exit;
+            }
 
-        $stmt = db()->prepare("
-            INSERT INTO food_items 
-            (gym_id, name, meal_type, dietary_restriction, serving_size, calories, protein_g, carbs_g, fat_g, image_url, recipe_desc, source)
-            VALUES (?, ?, ?, 'none', ?, ?, ?, ?, ?, ?, ?, ?)
-        ");
-        $stmt->execute([
-            $user['role'] === 'platform_admin' ? null : $gymId,
-            $name,
-            $mealType,
-            $servingSize,
-            $calories,
-            $protein,
-            $carbs,
-            $fat,
-            $imageUrl,
-            $desc,
-            $source
-        ]);
+            $stmt = db()->prepare("
+                INSERT INTO food_items 
+                (gym_id, name, meal_type, dietary_restriction, serving_size, calories, protein_g, carbs_g, fat_g, image_url, recipe_desc, source)
+                VALUES (?, ?, ?, 'none', ?, ?, ?, ?, ?, ?, ?, ?)
+            ");
+            $stmt->execute([
+                $user['role'] === 'platform_admin' ? null : $gymId,
+                $name,
+                $mealType,
+                $servingSize,
+                $calories,
+                $protein,
+                $carbs,
+                $fat,
+                $imageUrl,
+                $desc,
+                $source
+            ]);
 
-        $newFoodId = (int)db()->lastInsertId();
+            $newFoodId = (int)db()->lastInsertId();
 
-        echo json_encode([
-            'success' => true,
-            'food_id' => $newFoodId,
-            'message' => 'Successfully imported "' . htmlspecialchars($name) . '" into the food library!',
-            'item' => [
+            echo json_encode([
+                'success' => true,
                 'food_id' => $newFoodId,
-                'name' => $name,
-                'meal_type' => $mealType,
-                'serving_size' => $servingSize,
-                'calories' => $calories,
-                'protein_g' => $protein,
-                'carbs_g' => $carbs,
-                'fat_g' => $fat,
-                'image_url' => $imageUrl
-            ]
-        ]);
-        exit;
+                'message' => 'Successfully imported "' . htmlspecialchars($name) . '" into the food library!',
+                'item' => [
+                    'food_id' => $newFoodId,
+                    'name' => $name,
+                    'meal_type' => $mealType,
+                    'serving_size' => $servingSize,
+                    'calories' => $calories,
+                    'protein_g' => $protein,
+                    'carbs_g' => $carbs,
+                    'fat_g' => $fat,
+                    'image_url' => $imageUrl
+                ]
+            ]);
+            exit;
+        } catch (Throwable $e) {
+            echo json_encode(['success' => false, 'error' => 'Import failed: ' . $e->getMessage()]);
+            exit;
+        }
     }
 
     if (empty($query)) {

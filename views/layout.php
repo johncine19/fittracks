@@ -156,7 +156,16 @@ function render_header(string $title, ?array $user = null): void
             pointer-events: none !important;
         }
 
-        /* Topbar Header Mobile Responsive Rules */
+        /* Topbar Header Responsive & Layer Stacking Rules */
+        .topbar {
+            position: sticky !important;
+            top: 0 !important;
+            z-index: 100 !important;
+        }
+        .notif-wrap {
+            position: relative !important;
+            z-index: 105 !important;
+        }
         .topbar-title {
             min-width: 0;
             flex: 1 1 auto;
@@ -170,10 +179,21 @@ function render_header(string $title, ?array $user = null): void
             text-overflow: ellipsis !important;
             line-height: 1.25 !important;
         }
-        .topbar p {
+        .topbar-title p {
             white-space: nowrap !important;
             overflow: hidden !important;
             text-overflow: ellipsis !important;
+        }
+        .notif-menu p {
+            display: block !important;
+            white-space: normal !important;
+            overflow: visible !important;
+            text-overflow: clip !important;
+            font-size: 12px !important;
+            line-height: 1.45 !important;
+            color: var(--muted) !important;
+            margin: 0 0 6px !important;
+            word-break: break-word !important;
         }
         @media (max-width: 640px) {
             .topbar {
@@ -187,7 +207,7 @@ function render_header(string $title, ?array $user = null): void
             .topbar h1 {
                 font-size: 16px !important;
             }
-            .topbar p {
+            .topbar-title p {
                 font-size: 11px !important;
             }
             .user-chip {
@@ -206,7 +226,7 @@ function render_header(string $title, ?array $user = null): void
             .topbar h1 {
                 font-size: 15px !important;
             }
-            .topbar p {
+            .topbar-title p {
                 display: none !important;
             }
             .user-chip {

@@ -2006,25 +2006,36 @@ function importProductToGym(product) {
             const mealType = document.getElementById('importMealType').value;
             const formData = new FormData();
             formData.append('action', 'import_external_food');
-            formData.append('name', product.name);
+            formData.append('csrf_token', FT_CSRF_TOKEN);
+            formData.append('name', product.name || '');
             formData.append('meal_type', mealType);
             formData.append('serving_size', product.serving_size || '100g');
-            formData.append('calories', product.calories_100g);
-            formData.append('protein_g', product.protein_100g);
-            formData.append('carbs_g', product.carbs_100g);
-            formData.append('fat_g', product.fat_100g);
+            formData.append('calories', product.calories_100g ?? 0);
+            formData.append('protein_g', product.protein_100g ?? 0);
+            formData.append('carbs_g', product.carbs_100g ?? 0);
+            formData.append('fat_g', product.fat_100g ?? 0);
             formData.append('image_url', product.image || '');
             formData.append('source', 'openfoodfacts');
             formData.append('recipe_desc', product.brand ? `Brand: ${product.brand}` : '');
 
             return fetch('index.php?page=food_lookup', {
                 method: 'POST',
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'Accept': 'application/json'
+                },
                 body: formData
             })
-            .then(res => res.json())
-            .then(data => {
+            .then(async res => {
+                const text = await res.text();
+                let data;
+                try {
+                    data = JSON.parse(text);
+                } catch (e) {
+                    throw new Error('Server returned an invalid response. Please try again.');
+                }
                 if (!data.success) {
-                    throw new Error(data.error || 'Could not import food');
+                    throw new Error(data.error || data.message || 'Could not import food');
                 }
                 return data;
             })

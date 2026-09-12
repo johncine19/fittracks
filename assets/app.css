@@ -278,7 +278,7 @@ input[type="radio"] {
 .topbar {
     position: sticky;
     top: 0;
-    z-index: 4;
+    z-index: 100;
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -311,7 +311,7 @@ input[type="radio"] {
     line-height: 1.25;
 }
 
-.topbar p {
+.topbar-title p {
     margin: 2px 0 0;
     color: var(--muted);
     font-size: 12px;
@@ -988,7 +988,7 @@ code {
         line-height: 1.25;
     }
 
-    .topbar p {
+    .topbar-title p {
         font-size: 11px;
         white-space: nowrap;
         overflow: hidden;
@@ -1025,7 +1025,7 @@ code {
     .topbar h1 {
         font-size: 15px;
     }
-    .topbar p {
+    .topbar-title p {
         display: none;
     }
     .user-chip {
@@ -1795,6 +1795,7 @@ input::-ms-clear {
 /* Notifications */
 .notif-wrap {
     position: relative;
+    z-index: 105;
 }
 
 .notif-bell {
@@ -1979,10 +1980,13 @@ input::-ms-clear {
 }
 
 .notif-menu p {
+    display: block;
     margin: 0 0 6px;
     font-size: 12px;
     line-height: 1.45;
     color: var(--muted);
+    white-space: normal;
+    word-break: break-word;
 }
 
 .notif-menu-link {

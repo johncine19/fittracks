@@ -32,7 +32,7 @@ function member_dashboard(PDO $pdo, array $user): void
         border-radius: 12px;
         padding: 5px;
         position: sticky;
-        top: 72px;
+        top: 78px;
         z-index: 15;
         box-shadow: 0 4px 20px rgba(0,0,0,0.18);
         overflow-x: auto;
@@ -100,7 +100,7 @@ function member_dashboard(PDO $pdo, array $user): void
             gap: 6px;
         }
     }
-    @media (max-width: 480px) {
+    @media (max-width: 640px) {
         .member-dashboard-nav {
             top: 58px;
             padding: 4px;

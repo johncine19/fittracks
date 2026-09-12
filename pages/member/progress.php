@@ -502,12 +502,67 @@ function progress_page(): void
     
     <script>
     <?php
-    $recent = $rows[0] ?? [];
-    $recentWeight = $recent['weight_kg'] ?? '';
-    $recentBf = $recent['body_fat_percent'] ?? '';
-    $recentWaist = $recent['waist_cm'] ?? '';
-    $recentChest = $recent['chest_cm'] ?? '';
-    $recentArm = $recent['arm_cm'] ?? '';
+    $recentWeight = '';
+    $recentBf = '';
+    $recentWaist = '';
+    $recentChest = '';
+    $recentArm = '';
+    $recentHips = '';
+
+    // Scan previous logs for the most recent non-empty values
+    foreach ($rows as $r) {
+        if ($recentWeight === '' && !empty($r['weight_kg']) && (float)$r['weight_kg'] > 0) {
+            $recentWeight = (float)$r['weight_kg'];
+        }
+        if ($recentBf === '' && !empty($r['body_fat_percent']) && (float)$r['body_fat_percent'] > 0) {
+            $recentBf = (float)$r['body_fat_percent'];
+        }
+        if ($recentWaist === '' && !empty($r['waist_cm']) && (float)$r['waist_cm'] > 0) {
+            $recentWaist = (float)$r['waist_cm'];
+        }
+        if ($recentChest === '' && !empty($r['chest_cm']) && (float)$r['chest_cm'] > 0) {
+            $recentChest = (float)$r['chest_cm'];
+        }
+        if ($recentArm === '' && !empty($r['arm_cm']) && (float)$r['arm_cm'] > 0) {
+            $recentArm = (float)$r['arm_cm'];
+        }
+        if ($recentHips === '' && !empty($r['hips_cm']) && (float)$r['hips_cm'] > 0) {
+            $recentHips = (float)$r['hips_cm'];
+        }
+    }
+
+    // Fall back to baseline physical profile if not found in progress logs
+    if ($recentWeight === '' && !empty($member['weight_kg']) && (float)$member['weight_kg'] > 0) {
+        $recentWeight = (float)$member['weight_kg'];
+    }
+    if ($recentWaist === '' && !empty($member['waist_cm']) && (float)$member['waist_cm'] > 0) {
+        $recentWaist = (float)$member['waist_cm'];
+    }
+    if ($recentHips === '' && !empty($member['hip_cm']) && (float)$member['hip_cm'] > 0) {
+        $recentHips = (float)$member['hip_cm'];
+    }
+
+    // Auto-calculate body fat percent if not explicitly recorded and measurements exist
+    if ($recentBf === '' && !empty($member['height_cm']) && !empty($member['neck_cm']) && $recentWaist !== '') {
+        $h = (float)$member['height_cm'];
+        $n = (float)$member['neck_cm'];
+        $w = (float)$recentWaist;
+        $sex = strtolower((string)($member['biological_sex'] ?? 'male'));
+        $hip = (float)($recentHips ?: ($member['hip_cm'] ?? 0));
+
+        if ($sex === 'male' && $w > $n && $h > 0 && ($w - $n) > 0) {
+            $estBf = 495 / (1.0324 - 0.19077 * log10($w - $n) + 0.15456 * log10($h)) - 450;
+            if ($estBf >= 3 && $estBf <= 55) {
+                $recentBf = round($estBf, 1);
+            }
+        } elseif ($sex === 'female' && ($w + $hip) > $n && $h > 0 && ($w + $hip - $n) > 0) {
+            $estBf = 495 / (1.29579 - 0.35004 * log10($w + $hip - $n) + 0.22100 * log10($h)) - 450;
+            if ($estBf >= 5 && $estBf <= 60) {
+                $recentBf = round($estBf, 1);
+            }
+        }
+    }
+    $hasPrefilledMetrics = ($recentWeight !== '' || $recentWaist !== '' || $recentBf !== '');
     ?>
     function calculateBodyFat(e) {
         if (e) e.preventDefault();
@@ -528,9 +583,10 @@ function progress_page(): void
         }
         
         const savedBfSettings = JSON.parse(localStorage.getItem('fittracks_bf_settings') || '{}');
-        const defaultGender = savedBfSettings.gender || 'male';
-        const defaultHeight = savedBfSettings.height || '';
-        const defaultNeck = savedBfSettings.neck || '';
+        const defaultGender = savedBfSettings.gender || '<?= h(strtolower((string)($member['biological_sex'] ?? 'male'))) ?>';
+        const defaultHeight = savedBfSettings.height || '<?= h((string)($member['height_cm'] ?? '')) ?>';
+        const defaultNeck = savedBfSettings.neck || '<?= h((string)($member['neck_cm'] ?? '')) ?>';
+        const defaultHip = savedBfSettings.hip || '<?= h((string)($recentHips ?: ($member['hip_cm'] ?? ''))) ?>';
         
         Swal.fire({
             title: 'Estimate Body Fat %',
@@ -560,9 +616,9 @@ function progress_page(): void
                         </label>
                     </div>
                     
-                    <div id="hipContainer" style="display:none; gap:12px;">
+                    <div id="hipContainer" style="display:${defaultGender === 'female' ? 'flex' : 'none'}; gap:12px;">
                         <label style="display:block; flex:1; color: var(--muted); font-size: 14px;">Hip (cm) *
-                            <input name="hip" type="number" step="0.1" class="form-control" placeholder="Widest part (for females)" style="width: 100%; box-sizing: border-box;">
+                            <input name="hip" type="number" step="0.1" class="form-control" placeholder="Widest part (for females)" value="${defaultHip}" style="width: 100%; box-sizing: border-box;">
                         </label>
                     </div>
                 </form>
@@ -648,6 +704,12 @@ function progress_page(): void
                     <?= csrf_field() ?>
                     <?php if ($user['role'] === 'trainer'): ?>
                         <input type="hidden" name="member_user_id" value="<?= (int) $memberId ?>">
+                    <?php endif; ?>
+                    <?php if ($hasPrefilledMetrics): ?>
+                    <div style="display:flex;align-items:center;gap:7px;padding:8px 12px;border-radius:8px;background:rgba(199,255,34,0.08);border:1px solid rgba(199,255,34,0.25);color:var(--lime);font-size:12px;">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+                        <span>Pre-populated with your latest recorded measurements. Adjust any values as needed.</span>
+                    </div>
                     <?php endif; ?>
                     
                     <div style="display:flex;gap:12px;">
