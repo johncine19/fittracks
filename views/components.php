@@ -106,11 +106,336 @@ function render_member_form(string $context, ?array $user = null, ?array $profil
             font-family: inherit;
             transition: border-color 0.15s, box-shadow 0.15s;
         }
+        .pm-field select {
+            appearance: none;
+            -webkit-appearance: none;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%238792ad' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right 10px center;
+            padding-right: 32px;
+            cursor: pointer;
+        }
         .pm-field input:focus, .pm-field select:focus {
             border-color: var(--lime);
             outline: none;
             box-shadow: 0 0 0 3px rgba(199, 255, 34, 0.18);
         }
+
+        /* Modal Dialog Container & Scrolling Fix */
+        #physicalProfileModal {
+            max-height: min(92vh, 92dvh);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden !important;
+            box-sizing: border-box;
+        }
+        #physicalProfileModal .modal-header {
+            flex-shrink: 0;
+            padding: 16px 20px;
+            border-bottom: 1px solid var(--line);
+        }
+        #physicalProfileModal .modal-body {
+            flex: 1 1 auto;
+            min-height: 0;
+            overflow-y: auto !important;
+            overflow-x: hidden;
+            -webkit-overflow-scrolling: touch;
+            overscroll-behavior: contain;
+            padding: 18px 20px 0 20px;
+            display: flex;
+            flex-direction: column;
+        }
+        .pm-form {
+            display: flex;
+            flex-direction: column;
+            flex: 1 1 auto;
+            min-height: 0;
+        }
+        .pm-pane.active {
+            display: block;
+            flex: 1 0 auto;
+            padding-bottom: 16px;
+        }
+
+        /* Unified Custom Select Dropdowns (No Emoji, Glassmorphic Dark Theme) */
+        .custom-select-wrapper,
+        .custom-goal-dropdown {
+            position: relative;
+            width: 100%;
+        }
+        .custom-select-wrapper.open,
+        .custom-goal-dropdown.open {
+            z-index: 60;
+        }
+        .custom-select-native,
+        .custom-goal-native-select {
+            position: absolute !important;
+            opacity: 0 !important;
+            pointer-events: none !important;
+            width: 1px !important;
+            height: 1px !important;
+            margin: -1px !important;
+            clip: rect(0, 0, 0, 0) !important;
+        }
+        .custom-select-trigger,
+        .custom-goal-trigger {
+            width: 100%;
+            box-sizing: border-box;
+            background: var(--panel);
+            border: 1.5px solid var(--line);
+            color: var(--ink);
+            border-radius: 9px;
+            padding: 9px 12px;
+            font-size: 13.5px;
+            font-family: inherit;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            cursor: pointer;
+            transition: all 0.18s ease;
+            text-align: left;
+        }
+        .custom-select-trigger:hover,
+        .custom-goal-trigger:hover {
+            border-color: color-mix(in srgb, var(--lime) 45%, var(--line));
+            background: var(--panel-soft);
+        }
+        .custom-select-trigger:focus-visible,
+        .custom-goal-trigger:focus-visible,
+        .custom-select-wrapper.open .custom-select-trigger,
+        .custom-goal-dropdown.open .custom-goal-trigger {
+            border-color: var(--lime);
+            outline: none;
+            box-shadow: 0 0 0 3px rgba(199, 255, 34, 0.18);
+        }
+        .custom-select-trigger-content,
+        .custom-goal-trigger-content {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            min-width: 0;
+            flex: 1;
+        }
+        .custom-select-trigger-icon,
+        .custom-goal-trigger-icon {
+            width: 26px;
+            height: 26px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 7px;
+            background: color-mix(in srgb, var(--lime) 15%, transparent);
+            color: var(--lime);
+            flex-shrink: 0;
+        }
+        .custom-select-trigger-text,
+        .custom-goal-trigger-text {
+            font-size: 13.5px;
+            font-weight: 600;
+            color: var(--ink);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .custom-select-chevron,
+        .custom-goal-chevron {
+            color: var(--muted);
+            transition: transform 0.22s ease, color 0.22s ease;
+            flex-shrink: 0;
+            margin-left: 8px;
+        }
+        .custom-select-wrapper.open .custom-select-chevron,
+        .custom-goal-dropdown.open .custom-goal-chevron {
+            transform: rotate(180deg);
+            color: var(--lime);
+        }
+        .custom-select-menu,
+        .custom-goal-menu {
+            position: absolute;
+            top: calc(100% + 6px);
+            left: 0;
+            right: 0;
+            z-index: 1050;
+            background: var(--sidebar);
+            border: 1.5px solid color-mix(in srgb, var(--lime) 30%, var(--line));
+            border-radius: 12px;
+            box-shadow: 0 16px 36px rgba(0, 0, 0, 0.45), 0 0 0 1px rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            opacity: 0;
+            visibility: hidden;
+            transform: translateY(-6px) scale(0.98);
+            transition: opacity 0.18s cubic-bezier(0.16, 1, 0.3, 1), transform 0.18s cubic-bezier(0.16, 1, 0.3, 1), visibility 0.18s;
+            pointer-events: none;
+        }
+        .custom-select-wrapper.open .custom-select-menu,
+        .custom-goal-dropdown.open .custom-goal-menu {
+            opacity: 1;
+            visibility: visible;
+            transform: translateY(0) scale(1);
+            pointer-events: auto;
+        }
+        .custom-select-menu.drop-up,
+        .custom-goal-menu.drop-up {
+            top: auto;
+            bottom: calc(100% + 6px);
+            box-shadow: 0 -16px 36px rgba(0, 0, 0, 0.45), 0 0 0 1px rgba(255, 255, 255, 0.05);
+            transform: translateY(6px) scale(0.98);
+        }
+        .custom-select-wrapper.open .custom-select-menu.drop-up,
+        .custom-goal-dropdown.open .custom-goal-menu.drop-up {
+            transform: translateY(0) scale(1);
+        }
+        .custom-goal-search-box {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 12px;
+            border-bottom: 1px solid var(--line);
+            background: rgba(0, 0, 0, 0.14);
+        }
+        .custom-goal-search-box svg {
+            color: var(--muted);
+            flex-shrink: 0;
+        }
+        .custom-goal-search-box input {
+            background: transparent !important;
+            border: none !important;
+            box-shadow: none !important;
+            padding: 4px 0 !important;
+            font-size: 12.5px !important;
+            color: var(--ink) !important;
+            width: 100%;
+        }
+        .custom-goal-search-box input:focus {
+            outline: none !important;
+            box-shadow: none !important;
+        }
+        .custom-goal-clear-btn {
+            background: none;
+            border: none;
+            color: var(--muted);
+            cursor: pointer;
+            font-size: 11px;
+            padding: 2px 6px;
+            border-radius: 4px;
+            transition: color 0.15s;
+        }
+        .custom-goal-clear-btn:hover {
+            color: var(--ink);
+        }
+        .custom-select-list,
+        .custom-goal-list {
+            max-height: 240px;
+            overflow-y: auto;
+            padding: 6px;
+            scroll-behavior: smooth;
+        }
+        .custom-goal-group {
+            margin-bottom: 6px;
+        }
+        .custom-goal-group:last-child {
+            margin-bottom: 0;
+        }
+        .custom-goal-group-title {
+            font-size: 10.5px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.8px;
+            color: var(--lime);
+            padding: 6px 10px 3px;
+            user-select: none;
+        }
+        .custom-select-item,
+        .custom-goal-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 8px 10px;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.12s ease;
+            margin-bottom: 2px;
+            border: 1px solid transparent;
+            user-select: none;
+        }
+        .custom-select-item:hover,
+        .custom-goal-item:hover,
+        .custom-select-item.highlighted,
+        .custom-goal-item.highlighted {
+            background: color-mix(in srgb, var(--lime) 10%, transparent);
+            border-color: color-mix(in srgb, var(--lime) 25%, transparent);
+        }
+        .custom-select-item.selected,
+        .custom-goal-item.selected {
+            background: color-mix(in srgb, var(--lime) 16%, transparent);
+            border-color: color-mix(in srgb, var(--lime) 40%, transparent);
+        }
+        .custom-select-item-details,
+        .custom-goal-item-details {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+            min-width: 0;
+            flex: 1;
+        }
+        .custom-select-item-title,
+        .custom-goal-item-title {
+            font-size: 12.5px;
+            font-weight: 600;
+            color: var(--ink);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .custom-select-item-desc,
+        .custom-goal-item-desc {
+            font-size: 11px;
+            color: var(--muted);
+            white-space: normal;
+            line-height: 1.3;
+        }
+        .custom-select-check,
+        .custom-goal-check {
+            color: var(--lime);
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            margin-left: 10px;
+            flex-shrink: 0;
+            opacity: 0;
+            transform: scale(0.6);
+            transition: all 0.15s ease;
+        }
+        .custom-select-item.selected .custom-select-check,
+        .custom-goal-item.selected .custom-goal-check {
+            opacity: 1;
+            transform: scale(1);
+        }
+        .custom-goal-empty {
+            padding: 18px 12px;
+            text-align: center;
+            color: var(--muted);
+            font-size: 12px;
+            display: none;
+        }
+        .custom-select-list::-webkit-scrollbar,
+        .custom-goal-list::-webkit-scrollbar {
+            width: 5px;
+        }
+        .custom-select-list::-webkit-scrollbar-track,
+        .custom-goal-list::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        .custom-select-list::-webkit-scrollbar-thumb,
+        .custom-goal-list::-webkit-scrollbar-thumb {
+            background: color-mix(in srgb, var(--lime) 30%, transparent);
+            border-radius: 4px;
+        }
+
         .pm-footer {
             display: flex;
             justify-content: space-between;
@@ -120,9 +445,72 @@ function render_member_form(string $context, ?array $user = null, ?array $profil
             border-top: 1px solid var(--line);
             gap: 10px;
         }
+        #physicalProfileModal .pm-footer {
+            position: sticky;
+            bottom: 0;
+            background: var(--panel);
+            border-top: 1px solid var(--line);
+            margin-top: auto;
+            margin-left: -20px;
+            margin-right: -20px;
+            padding: 12px 20px 14px 20px;
+            z-index: 30;
+            box-shadow: 0 -8px 20px rgba(0, 0, 0, 0.35);
+        }
         @media (max-width: 520px) {
-            .pm-grid { grid-template-columns: 1fr; }
-            .pm-tab-btn span.tab-title { display: none; }
+            #physicalProfileModal {
+                width: 95% !important;
+                max-width: 95% !important;
+                max-height: 94vh;
+                max-height: 94dvh;
+                margin: auto;
+                border-radius: 12px;
+            }
+            #physicalProfileModal .modal-header {
+                padding: 12px 16px;
+            }
+            #physicalProfileModal .modal-header h3 {
+                font-size: 16px;
+            }
+            #physicalProfileModal .modal-body {
+                padding: 14px 16px 0 16px;
+            }
+            #physicalProfileModal .pm-footer {
+                margin-left: -16px;
+                margin-right: -16px;
+                padding: 10px 16px 12px 16px;
+            }
+            .pm-grid {
+                grid-template-columns: 1fr;
+                gap: 10px;
+            }
+            .pm-tab-bar {
+                margin-bottom: 12px;
+                gap: 4px;
+            }
+            .pm-tab-btn {
+                padding: 7px 8px;
+            }
+            .pm-tab-btn span.tab-title {
+                display: none;
+            }
+            .pm-field {
+                gap: 4px;
+                font-size: 11.5px;
+            }
+            .pm-field input,
+            .custom-select-trigger,
+            .custom-goal-trigger {
+                padding: 8px 10px;
+                font-size: 13px;
+            }
+        }
+        @media (max-width: 380px) {
+            .pm-footer .btn,
+            #physicalProfileModal .pm-footer .btn {
+                padding: 6px 10px !important;
+                font-size: 12px !important;
+            }
         }
     </style>
 
@@ -176,12 +564,56 @@ function render_member_form(string $context, ?array $user = null, ?array $profil
                            class="<?= isset($errors['age']) ? 'input-error' : '' ?>"
                            value="<?= h($profile['age'] ?? '') ?>">
                 </label>
-                <label class="pm-field">Biological sex
-                    <select name="biological_sex" onchange="document.getElementById('hipContainer_<?= h($context) ?>').style.display = this.value === 'female' ? 'flex' : 'none';" <?= $context !== 'profile' ? 'required' : '' ?>>
-                        <option value="male"   <?= selected('male',   $profile['biological_sex'] ?? null) ?>>Male</option>
-                        <option value="female" <?= selected('female', $profile['biological_sex'] ?? null) ?>>Female</option>
-                    </select>
-                </label>
+                <?php
+                $currentSex = $profile['biological_sex'] ?? 'male';
+                $sexOptions = [
+                    'male' => ['label' => 'Male', 'desc' => 'Standard body composition metrics'],
+                    'female' => ['label' => 'Female', 'desc' => 'Includes hip circumference tracking']
+                ];
+                $selectedSexLabel = $sexOptions[$currentSex]['label'] ?? 'Male';
+                ?>
+                <div class="pm-field">
+                    <label for="sexTrigger_<?= h($context) ?>">Biological sex</label>
+                    <div class="custom-select-wrapper" id="sexDropdown_<?= h($context) ?>">
+                        <select name="biological_sex" id="sexSelect_<?= h($context) ?>" class="custom-select-native" onchange="document.getElementById('hipContainer_<?= h($context) ?>').style.display = this.value === 'female' ? 'flex' : 'none';" <?= $context !== 'profile' ? 'required' : '' ?>>
+                            <option value="male" <?= selected('male', $currentSex) ?>>Male</option>
+                            <option value="female" <?= selected('female', $currentSex) ?>>Female</option>
+                        </select>
+
+                        <button type="button" class="custom-select-trigger" id="sexTrigger_<?= h($context) ?>" onclick="toggleCustomDropdown('sexDropdown_<?= h($context) ?>', event)" aria-haspopup="listbox" aria-expanded="false">
+                            <span class="custom-select-trigger-content">
+                                <span class="custom-select-trigger-icon">
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                                </span>
+                                <span class="custom-select-trigger-text" id="sexTriggerText_<?= h($context) ?>"><?= h($selectedSexLabel) ?></span>
+                            </span>
+                            <svg class="custom-select-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                                <polyline points="6 9 12 15 18 9"></polyline>
+                            </svg>
+                        </button>
+
+                        <div class="custom-select-menu" role="listbox">
+                            <div class="custom-select-list">
+                                <?php foreach ($sexOptions as $val => $opt): 
+                                    $isSelected = ($val === $currentSex);
+                                ?>
+                                    <div class="custom-select-item <?= $isSelected ? 'selected' : '' ?>"
+                                         data-value="<?= h($val) ?>"
+                                         data-label="<?= h($opt['label']) ?>"
+                                         role="option"
+                                         aria-selected="<?= $isSelected ? 'true' : 'false' ?>"
+                                         onclick="selectCustomOption('sexDropdown_<?= h($context) ?>', 'sexSelect_<?= h($context) ?>', '<?= h(addslashes($val)) ?>', '<?= h(addslashes($opt['label'])) ?>')">
+                                        <div class="custom-select-item-details">
+                                            <span class="custom-select-item-title"><?= h($opt['label']) ?></span>
+                                            <span class="custom-select-item-desc"><?= h($opt['desc']) ?></span>
+                                        </div>
+                                        <span class="custom-select-check"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span>
+                                    </div>
+                                <?php endforeach; ?>
+                            </div>
+                        </div>
+                    </div>
+                </div>
                 <label class="pm-field">Neck (cm)
                     <input name="neck_cm" type="number" step="0.01" min="1"
                            value="<?= h($profile['neck_cm'] ?? '') ?>">
@@ -198,36 +630,134 @@ function render_member_form(string $context, ?array $user = null, ?array $profil
         </div>
 
         <!-- TAB 2: GOAL & TARGETS -->
+        <?php
+        $goalGroups = [
+            'Aesthetic & Muscle Building' => [
+                'items' => [
+                    'Building a visible six-pack' => ['label' => 'Building a visible six-pack', 'desc' => 'Abdominal hypertrophy, core definition & waist reduction'],
+                    'Growing larger biceps and arms' => ['label' => 'Growing larger biceps and arms', 'desc' => 'Bicep peak & tricep circumference tracking'],
+                    'Developing a wide chest' => ['label' => 'Developing a wide chest', 'desc' => 'Pectoral hypertrophy & upper chest expansion'],
+                    'Sculpting a V-tapered back' => ['label' => 'Sculpting a V-tapered back', 'desc' => 'Lat width, upper back thickness & small waistline'],
+                    'Shaping the lower body' => ['label' => 'Shaping the lower body', 'desc' => 'Glutes, quadriceps & hamstring development'],
+                ]
+            ],
+            'Athletic & Performance' => [
+                'items' => [
+                    'Increasing maximum strength' => ['label' => 'Increasing maximum strength', 'desc' => 'Heavy compound lift progression (Squat, Bench, Deadlift)'],
+                    'Boosting explosive power' => ['label' => 'Boosting explosive power', 'desc' => 'Fast-twitch muscle recruitment & plyometric speed'],
+                    'Enhancing physical endurance' => ['label' => 'Enhancing physical endurance', 'desc' => 'Aerobic capacity, lactate threshold & stamina'],
+                    'Improving body flexibility' => ['label' => 'Improving body flexibility', 'desc' => 'Mobility, joint decompression & range of motion'],
+                ]
+            ],
+            'Body Composition' => [
+                'items' => [
+                    'Losing excess body fat' => ['label' => 'Losing excess body fat', 'desc' => 'Targeted fat reduction & waist measurement decrease'],
+                    'Gaining lean body mass' => ['label' => 'Gaining lean body mass', 'desc' => 'Caloric surplus with lean hypertrophy tracking'],
+                    'Reaching body recomposition' => ['label' => 'Reaching body recomposition', 'desc' => 'Concurrent muscle gain and fat loss at maintenance'],
+                ]
+            ],
+            'General' => [
+                'items' => [
+                    'fat_loss' => ['label' => 'Fat Loss', 'desc' => 'Overall weight loss & metabolic burn'],
+                    'muscle_gain' => ['label' => 'Muscle Gain', 'desc' => 'General strength & muscle growth'],
+                    'maintenance' => ['label' => 'Maintenance', 'desc' => 'Preserve current body weight and metabolic fitness'],
+                    'general_health' => ['label' => 'General Health', 'desc' => 'Longevity, vitality, cardiovascular wellness & energy'],
+                ]
+            ],
+        ];
+
+        $currentGoalVal = (string)($profile['primary_goal'] ?? 'Increasing maximum strength');
+        $currentGoalItem = null;
+        foreach ($goalGroups as $group) {
+            if (isset($group['items'][$currentGoalVal])) {
+                $currentGoalItem = $group['items'][$currentGoalVal];
+                break;
+            }
+        }
+        if (!$currentGoalItem) {
+            $currentGoalItem = [
+                'label' => !empty($currentGoalVal) ? $currentGoalVal : 'Select Primary Goal',
+                'desc' => ''
+            ];
+        }
+        ?>
         <div class="pm-pane" id="tabPane_<?= h($context) ?>_goal">
             <div class="pm-grid">
-                <label class="pm-field full-span">Primary goal
-                    <select name="primary_goal" id="primaryGoalSelect_<?= h($context) ?>" onchange="updateTargetMetrics_<?= h($context) ?>(this.value)" <?= $context !== 'profile' ? 'required' : '' ?>>
-                        <optgroup label="Aesthetic & Muscle Building">
-                            <option value="Building a visible six-pack" <?= selected("Building a visible six-pack", $profile['primary_goal'] ?? null) ?>>Building a visible six-pack</option>
-                            <option value="Growing larger biceps and arms" <?= selected("Growing larger biceps and arms", $profile['primary_goal'] ?? null) ?>>Growing larger biceps and arms</option>
-                            <option value="Developing a wide chest" <?= selected("Developing a wide chest", $profile['primary_goal'] ?? null) ?>>Developing a wide chest</option>
-                            <option value="Sculpting a V-tapered back" <?= selected("Sculpting a V-tapered back", $profile['primary_goal'] ?? null) ?>>Sculpting a V-tapered back</option>
-                            <option value="Shaping the lower body" <?= selected("Shaping the lower body", $profile['primary_goal'] ?? null) ?>>Shaping the lower body</option>
-                        </optgroup>
-                        <optgroup label="Athletic & Performance">
-                            <option value="Increasing maximum strength" <?= selected("Increasing maximum strength", $profile['primary_goal'] ?? null) ?>>Increasing maximum strength</option>
-                            <option value="Boosting explosive power" <?= selected("Boosting explosive power", $profile['primary_goal'] ?? null) ?>>Boosting explosive power</option>
-                            <option value="Enhancing physical endurance" <?= selected("Enhancing physical endurance", $profile['primary_goal'] ?? null) ?>>Enhancing physical endurance</option>
-                            <option value="Improving body flexibility" <?= selected("Improving body flexibility", $profile['primary_goal'] ?? null) ?>>Improving body flexibility</option>
-                        </optgroup>
-                        <optgroup label="Body Composition">
-                            <option value="Losing excess body fat" <?= selected("Losing excess body fat", $profile['primary_goal'] ?? null) ?>>Losing excess body fat</option>
-                            <option value="Gaining lean body mass" <?= selected("Gaining lean body mass", $profile['primary_goal'] ?? null) ?>>Gaining lean body mass</option>
-                            <option value="Reaching body recomposition" <?= selected("Reaching body recomposition", $profile['primary_goal'] ?? null) ?>>Reaching body recomposition</option>
-                        </optgroup>
-                        <optgroup label="General">
-                            <option value="fat_loss" <?= selected("fat_loss", $profile['primary_goal'] ?? null) ?>>Fat Loss</option>
-                            <option value="muscle_gain" <?= selected("muscle_gain", $profile['primary_goal'] ?? null) ?>>Muscle Gain</option>
-                            <option value="maintenance" <?= selected("maintenance", $profile['primary_goal'] ?? null) ?>>Maintenance</option>
-                            <option value="general_health" <?= selected("general_health", $profile['primary_goal'] ?? null) ?>>General Health</option>
-                        </optgroup>
-                    </select>
-                </label>
+                <div class="pm-field full-span">
+                    <label id="primaryGoalLabel_<?= h($context) ?>" for="primaryGoalTrigger_<?= h($context) ?>" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 3px;">
+                        <span>Primary Goal</span>
+                        <span class="muted" style="font-weight: 400; font-size: 11px;">Select your main fitness focus</span>
+                    </label>
+
+                    <div class="custom-select-wrapper custom-goal-dropdown" id="customGoalDropdown_<?= h($context) ?>">
+                        <!-- Underlying select keeps form submit 100% intact -->
+                        <select name="primary_goal" id="primaryGoalSelect_<?= h($context) ?>" class="custom-select-native custom-goal-native-select" onchange="updateTargetMetrics_<?= h($context) ?>(this.value)" <?= $context !== 'profile' ? 'required' : '' ?>>
+                            <?php foreach ($goalGroups as $groupName => $group): ?>
+                                <optgroup label="<?= h($groupName) ?>">
+                                    <?php foreach ($group['items'] as $val => $item): ?>
+                                        <option value="<?= h($val) ?>" <?= selected($val, $currentGoalVal) ?>><?= h($item['label']) ?></option>
+                                    <?php endforeach; ?>
+                                </optgroup>
+                            <?php endforeach; ?>
+                        </select>
+
+                        <!-- Custom dropdown trigger -->
+                        <button type="button" class="custom-select-trigger custom-goal-trigger" id="primaryGoalTrigger_<?= h($context) ?>" onclick="toggleCustomDropdown('customGoalDropdown_<?= h($context) ?>', event)" aria-haspopup="listbox" aria-expanded="false">
+                            <span class="custom-select-trigger-content custom-goal-trigger-content">
+                                <span class="custom-select-trigger-icon custom-goal-trigger-icon" id="primaryGoalTriggerIcon_<?= h($context) ?>">
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>
+                                </span>
+                                <span class="custom-select-trigger-text custom-goal-trigger-text" id="primaryGoalTriggerText_<?= h($context) ?>"><?= h($currentGoalItem['label']) ?></span>
+                            </span>
+                            <svg class="custom-select-chevron custom-goal-chevron" id="primaryGoalChevron_<?= h($context) ?>" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                                <polyline points="6 9 12 15 18 9"></polyline>
+                            </svg>
+                        </button>
+
+                        <!-- Custom dropdown popup menu -->
+                        <div class="custom-select-menu custom-goal-menu" id="primaryGoalMenu_<?= h($context) ?>" role="listbox">
+                            <!-- Quick search filter -->
+                            <div class="custom-goal-search-box">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                                    <circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                                </svg>
+                                <input type="text" id="primaryGoalSearch_<?= h($context) ?>" placeholder="Type to filter goals..." oninput="filterGoalList_<?= h($context) ?>(this.value)" autocomplete="off">
+                                <button type="button" class="custom-goal-clear-btn" id="primaryGoalClear_<?= h($context) ?>" onclick="clearGoalSearch_<?= h($context) ?>()" style="display: none;"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+                            </div>
+
+                            <!-- Options List -->
+                            <div class="custom-select-list custom-goal-list" id="primaryGoalOptionsList_<?= h($context) ?>">
+                                <?php foreach ($goalGroups as $groupName => $group): ?>
+                                    <div class="custom-goal-group" data-group-name="<?= h(strtolower($groupName)) ?>">
+                                        <div class="custom-goal-group-title">
+                                            <?= h($groupName) ?>
+                                        </div>
+                                        <?php foreach ($group['items'] as $val => $item): 
+                                            $isSelected = ($val === $currentGoalVal);
+                                        ?>
+                                            <div class="custom-select-item custom-goal-item <?= $isSelected ? 'selected' : '' ?>"
+                                                 data-value="<?= h($val) ?>"
+                                                 data-label="<?= h($item['label']) ?>"
+                                                 data-search="<?= h(strtolower($item['label'] . ' ' . $item['desc'] . ' ' . $groupName)) ?>"
+                                                 role="option"
+                                                 aria-selected="<?= $isSelected ? 'true' : 'false' ?>"
+                                                 onclick="selectCustomOption('customGoalDropdown_<?= h($context) ?>', 'primaryGoalSelect_<?= h($context) ?>', '<?= h(addslashes($val)) ?>', '<?= h(addslashes($item['label'])) ?>')">
+                                                <div class="custom-select-item-details custom-goal-item-details">
+                                                    <span class="custom-select-item-title custom-goal-item-title"><?= h($item['label']) ?></span>
+                                                    <span class="custom-select-item-desc custom-goal-item-desc"><?= h($item['desc']) ?></span>
+                                                </div>
+                                                <span class="custom-select-check custom-goal-check"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span>
+                                            </div>
+                                        <?php endforeach; ?>
+                                    </div>
+                                <?php endforeach; ?>
+                                <div class="custom-goal-empty" id="primaryGoalEmpty_<?= h($context) ?>">
+                                    No matching goals found
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
 
                 <!-- Arm Target -->
                 <label class="pm-field" id="targetArmField_<?= h($context) ?>" style="display: none;">
@@ -272,33 +802,176 @@ function render_member_form(string $context, ?array $user = null, ?array $profil
         <!-- TAB 3: LIFESTYLE & DIET -->
         <div class="pm-pane" id="tabPane_<?= h($context) ?>_lifestyle">
             <div class="pm-grid">
-                <label class="pm-field">Activity level
-                    <select name="activity_level" <?= $context !== 'profile' ? 'required' : '' ?>>
-                        <?php foreach (['sedentary', 'lightly_active', 'moderately_active', 'very_active', 'extra_active'] as $level): ?>
-                            <option value="<?= h($level) ?>" <?= selected($level, $profile['activity_level'] ?? null) ?>>
-                                <?= h(ucwords(str_replace('_', ' ', $level))) ?>
-                            </option>
-                        <?php endforeach; ?>
-                    </select>
-                </label>
+                <!-- Activity Level Custom Dropdown -->
+                <?php
+                $activityOptions = [
+                    'sedentary' => ['label' => 'Sedentary', 'desc' => 'Desk job, little to no regular exercise'],
+                    'lightly_active' => ['label' => 'Lightly Active', 'desc' => 'Light exercise / walking 1–3 days a week'],
+                    'moderately_active' => ['label' => 'Moderately Active', 'desc' => 'Moderate exercise / sports 3–5 days a week'],
+                    'very_active' => ['label' => 'Very Active', 'desc' => 'Hard exercise / training 6–7 days a week'],
+                    'extra_active' => ['label' => 'Extra Active', 'desc' => 'Very intense physical training or demanding job']
+                ];
+                $currentActivity = $profile['activity_level'] ?? 'sedentary';
+                $selectedActivityLabel = $activityOptions[$currentActivity]['label'] ?? 'Sedentary';
+                ?>
+                <div class="pm-field">
+                    <label for="activityTrigger_<?= h($context) ?>">Activity level</label>
+                    <div class="custom-select-wrapper" id="activityDropdown_<?= h($context) ?>">
+                        <select name="activity_level" id="activitySelect_<?= h($context) ?>" class="custom-select-native" <?= $context !== 'profile' ? 'required' : '' ?>>
+                            <?php foreach ($activityOptions as $level => $opt): ?>
+                                <option value="<?= h($level) ?>" <?= selected($level, $currentActivity) ?>><?= h($opt['label']) ?></option>
+                            <?php endforeach; ?>
+                        </select>
 
-                <label class="pm-field">Dietary Restrictions
-                    <select name="dietary_restrictions" required>
-                        <?php foreach (['none', 'vegetarian', 'vegan', 'pescatarian', 'halal', 'gluten-free', 'keto', 'paleo', 'nut-allergy', 'dairy-free'] as $diet): ?>
-                            <option value="<?= h($diet) ?>" <?= selected($diet, $profile['dietary_restrictions'] ?? 'none') ?>>
-                                <?= h(ucwords(str_replace('-', ' ', $diet))) ?>
-                            </option>
-                        <?php endforeach; ?>
-                    </select>
-                </label>
+                        <button type="button" class="custom-select-trigger" id="activityTrigger_<?= h($context) ?>" onclick="toggleCustomDropdown('activityDropdown_<?= h($context) ?>', event)" aria-haspopup="listbox" aria-expanded="false">
+                            <span class="custom-select-trigger-content">
+                                <span class="custom-select-trigger-icon">
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+                                </span>
+                                <span class="custom-select-trigger-text" id="activityTriggerText_<?= h($context) ?>"><?= h($selectedActivityLabel) ?></span>
+                            </span>
+                            <svg class="custom-select-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                                <polyline points="6 9 12 15 18 9"></polyline>
+                            </svg>
+                        </button>
 
-                <label class="pm-field full-span">Experience level
-                    <select name="experience_level" <?= $context !== 'profile' ? 'required' : '' ?>>
-                        <option value="1" <?= selected('1', isset($profile['fitness_tier']) ? (string)(in_array((int)$profile['fitness_tier'], [1,2]) ? 1 : (in_array((int)$profile['fitness_tier'], [3,4]) ? 2 : 3)) : null) ?>>Starter</option>
-                        <option value="2" <?= selected('2', isset($profile['fitness_tier']) ? (string)(in_array((int)$profile['fitness_tier'], [1,2]) ? 1 : (in_array((int)$profile['fitness_tier'], [3,4]) ? 2 : 3)) : null) ?>>Intermediate</option>
-                        <option value="3" <?= selected('3', isset($profile['fitness_tier']) ? (string)(in_array((int)$profile['fitness_tier'], [1,2]) ? 1 : (in_array((int)$profile['fitness_tier'], [3,4]) ? 2 : 3)) : null) ?>>Advanced</option>
-                    </select>
-                </label>
+                        <div class="custom-select-menu" role="listbox">
+                            <div class="custom-select-list">
+                                <?php foreach ($activityOptions as $val => $opt): 
+                                    $isSelected = ($val === $currentActivity);
+                                ?>
+                                    <div class="custom-select-item <?= $isSelected ? 'selected' : '' ?>"
+                                         data-value="<?= h($val) ?>"
+                                         data-label="<?= h($opt['label']) ?>"
+                                         role="option"
+                                         aria-selected="<?= $isSelected ? 'true' : 'false' ?>"
+                                         onclick="selectCustomOption('activityDropdown_<?= h($context) ?>', 'activitySelect_<?= h($context) ?>', '<?= h(addslashes($val)) ?>', '<?= h(addslashes($opt['label'])) ?>')">
+                                        <div class="custom-select-item-details">
+                                            <span class="custom-select-item-title"><?= h($opt['label']) ?></span>
+                                            <span class="custom-select-item-desc"><?= h($opt['desc']) ?></span>
+                                        </div>
+                                        <span class="custom-select-check"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span>
+                                    </div>
+                                <?php endforeach; ?>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Dietary Restrictions Custom Dropdown -->
+                <?php
+                $dietOptions = [
+                    'none' => ['label' => 'None', 'desc' => 'No dietary restrictions or food allergies'],
+                    'vegetarian' => ['label' => 'Vegetarian', 'desc' => 'Plant-based with dairy and eggs permitted'],
+                    'vegan' => ['label' => 'Vegan', 'desc' => 'Strictly plant-based, no animal products'],
+                    'pescatarian' => ['label' => 'Pescatarian', 'desc' => 'Vegetarian diet plus fish and seafood'],
+                    'halal' => ['label' => 'Halal', 'desc' => 'Conforms strictly to Islamic dietary rules'],
+                    'gluten-free' => ['label' => 'Gluten-Free', 'desc' => 'Eliminates wheat, barley, rye and gluten'],
+                    'keto' => ['label' => 'Keto', 'desc' => 'Very low carb, high healthy fats ketogenic plan'],
+                    'paleo' => ['label' => 'Paleo', 'desc' => 'Whole foods, lean proteins and vegetables'],
+                    'nut-allergy' => ['label' => 'Nut Allergy', 'desc' => 'Free of peanuts and tree nuts'],
+                    'dairy-free' => ['label' => 'Dairy-Free', 'desc' => 'Excludes lactose, milk and dairy products']
+                ];
+                $currentDiet = $profile['dietary_restrictions'] ?? 'none';
+                $selectedDietLabel = $dietOptions[$currentDiet]['label'] ?? 'None';
+                ?>
+                <div class="pm-field">
+                    <label for="dietTrigger_<?= h($context) ?>">Dietary Restrictions</label>
+                    <div class="custom-select-wrapper" id="dietDropdown_<?= h($context) ?>">
+                        <select name="dietary_restrictions" id="dietSelect_<?= h($context) ?>" class="custom-select-native" required>
+                            <?php foreach ($dietOptions as $diet => $opt): ?>
+                                <option value="<?= h($diet) ?>" <?= selected($diet, $currentDiet) ?>><?= h($opt['label']) ?></option>
+                            <?php endforeach; ?>
+                        </select>
+
+                        <button type="button" class="custom-select-trigger" id="dietTrigger_<?= h($context) ?>" onclick="toggleCustomDropdown('dietDropdown_<?= h($context) ?>', event)" aria-haspopup="listbox" aria-expanded="false">
+                            <span class="custom-select-trigger-content">
+                                <span class="custom-select-trigger-icon">
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8h1a4 4 0 0 1 0 8h-1"/><path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z"/><line x1="6" y1="1" x2="6" y2="4"/><line x1="10" y1="1" x2="10" y2="4"/><line x1="14" y1="1" x2="14" y2="4"/></svg>
+                                </span>
+                                <span class="custom-select-trigger-text" id="dietTriggerText_<?= h($context) ?>"><?= h($selectedDietLabel) ?></span>
+                            </span>
+                            <svg class="custom-select-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                                <polyline points="6 9 12 15 18 9"></polyline>
+                            </svg>
+                        </button>
+
+                        <div class="custom-select-menu" role="listbox">
+                            <div class="custom-select-list">
+                                <?php foreach ($dietOptions as $val => $opt): 
+                                    $isSelected = ($val === $currentDiet);
+                                ?>
+                                    <div class="custom-select-item <?= $isSelected ? 'selected' : '' ?>"
+                                         data-value="<?= h($val) ?>"
+                                         data-label="<?= h($opt['label']) ?>"
+                                         role="option"
+                                         aria-selected="<?= $isSelected ? 'true' : 'false' ?>"
+                                         onclick="selectCustomOption('dietDropdown_<?= h($context) ?>', 'dietSelect_<?= h($context) ?>', '<?= h(addslashes($val)) ?>', '<?= h(addslashes($opt['label'])) ?>')">
+                                        <div class="custom-select-item-details">
+                                            <span class="custom-select-item-title"><?= h($opt['label']) ?></span>
+                                            <span class="custom-select-item-desc"><?= h($opt['desc']) ?></span>
+                                        </div>
+                                        <span class="custom-select-check"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span>
+                                    </div>
+                                <?php endforeach; ?>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Experience Level Custom Dropdown -->
+                <?php
+                $expOptions = [
+                    '1' => ['label' => 'Starter', 'desc' => 'Beginner learning core movements & consistency'],
+                    '2' => ['label' => 'Intermediate', 'desc' => '1–2+ years structured resistance training'],
+                    '3' => ['label' => 'Advanced', 'desc' => '3+ years athletic progression & periodization']
+                ];
+                $currentExp = isset($profile['fitness_tier']) ? (string)(in_array((int)$profile['fitness_tier'], [1,2]) ? 1 : (in_array((int)$profile['fitness_tier'], [3,4]) ? 2 : 3)) : '1';
+                $selectedExpLabel = $expOptions[$currentExp]['label'] ?? 'Starter';
+                ?>
+                <div class="pm-field full-span">
+                    <label for="experienceTrigger_<?= h($context) ?>">Experience level</label>
+                    <div class="custom-select-wrapper" id="experienceDropdown_<?= h($context) ?>">
+                        <select name="experience_level" id="experienceSelect_<?= h($context) ?>" class="custom-select-native" <?= $context !== 'profile' ? 'required' : '' ?>>
+                            <?php foreach ($expOptions as $level => $opt): ?>
+                                <option value="<?= h((string)$level) ?>" <?= selected((string)$level, $currentExp) ?>><?= h($opt['label']) ?></option>
+                            <?php endforeach; ?>
+                        </select>
+
+                        <button type="button" class="custom-select-trigger" id="experienceTrigger_<?= h($context) ?>" onclick="toggleCustomDropdown('experienceDropdown_<?= h($context) ?>', event)" aria-haspopup="listbox" aria-expanded="false">
+                            <span class="custom-select-trigger-content">
+                                <span class="custom-select-trigger-icon">
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3Z"/></svg>
+                                </span>
+                                <span class="custom-select-trigger-text" id="experienceTriggerText_<?= h($context) ?>"><?= h($selectedExpLabel) ?></span>
+                            </span>
+                            <svg class="custom-select-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                                <polyline points="6 9 12 15 18 9"></polyline>
+                            </svg>
+                        </button>
+
+                        <div class="custom-select-menu" role="listbox">
+                            <div class="custom-select-list">
+                                <?php foreach ($expOptions as $val => $opt): 
+                                    $isSelected = ((string)$val === $currentExp);
+                                ?>
+                                    <div class="custom-select-item <?= $isSelected ? 'selected' : '' ?>"
+                                         data-value="<?= h((string)$val) ?>"
+                                         data-label="<?= h($opt['label']) ?>"
+                                         role="option"
+                                         aria-selected="<?= $isSelected ? 'true' : 'false' ?>"
+                                         onclick="selectCustomOption('experienceDropdown_<?= h($context) ?>', 'experienceSelect_<?= h($context) ?>', '<?= h(addslashes((string)$val)) ?>', '<?= h(addslashes($opt['label'])) ?>')">
+                                        <div class="custom-select-item-details">
+                                            <span class="custom-select-item-title"><?= h($opt['label']) ?></span>
+                                            <span class="custom-select-item-desc"><?= h($opt['desc']) ?></span>
+                                        </div>
+                                        <span class="custom-select-check"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span>
+                                    </div>
+                                <?php endforeach; ?>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
 
@@ -337,6 +1010,9 @@ function render_member_form(string $context, ?array $user = null, ?array $profil
         const nextBtn = document.getElementById('pmNextBtn_<?= h($context) ?>');
         if (prevBtn) prevBtn.style.display = currentPmTabIndex_<?= h($context) ?> > 0 ? 'inline-block' : 'none';
         if (nextBtn) nextBtn.style.display = currentPmTabIndex_<?= h($context) ?> < PM_TABS_<?= h($context) ?>.length - 1 ? 'inline-block' : 'none';
+
+        const modalBody = document.querySelector('#physicalProfileModal .modal-body');
+        if (modalBody) modalBody.scrollTop = 0;
     }
 
     function navProfileTab_<?= h($context) ?>(dir) {
@@ -401,6 +1077,171 @@ function render_member_form(string $context, ?array $user = null, ?array $profil
             updateTargetMetrics_<?= h($context) ?>(selectEl.value);
         }
     }, 80);
+
+    /* --- Unified Custom Select Dropdown Functions --- */
+    function toggleCustomDropdown(dropdownId, e) {
+        if (e) {
+            e.preventDefault();
+            e.stopPropagation();
+        }
+        const dd = document.getElementById(dropdownId);
+        if (!dd) return;
+        const isCurrentlyOpen = dd.classList.contains('open');
+
+        // Close all other dropdowns first
+        document.querySelectorAll('.custom-select-wrapper.open, .custom-goal-dropdown.open').forEach(el => {
+            if (el !== dd) {
+                el.classList.remove('open');
+                const trig = el.querySelector('.custom-select-trigger, .custom-goal-trigger');
+                if (trig) trig.setAttribute('aria-expanded', 'false');
+            }
+        });
+
+        const isOpen = !isCurrentlyOpen;
+        dd.classList.toggle('open', isOpen);
+        const trigger = dd.querySelector('.custom-select-trigger, .custom-goal-trigger');
+        const menu = dd.querySelector('.custom-select-menu, .custom-goal-menu');
+        if (trigger) trigger.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+
+        if (isOpen && menu && trigger) {
+            const rect = trigger.getBoundingClientRect();
+            const spaceBelow = window.innerHeight - rect.bottom;
+            if (spaceBelow < 260 && rect.top > 260) {
+                menu.classList.add('drop-up');
+            } else {
+                menu.classList.remove('drop-up');
+            }
+
+            const searchInput = dd.querySelector('input[type="text"]');
+            if (searchInput) {
+                searchInput.value = '';
+                filterGoalList_<?= h($context) ?>('');
+                setTimeout(() => searchInput.focus(), 60);
+            }
+
+            const selectedItem = menu.querySelector('.custom-select-item.selected, .custom-goal-item.selected');
+            if (selectedItem) {
+                selectedItem.scrollIntoView({ block: 'nearest' });
+            }
+        }
+    }
+
+    function selectCustomOption(dropdownId, selectId, val, label) {
+        const hiddenSelect = document.getElementById(selectId);
+        if (hiddenSelect) {
+            hiddenSelect.value = val;
+            hiddenSelect.dispatchEvent(new Event('change'));
+            if (typeof hiddenSelect.onchange === 'function') {
+                hiddenSelect.onchange();
+            }
+        }
+
+        const dd = document.getElementById(dropdownId);
+        if (dd) {
+            const triggerText = dd.querySelector('.custom-select-trigger-text, .custom-goal-trigger-text');
+            if (triggerText) triggerText.textContent = label;
+
+            const items = dd.querySelectorAll('.custom-select-item, .custom-goal-item');
+            items.forEach(item => {
+                const isMatch = item.dataset.value === val;
+                item.classList.toggle('selected', isMatch);
+                item.setAttribute('aria-selected', isMatch ? 'true' : 'false');
+            });
+
+            dd.classList.remove('open');
+            const trigger = dd.querySelector('.custom-select-trigger, .custom-goal-trigger');
+            if (trigger) trigger.setAttribute('aria-expanded', 'false');
+        }
+
+        if (selectId.startsWith('primaryGoalSelect')) {
+            updateTargetMetrics_<?= h($context) ?>(val);
+        }
+    }
+
+    function filterGoalList_<?= h($context) ?>(q) {
+        const query = (q || '').trim().toLowerCase();
+        const clearBtn = document.getElementById('primaryGoalClear_<?= h($context) ?>');
+        if (clearBtn) clearBtn.style.display = query ? 'block' : 'none';
+
+        const groups = document.querySelectorAll('#primaryGoalOptionsList_<?= h($context) ?> .custom-goal-group');
+        let totalVisible = 0;
+
+        groups.forEach(group => {
+            const items = group.querySelectorAll('.custom-select-item, .custom-goal-item');
+            let groupVisible = 0;
+            items.forEach(item => {
+                const searchTxt = item.dataset.search || '';
+                const matches = !query || searchTxt.includes(query);
+                item.style.display = matches ? 'flex' : 'none';
+                if (matches) groupVisible++;
+            });
+            group.style.display = groupVisible > 0 ? 'block' : 'none';
+            totalVisible += groupVisible;
+        });
+
+        const emptyEl = document.getElementById('primaryGoalEmpty_<?= h($context) ?>');
+        if (emptyEl) emptyEl.style.display = totalVisible === 0 ? 'block' : 'none';
+    }
+
+    function clearGoalSearch_<?= h($context) ?>() {
+        const searchInput = document.getElementById('primaryGoalSearch_<?= h($context) ?>');
+        if (searchInput) {
+            searchInput.value = '';
+            filterGoalList_<?= h($context) ?>('');
+            searchInput.focus();
+        }
+    }
+
+    // Close on click outside
+    document.addEventListener('click', function(e) {
+        document.querySelectorAll('.custom-select-wrapper.open, .custom-goal-dropdown.open').forEach(dd => {
+            if (!dd.contains(e.target)) {
+                dd.classList.remove('open');
+                const trig = dd.querySelector('.custom-select-trigger, .custom-goal-trigger');
+                if (trig) trig.setAttribute('aria-expanded', 'false');
+            }
+        });
+    });
+
+    // Keyboard accessibility
+    document.addEventListener('keydown', function(e) {
+        const openDd = document.querySelector('.custom-select-wrapper.open, .custom-goal-dropdown.open');
+        if (!openDd) return;
+
+        if (e.key === 'Escape') {
+            openDd.classList.remove('open');
+            const trigger = openDd.querySelector('.custom-select-trigger, .custom-goal-trigger');
+            if (trigger) {
+                trigger.setAttribute('aria-expanded', 'false');
+                trigger.focus();
+            }
+            return;
+        }
+
+        const visibleItems = Array.from(openDd.querySelectorAll('.custom-select-item, .custom-goal-item')).filter(el => el.style.display !== 'none');
+        if (!visibleItems.length) return;
+
+        let activeIdx = visibleItems.findIndex(el => el.classList.contains('highlighted'));
+
+        if (e.key === 'ArrowDown') {
+            e.preventDefault();
+            if (activeIdx >= 0) visibleItems[activeIdx].classList.remove('highlighted');
+            activeIdx = (activeIdx + 1) % visibleItems.length;
+            visibleItems[activeIdx].classList.add('highlighted');
+            visibleItems[activeIdx].scrollIntoView({ block: 'nearest' });
+        } else if (e.key === 'ArrowUp') {
+            e.preventDefault();
+            if (activeIdx >= 0) visibleItems[activeIdx].classList.remove('highlighted');
+            activeIdx = (activeIdx - 1 + visibleItems.length) % visibleItems.length;
+            visibleItems[activeIdx].classList.add('highlighted');
+            visibleItems[activeIdx].scrollIntoView({ block: 'nearest' });
+        } else if (e.key === 'Enter') {
+            if (activeIdx >= 0 && visibleItems[activeIdx]) {
+                e.preventDefault();
+                visibleItems[activeIdx].click();
+            }
+        }
+    });
     </script>
     <?php
 }

@@ -274,6 +274,10 @@ function memberships_page(): void
             </div>
             
             <?php if ($user['role'] === 'member'): ?>
+                <div style="display:flex;gap:8px;max-width:440px;margin-bottom:28px">
+                    <div class="sk sk-rect" style="flex:1;height:42px;border-radius:10px"></div>
+                    <div class="sk sk-rect" style="flex:1;height:42px;border-radius:10px"></div>
+                </div>
                 <div style="text-align:center;margin-bottom:30px">
                     <div class="sk sk-rect" style="width:120px;height:32px;border-radius:16px;margin:0 auto 16px"></div>
                     <div class="sk sk-title" style="width:340px;height:32px;margin:0 auto 12px"></div>
@@ -341,125 +345,222 @@ function memberships_page(): void
             $planCount = count($plans);
             $popularIndex = ($planCount === 3) ? 1 : ($planCount > 1 ? 1 : 0);
         ?>
-            <div class="membership-plans-hero-wrap">
-                <div class="membership-hero-header">
-                    <div class="membership-brand-pill">
-                        <div class="membership-brand-logo">FT</div>
-                        <span class="membership-brand-title"><?= h($gymName ?: 'FitTrack') ?></span>
-                    </div>
-                    <h1 class="membership-hero-title">Choose Your Subscription Plan</h1>
-                    <p class="membership-hero-subtitle">
-                        Select the plan that fits your gym journey. You can upgrade, downgrade, or renew at any time.
-                    </p>
-                </div>
+            <!-- Top View Switcher -->
+            <nav class="member-membership-nav" aria-label="Membership Views">
+                <button type="button" class="member-nav-tab active" id="tab-btn-plans" onclick="switchMembershipView('plans')" title="Subscription Plans">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                        <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>
+                    </svg>
+                    <span>
+                        <span class="tab-label-full">Subscription Plans</span>
+                        <span class="tab-label-compact">Plans</span>
+                    </span>
+                </button>
+                <button type="button" class="member-nav-tab" id="tab-btn-records" onclick="switchMembershipView('records')" title="Membership Records">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                        <polyline points="14 2 14 8 20 8"></polyline>
+                        <line x1="16" y1="13" x2="8" y2="13"></line>
+                        <line x1="16" y1="17" x2="8" y2="17"></line>
+                        <polyline points="10 9 9 9 8 9"></polyline>
+                    </svg>
+                    <span>
+                        <span class="tab-label-full">Membership Records</span>
+                        <span class="tab-label-compact">Records</span>
+                    </span>
+                    <?php if (!empty($rows)): ?>
+                        <span class="tab-badge-pill"><?= count($rows) ?></span>
+                    <?php endif; ?>
+                </button>
+            </nav>
 
-                <?php if (empty($plans)): ?>
-                    <div style="text-align: center; padding: 48px 20px; background: rgba(128,128,128,0.05); border-radius: 20px; border: 1px dashed var(--line); max-width: 580px; margin: 0 auto;">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="var(--muted)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="margin-bottom: 16px;"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>
-                        <h3 style="font-size: 1.25rem; font-weight: 700; margin: 0 0 8px; color: var(--ink);">No Membership Plans Available Yet</h3>
-                        <p style="color: var(--muted); font-size: 14px; margin: 0; line-height: 1.5;">
-                            <?= h($gymName ?: 'This gym') ?> has not published any membership subscription plans yet. Please check back later or inquire at the front desk.
+            <!-- PANE 1: SUBSCRIPTION PLANS -->
+            <div id="view-pane-plans" class="membership-view-pane active">
+                <div class="membership-plans-hero-wrap">
+                    <div class="membership-hero-header">
+                        <div class="membership-brand-pill">
+                            <div class="membership-brand-logo">FT</div>
+                            <span class="membership-brand-title"><?= h($gymName ?: 'FitTrack') ?></span>
+                        </div>
+                        <h1 class="membership-hero-title">Choose Your Subscription Plan</h1>
+                        <p class="membership-hero-subtitle">
+                            Select the plan that fits your gym journey. You can upgrade, downgrade, or renew at any time.
                         </p>
                     </div>
-                <?php else: ?>
-                    <div class="member-pricing-grid">
-                        <?php 
-                        $hasCustomPopular = false;
-                        foreach ($plans as $p) {
-                            if (!empty($p['is_popular'])) {
-                                $hasCustomPopular = true;
-                                break;
-                            }
-                        }
-                        foreach ($plans as $index => $plan): 
-                            $isActive = ($activePlanId === (int)$plan['plan_id']);
-                            $isPopular = $hasCustomPopular ? !empty($plan['is_popular']) : ($index === $popularIndex);
-                            $displayPrice = (float)$plan['price'];
-                            
-                            if (!$isActive && $sameDayDiscount > 0) {
-                                $displayPrice = max(0, $displayPrice - $sameDayDiscount);
-                            }
 
-                            $duration = (int)($plan['duration_days'] ?? 30);
-                            if ($duration >= 350) {
-                                $period = '/yr';
-                            } elseif ($duration >= 80 && $duration <= 100) {
-                                $period = '/quarter';
-                            } elseif ($duration === 30 || $duration === 31) {
-                                $period = '/mo';
-                            } else {
-                                $period = '/' . $duration . 'd';
-                            }
-
-                            // Subtitle descriptions
-                            $desc = trim((string)($plan['description'] ?? ''));
-                            if (empty($desc) || str_contains($desc, "\n")) {
-                                if ($duration >= 350) {
-                                    $desc = 'Best for dedicated members seeking maximum value & perks.';
-                                } elseif ($duration >= 80) {
-                                    $desc = 'Best for consistent members and coaching add-ons.';
-                                } else {
-                                    $desc = 'Best for flexible, month-to-month gym access.';
+                    <?php if (empty($plans)): ?>
+                        <div style="text-align: center; padding: 48px 20px; background: rgba(128,128,128,0.05); border-radius: 20px; border: 1px dashed var(--line); max-width: 580px; margin: 0 auto;">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="var(--muted)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="margin-bottom: 16px;"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>
+                            <h3 style="font-size: 1.25rem; font-weight: 700; margin: 0 0 8px; color: var(--ink);">No Membership Plans Available Yet</h3>
+                            <p style="color: var(--muted); font-size: 14px; margin: 0; line-height: 1.5;">
+                                <?= h($gymName ?: 'This gym') ?> has not published any membership subscription plans yet. Please check back later or inquire at the front desk.
+                            </p>
+                        </div>
+                    <?php else: ?>
+                        <div class="member-pricing-grid">
+                            <?php 
+                            $hasCustomPopular = false;
+                            foreach ($plans as $p) {
+                                if (!empty($p['is_popular'])) {
+                                    $hasCustomPopular = true;
+                                    break;
                                 }
                             }
+                            foreach ($plans as $index => $plan): 
+                                $isActive = ($activePlanId === (int)$plan['plan_id']);
+                                $isPopular = $hasCustomPopular ? !empty($plan['is_popular']) : ($index === $popularIndex);
+                                $displayPrice = (float)$plan['price'];
+                                
+                                if (!$isActive && $sameDayDiscount > 0) {
+                                    $displayPrice = max(0, $displayPrice - $sameDayDiscount);
+                                }
 
-                            $features = get_membership_plan_features($plan);
-                            $formattedPrice = '₱' . number_format($displayPrice, (fmod($displayPrice, 1.0) == 0.0 ? 0 : 2));
-                            $formattedOrigPrice = '₱' . number_format((float)$plan['price'], (fmod((float)$plan['price'], 1.0) == 0.0 ? 0 : 2));
-                        ?>
-                            <div class="member-pricing-card <?= $isPopular ? 'popular' : '' ?>">
-                                <?php if ($isPopular): ?>
-                                    <div class="member-popular-badge">MOST POPULAR</div>
-                                <?php endif; ?>
+                                $duration = (int)($plan['duration_days'] ?? 30);
+                                if ($duration >= 350) {
+                                    $period = '/yr';
+                                } elseif ($duration >= 80) {
+                                    $period = '/quarter';
+                                } elseif ($duration >= 25 && $duration <= 35) {
+                                    $period = '/mo';
+                                } else {
+                                    $period = '/' . $duration . 'd';
+                                }
 
-                                <h2 class="member-pricing-title <?= $isPopular ? 'popular-title' : '' ?>">
-                                    <?= h($plan['plan_name']) ?>
-                                    <?php if ($isActive): ?>
-                                        <span class="member-current-badge">CURRENT</span>
+                                // Subtitle descriptions
+                                $desc = trim((string)($plan['description'] ?? ''));
+                                if (empty($desc) || str_contains($desc, "\n")) {
+                                    if ($duration >= 350) {
+                                        $desc = 'Best for dedicated members seeking maximum value & perks.';
+                                    } elseif ($duration >= 80) {
+                                        $desc = 'Best for consistent members and coaching add-ons.';
+                                    } else {
+                                        $desc = 'Best for flexible, month-to-month gym access.';
+                                    }
+                                }
+
+                                $features = get_membership_plan_features($plan);
+                                $formattedPrice = '₱' . number_format($displayPrice, (fmod($displayPrice, 1.0) == 0.0 ? 0 : 2));
+                                $formattedOrigPrice = '₱' . number_format((float)$plan['price'], (fmod((float)$plan['price'], 1.0) == 0.0 ? 0 : 2));
+                            ?>
+                                <div class="member-pricing-card <?= $isPopular ? 'popular' : '' ?>">
+                                    <?php if ($isPopular): ?>
+                                        <div class="member-popular-badge">MOST POPULAR</div>
                                     <?php endif; ?>
-                                </h2>
 
-                                <p class="member-pricing-desc"><?= h($desc) ?></p>
+                                    <h2 class="member-pricing-title <?= $isPopular ? 'popular-title' : '' ?>">
+                                        <?= h($plan['plan_name']) ?>
+                                    </h2>
 
-                                <div class="member-pricing-price">
-                                    <?php if (!$isActive && $sameDayDiscount > 0): ?>
-                                        <span class="discount-strike"><?= h($formattedOrigPrice) ?></span>
-                                    <?php endif; ?>
-                                    <span class="amount"><?= h($formattedPrice) ?></span>
-                                    <span class="period"><?= h($period) ?></span>
+                                    <p class="member-pricing-desc"><?= h($desc) ?></p>
+
+                                    <div class="member-pricing-price">
+                                        <?php if (!$isActive && $sameDayDiscount > 0): ?>
+                                            <span class="discount-strike"><?= h($formattedOrigPrice) ?></span>
+                                        <?php endif; ?>
+                                        <span class="amount"><?= h($formattedPrice) ?></span>
+                                        <span class="period"><?= h($period) ?></span>
+                                    </div>
+
+                                    <ul class="member-pricing-features">
+                                        <?php foreach ($features as $feat): ?>
+                                            <li>
+                                                <span class="member-checkmark">✓</span>
+                                                <span><?= h($feat) ?></span>
+                                            </li>
+                                        <?php endforeach; ?>
+                                    </ul>
+
+                                    <div style="margin-top: auto; padding-top: 28px;">
+                                        <?php if ($isActive): ?>
+                                            <button type="button" 
+                                                    class="member-pricing-btn member-popular-btn"
+                                                    onclick="subscribePlan(<?= (int)$plan['plan_id'] ?>, '<?= htmlspecialchars($plan['plan_name'], ENT_QUOTES) ?>', '<?= htmlspecialchars($formattedPrice, ENT_QUOTES) ?>', true)">
+                                                Renew Plan
+                                            </button>
+                                        <?php else: ?>
+                                            <button type="button" 
+                                                    class="member-pricing-btn <?= $isPopular ? 'member-popular-btn' : 'member-standard-btn' ?>"
+                                                    onclick="subscribePlan(<?= (int)$plan['plan_id'] ?>, '<?= htmlspecialchars($plan['plan_name'], ENT_QUOTES) ?>', '<?= htmlspecialchars($formattedPrice, ENT_QUOTES) ?>', false)">
+                                                Get Started
+                                            </button>
+                                        <?php endif; ?>
+                                    </div>
                                 </div>
+                            <?php endforeach; ?>
+                        </div>
+                    <?php endif; ?>
+                </div>
+            </div>
 
-                                <ul class="member-pricing-features">
-                                    <?php foreach ($features as $feat): ?>
-                                        <li>
-                                            <span class="member-checkmark">✓</span>
-                                            <span><?= h($feat) ?></span>
-                                        </li>
-                                    <?php endforeach; ?>
-                                </ul>
-
-                                <div style="margin-top: auto; padding-top: 28px;">
-                                    <?php if ($isActive): ?>
-                                        <button type="button" 
-                                                class="member-pricing-btn member-popular-btn"
-                                                onclick="subscribePlan(<?= (int)$plan['plan_id'] ?>, '<?= htmlspecialchars($plan['plan_name'], ENT_QUOTES) ?>', '<?= htmlspecialchars($formattedPrice, ENT_QUOTES) ?>', true)">
-                                            Renew Plan
-                                        </button>
-                                    <?php else: ?>
-                                        <button type="button" 
-                                                class="member-pricing-btn <?= $isPopular ? 'member-popular-btn' : 'member-standard-btn' ?>"
-                                                onclick="subscribePlan(<?= (int)$plan['plan_id'] ?>, '<?= htmlspecialchars($plan['plan_name'], ENT_QUOTES) ?>', '<?= htmlspecialchars($formattedPrice, ENT_QUOTES) ?>', false)">
-                                            Get Started
-                                        </button>
-                                    <?php endif; ?>
-                                </div>
-                            </div>
-                        <?php endforeach; ?>
+            <!-- PANE 2: MEMBERSHIP RECORDS -->
+            <div id="view-pane-records" class="membership-view-pane" style="display: none;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 18px;">
+                    <div>
+                        <h2 style="margin: 0 0 4px; font-size: 1.35rem; font-weight: 700;">Membership Records</h2>
+                        <p style="margin: 0; color: var(--muted); font-size: 0.9rem;">Your active subscriptions, past history, and renewal terms.</p>
+                    </div>
+                </div>
+                <?php if (!$rows): ?>
+                    <div class="empty-state">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>
+                        <p>No memberships found.</p>
+                    </div>
+                <?php else: ?>
+                    <div class="table-wrap">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Plan</th>
+                                    <th>Price</th>
+                                    <th>Start</th>
+                                    <th>End</th>
+                                    <th>Status</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                            <?php foreach ($rows as $row):
+                                $statusClass = 'badge badge-' . $row['status'];
+                            ?>
+                                <tr>
+                                    <td><strong><?= h($row['plan_name']) ?></strong></td>
+                                    <td><?= h(money($row['price'])) ?></td>
+                                    <td><?= h(date('M j, Y', strtotime($row['start_date']))) ?></td>
+                                    <td><?= h(date('M j, Y', strtotime($row['end_date']))) ?></td>
+                                    <td><span class="<?= $statusClass ?>"><?= h($row['status']) ?></span></td>
+                                </tr>
+                            <?php endforeach; ?>
+                            </tbody>
+                        </table>
                     </div>
                 <?php endif; ?>
             </div>
 
             <script>
+            function switchMembershipView(viewName) {
+                const plansBtn = document.getElementById('tab-btn-plans');
+                const recordsBtn = document.getElementById('tab-btn-records');
+                const plansPane = document.getElementById('view-pane-plans');
+                const recordsPane = document.getElementById('view-pane-records');
+
+                if (viewName === 'records') {
+                    if (plansBtn) plansBtn.classList.remove('active');
+                    if (recordsBtn) recordsBtn.classList.add('active');
+                    if (plansPane) plansPane.style.display = 'none';
+                    if (recordsPane) recordsPane.style.display = 'block';
+                    try { history.replaceState(null, null, '#records'); } catch(e){}
+                } else {
+                    if (plansBtn) plansBtn.classList.add('active');
+                    if (recordsBtn) recordsBtn.classList.remove('active');
+                    if (plansPane) plansPane.style.display = 'block';
+                    if (recordsPane) recordsPane.style.display = 'none';
+                    try { history.replaceState(null, null, '#plans'); } catch(e){}
+                }
+            }
+
+            if (window.location.hash === '#records') {
+                switchMembershipView('records');
+            }
+
             function subscribePlan(planId, planName, planPrice, isCurrent) {
                 const actionWord = isCurrent ? 'Renew' : 'Subscribe to';
                 const btnWord = isCurrent ? 'Confirm & Renew' : 'Confirm Subscription';
@@ -520,56 +621,56 @@ function memberships_page(): void
                 });
             }
             </script>
-        <?php endif; ?>
-
-        <h2 style="margin-bottom: 12px;">Membership records</h2>
-        <?php if (!$rows): ?>
-            <div class="empty-state">
-                <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>
-                <p>No memberships found.</p>
-            </div>
         <?php else: ?>
-        <div class="table-wrap">
-            <table>
-                <thead>
-                    <tr>
-                        <?php if ($user['role'] !== 'member'): ?><th>Member</th><?php endif; ?>
-                        <th>Plan</th>
-                        <th>Price</th>
-                        <th>Start</th>
-                        <th>End</th>
-                        <th>Status</th>
-                        <?php if ($user['role'] === 'gym_owner'): ?><th>Action</th><?php endif; ?>
-                    </tr>
-                </thead>
-                <tbody>
-                <?php foreach ($rows as $row):
-                    $statusClass = 'badge badge-' . $row['status'];
-                ?>
-                    <tr>
-                        <?php if ($user['role'] !== 'member'): ?>
-                        <td>
-                            <div class="user-cell">
-                                <?= render_avatar($row) ?>
-                                <span><?= h($row['member']) ?></span>
-                            </div>
-                        </td>
-                        <?php endif; ?>
-                        <td><strong><?= h($row['plan_name']) ?></strong></td>
-                        <td><?= h(money($row['price'])) ?></td>
-                        <td><?= h(date('M j, Y', strtotime($row['start_date']))) ?></td>
-                        <td><?= h(date('M j, Y', strtotime($row['end_date']))) ?></td>
-                        <td><span class="<?= $statusClass ?>"><?= h($row['status']) ?></span></td>
-                        <?php if ($user['role'] === 'gym_owner'): ?>
-                        <td>
-                            <button onclick="editStatus(<?= $row['membership_id'] ?>, '<?= h($row['status']) ?>')" class="btn btn-secondary" style="padding:4px 8px;font-size:12px;" title="Edit Status">Update</button>
-                        </td>
-                        <?php endif; ?>
-                    </tr>
-                <?php endforeach; ?>
-                </tbody>
-            </table>
-        </div>
+            <h2 style="margin-bottom: 12px;">Membership records</h2>
+            <?php if (!$rows): ?>
+                <div class="empty-state">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>
+                    <p>No memberships found.</p>
+                </div>
+            <?php else: ?>
+            <div class="table-wrap">
+                <table>
+                    <thead>
+                        <tr>
+                            <?php if ($user['role'] !== 'member'): ?><th>Member</th><?php endif; ?>
+                            <th>Plan</th>
+                            <th>Price</th>
+                            <th>Start</th>
+                            <th>End</th>
+                            <th>Status</th>
+                            <?php if ($user['role'] === 'gym_owner'): ?><th>Action</th><?php endif; ?>
+                        </tr>
+                    </thead>
+                    <tbody>
+                    <?php foreach ($rows as $row):
+                        $statusClass = 'badge badge-' . $row['status'];
+                    ?>
+                        <tr>
+                            <?php if ($user['role'] !== 'member'): ?>
+                            <td>
+                                <div class="user-cell">
+                                    <?= render_avatar($row) ?>
+                                    <span><?= h($row['member']) ?></span>
+                                </div>
+                            </td>
+                            <?php endif; ?>
+                            <td><strong><?= h($row['plan_name']) ?></strong></td>
+                            <td><?= h(money($row['price'])) ?></td>
+                            <td><?= h(date('M j, Y', strtotime($row['start_date']))) ?></td>
+                            <td><?= h(date('M j, Y', strtotime($row['end_date']))) ?></td>
+                            <td><span class="<?= $statusClass ?>"><?= h($row['status']) ?></span></td>
+                            <?php if ($user['role'] === 'gym_owner'): ?>
+                            <td>
+                                <button onclick="editStatus(<?= $row['membership_id'] ?>, '<?= h($row['status']) ?>')" class="btn btn-secondary" style="padding:4px 8px;font-size:12px;" title="Edit Status">Update</button>
+                            </td>
+                            <?php endif; ?>
+                        </tr>
+                    <?php endforeach; ?>
+                    </tbody>
+                </table>
+            </div>
+            <?php endif; ?>
         <?php endif; ?>
     </section>
     
@@ -671,37 +772,150 @@ function memberships_page(): void
 
     <style>
     /* ============================================================
-       Membership 3-Card Subscription Pricing Aesthetic
+       Membership Top View Switcher & Subscription Pricing Aesthetic
        ============================================================ */
+    .member-membership-nav {
+        display: flex;
+        gap: 8px;
+        margin-bottom: 28px;
+        background: rgba(16, 19, 27, 0.85);
+        backdrop-filter: blur(14px);
+        -webkit-backdrop-filter: blur(14px);
+        border: 1px solid var(--line);
+        border-radius: 14px;
+        padding: 6px;
+        box-shadow: 0 4px 20px rgba(0,0,0,0.18);
+        max-width: 480px;
+    }
+
+    [data-theme="light"] .member-membership-nav {
+        background: rgba(255, 255, 255, 0.96);
+        border-color: #cbd5e1;
+        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.06);
+    }
+
+    .member-nav-tab {
+        flex: 1 1 auto;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        padding: 11px 18px;
+        border-radius: 10px;
+        border: 1px solid transparent;
+        background: transparent;
+        color: var(--muted);
+        font-size: 13.5px;
+        font-weight: 700;
+        cursor: pointer;
+        transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+        white-space: nowrap;
+        text-decoration: none;
+    }
+
+    .member-nav-tab svg {
+        flex-shrink: 0;
+        transition: stroke 0.2s ease, transform 0.2s ease;
+    }
+
+    .member-nav-tab:hover {
+        color: var(--ink);
+        background: color-mix(in srgb, var(--ink) 6%, transparent);
+    }
+
+    .member-nav-tab.active {
+        color: var(--lime);
+        background: color-mix(in srgb, var(--lime) 14%, var(--panel-soft));
+        border-color: color-mix(in srgb, var(--lime) 40%, transparent);
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+    }
+
+    .member-nav-tab.active svg {
+        stroke: var(--lime);
+        transform: scale(1.08);
+    }
+
+    .tab-badge-pill {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-width: 18px;
+        height: 18px;
+        padding: 0 6px;
+        border-radius: 10px;
+        font-size: 11px;
+        font-weight: 800;
+        background: rgba(255, 255, 255, 0.08);
+        color: var(--muted);
+    }
+
+    .member-nav-tab.active .tab-badge-pill {
+        background: var(--lime);
+        color: #0b110e;
+    }
+
+    .tab-label-compact {
+        display: none;
+    }
+
+    @media (max-width: 640px) {
+        .member-membership-nav {
+            max-width: 100%;
+            padding: 5px;
+            gap: 6px;
+        }
+        .member-nav-tab {
+            padding: 10px 14px;
+            font-size: 13px;
+        }
+    }
+
+    @media (max-width: 440px) {
+        .tab-label-full {
+            display: none;
+        }
+        .tab-label-compact {
+            display: inline;
+        }
+        .member-nav-tab {
+            padding: 8px 10px;
+            font-size: 12.5px;
+            gap: 6px;
+        }
+        .member-nav-tab svg {
+            width: 15px;
+            height: 15px;
+        }
+        .tab-badge-pill {
+            height: 17px;
+            min-width: 17px;
+            font-size: 10px;
+            padding: 0 5px;
+        }
+    }
+
+    /* Cleaned Hero Wrapper (Background photo removed per user request) */
     .membership-plans-hero-wrap {
         position: relative;
-        margin: -10px -10px 40px -10px;
-        padding: 48px 24px 56px;
-        border-radius: 28px;
-        background-color: #07090d;
-        background-image: 
-            radial-gradient(ellipse at 50% 30%, rgba(132, 204, 22, 0.14) 0%, transparent 65%),
-            linear-gradient(180deg, rgba(7, 9, 13, 0.82) 0%, rgba(9, 12, 18, 0.94) 100%),
-            url('assets/images/loginback.png?v=3');
-        background-size: cover;
-        background-position: center center;
-        border: 1px solid rgba(255, 255, 255, 0.08);
-        box-shadow: 0 25px 60px -15px rgba(0, 0, 0, 0.8);
-        overflow: hidden;
+        margin: 0 0 28px 0;
+        padding: 8px 0 24px 0;
+        background: transparent !important;
+        background-image: none !important;
+        border: none !important;
+        box-shadow: none !important;
+        overflow: visible;
     }
 
     [data-theme="light"] .membership-plans-hero-wrap {
-        background-color: #f8fafc;
-        background-image: 
-            radial-gradient(ellipse at 50% 20%, rgba(34, 197, 94, 0.08) 0%, transparent 70%),
-            linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
-        border: 1px solid #e2e8f0;
-        box-shadow: 0 15px 40px -10px rgba(0, 0, 0, 0.05);
+        background: transparent !important;
+        background-image: none !important;
+        border: none !important;
+        box-shadow: none !important;
     }
 
     .membership-hero-header {
         text-align: center;
-        margin-bottom: 44px;
+        margin-bottom: 40px;
     }
 
     .membership-brand-pill {
@@ -731,7 +945,7 @@ function memberships_page(): void
         font-size: 1.5rem;
         line-height: 1;
         letter-spacing: -0.3px;
-        color: #ffffff;
+        color: var(--ink);
     }
 
     [data-theme="light"] .membership-brand-title {
@@ -739,11 +953,11 @@ function memberships_page(): void
     }
 
     .membership-hero-title {
-        font-size: 2.5rem;
+        font-size: 2.2rem;
         font-weight: 800;
-        margin: 8px 0 14px;
-        color: #ffffff;
-        letter-spacing: -0.6px;
+        margin: 8px 0 12px;
+        color: var(--ink);
+        letter-spacing: -0.5px;
         line-height: 1.2;
     }
 
@@ -752,11 +966,11 @@ function memberships_page(): void
     }
 
     .membership-hero-subtitle {
-        color: rgba(226, 232, 240, 0.75);
-        font-size: 1.1rem;
+        color: var(--muted);
+        font-size: 1.05rem;
         max-width: 620px;
         margin: 0 auto;
-        line-height: 1.55;
+        line-height: 1.5;
     }
 
     [data-theme="light"] .membership-hero-subtitle {
@@ -770,54 +984,51 @@ function memberships_page(): void
         align-items: stretch;
         max-width: 1200px;
         margin: 0 auto;
+        padding-top: 16px;
     }
 
     .member-pricing-card {
-        background: rgba(15, 21, 18, 0.88);
-        backdrop-filter: blur(16px);
-        -webkit-backdrop-filter: blur(16px);
-        border: 1px solid rgba(255, 255, 255, 0.08);
+        background: var(--surface);
+        border: 1px solid var(--line);
         border-radius: 24px;
         padding: 38px 30px;
         display: flex;
         flex-direction: column;
         position: relative;
         transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.25s ease, border-color 0.25s ease;
-        box-shadow: 0 20px 45px -10px rgba(0, 0, 0, 0.7);
+        box-shadow: 0 14px 36px -10px rgba(0, 0, 0, 0.5);
     }
 
     .member-pricing-card:hover {
         transform: translateY(-5px);
-        box-shadow: 0 25px 55px -10px rgba(0, 0, 0, 0.85);
+        box-shadow: 0 22px 50px -10px rgba(0, 0, 0, 0.7);
         border-color: rgba(255, 255, 255, 0.2);
     }
 
     .member-pricing-card.popular {
         border: 2px solid var(--lime, #84cc16);
-        background: rgba(16, 25, 20, 0.92);
-        box-shadow: 0 0 35px rgba(132, 204, 22, 0.18), 0 25px 55px -10px rgba(0, 0, 0, 0.85);
+        background: color-mix(in srgb, var(--lime) 5%, var(--surface));
+        box-shadow: 0 0 35px rgba(132, 204, 22, 0.18), 0 20px 45px -10px rgba(0, 0, 0, 0.6);
     }
 
     .member-pricing-card.popular:hover {
-        box-shadow: 0 0 45px rgba(132, 204, 22, 0.28), 0 30px 65px -10px rgba(0, 0, 0, 0.9);
+        box-shadow: 0 0 45px rgba(132, 204, 22, 0.28), 0 25px 55px -10px rgba(0, 0, 0, 0.75);
     }
 
     [data-theme="light"] .member-pricing-card {
         background: #ffffff;
         border: 1px solid #e2e8f0;
-        box-shadow: 0 10px 30px -5px rgba(0, 0, 0, 0.06);
+        box-shadow: 0 8px 24px -5px rgba(0, 0, 0, 0.05);
     }
 
     [data-theme="light"] .member-pricing-card:hover {
-        transform: translateY(-5px);
-        box-shadow: 0 20px 40px -10px rgba(0, 0, 0, 0.12);
         border-color: #cbd5e1;
     }
 
     [data-theme="light"] .member-pricing-card.popular {
+        background: #fcfdf9;
         border: 2px solid var(--lime, #22c55e);
-        background: #ffffff;
-        box-shadow: 0 0 35px rgba(34, 197, 94, 0.15), 0 15px 35px -5px rgba(0, 0, 0, 0.08);
+        box-shadow: 0 0 35px rgba(34, 197, 94, 0.15), 0 12px 30px -5px rgba(0, 0, 0, 0.08);
     }
 
     [data-theme="light"] .member-pricing-card.popular:hover {
@@ -1018,16 +1229,162 @@ function memberships_page(): void
         transform: translateY(-1px);
     }
 
-    @media (max-width: 960px) {
+    /* ============================================================
+       Multi-Device Responsiveness (Desktop, Laptop, Tablet, Mobile)
+       ============================================================ */
+    @media (max-width: 1199px) {
         .member-pricing-grid {
-            grid-template-columns: 1fr;
+            gap: 20px;
+            max-width: 1060px;
+        }
+        .member-pricing-card {
+            padding: 32px 22px;
+            border-radius: 20px;
+        }
+        .member-pricing-title {
+            font-size: 1.45rem;
+        }
+        .member-pricing-price .amount {
+            font-size: 2.5rem;
+        }
+    }
+
+    @media (max-width: 991px) {
+        .member-pricing-grid {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 20px;
+            max-width: 780px;
+        }
+        .member-pricing-card:last-child:nth-child(2n + 1) {
+            grid-column: 1 / -1;
             max-width: 440px;
+            width: 100%;
+            margin: 0 auto;
         }
         .membership-hero-title {
-            font-size: 1.9rem;
+            font-size: 1.95rem;
+        }
+        .membership-hero-subtitle {
+            font-size: 0.98rem;
         }
         .membership-plans-hero-wrap {
-            padding: 36px 16px 40px;
+            padding: 8px 0 20px;
+        }
+    }
+
+    @media (max-width: 680px) {
+        .member-pricing-grid {
+            grid-template-columns: 1fr;
+            max-width: 420px;
+            gap: 26px;
+        }
+        .member-pricing-card:last-child:nth-child(2n + 1) {
+            grid-column: auto;
+            max-width: 100%;
+        }
+        .member-pricing-card.popular {
+            transform: none !important;
+        }
+        .member-pricing-card:hover,
+        .member-pricing-card.popular:hover {
+            transform: translateY(-3px);
+        }
+        .membership-hero-header {
+            margin-bottom: 28px;
+        }
+        .membership-hero-title {
+            font-size: 1.7rem;
+        }
+        .membership-plans-hero-wrap {
+            padding: 4px 0 16px;
+        }
+    }
+
+    @media (max-width: 480px) {
+        .membership-plans-hero-wrap {
+            padding: 0 0 16px;
+        }
+        .membership-brand-pill {
+            margin-bottom: 12px;
+        }
+        .membership-brand-logo {
+            width: 32px;
+            height: 32px;
+            font-size: 16px;
+            border-radius: 6px;
+        }
+        .membership-brand-title {
+            font-size: 1.25rem;
+        }
+        .membership-hero-title {
+            font-size: 1.45rem;
+            margin: 6px 0 10px;
+        }
+        .membership-hero-subtitle {
+            font-size: 0.88rem;
+            line-height: 1.45;
+        }
+        .member-pricing-grid {
+            max-width: 100%;
+            gap: 22px;
+            padding-top: 14px;
+        }
+        .member-pricing-card {
+            padding: 26px 18px;
+            border-radius: 18px;
+        }
+        .member-pricing-title {
+            font-size: 1.3rem;
+        }
+        .member-pricing-desc {
+            font-size: 13px;
+            min-height: auto;
+            margin-bottom: 16px;
+        }
+        .member-pricing-price {
+            margin-bottom: 18px;
+            padding-bottom: 16px;
+        }
+        .member-pricing-price .amount {
+            font-size: 2.15rem;
+        }
+        .member-pricing-price .period {
+            font-size: 0.9rem;
+        }
+        .member-pricing-price .discount-strike {
+            font-size: 1rem;
+        }
+        .member-pricing-features {
+            gap: 10px;
+        }
+        .member-pricing-features li {
+            font-size: 13px;
+            gap: 9px;
+        }
+        .member-pricing-btn {
+            padding: 12px 18px;
+            font-size: 14px;
+        }
+        .member-popular-badge {
+            font-size: 10px;
+            padding: 4px 12px;
+            top: -12px;
+        }
+        .membership-view-pane h2 {
+            font-size: 1.2rem !important;
+        }
+        .table-wrap {
+            border-radius: 10px;
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+            margin-top: 8px;
+        }
+        .table-wrap table {
+            font-size: 13px;
+        }
+        .table-wrap th, .table-wrap td {
+            padding: 10px 10px;
+            white-space: nowrap;
         }
     }
     </style>

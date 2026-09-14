@@ -4,7 +4,9 @@
     --sidebar: rgba(13, 16, 23, 0.85);
     --panel: rgba(16, 19, 27, 0.65);
     --panel-soft: rgba(26, 30, 40, 0.65);
+    --panel-bg: rgba(16, 19, 27, 0.65);
     --line: rgba(255, 255, 255, 0.08);
+    --border: rgba(255, 255, 255, 0.08);
     --ink: #f8fafc;
     --muted: #8792ad;
     --lime: #c7ff22;
@@ -21,7 +23,9 @@
     --sidebar: #ffffff;
     --panel: #ffffff;
     --panel-soft: #e2e8f0;
+    --panel-bg: #ffffff;
     --line: #cbd5e1;
+    --border: #cbd5e1;
     --ink: #1e293b;
     --muted: #475569;
     --lime: #65a30d;
@@ -1334,6 +1338,8 @@ dialog.modal {
     color: var(--ink);
     width: 90%;
     max-width: 600px;
+    max-height: calc(100dvh - 32px);
+    max-height: calc(100vh - 32px);
     box-shadow: 0 20px 40px rgba(0,0,0,0.4);
 }
 

@@ -196,6 +196,7 @@ function progress_page(): void
                 box-sizing: border-box !important;
             }
         }
+
         @media (max-width: 420px) {
             .progress-goal-pill {
                 font-size: 12px !important;
@@ -204,6 +205,315 @@ function progress_page(): void
             .progress-count-pill {
                 font-size: 11px !important;
                 padding: 3px 8px !important;
+            }
+        }
+
+        /* Top View Switcher & Panes */
+        .progress-view-nav {
+            display: flex;
+            gap: 8px;
+            margin: 8px 0 24px 0;
+            background: rgba(16, 19, 27, 0.85);
+            backdrop-filter: blur(14px);
+            -webkit-backdrop-filter: blur(14px);
+            border: 1px solid var(--line);
+            border-radius: 14px;
+            padding: 6px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.18);
+            max-width: 440px;
+        }
+
+        [data-theme="light"] .progress-view-nav {
+            background: rgba(255, 255, 255, 0.96);
+            border-color: #cbd5e1;
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.06);
+        }
+
+        button.progress-nav-tab,
+        .progress-nav-tab {
+            flex: 1 1 auto;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            min-height: unset;
+            padding: 11px 18px;
+            border-radius: 10px;
+            border: 1px solid transparent;
+            background: transparent;
+            color: var(--muted);
+            font: inherit;
+            font-size: 13.5px;
+            font-weight: 700;
+            cursor: pointer;
+            box-shadow: none;
+            transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+            white-space: nowrap;
+            text-decoration: none;
+        }
+
+        button.progress-nav-tab svg,
+        .progress-nav-tab svg {
+            flex-shrink: 0;
+            transition: stroke 0.2s ease, transform 0.2s ease;
+        }
+
+        button.progress-nav-tab:hover,
+        .progress-nav-tab:hover {
+            color: var(--ink);
+            background: color-mix(in srgb, var(--ink) 6%, transparent);
+        }
+
+        button.progress-nav-tab.active,
+        .progress-nav-tab.active {
+            color: var(--lime);
+            background: color-mix(in srgb, var(--lime) 14%, var(--panel-soft));
+            border-color: color-mix(in srgb, var(--lime) 40%, transparent);
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+        }
+
+        button.progress-nav-tab.active svg,
+        .progress-nav-tab.active svg {
+            stroke: var(--lime);
+            transform: scale(1.08);
+        }
+
+        button.progress-nav-tab .tab-badge-pill,
+        .progress-nav-tab .tab-badge-pill {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-width: 18px;
+            height: 18px;
+            padding: 0 6px;
+            border-radius: 10px;
+            font-size: 11px;
+            font-weight: 800;
+            background: rgba(255, 255, 255, 0.08);
+            color: var(--muted);
+        }
+
+        button.progress-nav-tab.active .tab-badge-pill,
+        .progress-nav-tab.active .tab-badge-pill {
+            background: var(--lime);
+            color: #0b110e;
+        }
+
+        [data-theme="light"] button.progress-nav-tab {
+            color: #64748b;
+        }
+
+        [data-theme="light"] button.progress-nav-tab:hover {
+            color: #0f172a;
+            background: rgba(0, 0, 0, 0.04);
+        }
+
+        [data-theme="light"] button.progress-nav-tab.active {
+            color: var(--lime);
+            background: #ffffff;
+            border-color: #cbd5e1;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+        }
+
+        [data-theme="light"] button.progress-nav-tab .tab-badge-pill {
+            background: rgba(0, 0, 0, 0.06);
+            color: #64748b;
+        }
+
+        [data-theme="light"] button.progress-nav-tab.active .tab-badge-pill {
+            background: var(--lime);
+            color: #ffffff;
+        }
+
+        .tab-label-compact {
+            display: none !important;
+        }
+
+        .progress-view-pane {
+            animation: fadeInProgressPane 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+
+        @keyframes fadeInProgressPane {
+            from { opacity: 0; transform: translateY(6px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        @media (max-width: 580px) {
+            .progress-view-nav {
+                max-width: 100%;
+                padding: 5px;
+                gap: 6px;
+                margin-bottom: 20px;
+            }
+            button.progress-nav-tab,
+            .progress-nav-tab {
+                padding: 10px 12px;
+                font-size: 13px;
+            }
+        }
+
+        @media (max-width: 440px) {
+            .tab-label-full {
+                display: none !important;
+            }
+            .tab-label-compact {
+                display: inline !important;
+            }
+            button.progress-nav-tab,
+            .progress-nav-tab {
+                padding: 8px 8px;
+                font-size: 12.5px;
+                gap: 6px;
+            }
+            button.progress-nav-tab svg,
+            .progress-nav-tab svg {
+                width: 15px;
+                height: 15px;
+            }
+            button.progress-nav-tab .tab-badge-pill,
+            .progress-nav-tab .tab-badge-pill {
+                height: 17px;
+                min-width: 17px;
+                font-size: 10px;
+                padding: 0 5px;
+            }
+        }
+
+        /* Mobile Progress Log Cards (Approach 1: Zero Horizontal Scroll) */
+        .history-desktop-table {
+            display: block;
+        }
+
+        .history-mobile-cards {
+            display: none;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .progress-log-card {
+            background: var(--bg);
+            border: 1px solid var(--line);
+            border-radius: 14px;
+            padding: 16px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            transition: border-color 0.2s ease, transform 0.15s ease;
+        }
+
+        [data-theme="light"] .progress-log-card {
+            background: #ffffff;
+            border-color: #e2e8f0;
+            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.03);
+        }
+
+        .log-card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .log-card-date {
+            display: flex;
+            align-items: center;
+            gap: 7px;
+            font-size: 14px;
+            font-weight: 700;
+            color: var(--ink);
+        }
+
+        .log-card-date svg {
+            color: var(--muted);
+            flex-shrink: 0;
+        }
+
+        .log-card-weight {
+            display: inline-flex;
+            align-items: baseline;
+            gap: 3px;
+            background: color-mix(in srgb, var(--lime) 14%, transparent);
+            color: var(--lime);
+            border: 1px solid color-mix(in srgb, var(--lime) 30%, transparent);
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 14px;
+            font-weight: 800;
+            letter-spacing: -0.2px;
+        }
+
+        [data-theme="light"] .log-card-weight {
+            background: #f0fdf4;
+            color: #16a34a;
+            border-color: #bbf7d0;
+        }
+
+        .log-card-weight .unit {
+            font-size: 11px;
+            font-weight: 600;
+            opacity: 0.85;
+        }
+
+        .log-card-metrics {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(75px, 1fr));
+            gap: 8px;
+            padding: 10px 12px;
+            background: var(--panel-soft, rgba(255, 255, 255, 0.03));
+            border-radius: 10px;
+            border: 1px solid var(--line);
+        }
+
+        [data-theme="light"] .log-card-metrics {
+            background: #f8fafc;
+            border-color: #f1f5f9;
+        }
+
+        .metric-item {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+
+        .metric-label {
+            font-size: 10.5px;
+            text-transform: uppercase;
+            letter-spacing: 0.4px;
+            color: var(--muted);
+            font-weight: 600;
+        }
+
+        .metric-val {
+            font-size: 13.5px;
+            font-weight: 700;
+            color: var(--ink);
+        }
+
+        .log-card-notes {
+            display: flex;
+            align-items: flex-start;
+            gap: 8px;
+            padding: 8px 12px;
+            border-radius: 8px;
+            background: rgba(128, 128, 128, 0.06);
+            color: var(--muted);
+            font-size: 12.5px;
+            line-height: 1.4;
+        }
+
+        .log-card-notes svg {
+            color: var(--muted);
+            margin-top: 2px;
+            flex-shrink: 0;
+        }
+
+        @media (max-width: 768px) {
+            .history-desktop-table {
+                display: none !important;
+            }
+            .history-mobile-cards {
+                display: flex !important;
             }
         }
     </style>
@@ -411,93 +721,247 @@ function progress_page(): void
         </div>
         <?php endif; ?>
 
-        <!-- Weight trend chart -->
-        <?php if (count($chartWeights) >= 2): ?>
-        <div style="margin-bottom:2rem;">
-            <h2 style="margin-bottom:12px;">Weight trend</h2>
-            <canvas id="weightChart" style="max-height:260px;"></canvas>
-            <script>
-            document.addEventListener('DOMContentLoaded', function () {
-                const isDark = document.documentElement.getAttribute('data-theme') !== 'light';
-                const gridColor  = isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.07)';
-                const tickColor  = isDark ? '#8792ad' : '#555';
-                new Chart(document.getElementById('weightChart'), {
-                    type: 'line',
-                    data: {
-                        labels: <?= json_encode($chartLabels, JSON_HEX_TAG) ?>,
-                        datasets: [{
-                            label: 'Weight (kg)',
-                            data: <?= json_encode($chartWeights, JSON_HEX_TAG) ?>,
-                            borderColor: 'var(--lime)',
-                            backgroundColor: 'color-mix(in srgb, var(--lime) 8%, transparent)',
-                            borderWidth: 2,
-                            pointRadius: 4,
-                            pointBackgroundColor: 'var(--lime)',
-                            tension: 0.3,
-                            fill: true,
-                        }
-                        <?php if ($member['target_weight_kg']): ?>
-                        , {
-                            label: 'Target Weight (kg)',
-                            data: Array(<?= count($chartLabels) ?>).fill(<?= (float)$member['target_weight_kg'] ?>),
-                            borderColor: 'var(--orange)',
-                            borderDash: [5, 5],
-                            borderWidth: 2,
-                            pointRadius: 0,
-                            fill: false
-                        }
-                        <?php endif; ?>
-                        ]
-                    },
-                    options: {
-                        responsive: true,
-                        plugins: { legend: { display: false } },
-                        scales: {
-                            y: { grid: { color: gridColor }, ticks: { color: tickColor } },
-                            x: { grid: { color: gridColor }, ticks: { color: tickColor } }
-                        }
-                    }
-                });
-            });
-            </script>
-        </div>
-        <?php elseif ($rows): ?>
-            <p class="muted" style="margin-bottom:1.5rem;">Log at least 2 entries to see your weight trend chart.</p>
-        <?php endif; ?>
+        <!-- Top View Switcher (Trend vs History) -->
+        <nav class="progress-view-nav" aria-label="Progress Views">
+            <button type="button" class="progress-nav-tab active" id="tab-btn-trend" onclick="switchProgressView('trend')" title="Weight Trend">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                    <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline>
+                </svg>
+                <span>
+                    <span class="tab-label-full">Weight Trend</span>
+                    <span class="tab-label-compact">Trend</span>
+                </span>
+            </button>
+            <button type="button" class="progress-nav-tab" id="tab-btn-history" onclick="switchProgressView('history')" title="Measurement History">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                </svg>
+                <span>
+                    <span class="tab-label-full">History Logs</span>
+                    <span class="tab-label-compact">History</span>
+                </span>
+                <?php if (!empty($rows)): ?>
+                    <span class="tab-badge-pill"><?= count($rows) ?></span>
+                <?php endif; ?>
+            </button>
+        </nav>
 
-        <!-- History table -->
-        <h2 style="margin-bottom:12px;">History</h2>
-        <div class="table-wrap">
-            <table>
-                <thead>
-                    <tr>
-                        <th>Date</th>
-                        <th>Weight</th>
-                        <th>Body Fat</th>
-                        <th>Waist</th>
-                        <th>Chest</th>
-                        <th>Arm</th>
-                        <th>Notes</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <?php foreach ($rows as $row): ?>
-                        <tr>
-                            <td><?= h(date('M j, Y', strtotime($row['log_date']))) ?></td>
-                            <td><?= $row['weight_kg'] ? h($row['weight_kg']) . ' kg' : '-' ?></td>
-                            <td><?= $row['body_fat_percent'] ? h($row['body_fat_percent']) . '%' : '-' ?></td>
-                            <td><?= $row['waist_cm'] ? h($row['waist_cm']) . ' cm' : '-' ?></td>
-                            <td><?= $row['chest_cm'] ? h($row['chest_cm']) . ' cm' : '-' ?></td>
-                            <td><?= $row['arm_cm'] ? h($row['arm_cm']) . ' cm' : '-' ?></td>
-                            <td><?= h($row['notes']) ?></td>
-                        </tr>
-                    <?php endforeach; ?>
-                    <?php if (!$rows): ?>
-                        <tr><td colspan="7" style="text-align:center; padding: 20px; color: var(--muted);">No progress logs yet.</td></tr>
-                    <?php endif; ?>
-                </tbody>
-            </table>
+        <!-- VIEW PANE 1: WEIGHT TREND -->
+        <div id="view-pane-trend" class="progress-view-pane">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+                <div>
+                    <h2 style="margin: 0 0 4px; font-size: 1.35rem; font-weight: 700;">Weight Trend</h2>
+                    <p style="margin: 0; color: var(--muted); font-size: 0.9rem;">Track how your body weight evolves over time.</p>
+                </div>
+            </div>
+
+            <?php if (count($chartWeights) >= 2): ?>
+            <div style="background: var(--bg); padding: 20px; border-radius: 12px; border: 1px solid var(--line); margin-bottom: 2rem;">
+                <canvas id="weightChart" style="max-height:280px; width: 100%;"></canvas>
+                <script>
+                document.addEventListener('DOMContentLoaded', function () {
+                    const isDark = document.documentElement.getAttribute('data-theme') !== 'light';
+                    const gridColor  = isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.07)';
+                    const tickColor  = isDark ? '#8792ad' : '#555';
+                    window.weightChartInstance = new Chart(document.getElementById('weightChart'), {
+                        type: 'line',
+                        data: {
+                            labels: <?= json_encode($chartLabels, JSON_HEX_TAG) ?>,
+                            datasets: [{
+                                label: 'Weight (kg)',
+                                data: <?= json_encode($chartWeights, JSON_HEX_TAG) ?>,
+                                borderColor: 'var(--lime)',
+                                backgroundColor: 'color-mix(in srgb, var(--lime) 8%, transparent)',
+                                borderWidth: 2,
+                                pointRadius: 4,
+                                pointBackgroundColor: 'var(--lime)',
+                                tension: 0.3,
+                                fill: true,
+                            }
+                            <?php if ($member['target_weight_kg']): ?>
+                            , {
+                                label: 'Target Weight (kg)',
+                                data: Array(<?= count($chartLabels) ?>).fill(<?= (float)$member['target_weight_kg'] ?>),
+                                borderColor: 'var(--orange)',
+                                borderDash: [5, 5],
+                                borderWidth: 2,
+                                pointRadius: 0,
+                                fill: false
+                            }
+                            <?php endif; ?>
+                            ]
+                        },
+                        options: {
+                            responsive: true,
+                            plugins: { legend: { display: false } },
+                            scales: {
+                                y: { grid: { color: gridColor }, ticks: { color: tickColor } },
+                                x: { grid: { color: gridColor }, ticks: { color: tickColor } }
+                            }
+                        }
+                    });
+                });
+                </script>
+            </div>
+            <?php elseif ($rows): ?>
+                <div style="text-align: center; padding: 40px 20px; background: var(--bg); border-radius: 12px; border: 1px dashed var(--line); margin-bottom: 2rem;">
+                    <p style="color: var(--muted); margin: 0; font-size: 14px;">Log at least 2 entries to see your weight trend chart.</p>
+                </div>
+            <?php else: ?>
+                <div class="empty-state">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline></svg>
+                    <p>No progress entries logged yet.<br>Click "Log Progress" above to record your first measurement.</p>
+                </div>
+            <?php endif; ?>
         </div>
+
+        <!-- VIEW PANE 2: HISTORY TABLE -->
+        <div id="view-pane-history" class="progress-view-pane" style="display: none;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+                <div>
+                    <h2 style="margin: 0 0 4px; font-size: 1.35rem; font-weight: 700;">History Logs</h2>
+                    <p style="margin: 0; color: var(--muted); font-size: 0.9rem;">Complete chronological breakdown of your recorded body measurements.</p>
+                </div>
+            </div>
+            <!-- Desktop / Tablet Table View (>= 768px) -->
+            <div class="history-desktop-table table-wrap">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Date</th>
+                            <th>Weight</th>
+                            <th>Body Fat</th>
+                            <th>Waist</th>
+                            <th>Chest</th>
+                            <th>Arm</th>
+                            <th>Notes</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <?php foreach ($rows as $row): ?>
+                            <tr>
+                                <td><strong><?= h(date('M j, Y', strtotime($row['log_date']))) ?></strong></td>
+                                <td><?= $row['weight_kg'] ? h(number_format((float)$row['weight_kg'], 2)) . ' kg' : '-' ?></td>
+                                <td><?= $row['body_fat_percent'] ? h(number_format((float)$row['body_fat_percent'], 1)) . '%' : '-' ?></td>
+                                <td><?= $row['waist_cm'] ? h(number_format((float)$row['waist_cm'], 1)) . ' cm' : '-' ?></td>
+                                <td><?= $row['chest_cm'] ? h(number_format((float)$row['chest_cm'], 1)) . ' cm' : '-' ?></td>
+                                <td><?= $row['arm_cm'] ? h(number_format((float)$row['arm_cm'], 1)) . ' cm' : '-' ?></td>
+                                <td><?= h($row['notes'] ?: '-') ?></td>
+                            </tr>
+                        <?php endforeach; ?>
+                        <?php if (!$rows): ?>
+                            <tr><td colspan="7" style="text-align:center; padding: 24px; color: var(--muted);">No progress logs recorded yet.</td></tr>
+                        <?php endif; ?>
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Mobile Card-List View (< 768px: Zero Horizontal Scroll) -->
+            <div class="history-mobile-cards">
+                <?php foreach ($rows as $row): 
+                    $hasMeasurements = ($row['body_fat_percent'] || $row['waist_cm'] || $row['chest_cm'] || $row['arm_cm'] || !empty($row['hips_cm']));
+                    $hasNotes = !empty(trim((string)($row['notes'] ?? '')));
+                ?>
+                    <div class="progress-log-card">
+                        <div class="log-card-header">
+                            <div class="log-card-date">
+                                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+                                    <line x1="16" y1="2" x2="16" y2="6"></line>
+                                    <line x1="8" y1="2" x2="8" y2="6"></line>
+                                    <line x1="3" y1="10" x2="21" y2="10"></line>
+                                </svg>
+                                <span><?= h(date('M j, Y', strtotime($row['log_date']))) ?></span>
+                            </div>
+                            <?php if ($row['weight_kg']): ?>
+                                <div class="log-card-weight">
+                                    <?= h(number_format((float)$row['weight_kg'], 2)) ?> <span class="unit">kg</span>
+                                </div>
+                            <?php endif; ?>
+                        </div>
+
+                        <?php if ($hasMeasurements): ?>
+                            <div class="log-card-metrics">
+                                <?php if ($row['body_fat_percent']): ?>
+                                    <div class="metric-item">
+                                        <span class="metric-label">Body Fat</span>
+                                        <span class="metric-val"><?= h(number_format((float)$row['body_fat_percent'], 1)) ?>%</span>
+                                    </div>
+                                <?php endif; ?>
+                                <?php if ($row['waist_cm']): ?>
+                                    <div class="metric-item">
+                                        <span class="metric-label">Waist</span>
+                                        <span class="metric-val"><?= h(number_format((float)$row['waist_cm'], 1)) ?> cm</span>
+                                    </div>
+                                <?php endif; ?>
+                                <?php if ($row['chest_cm']): ?>
+                                    <div class="metric-item">
+                                        <span class="metric-label">Chest</span>
+                                        <span class="metric-val"><?= h(number_format((float)$row['chest_cm'], 1)) ?> cm</span>
+                                    </div>
+                                <?php endif; ?>
+                                <?php if ($row['arm_cm']): ?>
+                                    <div class="metric-item">
+                                        <span class="metric-label">Arm</span>
+                                        <span class="metric-val"><?= h(number_format((float)$row['arm_cm'], 1)) ?> cm</span>
+                                    </div>
+                                <?php endif; ?>
+                                <?php if (!empty($row['hips_cm'])): ?>
+                                    <div class="metric-item">
+                                        <span class="metric-label">Hips</span>
+                                        <span class="metric-val"><?= h(number_format((float)$row['hips_cm'], 1)) ?> cm</span>
+                                    </div>
+                                <?php endif; ?>
+                            </div>
+                        <?php endif; ?>
+
+                        <?php if ($hasNotes): ?>
+                            <div class="log-card-notes">
+                                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+                                </svg>
+                                <span><?= h($row['notes']) ?></span>
+                            </div>
+                        <?php endif; ?>
+                    </div>
+                <?php endforeach; ?>
+                <?php if (!$rows): ?>
+                    <div style="text-align:center; padding: 32px 16px; color: var(--muted); background: var(--bg); border-radius: 12px; border: 1px dashed var(--line);">
+                        No progress logs recorded yet.
+                    </div>
+                <?php endif; ?>
+            </div>
+        </div>
+
+        <script>
+        function switchProgressView(viewName) {
+            const trendBtn = document.getElementById('tab-btn-trend');
+            const historyBtn = document.getElementById('tab-btn-history');
+            const trendPane = document.getElementById('view-pane-trend');
+            const historyPane = document.getElementById('view-pane-history');
+
+            if (viewName === 'history') {
+                if (trendBtn) trendBtn.classList.remove('active');
+                if (historyBtn) historyBtn.classList.add('active');
+                if (trendPane) trendPane.style.display = 'none';
+                if (historyPane) historyPane.style.display = 'block';
+                try { history.replaceState(null, null, '#history'); } catch(e){}
+            } else {
+                if (trendBtn) trendBtn.classList.add('active');
+                if (historyBtn) historyBtn.classList.remove('active');
+                if (trendPane) trendPane.style.display = 'block';
+                if (historyPane) historyPane.style.display = 'none';
+                try { history.replaceState(null, null, '#trend'); } catch(e){}
+                if (window.weightChartInstance) {
+                    window.weightChartInstance.resize();
+                }
+            }
+        }
+
+        if (window.location.hash === '#history') {
+            switchProgressView('history');
+        }
+        </script>
     </section>
     
     <script>

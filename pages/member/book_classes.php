@@ -124,6 +124,60 @@ function book_classes_page(): void
     $rows = db()->query($sql)->fetchAll();
     render_header('Book a Class', $user);
     ?>
+    <style>
+    .class-search-box {
+        position: relative;
+        width: 100%;
+        max-width: 340px;
+        min-width: 260px;
+    }
+    .class-search-box svg {
+        position: absolute;
+        left: 14px;
+        top: 50%;
+        transform: translateY(-50%);
+        color: var(--muted);
+        pointer-events: none;
+        transition: color 0.2s ease;
+    }
+    #classSearchInput {
+        width: 100%;
+        box-sizing: border-box;
+        padding: 10px 14px 10px 40px;
+        border-radius: 10px;
+        border: 1px solid var(--line);
+        background: var(--bg);
+        color: var(--ink);
+        font-size: 14px;
+        outline: none;
+        transition: border-color 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
+    }
+    [data-theme="light"] #classSearchInput {
+        background: #ffffff;
+        border: 1px solid #cbd5e1;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+    }
+    #classSearchInput:focus {
+        border-color: var(--lime);
+        box-shadow: 0 0 0 3px color-mix(in srgb, var(--lime) 22%, transparent);
+    }
+    .class-search-box:focus-within svg {
+        color: var(--lime);
+    }
+    #classSearchInput::placeholder {
+        color: var(--muted);
+    }
+    [data-theme="light"] #classSearchInput::placeholder {
+        color: #94a3b8;
+    }
+    @media (max-width: 640px) {
+        .class-search-box {
+            max-width: 100%;
+            min-width: 100%;
+        }
+    }
+    </style>
+
     <div class="skeleton-wrapper">
         <section class="panel">
             <div style="margin-bottom:24px">
@@ -139,8 +193,12 @@ function book_classes_page(): void
                 <h1>Classes</h1>
                 <p>Browse upcoming sessions and reserve your spot.</p>
             </div>
-            <div style="display: flex; gap: 10px; min-width: 260px;">
-                <input type="text" id="classSearchInput" placeholder="Search class or instructor..." onkeyup="filterClasses()" style="width: 100%; padding: 8px 14px; border-radius: 8px; border: 1px solid var(--border); background: var(--panel-bg); color: var(--ink); font-size: 14px;">
+            <div class="class-search-box">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="11" cy="11" r="8"></circle>
+                    <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                </svg>
+                <input type="text" id="classSearchInput" placeholder="Search class or instructor..." onkeyup="filterClasses()" autocomplete="off">
             </div>
         </div>
 

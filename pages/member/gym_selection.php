@@ -53,7 +53,13 @@ function gym_selection_page(): void
             ORDER BY price ASC
         ');
         $plans->execute(['gym_id' => $gym['gym_id']]);
-        $gym['plans'] = $plans->fetchAll();
+        $rawPlans = $plans->fetchAll(PDO::FETCH_ASSOC);
+        foreach ($rawPlans as &$p) {
+            $p['features'] = get_membership_plan_features($p);
+            $p['is_popular'] = !empty($p['is_popular']);
+        }
+        unset($p);
+        $gym['plans'] = $rawPlans;
 
         $images = db()->prepare('SELECT image_url FROM gym_images WHERE gym_id = ? ORDER BY created_at DESC LIMIT 10');
         $images->execute([$gym['gym_id']]);
@@ -70,8 +76,39 @@ function gym_selection_page(): void
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Oswald:wght@500;600;700&family=DM+Sans:wght@400;500;700&display=swap');
 
+        /* Page Background Styling */
+        body:has(.gym-select),
+        body.auth-body:has(.gym-select),
+        body.app-body:has(.gym-select) {
+            background-color: #07090d !important;
+            background-image: 
+                radial-gradient(ellipse at 50% 15%, rgba(199, 255, 34, 0.12) 0%, transparent 60%),
+                linear-gradient(180deg, rgba(7, 9, 13, 0.78) 0%, rgba(9, 12, 18, 0.92) 100%),
+                url('assets/images/loginback.png?v=3') !important;
+            background-size: cover !important;
+            background-position: center top !important;
+            background-repeat: no-repeat !important;
+            background-attachment: fixed !important;
+            min-height: 100vh !important;
+        }
+
+        [data-theme="light"] body:has(.gym-select),
+        [data-theme="light"] body.auth-body:has(.gym-select),
+        [data-theme="light"] body.app-body:has(.gym-select) {
+            background-color: #f8fafc !important;
+            background-image: 
+                radial-gradient(ellipse at 50% 15%, rgba(34, 197, 94, 0.08) 0%, transparent 65%),
+                linear-gradient(180deg, rgba(255, 255, 255, 0.88) 0%, rgba(248, 250, 252, 0.95) 100%),
+                url('assets/images/loginback.png?v=3') !important;
+        }
+
+        .auth-shell:has(.gym-select),
+        .app-frame:has(.gym-select) {
+            background: transparent !important;
+        }
+
         /* Override the site's default boxed .panel treatment for this page only,
-           so it spans the viewport instead of floating as a narrow card. */
+           so it spans the viewport with the hero background instead of a narrow card. */
         .panel.gym-select {
             --font-display: 'Oswald', 'Arial Narrow', sans-serif;
             --font-ui: 'DM Sans', var(--font-sans, system-ui), sans-serif;
@@ -79,12 +116,32 @@ function gym_selection_page(): void
             width: 100% !important;
             margin: 0 !important;
             border-radius: 0 !important;
-            border-left: none !important;
-            border-right: none !important;
+            border: none !important;
+            box-shadow: none !important;
             box-sizing: border-box;
             padding: 48px clamp(16px, 4vw, 72px) !important;
             overflow-x: hidden;
+            background-color: #07090d;
+            background-image: 
+                radial-gradient(ellipse at 50% 15%, rgba(199, 255, 34, 0.12) 0%, transparent 60%),
+                linear-gradient(180deg, rgba(7, 9, 13, 0.78) 0%, rgba(9, 12, 18, 0.92) 100%),
+                url('assets/images/loginback.png?v=3');
+            background-size: cover;
+            background-position: center top;
+            background-repeat: no-repeat;
+            background-attachment: fixed;
+            min-height: 100vh;
+            position: relative;
         }
+
+        [data-theme="light"] .panel.gym-select {
+            background-color: #f8fafc;
+            background-image: 
+                radial-gradient(ellipse at 50% 15%, rgba(34, 197, 94, 0.08) 0%, transparent 65%),
+                linear-gradient(180deg, rgba(255, 255, 255, 0.88) 0%, rgba(248, 250, 252, 0.95) 100%),
+                url('assets/images/loginback.png?v=3');
+        }
+
         .gym-select, .gym-select input, .gym-select button { font-family: var(--font-ui); }
         .gym-select .gym-hero,
         .gym-select .gym-search-wrap { max-width: 620px; margin-left: auto; margin-right: auto; }
@@ -174,18 +231,26 @@ function gym_selection_page(): void
         }
         #gym-search {
             width: 100%;
-            background: var(--surface);
-            border: 1px solid var(--line);
-            border-radius: 8px;
-            padding: 11px 14px 11px 40px;
+            background: rgba(14, 18, 17, 0.82);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 10px;
+            padding: 12px 14px 12px 42px;
             color: var(--ink);
             font-size: 0.92rem;
             outline: none;
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5);
             transition: border-color 0.2s, box-shadow 0.2s;
+        }
+        [data-theme="light"] #gym-search {
+            background: rgba(255, 255, 255, 0.88);
+            border: 1px solid rgba(0, 0, 0, 0.12);
+            box-shadow: 0 8px 20px -5px rgba(0, 0, 0, 0.06);
         }
         #gym-search:focus {
             border-color: rgba(199, 255, 34, 0.5);
-            box-shadow: 0 0 0 3px rgba(199, 255, 34, 0.1);
+            box-shadow: 0 0 0 3px rgba(199, 255, 34, 0.15);
         }
         #gym-search:focus + svg,
         .gym-search-wrap:focus-within svg { color: var(--lime, #c7ff22); }
@@ -207,18 +272,26 @@ function gym_selection_page(): void
             position: absolute;
             top: 50%;
             transform: translateY(-50%);
-            width: 40px;
-            height: 40px;
+            width: 42px;
+            height: 42px;
             border-radius: 50%;
-            background: var(--surface);
-            border: 1px solid var(--line);
+            background: rgba(14, 18, 17, 0.85);
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+            border: 1px solid rgba(255, 255, 255, 0.12);
             color: var(--ink);
             display: flex;
             align-items: center;
             justify-content: center;
             cursor: pointer;
             z-index: 5;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.5);
             transition: border-color 0.2s, color 0.2s, transform 0.15s;
+        }
+        [data-theme="light"] .carousel-nav {
+            background: rgba(255, 255, 255, 0.92);
+            border: 1px solid rgba(0, 0, 0, 0.1);
+            box-shadow: 0 8px 20px rgba(0,0,0,0.08);
         }
         .carousel-nav:hover { border-color: var(--lime); color: var(--lime); transform: translateY(-50%) scale(1.06); }
         .carousel-nav:focus-visible { outline: 2px solid var(--lime); outline-offset: 2px; }
@@ -234,14 +307,24 @@ function gym_selection_page(): void
             width: 300px;
             background:
                 radial-gradient(120% 90% at 100% 0%, rgba(199,255,34,0.06), transparent 60%),
-                linear-gradient(160deg, var(--surface), rgba(255,255,255,0.015));
-            border: 1px solid var(--line);
+                rgba(14, 18, 17, 0.85);
+            backdrop-filter: blur(14px);
+            -webkit-backdrop-filter: blur(14px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
             border-radius: 14px;
             padding: 22px;
             cursor: pointer;
             position: relative;
             overflow: hidden;
             will-change: transform;
+            box-shadow: 0 20px 40px -15px rgba(0, 0, 0, 0.7);
+        }
+        [data-theme="light"] .gym-card {
+            background:
+                radial-gradient(120% 90% at 100% 0%, rgba(34, 197, 94, 0.05), transparent 60%),
+                rgba(255, 255, 255, 0.90);
+            border: 1px solid rgba(0, 0, 0, 0.08);
+            box-shadow: 0 15px 35px -10px rgba(0, 0, 0, 0.08);
         }
         .gym-card::before {
             content: '';
@@ -370,18 +453,25 @@ function gym_selection_page(): void
         .gym-details-content {
             position: relative;
             z-index: 1;
-            background: var(--bg, #0b0d0d);
-            border-radius: 14px;
+            background: rgba(12, 16, 15, 0.96);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border-radius: 16px;
             width: 100%;
             max-width: 820px;
             max-height: 90vh;
             overflow-y: auto;
-            border: 1px solid var(--line);
-            box-shadow: 0 30px 80px rgba(0,0,0,0.6);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            box-shadow: 0 35px 90px rgba(0,0,0,0.85);
             opacity: 0;
             scrollbar-width: thin;
             scrollbar-color: rgba(199,255,34,0.35) transparent;
             font-family: var(--font-ui, inherit);
+        }
+        [data-theme="light"] .gym-details-content {
+            background: rgba(255, 255, 255, 0.97);
+            border: 1px solid rgba(0, 0, 0, 0.1);
+            box-shadow: 0 25px 60px rgba(0,0,0,0.15);
         }
         .gym-details-content::-webkit-scrollbar { width: 6px; }
         .gym-details-content::-webkit-scrollbar-track { background: transparent; }
@@ -391,11 +481,21 @@ function gym_selection_page(): void
             position: sticky;
             top: 0;
             z-index: 2;
-            padding: 28px 30px 0;
-            background: linear-gradient(160deg, rgba(199,255,34,0.08), transparent 70%), var(--bg, #0b0d0d);
+            padding: 26px 28px 0;
+            background: linear-gradient(160deg, rgba(199,255,34,0.08), transparent 70%), rgba(12, 16, 15, 0.98);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
             border-bottom: 1px solid var(--line);
         }
-        .modal-hero-top { display: flex; align-items: flex-start; gap: 16px; }
+        [data-theme="light"] .modal-hero {
+            background: linear-gradient(160deg, rgba(34,197,94,0.08), transparent 70%), rgba(255, 255, 255, 0.98);
+        }
+        .modal-hero-top {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            padding-right: 56px; /* Generous clearance preventing overlap with close button */
+        }
         .modal-gym-icon {
             flex-shrink: 0;
             width: 52px; height: 52px;
@@ -462,20 +562,39 @@ function gym_selection_page(): void
 
         .close-btn {
             position: absolute;
-            top: 20px; right: 20px;
-            background: rgba(255,255,255,0.04);
+            top: 22px;
+            right: 22px;
+            background: rgba(255,255,255,0.06);
             border: 1px solid var(--line);
             color: var(--muted);
-            font-size: 20px;
+            font-size: 22px;
             line-height: 1;
             cursor: pointer;
-            width: 34px; height: 34px;
+            width: 36px;
+            height: 36px;
             border-radius: 50%;
-            transition: color 0.2s, background 0.2s, border-color 0.2s;
-            z-index: 3;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: color 0.2s, background 0.2s, border-color 0.2s, transform 0.15s;
+            z-index: 10;
         }
-        .close-btn:hover { color: var(--ink); background: rgba(255,255,255,0.08); border-color: var(--lime); }
+        .close-btn:hover {
+            color: var(--ink);
+            background: rgba(255,255,255,0.12);
+            border-color: var(--lime);
+            transform: scale(1.06);
+        }
         .close-btn:focus-visible { outline: 2px solid var(--lime); outline-offset: 2px; }
+        [data-theme="light"] .close-btn {
+            background: rgba(0,0,0,0.04);
+            border-color: rgba(0,0,0,0.12);
+            color: #64748b;
+        }
+        [data-theme="light"] .close-btn:hover {
+            background: rgba(0,0,0,0.08);
+            color: #0f172a;
+        }
 
         .class-card {
             background: rgba(255,255,255,0.03);
@@ -509,17 +628,17 @@ function gym_selection_page(): void
             position: relative;
             transition: border-color 0.2s;
         }
-        .plan-card.is-best-value { border-color: rgba(199,255,34,0.5); }
+        .plan-card.is-best-value { border-color: rgba(199,255,34,0.6); }
         .plan-best-badge {
             position: absolute;
             top: -11px;
             left: 16px;
             background: var(--lime);
-            color: var(--bg);
+            color: #0b0d0d;
             font-size: 10px;
-            font-weight: bold;
-            letter-spacing: 0.03em;
-            padding: 3px 9px;
+            font-weight: 800;
+            letter-spacing: 0.05em;
+            padding: 3px 10px;
             border-radius: 20px;
             text-transform: uppercase;
         }
@@ -537,13 +656,21 @@ function gym_selection_page(): void
         .plan-card .btn { transition: none; }
 
         @media (max-width: 560px) {
-            .panel.gym-select { padding: 32px 16px !important; }
-            .modal-hero { padding: 22px 20px 0; }
-            .modal-body-inner { padding: 18px 20px 24px; }
-            .modal-hero-top { flex-direction: column; align-items: flex-start !important; gap: 12px; }
+            #gymDetailsModal { padding: 8px 6px; }
+            .gym-details-content { max-height: 94vh; border-radius: 12px; }
+            .panel.gym-select { padding: 28px 14px !important; }
+            .modal-hero { padding: 18px 14px 0; }
+            .modal-body-inner { padding: 16px 14px 20px; }
+            .modal-hero-top {
+                flex-direction: column;
+                align-items: stretch !important;
+                gap: 14px;
+                padding-right: 46px; /* Clearance for mobile close button */
+            }
             .modal-hero-top form, .modal-hero-top button { width: 100%; }
             .modal-gym-icon { width: 44px; height: 44px; }
             .modal-hero h2 { font-size: 1.3rem; }
+            .close-btn { top: 14px; right: 14px; width: 32px; height: 32px; font-size: 20px; }
             .modal-tab-btn { margin-right: 12px; font-size: 0.8rem; }
             .gym-card { width: 85vw; }
         }
@@ -801,14 +928,34 @@ function gym_selection_page(): void
         const classCount = gym.classes ? gym.classes.length : 0;
         const planCount = gym.plans ? gym.plans.length : 0;
         let minPrice = null;
-        let bestValuePlanId = null;
+        let highlightedPlanId = null;
+        let highlightBadgeText = 'Most Popular';
         if (gym.plans && gym.plans.length > 0) {
             minPrice = Math.min.apply(null, gym.plans.map(p => parseFloat(p.price)));
-            let bestPerDay = Infinity;
-            gym.plans.forEach(function (p) {
-                const perDay = parseFloat(p.price) / Math.max(1, parseInt(p.duration_days, 10));
-                if (perDay < bestPerDay) { bestPerDay = perDay; bestValuePlanId = p.plan_id; }
-            });
+            
+            // Respect the gym owner's configured "Most Popular" plan from page=plans
+            const popularPlan = gym.plans.find(p => p.is_popular === true || p.is_popular === 1 || p.is_popular === '1');
+            if (popularPlan) {
+                highlightedPlanId = popularPlan.plan_id;
+                highlightBadgeText = 'Most Popular';
+            } else {
+                // Fallback: check for quarterly plan or lowest per-day price
+                const quarterlyPlan = gym.plans.find(p => parseInt(p.duration_days, 10) === 90 || (p.plan_type && p.plan_type.toLowerCase() === 'quarterly'));
+                if (quarterlyPlan && gym.plans.length > 1) {
+                    highlightedPlanId = quarterlyPlan.plan_id;
+                    highlightBadgeText = 'Most Popular';
+                } else {
+                    let bestPerDay = Infinity;
+                    gym.plans.forEach(function (p) {
+                        const perDay = parseFloat(p.price) / Math.max(1, parseInt(p.duration_days, 10));
+                        if (perDay < bestPerDay) {
+                            bestPerDay = perDay;
+                            highlightedPlanId = p.plan_id;
+                            highlightBadgeText = 'Best Value';
+                        }
+                    });
+                }
+            }
         }
 
         let logoHtml = gym.logo_url
@@ -818,16 +965,16 @@ function gym_selection_page(): void
         const hasGallery = gym.images && gym.images.length > 0;
         let html = `
             <div class="modal-hero">
-                <div class="modal-hero-top" style="align-items: center;">
+                <div class="modal-hero-top">
                     <div class="modal-gym-icon" style="overflow: hidden; padding: ${gym.logo_url ? '0' : '8px'};">${logoHtml}</div>
-                    <div style="flex: 1;">
+                    <div style="flex: 1; min-width: 0;">
                         <h2>${escapeHtml(gym.name)}</h2>
                         <p class="addr">
                             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle></svg>
                             ${escapeHtml(gym.address)}
                         </p>
                     </div>
-                    <form method="post" action="index.php?page=gym_selection" style="margin: 0;">
+                    <form method="post" action="index.php?page=gym_selection" style="margin: 0; flex-shrink: 0;">
                         <?= csrf_field() ?>
                         <input type="hidden" name="action" value="select_gym">
                         <input type="hidden" name="gym_id" value="${gym.gym_id}">
@@ -901,21 +1048,39 @@ function gym_selection_page(): void
         if (planCount > 0) {
             html += `<div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 250px), 1fr)); gap: 16px;">`;
             gym.plans.forEach(p => {
-                const isBest = p.plan_id === bestValuePlanId && gym.plans.length > 1;
+                const isHighlighted = p.plan_id === highlightedPlanId && gym.plans.length > 1;
                 const perDay = parseFloat(p.price) / Math.max(1, parseInt(p.duration_days, 10));
+                const features = p.features && p.features.length > 0
+                    ? p.features
+                    : (p.description ? p.description.split('\n').map(s => s.trim()).filter(Boolean) : []);
+
+                let featuresHtml = '';
+                if (features.length > 0) {
+                    featuresHtml = `<ul style="list-style: none; padding: 0; margin: 0 0 20px; display: flex; flex-direction: column; gap: 8px; flex-grow: 1;">`;
+                    features.forEach(f => {
+                        featuresHtml += `
+                            <li style="display: flex; align-items: flex-start; gap: 8px; font-size: 0.84rem; color: var(--ink); line-height: 1.4;">
+                                <span style="color: var(--lime); font-weight: bold; flex-shrink: 0; line-height: 1.2;">✓</span>
+                                <span>${escapeHtml(f)}</span>
+                            </li>
+                        `;
+                    });
+                    featuresHtml += `</ul>`;
+                } else {
+                    featuresHtml = `<p style="color: var(--muted); font-size: 0.88rem; flex-grow: 1; margin-bottom: 18px; line-height: 1.45;">${escapeHtml(p.description || '')}</p>`;
+                }
+
                 html += `
-                    <div class="plan-card${isBest ? ' is-best-value' : ''}">
-                        ${isBest ? '<span class="plan-best-badge">Best Value</span>' : ''}
-                        <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 10px; margin-top: ${isBest ? '4px' : '0'};">
+                    <div class="plan-card${isHighlighted ? ' is-best-value' : ''}">
+                        ${isHighlighted ? `<span class="plan-best-badge">${escapeHtml(highlightBadgeText)}</span>` : ''}
+                        <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 10px; margin-top: ${isHighlighted ? '4px' : '0'};">
                             <strong style="font-size: 1.15rem; color: var(--ink);">${escapeHtml(p.plan_name)}</strong>
                         </div>
                         <div class="plan-price-row">
                             <span class="plan-price">₱${parseFloat(p.price).toFixed(2)}</span>
                         </div>
                         <div class="plan-per-day">~₱${perDay.toFixed(2)}/day &middot; ${p.duration_days} days</div>
-                        <p style="color: var(--muted); font-size: 0.88rem; flex-grow: 1; margin-bottom: 18px; line-height: 1.45;">
-                            ${escapeHtml(p.description || '')}
-                        </p>
+                        ${featuresHtml}
                         <form method="post" action="index.php?page=memberships">
                             <?= csrf_field() ?>
                             <input type="hidden" name="action" value="subscribe">
