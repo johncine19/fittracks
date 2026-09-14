@@ -296,14 +296,15 @@ function diet_builder_page(): void
                 $restBg = ($memberRestriction !== 'none') ? 'rgba(52, 211, 153, 0.15)' : 'rgba(255,255,255,0.06)';
                 $restBorder = ($memberRestriction !== 'none') ? 'rgba(52, 211, 153, 0.35)' : 'var(--line)';
             ?>
-            <span class="badge" style="background: <?= $restBg ?>; color: <?= $restColor ?>; border: 1px solid <?= $restBorder ?>; font-size: 11.5px; padding: 3px 10px; font-weight: 700; border-radius: 6px; display: inline-flex; align-items: center; gap: 5px;" title="Member's Dietary Restriction">
-                <span>🥗</span>
+            <span class="badge" style="background: <?= $restBg ?>; color: <?= $restColor ?>; border: 1px solid <?= $restBorder ?>; font-size: 11.5px; padding: 3px 10px; font-weight: 700; border-radius: 6px; display: inline-flex; align-items: center; gap: 6px;" title="Member's Dietary Restriction">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8h1a4 4 0 0 1 0 8h-1"/><path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z"/><line x1="6" y1="2" x2="6" y2="4"/><line x1="10" y1="1" x2="10" y2="4"/><line x1="14" y1="2" x2="14" y2="4"/></svg>
                 <span>Diet: <strong><?= h(ucwords(str_replace('-', ' ', $memberRestriction))) ?></strong></span>
             </span>
 
             <?php if (!empty($profile['primary_goal'])): ?>
-                <span class="badge" style="background: rgba(163, 230, 53, 0.12); color: var(--lime); border: 1px solid rgba(163, 230, 53, 0.25); font-size: 11.5px; padding: 3px 10px; font-weight: 700; border-radius: 6px;">
-                    🎯 <?= h(ucwords(str_replace('_', ' ', $profile['primary_goal']))) ?>
+                <span class="badge" style="background: rgba(163, 230, 53, 0.12); color: var(--lime); border: 1px solid rgba(163, 230, 53, 0.25); font-size: 11.5px; padding: 3px 10px; font-weight: 700; border-radius: 6px; display: inline-flex; align-items: center; gap: 6px;">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>
+                    <span><?= h(ucwords(str_replace('_', ' ', $profile['primary_goal']))) ?></span>
                 </span>
             <?php endif; ?>
         </div>
@@ -388,22 +389,25 @@ function diet_builder_page(): void
                 <div>
                     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
                         <label style="font-size: 12px; font-weight: 600; color: var(--muted); margin: 0;">Search Food Library</label>
-                        <button type="button" id="onlineSearchToggle" onclick="toggleOnlineSearch()" style="background: none; border: none; padding: 0; font-size: 11px; color: var(--lime); cursor: pointer; display: flex; align-items: center; gap: 4px; font-weight: 600;">
-                            <span>🌐 Search Online (OFF)</span>
+                        <button type="button" id="onlineSearchToggle" onclick="toggleOnlineSearch()" style="background: none; border: none; padding: 0; font-size: 11px; color: var(--lime); cursor: pointer; display: inline-flex; align-items: center; gap: 5px; font-weight: 600;">
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+                            <span>Search Online (OFF)</span>
                         </button>
                     </div>
                     <?php if ($memberRestriction !== 'none'): ?>
-                        <div style="font-size: 11px; color: #34d399; margin-bottom: 6px; display: flex; align-items: center; gap: 4px; font-weight: 500;">
-                            <span>🥗 Prioritizing: <strong><?= h(ucwords(str_replace('-', ' ', $memberRestriction))) ?></strong></span>
+                        <div style="font-size: 11px; color: #34d399; margin-bottom: 6px; display: inline-flex; align-items: center; gap: 5px; font-weight: 500;">
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8h1a4 4 0 0 1 0 8h-1"/><path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z"/><line x1="6" y1="2" x2="6" y2="4"/><line x1="10" y1="1" x2="10" y2="4"/><line x1="14" y1="2" x2="14" y2="4"/></svg>
+                            <span>Prioritizing: <strong><?= h(ucwords(str_replace('-', ' ', $memberRestriction))) ?></strong></span>
                         </div>
                     <?php endif; ?>
                     <div style="position: relative;">
                         <input type="text" id="food_search_input" placeholder="Search dishes (e.g. Chicken, Salmon...)" autocomplete="off" style="width: 100%; box-sizing: border-box; padding: 9px 30px 9px 12px; border-radius: 8px; border: 1px solid var(--line); background: var(--bg); color: var(--ink); font-size: 13px;">
-                        <span id="food_search_loader" style="display: none; position: absolute; right: 10px; top: 10px; font-size: 12px;">⏳</span>
+                        <svg id="food_search_loader" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--lime)" stroke-width="2.5" stroke-linecap="round" style="display: none; position: absolute; right: 10px; top: 11px; animation: spin 1s linear infinite;"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>
                         <div id="food_autocomplete_box" style="display: none; position: absolute; left: 0; right: 0; top: 100%; margin-top: 4px; background: #161f30; border: 1px solid #334155; border-radius: 8px; max-height: 250px; overflow-y: auto; z-index: 999; box-shadow: 0 10px 25px rgba(0,0,0,0.7);"></div>
                     </div>
-                    <div id="autofill_indicator" style="display: none; font-size: 11px; color: var(--lime); margin-top: 4px; font-weight: 600;">
-                        ✓ Details & macros auto-filled from library!
+                    <div id="autofill_indicator" style="display: none; font-size: 11px; color: var(--lime); margin-top: 4px; font-weight: 600; align-items: center; gap: 4px;">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle;"><polyline points="20 6 9 17 4 12"/></svg>
+                        Details & macros auto-filled from library!
                     </div>
                 </div>
 
@@ -475,8 +479,9 @@ function diet_builder_page(): void
                         <p style="margin: 2px 0 0; font-size: 12.5px; color: var(--muted);"><?= count($mealsByDay[$dayNum]) ?> meals scheduled for this day</p>
                     </div>
                     <div style="display: flex; gap: 8px; flex-wrap: wrap; align-items: center;">
-                        <span style="background: rgba(163, 230, 53, 0.12); color: var(--lime); border: 1px solid rgba(163, 230, 53, 0.25); padding: 4px 10px; border-radius: 20px; font-size: 12px; font-weight: 700;">
-                            🔥 <?= $dayCals ?> kcal
+                        <span style="background: rgba(163, 230, 53, 0.12); color: var(--lime); border: 1px solid rgba(163, 230, 53, 0.25); padding: 4px 10px; border-radius: 20px; font-size: 12px; font-weight: 700; display: inline-flex; align-items: center; gap: 4px;">
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z"/></svg>
+                            <span><?= $dayCals ?> kcal</span>
                         </span>
                         <span style="background: var(--bg); border: 1px solid var(--line); padding: 4px 10px; border-radius: 20px; font-size: 12px; color: var(--ink); font-weight: 600;">
                             P: <?= round($dayPro, 1) ?>g
@@ -554,8 +559,11 @@ function toggleOnlineSearch() {
     isOnlineSearch = !isOnlineSearch;
     const btn = document.getElementById('onlineSearchToggle');
     const input = document.getElementById('food_search_input');
+    const globeSvg = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle;"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>';
     if (btn) {
-        btn.innerHTML = isOnlineSearch ? '<span style="color:#38bdf8;">🌐 Search Online (ON)</span>' : '<span>🌐 Search Online (OFF)</span>';
+        btn.innerHTML = isOnlineSearch 
+            ? `<span style="color:#38bdf8; display: inline-flex; align-items: center; gap: 5px;">${globeSvg} Search Online (ON)</span>` 
+            : `<span style="display: inline-flex; align-items: center; gap: 5px;">${globeSvg} Search Online (OFF)</span>`;
     }
     if (input) {
         input.placeholder = isOnlineSearch ? 'Search Open Food Facts (e.g. Greek Yogurt, Quest Bar...)' : 'Search dishes (e.g. Chicken, Salmon, Oats...)';

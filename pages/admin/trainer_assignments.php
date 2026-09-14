@@ -123,19 +123,158 @@ function trainer_assignments_page(): void
 
     render_header('Trainer Assignments', $user);
     ?>
+    <style>
+    /* Responsive Header Action Buttons */
+    .assignments-header-actions {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+        flex-wrap: wrap;
+    }
+
+    @media (max-width: 768px) {
+        .assignments-header-actions {
+            width: 100%;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+        }
+        .assignments-header-actions .btn-primary-action {
+            grid-column: 1 / -1;
+            width: 100%;
+            justify-content: center;
+            height: 38px;
+        }
+        .assignments-header-actions .btn-sub-action {
+            width: 100%;
+            justify-content: center;
+            height: 38px;
+        }
+    }
+
+    /* Desktop vs Mobile Toggle */
+    .assignments-desktop-table {
+        display: block;
+    }
+    .assignments-mobile-cards {
+        display: none;
+    }
+
+    @media (max-width: 768px) {
+        .assignments-desktop-table {
+            display: none !important;
+        }
+        .assignments-mobile-cards {
+            display: flex !important;
+            flex-direction: column;
+            gap: 12px;
+        }
+    }
+
+    /* Mobile Assignment Card Styles */
+    .assignment-card-item {
+        background: color-mix(in srgb, var(--panel-soft) 45%, transparent);
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        padding: 14px 16px;
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+        transition: all 0.2s ease;
+    }
+    html[data-theme="light"] .assignment-card-item,
+    [data-theme="light"] .assignment-card-item {
+        background: #ffffff;
+        border-color: #e2e8f0;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+    }
+    .assignment-card-pairing {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        padding-bottom: 10px;
+        border-bottom: 1px solid var(--line);
+    }
+    .assignment-person {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        min-width: 0;
+        flex: 1;
+    }
+    .assignment-person-info {
+        min-width: 0;
+        display: flex;
+        flex-direction: column;
+    }
+    .assignment-person-role {
+        font-size: 10.5px;
+        text-transform: uppercase;
+        font-weight: 700;
+        letter-spacing: 0.5px;
+        color: var(--muted);
+    }
+    .assignment-person-name {
+        font-size: 13px;
+        font-weight: 600;
+        color: var(--ink);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+    .assignment-card-connector {
+        color: var(--muted);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+    }
+    .assignment-card-meta {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        font-size: 12px;
+        color: var(--muted);
+        flex-wrap: wrap;
+        gap: 6px;
+    }
+    .assignment-card-actions {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+        padding-top: 4px;
+    }
+    .assignment-card-actions .btn-sm,
+    .assignment-card-actions a.btn-sm,
+    .assignment-card-actions form {
+        flex: 1;
+    }
+    .assignment-card-actions form button {
+        width: 100%;
+        justify-content: center;
+    }
+    </style>
+
     <section class="panel">
         <div class="page-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; gap: 16px; flex-wrap: wrap;">
             <div style="flex: 1; min-width: 220px;">
                 <h1 style="margin: 0 0 4px; font-size: 22px;">Trainer Assignments</h1>
                 <p style="margin: 0; color: var(--muted); font-size: 13px;">Link coaches to members and manage active pairings.</p>
             </div>
-            <div style="display: flex; gap: 8px; align-items: center; flex-wrap: nowrap; flex-shrink: 0;">
-                <button onclick="openDietPlanSelector()" class="btn btn-secondary" style="white-space: nowrap; font-weight: 600; display: inline-flex; align-items: center; gap: 6px; padding: 0 12px; height: 36px; font-size: 12.5px; border-radius: 8px;">
+            <div class="assignments-header-actions">
+                <button onclick="addAssignment()" class="btn btn-primary-action" style="background: var(--lime); color: var(--bg); font-weight: 700; white-space: nowrap; display: inline-flex; align-items: center; gap: 6px; padding: 0 14px; height: 36px; font-size: 12.5px; border-radius: 8px; border: none; cursor: pointer;">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 5v14M5 12h14"/></svg>
+                    <span>New Assignment</span>
+                </button>
+                <button onclick="openDietPlanSelector()" class="btn btn-secondary btn-sub-action" style="white-space: nowrap; font-weight: 600; display: inline-flex; align-items: center; gap: 6px; padding: 0 12px; height: 36px; font-size: 12.5px; border-radius: 8px;">
                     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
                     <span>Diet Plan</span>
                 </button>
-                <button onclick="addTrainer()" class="btn btn-secondary" style="white-space: nowrap; font-weight: 600; display: inline-flex; align-items: center; padding: 0 12px; height: 36px; font-size: 12.5px; border-radius: 8px;">+ Add Trainer</button>
-                <button onclick="addAssignment()" class="btn" style="background: var(--lime); color: var(--bg); font-weight: 700; white-space: nowrap; display: inline-flex; align-items: center; padding: 0 14px; height: 36px; font-size: 12.5px; border-radius: 8px; border: none; cursor: pointer;">+ New Assignment</button>
+                <button onclick="addTrainer()" class="btn btn-secondary btn-sub-action" style="white-space: nowrap; font-weight: 600; display: inline-flex; align-items: center; gap: 6px; padding: 0 12px; height: 36px; font-size: 12.5px; border-radius: 8px;">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="8.5" cy="7" r="4"/><line x1="20" y1="8" x2="20" y2="14"/><line x1="23" y1="11" x2="17" y2="11"/></svg>
+                    <span>Add Trainer</span>
+                </button>
             </div>
         </div>
 
@@ -143,20 +282,10 @@ function trainer_assignments_page(): void
         <?php if (!$rows): ?>
             <div class="empty-state" style="padding: 40px 20px;">
                 <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
-                <p style="margin: 10px 0 16px;">No active trainer-member assignments yet.<br>You can pair a trainer with a member, or manage member meal plans directly below.</p>
-                <div style="display: flex; gap: 12px; justify-content: center; align-items: center; flex-wrap: wrap; margin-top: 8px;">
-                    <button onclick="openDietPlanSelector()" class="btn" style="background: var(--lime); color: var(--bg); font-weight: 700; padding: 10px 20px; border-radius: 8px; border: none; display: inline-flex; align-items: center; gap: 8px; box-shadow: 0 2px 10px rgba(132, 204, 22, 0.25); cursor: pointer; transition: all 0.2s ease;">
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
-                        <span>Open Member Diet Plan</span>
-                    </button>
-                    <a href="index.php?page=users&tab=member" class="btn btn-secondary" style="text-decoration: none; padding: 10px 18px; border-radius: 8px; display: inline-flex; align-items: center; gap: 8px; font-weight: 600; color: var(--ink); border: 1px solid var(--line); transition: all 0.2s ease;">
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
-                        <span>View Members List</span>
-                    </a>
-                </div>
+                <p style="margin: 10px 0 0;">No active trainer-member assignments yet.<br>Use the action buttons above to create an assignment or manage meal plans.</p>
             </div>
         <?php else: ?>
-        <div class="table-wrap">
+        <div class="assignments-desktop-table table-wrap">
             <table>
                 <thead>
                     <tr>
@@ -247,6 +376,97 @@ function trainer_assignments_page(): void
                 <?php endforeach; ?>
                 </tbody>
             </table>
+        </div>
+
+        <div class="assignments-mobile-cards">
+        <?php foreach ($rows as $row):
+            $statusClass = 'badge badge-' . str_replace(' ', '_', $row['status']);
+            $coachData = ['first_name' => $row['coach_fn'], 'last_name' => $row['coach_ln'], 'profile_picture' => $row['coach_picture']];
+            $memberData = ['first_name' => $row['member_fn'], 'last_name' => $row['member_ln'], 'profile_picture' => $row['member_picture']];
+        ?>
+            <div class="assignment-card-item">
+                <div class="assignment-card-pairing">
+                    <div class="assignment-person">
+                        <?= render_avatar($coachData) ?>
+                        <div class="assignment-person-info">
+                            <span class="assignment-person-role">Trainer</span>
+                            <span class="assignment-person-name"><?= h($row['trainer']) ?></span>
+                        </div>
+                    </div>
+                    <div class="assignment-card-connector">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+                    </div>
+                    <div class="assignment-person" style="justify-content: flex-end; text-align: right;">
+                        <div class="assignment-person-info" style="align-items: flex-end;">
+                            <span class="assignment-person-role">Member</span>
+                            <span class="assignment-person-name"><?= h($row['member']) ?></span>
+                        </div>
+                        <?= render_avatar($memberData) ?>
+                    </div>
+                </div>
+
+                <div class="assignment-card-meta">
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                        <span class="<?= $statusClass ?>"><?= h($row['status']) ?></span>
+                        <span><?= h(date('M j, Y', strtotime($row['assigned_date']))) ?></span>
+                    </div>
+                    <div>
+                        <?php if ($row['ended_date']): ?>
+                            <span>Ended: <?= h(date('M j, Y', strtotime($row['ended_date']))) ?></span>
+                        <?php elseif ($row['status'] === 'active' && $row['membership_end_date']): ?>
+                            <span style="font-size: 11px;">Expires: <?= h(date('M j, Y', strtotime($row['membership_end_date']))) ?></span>
+                        <?php endif; ?>
+                    </div>
+                </div>
+
+                <?php if ($row['status'] === 'rejected' && $row['rejection_reason']): ?>
+                    <div style="font-size: 11.5px; color: var(--muted); background: rgba(239, 68, 68, 0.08); border-left: 3px solid #ef4444; padding: 6px 10px; border-radius: 4px;">
+                        <strong>Reason:</strong> <?= h($row['rejection_reason']) ?>
+                    </div>
+                <?php endif; ?>
+
+                <?php if ($row['status'] === 'active' || $row['status'] === 'pending_admin'): ?>
+                <div class="assignment-card-actions">
+                    <?php if ($row['status'] === 'active'): ?>
+                        <a href="index.php?page=diet_builder&member_user_id=<?= (int)$row['member_user_id'] ?>&ref=trainer_assignments" class="btn-sm btn-ghost" style="text-decoration: none; display: inline-flex; align-items: center; justify-content: center; gap: 6px; border: 1px solid var(--line); font-weight: 600; height: 34px;" title="Edit Member Meal Plan">
+                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+                            <span>Diet Plan</span>
+                        </a>
+                        <?php
+                            $confirmTitle = "End Assignment?";
+                            $confirmHtml = "Are you sure you want to end this trainer assignment?";
+                            $btnText = "Yes, end it";
+                            
+                            if ($row['membership_end_date'] && strtotime($row['membership_end_date']) > time()) {
+                                $exp = date('M j, Y', strtotime($row['membership_end_date']));
+                                $confirmHtml = "This assignment is officially scheduled to end on <strong>$exp</strong>.<br><br>Are you sure you want to end it early?";
+                                $btnText = "Yes, end it early";
+                            }
+                        ?>
+                        <form method="post" onsubmit="event.preventDefault(); Swal.fire({title: '<?= $confirmTitle ?>', html: '<?= addslashes($confirmHtml) ?>', icon: 'warning', showCancelButton: true, confirmButtonColor: '#ef4444', confirmButtonText: '<?= $btnText ?>'}).then((result) => { if (result.isConfirmed) { this.submit(); } });">
+                            <?= csrf_field() ?>
+                            <input type="hidden" name="action" value="end">
+                            <input type="hidden" name="assignment_id" value="<?= (int) $row['assignment_id'] ?>">
+                            <button class="btn-sm btn-danger" style="height: 34px; width: 100%;">End Assignment</button>
+                        </form>
+                    <?php elseif ($row['status'] === 'pending_admin'): ?>
+                        <form method="post">
+                            <?= csrf_field() ?>
+                            <input type="hidden" name="action" value="forward">
+                            <input type="hidden" name="assignment_id" value="<?= (int) $row['assignment_id'] ?>">
+                            <button class="btn-sm" style="background: var(--lime); color: var(--bg); height: 34px; width: 100%; font-weight: 700;">Forward</button>
+                        </form>
+                        <form method="post">
+                            <?= csrf_field() ?>
+                            <input type="hidden" name="action" value="reject_admin">
+                            <input type="hidden" name="assignment_id" value="<?= (int) $row['assignment_id'] ?>">
+                            <button class="btn-sm btn-danger" style="height: 34px; width: 100%;">Reject</button>
+                        </form>
+                    <?php endif; ?>
+                </div>
+                <?php endif; ?>
+            </div>
+        <?php endforeach; ?>
         </div>
         <?php endif; ?>
     </section>

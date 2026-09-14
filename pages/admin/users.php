@@ -14,8 +14,9 @@ function users_page(): void
     }
 
     $canManageUser = function(int $targetUserId) use ($isAdmin, $gymId): bool {
-        if ($isAdmin) return true;
         $targetRole = scalar('SELECT role FROM users WHERE user_id = ?', [$targetUserId]);
+        if ($targetRole === 'platform_admin') return false;
+        if ($isAdmin) return true;
         if ($targetRole === 'trainer') {
             return (bool) scalar('SELECT 1 FROM trainer_profiles WHERE user_id = ? AND gym_id = ?', [$targetUserId, $gymId]);
         } elseif ($targetRole === 'member') {
@@ -211,7 +212,7 @@ function users_page(): void
     $tab = $_GET['tab'] ?? 'all';
     $gymFilter = (int)($_GET['gym_id'] ?? 0);
     
-    $where = '1=1';
+    $where = 'u.role != "platform_admin"';
     $params = [];
     
     if (!$isAdmin) {
@@ -223,7 +224,7 @@ function users_page(): void
         $params[] = $gymId;
     }
     
-    if (in_array($tab, ['platform_admin', 'gym_owner', 'trainer', 'member'], true)) {
+    if (in_array($tab, ['gym_owner', 'trainer', 'member'], true)) {
         $where .= ' AND u.role = ?';
         $params[] = $tab;
     }
@@ -249,7 +250,7 @@ function users_page(): void
             FROM users u 
             LEFT JOIN trainer_profiles tp ON u.user_id = tp.user_id 
             WHERE ' . $where . ' 
-            ORDER BY u.first_name ASC, u.last_name ASC 
+            ORDER BY CASE u.role WHEN "gym_owner" THEN 1 WHEN "trainer" THEN 2 WHEN "member" THEN 3 ELSE 4 END ASC, u.first_name ASC, u.last_name ASC 
             LIMIT ' . (int)$limit . ' OFFSET ' . (int)$offset;
 
     $stmt = db()->prepare($sql);
@@ -260,6 +261,217 @@ function users_page(): void
     
     render_header('Users', $user);
     ?>
+    <style>
+    /* User Role Badges */
+    .badge-platform_admin { background: rgba(199, 255, 34, 0.12); color: #c7ff22; border: 1px solid rgba(199, 255, 34, 0.25); }
+    .badge-gym_owner      { background: rgba(168, 85, 247, 0.12); color: #c084fc; border: 1px solid rgba(168, 85, 247, 0.25); }
+    .badge-trainer        { background: rgba(59, 130, 246, 0.12); color: #60a5fa; border: 1px solid rgba(59, 130, 246, 0.25); }
+    .badge-member         { background: rgba(20, 184, 166, 0.12); color: #2dd4bf; border: 1px solid rgba(20, 184, 166, 0.25); }
+
+    html[data-theme="light"] .badge-platform_admin,
+    [data-theme="light"] .badge-platform_admin { background: rgba(132, 204, 22, 0.15); color: #4d7c0f; border-color: rgba(132, 204, 22, 0.35); }
+    html[data-theme="light"] .badge-gym_owner,
+    [data-theme="light"] .badge-gym_owner { background: rgba(168, 85, 247, 0.12); color: #7e22ce; border-color: rgba(168, 85, 247, 0.3); }
+    html[data-theme="light"] .badge-trainer,
+    [data-theme="light"] .badge-trainer { background: rgba(59, 130, 246, 0.12); color: #1d4ed8; border-color: rgba(59, 130, 246, 0.3); }
+    html[data-theme="light"] .badge-member,
+    [data-theme="light"] .badge-member { background: rgba(20, 184, 166, 0.12); color: #0f766e; border-color: rgba(20, 184, 166, 0.3); }
+
+    /* Desktop vs Mobile Toggle */
+    .users-desktop-table {
+        display: block;
+    }
+    .users-mobile-cards {
+        display: none;
+    }
+
+    @media (max-width: 768px) {
+        .users-desktop-table {
+            display: none !important;
+        }
+        .users-mobile-cards {
+            display: flex !important;
+            flex-direction: column;
+            gap: 12px;
+        }
+    }
+
+    /* Mobile User Card Styles */
+    .user-card-item {
+        background: color-mix(in srgb, var(--panel-soft) 45%, transparent);
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        padding: 14px 16px;
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+        transition: all 0.2s ease;
+    }
+    html[data-theme="light"] .user-card-item,
+    [data-theme="light"] .user-card-item {
+        background: #ffffff;
+        border-color: #e2e8f0;
+        box-shadow: 0 1px 4px rgba(0, 0, 0, 0.05);
+    }
+    .user-card-item:hover {
+        border-color: color-mix(in srgb, var(--lime) 30%, transparent);
+    }
+
+    .user-card-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        gap: 10px;
+        padding-bottom: 10px;
+        border-bottom: 1px solid color-mix(in srgb, var(--line) 60%, transparent);
+    }
+    .user-card-identity {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        min-width: 0;
+    }
+    .user-card-names {
+        min-width: 0;
+        overflow: hidden;
+    }
+    .user-card-fullname {
+        font-weight: 700;
+        font-size: 15px;
+        color: var(--ink);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+    .user-card-id {
+        font-size: 12px;
+        color: var(--muted);
+        font-family: ui-monospace, monospace;
+    }
+    .user-card-badges {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-end;
+        gap: 4px;
+        flex-shrink: 0;
+    }
+
+    .user-card-details {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 8px;
+        font-size: 13px;
+    }
+    .user-card-detail-item {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 8px;
+        min-width: 0;
+    }
+    .user-card-detail-label {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        color: var(--muted);
+        font-size: 12px;
+        flex-shrink: 0;
+    }
+    .user-card-detail-label svg {
+        opacity: 0.75;
+    }
+    .user-card-detail-value {
+        color: var(--ink);
+        font-weight: 500;
+        text-align: right;
+        word-break: break-all;
+        max-width: 65%;
+    }
+    .user-card-detail-value.email-value {
+        color: var(--muted);
+        font-size: 12.5px;
+    }
+
+    .user-card-actions {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        padding-top: 12px;
+        border-top: 1px solid color-mix(in srgb, var(--line) 60%, transparent);
+    }
+    .user-card-status-form {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin: 0;
+        width: 100%;
+    }
+    .user-card-status-label {
+        font-size: 12px;
+        color: var(--muted);
+        font-weight: 600;
+        white-space: nowrap;
+        flex-shrink: 0;
+    }
+    .user-card-status-form select {
+        flex: 1;
+        min-width: 0;
+        padding: 6px 10px;
+        font-size: 12.5px;
+        border-radius: 6px;
+        background: var(--bg);
+        border: 1px solid var(--line);
+        color: var(--ink);
+    }
+    .user-card-status-form button {
+        padding: 6px 14px;
+        font-size: 12px;
+        font-weight: 600;
+        border-radius: 6px;
+        flex-shrink: 0;
+    }
+    .user-card-btn-group {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        width: 100%;
+    }
+    .user-card-btn-group .btn-sm,
+    .user-card-btn-group a.btn-sm,
+    .user-card-btn-group form {
+        flex: 1;
+        min-width: 0;
+        margin: 0;
+    }
+    .user-card-btn-group .btn-sm,
+    .user-card-btn-group a.btn-sm {
+        display: inline-flex;
+        justify-content: center;
+        align-items: center;
+        gap: 5px;
+        padding: 7px 10px;
+        font-size: 12px;
+        font-weight: 600;
+        border-radius: 6px;
+        text-align: center;
+        white-space: nowrap;
+        text-decoration: none;
+        box-sizing: border-box;
+    }
+    .user-card-btn-group form {
+        display: flex;
+    }
+    .user-card-btn-group form button {
+        width: 100%;
+        padding: 7px 10px;
+        font-size: 12px;
+        font-weight: 600;
+        border-radius: 6px;
+        white-space: nowrap;
+        box-sizing: border-box;
+    }
+    </style>
     <div class="skeleton-wrapper">
         <section class="panel">
             <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:24px">
@@ -316,7 +528,7 @@ function users_page(): void
                     <label>Role
                         <select name="role" id="new_user_role" onchange="toggleTrainerFields(this.value)">
                             <?php 
-                                $allowedRoles = $isAdmin ? ['platform_admin' => 'Platform Admin', 'gym_owner' => 'Gym Owner', 'trainer' => 'Trainer', 'member' => 'Member'] : ['trainer' => 'Trainer', 'member' => 'Member'];
+                                $allowedRoles = $isAdmin ? ['gym_owner' => 'Gym Owner', 'trainer' => 'Trainer', 'member' => 'Member'] : ['trainer' => 'Trainer', 'member' => 'Member'];
                                 foreach ($allowedRoles as $roleValue => $roleLabel): 
                             ?>
                                 <option value="<?= h($roleValue) ?>"><?= h($roleLabel) ?></option>
@@ -353,7 +565,6 @@ function users_page(): void
             <div style="display:flex; gap:16px; overflow-x:auto;">
                 <a href="?page=users&tab=all<?= $gymFilter ? '&gym_id='.$gymFilter : '' ?>" style="white-space:nowrap; color: <?= $tab === 'all' ? 'var(--lime)' : 'var(--muted)' ?>; font-weight: <?= $tab === 'all' ? '700' : '400' ?>; text-decoration:none; padding-bottom:4px; border-bottom: 2px solid <?= $tab === 'all' ? 'var(--lime)' : 'transparent' ?>;">All Users</a>
                 <?php if ($isAdmin): ?>
-                    <a href="?page=users&tab=platform_admin<?= $gymFilter ? '&gym_id='.$gymFilter : '' ?>" style="white-space:nowrap; color: <?= $tab === 'platform_admin' ? 'var(--lime)' : 'var(--muted)' ?>; font-weight: <?= $tab === 'platform_admin' ? '700' : '400' ?>; text-decoration:none; padding-bottom:4px; border-bottom: 2px solid <?= $tab === 'platform_admin' ? 'var(--lime)' : 'transparent' ?>;">Platform Admins</a>
                     <a href="?page=users&tab=gym_owner<?= $gymFilter ? '&gym_id='.$gymFilter : '' ?>" style="white-space:nowrap; color: <?= $tab === 'gym_owner' ? 'var(--lime)' : 'var(--muted)' ?>; font-weight: <?= $tab === 'gym_owner' ? '700' : '400' ?>; text-decoration:none; padding-bottom:4px; border-bottom: 2px solid <?= $tab === 'gym_owner' ? 'var(--lime)' : 'transparent' ?>;">Gym Owners</a>
                 <?php endif; ?>
                 <a href="?page=users&tab=trainer<?= $gymFilter ? '&gym_id='.$gymFilter : '' ?>" style="white-space:nowrap; color: <?= $tab === 'trainer' ? 'var(--lime)' : 'var(--muted)' ?>; font-weight: <?= $tab === 'trainer' ? '700' : '400' ?>; text-decoration:none; padding-bottom:4px; border-bottom: 2px solid <?= $tab === 'trainer' ? 'var(--lime)' : 'transparent' ?>;">Trainers</a>
@@ -385,14 +596,15 @@ function users_page(): void
                 <p>No users found.</p>
             </div>
         <?php else: ?>
-        <div class="table-wrap">
+        <!-- Desktop / Tablet Table View (>= 769px) -->
+        <div class="users-desktop-table table-wrap">
             <table>
                 <thead>
                     <tr>
                         <th>User</th>
                         <th>Email</th>
                         <th>Role</th>
-                        <?php if ($isAdmin && $tab !== 'platform_admin'): ?>
+                        <?php if ($isAdmin): ?>
                             <th>Gym / Branch</th>
                         <?php endif; ?>
                         <?php if ($tab === 'trainer'): ?>
@@ -410,6 +622,7 @@ function users_page(): void
                 <?php foreach ($rows as $row):
                     $roleClass = 'badge badge-' . $row['role'];
                     $statusClass = 'badge badge-' . $row['status'];
+                    $roleDisplayName = ucwords(str_replace('_', ' ', $row['role']));
                 ?>
                     <tr>
                         <td>
@@ -422,8 +635,8 @@ function users_page(): void
                             </div>
                         </td>
                         <td style="color:var(--muted)"><?= h($row['email']) ?></td>
-                        <td><span class="<?= $roleClass ?>"><?= h($row['role']) ?></span></td>
-                        <?php if ($isAdmin && $tab !== 'platform_admin'): ?>
+                        <td><span class="<?= $roleClass ?>"><?= h($roleDisplayName) ?></span></td>
+                        <?php if ($isAdmin): ?>
                         <?php
                             $associatedGym = null;
                             if ($row['role'] === 'gym_owner') $associatedGym = $row['owner_gym_name'];
@@ -492,6 +705,122 @@ function users_page(): void
                 </tbody>
             </table>
         </div>
+
+        <!-- Mobile Card-List View (< 768px: Zero Horizontal Scroll) -->
+        <div class="users-mobile-cards">
+            <?php foreach ($rows as $row):
+                $roleClass = 'badge badge-' . $row['role'];
+                $statusClass = 'badge badge-' . $row['status'];
+                $roleDisplayName = ucwords(str_replace('_', ' ', $row['role']));
+                
+                $associatedGym = null;
+                if ($row['role'] === 'gym_owner') $associatedGym = $row['owner_gym_name'];
+                elseif ($row['role'] === 'trainer') $associatedGym = $row['trainer_gym_name'];
+                elseif ($row['role'] === 'member') $associatedGym = $row['member_gym_name'];
+            ?>
+                <div class="user-card-item">
+                    <div class="user-card-header">
+                        <div class="user-card-identity">
+                            <?= render_avatar($row) ?>
+                            <div class="user-card-names">
+                                <div class="user-card-fullname"><?= h($row['first_name'] . ' ' . $row['last_name']) ?></div>
+                                <div class="user-card-id">#<?= (int) $row['user_id'] ?></div>
+                            </div>
+                        </div>
+                        <div class="user-card-badges">
+                            <span class="<?= $roleClass ?>"><?= h($roleDisplayName) ?></span>
+                            <span class="<?= $statusClass ?>"><?= h($row['status']) ?></span>
+                        </div>
+                    </div>
+
+                    <div class="user-card-details">
+                        <div class="user-card-detail-item">
+                            <span class="user-card-detail-label">
+                                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+                                Email
+                            </span>
+                            <span class="user-card-detail-value email-value" title="<?= h($row['email']) ?>"><?= h($row['email']) ?></span>
+                        </div>
+
+                        <?php if ($isAdmin && $associatedGym): ?>
+                        <div class="user-card-detail-item">
+                            <span class="user-card-detail-label">
+                                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 21h18M3 7v14M21 7v14M6 11h4M6 15h4M14 11h4M14 15h4M9 21v-4h6v4M3 7l9-4 9 4"/></svg>
+                                Gym / Branch
+                            </span>
+                            <span class="user-card-detail-value"><?= h($associatedGym) ?></span>
+                        </div>
+                        <?php endif; ?>
+
+                        <?php if ($row['role'] === 'trainer' && !empty($row['specialization'])): ?>
+                        <div class="user-card-detail-item">
+                            <span class="user-card-detail-label">
+                                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6M18 9h1.5a2.5 2.5 0 0 0 0-5H18M4 22h16M10 14.66V17c0 .55-.45 1-1 1H7c-.55 0-1-.45-1-1v-2.34M18 14.66V17c0 .55-.45 1-1 1h-2c-.55 0-1-.45-1-1v-2.34M8 2h8a2 2 0 0 1 2 2v7a6 6 0 0 1-12 0V4a2 2 0 0 1 2-2z"/></svg>
+                                Specialization
+                            </span>
+                            <span class="user-card-detail-value"><?= h($row['specialization']) ?></span>
+                        </div>
+                        <?php endif; ?>
+
+                        <?php if ($row['role'] === 'member'): ?>
+                        <div class="user-card-detail-item">
+                            <span class="user-card-detail-label">
+                                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                                Score
+                            </span>
+                            <span class="user-card-detail-value"><strong style="color:var(--lime);"><?= (int)$row['engagement_score'] ?></strong> / 100</span>
+                        </div>
+                        <?php endif; ?>
+
+                        <div class="user-card-detail-item">
+                            <span class="user-card-detail-label">
+                                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+                                Joined
+                            </span>
+                            <span class="user-card-detail-value"><?= h(date('M j, Y', strtotime($row['created_at']))) ?></span>
+                        </div>
+                    </div>
+
+                    <div class="user-card-actions">
+                        <form method="post" class="user-card-status-form">
+                            <?= csrf_field() ?>
+                            <input type="hidden" name="action" value="status">
+                            <input type="hidden" name="user_id" value="<?= (int) $row['user_id'] ?>">
+                            <span class="user-card-status-label">Status:</span>
+                            <select name="status">
+                                <option value="active" <?= selected('active', $row['status']) ?>>Active</option>
+                                <option value="suspended" <?= selected('suspended', $row['status']) ?>>Suspended</option>
+                            </select>
+                            <button type="submit" class="btn-sm btn-ghost">Update</button>
+                        </form>
+                        
+                        <div class="user-card-btn-group">
+                            <button type="button" onclick="editUser(<?= htmlspecialchars(json_encode($row)) ?>)" class="btn btn-secondary btn-sm">
+                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+                                Edit
+                            </button>
+                            <?php if ($row['role'] === 'member'): ?>
+                                <a href="index.php?page=diet_builder&member_user_id=<?= (int)$row['user_id'] ?>&ref=users" class="btn btn-secondary btn-sm" title="Manage Diet Plan">
+                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+                                    Diet
+                                </a>
+                            <?php endif; ?>
+                            <?php if ((int) $row['user_id'] !== (int) $user['user_id']): ?>
+                            <form method="post" onsubmit="return confirm('Delete this user? This cannot be undone.');">
+                                <?= csrf_field() ?>
+                                <input type="hidden" name="action" value="delete_user">
+                                <input type="hidden" name="user_id" value="<?= (int) $row['user_id'] ?>">
+                                <button type="submit" class="btn btn-danger btn-sm">
+                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                                    Delete
+                                </button>
+                            </form>
+                            <?php endif; ?>
+                        </div>
+                    </div>
+                </div>
+            <?php endforeach; ?>
+        </div>
         <?php render_pagination($page, $totalPages, '?page=users&tab=' . urlencode($tab)); ?>
         <?php endif; ?>
     </section>
@@ -528,7 +857,6 @@ function users_page(): void
                     <label style="display:block; color: var(--muted); font-size: 14px;">Role *
                         <select name="role" id="eu_role" class="form-control" style="width: 100%; box-sizing: border-box;" onchange="toggleEditTrainerFields(this.value)">
                             ${<?= $isAdmin ? 'true' : 'false' ?> ? `
-                                <option value="platform_admin">Platform Admin</option>
                                 <option value="gym_owner">Gym Owner</option>
                             ` : ''}
                             <option value="trainer">Trainer</option>
