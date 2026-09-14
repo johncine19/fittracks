@@ -247,8 +247,26 @@ function get_inactive_members(int $limit = 5, ?int $gymId = null): array
 
 function send_at_risk_notification_job(array $payload): void
 {
-    $userId = (int) $payload['user_id'];
+    $userId = (int) ($payload['user_id'] ?? 0);
+    if ($userId <= 0) {
+        return;
+    }
+
     notify_user($userId, 'system', 'We miss you at the gym!', 'It\'s been a few days since your last activity. Check out this week\'s classes or your new workout plan to get back on track!');
+
+    // Send email reminder if user has a valid active email
+    try {
+        $stmt = db()->prepare('SELECT email, first_name FROM users WHERE user_id = ? AND status = "active"');
+        $stmt->execute([$userId]);
+        $user = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        if ($user && !empty($user['email']) && filter_var($user['email'], FILTER_VALIDATE_EMAIL)) {
+            $firstName = !empty($user['first_name']) ? (string) $user['first_name'] : 'Member';
+            Emails::sendInactiveReminder((string) $user['email'], $firstName);
+        }
+    } catch (Throwable $e) {
+        error_log("Failed to queue inactive reminder email for user #{$userId}: " . $e->getMessage());
+    }
 }
 
 function process_automated_at_risk_notifications(): void

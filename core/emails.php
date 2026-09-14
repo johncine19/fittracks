@@ -190,4 +190,24 @@ HTML;
 
         queue_email($email, $ownerName, 'Gym Application Update - FITTRACKS', self::layout($content));
     }
+
+    public static function sendInactiveReminder(string $email, string $firstName): void
+    {
+        $dashboardUrl = app_base_url() . '?page=dashboard';
+        $classesUrl = app_base_url() . '?page=classes';
+        
+        $content = <<<HTML
+        <p>Hi <strong>{$firstName}</strong>,</p>
+        <p>We miss you at the gym! It has been a few days since your last activity or gym visit.</p>
+        <p>Consistency is key to crushing your fitness goals. Whether you want to jump back into your workout plan, check out an energizing group class, or log your progress, our team and community are here to support you every step of the way.</p>
+        <p style="text-align: center; margin: 30px 0;">
+            <a href="{$dashboardUrl}" class="btn">Jump Back In</a>
+        </p>
+        <p style="font-size: 14px; color: #94a3b8; text-align: center;">
+            Need some motivation? Explore <a href="{$classesUrl}" style="color: #c7ff22; text-decoration: underline;">this week's class schedule</a>.
+        </p>
+HTML;
+
+        queue_email($email, $firstName, 'We miss you at the gym! - FITTRACKS', self::layout($content));
+    }
 }

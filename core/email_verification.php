@@ -38,10 +38,29 @@ function send_verification_email(string $email, string $firstName, string $token
 
 function app_base_url(): string
 {
+    $configured = app_env('APP_URL') ?: app_env('RENDER_EXTERNAL_URL');
+    if (!empty($configured)) {
+        $clean = rtrim((string) $configured, '/');
+        if (!str_ends_with($clean, '.php')) {
+            $clean .= '/index.php';
+        }
+        return $clean;
+    }
+
     $scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
-    $host = $_SERVER['HTTP_HOST'] ?? 'localhost';
-    $path = rtrim(str_replace('index.php', '', $_SERVER['SCRIPT_NAME'] ?? ''), '/');
-    return $scheme . '://' . $host . $path . '/index.php';
+
+    // In web request
+    if (php_sapi_name() !== 'cli' && !empty($_SERVER['HTTP_HOST'])) {
+        $host = $_SERVER['HTTP_HOST'];
+        $scriptPath = str_replace('\\', '/', $_SERVER['SCRIPT_NAME'] ?? '');
+        $dir = dirname($scriptPath);
+        $base = ($dir === '/' || $dir === '\\' || $dir === '.') ? '' : rtrim($dir, '/');
+        return $scheme . '://' . $host . $base . '/index.php';
+    }
+
+    // CLI fallback
+    $projectFolder = basename(dirname(__DIR__));
+    return 'http://localhost/' . $projectFolder . '/index.php';
 }
 
 function verify_email_token(string $token): ?int
