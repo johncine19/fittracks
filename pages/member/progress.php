@@ -65,8 +65,19 @@ function progress_page(): void
                 $user['user_id'],
             ]);
         }
-        db()->prepare('UPDATE member_profiles SET weight_kg = ? WHERE user_id = ?')
-           ->execute([post('weight_kg'), $memberId]);
+        $updateProfileCols = ['weight_kg = ?'];
+        $updateProfileVals = [post('weight_kg')];
+        if (post('waist_cm')) {
+            $updateProfileCols[] = 'waist_cm = ?';
+            $updateProfileVals[] = post('waist_cm');
+        }
+        if (post('hips_cm')) {
+            $updateProfileCols[] = 'hip_cm = ?';
+            $updateProfileVals[] = post('hips_cm');
+        }
+        $updateProfileVals[] = $memberId;
+        db()->prepare('UPDATE member_profiles SET ' . implode(', ', $updateProfileCols) . ' WHERE user_id = ?')
+           ->execute($updateProfileVals);
 
         if (can_recalculate_workout($memberId)) {
             generate_workout_plan($memberId);
@@ -508,6 +519,125 @@ function progress_page(): void
             flex-shrink: 0;
         }
 
+        /* Unified Progress Stat Cards */
+        .progress-stat-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr));
+            gap: 14px;
+            margin-bottom: 2rem;
+        }
+        .progress-stat-card {
+            background: color-mix(in srgb, var(--panel-soft) 45%, transparent);
+            padding: 16px;
+            border-radius: 12px;
+            border: 1px solid var(--line);
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            transition: all 0.25s ease;
+        }
+        .progress-stat-card:hover {
+            border-color: color-mix(in srgb, var(--lime) 30%, transparent);
+            background: color-mix(in srgb, var(--panel-soft) 85%, transparent);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.12);
+        }
+        .progress-stat-top {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+        }
+        .progress-stat-header-left {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            min-width: 0;
+        }
+        .progress-stat-icon {
+            width: 36px;
+            height: 36px;
+            border-radius: 10px;
+            display: grid;
+            place-items: center;
+            flex-shrink: 0;
+        }
+        .progress-stat-label {
+            font-size: 11px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: var(--muted);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .progress-stat-badge {
+            font-size: 11px;
+            padding: 3px 7px;
+            border-radius: 6px;
+            font-weight: 600;
+            white-space: nowrap;
+        }
+        .progress-stat-middle {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-end;
+            gap: 10px;
+        }
+        .progress-stat-val {
+            font-size: 22px;
+            font-weight: 700;
+            color: var(--ink);
+            line-height: 1.15;
+        }
+        .progress-stat-unit {
+            font-size: 13px;
+            font-weight: 500;
+            color: var(--muted);
+        }
+        .progress-stat-sub {
+            font-size: 12px;
+            color: var(--muted);
+            margin-top: 4px;
+        }
+        .progress-stat-target-meta {
+            text-align: right;
+            flex-shrink: 0;
+        }
+        .progress-stat-target-label {
+            font-size: 12px;
+            color: var(--muted);
+            margin-bottom: 3px;
+        }
+        .progress-stat-pill {
+            display: inline-block;
+            padding: 3px 8px;
+            border-radius: 6px;
+            font-size: 12px;
+            font-weight: 700;
+        }
+        .progress-stat-progress-bar {
+            margin-top: 10px;
+            background: var(--panel-soft);
+            border-radius: 999px;
+            height: 6px;
+            overflow: hidden;
+        }
+        .progress-stat-progress-fill {
+            background: var(--lime);
+            height: 100%;
+            border-radius: 999px;
+            transition: width 0.3s ease;
+        }
+        .progress-stat-progress-labels {
+            display: flex;
+            justify-content: space-between;
+            font-size: 11px;
+            color: var(--muted);
+            margin-top: 4px;
+        }
+
         @media (max-width: 768px) {
             .history-desktop-table {
                 display: none !important;
@@ -576,148 +706,378 @@ function progress_page(): void
 
 
 
-        <?php if (count($rows) >= 2): 
-            $current = $rows[0];
-            $baseline = $rows[count($rows) - 1];
+        <?php 
+        $hasLogs = count($rows) > 0;
+        $hasProfileStats = !empty($member['weight_kg']) || !empty($member['target_strength_max_kg']) || !empty($member['target_weight_kg']) || !empty($member['weekly_workout_target']);
+
+        if ($hasLogs || $hasProfileStats): 
+            $current = $hasLogs ? $rows[0] : [];
+            $baseline = $hasLogs ? $rows[count($rows) - 1] : [];
             
-            $weightStart = (float) $baseline['weight_kg'];
-            $weightCurr = (float) $current['weight_kg'];
+            // Weight
+            $weightCurr = !empty($member['weight_kg']) && (float)$member['weight_kg'] > 0 
+                ? (float)$member['weight_kg'] 
+                : ($hasLogs && !empty($current['weight_kg']) ? (float)$current['weight_kg'] : 0.0);
+            $weightStart = $hasLogs && !empty($baseline['weight_kg']) ? (float)$baseline['weight_kg'] : $weightCurr;
             $weightDelta = $weightCurr - $weightStart;
             $weightSign = $weightDelta > 0 ? '+' : '';
-            $weightColor = $weightDelta > 0 ? 'var(--danger)' : 'var(--lime)'; // Assuming weight loss is good. Adjust if needed.
+            $weightColor = $weightDelta > 0 ? 'var(--danger)' : 'var(--lime)';
 
-            $bfStart = $baseline['body_fat_percent'] ? (float) $baseline['body_fat_percent'] : null;
-            $bfCurr = $current['body_fat_percent'] ? (float) $current['body_fat_percent'] : null;
+            // Body Fat
+            $bfStart = ($hasLogs && !empty($baseline['body_fat_percent'])) ? (float)$baseline['body_fat_percent'] : null;
+            $bfCurr = ($hasLogs && !empty($current['body_fat_percent'])) ? (float)$current['body_fat_percent'] : null;
             
             $goal = $member['primary_goal'] ?? '';
-            $showArm = in_array($goal, ['Growing larger biceps and arms', 'Gaining lean body mass', 'Increasing maximum strength', 'muscle_gain']);
-            $showChest = in_array($goal, ['Developing a wide chest', 'Gaining lean body mass', 'Increasing maximum strength', 'muscle_gain']);
-            $showWaist = in_array($goal, ['Building a visible six-pack', 'Losing excess body fat', 'Reaching body recomposition', 'fat_loss']);
-            $showHips = in_array($goal, ['Shaping the lower body', 'Losing excess body fat', 'fat_loss']);
+            $goalCat = function_exists('resolve_goal_category') ? resolve_goal_category($goal) : 'general_fitness';
+            $showArm = in_array($goalCat, ['building_muscle', 'increasing_strength']) || !empty($member['target_arm_cm']);
+            $showChest = in_array($goalCat, ['building_muscle', 'increasing_strength']) || !empty($member['target_chest_cm']);
+            $showWaist = in_array($goalCat, ['reducing_body_fat', 'losing_weight', 'building_muscle']) || !empty($member['target_waist_cm']) || !empty($member['waist_cm']);
+            $showHips = in_array($goalCat, ['reducing_body_fat', 'losing_weight']) || !empty($member['hip_cm']);
         ?>
-        <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 200px), 1fr)); gap: 15px; margin-bottom: 2rem;">
-            <div style="background: var(--bg); padding: 15px; border-radius: 8px; border: 1px solid var(--line);">
-                <div style="color: var(--muted); font-size: 13px; font-weight: 600; text-transform: uppercase; margin-bottom: 8px;">Weight</div>
-                <div style="display: flex; justify-content: space-between; align-items: baseline;">
-                    <div>
-                        <div style="font-size: 24px; font-weight: bold; color: var(--ink);"><?= h(number_format($weightCurr, 1)) ?> <span style="font-size: 14px; font-weight: normal; color: var(--muted);">kg</span></div>
-                        <div style="font-size: 13px; color: var(--muted);">Start: <?= h(number_format($weightStart, 1)) ?> kg</div>
+        <div class="progress-stat-grid">
+            <!-- WEIGHT CARD -->
+            <div class="progress-stat-card">
+                <div class="progress-stat-top">
+                    <div class="progress-stat-header-left">
+                        <div class="progress-stat-icon" style="background: color-mix(in srgb, var(--orange) 15%, transparent); color: var(--orange);">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+                        </div>
+                        <span class="progress-stat-label">Weight</span>
                     </div>
-                    <?php if ($member['target_weight_kg']): 
-                        $dist = $weightCurr - (float)$member['target_weight_kg'];
+                    <?php if (!empty($member['target_weight_kg'])): 
+                        $targetWeight = (float)$member['target_weight_kg'];
+                        $dist = $weightCurr - $targetWeight;
                     ?>
-                        <div style="text-align: right;">
-                            <div style="font-size: 13px; color: var(--muted); margin-bottom: 4px;">Target: <?= h($member['target_weight_kg']) ?> kg</div>
-                            <?php if (abs($dist) < 0.1): ?>
-                                <div style="padding: 4px 8px; border-radius: 4px; font-size: 13px; font-weight: bold; background: var(--lime)20; color: var(--lime);">Goal Reached!</div>
-                            <?php else: ?>
-                                <div style="padding: 4px 8px; border-radius: 4px; font-size: 13px; font-weight: bold; background: var(--panel-soft); color: var(--ink);"><?= h(number_format(abs($dist), 1)) ?> kg to go</div>
-                            <?php endif; ?>
-                        </div>
-                    <?php elseif ($weightDelta !== 0.0): ?>
-                        <div style="padding: 4px 8px; border-radius: 4px; font-size: 13px; font-weight: bold; background: <?= $weightColor ?>20; color: <?= $weightColor ?>;">
-                            <?= $weightSign ?><?= h(number_format($weightDelta, 1)) ?>
-                        </div>
-                    <?php else: ?>
-                        <div style="padding: 4px 8px; border-radius: 4px; font-size: 13px; font-weight: bold; background: var(--line); color: var(--muted);">
-                            No change
-                        </div>
+                        <span class="progress-stat-target-label" style="font-size: 11px; color: var(--muted);">Target: <?= h($targetWeight) ?> kg</span>
                     <?php endif; ?>
+                </div>
+                <div class="progress-stat-middle">
+                    <div>
+                        <div class="progress-stat-val"><?= h(number_format($weightCurr, 1)) ?> <span class="progress-stat-unit">kg</span></div>
+                        <div class="progress-stat-sub">Start: <?= h(number_format($weightStart, 1)) ?> kg</div>
+                    </div>
+                    <div class="progress-stat-target-meta">
+                        <?php if (!empty($member['target_weight_kg'])): 
+                            $targetWeight = (float)$member['target_weight_kg'];
+                            $dist = $weightCurr - $targetWeight;
+                            if (abs($dist) < 0.1): ?>
+                                <span class="progress-stat-pill" style="background: color-mix(in srgb, var(--lime) 15%, transparent); color: var(--lime);">Goal Reached! 🏆</span>
+                            <?php else: ?>
+                                <span class="progress-stat-pill" style="background: var(--panel-soft); color: var(--ink);"><?= h(number_format(abs($dist), 1)) ?> kg to go</span>
+                            <?php endif; ?>
+                        <?php elseif ($weightDelta !== 0.0): ?>
+                            <span class="progress-stat-pill" style="background: color-mix(in srgb, <?= $weightColor ?> 15%, transparent); color: <?= $weightColor ?>;">
+                                <?= $weightSign ?><?= h(number_format($weightDelta, 1)) ?> kg
+                            </span>
+                        <?php else: ?>
+                            <span class="progress-stat-pill" style="background: var(--line); color: var(--muted);">No change</span>
+                        <?php endif; ?>
+                    </div>
                 </div>
             </div>
 
-            <?php if ($bfStart !== null && $bfCurr !== null): 
-                $bfDelta = $bfCurr - $bfStart;
+            <!-- BODY FAT CARD -->
+            <?php if ($bfCurr !== null || !empty($member['target_body_fat_percent'])): 
+                $bfDelta = ($bfStart !== null && $bfCurr !== null) ? ($bfCurr - $bfStart) : 0.0;
                 $bfSign = $bfDelta > 0 ? '+' : '';
                 $bfColor = $bfDelta > 0 ? 'var(--danger)' : 'var(--lime)';
             ?>
-            <div style="background: var(--bg); padding: 15px; border-radius: 8px; border: 1px solid var(--line);">
-                <div style="color: var(--muted); font-size: 13px; font-weight: 600; text-transform: uppercase; margin-bottom: 8px;">Body Fat</div>
-                <div style="display: flex; justify-content: space-between; align-items: baseline;">
-                    <div>
-                        <div style="font-size: 24px; font-weight: bold; color: var(--ink);"><?= h(number_format($bfCurr, 1)) ?> <span style="font-size: 14px; font-weight: normal; color: var(--muted);">%</span></div>
-                        <div style="font-size: 13px; color: var(--muted);">Start: <?= h(number_format($bfStart, 1)) ?> %</div>
+            <div class="progress-stat-card">
+                <div class="progress-stat-top">
+                    <div class="progress-stat-header-left">
+                        <div class="progress-stat-icon" style="background: color-mix(in srgb, #f43f5e 15%, transparent); color: #f43f5e;">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z"/></svg>
+                        </div>
+                        <span class="progress-stat-label">Body Fat</span>
                     </div>
-                    <?php if ($member['target_body_fat_percent']): 
-                        $dist = $bfCurr - (float)$member['target_body_fat_percent'];
-                    ?>
-                        <div style="text-align: right;">
-                            <div style="font-size: 13px; color: var(--muted); margin-bottom: 4px;">Target: <?= h($member['target_body_fat_percent']) ?> %</div>
-                            <?php if ($dist <= 0): ?>
-                                <div style="padding: 4px 8px; border-radius: 4px; font-size: 13px; font-weight: bold; background: var(--lime)20; color: var(--lime);">Goal Reached!</div>
-                            <?php else: ?>
-                                <div style="padding: 4px 8px; border-radius: 4px; font-size: 13px; font-weight: bold; background: var(--panel-soft); color: var(--ink);"><?= h(number_format($dist, 1)) ?> % to go</div>
-                            <?php endif; ?>
-                        </div>
-                    <?php elseif ($bfDelta !== 0.0): ?>
-                        <div style="padding: 4px 8px; border-radius: 4px; font-size: 13px; font-weight: bold; background: <?= $bfColor ?>20; color: <?= $bfColor ?>;">
-                            <?= $bfSign ?><?= h(number_format($bfDelta, 1)) ?>
-                        </div>
-                    <?php else: ?>
-                        <div style="padding: 4px 8px; border-radius: 4px; font-size: 13px; font-weight: bold; background: var(--line); color: var(--muted);">
-                            No change
-                        </div>
+                    <?php if (!empty($member['target_body_fat_percent'])): ?>
+                        <span class="progress-stat-target-label" style="font-size: 11px; color: var(--muted);">Target: <?= h($member['target_body_fat_percent']) ?> %</span>
                     <?php endif; ?>
+                </div>
+                <div class="progress-stat-middle">
+                    <div>
+                        <div class="progress-stat-val"><?= $bfCurr !== null ? h(number_format($bfCurr, 1)) : '—' ?> <span class="progress-stat-unit">%</span></div>
+                        <div class="progress-stat-sub">Start: <?= $bfStart !== null ? h(number_format($bfStart, 1)) . ' %' : '—' ?></div>
+                    </div>
+                    <div class="progress-stat-target-meta">
+                        <?php if (!empty($member['target_body_fat_percent']) && $bfCurr !== null): 
+                            $dist = $bfCurr - (float)$member['target_body_fat_percent'];
+                            if ($dist <= 0): ?>
+                                <span class="progress-stat-pill" style="background: color-mix(in srgb, var(--lime) 15%, transparent); color: var(--lime);">Goal Reached! 🏆</span>
+                            <?php else: ?>
+                                <span class="progress-stat-pill" style="background: var(--panel-soft); color: var(--ink);"><?= h(number_format($dist, 1)) ?> % to go</span>
+                            <?php endif; ?>
+                        <?php elseif ($bfDelta !== 0.0 && $bfCurr !== null): ?>
+                            <span class="progress-stat-pill" style="background: color-mix(in srgb, <?= $bfColor ?> 15%, transparent); color: <?= $bfColor ?>;">
+                                <?= $bfSign ?><?= h(number_format($bfDelta, 1)) ?> %
+                            </span>
+                        <?php elseif ($bfCurr !== null): ?>
+                            <span class="progress-stat-pill" style="background: var(--line); color: var(--muted);">No change</span>
+                        <?php else: ?>
+                            <span class="progress-stat-pill" style="background: var(--line); color: var(--muted);">Target Set</span>
+                        <?php endif; ?>
+                    </div>
                 </div>
             </div>
             <?php endif; ?>
 
+            <!-- EXTRA BODY MEASUREMENTS CARDS -->
             <?php 
             $extraMetrics = [
-                ['key' => 'arm_cm', 'label' => 'Arm Size', 'unit' => 'cm', 'show' => $showArm, 'better' => 'up', 'target' => !empty($member['target_arm_cm']) ? (float)$member['target_arm_cm'] : null],
-                ['key' => 'chest_cm', 'label' => 'Chest Size', 'unit' => 'cm', 'show' => $showChest, 'better' => 'up', 'target' => !empty($member['target_chest_cm']) ? (float)$member['target_chest_cm'] : null],
-                ['key' => 'waist_cm', 'label' => 'Waist Size', 'unit' => 'cm', 'show' => $showWaist, 'better' => 'down', 'target' => !empty($member['target_waist_cm']) ? (float)$member['target_waist_cm'] : null],
-                ['key' => 'hips_cm', 'label' => 'Hip Size', 'unit' => 'cm', 'show' => $showHips, 'better' => 'down', 'target' => null],
+                [
+                    'key' => 'arm_cm', 
+                    'label' => 'Arm Size', 
+                    'unit' => 'cm', 
+                    'show' => $showArm, 
+                    'better' => 'up', 
+                    'target' => !empty($member['target_arm_cm']) ? (float)$member['target_arm_cm'] : null, 
+                    'profile_val' => null,
+                    'icon_bg' => 'color-mix(in srgb, #a78bfa 15%, transparent)',
+                    'icon_color' => '#a78bfa',
+                    'icon_svg' => '<path d="M18 8h1a4 4 0 0 1 0 8h-1"/><path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z"/>'
+                ],
+                [
+                    'key' => 'chest_cm', 
+                    'label' => 'Chest Size', 
+                    'unit' => 'cm', 
+                    'show' => $showChest, 
+                    'better' => 'up', 
+                    'target' => !empty($member['target_chest_cm']) ? (float)$member['target_chest_cm'] : null, 
+                    'profile_val' => null,
+                    'icon_bg' => 'color-mix(in srgb, #60a5fa 15%, transparent)',
+                    'icon_color' => '#60a5fa',
+                    'icon_svg' => '<circle cx="12" cy="12" r="10"/><line x1="2" x2="22" y1="12" y2="12"/>'
+                ],
+                [
+                    'key' => 'waist_cm', 
+                    'label' => 'Waist Size', 
+                    'unit' => 'cm', 
+                    'show' => $showWaist, 
+                    'better' => 'down', 
+                    'target' => !empty($member['target_waist_cm']) ? (float)$member['target_waist_cm'] : null, 
+                    'profile_val' => !empty($member['waist_cm']) ? (float)$member['waist_cm'] : null,
+                    'icon_bg' => 'color-mix(in srgb, #f472b6 15%, transparent)',
+                    'icon_color' => '#f472b6',
+                    'icon_svg' => '<path d="M3 12a9 9 0 1 0 18 0 9 9 0 0 0-18 0"/><path d="M12 8v8"/>'
+                ],
+                [
+                    'key' => 'hips_cm', 
+                    'label' => 'Hip Size', 
+                    'unit' => 'cm', 
+                    'show' => $showHips, 
+                    'better' => 'down', 
+                    'target' => null, 
+                    'profile_val' => !empty($member['hip_cm']) ? (float)$member['hip_cm'] : null,
+                    'icon_bg' => 'color-mix(in srgb, #fb923c 15%, transparent)',
+                    'icon_color' => '#fb923c',
+                    'icon_svg' => '<circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/>'
+                ],
             ];
             foreach ($extraMetrics as $m):
                 if (!$m['show']) continue;
-                $mStart = $baseline[$m['key']] ? (float) $baseline[$m['key']] : null;
-                $mCurr = $current[$m['key']] ? (float) $current[$m['key']] : null;
-                if ($mStart !== null && $mCurr !== null):
-                    $mDelta = $mCurr - $mStart;
-                    $mSign = $mDelta > 0 ? '+' : '';
-                    $mColor = 'var(--line)';
-                    if ($mDelta !== 0.0) {
-                        if ($m['better'] === 'up') {
-                            $mColor = $mDelta > 0 ? 'var(--lime)' : 'var(--danger)';
-                        } else {
-                            $mColor = $mDelta < 0 ? 'var(--lime)' : 'var(--danger)';
-                        }
+                $mCurr = !empty($m['profile_val']) ? (float)$m['profile_val'] : ($hasLogs && !empty($current[$m['key']]) ? (float)$current[$m['key']] : null);
+                $mStart = ($hasLogs && !empty($baseline[$m['key']])) ? (float)$baseline[$m['key']] : $mCurr;
+                if ($mCurr === null && $m['target'] === null) continue;
+                
+                $mDelta = ($mStart !== null && $mCurr !== null) ? ($mCurr - $mStart) : 0.0;
+                $mSign = $mDelta > 0 ? '+' : '';
+                $mColor = 'var(--line)';
+                if ($mDelta !== 0.0) {
+                    if ($m['better'] === 'up') {
+                        $mColor = $mDelta > 0 ? 'var(--lime)' : 'var(--danger)';
+                    } else {
+                        $mColor = $mDelta < 0 ? 'var(--lime)' : 'var(--danger)';
                     }
+                }
             ?>
-            <div style="background: var(--bg); padding: 15px; border-radius: 8px; border: 1px solid var(--line);">
-                <div style="color: var(--muted); font-size: 13px; font-weight: 600; text-transform: uppercase; margin-bottom: 8px;"><?= $m['label'] ?></div>
-                <div style="display: flex; justify-content: space-between; align-items: baseline;">
-                    <div>
-                        <div style="font-size: 24px; font-weight: bold; color: var(--ink);"><?= h(number_format($mCurr, 1)) ?> <span style="font-size: 14px; font-weight: normal; color: var(--muted);"><?= $m['unit'] ?></span></div>
-                        <div style="font-size: 13px; color: var(--muted);">Start: <?= h(number_format($mStart, 1)) ?> <?= $m['unit'] ?></div>
+            <div class="progress-stat-card">
+                <div class="progress-stat-top">
+                    <div class="progress-stat-header-left">
+                        <div class="progress-stat-icon" style="background: <?= $m['icon_bg'] ?>; color: <?= $m['icon_color'] ?>;">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><?= $m['icon_svg'] ?></svg>
+                        </div>
+                        <span class="progress-stat-label"><?= h($m['label']) ?></span>
                     </div>
-                    <?php if ($m['target'] !== null): 
-                        $dist = $m['better'] === 'up' ? ($m['target'] - $mCurr) : ($mCurr - $m['target']);
-                    ?>
-                        <div style="text-align: right;">
-                            <div style="font-size: 13px; color: var(--muted); margin-bottom: 4px;">Target: <?= h($m['target']) ?> <?= $m['unit'] ?></div>
-                            <?php if ($dist <= 0): ?>
-                                <div style="padding: 4px 8px; border-radius: 4px; font-size: 13px; font-weight: bold; background: var(--lime)20; color: var(--lime);">Goal Reached! 🏆</div>
-                            <?php else: ?>
-                                <div style="padding: 4px 8px; border-radius: 4px; font-size: 13px; font-weight: bold; background: var(--panel-soft); color: var(--ink);"><?= h(number_format(abs($dist), 1)) ?> <?= $m['unit'] ?> to go</div>
-                            <?php endif; ?>
-                        </div>
-                    <?php elseif ($mDelta !== 0.0): ?>
-                        <div style="padding: 4px 8px; border-radius: 4px; font-size: 13px; font-weight: bold; background: <?= $mColor ?>20; color: <?= $mColor ?>;">
-                            <?= $mSign ?><?= h(number_format($mDelta, 1)) ?>
-                        </div>
-                    <?php else: ?>
-                        <div style="padding: 4px 8px; border-radius: 4px; font-size: 13px; font-weight: bold; background: var(--line); color: var(--muted);">
-                            No change
-                        </div>
+                    <?php if ($m['target'] !== null): ?>
+                        <span class="progress-stat-target-label" style="font-size: 11px; color: var(--muted);">Target: <?= h($m['target']) ?> <?= $m['unit'] ?></span>
                     <?php endif; ?>
                 </div>
+                <div class="progress-stat-middle">
+                    <div>
+                        <div class="progress-stat-val"><?= $mCurr !== null ? h(number_format($mCurr, 1)) : '—' ?> <span class="progress-stat-unit"><?= $m['unit'] ?></span></div>
+                        <div class="progress-stat-sub">Start: <?= $mStart !== null ? h(number_format($mStart, 1)) . ' ' . $m['unit'] : '—' ?></div>
+                    </div>
+                    <div class="progress-stat-target-meta">
+                        <?php if ($m['target'] !== null && $mCurr !== null): 
+                            $dist = $m['better'] === 'up' ? ($m['target'] - $mCurr) : ($mCurr - $m['target']);
+                            if ($dist <= 0): ?>
+                                <span class="progress-stat-pill" style="background: color-mix(in srgb, var(--lime) 15%, transparent); color: var(--lime);">Goal Reached! 🏆</span>
+                            <?php else: ?>
+                                <span class="progress-stat-pill" style="background: var(--panel-soft); color: var(--ink);"><?= h(number_format(abs($dist), 1)) ?> <?= $m['unit'] ?> to go</span>
+                            <?php endif; ?>
+                        <?php elseif ($mDelta !== 0.0 && $mCurr !== null): ?>
+                            <span class="progress-stat-pill" style="background: color-mix(in srgb, <?= $mColor ?> 15%, transparent); color: <?= $mColor ?>;">
+                                <?= $mSign ?><?= h(number_format($mDelta, 1)) ?> <?= $m['unit'] ?>
+                            </span>
+                        <?php elseif ($mCurr !== null): ?>
+                            <span class="progress-stat-pill" style="background: var(--line); color: var(--muted);">No change</span>
+                        <?php else: ?>
+                            <span class="progress-stat-pill" style="background: var(--line); color: var(--muted);">Target Set</span>
+                        <?php endif; ?>
+                    </div>
+                </div>
             </div>
-            <?php 
-                endif;
-            endforeach; 
+            <?php endforeach; ?>
+
+            <!-- DYNAMIC STRENGTH TARGET CARD -->
+            <?php if (!empty($member['target_strength_max_kg'])): 
+                $strengthExerciseLabels = [
+                    'bench_press'    => 'Bench Press',
+                    'squat'          => 'Back Squat',
+                    'deadlift'       => 'Deadlift',
+                    'overhead_press' => 'Overhead Press',
+                    'barbell_row'    => 'Barbell Row',
+                    'pull_up'        => 'Pull-Up',
+                    'dumbbell_press' => 'Dumbbell Press',
+                ];
+                $exKey = $member['target_exercise'] ?? 'bench_press';
+                $exLabel = $strengthExerciseLabels[$exKey] ?? ucwords(str_replace('_', ' ', $exKey));
+                $currMax = !empty($member['current_strength_max_kg']) ? (float)$member['current_strength_max_kg'] : null;
+                $targetMax = (float)$member['target_strength_max_kg'];
+                $strengthDist = $currMax !== null ? ($targetMax - $currMax) : null;
+                $strengthPct = ($currMax !== null && $targetMax > 0) ? min(100, max(0, round(($currMax / $targetMax) * 100))) : 0;
             ?>
+            <div class="progress-stat-card">
+                <div class="progress-stat-top">
+                    <div class="progress-stat-header-left">
+                        <div class="progress-stat-icon" style="background: color-mix(in srgb, var(--lime) 15%, transparent); color: var(--lime);">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6.5 6.5 11 11"/><path d="m21 21-1-1"/><path d="m3 3 1 1"/><path d="m18 22 4-4"/><path d="m2 6 4-4"/><path d="m3 10 7-7"/><path d="m14 21 7-7"/></svg>
+                        </div>
+                        <span class="progress-stat-label">Strength Target</span>
+                    </div>
+                    <span class="progress-stat-badge" style="background: color-mix(in srgb, var(--lime) 15%, transparent); color: var(--lime);"><?= h($exLabel) ?></span>
+                </div>
+                <div class="progress-stat-middle">
+                    <div>
+                        <div class="progress-stat-val"><?= h(number_format($targetMax, 1)) ?> <span class="progress-stat-unit">kg PR</span></div>
+                        <div class="progress-stat-sub"><?= $currMax !== null ? 'Current: ' . h(number_format($currMax, 1)) . ' kg' : 'Target Goal' ?></div>
+                    </div>
+                    <div class="progress-stat-target-meta">
+                        <?php if ($strengthDist !== null && $strengthDist <= 0): ?>
+                            <span class="progress-stat-pill" style="background: color-mix(in srgb, var(--lime) 15%, transparent); color: var(--lime);">PR Reached! 🏆</span>
+                        <?php elseif ($strengthDist !== null): ?>
+                            <span class="progress-stat-pill" style="background: var(--panel-soft); color: var(--ink);"><?= h(number_format($strengthDist, 1)) ?> kg to go</span>
+                        <?php else: ?>
+                            <span class="progress-stat-pill" style="background: var(--line); color: var(--muted);">Target Set</span>
+                        <?php endif; ?>
+                    </div>
+                </div>
+                <?php if ($currMax !== null && $targetMax > 0): ?>
+                    <div class="progress-stat-progress-bar">
+                        <div class="progress-stat-progress-fill" style="width: <?= $strengthPct ?>%;"></div>
+                    </div>
+                    <div class="progress-stat-progress-labels">
+                        <span><?= $strengthPct ?>% of target</span>
+                        <span><?= h(number_format($targetMax, 1)) ?> kg</span>
+                    </div>
+                <?php endif; ?>
+            </div>
+            <?php endif; ?>
+
+            <!-- DYNAMIC ENDURANCE TARGET CARD -->
+            <?php if (!empty($member['target_endurance_distance_km']) || !empty($member['target_endurance_time_mins'])): 
+                $enduranceLabels = [
+                    'running'   => 'Running',
+                    'cycling'   => 'Cycling',
+                    'rowing'    => 'Rowing',
+                    'swimming'  => 'Swimming',
+                    'jump_rope' => 'Jump Rope',
+                    'walking'   => 'Walking',
+                ];
+                $actKey = $member['endurance_activity'] ?? 'running';
+                $actLabel = $enduranceLabels[$actKey] ?? ucwords(str_replace('_', ' ', $actKey));
+                $targetDist = !empty($member['target_endurance_distance_km']) ? (float)$member['target_endurance_distance_km'] : null;
+                $targetTime = !empty($member['target_endurance_time_mins']) ? (int)$member['target_endurance_time_mins'] : null;
+                $currDist = !empty($member['current_endurance_distance_km']) ? (float)$member['current_endurance_distance_km'] : null;
+                $currTime = !empty($member['current_endurance_time_mins']) ? (int)$member['current_endurance_time_mins'] : null;
+            ?>
+            <div class="progress-stat-card">
+                <div class="progress-stat-top">
+                    <div class="progress-stat-header-left">
+                        <div class="progress-stat-icon" style="background: color-mix(in srgb, var(--teal) 15%, transparent); color: var(--teal);">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+                        </div>
+                        <span class="progress-stat-label">Endurance Target</span>
+                    </div>
+                    <span class="progress-stat-badge" style="background: color-mix(in srgb, var(--teal) 15%, transparent); color: var(--teal);"><?= h($actLabel) ?></span>
+                </div>
+                <div class="progress-stat-middle">
+                    <div>
+                        <div class="progress-stat-val">
+                            <?= $targetDist ? h(number_format($targetDist, 1)) . ' <span class="progress-stat-unit">km</span>' : '' ?>
+                            <?= ($targetDist && $targetTime) ? ' / ' : '' ?>
+                            <?= $targetTime ? h($targetTime) . ' <span class="progress-stat-unit">min</span>' : '' ?>
+                        </div>
+                        <div class="progress-stat-sub">
+                            <?php if ($currDist || $currTime): ?>
+                                Baseline: <?= $currDist ? h(number_format($currDist, 1)) . ' km' : '' ?> <?= ($currDist && $currTime) ? 'in ' : '' ?><?= $currTime ? h($currTime) . ' min' : '' ?>
+                            <?php else: ?>
+                                Pacing goal
+                            <?php endif; ?>
+                        </div>
+                    </div>
+                    <div class="progress-stat-target-meta">
+                        <span class="progress-stat-pill" style="background: color-mix(in srgb, var(--teal) 15%, transparent); color: var(--teal);">Target Set</span>
+                    </div>
+                </div>
+            </div>
+            <?php endif; ?>
+
+            <!-- DYNAMIC WEEKLY CONSISTENCY CARD -->
+            <?php if (!empty($member['weekly_workout_target'])): 
+                $weeklyTarget = (int)$member['weekly_workout_target'];
+                $workoutsThisWeek = (int) scalar(
+                    'SELECT COUNT(DISTINCT check_in_date) FROM (
+                        SELECT DATE(check_in_time) as check_in_date FROM attendance WHERE user_id = ? AND check_in_time >= DATE_SUB(CURDATE(), INTERVAL WEEKDAY(CURDATE()) DAY)
+                        UNION
+                        SELECT completed_date as check_in_date FROM exercise_completions WHERE user_id = ? AND completed_date >= DATE_SUB(CURDATE(), INTERVAL WEEKDAY(CURDATE()) DAY)
+                    ) t',
+                    [$memberId, $memberId]
+                );
+                $weeklyPct = $weeklyTarget > 0 ? min(100, max(0, round(($workoutsThisWeek / $weeklyTarget) * 100))) : 0;
+            ?>
+            <div class="progress-stat-card">
+                <div class="progress-stat-top">
+                    <div class="progress-stat-header-left">
+                        <div class="progress-stat-icon" style="background: color-mix(in srgb, var(--lime) 15%, transparent); color: var(--lime);">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="4" rx="2" ry="2"/><line x1="16" x2="16" y1="2" y2="6"/><line x1="8" x2="8" y1="2" y2="6"/><line x1="3" x2="21" y1="10" y2="10"/></svg>
+                        </div>
+                        <span class="progress-stat-label">Weekly Consistency</span>
+                    </div>
+                    <span class="progress-stat-badge" style="background: color-mix(in srgb, var(--lime) 15%, transparent); color: var(--lime);"><?= $weeklyTarget ?> days / wk</span>
+                </div>
+                <div class="progress-stat-middle">
+                    <div>
+                        <div class="progress-stat-val"><?= $workoutsThisWeek ?> / <?= $weeklyTarget ?> <span class="progress-stat-unit">sessions</span></div>
+                        <div class="progress-stat-sub">This Week</div>
+                    </div>
+                    <div class="progress-stat-target-meta">
+                        <?php if ($workoutsThisWeek >= $weeklyTarget): ?>
+                            <span class="progress-stat-pill" style="background: color-mix(in srgb, var(--lime) 15%, transparent); color: var(--lime);">Target Hit! 🎯</span>
+                        <?php else: ?>
+                            <span class="progress-stat-pill" style="background: var(--panel-soft); color: var(--ink);"><?= ($weeklyTarget - $workoutsThisWeek) ?> to go</span>
+                        <?php endif; ?>
+                    </div>
+                </div>
+                <div class="progress-stat-progress-bar">
+                    <div class="progress-stat-progress-fill" style="width: <?= $weeklyPct ?>%;"></div>
+                </div>
+                <div class="progress-stat-progress-labels">
+                    <span><?= $weeklyPct ?>% completed</span>
+                    <span><?= $weeklyTarget ?> sessions target</span>
+                </div>
+            </div>
+            <?php endif; ?>
         </div>
         <?php endif; ?>
 

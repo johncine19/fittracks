@@ -7,6 +7,10 @@ if (php_sapi_name() !== 'cli') {
 }
 require __DIR__ . '/core/bootstrap.php';
 
+if (php_sapi_name() !== 'cli') {
+    header('Content-Type: text/plain; charset=utf-8');
+}
+
 echo "Starting Fittracks Background Tasks...\n";
 
 // Schedule jobs instead of running them synchronously
@@ -18,7 +22,8 @@ Queue::push('process_automated_at_risk_notifications');
 
 echo "Jobs scheduled. Starting worker to process jobs...\n";
 
-// Process as many jobs as possible within a 50-second time limit to avoid HTTP timeouts(60s)
-Queue::work(10000, 50);
+// Process jobs with a safe 15-second time limit to avoid HTTP timeouts (cron-job.org default is 30s)
+// Any remaining jobs will be picked up by the shutdown worker or subsequent runs
+Queue::work(200, 15);
 
 echo "All tasks completed successfully.\n";

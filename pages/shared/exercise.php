@@ -13,21 +13,50 @@ function save_member_profile(int $userId): void
     // Ensure new target measurement columns exist (self-healing for seamless live operation)
     static $columnsChecked = false;
     if (!$columnsChecked) {
-        try {
-            $pdo->query("SELECT target_arm_cm, target_chest_cm, target_waist_cm FROM member_profiles LIMIT 1");
-        } catch (Throwable) {
+        $neededCols = [
+            'chest_cm'                       => 'DECIMAL(5,2) DEFAULT NULL',
+            'arm_cm'                         => 'DECIMAL(5,2) DEFAULT NULL',
+            'target_arm_cm'                  => 'DECIMAL(5,2) DEFAULT NULL',
+            'target_chest_cm'                => 'DECIMAL(5,2) DEFAULT NULL',
+            'target_waist_cm'                => 'DECIMAL(5,2) DEFAULT NULL',
+            'target_exercise'                => 'VARCHAR(100) DEFAULT NULL',
+            'current_strength_max_kg'        => 'DECIMAL(5,2) DEFAULT NULL',
+            'target_strength_max_kg'         => 'DECIMAL(5,2) DEFAULT NULL',
+            'endurance_activity'             => 'VARCHAR(50) DEFAULT NULL',
+            'current_endurance_distance_km'  => 'DECIMAL(5,2) DEFAULT NULL',
+            'current_endurance_time_mins'    => 'INT DEFAULT NULL',
+            'target_endurance_distance_km'   => 'DECIMAL(5,2) DEFAULT NULL',
+            'target_endurance_time_mins'     => 'INT DEFAULT NULL',
+            'weekly_workout_target'          => 'TINYINT UNSIGNED DEFAULT NULL',
+        ];
+        foreach ($neededCols as $col => $def) {
             try {
-                $pdo->exec("ALTER TABLE member_profiles ADD COLUMN target_arm_cm DECIMAL(5,2) DEFAULT NULL");
-                $pdo->exec("ALTER TABLE member_profiles ADD COLUMN target_chest_cm DECIMAL(5,2) DEFAULT NULL");
-                $pdo->exec("ALTER TABLE member_profiles ADD COLUMN target_waist_cm DECIMAL(5,2) DEFAULT NULL");
-            } catch (Throwable) {}
+                $pdo->query("SELECT {$col} FROM member_profiles LIMIT 1");
+            } catch (Throwable) {
+                try {
+                    $pdo->exec("ALTER TABLE member_profiles ADD COLUMN {$col} {$def}");
+                } catch (Throwable) {}
+            }
         }
         $columnsChecked = true;
     }
 
-    $stmt = $pdo->prepare('INSERT INTO member_profiles (user_id, height_cm, weight_kg, neck_cm, waist_cm, hip_cm, age, biological_sex, activity_level, primary_goal, dietary_restrictions, target_weight_kg, target_body_fat_percent, target_arm_cm, target_chest_cm, target_waist_cm)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        ON DUPLICATE KEY UPDATE height_cm = VALUES(height_cm), weight_kg = VALUES(weight_kg), neck_cm = VALUES(neck_cm), waist_cm = VALUES(waist_cm), hip_cm = VALUES(hip_cm), age = VALUES(age), biological_sex = VALUES(biological_sex), activity_level = VALUES(activity_level), primary_goal = VALUES(primary_goal), dietary_restrictions = VALUES(dietary_restrictions), target_weight_kg = VALUES(target_weight_kg), target_body_fat_percent = VALUES(target_body_fat_percent), target_arm_cm = VALUES(target_arm_cm), target_chest_cm = VALUES(target_chest_cm), target_waist_cm = VALUES(target_waist_cm)');
+    $stmt = $pdo->prepare('INSERT INTO member_profiles (
+        user_id, height_cm, weight_kg, neck_cm, waist_cm, hip_cm, chest_cm, arm_cm, age, biological_sex, activity_level, primary_goal, dietary_restrictions,
+        target_weight_kg, target_body_fat_percent, target_arm_cm, target_chest_cm, target_waist_cm,
+        target_exercise, current_strength_max_kg, target_strength_max_kg,
+        endurance_activity, current_endurance_distance_km, current_endurance_time_mins,
+        target_endurance_distance_km, target_endurance_time_mins, weekly_workout_target
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ON DUPLICATE KEY UPDATE 
+        height_cm = VALUES(height_cm), weight_kg = VALUES(weight_kg), neck_cm = VALUES(neck_cm), waist_cm = VALUES(waist_cm), hip_cm = VALUES(hip_cm),
+        chest_cm = VALUES(chest_cm), arm_cm = VALUES(arm_cm),
+        age = VALUES(age), biological_sex = VALUES(biological_sex), activity_level = VALUES(activity_level), primary_goal = VALUES(primary_goal), dietary_restrictions = VALUES(dietary_restrictions),
+        target_weight_kg = VALUES(target_weight_kg), target_body_fat_percent = VALUES(target_body_fat_percent), target_arm_cm = VALUES(target_arm_cm), target_chest_cm = VALUES(target_chest_cm), target_waist_cm = VALUES(target_waist_cm),
+        target_exercise = VALUES(target_exercise), current_strength_max_kg = VALUES(current_strength_max_kg), target_strength_max_kg = VALUES(target_strength_max_kg),
+        endurance_activity = VALUES(endurance_activity), current_endurance_distance_km = VALUES(current_endurance_distance_km), current_endurance_time_mins = VALUES(current_endurance_time_mins),
+        target_endurance_distance_km = VALUES(target_endurance_distance_km), target_endurance_time_mins = VALUES(target_endurance_time_mins), weekly_workout_target = VALUES(weekly_workout_target)');
+
     $stmt->execute([
         $userId,
         post('height_cm') ?: 0.0,
@@ -35,9 +64,11 @@ function save_member_profile(int $userId): void
         post('neck_cm') ?: null,
         post('waist_cm') ?: null,
         post('biological_sex') === 'female' ? (post('hip_cm') ?: null) : null,
+        post('chest_cm') ?: null,
+        post('arm_cm') ?: null,
         (int) (post('age') ?: 0),
-        post('biological_sex'),
-        post('activity_level'),
+        post('biological_sex') ?: 'male',
+        post('activity_level') ?: 'sedentary',
         post('primary_goal') ?: '',
         post('dietary_restrictions') ?: 'none',
         post('target_weight_kg') ?: null,
@@ -45,7 +76,36 @@ function save_member_profile(int $userId): void
         post('target_arm_cm') ?: null,
         post('target_chest_cm') ?: null,
         post('target_waist_cm') ?: null,
+        post('target_exercise') ?: null,
+        post('current_strength_max_kg') ?: null,
+        post('target_strength_max_kg') ?: null,
+        post('endurance_activity') ?: null,
+        post('current_endurance_distance_km') ?: null,
+        post('current_endurance_time_mins') ?: null,
+        post('target_endurance_distance_km') ?: null,
+        post('target_endurance_time_mins') ?: null,
+        post('weekly_workout_target') ?: null,
     ]);
+
+    // Keep progress_logs synchronized with physical profile so progress page and profile page match
+    $today = date('Y-m-d');
+    $w = (float)(post('weight_kg') ?: 0);
+    $waist = post('waist_cm') ? (float)post('waist_cm') : null;
+    $neck = post('neck_cm') ? (float)post('neck_cm') : null;
+    $hips = (post('biological_sex') === 'female' && post('hip_cm')) ? (float)post('hip_cm') : null;
+    $chest = post('chest_cm') ? (float)post('chest_cm') : null;
+    $arm = post('arm_cm') ? (float)post('arm_cm') : null;
+
+    if ($w > 0) {
+        $existingLogId = scalar('SELECT log_id FROM progress_logs WHERE user_id = ? AND log_date = ?', [$userId, $today]);
+        if ($existingLogId) {
+            $pdo->prepare('UPDATE progress_logs SET weight_kg = ?, waist_cm = COALESCE(?, waist_cm), hips_cm = COALESCE(?, hips_cm), chest_cm = COALESCE(?, chest_cm), arm_cm = COALESCE(?, arm_cm) WHERE log_id = ?')
+                ->execute([$w, $waist, $hips, $chest, $arm, $existingLogId]);
+        } else {
+            $pdo->prepare('INSERT INTO progress_logs (user_id, log_date, weight_kg, waist_cm, hips_cm, chest_cm, arm_cm, recorded_by, notes) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)')
+                ->execute([$userId, $today, $w, $waist, $hips, $chest, $arm, $userId, 'Updated via physical profile']);
+        }
+    }
 
     // Update fitness_tier based on selected experience_level
     if (isset($_POST['experience_level'])) {
@@ -63,7 +123,24 @@ function member_profile(int $userId): ?array
     $stmt = db()->prepare('SELECT * FROM member_profiles WHERE user_id = ?');
     $stmt->execute([$userId]);
     $profile = $stmt->fetch();
-    return $profile ?: null;
+    if (!$profile) {
+        return null;
+    }
+    // Fallback to latest progress_logs measurement if profile column is empty
+    if (empty($profile['chest_cm']) || empty($profile['arm_cm'])) {
+        try {
+            $latestLog = db()->query("SELECT chest_cm, arm_cm FROM progress_logs WHERE user_id = $userId ORDER BY log_date DESC LIMIT 1")->fetch();
+            if ($latestLog) {
+                if (empty($profile['chest_cm']) && !empty($latestLog['chest_cm'])) {
+                    $profile['chest_cm'] = $latestLog['chest_cm'];
+                }
+                if (empty($profile['arm_cm']) && !empty($latestLog['arm_cm'])) {
+                    $profile['arm_cm'] = $latestLog['arm_cm'];
+                }
+            }
+        } catch (Throwable) {}
+    }
+    return $profile;
 }
 
 /**

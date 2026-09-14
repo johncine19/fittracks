@@ -1329,6 +1329,11 @@ code {
 }
 
 /* ---- Modal (Dialog) ---- */
+dialog:not([open]),
+dialog.modal:not([open]) {
+    display: none !important;
+}
+
 dialog.modal {
     margin: auto;
     padding: 0;

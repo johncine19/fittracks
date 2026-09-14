@@ -94,6 +94,24 @@ function render_member_form(string $context, ?array $user = null, ?array $profil
             font-weight: 600;
             color: var(--muted);
         }
+        .pm-field > label {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            font-size: 12.5px;
+            font-weight: 600;
+            color: var(--ink);
+            white-space: nowrap;
+            line-height: 1.25;
+            margin-bottom: 2px;
+        }
+        .pm-req {
+            color: var(--lime);
+            font-weight: 800;
+            font-size: 13px;
+            line-height: 1;
+            margin-left: 2px;
+        }
         .pm-field input, .pm-field select {
             width: 100%;
             box-sizing: border-box;
@@ -122,12 +140,23 @@ function render_member_form(string $context, ?array $user = null, ?array $profil
         }
 
         /* Modal Dialog Container & Scrolling Fix */
-        #physicalProfileModal {
-            max-height: min(92vh, 92dvh);
-            display: flex;
+        #physicalProfileModal:not([open]) {
+            display: none !important;
+        }
+        #physicalProfileModal[open] {
+            display: flex !important;
             flex-direction: column;
+            width: min(92vw, 560px) !important;
+            max-width: 560px !important;
+            max-height: min(88vh, 88dvh) !important;
             overflow: hidden !important;
             box-sizing: border-box;
+            margin: auto;
+            border-radius: 14px;
+            border: 1px solid var(--line);
+            background: var(--panel);
+            color: var(--ink);
+            box-shadow: 0 24px 48px rgba(0, 0, 0, 0.6);
         }
         #physicalProfileModal .modal-header {
             flex-shrink: 0;
@@ -458,11 +487,11 @@ function render_member_form(string $context, ?array $user = null, ?array $profil
             box-shadow: 0 -8px 20px rgba(0, 0, 0, 0.35);
         }
         @media (max-width: 520px) {
-            #physicalProfileModal {
+            #physicalProfileModal[open] {
                 width: 95% !important;
                 max-width: 95% !important;
-                max-height: 94vh;
-                max-height: 94dvh;
+                max-height: 92vh !important;
+                max-height: 92dvh !important;
                 margin: auto;
                 border-radius: 12px;
             }
@@ -505,16 +534,232 @@ function render_member_form(string $context, ?array $user = null, ?array $profil
                 font-size: 13px;
             }
         }
-        @media (max-width: 380px) {
-            .pm-footer .btn,
-            #physicalProfileModal .pm-footer .btn {
-                padding: 6px 10px !important;
-                font-size: 12px !important;
+        /* Dynamic Goal Targets System */
+        .pm-goal-desc-card {
+            margin-top: 10px;
+            padding: 11px 15px;
+            border-radius: 10px;
+            background: color-mix(in srgb, var(--lime) 5%, var(--panel-soft));
+            border: 1px solid color-mix(in srgb, var(--lime) 20%, var(--line));
+            border-left: 3.5px solid var(--lime);
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
+        }
+        .pm-goal-desc-icon {
+            width: 28px;
+            height: 28px;
+            border-radius: 7px;
+            background: color-mix(in srgb, var(--lime) 18%, transparent);
+            color: var(--lime);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+        }
+        .pm-goal-desc-text {
+            font-size: 12.5px;
+            color: var(--ink);
+            line-height: 1.45;
+            font-weight: 500;
+        }
+        .pm-target-section {
+            background: color-mix(in srgb, var(--lime) 3%, var(--panel-soft));
+            border: 1.5px solid color-mix(in srgb, var(--lime) 22%, var(--line));
+            border-radius: 14px;
+            padding: 16px 18px;
+            margin-top: 14px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            box-shadow: 0 4px 18px rgba(0, 0, 0, 0.22);
+            transition: all 0.2s ease;
+        }
+        .pm-supporting-section {
+            background: var(--bg);
+            border: 1px solid var(--line);
+            border-radius: 14px;
+            padding: 16px 18px;
+            margin-top: 14px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            transition: all 0.2s ease;
+        }
+        .pm-target-section-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 2px;
+        }
+        .pm-target-section-title {
+            font-size: 13.5px;
+            font-weight: 700;
+            color: var(--ink);
+            display: flex;
+            align-items: center;
+            gap: 7px;
+        }
+        .pm-target-badge {
+            font-size: 10px;
+            font-weight: 700;
+            padding: 3px 8px;
+            border-radius: 6px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            white-space: nowrap;
+        }
+        .pm-target-badge.primary {
+            background: color-mix(in srgb, var(--lime) 16%, transparent);
+            color: var(--lime);
+            border: 1px solid color-mix(in srgb, var(--lime) 35%, transparent);
+        }
+        .pm-target-badge.optional {
+            background: color-mix(in srgb, var(--panel) 80%, transparent);
+            color: var(--muted);
+            border: 1px solid var(--line);
+        }
+        .pm-target-section-desc {
+            font-size: 12px;
+            color: var(--muted);
+            margin: -4px 0 6px 0;
+            line-height: 1.45;
+        }
+        .pm-read-only-badge {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            background: var(--panel);
+            border: 1.5px solid var(--line);
+            border-radius: 8px;
+            padding: 9px 12px;
+            min-height: 42px;
+            box-sizing: border-box;
+        }
+        .pm-read-only-badge .val {
+            font-size: 14.5px;
+            font-weight: 700;
+            color: var(--ink);
+        }
+        .pm-read-only-badge .unit {
+            font-size: 11.5px;
+            color: var(--muted);
+            font-weight: 600;
+            background: var(--panel-soft);
+            padding: 2px 7px;
+            border-radius: 5px;
+            border: 1px solid var(--line);
+        }
+        .pm-read-only-badge.highlight-lime .val {
+            color: var(--lime);
+        }
+        .pm-input-with-unit {
+            position: relative;
+            display: flex;
+            align-items: center;
+            width: 100%;
+        }
+        .pm-input-with-unit input {
+            padding-right: 46px !important;
+            min-height: 42px;
+            font-weight: 600;
+            font-size: 14px;
+        }
+        .pm-input-with-unit .pm-unit {
+            position: absolute;
+            right: 10px;
+            font-size: 11.5px;
+            font-weight: 600;
+            color: var(--muted);
+            background: var(--panel-soft);
+            padding: 2px 6px;
+            border-radius: 4px;
+            border: 1px solid var(--line);
+            pointer-events: none;
+        }
+        .pm-field-hint {
+            font-size: 11px;
+            color: var(--muted);
+            font-weight: 400;
+            margin-top: 3px;
+            line-height: 1.35;
+        }
+        .pm-field-error {
+            font-size: 11.5px;
+            color: #ef4444;
+            font-weight: 600;
+            margin-top: 3px;
+            display: none;
+        }
+        /* Live Interactive PR & Target Delta Banners */
+        .pm-live-delta-banner {
+            margin-top: 4px;
+            animation: pmFadeIn 0.25s ease;
+        }
+        .pm-delta-badge {
+            padding: 9px 12px;
+            border-radius: 8px;
+            font-size: 12px;
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+        .pm-delta-badge.positive {
+            background: color-mix(in srgb, var(--lime) 10%, var(--panel-soft));
+            border: 1px solid color-mix(in srgb, var(--lime) 30%, var(--line));
+            color: var(--ink);
+        }
+        .pm-delta-badge.positive .pm-delta-title {
+            font-weight: 700;
+            color: var(--lime);
+            font-size: 12.5px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .pm-delta-badge.positive .pm-delta-sub {
+            font-size: 11px;
+            color: var(--muted);
+        }
+        .pm-delta-badge.warning {
+            flex-direction: row;
+            align-items: center;
+            gap: 8px;
+            background: color-mix(in srgb, #ef4444 14%, var(--panel-soft));
+            border: 1px solid color-mix(in srgb, #ef4444 40%, var(--line));
+            color: #fca5a5;
+            font-weight: 600;
+            padding: 9px 12px;
+            font-size: 12px;
+        }
+        .pm-delta-badge.warning svg {
+            flex-shrink: 0;
+            color: #ef4444;
+        }
+        .pm-delta-bar-wrap {
+            background: rgba(0, 0, 0, 0.35);
+            height: 5px;
+            border-radius: 999px;
+            overflow: hidden;
+            margin-top: 2px;
+        }
+        .pm-delta-bar {
+            background: var(--lime);
+            height: 100%;
+            border-radius: 999px;
+            transition: width 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+        @media (max-width: 520px) {
+            .pm-target-section,
+            .pm-supporting-section {
+                padding: 12px;
+                gap: 8px;
             }
         }
     </style>
 
-    <form method="post" class="pm-form" onsubmit="const btn = this.querySelector('button[type=submit]'); btn.disabled = true; btn.innerHTML = '<span class=\'loader\' style=\'width:14px;height:14px;border:2px solid var(--bg);border-bottom-color:transparent;border-radius:50%;display:inline-block;box-sizing:border-box;animation:rotation 1s linear infinite;margin-right:6px;vertical-align:-2px;\'></span> Saving...';">
+    <form method="post" class="pm-form" id="physicalProfileForm_<?= h($context) ?>" onsubmit="return handleProfileFormSubmit_<?= h($context) ?>(this, event);">
         <?= csrf_field() ?>
 
         <!-- Segmented Tab Header -->
@@ -622,6 +867,14 @@ function render_member_form(string $context, ?array $user = null, ?array $profil
                     <input name="waist_cm" type="number" step="0.01" min="1"
                            value="<?= h($profile['waist_cm'] ?? '') ?>">
                 </label>
+                <label class="pm-field">Chest (cm)
+                    <input name="chest_cm" type="number" step="0.01" min="1" placeholder="optional"
+                           value="<?= h($profile['chest_cm'] ?? '') ?>">
+                </label>
+                <label class="pm-field">Arm (cm)
+                    <input name="arm_cm" type="number" step="0.01" min="1" placeholder="optional"
+                           value="<?= h($profile['arm_cm'] ?? '') ?>">
+                </label>
                 <label class="pm-field full-span" id="hipContainer_<?= h($context) ?>" style="display: <?= ($profile['biological_sex'] ?? 'male') === 'female' ? 'flex' : 'none' ?>;">Hip (cm)
                     <input name="hip_cm" type="number" step="0.01" min="1"
                            value="<?= h($profile['hip_cm'] ?? '') ?>">
@@ -631,42 +884,90 @@ function render_member_form(string $context, ?array $user = null, ?array $profil
 
         <!-- TAB 2: GOAL & TARGETS -->
         <?php
+        $userWeight = (float)($profile['weight_kg'] ?? 0);
+        $userHeight = (float)($profile['height_cm'] ?? 0);
+        $userNeck   = (float)($profile['neck_cm'] ?? 0);
+        $userWaist  = (float)($profile['waist_cm'] ?? 0);
+        $userHip    = (float)($profile['hip_cm'] ?? 0);
+        $userSex    = $profile['biological_sex'] ?? 'male';
+
+        // Navy Formula estimate or latest progress log body fat
+        $currentBfEst = null;
+        if ($userHeight > 0 && $userNeck > 0 && $userWaist > 0) {
+            if ($userSex !== 'female' && $userWaist > $userNeck) {
+                $bfCalc = 495 / (1.0324 - 0.19077 * log10($userWaist - $userNeck) + 0.15456 * log10($userHeight)) - 450;
+                if ($bfCalc >= 3 && $bfCalc <= 65) $currentBfEst = round($bfCalc, 1);
+            } elseif ($userSex === 'female' && $userHip > 0 && ($userWaist + $userHip) > $userNeck) {
+                $bfCalc = 495 / (1.29579 - 0.35004 * log10($userWaist + $userHip - $userNeck) + 0.22100 * log10($userHeight)) - 450;
+                if ($bfCalc >= 3 && $bfCalc <= 65) $currentBfEst = round($bfCalc, 1);
+            }
+        }
+        if (!$currentBfEst && isset($user['user_id'])) {
+            try {
+                $latestBf = scalar('SELECT body_fat_percent FROM progress_logs WHERE user_id = ? AND body_fat_percent IS NOT NULL ORDER BY log_date DESC LIMIT 1', [$user['user_id']]);
+                if ($latestBf) $currentBfEst = round((float)$latestBf, 1);
+            } catch (Throwable) {}
+        }
+
+        $strengthExercises = [
+            'Bench Press'    => ['label' => 'Bench Press', 'desc' => 'Chest, anterior deltoids & triceps compound lift'],
+            'Squat'          => ['label' => 'Back Squat', 'desc' => 'Quadriceps, hamstrings, glutes & core compound lift'],
+            'Deadlift'       => ['label' => 'Deadlift', 'desc' => 'Posterior chain, back, traps, glutes & grip power'],
+            'Overhead Press' => ['label' => 'Overhead Press', 'desc' => 'Shoulders, upper chest, triceps & core stability'],
+            'Barbell Row'    => ['label' => 'Barbell Row', 'desc' => 'Upper back, lats, rhomboids & biceps thickness'],
+            'Other'          => ['label' => 'Other / Custom Lift', 'desc' => 'Custom compound or accessory strength movement']
+        ];
+        $selectedExercise = $profile['target_exercise'] ?? 'Bench Press';
+        $selectedExerciseLabel = $strengthExercises[$selectedExercise]['label'] ?? ($selectedExercise ?: 'Bench Press');
+
+        $enduranceActivities = [
+            'Running'  => ['label' => 'Running', 'desc' => 'Outdoor running, track or treadmill pace & distance'],
+            'Cycling'  => ['label' => 'Cycling', 'desc' => 'Road cycling, stationary bike or spin distance'],
+            'Swimming' => ['label' => 'Swimming', 'desc' => 'Lap swimming, open water aerobic stamina'],
+            'Rowing'   => ['label' => 'Rowing', 'desc' => 'Ergometer or water rowing full-body endurance'],
+            'Walking'  => ['label' => 'Walking / Rucking', 'desc' => 'Brisk walking, power walking or rucking targets'],
+            'Other'    => ['label' => 'Other Activity', 'desc' => 'Cardio or endurance activity target']
+        ];
+        $selectedEnduranceActivity = $profile['endurance_activity'] ?? 'Running';
+        $selectedEnduranceLabel = $enduranceActivities[$selectedEnduranceActivity]['label'] ?? ($selectedEnduranceActivity ?: 'Running');
+
+        $weeklyWorkoutOptions = [
+            2 => ['label' => '2 Workouts / Week', 'desc' => 'Light maintenance & active recovery routine'],
+            3 => ['label' => '3 Workouts / Week', 'desc' => 'Classic full-body split (Great for busy schedules)'],
+            4 => ['label' => '4 Workouts / Week', 'desc' => 'Upper / Lower split (Optimal balance & recovery)'],
+            5 => ['label' => '5 Workouts / Week', 'desc' => 'Push / Pull / Legs or body-part split'],
+            6 => ['label' => '6 Workouts / Week', 'desc' => 'High-frequency dedicated training routine'],
+            7 => ['label' => '7 Workouts / Week', 'desc' => 'Daily athletic conditioning & mobility routine']
+        ];
+        $selectedWeeklyWorkouts = (int)($profile['weekly_workout_target'] ?? 4);
+        if ($selectedWeeklyWorkouts < 1 || $selectedWeeklyWorkouts > 7) $selectedWeeklyWorkouts = 4;
+        $selectedWeeklyLabel = $weeklyWorkoutOptions[$selectedWeeklyWorkouts]['label'] ?? ($selectedWeeklyWorkouts . ' workouts per week');
+
         $goalGroups = [
-            'Aesthetic & Muscle Building' => [
+            'Primary Fitness Goals' => [
                 'items' => [
-                    'Building a visible six-pack' => ['label' => 'Building a visible six-pack', 'desc' => 'Abdominal hypertrophy, core definition & waist reduction'],
+                    'increasing_strength' => ['label' => 'Increasing Maximum Strength', 'desc' => 'Focus on lifting heavier weights and compound lift PRs'],
+                    'building_muscle'     => ['label' => 'Building Muscle', 'desc' => 'Focus on muscle hypertrophy, lean mass & progressive overload'],
+                    'losing_weight'       => ['label' => 'Losing Weight', 'desc' => 'Focus on reaching a sustainable target body weight'],
+                    'reducing_body_fat'   => ['label' => 'Reducing Body Fat', 'desc' => 'Focus on reducing body-fat percentage & waistline'],
+                    'improving_endurance' => ['label' => 'Improving Endurance', 'desc' => 'Focus on aerobic capacity, stamina & cardiovascular pacing'],
+                    'general_fitness'     => ['label' => 'Improving General Fitness', 'desc' => 'Focus on consistent weekly workouts & overall health'],
+                ]
+            ],
+            'Specific Targets' => [
+                'items' => [
+                    'Building a visible six-pack'    => ['label' => 'Building a visible six-pack', 'desc' => 'Abdominal hypertrophy, core definition & waist reduction'],
                     'Growing larger biceps and arms' => ['label' => 'Growing larger biceps and arms', 'desc' => 'Bicep peak & tricep circumference tracking'],
-                    'Developing a wide chest' => ['label' => 'Developing a wide chest', 'desc' => 'Pectoral hypertrophy & upper chest expansion'],
-                    'Sculpting a V-tapered back' => ['label' => 'Sculpting a V-tapered back', 'desc' => 'Lat width, upper back thickness & small waistline'],
-                    'Shaping the lower body' => ['label' => 'Shaping the lower body', 'desc' => 'Glutes, quadriceps & hamstring development'],
-                ]
-            ],
-            'Athletic & Performance' => [
-                'items' => [
-                    'Increasing maximum strength' => ['label' => 'Increasing maximum strength', 'desc' => 'Heavy compound lift progression (Squat, Bench, Deadlift)'],
-                    'Boosting explosive power' => ['label' => 'Boosting explosive power', 'desc' => 'Fast-twitch muscle recruitment & plyometric speed'],
-                    'Enhancing physical endurance' => ['label' => 'Enhancing physical endurance', 'desc' => 'Aerobic capacity, lactate threshold & stamina'],
-                    'Improving body flexibility' => ['label' => 'Improving body flexibility', 'desc' => 'Mobility, joint decompression & range of motion'],
-                ]
-            ],
-            'Body Composition' => [
-                'items' => [
-                    'Losing excess body fat' => ['label' => 'Losing excess body fat', 'desc' => 'Targeted fat reduction & waist measurement decrease'],
-                    'Gaining lean body mass' => ['label' => 'Gaining lean body mass', 'desc' => 'Caloric surplus with lean hypertrophy tracking'],
-                    'Reaching body recomposition' => ['label' => 'Reaching body recomposition', 'desc' => 'Concurrent muscle gain and fat loss at maintenance'],
-                ]
-            ],
-            'General' => [
-                'items' => [
-                    'fat_loss' => ['label' => 'Fat Loss', 'desc' => 'Overall weight loss & metabolic burn'],
-                    'muscle_gain' => ['label' => 'Muscle Gain', 'desc' => 'General strength & muscle growth'],
-                    'maintenance' => ['label' => 'Maintenance', 'desc' => 'Preserve current body weight and metabolic fitness'],
-                    'general_health' => ['label' => 'General Health', 'desc' => 'Longevity, vitality, cardiovascular wellness & energy'],
+                    'Developing a wide chest'        => ['label' => 'Developing a wide chest', 'desc' => 'Pectoral hypertrophy & upper chest expansion'],
+                    'Sculpting a V-tapered back'     => ['label' => 'Sculpting a V-tapered back', 'desc' => 'Lat width, upper back thickness & small waistline'],
+                    'Shaping the lower body'         => ['label' => 'Shaping the lower body', 'desc' => 'Glutes, quadriceps & hamstring development'],
+                    'Gaining lean body mass'         => ['label' => 'Gaining lean body mass', 'desc' => 'Caloric surplus with lean hypertrophy tracking'],
+                    'Reaching body recomposition'    => ['label' => 'Reaching body recomposition', 'desc' => 'Concurrent muscle gain and fat loss at maintenance'],
                 ]
             ],
         ];
 
-        $currentGoalVal = (string)($profile['primary_goal'] ?? 'Increasing maximum strength');
+        $currentGoalVal = (string)($profile['primary_goal'] ?? 'increasing_strength');
         $currentGoalItem = null;
         foreach ($goalGroups as $group) {
             if (isset($group['items'][$currentGoalVal])) {
@@ -676,125 +977,496 @@ function render_member_form(string $context, ?array $user = null, ?array $profil
         }
         if (!$currentGoalItem) {
             $currentGoalItem = [
-                'label' => !empty($currentGoalVal) ? $currentGoalVal : 'Select Primary Goal',
-                'desc' => ''
+                'label' => !empty($currentGoalVal) ? ucwords(str_replace('_', ' ', $currentGoalVal)) : 'Select Primary Goal',
+                'desc'  => ''
             ];
         }
         ?>
         <div class="pm-pane" id="tabPane_<?= h($context) ?>_goal">
-            <div class="pm-grid">
-                <div class="pm-field full-span">
-                    <label id="primaryGoalLabel_<?= h($context) ?>" for="primaryGoalTrigger_<?= h($context) ?>" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 3px;">
-                        <span>Primary Goal</span>
-                        <span class="muted" style="font-weight: 400; font-size: 11px;">Select your main fitness focus</span>
-                    </label>
+            <!-- 1. Primary Goal Dropdown -->
+            <div class="pm-field full-span">
+                <label id="primaryGoalLabel_<?= h($context) ?>" for="primaryGoalTrigger_<?= h($context) ?>" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 3px;">
+                    <span>Primary Goal</span>
+                    <span class="muted" style="font-weight: 400; font-size: 11px;">Select your main fitness focus</span>
+                </label>
 
-                    <div class="custom-select-wrapper custom-goal-dropdown" id="customGoalDropdown_<?= h($context) ?>">
-                        <!-- Underlying select keeps form submit 100% intact -->
-                        <select name="primary_goal" id="primaryGoalSelect_<?= h($context) ?>" class="custom-select-native custom-goal-native-select" onchange="updateTargetMetrics_<?= h($context) ?>(this.value)" <?= $context !== 'profile' ? 'required' : '' ?>>
-                            <?php foreach ($goalGroups as $groupName => $group): ?>
-                                <optgroup label="<?= h($groupName) ?>">
-                                    <?php foreach ($group['items'] as $val => $item): ?>
-                                        <option value="<?= h($val) ?>" <?= selected($val, $currentGoalVal) ?>><?= h($item['label']) ?></option>
-                                    <?php endforeach; ?>
-                                </optgroup>
-                            <?php endforeach; ?>
-                        </select>
-
-                        <!-- Custom dropdown trigger -->
-                        <button type="button" class="custom-select-trigger custom-goal-trigger" id="primaryGoalTrigger_<?= h($context) ?>" onclick="toggleCustomDropdown('customGoalDropdown_<?= h($context) ?>', event)" aria-haspopup="listbox" aria-expanded="false">
-                            <span class="custom-select-trigger-content custom-goal-trigger-content">
-                                <span class="custom-select-trigger-icon custom-goal-trigger-icon" id="primaryGoalTriggerIcon_<?= h($context) ?>">
-                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>
-                                </span>
-                                <span class="custom-select-trigger-text custom-goal-trigger-text" id="primaryGoalTriggerText_<?= h($context) ?>"><?= h($currentGoalItem['label']) ?></span>
-                            </span>
-                            <svg class="custom-select-chevron custom-goal-chevron" id="primaryGoalChevron_<?= h($context) ?>" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-                                <polyline points="6 9 12 15 18 9"></polyline>
-                            </svg>
-                        </button>
-
-                        <!-- Custom dropdown popup menu -->
-                        <div class="custom-select-menu custom-goal-menu" id="primaryGoalMenu_<?= h($context) ?>" role="listbox">
-                            <!-- Quick search filter -->
-                            <div class="custom-goal-search-box">
-                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-                                    <circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line>
-                                </svg>
-                                <input type="text" id="primaryGoalSearch_<?= h($context) ?>" placeholder="Type to filter goals..." oninput="filterGoalList_<?= h($context) ?>(this.value)" autocomplete="off">
-                                <button type="button" class="custom-goal-clear-btn" id="primaryGoalClear_<?= h($context) ?>" onclick="clearGoalSearch_<?= h($context) ?>()" style="display: none;"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
-                            </div>
-
-                            <!-- Options List -->
-                            <div class="custom-select-list custom-goal-list" id="primaryGoalOptionsList_<?= h($context) ?>">
-                                <?php foreach ($goalGroups as $groupName => $group): ?>
-                                    <div class="custom-goal-group" data-group-name="<?= h(strtolower($groupName)) ?>">
-                                        <div class="custom-goal-group-title">
-                                            <?= h($groupName) ?>
-                                        </div>
-                                        <?php foreach ($group['items'] as $val => $item): 
-                                            $isSelected = ($val === $currentGoalVal);
-                                        ?>
-                                            <div class="custom-select-item custom-goal-item <?= $isSelected ? 'selected' : '' ?>"
-                                                 data-value="<?= h($val) ?>"
-                                                 data-label="<?= h($item['label']) ?>"
-                                                 data-search="<?= h(strtolower($item['label'] . ' ' . $item['desc'] . ' ' . $groupName)) ?>"
-                                                 role="option"
-                                                 aria-selected="<?= $isSelected ? 'true' : 'false' ?>"
-                                                 onclick="selectCustomOption('customGoalDropdown_<?= h($context) ?>', 'primaryGoalSelect_<?= h($context) ?>', '<?= h(addslashes($val)) ?>', '<?= h(addslashes($item['label'])) ?>')">
-                                                <div class="custom-select-item-details custom-goal-item-details">
-                                                    <span class="custom-select-item-title custom-goal-item-title"><?= h($item['label']) ?></span>
-                                                    <span class="custom-select-item-desc custom-goal-item-desc"><?= h($item['desc']) ?></span>
-                                                </div>
-                                                <span class="custom-select-check custom-goal-check"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span>
-                                            </div>
-                                        <?php endforeach; ?>
-                                    </div>
+                <div class="custom-select-wrapper custom-goal-dropdown" id="customGoalDropdown_<?= h($context) ?>">
+                    <!-- Underlying select keeps form submit 100% intact -->
+                    <select name="primary_goal" id="primaryGoalSelect_<?= h($context) ?>" class="custom-select-native custom-goal-native-select" onchange="updateTargetMetrics_<?= h($context) ?>(this.value)" <?= $context !== 'profile' ? 'required' : '' ?>>
+                        <?php foreach ($goalGroups as $groupName => $group): ?>
+                            <optgroup label="<?= h($groupName) ?>">
+                                <?php foreach ($group['items'] as $val => $item): ?>
+                                    <option value="<?= h($val) ?>" <?= selected($val, $currentGoalVal) ?>><?= h($item['label']) ?></option>
                                 <?php endforeach; ?>
-                                <div class="custom-goal-empty" id="primaryGoalEmpty_<?= h($context) ?>">
-                                    No matching goals found
+                            </optgroup>
+                        <?php endforeach; ?>
+                    </select>
+
+                    <!-- Custom dropdown trigger -->
+                    <button type="button" class="custom-select-trigger custom-goal-trigger" id="primaryGoalTrigger_<?= h($context) ?>" onclick="toggleCustomDropdown('customGoalDropdown_<?= h($context) ?>', event)" aria-haspopup="listbox" aria-expanded="false">
+                        <span class="custom-select-trigger-content custom-goal-trigger-content">
+                            <span class="custom-select-trigger-icon custom-goal-trigger-icon" id="primaryGoalTriggerIcon_<?= h($context) ?>">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>
+                            </span>
+                            <span class="custom-select-trigger-text custom-goal-trigger-text" id="primaryGoalTriggerText_<?= h($context) ?>"><?= h($currentGoalItem['label']) ?></span>
+                        </span>
+                        <svg class="custom-select-chevron custom-goal-chevron" id="primaryGoalChevron_<?= h($context) ?>" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                            <polyline points="6 9 12 15 18 9"></polyline>
+                        </svg>
+                    </button>
+
+                    <!-- Custom dropdown popup menu -->
+                    <div class="custom-select-menu custom-goal-menu" id="primaryGoalMenu_<?= h($context) ?>" role="listbox">
+                        <!-- Quick search filter -->
+                        <div class="custom-goal-search-box">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                                <circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                            </svg>
+                            <input type="text" id="primaryGoalSearch_<?= h($context) ?>" placeholder="Type to filter goals..." oninput="filterGoalList_<?= h($context) ?>(this.value)" autocomplete="off">
+                            <button type="button" class="custom-goal-clear-btn" id="primaryGoalClear_<?= h($context) ?>" onclick="clearGoalSearch_<?= h($context) ?>()" style="display: none;"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+                        </div>
+
+                        <!-- Options List -->
+                        <div class="custom-select-list custom-goal-list" id="primaryGoalOptionsList_<?= h($context) ?>">
+                            <?php foreach ($goalGroups as $groupName => $group): ?>
+                                <div class="custom-goal-group" data-group-name="<?= h(strtolower($groupName)) ?>">
+                                    <div class="custom-goal-group-title">
+                                        <?= h($groupName) ?>
+                                    </div>
+                                    <?php foreach ($group['items'] as $val => $item): 
+                                        $isSelected = ($val === $currentGoalVal);
+                                    ?>
+                                        <div class="custom-select-item custom-goal-item <?= $isSelected ? 'selected' : '' ?>"
+                                             data-value="<?= h($val) ?>"
+                                             data-label="<?= h($item['label']) ?>"
+                                             data-search="<?= h(strtolower($item['label'] . ' ' . $item['desc'] . ' ' . $groupName)) ?>"
+                                             role="option"
+                                             aria-selected="<?= $isSelected ? 'true' : 'false' ?>"
+                                             onclick="selectCustomOption('customGoalDropdown_<?= h($context) ?>', 'primaryGoalSelect_<?= h($context) ?>', '<?= h(addslashes($val)) ?>', '<?= h(addslashes($item['label'])) ?>')">
+                                            <div class="custom-select-item-details custom-goal-item-details">
+                                                <span class="custom-select-item-title custom-goal-item-title"><?= h($item['label']) ?></span>
+                                                <span class="custom-select-item-desc custom-goal-item-desc"><?= h($item['desc']) ?></span>
+                                            </div>
+                                            <span class="custom-select-check custom-goal-check"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span>
+                                        </div>
+                                    <?php endforeach; ?>
                                 </div>
+                            <?php endforeach; ?>
+                            <div class="custom-goal-empty" id="primaryGoalEmpty_<?= h($context) ?>">
+                                No matching goals found
                             </div>
                         </div>
                     </div>
                 </div>
+            </div>
 
-                <!-- Arm Target -->
-                <label class="pm-field" id="targetArmField_<?= h($context) ?>" style="display: none;">
-                    Target Arm Size (cm) <span class="muted">(Peak Flexed)</span>
-                    <input type="number" step="0.1" name="target_arm_cm" value="<?= h((string)($profile['target_arm_cm'] ?? '')) ?>" placeholder="e.g. 38.0">
-                </label>
+            <!-- 2. Dynamic Goal Description Card -->
+            <div class="pm-goal-desc-card full-span" id="goalDescCard_<?= h($context) ?>">
+                <span class="pm-goal-desc-icon" id="goalDescIcon_<?= h($context) ?>">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>
+                </span>
+                <span class="pm-goal-desc-text" id="goalDescText_<?= h($context) ?>">Focus on improving your primary fitness metrics.</span>
+            </div>
 
-                <!-- Chest Target -->
-                <label class="pm-field" id="targetChestField_<?= h($context) ?>" style="display: none;">
-                    Target Chest Size (cm) <span class="muted">(Fullest Point)</span>
-                    <input type="number" step="0.1" name="target_chest_cm" value="<?= h((string)($profile['target_chest_cm'] ?? '')) ?>" placeholder="e.g. 105.0">
-                </label>
+            <!-- 3. Dynamic Primary Target Sections (Only relevant section shown) -->
 
-                <!-- Waist Target -->
-                <label class="pm-field" id="targetWaistField_<?= h($context) ?>" style="display: none;">
-                    Target Waist Size (cm) <span class="muted">(At Navel)</span>
-                    <input type="number" step="0.1" name="target_waist_cm" value="<?= h((string)($profile['target_waist_cm'] ?? '')) ?>" placeholder="e.g. 78.0">
-                </label>
-
-                <!-- Target Weight (kg) -->
-                <label class="pm-field" id="targetWeightField_<?= h($context) ?>">
-                    Target Weight (kg) <span class="muted">(Optional)</span>
-                    <input type="number" step="0.1" name="target_weight_kg" value="<?= h((string)($profile['target_weight_kg'] ?? '')) ?>" placeholder="e.g. 75.0">
-                </label>
-
-                <!-- Target Body Fat (%) -->
-                <label class="pm-field" id="targetBodyFatField_<?= h($context) ?>">
-                    Target Body Fat (%) <span class="muted">(Optional)</span>
-                    <input type="number" step="0.1" name="target_body_fat_percent" value="<?= h((string)($profile['target_body_fat_percent'] ?? '')) ?>" placeholder="e.g. 15.0">
-                </label>
-
-                <!-- Contextual Fitness Guidance Tip -->
-                <div class="full-span" id="targetGoalTip_<?= h($context) ?>" style="margin-top: 4px; padding: 10px 14px; border-radius: 8px; font-size: 12px; line-height: 1.4; display: flex; align-items: center; gap: 10px; background: var(--panel-soft); border: 1px solid var(--line); color: var(--ink);">
-                    <span id="targetGoalTipIcon_<?= h($context) ?>" style="display: flex; align-items: center; justify-content: center; width: 24px; height: 24px; border-radius: 6px; background: rgba(199,255,34,0.12); color: var(--lime); flex-shrink: 0;">
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>
+            <!-- PRIMARY TARGET: Increasing Maximum Strength -->
+            <div class="pm-target-section full-span" id="targetSec_increasing_strength_<?= h($context) ?>" style="display: none;">
+                <div class="pm-target-section-header">
+                    <span class="pm-target-section-title">
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m6.5 6.5 11 11"/><path d="m21 21-1-1"/><path d="m3 3 1 1"/><path d="m18 22 4-4"/><path d="m2 6 4-4"/><path d="m3 10 7-7"/><path d="m14 21 7-7"/></svg>
+                        Strength Target
                     </span>
-                    <span id="targetGoalTipText_<?= h($context) ?>">Set target metrics to track your fitness milestones over time.</span>
+                    <span class="pm-target-badge primary">Primary Target</span>
+                </div>
+                <p class="pm-target-section-desc">Set a measurable strength target for your primary compound lift.</p>
+
+                <div class="pm-grid">
+                    <div class="pm-field full-span">
+                        <label for="strengthExerciseTrigger_<?= h($context) ?>">Target Exercise</label>
+                        <div class="custom-select-wrapper" id="strengthExerciseDropdown_<?= h($context) ?>">
+                            <select name="target_exercise" id="strengthExercise_<?= h($context) ?>" class="custom-select-native" onchange="updateStrengthLiveFeedback_<?= h($context) ?>()">
+                                <?php foreach ($strengthExercises as $val => $opt): ?>
+                                    <option value="<?= h($val) ?>" <?= selected($val, $selectedExercise) ?>><?= h($opt['label']) ?></option>
+                                <?php endforeach; ?>
+                            </select>
+
+                            <button type="button" class="custom-select-trigger" id="strengthExerciseTrigger_<?= h($context) ?>" onclick="toggleCustomDropdown('strengthExerciseDropdown_<?= h($context) ?>', event)" aria-haspopup="listbox" aria-expanded="false">
+                                <span class="custom-select-trigger-content">
+                                    <span class="custom-select-trigger-icon">
+                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m6.5 6.5 11 11"/><path d="m21 21-1-1"/><path d="m3 3 1 1"/><path d="m18 22 4-4"/><path d="m2 6 4-4"/><path d="m3 10 7-7"/><path d="m14 21 7-7"/></svg>
+                                    </span>
+                                    <span class="custom-select-trigger-text" id="strengthExerciseTriggerText_<?= h($context) ?>"><?= h($selectedExerciseLabel) ?></span>
+                                </span>
+                                <svg class="custom-select-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                                    <polyline points="6 9 12 15 18 9"></polyline>
+                                </svg>
+                            </button>
+
+                            <div class="custom-select-menu" role="listbox">
+                                <div class="custom-select-list">
+                                    <?php foreach ($strengthExercises as $val => $opt):
+                                        $isSelected = ($val === $selectedExercise);
+                                    ?>
+                                        <div class="custom-select-item <?= $isSelected ? 'selected' : '' ?>"
+                                             data-value="<?= h($val) ?>"
+                                             data-label="<?= h($opt['label']) ?>"
+                                             role="option"
+                                             aria-selected="<?= $isSelected ? 'true' : 'false' ?>"
+                                             onclick="selectCustomOption('strengthExerciseDropdown_<?= h($context) ?>', 'strengthExercise_<?= h($context) ?>', '<?= h(addslashes($val)) ?>', '<?= h(addslashes($opt['label'])) ?>')">
+                                            <div class="custom-select-item-details">
+                                                <span class="custom-select-item-title"><?= h($opt['label']) ?></span>
+                                                <span class="custom-select-item-desc"><?= h($opt['desc']) ?></span>
+                                            </div>
+                                            <span class="custom-select-check"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span>
+                                        </div>
+                                    <?php endforeach; ?>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="pm-field">
+                        <label for="currentStrengthMax_<?= h($context) ?>">Current Max</label>
+                        <div class="pm-input-with-unit">
+                            <input type="number" step="0.5" min="0" max="500" name="current_strength_max_kg" id="currentStrengthMax_<?= h($context) ?>" value="<?= h((string)($profile['current_strength_max_kg'] ?? '')) ?>" placeholder="e.g. 75.0" oninput="updateStrengthLiveFeedback_<?= h($context) ?>()">
+                            <span class="pm-unit">kg</span>
+                        </div>
+                        <span class="pm-field-hint">Your current recorded maximum</span>
+                    </div>
+
+                    <div class="pm-field">
+                        <label for="targetStrengthMax_<?= h($context) ?>">Target Max <span class="pm-req">*</span></label>
+                        <div class="pm-input-with-unit">
+                            <input type="number" step="0.5" min="1" max="500" name="target_strength_max_kg" id="targetStrengthMax_<?= h($context) ?>" value="<?= h((string)($profile['target_strength_max_kg'] ?? '')) ?>" placeholder="e.g. 100.0" oninput="updateStrengthLiveFeedback_<?= h($context) ?>()">
+                            <span class="pm-unit">kg</span>
+                        </div>
+                        <span class="pm-field-hint">Measurable personal record goal</span>
+                    </div>
+
+                    <div class="pm-live-delta-banner full-span" id="strengthDeltaBanner_<?= h($context) ?>"></div>
+                    <span class="pm-field-error" id="strengthTargetError_<?= h($context) ?>">Target should be greater than your current maximum.</span>
+                </div>
+            </div>
+
+            <!-- PRIMARY TARGET: Building Muscle -->
+            <div class="pm-target-section full-span" id="targetSec_building_muscle_<?= h($context) ?>" style="display: none;">
+                <div class="pm-target-section-header">
+                    <span class="pm-target-section-title">
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8h1a4 4 0 0 1 0 8h-1"/><path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z"/><line x1="6" x2="6" y1="1" y2="4"/><line x1="10" x2="10" y1="1" y2="4"/><line x1="14" x2="14" y1="1" y2="4"/></svg>
+                        Muscle Growth Target
+                    </span>
+                    <span class="pm-target-badge primary">Primary Target</span>
+                </div>
+                <p class="pm-target-section-desc">Focus on increasing muscle size, hypertrophy, and lean body mass.</p>
+
+                <div class="pm-grid">
+                    <div class="pm-field">
+                        <label>Current Weight</label>
+                        <div class="pm-read-only-badge">
+                            <span class="val"><?= $userWeight > 0 ? h(number_format($userWeight, 1)) : '—' ?></span>
+                            <span class="unit">kg</span>
+                        </div>
+                        <span class="pm-field-hint">From Body Stats</span>
+                    </div>
+                    <div class="pm-field">
+                        <label>Target Weight <span class="pm-req">*</span></label>
+                        <div class="pm-input-with-unit">
+                            <input type="number" step="0.1" min="20" max="300" class="sync-target-weight-<?= h($context) ?>" value="<?= h((string)($profile['target_weight_kg'] ?? '')) ?>" placeholder="e.g. 75.0" oninput="syncTargetWeight_<?= h($context) ?>(this.value)">
+                            <span class="pm-unit">kg</span>
+                        </div>
+                        <span class="pm-field-hint">Progressive lean mass goal</span>
+                    </div>
+                    <div class="pm-live-delta-banner full-span" id="muscleDeltaBanner_<?= h($context) ?>"></div>
+                </div>
+            </div>
+
+            <!-- PRIMARY TARGET: Losing Weight -->
+            <div class="pm-target-section full-span" id="targetSec_losing_weight_<?= h($context) ?>" style="display: none;">
+                <div class="pm-target-section-header">
+                    <span class="pm-target-section-title">
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+                        Weight Loss Target
+                    </span>
+                    <span class="pm-target-badge primary">Primary Target</span>
+                </div>
+                <p class="pm-target-section-desc">Focus on reaching a healthy, sustainable target body weight.</p>
+
+                <div class="pm-grid">
+                    <div class="pm-field">
+                        <label>Current Weight</label>
+                        <div class="pm-read-only-badge">
+                            <span class="val"><?= $userWeight > 0 ? h(number_format($userWeight, 1)) : '—' ?></span>
+                            <span class="unit">kg</span>
+                        </div>
+                        <span class="pm-field-hint">From Body Stats</span>
+                    </div>
+                    <div class="pm-field">
+                        <label>Target Weight <span class="pm-req">*</span></label>
+                        <div class="pm-input-with-unit">
+                            <input type="number" step="0.1" min="20" max="300" class="sync-target-weight-<?= h($context) ?>" value="<?= h((string)($profile['target_weight_kg'] ?? '')) ?>" placeholder="e.g. 68.0" oninput="syncTargetWeight_<?= h($context) ?>(this.value)">
+                            <span class="pm-unit">kg</span>
+                        </div>
+                        <span class="pm-field-hint">Realistic target scale weight</span>
+                    </div>
+                    <div class="pm-live-delta-banner full-span" id="weightLossDeltaBanner_<?= h($context) ?>"></div>
+                </div>
+            </div>
+
+            <!-- PRIMARY TARGET: Reducing Body Fat -->
+            <div class="pm-target-section full-span" id="targetSec_reducing_body_fat_<?= h($context) ?>" style="display: none;">
+                <div class="pm-target-section-header">
+                    <span class="pm-target-section-title">
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z"/></svg>
+                        Body Fat Target
+                    </span>
+                    <span class="pm-target-badge primary">Primary Target</span>
+                </div>
+                <p class="pm-target-section-desc">Focus on reducing body-fat percentage while maintaining lean muscle progress.</p>
+
+                <div class="pm-grid">
+                    <div class="pm-field">
+                        <label>Current Body Fat</label>
+                        <div class="pm-read-only-badge highlight-lime">
+                            <span class="val"><?= $currentBfEst ? h($currentBfEst) : '—' ?></span>
+                            <span class="unit">%</span>
+                        </div>
+                        <span class="pm-field-hint">Navy estimate / Latest log</span>
+                    </div>
+                    <div class="pm-field">
+                        <label>Target Body Fat <span class="pm-req">*</span></label>
+                        <div class="pm-input-with-unit">
+                            <input type="number" step="0.1" min="3" max="65" class="sync-target-bf-<?= h($context) ?>" value="<?= h((string)($profile['target_body_fat_percent'] ?? '')) ?>" placeholder="e.g. 15.0" oninput="syncTargetBf_<?= h($context) ?>(this.value)">
+                            <span class="pm-unit">%</span>
+                        </div>
+                        <span class="pm-field-hint">Target body composition</span>
+                    </div>
+                    <div class="pm-live-delta-banner full-span" id="bfDeltaBanner_<?= h($context) ?>"></div>
+                </div>
+            </div>
+
+            <!-- PRIMARY TARGET: Improving Endurance -->
+            <div class="pm-target-section full-span" id="targetSec_improving_endurance_<?= h($context) ?>" style="display: none;">
+                <div class="pm-target-section-header">
+                    <span class="pm-target-section-title">
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+                        Endurance Target
+                    </span>
+                    <span class="pm-target-badge primary">Primary Target</span>
+                </div>
+                <p class="pm-target-section-desc">Focus on improving stamina, aerobic pacing, and sustained cardio performance.</p>
+
+                <div class="pm-grid">
+                    <div class="pm-field full-span">
+                        <label for="enduranceActivityTrigger_<?= h($context) ?>">Activity</label>
+                        <div class="custom-select-wrapper" id="enduranceActivityDropdown_<?= h($context) ?>">
+                            <select name="endurance_activity" id="enduranceActivity_<?= h($context) ?>" class="custom-select-native">
+                                <?php foreach ($enduranceActivities as $val => $opt): ?>
+                                    <option value="<?= h($val) ?>" <?= selected($val, $selectedEnduranceActivity) ?>><?= h($opt['label']) ?></option>
+                                <?php endforeach; ?>
+                            </select>
+
+                            <button type="button" class="custom-select-trigger" id="enduranceActivityTrigger_<?= h($context) ?>" onclick="toggleCustomDropdown('enduranceActivityDropdown_<?= h($context) ?>', event)" aria-haspopup="listbox" aria-expanded="false">
+                                <span class="custom-select-trigger-content">
+                                    <span class="custom-select-trigger-icon">
+                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+                                    </span>
+                                    <span class="custom-select-trigger-text" id="enduranceActivityTriggerText_<?= h($context) ?>"><?= h($selectedEnduranceLabel) ?></span>
+                                </span>
+                                <svg class="custom-select-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                                    <polyline points="6 9 12 15 18 9"></polyline>
+                                </svg>
+                            </button>
+
+                            <div class="custom-select-menu" role="listbox">
+                                <div class="custom-select-list">
+                                    <?php foreach ($enduranceActivities as $val => $opt):
+                                        $isSelected = ($val === $selectedEnduranceActivity);
+                                    ?>
+                                        <div class="custom-select-item <?= $isSelected ? 'selected' : '' ?>"
+                                             data-value="<?= h($val) ?>"
+                                             data-label="<?= h($opt['label']) ?>"
+                                             role="option"
+                                             aria-selected="<?= $isSelected ? 'true' : 'false' ?>"
+                                             onclick="selectCustomOption('enduranceActivityDropdown_<?= h($context) ?>', 'enduranceActivity_<?= h($context) ?>', '<?= h(addslashes($val)) ?>', '<?= h(addslashes($opt['label'])) ?>')">
+                                            <div class="custom-select-item-details">
+                                                <span class="custom-select-item-title"><?= h($opt['label']) ?></span>
+                                                <span class="custom-select-item-desc"><?= h($opt['desc']) ?></span>
+                                            </div>
+                                            <span class="custom-select-check"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span>
+                                        </div>
+                                    <?php endforeach; ?>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="pm-field">
+                        <label>Target Distance</label>
+                        <div class="pm-input-with-unit">
+                            <input type="number" step="0.1" min="0.1" max="200" name="target_endurance_distance_km" value="<?= h((string)($profile['target_endurance_distance_km'] ?? '')) ?>" placeholder="e.g. 5.0">
+                            <span class="pm-unit">km</span>
+                        </div>
+                    </div>
+                    <div class="pm-field">
+                        <label>Target Time</label>
+                        <div class="pm-input-with-unit">
+                            <input type="number" step="1" min="1" max="1440" name="target_endurance_time_mins" value="<?= h((string)($profile['target_endurance_time_mins'] ?? '')) ?>" placeholder="e.g. 30">
+                            <span class="pm-unit">mins</span>
+                        </div>
+                    </div>
+                    <div class="pm-field">
+                        <label>Baseline Distance</label>
+                        <div class="pm-input-with-unit">
+                            <input type="number" step="0.1" min="0.1" max="200" name="current_endurance_distance_km" value="<?= h((string)($profile['current_endurance_distance_km'] ?? '')) ?>" placeholder="e.g. 3.0">
+                            <span class="pm-unit">km</span>
+                        </div>
+                        <span class="pm-field-hint">Your current distance capability</span>
+                    </div>
+                    <div class="pm-field">
+                        <label>Baseline Time</label>
+                        <div class="pm-input-with-unit">
+                            <input type="number" step="1" min="1" max="1440" name="current_endurance_time_mins" value="<?= h((string)($profile['current_endurance_time_mins'] ?? '')) ?>" placeholder="e.g. 25">
+                            <span class="pm-unit">mins</span>
+                        </div>
+                        <span class="pm-field-hint">Your current duration capability</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- PRIMARY TARGET: Improving General Fitness -->
+            <div class="pm-target-section full-span" id="targetSec_general_fitness_<?= h($context) ?>" style="display: none;">
+                <div class="pm-target-section-header">
+                    <span class="pm-target-section-title">
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>
+                        Workout Consistency Target
+                    </span>
+                    <span class="pm-target-badge primary">Primary Target</span>
+                </div>
+                <p class="pm-target-section-desc">Focus on building consistent exercise habits and balanced physical health.</p>
+
+                <div class="pm-grid">
+                    <div class="pm-field full-span">
+                        <label for="weeklyWorkoutTrigger_<?= h($context) ?>">Workouts per Week <span class="pm-req">*</span></label>
+                        <div class="custom-select-wrapper" id="weeklyWorkoutDropdown_<?= h($context) ?>">
+                            <select name="weekly_workout_target" id="weeklyWorkoutTarget_<?= h($context) ?>" class="custom-select-native">
+                                <?php foreach ($weeklyWorkoutOptions as $val => $opt): ?>
+                                    <option value="<?= $val ?>" <?= $selectedWeeklyWorkouts === $val ? 'selected' : '' ?>><?= h($opt['label']) ?></option>
+                                <?php endforeach; ?>
+                            </select>
+
+                            <button type="button" class="custom-select-trigger" id="weeklyWorkoutTrigger_<?= h($context) ?>" onclick="toggleCustomDropdown('weeklyWorkoutDropdown_<?= h($context) ?>', event)" aria-haspopup="listbox" aria-expanded="false">
+                                <span class="custom-select-trigger-content">
+                                    <span class="custom-select-trigger-icon">
+                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+                                    </span>
+                                    <span class="custom-select-trigger-text" id="weeklyWorkoutTriggerText_<?= h($context) ?>"><?= h($selectedWeeklyLabel) ?></span>
+                                </span>
+                                <svg class="custom-select-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                                    <polyline points="6 9 12 15 18 9"></polyline>
+                                </svg>
+                            </button>
+
+                            <div class="custom-select-menu" role="listbox">
+                                <div class="custom-select-list">
+                                    <?php foreach ($weeklyWorkoutOptions as $val => $opt):
+                                        $isSelected = ($val === $selectedWeeklyWorkouts);
+                                    ?>
+                                        <div class="custom-select-item <?= $isSelected ? 'selected' : '' ?>"
+                                             data-value="<?= $val ?>"
+                                             data-label="<?= h($opt['label']) ?>"
+                                             role="option"
+                                             aria-selected="<?= $isSelected ? 'true' : 'false' ?>"
+                                             onclick="selectCustomOption('weeklyWorkoutDropdown_<?= h($context) ?>', 'weeklyWorkoutTarget_<?= h($context) ?>', '<?= $val ?>', '<?= h(addslashes($opt['label'])) ?>')">
+                                            <div class="custom-select-item-details">
+                                                <span class="custom-select-item-title"><?= h($opt['label']) ?></span>
+                                                <span class="custom-select-item-desc"><?= h($opt['desc']) ?></span>
+                                            </div>
+                                            <span class="custom-select-check"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span>
+                                        </div>
+                                    <?php endforeach; ?>
+                                </div>
+                            </div>
+                        </div>
+                        <span class="pm-field-hint">Aim for a sustainable weekly workout routine</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 4. Supporting Targets (Optional) Section -->
+            <div class="pm-supporting-section full-span" id="supportingTargetsSec_<?= h($context) ?>">
+                <div class="pm-target-section-header">
+                    <span class="pm-target-section-title">Supporting Targets</span>
+                    <span class="pm-target-badge optional">Optional</span>
+                </div>
+                <p class="pm-target-section-desc">Secondary metrics to track alongside your primary goal.</p>
+
+                <!-- Hidden inputs ensuring canonical form submission -->
+                <input type="hidden" name="target_weight_kg" id="canonicalTargetWeight_<?= h($context) ?>" value="<?= h((string)($profile['target_weight_kg'] ?? '')) ?>">
+                <input type="hidden" name="target_body_fat_percent" id="canonicalTargetBf_<?= h($context) ?>" value="<?= h((string)($profile['target_body_fat_percent'] ?? '')) ?>">
+
+                <div class="pm-grid">
+                    <!-- Supporting Target Weight -->
+                    <div class="pm-field" id="supportWeightWrap_<?= h($context) ?>">
+                        <label for="supportWeightInput_<?= h($context) ?>">Target Weight</label>
+                        <div class="pm-input-with-unit">
+                            <input type="number" step="0.1" min="20" max="300" id="supportWeightInput_<?= h($context) ?>" class="sync-target-weight-<?= h($context) ?>" value="<?= h((string)($profile['target_weight_kg'] ?? '')) ?>" placeholder="e.g. 75.0" oninput="syncTargetWeight_<?= h($context) ?>(this.value)">
+                            <span class="pm-unit">kg</span>
+                        </div>
+                        <span class="pm-field-hint">Secondary body weight target</span>
+                    </div>
+
+                    <!-- Supporting Target Body Fat -->
+                    <div class="pm-field" id="supportBfWrap_<?= h($context) ?>">
+                        <label for="supportBfInput_<?= h($context) ?>">Target Body Fat</label>
+                        <div class="pm-input-with-unit">
+                            <input type="number" step="0.1" min="3" max="65" id="supportBfInput_<?= h($context) ?>" class="sync-target-bf-<?= h($context) ?>" value="<?= h((string)($profile['target_body_fat_percent'] ?? '')) ?>" placeholder="e.g. 15.0" oninput="syncTargetBf_<?= h($context) ?>(this.value)">
+                            <span class="pm-unit">%</span>
+                        </div>
+                        <span class="pm-field-hint">Secondary body fat percentage</span>
+                    </div>
+
+                    <!-- Supporting Arm Target -->
+                    <div class="pm-field" id="supportArmWrap_<?= h($context) ?>" style="display: none;">
+                        <label>Target Arm Size</label>
+                        <div class="pm-input-with-unit">
+                            <input type="number" step="0.1" name="target_arm_cm" value="<?= h((string)($profile['target_arm_cm'] ?? '')) ?>" placeholder="e.g. 38.0">
+                            <span class="pm-unit">cm</span>
+                        </div>
+                        <span class="pm-field-hint">Peak flexed measurement</span>
+                    </div>
+
+                    <!-- Supporting Chest Target -->
+                    <div class="pm-field" id="supportChestWrap_<?= h($context) ?>" style="display: none;">
+                        <label>Target Chest Size</label>
+                        <div class="pm-input-with-unit">
+                            <input type="number" step="0.1" name="target_chest_cm" value="<?= h((string)($profile['target_chest_cm'] ?? '')) ?>" placeholder="e.g. 105.0">
+                            <span class="pm-unit">cm</span>
+                        </div>
+                        <span class="pm-field-hint">Fullest point measurement</span>
+                    </div>
+
+                    <!-- Supporting Waist Target -->
+                    <div class="pm-field" id="supportWaistWrap_<?= h($context) ?>" style="display: none;">
+                        <label>Target Waist Size</label>
+                        <div class="pm-input-with-unit">
+                            <input type="number" step="0.1" name="target_waist_cm" value="<?= h((string)($profile['target_waist_cm'] ?? '')) ?>" placeholder="e.g. 78.0">
+                            <span class="pm-unit">cm</span>
+                        </div>
+                        <span class="pm-field-hint">Measurement at navel</span>
+                    </div>
+
+                    <!-- Additional Target Objectives Toggle -->
+                    <div class="full-span" id="additionalTargetsToggles_<?= h($context) ?>" style="display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; padding-top: 12px; border-top: 1px dashed var(--line);">
+                        <button type="button" class="btn btn-secondary" id="toggleStrengthBtn_<?= h($context) ?>" onclick="toggleOptionalStrengthTarget_<?= h($context) ?>()" style="padding: 6px 12px; font-size: 12px; border-radius: 6px; display: inline-flex; align-items: center; gap: 6px;">
+                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m6.5 6.5 11 11"/><path d="m21 21-1-1"/><path d="m3 3 1 1"/><path d="m18 22 4-4"/><path d="m2 6 4-4"/><path d="m3 10 7-7"/><path d="m14 21 7-7"/></svg>
+                            <span id="toggleStrengthText_<?= h($context) ?>">Strength PR Target</span>
+                        </button>
+                        <button type="button" class="btn btn-secondary" id="toggleEnduranceBtn_<?= h($context) ?>" onclick="toggleOptionalEnduranceTarget_<?= h($context) ?>()" style="padding: 6px 12px; font-size: 12px; border-radius: 6px; display: inline-flex; align-items: center; gap: 6px;">
+                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+                            <span id="toggleEnduranceText_<?= h($context) ?>">Endurance Cardio Target</span>
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>
@@ -1022,47 +1694,406 @@ function render_member_form(string $context, ?array $user = null, ?array $profil
         }
     }
 
-    function updateTargetMetrics_<?= h($context) ?>(goal) {
-        const armF = document.getElementById('targetArmField_<?= h($context) ?>');
-        const chestF = document.getElementById('targetChestField_<?= h($context) ?>');
-        const waistF = document.getElementById('targetWaistField_<?= h($context) ?>');
-        const weightF = document.getElementById('targetWeightField_<?= h($context) ?>');
-        const bfF = document.getElementById('targetBodyFatField_<?= h($context) ?>');
-        const tip = document.getElementById('targetGoalTip_<?= h($context) ?>');
-        const tipIcon = document.getElementById('targetGoalTipIcon_<?= h($context) ?>');
-        const tipText = document.getElementById('targetGoalTipText_<?= h($context) ?>');
-
-        if (!armF) return;
-
-        // Reset visibility
-        armF.style.display = 'none';
-        chestF.style.display = 'none';
-        waistF.style.display = 'none';
-        weightF.style.display = 'flex';
-        bfF.style.display = 'flex';
-
-        if (goal === 'Growing larger biceps and arms') {
-            armF.style.display = 'flex';
-            bfF.style.display = 'none';
-            tipIcon.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m6.5 6.5 11 11"/><path d="m21 21-1-1"/><path d="m3 3 1 1"/><path d="m18 22 4-4"/><path d="m2 6 4-4"/><path d="m3 10 7-7"/><path d="m14 21 7-7"/></svg>';
-            tipText.innerHTML = '<strong>Target Arm Circumference</strong> is the gold standard metric for bicep & tricep hypertrophy. Measure flexed around the peak of the arm.';
-        } else if (goal === 'Developing a wide chest') {
-            chestF.style.display = 'flex';
-            bfF.style.display = 'none';
-            tipIcon.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>';
-            tipText.innerHTML = '<strong>Target Chest Circumference</strong> measures pectoral hypertrophy. Measure horizontally across the fullest point of the chest.';
-        } else if (goal === 'Building a visible six-pack' || goal === 'Losing excess body fat' || goal === 'fat_loss') {
-            waistF.style.display = 'flex';
-            tipIcon.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z"/></svg>';
-            tipText.innerHTML = '<strong>Waist Circumference & Body Fat %</strong> directly track abdominal definition and visceral fat loss around the midsection.';
-        } else if (goal === 'Gaining lean body mass' || goal === 'muscle_gain') {
-            armF.style.display = 'flex';
-            tipIcon.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m6.5 6.5 11 11"/><path d="m21 21-1-1"/><path d="m3 3 1 1"/><path d="m18 22 4-4"/><path d="m2 6 4-4"/><path d="m3 10 7-7"/><path d="m14 21 7-7"/></svg>';
-            tipText.innerHTML = 'For lean mass gain, track your scale weight alongside arm and muscle circumference to ensure lean hypertrophy.';
-        } else {
-            tipIcon.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>';
-            tipText.innerHTML = 'Set target weight or body fat % to monitor your body transformation over time in your Progress dashboard.';
+    const goalTargetConfig_<?= h($context) ?> = {
+        increasing_strength: {
+            icon: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m6.5 6.5 11 11"/><path d="m21 21-1-1"/><path d="m3 3 1 1"/><path d="m18 22 4-4"/><path d="m2 6 4-4"/><path d="m3 10 7-7"/><path d="m14 21 7-7"/></svg>',
+            desc: 'Focus on progressive overload, compound lift progression, and personal record targets.',
+            showSupportWeight: true,
+            showSupportBf: true,
+            showSupportArm: false,
+            showSupportChest: false,
+            showSupportWaist: false
+        },
+        building_muscle: {
+            icon: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8h1a4 4 0 0 1 0 8h-1"/><path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z"/><line x1="6" y1="1" x2="6" y2="4"/><line x1="10" y1="1" x2="10" y2="4"/><line x1="14" y1="1" x2="14" y2="4"/></svg>',
+            desc: 'Focus on muscle hypertrophy, lean mass development, and muscle circumference progression.',
+            showSupportWeight: false,
+            showSupportBf: true,
+            showSupportArm: true,
+            showSupportChest: true,
+            showSupportWaist: true
+        },
+        losing_weight: {
+            icon: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>',
+            desc: 'Focus on reaching a healthy, sustainable scale weight with steady caloric balance.',
+            showSupportWeight: false,
+            showSupportBf: true,
+            showSupportArm: false,
+            showSupportChest: false,
+            showSupportWaist: true
+        },
+        reducing_body_fat: {
+            icon: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z"/></svg>',
+            desc: 'Focus on reducing overall body-fat percentage while preserving lean muscle mass.',
+            showSupportWeight: true,
+            showSupportBf: false,
+            showSupportArm: false,
+            showSupportChest: false,
+            showSupportWaist: true
+        },
+        improving_endurance: {
+            icon: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>',
+            desc: 'Focus on building aerobic capacity, cardiovascular stamina, and pacing benchmarks.',
+            showSupportWeight: true,
+            showSupportBf: true,
+            showSupportArm: false,
+            showSupportChest: false,
+            showSupportWaist: false
+        },
+        general_fitness: {
+            icon: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>',
+            desc: 'Focus on establishing regular weekly workout habits and balanced physical conditioning.',
+            showSupportWeight: true,
+            showSupportBf: true,
+            showSupportArm: false,
+            showSupportChest: false,
+            showSupportWaist: false
         }
+    };
+
+    function resolveGoalCategory_<?= h($context) ?>(goal) {
+        const g = (goal || '').toLowerCase().trim();
+        if (!g) return 'increasing_strength';
+
+        if (g.includes('strength') || g.includes('powerlifting') || g.includes('heavy') || g === 'increasing_strength') {
+            return 'increasing_strength';
+        }
+        if (g.includes('hypertrophy') || g.includes('muscle') || g.includes('mass') || g.includes('bicep') || g.includes('chest') || g.includes('back') || g.includes('lower body') || g.includes('recomposition')) {
+            return 'building_muscle';
+        }
+        if (g.includes('losing_weight') || g.includes('weight_loss') || g.includes('lose weight') || g.includes('weight loss')) {
+            return 'losing_weight';
+        }
+        if (g.includes('fat') || g.includes('shred') || g.includes('six-pack') || g.includes('six pack')) {
+            return 'reducing_body_fat';
+        }
+        if (g.includes('endurance') || g.includes('cardio') || g.includes('running') || g.includes('stamina') || g.includes('cycling')) {
+            return 'improving_endurance';
+        }
+        if (g.includes('general') || g.includes('fitness') || g.includes('health') || g.includes('wellness') || g.includes('toning')) {
+            return 'general_fitness';
+        }
+        return 'general_fitness';
+    }
+
+    const USER_WEIGHT_<?= h($context) ?> = <?= (float)$userWeight ?>;
+    const USER_BF_EST_<?= h($context) ?> = <?= (float)$currentBfEst ?>;
+
+    function syncTargetWeight_<?= h($context) ?>(val) {
+        const canonical = document.getElementById('canonicalTargetWeight_<?= h($context) ?>');
+        if (canonical) canonical.value = val;
+        document.querySelectorAll('.sync-target-weight-<?= h($context) ?>').forEach(el => {
+            if (el.value !== val) el.value = val;
+        });
+        updateWeightLiveFeedback_<?= h($context) ?>(val);
+    }
+
+    function syncTargetBf_<?= h($context) ?>(val) {
+        const canonical = document.getElementById('canonicalTargetBf_<?= h($context) ?>');
+        if (canonical) canonical.value = val;
+        document.querySelectorAll('.sync-target-bf-<?= h($context) ?>').forEach(el => {
+            if (el.value !== val) el.value = val;
+        });
+        updateBfLiveFeedback_<?= h($context) ?>(val);
+    }
+
+    function updateStrengthLiveFeedback_<?= h($context) ?>() {
+        const currentEl = document.getElementById('currentStrengthMax_<?= h($context) ?>');
+        const targetEl = document.getElementById('targetStrengthMax_<?= h($context) ?>');
+        const bannerEl = document.getElementById('strengthDeltaBanner_<?= h($context) ?>');
+        if (!bannerEl || !targetEl || !currentEl) return;
+
+        const cur = parseFloat(currentEl.value);
+        const tgt = parseFloat(targetEl.value);
+
+        if (isNaN(tgt) || tgt <= 0) {
+            bannerEl.innerHTML = '';
+            targetEl.classList.remove('has-error');
+            return;
+        }
+
+        if (!isNaN(cur) && cur > 0) {
+            if (tgt > cur) {
+                targetEl.classList.remove('has-error');
+                const diff = tgt - cur;
+                const pct = ((diff / cur) * 100).toFixed(1);
+                const achievePct = Math.min(100, Math.max(5, Math.round((cur / tgt) * 100)));
+                bannerEl.innerHTML = `
+                    <div class="pm-delta-badge positive">
+                        <div class="pm-delta-title">
+                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m18 15-6-6-6 6"/></svg>
+                            +${diff.toFixed(1)} kg PR Target Increase (+${pct}%)
+                        </div>
+                        <div class="pm-delta-sub">Current: ${cur.toFixed(1)} kg → Goal: ${tgt.toFixed(1)} kg (${achievePct}% achieved)</div>
+                        <div class="pm-delta-bar-wrap">
+                            <div class="pm-delta-bar" style="width: ${achievePct}%;"></div>
+                        </div>
+                    </div>
+                `;
+            } else {
+                targetEl.classList.add('has-error');
+                bannerEl.innerHTML = `
+                    <div class="pm-delta-badge warning">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                        <span>Target PR (${tgt.toFixed(1)} kg) must be greater than your current recorded maximum (${cur.toFixed(1)} kg).</span>
+                    </div>
+                `;
+            }
+        } else {
+            targetEl.classList.remove('has-error');
+            bannerEl.innerHTML = `
+                <div class="pm-delta-badge positive">
+                    <div class="pm-delta-title">
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>
+                        Target PR: ${tgt.toFixed(1)} kg
+                    </div>
+                    <div class="pm-delta-sub">Enter your Current Max above to calculate your strength progression delta.</div>
+                </div>
+            `;
+        }
+    }
+
+    function updateWeightLiveFeedback_<?= h($context) ?>(val) {
+        const tgt = parseFloat(val);
+        const muscleBanner = document.getElementById('muscleDeltaBanner_<?= h($context) ?>');
+        const lossBanner = document.getElementById('weightLossDeltaBanner_<?= h($context) ?>');
+        const cur = USER_WEIGHT_<?= h($context) ?>;
+
+        if (isNaN(tgt) || tgt <= 0 || !cur || cur <= 0) {
+            if (muscleBanner) muscleBanner.innerHTML = '';
+            if (lossBanner) lossBanner.innerHTML = '';
+            return;
+        }
+
+        const diff = tgt - cur;
+        const absDiff = Math.abs(diff).toFixed(1);
+        const pct = Math.abs((diff / cur) * 100).toFixed(1);
+
+        if (muscleBanner) {
+            if (diff > 0) {
+                muscleBanner.innerHTML = `
+                    <div class="pm-delta-badge positive">
+                        <div class="pm-delta-title">
+                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m18 15-6-6-6 6"/></svg>
+                            +${absDiff} kg Progressive Mass Goal (+${pct}%)
+                        </div>
+                        <div class="pm-delta-sub">Current Weight: ${cur.toFixed(1)} kg → Target: ${tgt.toFixed(1)} kg</div>
+                    </div>
+                `;
+            } else if (diff < 0) {
+                muscleBanner.innerHTML = `
+                    <div class="pm-delta-badge positive">
+                        <div class="pm-delta-title">Target: ${tgt.toFixed(1)} kg (-${absDiff} kg below current)</div>
+                    </div>
+                `;
+            } else {
+                muscleBanner.innerHTML = `
+                    <div class="pm-delta-badge positive">
+                        <div class="pm-delta-title">Maintaining current scale weight (${cur.toFixed(1)} kg) with lean recomposition</div>
+                    </div>
+                `;
+            }
+        }
+
+        if (lossBanner) {
+            if (diff < 0) {
+                lossBanner.innerHTML = `
+                    <div class="pm-delta-badge positive">
+                        <div class="pm-delta-title">
+                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+                            -${absDiff} kg Weight Loss Target (-${pct}%)
+                        </div>
+                        <div class="pm-delta-sub">Current Weight: ${cur.toFixed(1)} kg → Target: ${tgt.toFixed(1)} kg</div>
+                    </div>
+                `;
+            } else if (diff > 0) {
+                lossBanner.innerHTML = `
+                    <div class="pm-delta-badge positive">
+                        <div class="pm-delta-title">Target: ${tgt.toFixed(1)} kg (+${absDiff} kg above current)</div>
+                    </div>
+                `;
+            } else {
+                lossBanner.innerHTML = `
+                    <div class="pm-delta-badge positive">
+                        <div class="pm-delta-title">Maintaining current scale weight (${cur.toFixed(1)} kg)</div>
+                    </div>
+                `;
+            }
+        }
+    }
+
+    function updateBfLiveFeedback_<?= h($context) ?>(val) {
+        const tgt = parseFloat(val);
+        const banner = document.getElementById('bfDeltaBanner_<?= h($context) ?>');
+        const cur = USER_BF_EST_<?= h($context) ?>;
+        if (!banner) return;
+        if (isNaN(tgt) || tgt <= 0 || !cur || cur <= 0) {
+            banner.innerHTML = '';
+            return;
+        }
+
+        const diff = cur - tgt;
+        if (diff > 0) {
+            banner.innerHTML = `
+                <div class="pm-delta-badge positive">
+                    <div class="pm-delta-title">
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+                        -${diff.toFixed(1)}% Body Fat Reduction Target
+                    </div>
+                    <div class="pm-delta-sub">Current Estimate: ${cur.toFixed(1)}% → Target: ${tgt.toFixed(1)}%</div>
+                </div>
+            `;
+        } else {
+            banner.innerHTML = `
+                <div class="pm-delta-badge positive">
+                    <div class="pm-delta-title">Target: ${tgt.toFixed(1)}% body fat</div>
+                </div>
+            `;
+        }
+    }
+
+    function validateStrengthTarget_<?= h($context) ?>() {
+        const selectEl = document.getElementById('primaryGoalSelect_<?= h($context) ?>');
+        if (!selectEl) return true;
+        const cat = resolveGoalCategory_<?= h($context) ?>(selectEl.value);
+        const targetInput = document.getElementById('targetStrengthMax_<?= h($context) ?>');
+        const currentInput = document.getElementById('currentStrengthMax_<?= h($context) ?>');
+
+        if (cat !== 'increasing_strength' || !targetInput || !currentInput) {
+            if (targetInput) targetInput.classList.remove('has-error');
+            return true;
+        }
+
+        const targetVal = parseFloat(targetInput.value);
+        const currentVal = parseFloat(currentInput.value);
+
+        if (!isNaN(targetVal) && !isNaN(currentVal) && currentVal > 0 && targetVal <= currentVal) {
+            targetInput.classList.add('has-error');
+            return false;
+        } else {
+            targetInput.classList.remove('has-error');
+            return true;
+        }
+    }
+
+    function handleProfileFormSubmit_<?= h($context) ?>(form, e) {
+        if (!validateStrengthTarget_<?= h($context) ?>()) {
+            if (e) {
+                e.preventDefault();
+                e.stopPropagation();
+            }
+            switchProfileTab_<?= h($context) ?>('goal');
+            const bannerEl = document.getElementById('strengthDeltaBanner_<?= h($context) ?>');
+            if (bannerEl) bannerEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            return false;
+        }
+        const btn = form.querySelector('button[type=submit]');
+        if (btn) {
+            btn.disabled = true;
+            btn.innerHTML = '<span class=\'loader\' style=\'width:14px;height:14px;border:2px solid var(--bg);border-bottom-color:transparent;border-radius:50%;display:inline-block;box-sizing:border-box;animation:rotation 1s linear infinite;margin-right:6px;vertical-align:-2px;\'></span> Saving...';
+        }
+        return true;
+    }
+
+    let forceShowStrength_<?= h($context) ?> = <?= (!empty($profile['target_strength_max_kg']) || !empty($profile['current_strength_max_kg'])) ? 'true' : 'false' ?>;
+    let forceShowEndurance_<?= h($context) ?> = <?= (!empty($profile['target_endurance_distance_km']) || !empty($profile['target_endurance_time_mins'])) ? 'true' : 'false' ?>;
+
+    function toggleOptionalStrengthTarget_<?= h($context) ?>() {
+        forceShowStrength_<?= h($context) ?> = !forceShowStrength_<?= h($context) ?>;
+        const selectEl = document.getElementById('primaryGoalSelect_<?= h($context) ?>');
+        if (selectEl) updateTargetMetrics_<?= h($context) ?>(selectEl.value);
+    }
+
+    function toggleOptionalEnduranceTarget_<?= h($context) ?>() {
+        forceShowEndurance_<?= h($context) ?> = !forceShowEndurance_<?= h($context) ?>;
+        const selectEl = document.getElementById('primaryGoalSelect_<?= h($context) ?>');
+        if (selectEl) updateTargetMetrics_<?= h($context) ?>(selectEl.value);
+    }
+
+    function updateTargetMetrics_<?= h($context) ?>(goal) {
+        const cat = resolveGoalCategory_<?= h($context) ?>(goal);
+        const allSections = [
+            'increasing_strength',
+            'building_muscle',
+            'losing_weight',
+            'reducing_body_fat',
+            'improving_endurance',
+            'general_fitness'
+        ];
+
+        allSections.forEach(s => {
+            const sec = document.getElementById('targetSec_' + s + '_<?= h($context) ?>');
+            if (!sec) return;
+            const badge = sec.querySelector('.pm-target-badge');
+            if (s === cat) {
+                sec.style.display = 'block';
+                if (badge) {
+                    badge.className = 'pm-target-badge primary';
+                    badge.textContent = 'Primary Target';
+                }
+            } else if (s === 'increasing_strength' && forceShowStrength_<?= h($context) ?>) {
+                sec.style.display = 'block';
+                if (badge) {
+                    badge.className = 'pm-target-badge optional';
+                    badge.textContent = 'Strength PR Target';
+                }
+            } else if (s === 'improving_endurance' && forceShowEndurance_<?= h($context) ?>) {
+                sec.style.display = 'block';
+                if (badge) {
+                    badge.className = 'pm-target-badge optional';
+                    badge.textContent = 'Endurance Target';
+                }
+            } else {
+                sec.style.display = 'none';
+            }
+        });
+
+        const cfg = goalTargetConfig_<?= h($context) ?>[cat] || goalTargetConfig_<?= h($context) ?>['general_fitness'];
+        const descIcon = document.getElementById('goalDescIcon_<?= h($context) ?>');
+        const descText = document.getElementById('goalDescText_<?= h($context) ?>');
+        if (descIcon && cfg.icon) descIcon.innerHTML = cfg.icon;
+        if (descText && cfg.desc) descText.textContent = cfg.desc;
+
+        // Toggle supporting targets visibility
+        const supportWeightWrap = document.getElementById('supportWeightWrap_<?= h($context) ?>');
+        const supportBfWrap = document.getElementById('supportBfWrap_<?= h($context) ?>');
+        const supportArmWrap = document.getElementById('supportArmWrap_<?= h($context) ?>');
+        const supportChestWrap = document.getElementById('supportChestWrap_<?= h($context) ?>');
+        const supportWaistWrap = document.getElementById('supportWaistWrap_<?= h($context) ?>');
+        const supportingSec = document.getElementById('supportingTargetsSec_<?= h($context) ?>');
+
+        if (supportWeightWrap) supportWeightWrap.style.display = cfg.showSupportWeight ? 'block' : 'none';
+        if (supportBfWrap) supportBfWrap.style.display = cfg.showSupportBf ? 'block' : 'none';
+        if (supportArmWrap) supportArmWrap.style.display = cfg.showSupportArm ? 'block' : 'none';
+        if (supportChestWrap) supportChestWrap.style.display = cfg.showSupportChest ? 'block' : 'none';
+        if (supportWaistWrap) supportWaistWrap.style.display = cfg.showSupportWaist ? 'block' : 'none';
+
+        // Update additional target toggle buttons
+        const toggleStrengthBtn = document.getElementById('toggleStrengthBtn_<?= h($context) ?>');
+        const toggleEnduranceBtn = document.getElementById('toggleEnduranceBtn_<?= h($context) ?>');
+        const toggleStrengthText = document.getElementById('toggleStrengthText_<?= h($context) ?>');
+        const toggleEnduranceText = document.getElementById('toggleEnduranceText_<?= h($context) ?>');
+
+        if (toggleStrengthBtn) {
+            toggleStrengthBtn.style.display = (cat === 'increasing_strength') ? 'none' : 'inline-flex';
+            if (toggleStrengthText) {
+                toggleStrengthText.textContent = forceShowStrength_<?= h($context) ?> ? '✓ Strength Target Active' : '+ Add Strength PR Target';
+            }
+        }
+        if (toggleEnduranceBtn) {
+            toggleEnduranceBtn.style.display = (cat === 'improving_endurance') ? 'none' : 'inline-flex';
+            if (toggleEnduranceText) {
+                toggleEnduranceText.textContent = forceShowEndurance_<?= h($context) ?> ? '✓ Endurance Target Active' : '+ Add Endurance Target';
+            }
+        }
+
+        if (supportingSec) supportingSec.style.display = 'block';
+
+        updateStrengthLiveFeedback_<?= h($context) ?>();
+        const weightInput = document.getElementById('canonicalTargetWeight_<?= h($context) ?>');
+        if (weightInput) updateWeightLiveFeedback_<?= h($context) ?>(weightInput.value);
+        const bfInput = document.getElementById('canonicalTargetBf_<?= h($context) ?>');
+        if (bfInput) updateBfLiveFeedback_<?= h($context) ?>(bfInput.value);
     }
 
     document.addEventListener('DOMContentLoaded', function() {

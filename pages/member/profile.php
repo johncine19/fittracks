@@ -88,21 +88,41 @@ function profile_page(): void
         } elseif (isset($_POST['height_cm']) && $is_member) {
             $validator = new Validator();
             $valid = $validator->validate($_POST, [
-                'height_cm' => 'numeric|min_num:100|max_num:250',
-                'weight_kg' => 'numeric|min_num:20|max_num:300',
-                'age'       => 'numeric|min_num:16|max_num:120',
-                'neck_cm'   => 'numeric|min_num:20|max_num:100',
-                'waist_cm'  => 'numeric|min_num:30|max_num:200',
-                'hip_cm'    => 'numeric|min_num:30|max_num:200',
-                'target_weight_kg'        => 'numeric|min_num:20|max_num:300',
-                'target_body_fat_percent' => 'numeric|min_num:1|max_num:70',
-                'target_arm_cm'           => 'numeric|min_num:15|max_num:70',
-                'target_chest_cm'         => 'numeric|min_num:40|max_num:180',
-                'target_waist_cm'         => 'numeric|min_num:30|max_num:200',
+                'height_cm'                     => 'numeric|min_num:100|max_num:250',
+                'weight_kg'                     => 'numeric|min_num:20|max_num:300',
+                'age'                           => 'numeric|min_num:16|max_num:120',
+                'neck_cm'                       => 'numeric|min_num:20|max_num:100',
+                'waist_cm'                      => 'numeric|min_num:30|max_num:200',
+                'hip_cm'                        => 'numeric|min_num:30|max_num:200',
+                'chest_cm'                      => 'numeric|min_num:30|max_num:200',
+                'arm_cm'                        => 'numeric|min_num:10|max_num:100',
+                'target_weight_kg'              => 'numeric|min_num:20|max_num:300',
+                'target_body_fat_percent'       => 'numeric|min_num:1|max_num:70',
+                'target_arm_cm'                 => 'numeric|min_num:15|max_num:70',
+                'target_chest_cm'               => 'numeric|min_num:40|max_num:180',
+                'target_waist_cm'               => 'numeric|min_num:30|max_num:200',
+                'current_strength_max_kg'       => 'numeric|min_num:0|max_num:500',
+                'target_strength_max_kg'        => 'numeric|min_num:1|max_num:500',
+                'current_endurance_distance_km' => 'numeric|min_num:0.1|max_num:200',
+                'current_endurance_time_mins'   => 'numeric|min_num:1|max_num:1440',
+                'target_endurance_distance_km'  => 'numeric|min_num:0.1|max_num:200',
+                'target_endurance_time_mins'    => 'numeric|min_num:1|max_num:1440',
+                'weekly_workout_target'         => 'numeric|min_num:1|max_num:7',
             ]);
             
+            $newGoal = (string) post('primary_goal');
+            $currStrength = (float) post('current_strength_max_kg');
+            $targStrength = (float) post('target_strength_max_kg');
+            if ($valid && $currStrength > 0 && $targStrength > 0 && $targStrength <= $currStrength) {
+                $goalCat = resolve_goal_category($newGoal);
+                if ($goalCat === 'increasing_strength') {
+                    $valid = false;
+                    $validator_error = 'Target should be greater than your current maximum.';
+                }
+            }
+            
             if (!$valid) {
-                flash($validator->firstError() ?? 'Invalid measurements provided.', 'danger');
+                flash($validator_error ?? ($validator->firstError() ?? 'Invalid measurements provided.'), 'danger');
                 redirect('profile');
             }
 
@@ -407,6 +427,28 @@ function profile_page(): void
                         <span class="settings-stat-value"><?= !empty($profile['waist_cm']) ? h($profile['waist_cm']) . ' <small>cm</small>' : '—' ?></span>
                     </div>
                 </div>
+                <?php if (!empty($profile['chest_cm'])): ?>
+                <div class="settings-stat-card">
+                    <div class="settings-stat-icon" style="background: color-mix(in srgb, #60a5fa 15%, transparent); color: #60a5fa;">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" x2="22" y1="12" y2="12"/></svg>
+                    </div>
+                    <div class="settings-stat-body">
+                        <span class="settings-stat-label">Chest</span>
+                        <span class="settings-stat-value"><?= h(number_format((float)$profile['chest_cm'], 1)) ?> <small>cm</small></span>
+                    </div>
+                </div>
+                <?php endif; ?>
+                <?php if (!empty($profile['arm_cm'])): ?>
+                <div class="settings-stat-card">
+                    <div class="settings-stat-icon" style="background: color-mix(in srgb, #a78bfa 15%, transparent); color: #a78bfa;">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8h1a4 4 0 0 1 0 8h-1"/><path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z"/></svg>
+                    </div>
+                    <div class="settings-stat-body">
+                        <span class="settings-stat-label">Arm</span>
+                        <span class="settings-stat-value"><?= h(number_format((float)$profile['arm_cm'], 1)) ?> <small>cm</small></span>
+                    </div>
+                </div>
+                <?php endif; ?>
                 <?php if (($profile['biological_sex'] ?? '') === 'female'): ?>
                 <div class="settings-stat-card">
                     <div class="settings-stat-icon" style="background: color-mix(in srgb, #fb923c 15%, transparent); color: #fb923c;">
@@ -454,6 +496,138 @@ function profile_page(): void
                     </div>
                 </div>
             </div>
+
+            <!-- Targets & Objectives -->
+            <?php 
+            $hasAnyTarget = !empty($profile['target_strength_max_kg']) || 
+                            !empty($profile['target_weight_kg']) || 
+                            !empty($profile['target_body_fat_percent']) || 
+                            !empty($profile['weekly_workout_target']) || 
+                            !empty($profile['target_endurance_distance_km']) || 
+                            !empty($profile['target_endurance_time_mins']) || 
+                            !empty($profile['target_arm_cm']) || 
+                            !empty($profile['target_chest_cm']) || 
+                            !empty($profile['target_waist_cm']);
+            if ($hasAnyTarget):
+            ?>
+            <h3 class="settings-group-title" style="margin-top: 2rem;">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>
+                Targets & Objectives
+            </h3>
+            <div class="settings-stat-grid">
+                <?php if (!empty($profile['target_strength_max_kg'])): 
+                    $stEx = $profile['target_exercise'] ?? 'Bench Press';
+                ?>
+                <div class="settings-stat-card">
+                    <div class="settings-stat-icon" style="background: color-mix(in srgb, var(--lime) 15%, transparent); color: var(--lime);">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6.5 6.5 11 11"/><path d="m21 21-1-1"/><path d="m3 3 1 1"/><path d="m18 22 4-4"/><path d="m2 6 4-4"/><path d="m3 10 7-7"/><path d="m14 21 7-7"/></svg>
+                    </div>
+                    <div class="settings-stat-body">
+                        <span class="settings-stat-label">Strength Target (<?= h($stEx) ?>)</span>
+                        <span class="settings-stat-value"><?= h(number_format((float)$profile['target_strength_max_kg'], 1)) ?> <small>kg PR</small></span>
+                        <?php if (!empty($profile['current_strength_max_kg'])): ?>
+                            <span class="settings-stat-hint" style="font-size: 11px; color: var(--muted);">Current: <?= h(number_format((float)$profile['current_strength_max_kg'], 1)) ?> kg</span>
+                        <?php endif; ?>
+                    </div>
+                </div>
+                <?php endif; ?>
+
+                <?php if (!empty($profile['target_weight_kg'])): ?>
+                <div class="settings-stat-card">
+                    <div class="settings-stat-icon" style="background: color-mix(in srgb, var(--orange) 15%, transparent); color: var(--orange);">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+                    </div>
+                    <div class="settings-stat-body">
+                        <span class="settings-stat-label">Target Weight</span>
+                        <span class="settings-stat-value"><?= h(number_format((float)$profile['target_weight_kg'], 1)) ?> <small>kg</small></span>
+                        <?php if (!empty($profile['weight_kg'])): 
+                            $diff = (float)$profile['target_weight_kg'] - (float)$profile['weight_kg'];
+                        ?>
+                            <span class="settings-stat-hint" style="font-size: 11px; color: var(--muted);"><?= $diff > 0 ? '+' : '' ?><?= number_format($diff, 1) ?> kg from current</span>
+                        <?php endif; ?>
+                    </div>
+                </div>
+                <?php endif; ?>
+
+                <?php if (!empty($profile['target_body_fat_percent'])): ?>
+                <div class="settings-stat-card">
+                    <div class="settings-stat-icon" style="background: color-mix(in srgb, #f43f5e 15%, transparent); color: #f43f5e;">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z"/></svg>
+                    </div>
+                    <div class="settings-stat-body">
+                        <span class="settings-stat-label">Target Body Fat</span>
+                        <span class="settings-stat-value"><?= h(number_format((float)$profile['target_body_fat_percent'], 1)) ?> <small>%</small></span>
+                    </div>
+                </div>
+                <?php endif; ?>
+
+                <?php if (!empty($profile['weekly_workout_target'])): ?>
+                <div class="settings-stat-card">
+                    <div class="settings-stat-icon" style="background: color-mix(in srgb, var(--lime) 15%, transparent); color: var(--lime);">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="4" rx="2" ry="2"/><line x1="16" x2="16" y1="2" y2="6"/><line x1="8" x2="8" y1="2" y2="6"/><line x1="3" x2="21" y1="10" y2="10"/></svg>
+                    </div>
+                    <div class="settings-stat-body">
+                        <span class="settings-stat-label">Workout Frequency</span>
+                        <span class="settings-stat-value"><?= (int)$profile['weekly_workout_target'] ?> <small>days / wk</small></span>
+                    </div>
+                </div>
+                <?php endif; ?>
+
+                <?php if (!empty($profile['target_endurance_distance_km']) || !empty($profile['target_endurance_time_mins'])): 
+                    $act = $profile['endurance_activity'] ?? 'Running';
+                ?>
+                <div class="settings-stat-card">
+                    <div class="settings-stat-icon" style="background: color-mix(in srgb, var(--teal) 15%, transparent); color: var(--teal);">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+                    </div>
+                    <div class="settings-stat-body">
+                        <span class="settings-stat-label">Endurance (<?= h($act) ?>)</span>
+                        <span class="settings-stat-value">
+                            <?= !empty($profile['target_endurance_distance_km']) ? h(number_format((float)$profile['target_endurance_distance_km'], 1)) . ' <small>km</small>' : '' ?>
+                            <?= (!empty($profile['target_endurance_distance_km']) && !empty($profile['target_endurance_time_mins'])) ? ' / ' : '' ?>
+                            <?= !empty($profile['target_endurance_time_mins']) ? h($profile['target_endurance_time_mins']) . ' <small>min</small>' : '' ?>
+                        </span>
+                    </div>
+                </div>
+                <?php endif; ?>
+
+                <?php if (!empty($profile['target_arm_cm'])): ?>
+                <div class="settings-stat-card">
+                    <div class="settings-stat-icon" style="background: color-mix(in srgb, #a78bfa 15%, transparent); color: #a78bfa;">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8h1a4 4 0 0 1 0 8h-1"/><path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z"/></svg>
+                    </div>
+                    <div class="settings-stat-body">
+                        <span class="settings-stat-label">Target Arm Size</span>
+                        <span class="settings-stat-value"><?= h(number_format((float)$profile['target_arm_cm'], 1)) ?> <small>cm</small></span>
+                    </div>
+                </div>
+                <?php endif; ?>
+
+                <?php if (!empty($profile['target_chest_cm'])): ?>
+                <div class="settings-stat-card">
+                    <div class="settings-stat-icon" style="background: color-mix(in srgb, #60a5fa 15%, transparent); color: #60a5fa;">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" x2="22" y1="12" y2="12"/></svg>
+                    </div>
+                    <div class="settings-stat-body">
+                        <span class="settings-stat-label">Target Chest Size</span>
+                        <span class="settings-stat-value"><?= h(number_format((float)$profile['target_chest_cm'], 1)) ?> <small>cm</small></span>
+                    </div>
+                </div>
+                <?php endif; ?>
+
+                <?php if (!empty($profile['target_waist_cm'])): ?>
+                <div class="settings-stat-card">
+                    <div class="settings-stat-icon" style="background: color-mix(in srgb, #f472b6 15%, transparent); color: #f472b6;">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 18 0 9 9 0 0 0-18 0"/><path d="M12 8v8"/></svg>
+                    </div>
+                    <div class="settings-stat-body">
+                        <span class="settings-stat-label">Target Waist Size</span>
+                        <span class="settings-stat-value"><?= h(number_format((float)$profile['target_waist_cm'], 1)) ?> <small>cm</small></span>
+                    </div>
+                </div>
+                <?php endif; ?>
+            </div>
+            <?php endif; ?>
         </div>
     </div>
     <?php endif; ?>
@@ -611,7 +785,7 @@ function profile_page(): void
     <!-- ==================== MODALS ==================== -->
 
     <!-- Account Edit Modal -->
-    <dialog id="accountModal" class="modal">
+    <dialog id="accountModal" class="modal" onclick="if (event.target === this) this.close();">
         <div class="modal-header">
             <h3>Edit Account Details</h3>
             <button class="modal-close" onclick="this.closest('dialog').close()" aria-label="Close">
@@ -650,7 +824,7 @@ function profile_page(): void
 
     <?php if ($is_member): ?>
     <!-- Physical Profile Edit Modal -->
-    <dialog id="physicalProfileModal" class="modal">
+    <dialog id="physicalProfileModal" class="modal" onclick="if (event.target === this) this.close();">
         <div class="modal-header">
             <h3>Edit Physical Profile</h3>
             <button class="modal-close" onclick="this.closest('dialog').close()" aria-label="Close">

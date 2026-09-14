@@ -636,6 +636,12 @@ function audit_log(int $adminUserId, string $action, string $entityType, ?string
 function map_detailed_goal_to_basic(string $detailedGoal): string
 {
     $map = [
+        'increasing_strength' => 'muscle_gain',
+        'building_muscle' => 'muscle_gain',
+        'losing_weight' => 'fat_loss',
+        'reducing_body_fat' => 'fat_loss',
+        'improving_endurance' => 'general_health',
+        'general_fitness' => 'general_health',
         'Building a visible six-pack' => 'fat_loss',
         'Growing larger biceps and arms' => 'muscle_gain',
         'Developing a wide chest' => 'muscle_gain',
@@ -651,6 +657,27 @@ function map_detailed_goal_to_basic(string $detailedGoal): string
     ];
     
     return $map[$detailedGoal] ?? 'general_health';
+}
+
+function resolve_goal_category(string $goal): string
+{
+    $g = strtolower(trim($goal));
+    if ($g === 'increasing_strength' || str_contains($g, 'strength') || str_contains($g, 'powerlifting') || str_contains($g, 'explosive') || str_contains($g, 'heavy')) {
+        return 'increasing_strength';
+    }
+    if ($g === 'building_muscle' || $g === 'muscle_gain' || str_contains($g, 'muscle') || str_contains($g, 'hypertrophy') || str_contains($g, 'bicep') || str_contains($g, 'chest') || str_contains($g, 'back') || str_contains($g, 'lean body') || str_contains($g, 'lower body')) {
+        return 'building_muscle';
+    }
+    if ($g === 'losing_weight' || $g === 'weight_loss' || str_contains($g, 'lose weight') || str_contains($g, 'weight loss') || str_contains($g, 'losing weight')) {
+        return 'losing_weight';
+    }
+    if ($g === 'reducing_body_fat' || $g === 'fat_loss' || str_contains($g, 'body fat') || str_contains($g, 'fat') || str_contains($g, 'six-pack') || str_contains($g, 'shred') || str_contains($g, 'recomposition')) {
+        return 'reducing_body_fat';
+    }
+    if ($g === 'improving_endurance' || str_contains($g, 'endurance') || str_contains($g, 'cardio') || str_contains($g, 'stamina') || str_contains($g, 'running') || str_contains($g, 'flexibility')) {
+        return 'improving_endurance';
+    }
+    return 'general_fitness';
 }
 
 function get_recommendations_by_goal(PDO $pdo, string $detailedGoal): array
