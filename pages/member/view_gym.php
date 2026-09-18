@@ -265,69 +265,47 @@ function view_gym_page(): void
         border: 1px solid rgba(255, 255, 255, 0.1);
     }
 
-    /* Metric Highlights Strip */
-    .gym-metrics-strip {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(min(100%, 200px), 1fr));
-        gap: 16px;
-    }
-    .gym-metric-card {
-        background: linear-gradient(135deg, rgba(20, 26, 38, 0.65) 0%, rgba(13, 17, 25, 0.85) 100%);
-        border: 1px solid rgba(255, 255, 255, 0.07);
-        border-radius: 14px;
-        padding: 16px 20px;
-        display: flex;
+    .gym-section-header-link {
+        display: inline-flex;
         align-items: center;
-        gap: 14px;
-        transition: transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
-    }
-    .gym-metric-card:hover {
-        transform: translateY(-2px);
-        border-color: rgba(255, 255, 255, 0.15);
-        box-shadow: 0 6px 18px rgba(0, 0, 0, 0.15);
-    }
-    .gym-metric-icon {
-        width: 40px;
-        height: 40px;
-        border-radius: 11px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        flex-shrink: 0;
-    }
-    /* Controlled muted category icon backgrounds */
-    .metric-icon-lime {
-        background: rgba(163, 230, 53, 0.10);
-        color: #bef264;
-        border: 1px solid rgba(163, 230, 53, 0.20);
-    }
-    .metric-icon-purple {
-        background: rgba(168, 85, 247, 0.10);
-        color: #d8b4fe;
-        border: 1px solid rgba(168, 85, 247, 0.20);
-    }
-    .metric-icon-blue {
-        background: rgba(14, 165, 233, 0.10);
-        color: #38bdf8;
-        border: 1px solid rgba(14, 165, 233, 0.20);
-    }
-    .metric-icon-amber {
-        background: rgba(245, 158, 11, 0.10);
-        color: #fbbf24;
-        border: 1px solid rgba(245, 158, 11, 0.20);
-    }
-
-    .gym-metric-val {
-        font-size: 22px;
-        font-weight: 800;
-        color: var(--ink);
-        line-height: 1.1;
-    }
-    .gym-metric-lbl {
-        font-size: 12px;
-        color: var(--muted);
+        gap: 5px;
+        font-size: 12.5px;
         font-weight: 600;
-        margin-top: 2px;
+        color: var(--muted);
+        text-decoration: none !important;
+        transition: all 0.2s ease;
+    }
+    .gym-section-header-link:hover {
+        color: var(--ink);
+        transform: translateX(2px);
+    }
+    .btn-toggle-equip {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 7px 16px;
+        border-radius: 9px;
+        background: rgba(255, 255, 255, 0.05);
+        color: var(--ink);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        font-size: 12.5px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.2s ease;
+    }
+    .btn-toggle-equip:hover {
+        background: rgba(255, 255, 255, 0.1);
+        border-color: color-mix(in srgb, <?= h($brandColor) ?> 35%, rgba(255, 255, 255, 0.15));
+        color: var(--ink);
+        transform: translateY(-1px);
+    }
+    .gym-empty-compact {
+        padding: 14px 18px;
+        border: 1px dashed var(--line);
+        border-radius: 10px;
+        color: var(--muted);
+        font-size: 12.5px;
+        text-align: center;
     }
 
     /* Classes Offered */
@@ -549,13 +527,29 @@ function view_gym_page(): void
         flex-shrink: 0;
     }
     .gym-status-badge {
-        color: #4ade80;
-        background: rgba(34, 197, 94, 0.08);
-        border: 1px solid rgba(34, 197, 94, 0.16);
-        font-size: 10px;
-        padding: 1px 6px;
-        border-radius: 4px;
+        font-size: 10.5px;
+        padding: 1.5px 7px;
+        border-radius: 999px;
         font-weight: 600;
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+    }
+    .gym-status-badge.status-available {
+        color: #4ade80;
+        background: rgba(34, 197, 94, 0.10);
+        border: 1px solid rgba(34, 197, 94, 0.22);
+    }
+    .gym-status-badge.status-in_use {
+        color: #fbbf24;
+        background: rgba(245, 158, 11, 0.10);
+        border: 1px solid rgba(245, 158, 11, 0.22);
+    }
+    .gym-status-badge.status-maintenance,
+    .gym-status-badge.status-out_of_service {
+        color: #f87171;
+        background: rgba(239, 68, 68, 0.10);
+        border: 1px solid rgba(239, 68, 68, 0.22);
     }
 
     /* Trainer Cards */
@@ -664,8 +658,6 @@ function view_gym_page(): void
     [data-theme="light"] .gym-hero-card,
     html[data-theme="light"] .gym-panel-box,
     [data-theme="light"] .gym-panel-box,
-    html[data-theme="light"] .gym-metric-card,
-    [data-theme="light"] .gym-metric-card,
     html[data-theme="light"] .gym-plan-card,
     [data-theme="light"] .gym-plan-card {
         background: #ffffff !important;
@@ -724,29 +716,35 @@ function view_gym_page(): void
         border-color: #cbd5e1 !important;
         color: #1e293b !important;
     }
-    html[data-theme="light"] .metric-icon-lime,
-    [data-theme="light"] .metric-icon-lime {
-        background: #f7fee7 !important;
-        color: #4d7c0f !important;
-        border-color: #bef264 !important;
+    html[data-theme="light"] .btn-toggle-equip,
+    [data-theme="light"] .btn-toggle-equip {
+        background: #f1f5f9 !important;
+        border-color: #cbd5e1 !important;
+        color: #1e293b !important;
     }
-    html[data-theme="light"] .metric-icon-purple,
-    [data-theme="light"] .metric-icon-purple {
-        background: #faf5ff !important;
-        color: #7e22ce !important;
-        border-color: #e9d5ff !important;
+    html[data-theme="light"] .btn-toggle-equip:hover,
+    [data-theme="light"] .btn-toggle-equip:hover {
+        background: #e2e8f0 !important;
     }
-    html[data-theme="light"] .metric-icon-blue,
-    [data-theme="light"] .metric-icon-blue {
-        background: #f0f9ff !important;
-        color: #0369a1 !important;
-        border-color: #bae6fd !important;
+    html[data-theme="light"] .gym-status-badge.status-available {
+        background: #f0fdf4 !important;
+        color: #15803d !important;
+        border-color: #bbf7d0 !important;
     }
-    html[data-theme="light"] .metric-icon-amber,
-    [data-theme="light"] .metric-icon-amber {
+    html[data-theme="light"] .gym-status-badge.status-in_use {
         background: #fffbeb !important;
         color: #b45309 !important;
         border-color: #fde68a !important;
+    }
+    html[data-theme="light"] .gym-status-badge.status-maintenance,
+    html[data-theme="light"] .gym-status-badge.status-out_of_service {
+        background: #fef2f2 !important;
+        color: #b91c1c !important;
+        border-color: #fecaca !important;
+    }
+    html[data-theme="light"] .gym-empty-compact {
+        border-color: #cbd5e1 !important;
+        background: #f8fafc !important;
     }
     html[data-theme="light"] .gym-section-icon-wrap.icon-classes,
     [data-theme="light"] .gym-section-icon-wrap.icon-classes {
@@ -829,31 +827,6 @@ function view_gym_page(): void
             padding: 10px 16px;
             font-size: 13.5px;
             box-sizing: border-box;
-        }
-
-        /* 2x2 Metric Strip */
-        .gym-metrics-strip {
-            grid-template-columns: repeat(2, 1fr);
-            gap: 10px;
-        }
-        .gym-metric-card {
-            padding: 12px 14px;
-            gap: 10px;
-        }
-        .gym-metric-icon {
-            width: 36px;
-            height: 36px;
-            border-radius: 10px;
-        }
-        .gym-metric-icon svg {
-            width: 18px;
-            height: 18px;
-        }
-        .gym-metric-val {
-            font-size: 18px;
-        }
-        .gym-metric-lbl {
-            font-size: 11px;
         }
 
         .gym-panel-box {
@@ -944,9 +917,6 @@ function view_gym_page(): void
     }
 
     @media (max-width: 380px) {
-        .gym-metrics-strip {
-            grid-template-columns: 1fr;
-        }
         .gym-hero-profile {
             flex-direction: column;
             align-items: flex-start;
@@ -1015,98 +985,8 @@ function view_gym_page(): void
             </div>
         </div>
 
-        <!-- Metrics Strip with muted semantic icon containers -->
-        <div class="gym-metrics-strip">
-            <div class="gym-metric-card">
-                <div class="gym-metric-icon metric-icon-lime">
-                    <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
-                </div>
-                <div>
-                    <div class="gym-metric-val"><?= count($classes) ?></div>
-                    <div class="gym-metric-lbl">Classes Offered</div>
-                </div>
-            </div>
-
-            <div class="gym-metric-card">
-                <div class="gym-metric-icon metric-icon-purple">
-                    <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><rect width="20" height="14" x="2" y="5" rx="2"/><line x1="2" x2="22" y1="10" y2="10"/></svg>
-                </div>
-                <div>
-                    <div class="gym-metric-val"><?= count($plans) ?></div>
-                    <div class="gym-metric-lbl">Membership Tiers</div>
-                </div>
-            </div>
-
-            <div class="gym-metric-card">
-                <div class="gym-metric-icon metric-icon-blue">
-                    <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="m6.5 6.5 11 11"/><path d="m21 21-1-1"/><path d="m3 3 1 1"/><path d="m18 22 4-4"/><path d="m2 6 4-4"/><path d="m3 10 7-7"/><path d="m14 21 7-7"/></svg>
-                </div>
-                <div>
-                    <div class="gym-metric-val"><?= count($equipment) ?></div>
-                    <div class="gym-metric-lbl">Equipments & Stations</div>
-                </div>
-            </div>
-
-            <div class="gym-metric-card">
-                <div class="gym-metric-icon metric-icon-amber">
-                    <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
-                </div>
-                <div>
-                    <div class="gym-metric-val"><?= count($trainers) ?></div>
-                    <div class="gym-metric-lbl">Trainers & Coaches</div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Section: Classes Offered -->
-        <div class="gym-panel-box">
-            <div class="gym-section-title">
-                <div class="gym-section-title-left">
-                    <div class="gym-section-icon-wrap icon-classes">
-                        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
-                    </div>
-                    <span>Classes & Sessions</span>
-                </div>
-                <a href="index.php?page=book_classes" class="btn-action-back" style="font-size: 12px; padding: 6px 14px;">
-                    <span>Schedule & Booking</span>
-                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg>
-                </a>
-            </div>
-
-            <?php if ($classes): ?>
-                <div class="gym-classes-grid">
-                    <?php foreach ($classes as $c): ?>
-                        <div class="explore-card-item">
-                            <div class="explore-card-main">
-                                <div class="explore-card-icon">
-                                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
-                                </div>
-                                <div class="explore-card-info">
-                                    <div class="explore-card-title"><?= h($c['class_name']) ?></div>
-                                    <div class="explore-card-meta">
-                                        Instructor: <strong style="color: var(--ink);"><?= h($c['instructor_name']) ?></strong> • Capacity: <?= (int)$c['capacity'] ?>
-                                    </div>
-                                    <?php if (!empty($c['description'])): ?>
-                                        <div class="explore-card-desc"><?= h($c['description']) ?></div>
-                                    <?php endif; ?>
-                                </div>
-                            </div>
-                            <a href="index.php?page=book_classes" class="explore-action-btn btn-book">
-                                <span>Book</span>
-                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg>
-                            </a>
-                        </div>
-                    <?php endforeach; ?>
-                </div>
-            <?php else: ?>
-                <div style="text-align: center; padding: 32px; border: 1px dashed var(--line); border-radius: 12px; color: var(--muted); font-size: 13.5px;">
-                    No group classes currently scheduled at this partner location.
-                </div>
-            <?php endif; ?>
-        </div>
-
         <!-- Section: Membership Plans -->
-        <?php if ($plans): ?>
+        <?php if (!empty($plans)): ?>
             <div class="gym-panel-box">
                 <div class="gym-section-title">
                     <div class="gym-section-title-left">
@@ -1115,7 +995,10 @@ function view_gym_page(): void
                         </div>
                         <span>Membership Plans</span>
                     </div>
-                    <span style="font-size: 13px; color: var(--muted);">Flexible access options</span>
+                    <a href="index.php?page=memberships" class="gym-section-header-link">
+                        <span>View all plans</span>
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg>
+                    </a>
                 </div>
 
                 <div class="gym-plans-grid">
@@ -1164,8 +1047,55 @@ function view_gym_page(): void
             </div>
         <?php endif; ?>
 
-        <!-- Section: Equipment & Facilities -->
-        <?php if ($equipment): ?>
+        <!-- Section: Classes & Sessions -->
+        <div class="gym-panel-box">
+            <div class="gym-section-title">
+                <div class="gym-section-title-left">
+                    <div class="gym-section-icon-wrap icon-classes">
+                        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+                    </div>
+                    <span>Classes & Sessions</span>
+                </div>
+                <a href="index.php?page=book_classes" class="gym-section-header-link">
+                    <span>Schedule & Booking</span>
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg>
+                </a>
+            </div>
+
+            <?php if (!empty($classes)): ?>
+                <div class="gym-classes-grid">
+                    <?php foreach ($classes as $c): ?>
+                        <div class="explore-card-item">
+                            <div class="explore-card-main">
+                                <div class="explore-card-icon">
+                                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+                                </div>
+                                <div class="explore-card-info">
+                                    <div class="explore-card-title"><?= h($c['class_name']) ?></div>
+                                    <div class="explore-card-meta">
+                                        Instructor: <strong style="color: var(--ink);"><?= h($c['instructor_name']) ?></strong> • Capacity: <?= (int)$c['capacity'] ?>
+                                    </div>
+                                    <?php if (!empty($c['description'])): ?>
+                                        <div class="explore-card-desc"><?= h($c['description']) ?></div>
+                                    <?php endif; ?>
+                                </div>
+                            </div>
+                            <a href="index.php?page=book_classes" class="explore-action-btn btn-book">
+                                <span>Book</span>
+                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg>
+                            </a>
+                        </div>
+                    <?php endforeach; ?>
+                </div>
+            <?php else: ?>
+                <div class="gym-empty-compact">
+                    No group classes currently scheduled at this partner location.
+                </div>
+            <?php endif; ?>
+        </div>
+
+        <!-- Section: Equipment & Stations -->
+        <?php if (!empty($equipment)): ?>
             <div class="gym-panel-box">
                 <div class="gym-section-title">
                     <div class="gym-section-title-left">
@@ -1178,38 +1108,54 @@ function view_gym_page(): void
                 </div>
 
                 <div class="gym-equip-grid">
-                    <?php foreach ($equipment as $eq): ?>
-                        <div class="gym-equip-card">
+                    <?php foreach ($equipment as $idx => $eq): ?>
+                        <div class="gym-equip-card <?= $idx >= 4 ? 'gym-equip-extra' : '' ?>" <?= $idx >= 4 ? 'style="display:none;"' : '' ?>>
                             <div class="gym-equip-icon">
                                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
                             </div>
                             <div style="flex: 1; min-width: 0;">
                                 <div style="font-weight: 700; font-size: 13.5px; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
-                                    <?= h($eq['name']) ?> <?= !empty($eq['unit_number']) ? '<small style="color:var(--muted)">'.h($eq['unit_number']).'</small>' : '' ?>
+                                    <?= h($eq['name']) ?> <?= !empty($eq['unit_number']) ? '<small style="color:var(--muted); font-weight:500;">'.h($eq['unit_number']).'</small>' : '' ?>
                                 </div>
                                 <div style="font-size: 11px; color: var(--muted); display: flex; align-items: center; gap: 6px; margin-top: 2px;">
                                     <span><?= h($eq['category'] ?? 'General') ?></span>
-                                    •
-                                    <span class="gym-status-badge"><?= h($eq['equipment_condition'] ?? 'Good') ?></span>
+                                    <span>•</span>
+                                    <?php 
+                                        $eqStatus = $eq['status'] ?? 'available';
+                                        $statusClass = 'status-' . strtolower(str_replace(' ', '_', $eqStatus));
+                                        $statusLabel = ucfirst(str_replace('_', ' ', $eqStatus));
+                                    ?>
+                                    <span class="gym-status-badge <?= $statusClass ?>">
+                                        <?= h($statusLabel) ?>
+                                    </span>
                                 </div>
                             </div>
                         </div>
                     <?php endforeach; ?>
                 </div>
+
+                <?php if (count($equipment) > 4): ?>
+                    <div style="text-align: center; margin-top: 14px;">
+                        <button type="button" class="btn-toggle-equip" id="btnToggleEquip" data-expanded="false" onclick="toggleAllEquipment(<?= count($equipment) ?>)">
+                            <span>View all <?= count($equipment) ?> equipment</span>
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
+                        </button>
+                    </div>
+                <?php endif; ?>
             </div>
         <?php endif; ?>
 
         <!-- Section: Coaching Staff -->
-        <?php if ($trainers): ?>
+        <?php if (!empty($trainers)): ?>
             <div class="gym-panel-box">
                 <div class="gym-section-title">
                     <div class="gym-section-title-left">
                         <div class="gym-section-icon-wrap icon-trainers">
                             <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
                         </div>
-                        <span>Coaching Staff</span>
+                        <span>Trainers & Coaches</span>
                     </div>
-                    <span style="font-size: 13px; color: var(--muted);">Certified fitness professionals</span>
+                    <span style="font-size: 13px; color: var(--muted);"><?= count($trainers) ?> available</span>
                 </div>
 
                 <div class="gym-trainers-grid">
@@ -1257,6 +1203,25 @@ function view_gym_page(): void
             </div>
         <?php endif; ?>
     </div>
+
+    <script>
+    function toggleAllEquipment(totalCount) {
+        const extraItems = document.querySelectorAll('.gym-equip-extra');
+        const btn = document.getElementById('btnToggleEquip');
+        if (!btn || !extraItems.length) return;
+
+        const isExpanded = btn.getAttribute('data-expanded') === 'true';
+        if (isExpanded) {
+            extraItems.forEach(el => el.style.display = 'none');
+            btn.setAttribute('data-expanded', 'false');
+            btn.innerHTML = '<span>View all ' + totalCount + ' equipment</span> <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>';
+        } else {
+            extraItems.forEach(el => el.style.display = 'flex');
+            btn.setAttribute('data-expanded', 'true');
+            btn.innerHTML = '<span>Show less</span> <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="18 15 12 9 6 15"/></svg>';
+        }
+    }
+    </script>
 
     <?php
     render_footer();

@@ -113,30 +113,145 @@ function render_header(string $title, ?array $user = null): void
         .swal2-toast .swal2-html-container { pointer-events: auto !important; }
         .swal2-toast a { pointer-events: auto !important; position: relative; z-index: 2; }
 
+        /* Sleek Modern Toast & Card Styling */
+        .swal2-popup.swal2-toast {
+            border-radius: 14px !important;
+            padding: 12px 18px !important;
+            box-shadow: 0 12px 36px rgba(0, 0, 0, 0.5), 0 2px 8px rgba(0, 0, 0, 0.25) !important;
+            border: 1px solid rgba(255, 255, 255, 0.12) !important;
+            background: rgba(18, 23, 33, 0.96) !important;
+            backdrop-filter: blur(16px) !important;
+            -webkit-backdrop-filter: blur(16px) !important;
+            font-size: 13.5px !important;
+            align-items: flex-start !important;
+            cursor: pointer !important;
+            transition: transform 0.2s ease, box-shadow 0.2s ease !important;
+        }
+        .swal2-popup.swal2-toast:hover {
+            transform: translateY(-2px) !important;
+            box-shadow: 0 16px 40px rgba(0, 0, 0, 0.6), 0 4px 12px rgba(0, 0, 0, 0.3) !important;
+        }
+        [data-theme="light"] .swal2-popup.swal2-toast {
+            background: rgba(255, 255, 255, 0.97) !important;
+            border: 1px solid #cbd5e1 !important;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.12), 0 2px 6px rgba(0, 0, 0, 0.06) !important;
+            color: #0f172a !important;
+        }
+        .swal2-toast .swal2-icon {
+            width: 22px !important;
+            height: 22px !important;
+            min-width: 22px !important;
+            margin: 2px 12px 0 0 !important;
+            border-width: 2px !important;
+            transform: scale(0.85);
+        }
+        .swal2-toast .swal2-title {
+            font-size: 13.5px !important;
+            font-weight: 700 !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            line-height: 1.35 !important;
+            color: var(--ink, #ffffff) !important;
+        }
+        [data-theme="light"] .swal2-toast .swal2-title {
+            color: #0f172a !important;
+        }
+        .swal2-toast .swal2-html-container {
+            font-size: 12.5px !important;
+            font-weight: 400 !important;
+            margin: 4px 0 0 0 !important;
+            padding: 0 !important;
+            line-height: 1.4 !important;
+            text-align: left !important;
+            color: var(--ink, #ffffff) !important;
+        }
+        [data-theme="light"] .swal2-toast .swal2-html-container {
+            color: #334155 !important;
+        }
+        .swal2-toast .swal2-actions {
+            margin: 8px 0 0 0 !important;
+            padding: 0 !important;
+            width: 100% !important;
+            justify-content: flex-start !important;
+            gap: 6px !important;
+        }
+        .swal2-toast .swal2-confirm {
+            background: var(--lime, #bef264) !important;
+            color: #080b0d !important;
+            font-size: 11.5px !important;
+            font-weight: 700 !important;
+            border-radius: 999px !important;
+            padding: 5px 14px !important;
+            min-height: auto !important;
+            margin: 0 !important;
+            box-shadow: 0 2px 8px rgba(190, 242, 100, 0.25) !important;
+            border: none !important;
+            cursor: pointer !important;
+            transition: all 0.2s ease !important;
+        }
+        .swal2-toast .swal2-confirm:hover {
+            opacity: 0.92 !important;
+            transform: translateY(-1px) !important;
+        }
+        .swal2-toast .swal2-timer-progress-bar {
+            background: var(--lime, #bef264) !important;
+            height: 2.5px !important;
+            border-radius: 0 0 14px 14px;
+        }
+
+        /* Mobile specific bottom pill positioning */
+        @media (max-width: 768px) {
+            .swal2-container.swal2-bottom {
+                bottom: calc(env(safe-area-inset-bottom, 0px) + 20px) !important;
+                padding: 0 14px !important;
+                z-index: 10000 !important;
+            }
+            .swal2-popup.swal2-toast {
+                width: auto !important;
+                max-width: calc(100vw - 28px) !important;
+                margin: 0 auto !important;
+                padding: 10px 14px !important;
+                font-size: 12.5px !important;
+                border-radius: 12px !important;
+            }
+            .swal2-toast .swal2-title {
+                font-size: 13px !important;
+            }
+            .swal2-toast .swal2-html-container {
+                font-size: 12px !important;
+            }
+            .swal2-toast .swal2-icon {
+                width: 20px !important;
+                height: 20px !important;
+                min-width: 20px !important;
+                margin: 2px 8px 0 0 !important;
+            }
+        }
+
         /* SweetAlert Opaque Modal Theming (Prevents transparent see-through popups in dark mode) */
-        .swal2-popup {
+        .swal2-popup:not(.swal2-toast) {
             background: #11141d !important;
             color: #f8fafc !important;
             border: 1px solid rgba(255, 255, 255, 0.12) !important;
             border-radius: 14px !important;
             box-shadow: 0 24px 48px rgba(0, 0, 0, 0.75) !important;
         }
-        [data-theme="light"] .swal2-popup {
+        [data-theme="light"] .swal2-popup:not(.swal2-toast) {
             background: #ffffff !important;
             color: #0f172a !important;
             border: 1px solid #cbd5e1 !important;
             box-shadow: 0 16px 36px rgba(0, 0, 0, 0.12) !important;
         }
-        .swal2-title {
+        .swal2-popup:not(.swal2-toast) .swal2-title {
             color: #f8fafc !important;
         }
-        [data-theme="light"] .swal2-title {
+        [data-theme="light"] .swal2-popup:not(.swal2-toast) .swal2-title {
             color: #0f172a !important;
         }
-        .swal2-html-container {
+        .swal2-popup:not(.swal2-toast) .swal2-html-container {
             color: #94a3b8 !important;
         }
-        [data-theme="light"] .swal2-html-container {
+        [data-theme="light"] .swal2-popup:not(.swal2-toast) .swal2-html-container {
             color: #475569 !important;
         }
 
@@ -245,14 +360,19 @@ function render_header(string $title, ?array $user = null): void
     <?php if ($flash): ?>
         <script>
             document.addEventListener('DOMContentLoaded', function() {
+                const isMobile = window.innerWidth <= 768;
                 const Toast = Swal.mixin({
-                    toast: true, position: 'top-end', showConfirmButton: false,
-                    timer: 6000, timerProgressBar: true,
-                    background: getComputedStyle(document.documentElement).getPropertyValue('--bg').trim() || '#121721',
+                    toast: true,
+                    position: isMobile ? 'bottom' : 'top-end',
+                    showConfirmButton: false,
+                    timer: isMobile ? 3000 : 4500,
+                    timerProgressBar: true,
+                    background: getComputedStyle(document.documentElement).getPropertyValue('--panel').trim() || '#121721',
                     color: getComputedStyle(document.documentElement).getPropertyValue('--ink').trim() || '#ffffff',
                     didOpen: (toast) => {
                         toast.onmouseenter = Swal.stopTimer;
                         toast.onmouseleave = Swal.resumeTimer;
+                        toast.onclick = () => Swal.close();
                     }
                 });
                 Toast.fire({
@@ -715,9 +835,9 @@ HTML;
 
     $adminEmail = 'johncinemartil596@gmail.com';
     $supportHtml = <<<HTML
-    <div class="floating-support-container">
+    <div class="floating-support-container" id="floatingSupport">
         <div class="floating-support-label">Contact Support</div>
-        <a href="https://mail.google.com/mail/?view=cm&fs=1&to={$adminEmail}" target="_blank" class="floating-support-btn" title="Contact Support">
+        <a href="https://mail.google.com/mail/?view=cm&fs=1&to={$adminEmail}" target="_blank" class="floating-support-btn" title="Contact Support" aria-label="Contact Support">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="22" height="22">
                 <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path>
                 <polyline points="22,6 12,13 2,6"></polyline>
@@ -734,6 +854,7 @@ HTML;
             align-items: center;
             gap: 8px;
             z-index: 9999;
+            transition: opacity 0.25s ease, transform 0.25s ease, visibility 0.25s ease;
         }
         .floating-support-label {
             background: var(--panel, rgba(16, 19, 27, 0.9));
@@ -746,6 +867,7 @@ HTML;
             box-shadow: 0 4px 12px rgba(0,0,0,0.3);
             white-space: nowrap;
             letter-spacing: 0.04em;
+            pointer-events: none;
         }
         .floating-support-btn {
             width: 50px;
@@ -757,14 +879,81 @@ HTML;
             align-items: center;
             justify-content: center;
             box-shadow: 0 4px 14px rgba(199, 255, 34, 0.4);
-            transition: transform 0.2s, box-shadow 0.2s;
+            transition: transform 0.2s, box-shadow 0.2s, opacity 0.2s;
         }
         .floating-support-btn:hover {
             transform: translateY(-3px) scale(1.05);
             box-shadow: 0 6px 20px rgba(199, 255, 34, 0.6);
             color: var(--bg, #090b10);
         }
+
+        /* Auto-hide completely when typing, when any input is focused, or keyboard is open */
+        body:has(input:focus) .floating-support-container,
+        body:has(textarea:focus) .floating-support-container,
+        body:has(select:focus) .floating-support-container,
+        body.keyboard-open .floating-support-container {
+            opacity: 0 !important;
+            pointer-events: none !important;
+            visibility: hidden !important;
+            transform: translateY(16px) scale(0.8) !important;
+        }
+
+        /* Mobile specific unobtrusive layout */
+        @media (max-width: 768px) {
+            .floating-support-container {
+                bottom: 16px;
+                right: 16px;
+                gap: 0;
+            }
+            .floating-support-label {
+                display: none !important; /* Remove bulky text badge on mobile */
+            }
+            .floating-support-btn {
+                width: 42px;
+                height: 42px;
+                opacity: 0.88;
+                box-shadow: 0 3px 12px rgba(0, 0, 0, 0.35);
+            }
+            .floating-support-btn svg {
+                width: 19px;
+                height: 19px;
+            }
+            .floating-support-btn:active {
+                opacity: 1;
+                transform: scale(0.95);
+            }
+        }
     </style>
+    <script>
+    (function() {
+        function updateKeyboardState() {
+            var isInputActive = false;
+            var active = document.activeElement;
+            if (active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA' || active.tagName === 'SELECT')) {
+                isInputActive = true;
+            }
+            var isViewportConstrained = false;
+            if (window.visualViewport && window.visualViewport.height < (window.innerHeight * 0.78)) {
+                isViewportConstrained = true;
+            }
+            document.body.classList.toggle('keyboard-open', isInputActive || isViewportConstrained);
+        }
+
+        document.addEventListener('focusin', function(e) {
+            if (e.target && e.target.matches && e.target.matches('input, textarea, select')) {
+                document.body.classList.add('keyboard-open');
+            }
+        });
+
+        document.addEventListener('focusout', function(e) {
+            setTimeout(updateKeyboardState, 80);
+        });
+
+        if (window.visualViewport) {
+            window.visualViewport.addEventListener('resize', updateKeyboardState);
+        }
+    })();
+    </script>
 HTML;
 
     if (!$isAuthPage && current_user()) {

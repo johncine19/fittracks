@@ -171,6 +171,162 @@ function gym_subscription_page(): void
                 <?php endforeach; ?>
             </div>
 
+            <!-- Full Plan Comparison Matrix Section for Gym Owners -->
+            <div style="margin-top: 48px; background: rgba(15, 21, 18, 0.88); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 20px; overflow: hidden; box-shadow: 0 20px 45px -10px rgba(0, 0, 0, 0.7);">
+                <div style="padding: 24px 28px 18px; border-bottom: 1px solid rgba(255, 255, 255, 0.08); display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
+                    <div>
+                        <h3 style="margin: 0 0 4px; font-size: 1.3rem; font-weight: 800; color: #fff;">Compare Plan Modules</h3>
+                        <p style="margin: 0; font-size: 13px; color: #94a3b8;">Review exact capability distribution before activating your gym subscription.</p>
+                    </div>
+                    <div style="font-size: 12px; color: #94a3b8; display: flex; align-items: center; gap: 14px; flex-wrap: wrap;">
+                        <span><strong style="color: #4ade80;">✓</strong> Full Access</span>
+                        <span><strong style="color: #cbd5e1;">Basic</strong> Starter</span>
+                        <span><strong style="color: #7dd3fc;">Advanced</strong> Pro</span>
+                        <span><strong style="color: #f87171;">🔒</strong> Locked</span>
+                    </div>
+                </div>
+
+                <div style="width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch;">
+                    <table style="width: 100%; min-width: 760px; border-collapse: collapse; text-align: left;">
+                        <thead>
+                            <tr style="background: rgba(255,255,255,0.02); border-bottom: 1px solid rgba(255,255,255,0.08);">
+                                <th style="padding: 14px 20px; font-size: 12px; font-weight: 800; text-transform: uppercase; color: #94a3b8; width: 34%;">Capability / Module</th>
+                                <th style="padding: 14px 20px; font-size: 12px; font-weight: 800; text-transform: uppercase; color: #cbd5e1; width: 22%;">Starter (₱499/mo)</th>
+                                <th style="padding: 14px 20px; font-size: 12px; font-weight: 800; text-transform: uppercase; color: var(--lime, #84cc16); background: rgba(132, 204, 22, 0.05); width: 22%;">Professional (₱999/mo) ★</th>
+                                <th style="padding: 14px 20px; font-size: 12px; font-weight: 800; text-transform: uppercase; color: #c084fc; width: 22%;">Business (₱1,999/mo)</th>
+                            </tr>
+                        </thead>
+                        <tbody style="font-size: 13.5px; color: #e2e8f0;">
+                            <!-- Category 1 -->
+                            <tr style="background: rgba(255,255,255,0.03);">
+                                <td colspan="4" style="padding: 8px 20px; font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.08em; color: var(--lime, #84cc16); border-bottom: 1px solid rgba(255,255,255,0.08);">01 — Target Profile & Capacity Limits</td>
+                            </tr>
+                            <tr style="border-bottom: 1px solid rgba(255,255,255,0.06);">
+                                <td style="padding: 12px 20px;"><strong>Target Gym Profile</strong></td>
+                                <td style="padding: 12px 20px;"><span style="background:rgba(255,255,255,0.06); color:#cbd5e1; padding:3px 8px; border-radius:5px; font-size:11.5px;">Small / Solo / Boutique</span></td>
+                                <td style="padding: 12px 20px; background: rgba(132, 204, 22, 0.03);"><span style="background:rgba(34,197,94,0.12); color:#4ade80; padding:3px 8px; border-radius:5px; font-size:11.5px; font-weight:600;">Growing Gyms with Staff</span></td>
+                                <td style="padding: 12px 20px;"><span style="background:rgba(168,85,247,0.12); color:#c084fc; padding:3px 8px; border-radius:5px; font-size:11.5px; font-weight:600;">Multi-Branch / Large</span></td>
+                            </tr>
+                            <tr style="border-bottom: 1px solid rgba(255,255,255,0.06);">
+                                <td style="padding: 12px 20px;"><strong>Active Member Capacity</strong></td>
+                                <td style="padding: 12px 20px;"><strong>100 Members</strong></td>
+                                <td style="padding: 12px 20px; background: rgba(132, 204, 22, 0.03);"><strong style="color: var(--lime, #84cc16);">500 Members</strong></td>
+                                <td style="padding: 12px 20px;"><strong style="color: #c084fc;">Unlimited</strong></td>
+                            </tr>
+
+                            <!-- Category 2 -->
+                            <tr style="background: rgba(255,255,255,0.03);">
+                                <td colspan="4" style="padding: 8px 20px; font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.08em; color: var(--lime, #84cc16); border-bottom: 1px solid rgba(255,255,255,0.08);">02 — Core Operations & Access Control</td>
+                            </tr>
+                            <tr style="border-bottom: 1px solid rgba(255,255,255,0.06);">
+                                <td style="padding: 12px 20px;">Walk-In & Daily Pass Management</td>
+                                <td style="padding: 12px 20px; color:#4ade80;">✓ Full Access</td>
+                                <td style="padding: 12px 20px; background: rgba(132, 204, 22, 0.03); color:#4ade80;">✓ Full Access</td>
+                                <td style="padding: 12px 20px; color:#4ade80;">✓ Full Access</td>
+                            </tr>
+                            <tr style="border-bottom: 1px solid rgba(255,255,255,0.06);">
+                                <td style="padding: 12px 20px;">Dynamic QR Check-in & Turnstile</td>
+                                <td style="padding: 12px 20px; color:#4ade80;">✓ Full Access</td>
+                                <td style="padding: 12px 20px; background: rgba(132, 204, 22, 0.03); color:#4ade80;">✓ Full Access</td>
+                                <td style="padding: 12px 20px; color:#4ade80;">✓ Full Access</td>
+                            </tr>
+                            <tr style="border-bottom: 1px solid rgba(255,255,255,0.06);">
+                                <td style="padding: 12px 20px;">Membership Plans & Online GCash Pay</td>
+                                <td style="padding: 12px 20px; color:#4ade80;">✓ Full Access</td>
+                                <td style="padding: 12px 20px; background: rgba(132, 204, 22, 0.03); color:#4ade80;">✓ Full Access</td>
+                                <td style="padding: 12px 20px; color:#4ade80;">✓ Full Access</td>
+                            </tr>
+
+                            <!-- Category 3 -->
+                            <tr style="background: rgba(255,255,255,0.03);">
+                                <td colspan="4" style="padding: 8px 20px; font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.08em; color: var(--lime, #84cc16); border-bottom: 1px solid rgba(255,255,255,0.08);">03 — Staff Coaching & Training Programs</td>
+                            </tr>
+                            <tr style="border-bottom: 1px solid rgba(255,255,255,0.06);">
+                                <td style="padding: 12px 20px;">Trainers & Client Assignments</td>
+                                <td style="padding: 12px 20px; color:#f87171;">🔒 <em>Locked</em></td>
+                                <td style="padding: 12px 20px; background: rgba(132, 204, 22, 0.03); color:#4ade80;">✓ Full Access</td>
+                                <td style="padding: 12px 20px; color:#4ade80;">✓ Full Access</td>
+                            </tr>
+                            <tr style="border-bottom: 1px solid rgba(255,255,255,0.06);">
+                                <td style="padding: 12px 20px;">Trainer Commission Tracking & Payouts</td>
+                                <td style="padding: 12px 20px; color:#f87171;">🔒 <em>Locked</em></td>
+                                <td style="padding: 12px 20px; background: rgba(132, 204, 22, 0.03); color:#4ade80;">✓ Full Access</td>
+                                <td style="padding: 12px 20px; color:#4ade80;">✓ Full Access</td>
+                            </tr>
+                            <tr style="border-bottom: 1px solid rgba(255,255,255,0.06);">
+                                <td style="padding: 12px 20px;">Workout Plans & Exercise Library</td>
+                                <td style="padding: 12px 20px; color:#f87171;">🔒 <em>Locked</em></td>
+                                <td style="padding: 12px 20px; background: rgba(132, 204, 22, 0.03); color:#4ade80;">✓ Full Access</td>
+                                <td style="padding: 12px 20px; color:#4ade80;">✓ Full Access</td>
+                            </tr>
+
+                            <!-- Category 4 -->
+                            <tr style="background: rgba(255,255,255,0.03);">
+                                <td colspan="4" style="padding: 8px 20px; font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.08em; color: var(--lime, #84cc16); border-bottom: 1px solid rgba(255,255,255,0.08);">04 — Group Classes & Online Booking</td>
+                            </tr>
+                            <tr style="border-bottom: 1px solid rgba(255,255,255,0.06);">
+                                <td style="padding: 12px 20px;">Class Scheduling & Member Bookings</td>
+                                <td style="padding: 12px 20px; color:#cbd5e1;">Basic Schedule</td>
+                                <td style="padding: 12px 20px; background: rgba(132, 204, 22, 0.03); color:#4ade80;">✓ Full Booking + Waitlists</td>
+                                <td style="padding: 12px 20px; color:#4ade80;">✓ Multi-Branch Booking</td>
+                            </tr>
+
+                            <!-- Category 5 -->
+                            <tr style="background: rgba(255,255,255,0.03);">
+                                <td colspan="4" style="padding: 8px 20px; font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.08em; color: var(--lime, #84cc16); border-bottom: 1px solid rgba(255,255,255,0.08);">05 — Member Retention & Automated Reminders</td>
+                            </tr>
+                            <tr style="border-bottom: 1px solid rgba(255,255,255,0.06);">
+                                <td style="padding: 12px 20px;">Automated Renewal Reminders</td>
+                                <td style="padding: 12px 20px; color:#cbd5e1;">Basic 7-Day Alert</td>
+                                <td style="padding: 12px 20px; background: rgba(132, 204, 22, 0.03); color:#7dd3fc;">Automated (30d/14d/7d/1d)</td>
+                                <td style="padding: 12px 20px; color:#c084fc;">Custom Workflows</td>
+                            </tr>
+                            <tr style="border-bottom: 1px solid rgba(255,255,255,0.06);">
+                                <td style="padding: 12px 20px;">Member Engagement Scoring & Churn Alerts</td>
+                                <td style="padding: 12px 20px; color:#f87171;">🔒 <em>Locked</em></td>
+                                <td style="padding: 12px 20px; background: rgba(132, 204, 22, 0.03); color:#4ade80;">✓ Churn Risk Alerts</td>
+                                <td style="padding: 12px 20px; color:#4ade80;">✓ Predictive Risk Analytics</td>
+                            </tr>
+
+                            <!-- Category 6 -->
+                            <tr style="background: rgba(255,255,255,0.03);">
+                                <td colspan="4" style="padding: 8px 20px; font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.08em; color: var(--lime, #84cc16); border-bottom: 1px solid rgba(255,255,255,0.08);">06 — Financial Reports & Governance</td>
+                            </tr>
+                            <tr style="border-bottom: 1px solid rgba(255,255,255,0.06);">
+                                <td style="padding: 12px 20px;">Dashboard Analytics & Metrics</td>
+                                <td style="padding: 12px 20px; color:#cbd5e1;">Basic KPIs</td>
+                                <td style="padding: 12px 20px; background: rgba(132, 204, 22, 0.03); color:#7dd3fc;">Advanced Charts & Trends</td>
+                                <td style="padding: 12px 20px; color:#c084fc;">Advanced + Branch Comparison</td>
+                            </tr>
+                            <tr style="border-bottom: 1px solid rgba(255,255,255,0.06);">
+                                <td style="padding: 12px 20px;">Financial Reports & Data Export</td>
+                                <td style="padding: 12px 20px; color:#cbd5e1;">Summary & CSV Export</td>
+                                <td style="padding: 12px 20px; background: rgba(132, 204, 22, 0.03); color:#7dd3fc;">Advanced Financials & Trends</td>
+                                <td style="padding: 12px 20px; color:#c084fc;">Consolidated Multi-Branch</td>
+                            </tr>
+                            <tr style="border-bottom: 1px solid rgba(255,255,255,0.06);">
+                                <td style="padding: 12px 20px;">Activity & Security Audit History</td>
+                                <td style="padding: 12px 20px; color:#cbd5e1;">Basic Activity Log</td>
+                                <td style="padding: 12px 20px; background: rgba(132, 204, 22, 0.03); color:#cbd5e1;">Staff Action History</td>
+                                <td style="padding: 12px 20px; color:#4ade80;">✓ Full Immutable Audit Trail</td>
+                            </tr>
+                            <tr style="border-bottom: 1px solid rgba(255,255,255,0.06);">
+                                <td style="padding: 12px 20px;">Custom App Brand Accent & Theme</td>
+                                <td style="padding: 12px 20px; color:#f87171;">🔒 <em>Locked</em></td>
+                                <td style="padding: 12px 20px; background: rgba(132, 204, 22, 0.03); color:#f87171;">🔒 <em>Locked</em></td>
+                                <td style="padding: 12px 20px; color:#4ade80;">✓ Full Access</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 12px 20px;">Multi-Branch Management Portal</td>
+                                <td style="padding: 12px 20px; color:#f87171;">🔒 <em>Locked</em></td>
+                                <td style="padding: 12px 20px; background: rgba(132, 204, 22, 0.03); color:#f87171;">🔒 <em>Locked</em></td>
+                                <td style="padding: 12px 20px; color:#4ade80;">✓ Multi-Branch Portal</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
             <div style="text-align: center; margin-top: 40px; padding-bottom: 20px;">
                 <?php if ($hasActiveSub): ?>
                     <a href="index.php?page=dashboard" style="color: #94a3b8; text-decoration: none; font-size: 14px; margin-right: 20px; transition: color 0.2s;" onmouseover="this.style.color='#fff'" onmouseout="this.style.color='#94a3b8'">

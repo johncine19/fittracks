@@ -4,39 +4,110 @@ declare(strict_types=1);
 function attendance_page(): void
 {
     $user = require_roles(['platform_admin', 'gym_owner']);
+    
+    $currentGymId = null;
+    if ($user['role'] === 'gym_owner') {
+        $currentGymId = (int) scalar('SELECT gym_id FROM gyms WHERE owner_user_id = ?', [$user['user_id']]);
+    }
+
     if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if (post('action') === 'checkout') {
-            db()->prepare('UPDATE attendance SET check_out_time = NOW() WHERE attendance_id = ?')->execute([post('attendance_id')]);
+            $checkoutSql = ($user['role'] === 'gym_owner' && $currentGymId)
+                ? 'UPDATE attendance SET check_out_time = NOW() WHERE attendance_id = ? AND (gym_id = ? OR recorded_by = ?)'
+                : 'UPDATE attendance SET check_out_time = NOW() WHERE attendance_id = ?';
+            $checkoutParams = ($user['role'] === 'gym_owner' && $currentGymId)
+                ? [post('attendance_id'), $currentGymId, $user['user_id']]
+                : [post('attendance_id')];
+            db()->prepare($checkoutSql)->execute($checkoutParams);
             audit_log($user['user_id'], 'checkout', 'attendance', (string) post('attendance_id'));
             flash('Check-out recorded.');
         } else {
-            $userId = post('user_id');
-            $scheduleId = post('schedule_id') ?: null;
-            
+            $userId = (int) post('user_id');
+            $scheduleId = post('schedule_id') ? (int) post('schedule_id') : null;
+            $method = post('check_in_method') ?: 'manual';
+
+            // Resolve gym_id for this check-in
+            $gymId = $currentGymId;
+            if (!$gymId && $scheduleId) {
+                $gymId = (int) scalar('SELECT c.gym_id FROM class_schedules s JOIN classes c ON c.class_id = s.class_id WHERE s.schedule_id = ?', [$scheduleId]);
+            }
+            if (!$gymId) {
+                $gymId = (int) scalar('SELECT gym_id FROM gym_members WHERE user_id = ? LIMIT 1', [$userId]);
+            }
+            if (!$gymId && post('gym_id')) {
+                $gymId = (int) post('gym_id');
+            }
+
             // Prevent duplicate check-ins
-            $activeCheckin = db()->prepare('SELECT attendance_id FROM attendance WHERE user_id = ? AND check_out_time IS NULL');
-            $activeCheckin->execute([$userId]);
+            $dupSql = 'SELECT attendance_id FROM attendance WHERE user_id = ? AND check_out_time IS NULL';
+            $dupParams = [$userId];
+            if ($gymId) {
+                $dupSql .= ' AND (gym_id = ? OR gym_id IS NULL)';
+                $dupParams[] = $gymId;
+            }
+            $activeCheckin = db()->prepare($dupSql);
+            $activeCheckin->execute($dupParams);
             if ($activeCheckin->fetchColumn()) {
                 flash('User is already checked in and must check out first.', 'error');
                 redirect('attendance');
                 return;
             }
             
-            db()->prepare('INSERT INTO attendance (user_id, schedule_id, check_in_time, check_in_method, recorded_by) VALUES (?, ?, NOW(), ?, ?)')->execute([$userId, $scheduleId, post('check_in_method'), $user['user_id']]);
+            db()->prepare('INSERT INTO attendance (user_id, schedule_id, gym_id, check_in_time, check_in_method, recorded_by) VALUES (?, ?, ?, NOW(), ?, ?)')
+                ->execute([$userId, $scheduleId, $gymId ?: null, $method, $user['user_id']]);
             
+            if ($gymId) {
+                // Ensure member is affiliated with the gym
+                db()->prepare('INSERT IGNORE INTO gym_members (user_id, gym_id) VALUES (?, ?)')
+                    ->execute([$userId, $gymId]);
+            }
+
             if ($scheduleId) {
                 // Automatically mark their class booking as attended so they get Engagement Points
                 db()->prepare('UPDATE class_bookings SET booking_status = "attended" WHERE user_id = ? AND schedule_id = ?')->execute([$userId, $scheduleId]);
             }
             
-            audit_log($user['user_id'], 'checkin', 'attendance', (string) db()->lastInsertId(), json_encode(['user_id' => $userId, 'method' => post('check_in_method')]));
+            audit_log($user['user_id'], 'checkin', 'attendance', (string) db()->lastInsertId(), json_encode(['user_id' => $userId, 'gym_id' => $gymId, 'method' => $method]));
             flash('Check-in recorded.');
         }
         redirect('attendance');
     }
-    $members  = db()->query('SELECT user_id, CONCAT(first_name, " ", last_name, " (", role, ")") AS name FROM users WHERE role IN ("member", "trainer") AND status = "active" ORDER BY role, first_name')->fetchAll();
-    $schedules = db()->query('SELECT s.schedule_id, CONCAT(c.class_name, " - ", DATE_FORMAT(s.start_datetime, "%b %d %h:%i %p")) AS label FROM class_schedules s JOIN classes c ON c.class_id = s.class_id WHERE s.start_datetime >= DATE_SUB(NOW(), INTERVAL 1 DAY) ORDER BY s.start_datetime')->fetchAll();
-    $rows     = db()->query('SELECT a.*, CONCAT(u.first_name, " ", u.last_name) AS member, u.first_name, u.last_name, u.role, c.class_name FROM attendance a JOIN users u ON u.user_id = a.user_id LEFT JOIN class_schedules s ON s.schedule_id = a.schedule_id LEFT JOIN classes c ON c.class_id = s.class_id ORDER BY u.first_name ASC, u.last_name ASC, a.check_in_time DESC LIMIT 100')->fetchAll();
+
+    if ($user['role'] === 'gym_owner' && $currentGymId) {
+        $members = db()->query('
+            SELECT DISTINCT u.user_id, 
+                   CONCAT(u.first_name, " ", u.last_name, " (", u.role, ")", IF(gm.gym_id IS NOT NULL, " ★", "")) AS name,
+                   IF(gm.gym_id = ' . (int)$currentGymId . ' OR tp.gym_id = ' . (int)$currentGymId . ', 0, 1) as sort_prio
+            FROM users u 
+            LEFT JOIN gym_members gm ON gm.user_id = u.user_id AND gm.gym_id = ' . (int)$currentGymId . '
+            LEFT JOIN trainer_profiles tp ON tp.user_id = u.user_id AND tp.gym_id = ' . (int)$currentGymId . '
+            WHERE u.role IN ("member", "trainer") AND u.status = "active"
+            ORDER BY sort_prio ASC, u.first_name ASC
+        ')->fetchAll();
+
+        $schedules = db()->query('
+            SELECT s.schedule_id, CONCAT(c.class_name, " - ", DATE_FORMAT(s.start_datetime, "%b %d %h:%i %p")) AS label 
+            FROM class_schedules s 
+            JOIN classes c ON c.class_id = s.class_id 
+            WHERE c.gym_id = ' . (int)$currentGymId . ' AND s.start_datetime >= DATE_SUB(NOW(), INTERVAL 1 DAY) 
+            ORDER BY s.start_datetime
+        ')->fetchAll();
+
+        $rows = db()->query('
+            SELECT a.*, CONCAT(u.first_name, " ", u.last_name) AS member, u.first_name, u.last_name, u.role, c.class_name 
+            FROM attendance a 
+            JOIN users u ON u.user_id = a.user_id 
+            LEFT JOIN class_schedules s ON s.schedule_id = a.schedule_id 
+            LEFT JOIN classes c ON c.class_id = s.class_id 
+            WHERE (a.gym_id = ' . (int)$currentGymId . ' OR a.recorded_by = ' . (int)$user['user_id'] . ')
+            ORDER BY a.check_in_time DESC 
+            LIMIT 100
+        ')->fetchAll();
+    } else {
+        $members = db()->query('SELECT user_id, CONCAT(first_name, " ", last_name, " (", role, ")") AS name FROM users WHERE role IN ("member", "trainer") AND status = "active" ORDER BY role, first_name')->fetchAll();
+        $schedules = db()->query('SELECT s.schedule_id, CONCAT(c.class_name, " - ", DATE_FORMAT(s.start_datetime, "%b %d %h:%i %p")) AS label FROM class_schedules s JOIN classes c ON c.class_id = s.class_id WHERE s.start_datetime >= DATE_SUB(NOW(), INTERVAL 1 DAY) ORDER BY s.start_datetime')->fetchAll();
+        $rows = db()->query('SELECT a.*, CONCAT(u.first_name, " ", u.last_name) AS member, u.first_name, u.last_name, u.role, c.class_name FROM attendance a JOIN users u ON u.user_id = a.user_id LEFT JOIN class_schedules s ON s.schedule_id = a.schedule_id LEFT JOIN classes c ON c.class_id = s.class_id ORDER BY a.check_in_time DESC LIMIT 100')->fetchAll();
+    }
 
     render_header('Attendance', $user);
     ?>

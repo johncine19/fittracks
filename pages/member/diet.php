@@ -741,16 +741,23 @@ function diet_page(): void
     font-weight: 600;
     white-space: nowrap;
 }
+.diet-day-label-group {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
 .diet-day-today-tag {
     font-size: 9px;
     font-weight: 800;
     text-transform: uppercase;
     background: color-mix(in srgb, var(--lime) 20%, transparent);
     color: var(--lime);
-    padding: 1px 5px;
+    padding: 1.5px 6px;
     border-radius: 6px;
     border: 1px solid color-mix(in srgb, var(--lime) 35%, transparent);
     line-height: 1.1;
+    letter-spacing: 0.3px;
+    white-space: nowrap;
 }
 
 /* Day Header Bar */
@@ -824,24 +831,52 @@ function diet_page(): void
 
 @media (max-width: 768px) {
     .diet-days-grid {
-        gap: 3px;
+        gap: 4px;
     }
     .diet-day-tab {
-        padding: 8px 2px;
-        min-height: 48px;
+        padding: 6px 2px;
+        min-height: 52px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+    }
+    .diet-day-label-group {
+        display: flex !important;
+        flex-direction: column !important;
+        align-items: center !important;
+        justify-content: center !important;
+        gap: 3px !important;
+        width: 100% !important;
     }
     .diet-day-full {
         display: none !important;
     }
     .diet-day-short {
         display: block !important;
+        font-size: 13px !important;
+        font-weight: 800 !important;
+        line-height: 1 !important;
     }
     .diet-day-cals {
         display: none !important;
     }
     .diet-day-today-tag {
-        font-size: 8px !important;
-        padding: 1px 3px !important;
+        font-size: 7.5px !important;
+        font-weight: 800 !important;
+        letter-spacing: 0.4px !important;
+        padding: 1.5px 5px !important;
+        border-radius: 4px !important;
+        line-height: 1 !important;
+        display: inline-block !important;
+        text-align: center !important;
+    }
+    .diet-day-tab.active .diet-day-today-tag {
+        background: var(--lime) !important;
+        color: #080b0d !important;
+        border-color: var(--lime) !important;
+        font-weight: 900 !important;
+        box-shadow: 0 1px 4px rgba(190, 242, 100, 0.35) !important;
     }
     .diet-plan-day-header {
         flex-direction: column !important;
@@ -855,6 +890,10 @@ function diet_page(): void
 @media (max-width: 420px) {
     .diet-day-short {
         font-size: 12px !important;
+    }
+    .diet-day-today-tag {
+        font-size: 7px !important;
+        padding: 1px 3.5px !important;
     }
     .diet-today-chip {
         font-size: 10px !important;
@@ -3212,6 +3251,233 @@ $stFat   = $calcMacroStatus($loggedFat, $targetFat, 'fat');
         });
     }
 
+    window.applyMacroLogResultToUI = function(data, isManual = false, activeMode = 'add') {
+        if (!data || !data.success) return;
+
+        // If user reset today's macros, reset meal slot cards too
+        if (activeMode === 'reset') {
+            if (typeof resetTodayMealCardsUI === 'function') {
+                resetTodayMealCardsUI();
+            }
+        }
+
+        const prevPro   = parseFloat(proDisp?.textContent   || 0) || 0;
+        const prevCals  = parseFloat(calsDisp?.textContent  || 0) || 0;
+        const prevCarbs = parseFloat(carbsDisp?.textContent || 0) || 0;
+        const prevFat   = parseFloat(fatDisp?.textContent   || 0) || 0;
+
+        const newCals  = data.logged_cals;
+        const newPro   = data.logged_pro;
+        const newCarbs = data.logged_carbs;
+        const newFat   = data.logged_fat;
+
+        const targetCals  = data.target_cals;
+        const targetPro   = data.target_pro;
+        const targetCarbs = data.target_carbs;
+        const targetFat   = data.target_fat;
+
+        function formatStatus(logged, target, type) {
+            if (target <= 0) {
+                return { text: '0%', color: 'var(--muted)', width: '0%', barBg: `var(--macro-${type})` };
+            }
+            const diff = logged - target;
+            const pct = Math.round((logged / target) * 100);
+
+            if (diff > 0) {
+                if (type === 'pro') {
+                    return { text: `+${diff}g Over`, color: '#22c55e', width: '100%', barBg: '#22c55e' };
+                } else if (type === 'cals') {
+                    return { text: `+${diff} kcal Over`, color: '#f59e0b', width: '100%', barBg: '#f59e0b' };
+                } else if (type === 'carbs') {
+                    return { text: `+${diff}g Over`, color: '#f59e0b', width: '100%', barBg: '#f59e0b' };
+                } else { // fat
+                    return { text: `+${diff}g Over`, color: '#f43f5e', width: '100%', barBg: '#f43f5e' };
+                }
+            } else if (diff === 0) {
+                return { text: '100% ✓ Met', color: '#22c55e', width: '100%', barBg: '#22c55e' };
+            } else {
+                return { text: `${pct}%`, color: 'var(--muted)', width: `${Math.min(100, pct)}%`, barBg: `var(--macro-${type})` };
+            }
+        }
+
+        const calsProg  = formatStatus(newCals, targetCals, 'cals');
+        const proProg   = formatStatus(newPro, targetPro, 'pro');
+        const carbsProg = formatStatus(newCarbs, targetCarbs, 'carbs');
+        const fatProg   = formatStatus(newFat, targetFat, 'fat');
+
+        // Calories update
+        if (calsDisp) calsDisp.textContent = newCals;
+        if (tarDisp && targetCals) tarDisp.textContent = targetCals;
+        if (pctCals) {
+            pctCals.textContent = calsProg.text;
+            pctCals.style.color = calsProg.color;
+        }
+        if (barCals) {
+            barCals.style.width = calsProg.width;
+            barCals.style.background = calsProg.barBg;
+        }
+
+        // Protein update
+        if (proDisp) proDisp.textContent = newPro;
+        if (tarPro && targetPro) tarPro.textContent = targetPro;
+        if (pctPro) {
+            pctPro.textContent = proProg.text;
+            pctPro.style.color = proProg.color;
+        }
+        if (barPro) {
+            barPro.style.width = proProg.width;
+            barPro.style.background = proProg.barBg;
+        }
+
+        // Carbs update
+        if (carbsDisp) carbsDisp.textContent = newCarbs;
+        if (tarCarbs && targetCarbs) tarCarbs.textContent = targetCarbs;
+        if (pctCarbs) {
+            pctCarbs.textContent = carbsProg.text;
+            pctCarbs.style.color = carbsProg.color;
+        }
+        if (barCarbs) {
+            barCarbs.style.width = carbsProg.width;
+            barCarbs.style.background = carbsProg.barBg;
+        }
+
+        // Fat update
+        if (fatDisp) fatDisp.textContent = newFat;
+        if (tarFat && targetFat) tarFat.textContent = targetFat;
+        if (pctFat) {
+            pctFat.textContent = fatProg.text;
+            pctFat.style.color = fatProg.color;
+        }
+        if (barFat) {
+            barFat.style.width = fatProg.width;
+            barFat.style.background = fatProg.barBg;
+        }
+
+        // Update top tab navigation badge
+        const trackerBadge = document.querySelector('.diet-nav-badge.tracker-badge');
+        if (trackerBadge && targetCals) {
+            trackerBadge.textContent = `${newCals} / ${targetCals} kcal`;
+        }
+
+        // Detect newly reached goals
+        const reachedPro   = (prevPro < targetPro) && (newPro >= targetPro) && (targetPro > 0);
+        const reachedCals  = (prevCals < targetCals) && (newCals >= targetCals) && (targetCals > 0);
+        const reachedCarbs = (prevCarbs < targetCarbs) && (newCarbs >= targetCarbs) && (targetCarbs > 0);
+        const reachedFat   = (prevFat < targetFat) && (newFat >= targetFat) && (targetFat > 0);
+
+        const allNowMet  = (newCals >= targetCals && newPro >= targetPro && newCarbs >= targetCarbs && newFat >= targetFat) && (targetCals > 0 && targetPro > 0);
+        const prevAllMet = (prevCals >= targetCals && prevPro >= targetPro && prevCarbs >= targetCarbs && prevFat >= targetFat);
+        const reachedAll = allNowMet && !prevAllMet;
+
+        const bgVal  = getComputedStyle(document.documentElement).getPropertyValue('--bg').trim() || '#121721';
+        const inkVal = getComputedStyle(document.documentElement).getPropertyValue('--ink').trim() || '#ffffff';
+
+        if (reachedAll) {
+            shootConfetti(120);
+            setTimeout(() => {
+                fireCelebrationModal({
+                    themeColor: 'var(--lime, #c7ff22)',
+                    themeGlow: 'rgba(199, 255, 34, 0.45)',
+                    badgeText: 'DAILY TARGETS COMPLETED',
+                    iconSvg: '<svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="var(--lime)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"></path><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"></path><path d="M4 22h16"></path><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"></path><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"></path><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"></path></svg>',
+                    title: 'Perfect Macro Day!',
+                    description: 'Incredible dedication! You have successfully reached every single nutritional target scheduled for today.',
+                    btnText: 'Keep the Streak',
+                    btnBg: 'var(--lime, #c7ff22)',
+                    isAll: true,
+                    allStats: { cals: newCals, pro: newPro, carbs: newCarbs, fat: newFat }
+                });
+            }, 250);
+        } else if (reachedPro) {
+            shootConfetti(80);
+            setTimeout(() => {
+                fireCelebrationModal({
+                    themeColor: '#38bdf8',
+                    themeGlow: 'rgba(56, 189, 248, 0.45)',
+                    badgeText: 'PROTEIN GOAL ACHIEVED',
+                    iconSvg: '<svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="#38bdf8" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m6.5 6.5 11 11"/><path d="m21 21-1-1"/><path d="m3 3 1 1"/><path d="m18 22 4-4"/><path d="m2 6 4-4"/><path d="m3 10 7-7"/><path d="m14 21 7-7"/></svg>',
+                    title: 'Protein Target Crushed!',
+                    metricLabel: 'Protein',
+                    loggedVal: newPro + 'g',
+                    targetVal: targetPro + 'g',
+                    description: 'Hitting your daily protein goal accelerates muscle recovery, preserves lean tissue, and sustains your strength.',
+                    btnText: 'Keep Building',
+                    btnBg: '#38bdf8'
+                });
+            }, 250);
+        } else if (reachedCals) {
+            shootConfetti(70);
+            setTimeout(() => {
+                fireCelebrationModal({
+                    themeColor: 'var(--lime, #c7ff22)',
+                    themeGlow: 'rgba(199, 255, 34, 0.45)',
+                    badgeText: 'CALORIE GOAL ACHIEVED',
+                    iconSvg: '<svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="var(--lime)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z"/></svg>',
+                    title: 'Calorie Target Reached!',
+                    metricLabel: 'Calories',
+                    loggedVal: newCals + ' kcal',
+                    targetVal: targetCals + ' kcal',
+                    description: 'You reached your planned daily energy intake, keeping your nutrition perfectly aligned with your fitness goal.',
+                    btnText: 'Continue',
+                    btnBg: 'var(--lime, #c7ff22)'
+                });
+            }, 250);
+        } else if (reachedCarbs) {
+            shootConfetti(60);
+            setTimeout(() => {
+                fireCelebrationModal({
+                    themeColor: '#fbbf24',
+                    themeGlow: 'rgba(251, 191, 36, 0.45)',
+                    badgeText: 'CARBOHYDRATES TARGET MET',
+                    iconSvg: '<svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="#fbbf24" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg>',
+                    title: 'Carbs Target Met!',
+                    metricLabel: 'Carbs',
+                    loggedVal: newCarbs + 'g',
+                    targetVal: targetCarbs + 'g',
+                    description: 'Your glycogen stores are refueled and ready to power your next training session.',
+                    btnText: 'Awesome',
+                    btnBg: '#fbbf24'
+                });
+            }, 250);
+        } else if (reachedFat) {
+            shootConfetti(60);
+            setTimeout(() => {
+                fireCelebrationModal({
+                    themeColor: '#f43f5e',
+                    themeGlow: 'rgba(244, 63, 94, 0.45)',
+                    badgeText: 'HEALTHY FATS TARGET MET',
+                    iconSvg: '<svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="#f43f5e" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path><path d="m9 12 2 2 4-4"></path></svg>',
+                    title: 'Healthy Fat Target Met!',
+                    metricLabel: 'Fat',
+                    loggedVal: newFat + 'g',
+                    targetVal: targetFat + 'g',
+                    description: 'Healthy fats optimize hormone balance, joint health, and steady long-term energy.',
+                    btnText: 'Awesome',
+                    btnBg: '#f43f5e'
+                });
+            }, 250);
+        } else if (isManual) {
+            // Standard Toast feedback with clean text, no emojis
+            const Toast = Swal.mixin({
+                toast: true, position: 'top-end', showConfirmButton: false,
+                timer: 3000, timerProgressBar: true,
+                background: bgVal,
+                color: inkVal,
+            });
+
+            let toastMsg = 'Macros saved for today.';
+            if (activeMode === 'add') {
+                toastMsg = `Added to today's log. Total: <strong>${data.logged_cals} kcal</strong>`;
+            } else if (activeMode === 'reset') {
+                toastMsg = 'Today\'s log reset to 0.';
+            } else {
+                toastMsg = `Today's totals updated. Total: <strong>${data.logged_cals} kcal</strong>`;
+            }
+
+            Toast.fire({ icon: 'success', title: toastMsg });
+        }
+    };
+
     async function submitMacroLog(forcedMode = null) {
         saveBtn.disabled = true;
         saveBtn.style.opacity = '0.7';
@@ -3240,12 +3506,6 @@ $stFat   = $calcMacroStatus($loggedFat, $targetFat, 'fat');
             saveBtn.style.opacity = '1';
             return;
         }
-
-        // Capture previous values before update to detect newly unlocked milestones
-        const prevPro   = parseFloat(proDisp?.textContent   || 0) || 0;
-        const prevCals  = parseFloat(calsDisp?.textContent  || 0) || 0;
-        const prevCarbs = parseFloat(carbsDisp?.textContent || 0) || 0;
-        const prevFat   = parseFloat(fatDisp?.textContent   || 0) || 0;
 
         // In 'add' mode, auto-fill calories if left empty but macros were entered
         if (activeMode === 'add' && (!inCals.value || inCals.value === '0') && (inPro.value || inCarbs.value || inFat.value)) {
@@ -3294,233 +3554,6 @@ $stFat   = $calcMacroStatus($loggedFat, $targetFat, 'fat');
             saveBtn.style.opacity = '1';
             return;
         }
-
-        window.applyMacroLogResultToUI = function(data, isManual = false, activeMode = 'add') {
-            if (!data || !data.success) return;
-
-            // If user reset today's macros, reset meal slot cards too
-            if (activeMode === 'reset') {
-                if (typeof resetTodayMealCardsUI === 'function') {
-                    resetTodayMealCardsUI();
-                }
-            }
-
-            const prevPro   = parseFloat(proDisp?.textContent   || 0) || 0;
-            const prevCals  = parseFloat(calsDisp?.textContent  || 0) || 0;
-            const prevCarbs = parseFloat(carbsDisp?.textContent || 0) || 0;
-            const prevFat   = parseFloat(fatDisp?.textContent   || 0) || 0;
-
-            const newCals  = data.logged_cals;
-            const newPro   = data.logged_pro;
-            const newCarbs = data.logged_carbs;
-            const newFat   = data.logged_fat;
-
-            const targetCals  = data.target_cals;
-            const targetPro   = data.target_pro;
-            const targetCarbs = data.target_carbs;
-            const targetFat   = data.target_fat;
-
-            function formatStatus(logged, target, type) {
-                if (target <= 0) {
-                    return { text: '0%', color: 'var(--muted)', width: '0%', barBg: `var(--macro-${type})` };
-                }
-                const diff = logged - target;
-                const pct = Math.round((logged / target) * 100);
-
-                if (diff > 0) {
-                    if (type === 'pro') {
-                        return { text: `+${diff}g Over`, color: '#22c55e', width: '100%', barBg: '#22c55e' };
-                    } else if (type === 'cals') {
-                        return { text: `+${diff} kcal Over`, color: '#f59e0b', width: '100%', barBg: '#f59e0b' };
-                    } else if (type === 'carbs') {
-                        return { text: `+${diff}g Over`, color: '#f59e0b', width: '100%', barBg: '#f59e0b' };
-                    } else { // fat
-                        return { text: `+${diff}g Over`, color: '#f43f5e', width: '100%', barBg: '#f43f5e' };
-                    }
-                } else if (diff === 0) {
-                    return { text: '100% ✓ Met', color: '#22c55e', width: '100%', barBg: '#22c55e' };
-                } else {
-                    return { text: `${pct}%`, color: 'var(--muted)', width: `${Math.min(100, pct)}%`, barBg: `var(--macro-${type})` };
-                }
-            }
-
-            const calsProg  = formatStatus(newCals, targetCals, 'cals');
-            const proProg   = formatStatus(newPro, targetPro, 'pro');
-            const carbsProg = formatStatus(newCarbs, targetCarbs, 'carbs');
-            const fatProg   = formatStatus(newFat, targetFat, 'fat');
-
-            // Calories update
-            if (calsDisp) calsDisp.textContent = newCals;
-            if (tarDisp && targetCals) tarDisp.textContent = targetCals;
-            if (pctCals) {
-                pctCals.textContent = calsProg.text;
-                pctCals.style.color = calsProg.color;
-            }
-            if (barCals) {
-                barCals.style.width = calsProg.width;
-                barCals.style.background = calsProg.barBg;
-            }
-
-            // Protein update
-            if (proDisp) proDisp.textContent = newPro;
-            if (tarPro && targetPro) tarPro.textContent = targetPro;
-            if (pctPro) {
-                pctPro.textContent = proProg.text;
-                pctPro.style.color = proProg.color;
-            }
-            if (barPro) {
-                barPro.style.width = proProg.width;
-                barPro.style.background = proProg.barBg;
-            }
-
-            // Carbs update
-            if (carbsDisp) carbsDisp.textContent = newCarbs;
-            if (tarCarbs && targetCarbs) tarCarbs.textContent = targetCarbs;
-            if (pctCarbs) {
-                pctCarbs.textContent = carbsProg.text;
-                pctCarbs.style.color = carbsProg.color;
-            }
-            if (barCarbs) {
-                barCarbs.style.width = carbsProg.width;
-                barCarbs.style.background = carbsProg.barBg;
-            }
-
-            // Fat update
-            if (fatDisp) fatDisp.textContent = newFat;
-            if (tarFat && targetFat) tarFat.textContent = targetFat;
-            if (pctFat) {
-                pctFat.textContent = fatProg.text;
-                pctFat.style.color = fatProg.color;
-            }
-            if (barFat) {
-                barFat.style.width = fatProg.width;
-                barFat.style.background = fatProg.barBg;
-            }
-
-            // Update top tab navigation badge
-            const trackerBadge = document.querySelector('.diet-nav-badge.tracker-badge');
-            if (trackerBadge && targetCals) {
-                trackerBadge.textContent = `${newCals} / ${targetCals} kcal`;
-            }
-
-            // Detect newly reached goals
-            const reachedPro   = (prevPro < targetPro) && (newPro >= targetPro) && (targetPro > 0);
-            const reachedCals  = (prevCals < targetCals) && (newCals >= targetCals) && (targetCals > 0);
-            const reachedCarbs = (prevCarbs < targetCarbs) && (newCarbs >= targetCarbs) && (targetCarbs > 0);
-            const reachedFat   = (prevFat < targetFat) && (newFat >= targetFat) && (targetFat > 0);
-
-            const allNowMet  = (newCals >= targetCals && newPro >= targetPro && newCarbs >= targetCarbs && newFat >= targetFat) && (targetCals > 0 && targetPro > 0);
-            const prevAllMet = (prevCals >= targetCals && prevPro >= targetPro && prevCarbs >= targetCarbs && prevFat >= targetFat);
-            const reachedAll = allNowMet && !prevAllMet;
-
-            const bgVal  = getComputedStyle(document.documentElement).getPropertyValue('--bg').trim() || '#121721';
-            const inkVal = getComputedStyle(document.documentElement).getPropertyValue('--ink').trim() || '#ffffff';
-
-            if (reachedAll) {
-                shootConfetti(120);
-                setTimeout(() => {
-                    fireCelebrationModal({
-                        themeColor: 'var(--lime, #c7ff22)',
-                        themeGlow: 'rgba(199, 255, 34, 0.45)',
-                        badgeText: 'DAILY TARGETS COMPLETED',
-                        iconSvg: '<svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="var(--lime)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"></path><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"></path><path d="M4 22h16"></path><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"></path><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"></path><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"></path></svg>',
-                        title: 'Perfect Macro Day!',
-                        description: 'Incredible dedication! You have successfully reached every single nutritional target scheduled for today.',
-                        btnText: 'Keep the Streak',
-                        btnBg: 'var(--lime, #c7ff22)',
-                        isAll: true,
-                        allStats: { cals: newCals, pro: newPro, carbs: newCarbs, fat: newFat }
-                    });
-                }, 250);
-            } else if (reachedPro) {
-                shootConfetti(80);
-                setTimeout(() => {
-                    fireCelebrationModal({
-                        themeColor: '#38bdf8',
-                        themeGlow: 'rgba(56, 189, 248, 0.45)',
-                        badgeText: 'PROTEIN GOAL ACHIEVED',
-                        iconSvg: '<svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="#38bdf8" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m6.5 6.5 11 11"/><path d="m21 21-1-1"/><path d="m3 3 1 1"/><path d="m18 22 4-4"/><path d="m2 6 4-4"/><path d="m3 10 7-7"/><path d="m14 21 7-7"/></svg>',
-                        title: 'Protein Target Crushed!',
-                        metricLabel: 'Protein',
-                        loggedVal: newPro + 'g',
-                        targetVal: targetPro + 'g',
-                        description: 'Hitting your daily protein goal accelerates muscle recovery, preserves lean tissue, and sustains your strength.',
-                        btnText: 'Keep Building',
-                        btnBg: '#38bdf8'
-                    });
-                }, 250);
-            } else if (reachedCals) {
-                shootConfetti(70);
-                setTimeout(() => {
-                    fireCelebrationModal({
-                        themeColor: 'var(--lime, #c7ff22)',
-                        themeGlow: 'rgba(199, 255, 34, 0.45)',
-                        badgeText: 'CALORIE GOAL ACHIEVED',
-                        iconSvg: '<svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="var(--lime)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z"/></svg>',
-                        title: 'Calorie Target Reached!',
-                        metricLabel: 'Calories',
-                        loggedVal: newCals + ' kcal',
-                        targetVal: targetCals + ' kcal',
-                        description: 'You reached your planned daily energy intake, keeping your nutrition perfectly aligned with your fitness goal.',
-                        btnText: 'Continue',
-                        btnBg: 'var(--lime, #c7ff22)'
-                    });
-                }, 250);
-            } else if (reachedCarbs) {
-                shootConfetti(60);
-                setTimeout(() => {
-                    fireCelebrationModal({
-                        themeColor: '#fbbf24',
-                        themeGlow: 'rgba(251, 191, 36, 0.45)',
-                        badgeText: 'CARBOHYDRATES TARGET MET',
-                        iconSvg: '<svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="#fbbf24" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg>',
-                        title: 'Carbs Target Met!',
-                        metricLabel: 'Carbs',
-                        loggedVal: newCarbs + 'g',
-                        targetVal: targetCarbs + 'g',
-                        description: 'Your glycogen stores are refueled and ready to power your next training session.',
-                        btnText: 'Awesome',
-                        btnBg: '#fbbf24'
-                    });
-                }, 250);
-            } else if (reachedFat) {
-                shootConfetti(60);
-                setTimeout(() => {
-                    fireCelebrationModal({
-                        themeColor: '#f43f5e',
-                        themeGlow: 'rgba(244, 63, 94, 0.45)',
-                        badgeText: 'HEALTHY FATS TARGET MET',
-                        iconSvg: '<svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="#f43f5e" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path><path d="m9 12 2 2 4-4"></path></svg>',
-                        title: 'Healthy Fat Target Met!',
-                        metricLabel: 'Fat',
-                        loggedVal: newFat + 'g',
-                        targetVal: targetFat + 'g',
-                        description: 'Healthy fats optimize hormone balance, joint health, and steady long-term energy.',
-                        btnText: 'Awesome',
-                        btnBg: '#f43f5e'
-                    });
-                }, 250);
-            } else if (isManual) {
-                // Standard Toast feedback with clean text, no emojis
-                const Toast = Swal.mixin({
-                    toast: true, position: 'top-end', showConfirmButton: false,
-                    timer: 3000, timerProgressBar: true,
-                    background: bgVal,
-                    color: inkVal,
-                });
-
-                let toastMsg = 'Macros saved for today.';
-                if (activeMode === 'add') {
-                    toastMsg = `Added to today's log. Total: <strong>${data.logged_cals} kcal</strong>`;
-                } else if (activeMode === 'reset') {
-                    toastMsg = 'Today\'s log reset to 0.';
-                } else {
-                    toastMsg = `Today's totals updated. Total: <strong>${data.logged_cals} kcal</strong>`;
-                }
-
-                Toast.fire({ icon: 'success', title: toastMsg });
-            }
-        };
 
         if (data && data.success) {
             window.applyMacroLogResultToUI(data, true, activeMode);
@@ -3612,7 +3645,7 @@ $stFat   = $calcMacroStatus($loggedFat, $targetFat, 'fat');
                             id="diet-day-btn-<?= $dayNum ?>" 
                             class="diet-day-tab <?= $isToday ? 'active is-today-tab' : '' ?>" 
                             onclick="switchDietTab(<?= $dayNum ?>)">
-                        <div style="display: flex; align-items: center; gap: 5px;">
+                        <div class="diet-day-label-group">
                             <span class="diet-day-full"><?= $dayName ?></span>
                             <span class="diet-day-short"><?= $shortDaysMap[$dayNum] ?></span>
                             <?php if ($isToday): ?>
@@ -4850,24 +4883,37 @@ async function quickLogPlannedMeal(mealId) {
                 window.applyMacroLogResultToUI(data, false);
             }
 
-            // Toast feedback with subtle notification
+            // Toast feedback with subtle, modern notification
+            const isMobile = window.innerWidth <= 768;
             Swal.fire({
                 toast: true,
-                position: 'top-end',
+                position: isMobile ? 'bottom' : 'top-end',
                 icon: 'success',
                 title: `${normType} Logged!`,
-                html: `${normType} logged today at ${loggedTime}.<br><strong>+${cals} kcal</strong> (${pro}g P • ${carbs}g C • ${fat}g F) added.`,
-                showConfirmButton: true,
-                confirmButtonText: 'View Tracker',
-                confirmButtonColor: 'var(--lime, #c7ff22)',
-                showCancelButton: false,
+                html: `<div style="display:flex; flex-direction:column; gap:3px; margin-top:2px;">
+                    <span style="font-size:12px; opacity:0.8;">${normType} logged today at ${loggedTime}.</span>
+                    <span style="font-size:12.5px;">
+                        <strong style="color:var(--lime, #bef264); font-weight:700;">+${cals} kcal</strong>
+                        <span style="opacity:0.8; font-size:11.5px; margin-left:2px;">(${pro}g P • ${carbs}g C • ${fat}g F)</span>
+                    </span>
+                    <div style="display:inline-flex; align-items:center; gap:5px; margin-top:4px; font-size:11.5px; font-weight:700; color:var(--lime, #bef264);">
+                        <span>View Tracker</span>
+                        <i class="fa-solid fa-arrow-right" style="font-size:10px;"></i>
+                    </div>
+                </div>`,
+                showConfirmButton: false,
                 timer: 4000,
                 timerProgressBar: true,
                 background: getComputedStyle(document.documentElement).getPropertyValue('--bg').trim() || '#121721',
                 color: getComputedStyle(document.documentElement).getPropertyValue('--ink').trim() || '#ffffff',
-            }).then((result) => {
-                if (result.isConfirmed) {
-                    switchDietView('tracker');
+                didOpen: (toast) => {
+                    toast.style.cursor = 'pointer';
+                    toast.onmouseenter = Swal.stopTimer;
+                    toast.onmouseleave = Swal.resumeTimer;
+                    toast.addEventListener('click', () => {
+                        switchDietView('tracker');
+                        Swal.close();
+                    });
                 }
             });
         } else {
