@@ -98,6 +98,174 @@ function gyms_page(): void
 
     render_header('All Gyms', $user);
 ?>
+    <style>
+    /* Desktop vs Mobile Toggle */
+    .gyms-desktop-table {
+        display: block;
+    }
+    .gyms-mobile-cards {
+        display: none;
+    }
+
+    @media (max-width: 768px) {
+        .gyms-desktop-table {
+            display: none !important;
+        }
+        .gyms-mobile-cards {
+            display: flex !important;
+            flex-direction: column;
+            gap: 12px;
+        }
+    }
+
+    /* Mobile Gym Card Styles */
+    .gym-card-item {
+        background: color-mix(in srgb, var(--panel-soft) 45%, transparent);
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        padding: 14px 16px;
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+        transition: all 0.2s ease;
+    }
+    html[data-theme="light"] .gym-card-item,
+    [data-theme="light"] .gym-card-item {
+        background: #ffffff;
+        border-color: #e2e8f0;
+        box-shadow: 0 1px 4px rgba(0, 0, 0, 0.05);
+    }
+    .gym-card-item:hover {
+        border-color: color-mix(in srgb, var(--lime) 30%, transparent);
+    }
+
+    .gym-card-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        gap: 10px;
+        padding-bottom: 10px;
+        border-bottom: 1px solid color-mix(in srgb, var(--line) 60%, transparent);
+    }
+    .gym-card-identity {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        min-width: 0;
+    }
+    .gym-card-avatar {
+        width: 38px;
+        height: 38px;
+        border-radius: 10px;
+        background: color-mix(in srgb, var(--lime) 15%, transparent);
+        color: var(--lime);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+        border: 1px solid color-mix(in srgb, var(--lime) 30%, transparent);
+    }
+    html[data-theme="light"] .gym-card-avatar,
+    [data-theme="light"] .gym-card-avatar {
+        background: rgba(132, 204, 22, 0.15);
+        color: #4d7c0f;
+        border-color: rgba(132, 204, 22, 0.3);
+    }
+    .gym-card-names {
+        min-width: 0;
+        overflow: hidden;
+    }
+    .gym-card-title {
+        font-weight: 700;
+        font-size: 15px;
+        color: var(--ink);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+    .gym-card-id {
+        font-size: 12px;
+        color: var(--muted);
+        font-family: ui-monospace, monospace;
+    }
+    .gym-card-badges {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-end;
+        gap: 4px;
+        flex-shrink: 0;
+    }
+
+    .gym-card-details {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 8px;
+        font-size: 13px;
+    }
+    .gym-card-detail-item {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 8px;
+        min-width: 0;
+    }
+    .gym-card-detail-label {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        color: var(--muted);
+        font-size: 12px;
+        flex-shrink: 0;
+    }
+    .gym-card-detail-label svg {
+        opacity: 0.75;
+    }
+    .gym-card-detail-value {
+        color: var(--ink);
+        font-weight: 500;
+        text-align: right;
+        word-break: break-all;
+        max-width: 65%;
+    }
+    .gym-card-detail-value.email-value {
+        color: var(--muted);
+        font-size: 12.5px;
+    }
+
+    .gym-card-actions {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding-top: 10px;
+        border-top: 1px solid color-mix(in srgb, var(--line) 60%, transparent);
+    }
+    .gym-card-actions .btn-sm,
+    .gym-card-actions form {
+        flex: 1;
+        min-width: 0;
+        margin: 0;
+    }
+    .gym-card-actions form {
+        display: flex;
+    }
+    .gym-card-actions .btn-sm,
+    .gym-card-actions form button {
+        width: 100%;
+        display: inline-flex;
+        justify-content: center;
+        align-items: center;
+        gap: 5px;
+        padding: 7px 10px;
+        font-size: 12px;
+        font-weight: 600;
+        border-radius: 6px;
+        text-align: center;
+        white-space: nowrap;
+        box-sizing: border-box;
+    }
+    </style>
+
     <section class="panel">
         <div class="page-header">
             <div>
@@ -106,7 +274,14 @@ function gyms_page(): void
             </div>
         </div>
 
-        <div class="table-container">
+        <?php if (!$gyms): ?>
+            <div class="empty-state" style="padding: 40px 20px; text-align: center;">
+                <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18M3 7v14M21 7v14M6 11h4M6 15h4M14 11h4M14 15h4M9 21v-4h6v4M3 7l9-4 9 4"/></svg>
+                <p style="margin-top: 10px; color: var(--muted);">No active or suspended gyms found.</p>
+            </div>
+        <?php else: ?>
+        <!-- Desktop / Tablet Table View (>= 769px) -->
+        <div class="gyms-desktop-table table-container">
             <table>
                 <thead>
                     <tr>
@@ -121,9 +296,7 @@ function gyms_page(): void
                     </tr>
                 </thead>
                 <tbody>
-                    <?php if (!$gyms): ?>
-                        <tr><td colspan="8" class="text-center">No active or suspended gyms found.</td></tr>
-                    <?php else: foreach ($gyms as $gym): 
+                    <?php foreach ($gyms as $gym): 
                         $subPlan = $gym['subscription_plan'] ?: 'None';
                         $subStatus = $gym['subscription_status'] ?: 'inactive';
                         $renewal = !empty($gym['subscription_renewal_date']) ? date('M j, Y', strtotime($gym['subscription_renewal_date'])) : '—';
@@ -202,10 +375,139 @@ function gyms_page(): void
                                 </div>
                             </td>
                         </tr>
-                    <?php endforeach; endif; ?>
+                    <?php endforeach; ?>
                 </tbody>
             </table>
         </div>
+
+        <!-- Mobile Card View (<= 768px) -->
+        <div class="gyms-mobile-cards">
+            <?php foreach ($gyms as $gym): 
+                $subPlan = $gym['subscription_plan'] ?: 'None';
+                $subStatus = $gym['subscription_status'] ?: 'inactive';
+                $renewal = !empty($gym['subscription_renewal_date']) ? date('M j, Y', strtotime($gym['subscription_renewal_date'])) : '—';
+                $planBadgeStyle = match(strtolower($subPlan)) {
+                    'starter' => 'background: rgba(59, 130, 246, 0.15); color: #60a5fa;',
+                    'professional' => 'background: rgba(34, 197, 94, 0.15); color: var(--lime);',
+                    'business' => 'background: rgba(168, 85, 247, 0.15); color: #c084fc;',
+                    default => 'background: rgba(148, 163, 184, 0.1); color: var(--muted);'
+                };
+                $statusBadgeClass = match($subStatus) {
+                    'active' => 'badge-active',
+                    'expired' => 'badge-inactive',
+                    default => 'badge-pending'
+                };
+            ?>
+                <div class="gym-card-item">
+                    <div class="gym-card-header">
+                        <div class="gym-card-identity">
+                            <div class="gym-card-avatar">
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18M3 7v14M21 7v14M6 11h4M6 15h4M14 11h4M14 15h4M9 21v-4h6v4M3 7l9-4 9 4"/></svg>
+                            </div>
+                            <div class="gym-card-names">
+                                <div class="gym-card-title"><?= h($gym['name']) ?></div>
+                                <div class="gym-card-id">#<?= (int) $gym['gym_id'] ?></div>
+                            </div>
+                        </div>
+                        <div class="gym-card-badges">
+                            <?php if ($gym['status'] === 'approved'): ?>
+                                <span class="badge badge-active">Approved</span>
+                            <?php elseif ($gym['status'] === 'suspended'): ?>
+                                <span class="badge badge-inactive" style="color:var(--danger)">Suspended</span>
+                            <?php endif; ?>
+                            <span class="badge" style="<?= $planBadgeStyle ?>; font-weight:700;">
+                                <?= h($subPlan) ?>
+                            </span>
+                        </div>
+                    </div>
+
+                    <div class="gym-card-details">
+                        <div class="gym-card-detail-item">
+                            <span class="gym-card-detail-label">
+                                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                                Owner
+                            </span>
+                            <span class="gym-card-detail-value"><?= h($gym['first_name'] . ' ' . $gym['last_name']) ?></span>
+                        </div>
+
+                        <div class="gym-card-detail-item">
+                            <span class="gym-card-detail-label">
+                                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+                                Email
+                            </span>
+                            <span class="gym-card-detail-value email-value" title="<?= h($gym['email']) ?>"><?= h($gym['email']) ?></span>
+                        </div>
+
+                        <div class="gym-card-detail-item">
+                            <span class="gym-card-detail-label">
+                                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+                                Sub Status
+                            </span>
+                            <span class="gym-card-detail-value">
+                                <span class="badge <?= $statusBadgeClass ?>"><?= h(ucfirst($subStatus)) ?></span>
+                            </span>
+                        </div>
+
+                        <div class="gym-card-detail-item">
+                            <span class="gym-card-detail-label">
+                                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+                                Renewal
+                            </span>
+                            <span class="gym-card-detail-value"><?= h($renewal) ?></span>
+                        </div>
+                    </div>
+
+                    <div class="gym-card-actions">
+                        <button type="button" 
+                                class="btn-sm btn-primary" 
+                                onclick="openEditSubModal(
+                                    <?= (int)$gym['gym_id'] ?>, 
+                                    '<?= h(addslashes($gym['name'])) ?>', 
+                                    '<?= h(addslashes($gym['first_name'] . ' ' . $gym['last_name'])) ?>', 
+                                    '<?= h($gym['subscription_plan'] ?? '') ?>', 
+                                    '<?= h($gym['subscription_status'] ?? 'inactive') ?>', 
+                                    '<?= h($gym['subscription_renewal_date'] ?? '') ?>'
+                                )">
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+                            Edit Sub
+                        </button>
+
+                        <?php if ($gym['status'] === 'approved'): ?>
+                            <form method="post" action="index.php?page=gyms" style="margin:0;">
+                                <?= csrf_field() ?>
+                                <input type="hidden" name="gym_id" value="<?= (int) $gym['gym_id'] ?>">
+                                <input type="hidden" name="action" value="suspend">
+                                <button type="submit" class="btn-sm btn-secondary" style="color:var(--danger);" data-confirm="Are you sure you want to suspend this gym? Their members will lose access.">
+                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="10" y1="15" x2="10" y2="9"/><line x1="14" y1="15" x2="14" y2="9"/></svg>
+                                    Suspend
+                                </button>
+                            </form>
+                        <?php elseif ($gym['status'] === 'suspended'): ?>
+                            <form method="post" action="index.php?page=gyms" style="margin:0;">
+                                <?= csrf_field() ?>
+                                <input type="hidden" name="gym_id" value="<?= (int) $gym['gym_id'] ?>">
+                                <input type="hidden" name="action" value="reactivate">
+                                <button type="submit" class="btn-sm btn-primary" data-confirm="Reactivate this gym?">
+                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+                                    Reactivate
+                                </button>
+                            </form>
+                        <?php endif; ?>
+
+                        <form method="post" action="index.php?page=gyms" style="margin:0;">
+                            <?= csrf_field() ?>
+                            <input type="hidden" name="gym_id" value="<?= (int) $gym['gym_id'] ?>">
+                            <input type="hidden" name="action" value="delete">
+                            <button type="submit" class="btn-sm btn-secondary" style="color:var(--danger); border-color:var(--danger);" data-confirm="Are you sure you want to permanently delete this gym? This cannot be undone.">
+                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                                Delete
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            <?php endforeach; ?>
+        </div>
+        <?php endif; ?>
     </section>
 
     <!-- Hidden Form for Edit Subscription Submission -->

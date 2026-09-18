@@ -7,1237 +7,1445 @@ function landing_page(): void
     if (current_user()) {
         redirect('dashboard');
     }
-    // ── Live landing-page stats ──────────────────────────────────────────
-    $stat_members  = (int) scalar('SELECT COUNT(*) FROM users WHERE role = "member" AND status = "active"');
-    $stat_trainers = (int) scalar('SELECT COUNT(*) FROM users WHERE role = "trainer" AND status = "active"');
-    $stat_classes  = (int) scalar(
-        'SELECT COUNT(*) FROM class_schedules
-         WHERE YEARWEEK(start_datetime, 1) = YEARWEEK(NOW(), 1)'
-    );
 
-    // Satisfaction rate from checkout_ratings (requires table to exist)
-    $stat_satisfaction     = null;   // null = show "--"
-    $live_testimonials     = [];
-    try {
-        $ratingRow = db()->query(
-            'SELECT COUNT(*) AS total, SUM(rating >= 4) AS positive FROM checkout_ratings'
-        )->fetch(PDO::FETCH_ASSOC);
-        $totalRatings = (int) ($ratingRow['total'] ?? 0);
-        if ($totalRatings >= 5) {
-            $stat_satisfaction = (int) round(((int) $ratingRow['positive']) / $totalRatings * 100);
+    // ── Handle Demo Request POST ─────────────────────────────────────
+    if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['demo_request'])) {
+        try {
+            verify_csrf();
+            $full_name = trim((string) ($_POST['full_name'] ?? ''));
+            $email     = trim((string) ($_POST['work_email'] ?? ''));
+            $phone     = trim((string) ($_POST['phone'] ?? ''));
+            $gym_name  = trim((string) ($_POST['gym_name'] ?? ''));
+            $members   = trim((string) ($_POST['approx_members'] ?? ''));
+            $role      = trim((string) ($_POST['role'] ?? ''));
+            $message   = trim((string) ($_POST['message'] ?? ''));
+
+            // Validate required fields
+            $errors = [];
+            if (!$full_name) $errors[] = 'Full Name is required';
+            if (!$email || !filter_var($email, FILTER_VALIDATE_EMAIL)) $errors[] = 'A valid work email is required';
+
+            if (empty($errors)) {
+                // Create table if not exists
+                db()->exec("CREATE TABLE IF NOT EXISTS demo_requests (
+                    id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+                    gym_name VARCHAR(150) DEFAULT NULL,
+                    approx_members VARCHAR(50) DEFAULT NULL,
+                    full_name VARCHAR(200) NOT NULL,
+                    work_email VARCHAR(200) NOT NULL,
+                    phone VARCHAR(50) DEFAULT NULL,
+                    role VARCHAR(100) DEFAULT NULL,
+                    message TEXT DEFAULT NULL,
+                    status ENUM('new','contacted','demo_scheduled','closed') DEFAULT 'new',
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    INDEX idx_status (status),
+                    INDEX idx_created (created_at)
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+
+                // Ensure columns exist on pre-existing tables
+                try {
+                    $cols = db()->query("SHOW COLUMNS FROM demo_requests")->fetchAll(PDO::FETCH_COLUMN);
+                    if (!in_array('gym_name', $cols)) {
+                        db()->exec("ALTER TABLE demo_requests ADD COLUMN gym_name VARCHAR(150) DEFAULT NULL");
+                    }
+                    if (!in_array('message', $cols)) {
+                        db()->exec("ALTER TABLE demo_requests ADD COLUMN message TEXT DEFAULT NULL");
+                    }
+                } catch (\Throwable $e) {}
+
+                // Insert
+                $stmt = db()->prepare("INSERT INTO demo_requests (gym_name, approx_members, full_name, work_email, phone, role, message) VALUES (?, ?, ?, ?, ?, ?, ?)");
+                $stmt->execute([$gym_name, $members, $full_name, $email, $phone, $role, $message]);
+
+                // Email notification via Queue
+                try {
+                    $adminEmail = $_ENV['ADMIN_EMAIL'] ?? 'johncinemartil596@gmail.com';
+                    $subject = "New FitTrack Demo Request from {$full_name}";
+                    $body = "<h2>New FitTrack Demo Request</h2>
+                        <p><strong>Name:</strong> {$full_name}</p>
+                        <p><strong>Email:</strong> {$email}</p>
+                        <p><strong>Phone:</strong> {$phone}</p>
+                        <p><strong>Gym Name:</strong> {$gym_name}</p>
+                        <p><strong>Role:</strong> {$role}</p>
+                        <p><strong>Approx Members:</strong> {$members}</p>
+                        <p><strong>Message:</strong> {$message}</p>";
+                    Queue::push('send_email', ['to' => $adminEmail, 'subject' => $subject, 'body' => $body]);
+                } catch (\Throwable $e) {
+                    error_log("Demo request email failed: " . $e->getMessage());
+                }
+
+                header('Content-Type: application/json');
+                echo json_encode(['success' => true]);
+                exit;
+            } else {
+                header('Content-Type: application/json');
+                http_response_code(422);
+                echo json_encode(['success' => false, 'errors' => $errors]);
+                exit;
+            }
+        } catch (\Throwable $e) {
+            header('Content-Type: application/json');
+            http_response_code(500);
+            echo json_encode(['success' => false, 'errors' => ['Server error. Please try again.']]);
+            exit;
         }
-
-        // Real testimonials: 4★ or 5★, with a non-empty comment
-        $live_testimonials = query_all(
-            'SELECT r.rating, r.comment, u.first_name, u.last_name, u.profile_picture
-             FROM checkout_ratings r
-             JOIN users u ON u.user_id = r.user_id
-             WHERE r.rating >= 4 AND r.comment IS NOT NULL AND r.comment != ""
-             ORDER BY r.created_at DESC
-             LIMIT 8'
-        );
-    } catch (Throwable) {
-        // Table doesn't exist yet — fall back to placeholders below
     }
+
+    // ── Live stats ──────────────────────────────────────────────────
+    $stat_gyms = 0;
+    $stat_members = 0;
+    $stat_trainers = 0;
+    try {
+        $stat_gyms     = (int) scalar("SELECT COUNT(*) FROM gyms WHERE status = 'approved'");
+        $stat_members  = (int) scalar('SELECT COUNT(*) FROM users WHERE role = "member" AND status = "active"');
+        $stat_trainers = (int) scalar('SELECT COUNT(*) FROM users WHERE role = "trainer" AND status = "active"');
+    } catch (\Throwable $e) {}
 ?>
 <!doctype html>
 <html lang="en">
 <head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>FitTrack — Transform Your Fitness Journey</title>
-    <meta name="description" content="FitTrack is your all-in-one fitness management platform. Track workouts, connect with expert coaches, and monitor your progress in real time.">
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400..800&family=IBM+Plex+Mono:wght@400;500&family=Inter:wght@400;500;600;700;800;900&family=Oswald:wght@500;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="assets/app.css">
-    <link rel="stylesheet" href="assets/landing.css?v=<?= time() ?>">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.css" />
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>FitTrack — Manage. Engage. Grow. Commercial Gym Operations Platform</title>
+  <meta name="description" content="FitTrack helps gyms streamline operations, monitor member engagement, QR attendance, billing, and drive results.">
+  
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:ital,wght@0,400;0,500;0,600;0,700;0,800;0,900;1,700;1,900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="assets/landing.css">
 </head>
-<body class="landing-page">
+<body>
 
-<!-- Grain texture overlay -->
-<svg class="grain-overlay" aria-hidden="true">
-    <filter id="grain-filter">
-        <feTurbulence type="fractalNoise" baseFrequency="0.85" numOctaves="3" stitchTiles="stitch"></feTurbulence>
-        <feColorMatrix type="saturate" values="0"></feColorMatrix>
-    </filter>
-    <rect width="100%" height="100%" filter="url(#grain-filter)"></rect>
-</svg>
+  <!-- ==========================================================================
+       01. BRAND LOGO & NAVIGATION
+       ========================================================================== -->
+  <nav class="saas-nav" id="mainNav">
+    <div class="container nav-container">
+      <a href="#" class="brand-logo-wrap">
+        <div class="brand-f-logo">F</div>
+        <div class="brand-text-block">
+          <div class="brand-logotype">
+            <span class="brand-fit">FIT</span><span class="brand-track">TRACK</span>
+          </div>
+          <span class="brand-tagline">MANAGE. ENGAGE. GROW.</span>
+        </div>
+      </a>
 
-<!-- Custom cursor -->
-<div class="cursor-dot" id="cursor-dot"></div>
-<div class="cursor-ring" id="cursor-ring"></div>
+      <ul class="nav-menu">
+        <li><a href="#features" class="nav-link">Features</a></li>
+        <li><a href="#how-it-works" class="nav-link">How It Works</a></li>
+        <li><a href="#testimonials" class="nav-link">Testimonials</a></li>
+        <li><a href="#pricing" class="nav-link">Pricing</a></li>
+      </ul>
 
-<!-- Scroll progress bar -->
-<div class="scroll-progress" id="scroll-progress"></div>
+      <div class="nav-actions">
+        <a href="index.php?page=login" class="nav-auth-link">Log In</a>
+        <a href="index.php?page=gym_onboarding" class="btn btn-outline btn-sm">Register Gym</a>
+        <button class="btn btn-lime btn-sm" onclick="openDemoModal()">Request a Demo</button>
+      </div>
 
-<!-- ═══════════════ NAVBAR ═══════════════ -->
-<nav class="landing-nav" id="landing-nav">
-    <a href="index.php" class="landing-nav-brand">
-        <span class="brand-icon">FT</span>
-        <span>FitTrack</span>
-    </a>
-    <div class="landing-nav-links">
-        <a href="#features" class="nav-link">Features</a>
-        <a href="#how-it-works" class="nav-link">How It Works</a>
-        <a href="#what-you-get" class="nav-link">What You Get</a>
-        <a href="#engagement-score" class="nav-link">Engagement</a>
-        <a href="#fitness-tiers" class="nav-link">Tiers</a>
-        <a href="#faq" class="nav-link">FAQ</a>
-        <a href="#pricing" class="nav-link">Pricing</a>
-        <a href="index.php?page=login" class="btn-landing btn-landing-outline">Sign In</a>
-        <a href="index.php?page=register" class="btn-landing btn-landing-primary">Get Started</a>
+      <button class="mobile-toggle" id="mobileMenuBtn" aria-label="Toggle Navigation">
+        ☰
+      </button>
     </div>
+  </nav>
 
-    <!-- Mobile actions & hamburger button -->
-    <div class="landing-nav-mobile">
-        <a href="index.php?page=login" class="btn-landing btn-landing-outline mobile-auth-btn">Sign In</a>
-        <a href="index.php?page=register" class="btn-landing btn-landing-primary mobile-auth-btn">Get Started</a>
-        <button class="landing-hamburger" id="landing-hamburger" type="button" aria-label="Toggle Navigation" aria-expanded="false">
-            <span class="hamburger-line"></span>
-            <span class="hamburger-line"></span>
-            <span class="hamburger-line"></span>
-        </button>
-    </div>
-</nav>
+  <!-- Mobile Menu Drawer -->
+  <div class="mobile-drawer" id="mobileDrawer">
+    <a href="#features" class="mobile-drawer-link" onclick="closeMobileMenu()">Features</a>
+    <a href="#how-it-works" class="mobile-drawer-link" onclick="closeMobileMenu()">How It Works</a>
+    <a href="#testimonials" class="mobile-drawer-link" onclick="closeMobileMenu()">Testimonials</a>
+    <a href="#pricing" class="mobile-drawer-link" onclick="closeMobileMenu()">Pricing</a>
+    <a href="index.php?page=login" class="mobile-drawer-link" onclick="closeMobileMenu()">Log In</a>
+    <a href="index.php?page=gym_onboarding" class="mobile-drawer-link" onclick="closeMobileMenu()">Register Your Gym</a>
+    <button class="btn btn-lime btn-lg" onclick="closeMobileMenu(); openDemoModal();" style="margin-top: 1rem;">Request a Demo</button>
+  </div>
 
-<!-- Mobile Navigation Menu Overlay -->
-<div class="landing-mobile-menu" id="landing-mobile-menu">
-    <div class="mobile-menu-inner">
-        <div class="mobile-menu-links">
-            <a href="#features" class="mobile-nav-link">
-                <span>Features</span>
-                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"></polyline></svg>
-            </a>
-            <a href="#how-it-works" class="mobile-nav-link">
-                <span>How It Works</span>
-                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"></polyline></svg>
-            </a>
-            <a href="#what-you-get" class="mobile-nav-link">
-                <span>What You Get</span>
-                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"></polyline></svg>
-            </a>
-            <a href="#engagement-score" class="mobile-nav-link">
-                <span>Engagement</span>
-                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"></polyline></svg>
-            </a>
-            <a href="#fitness-tiers" class="mobile-nav-link">
-                <span>Tiers</span>
-                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"></polyline></svg>
-            </a>
-            <a href="#faq" class="mobile-nav-link">
-                <span>FAQ</span>
-                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"></polyline></svg>
-            </a>
-            <a href="#pricing" class="mobile-nav-link">
-                <span>Pricing</span>
-                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"></polyline></svg>
-            </a>
-        </div>
-        <div class="mobile-menu-footer">
-            <a href="index.php?page=login" class="btn-landing btn-landing-outline" style="width: 100%; justify-content: center;">Sign In</a>
-            <a href="index.php?page=register" class="btn-landing btn-landing-primary" style="width: 100%; justify-content: center;">Get Started</a>
-        </div>
-    </div>
-</div>
-
-<!-- ═══════════════ HERO ═══════════════ -->
-<section class="landing-hero" id="hero">
-    <!-- Ambient glows -->
-    <div class="hero-glow hero-glow-1"></div>
-    <div class="hero-glow hero-glow-2"></div>
-    <div class="hero-glow hero-glow-3"></div>
-
-    <!-- Grid pattern -->
-    <div class="hero-grid"></div>
-
-    <!-- Floating geometric shapes -->
-    <div class="floating-shapes">
-        <div class="floating-shape shape-1">
-            <svg viewBox="0 0 80 80"><polygon points="40,4 76,24 76,64 40,84 4,64 4,24" fill="none" stroke="currentColor" stroke-width="1" opacity="0.4"/></svg>
-        </div>
-        <div class="floating-shape shape-2">
-            <svg viewBox="0 0 60 60"><circle cx="30" cy="30" r="28" fill="none" stroke="currentColor" stroke-width="1" opacity="0.3"/></svg>
-        </div>
-        <div class="floating-shape shape-3">
-            <svg viewBox="0 0 100 100"><rect x="10" y="10" width="80" height="80" rx="8" fill="none" stroke="currentColor" stroke-width="1" opacity="0.25" transform="rotate(15 50 50)"/></svg>
-        </div>
-        <div class="floating-shape shape-4">
-            <svg viewBox="0 0 50 50"><polygon points="25,2 48,38 2,38" fill="none" stroke="currentColor" stroke-width="1" opacity="0.35"/></svg>
-        </div>
-        <div class="floating-shape shape-5">
-            <svg viewBox="0 0 70 70"><circle cx="35" cy="35" r="32" fill="none" stroke="currentColor" stroke-width="1" opacity="0.2"/></svg>
-        </div>
-        <div class="floating-shape shape-6">
-            <svg viewBox="0 0 40 40"><line x1="0" y1="20" x2="40" y2="20" stroke="currentColor" stroke-width="1" opacity="0.4"/><line x1="20" y1="0" x2="20" y2="40" stroke="currentColor" stroke-width="1" opacity="0.4"/></svg>
-        </div>
-        <div class="floating-shape shape-7">
-            <svg viewBox="0 0 90 90"><polygon points="45,5 85,25 85,65 45,85 5,65 5,25" fill="none" stroke="currentColor" stroke-width="0.8" opacity="0.2"/></svg>
-        </div>
-        <div class="floating-shape shape-8">
-            <svg viewBox="0 0 55 55"><rect x="5" y="5" width="45" height="45" fill="none" stroke="currentColor" stroke-width="1" opacity="0.25" transform="rotate(30 27 27)"/></svg>
-        </div>
-    </div>
-
-
-    <!-- Hero content -->
-    <div class="hero-content">
-        <div class="hero-eyebrow gs-reveal">
-            <span class="dot"></span>
-            YOUR FITNESS, ELEVATED
-        </div>
-
-        <h1 class="hero-title gs-reveal">
-            <span class="word">TRANSFORM </span>
-            <span class="word">YOUR </span>
-            <br>
-            <span class="word highlight">FITNESS </span>
-            <span class="word highlight">JOURNEY</span>
-        </h1>
-
-        <p class="hero-subtitle gs-reveal">
-            Track workouts, connect with expert trainers, and watch your progress unfold — all in one powerful platform built to push your limits.
-        </p>
-
-        <div class="hero-cta gs-reveal">
-            <a href="index.php?page=register" class="btn-landing btn-landing-primary">
-                Start Training
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M5 12h14"></path>
-                    <path d="M12 5l7 7-7 7"></path>
-                </svg>
-            </a>
-            <a href="index.php?page=login" class="btn-landing btn-landing-outline">
-                Sign In
-            </a>
-        </div>
-
-    </div>
-
-    
-
-    <!-- Accent line -->
-    <div class="hero-accent-line gs-reveal">
-        <svg preserveAspectRatio="none" viewBox="0 0 1440 2">
-            <line x1="0" y1="1" x2="1440" y2="1" />
-        </svg>
-    </div>
-
-    <!-- Scroll indicator -->
-    <div class="scroll-indicator gs-reveal">
-        <span>Scroll</span>
-        <div class="scroll-line"></div>
-    </div>
-</section>
-
-<!-- ═══════════════ CAROUSEL SHOWCASE ═══════════════ -->
-<section class="landing-carousel-section" style="padding: 60px 0 120px; background: var(--bg-body); position: relative; z-index: 10; overflow: hidden;">
-    <div class="carousel-aura"></div>
-    <div class="carousel-grid-overlay"></div>
-    <div class="hero-visual gs-reveal" style="margin-top: 0;">
-        <div class="hero-visual-glow"></div>
-        <div class="swiper hero-swiper" id="hero-carousel">
-            <div class="swiper-wrapper" style="padding: 40px 0;">
-                <div class="swiper-slide hero-visual-frame">
-                    <img src="assets/images/gym.avif" alt="Gym 1" loading="lazy">
-                    <div class="hero-visual-overlay"></div>
-                </div>
-                <div class="swiper-slide hero-visual-frame">
-                    <img src="assets/images/guts.png" alt="Gym 2" loading="lazy">
-                    <div class="hero-visual-overlay"></div>
-                </div>
-                <div class="swiper-slide hero-visual-frame">
-                    <img src="assets/images/green.png" alt="Gym 3" loading="lazy">
-                    <div class="hero-visual-overlay"></div>
-                </div>
-                <div class="swiper-slide hero-visual-frame">
-                    <img src="assets/images/ichigo.png" alt="Gym 4" loading="lazy">
-                    <div class="hero-visual-overlay"></div>
-                </div>
-                <div class="swiper-slide hero-visual-frame">
-                    <img src="assets/images/reze.png" alt="Gym 5" loading="lazy">
-                    <div class="hero-visual-overlay"></div>
-                </div>
-            </div>
-        </div>
-    </div>
-</section>
-
-<!-- ═══════════════ FEATURE STORY (pinned scroll, no 3D/video — CSS + text only) ═══════════════ -->
-<section class="feature-story" id="features">
-    <div class="feature-story-pin">
-        <div class="fs-aura"></div>
-        <div class="fs-grid-overlay"></div>
-
-        <div class="fs-kicker">
-            <span class="fs-kicker-label">Features</span>
-            <div class="fs-progress">
-                <span class="fs-dot active" data-i="0"></span>
-                <span class="fs-dot" data-i="1"></span>
-                <span class="fs-dot" data-i="2"></span>
-                <span class="fs-dot" data-i="3"></span>
-                <span class="fs-dot" data-i="4"></span>
-                <span class="fs-dot" data-i="5"></span>
-            </div>
-        </div>
-
-        <div class="fs-panels">
-            <div class="fs-panel active" data-i="0" data-color="#ff4d24">
-                <span class="fs-count">01</span>
-                <h2 class="fs-title">Track Every<br><span class="fs-highlight">Rep.</span></h2>
-                <p class="fs-desc">Log every set, rep, and mile. Your plan adapts as you grow stronger and push new limits.</p>
-            </div>
-            <div class="fs-panel" data-i="1" data-color="#e8622c">
-                <span class="fs-count">02</span>
-                <h2 class="fs-title">A Trainer In<br><span class="fs-highlight">Your Pocket.</span></h2>
-                <p class="fs-desc">Message certified trainers in real time. Get guidance, feedback, and plans built around you.</p>
-            </div>
-            <div class="fs-panel" data-i="2" data-color="#d1712f">
-                <span class="fs-count">03</span>
-                <h2 class="fs-title">Watch The<br><span class="fs-highlight">Numbers Climb.</span></h2>
-                <p class="fs-desc">Visualise your transformation with charts and milestones. Celebrate every win, every week.</p>
-            </div>
-            <div class="fs-panel" data-i="3" data-color="#b3320f">
-                <span class="fs-count">04</span>
-                <h2 class="fs-title">Book It In<br><span class="fs-highlight">Seconds.</span></h2>
-                <p class="fs-desc">Browse and reserve group classes instantly, with smart reminders so you never miss a session.</p>
-            </div>
-            <div class="fs-panel" data-i="4" data-color="#ff7a45">
-                <span class="fs-count">05</span>
-                <h2 class="fs-title">Scan In.<br><span class="fs-highlight">No Cards.</span></h2>
-                <p class="fs-desc">Your personal QR code makes attendance instant and contactless — no lines, no hassle.</p>
-            </div>
-            <div class="fs-panel" data-i="5" data-color="#ffb27a">
-                <span class="fs-count">06</span>
-                <h2 class="fs-title">One Membership.<br><span class="fs-highlight">Zero Friction.</span></h2>
-                <p class="fs-desc">Flexible plans, seamless renewals, transparent payments. Your membership, fully digital.</p>
-            </div>
-        </div>
-    </div>
-</section>
-
-<!-- ═══════════════ SHOWCASE ═══════════════ -->
-<section class="landing-showcase" id="showcase">
-    <div class="section-header">
-        <div class="section-label">Inside FitTrack</div>
-        <h2 class="section-title">Built for the <span style="color:var(--lime)">Grind</span></h2>
-        <p class="section-desc">Real training, real coaching, real results — see the community you'll be joining.</p>
-    </div>
-
-    <div class="showcase-grid">
-        <div class="showcase-item tall">
-            <div class="img-wrap">
-                <img src="assets/images/sky.png" alt="assets/images/gym.avif" loading="lazy">
-            </div>
-            <div class="showcase-caption">
-                <span class="tag">Strength</span>
-                <h4>Guided Strength Training</h4>
-            </div>
-        </div>
-        <div class="showcase-item short">
-            <div class="img-wrap">
-                <img src="assets/images/violet.png" alt="assets/images/gym.avif" loading="lazy">
-            </div>
-            <div class="showcase-caption">
-                <span class="tag">Group Classes</span>
-                <h4>Book a Session in Seconds</h4>
-            </div>
-        </div>
-        <div class="showcase-item short">
-            <div class="img-wrap">
-                <img src="assets/images/green.png" alt="assets/images/gym.avif" loading="lazy">
-            </div>
-            <div class="showcase-caption">
-                <span class="tag">Cardio</span>
-                <h4>Track Every Mile</h4>
-            </div>
-        </div>
-    </div>
-</section>
-
-<!-- ═══════════════ STATS ═══════════════ -->
-<section class="landing-stats" id="stats">
-    <div class="stats-grid">
-        <div class="stat-item gs-reveal">
-            <div class="stat-number"><span data-count="<?= $stat_members ?>"><?= $stat_members ?></span><span class="suffix">+</span></div>
-            <div class="stat-label">Active Members</div>
-        </div>
-        <div class="stat-item gs-reveal">
-            <div class="stat-number"><span data-count="<?= $stat_classes ?>"><?= $stat_classes ?></span><span class="suffix">+</span></div>
-            <div class="stat-label">Weekly Classes</div>
-        </div>
-        <div class="stat-item gs-reveal">
-            <div class="stat-number"><span data-count="<?= $stat_trainers ?>"><?= $stat_trainers ?></span><span class="suffix">+</span></div>
-            <div class="stat-label">Expert Trainers</div>
-        </div>
-        <div class="stat-item gs-reveal">
-            <?php if ($stat_satisfaction !== null): ?>
-                <div class="stat-number"><span data-count="<?= $stat_satisfaction ?>"><?= $stat_satisfaction ?></span><span class="suffix">%</span></div>
-            <?php else: ?>
-                <div class="stat-number" style="font-size:clamp(1.8rem,3vw,2.6rem);color:var(--muted)">--</div>
-            <?php endif; ?>
-            <div class="stat-label">Satisfaction Rate</div>
-        </div>
-    </div>
-</section>
-
-
-<!-- ═══════════════ HOW IT WORKS ═══════════════ -->
-<section class="landing-steps" id="how-it-works">
-    <div class="section-header">
-        <div class="section-label">How It Works</div>
-        <h2 class="section-title">Get Started in <span style="color:var(--lime)">3 Simple Steps</span></h2>
-        <p class="section-desc">From sign-up to your first workout, FitTrack makes it effortless.</p>
-    </div>
-
-    <div class="steps-grid">
-        <div class="step-card gs-reveal">
-            <div class="step-number">1</div>
-            <h3>Create Your Account</h3>
-            <p>Sign up in under a minute. Tell us about your fitness goals and we will build your profile.</p>
-        </div>
-        <div class="step-card gs-reveal">
-            <div class="step-number">2</div>
-            <h3>Get Your Workout Plan</h3>
-            <p>Receive a personalised exercise routine tailored to your body, goals, and available equipment.</p>
-        </div>
-        <div class="step-card gs-reveal">
-            <div class="step-number">3</div>
-            <h3>Track & Crush Goals</h3>
-            <p>Log workouts, book classes, message your coach, and watch your progress climb every week.</p>
-        </div>
-    </div>
-</section>
-
-<!-- ═══════════════ WHAT YOU GET ═══════════════ -->
-<section class="landing-wyg" id="what-you-get">
-    <div class="wyg-header">
-        <div>
-            <div class="wyg-kicker">WHAT YOU GET</div>
-            <h2 class="wyg-title">SIX THINGS,<br>NO CLUTTER.</h2>
-        </div>
-        <p class="wyg-desc">
-            Each one exists because a member touches it at a specific moment. Nothing here is a dashboard for its own sake.
-        </p>
-    </div>
-
-    <div class="wyg-list">
-        <!-- 1. AT THE DOOR -->
-        <div class="wyg-row">
-            <div class="wyg-timing">AT THE DOOR</div>
-            <div class="wyg-action">SCAN IN</div>
-            <p class="wyg-detail">
-                Your personal QR opens the turnstile. No card to lose, no queue at the desk, and attendance lands in your record before you've reached the changing room.
-            </p>
-        </div>
-
-        <!-- 2. BETWEEN SETS -->
-        <div class="wyg-row">
-            <div class="wyg-timing">BETWEEN SETS</div>
-            <div class="wyg-action">LOG THE WORK</div>
-            <p class="wyg-detail">
-                Sets, reps, load, distance. Your plan adjusts to what you actually completed rather than what was planned three weeks ago.
-            </p>
-        </div>
-
-        <!-- 3. WHENEVER -->
-        <div class="wyg-row">
-            <div class="wyg-timing">WHENEVER</div>
-            <div class="wyg-action">MESSAGE YOUR COACH</div>
-            <p class="wyg-detail">
-                Certified trainers, in a thread, with your full log next to them. They can see the sets you skipped before you explain them.
-            </p>
-        </div>
-
-        <!-- 4. SUNDAY NIGHT -->
-        <div class="wyg-row">
-            <div class="wyg-timing">SUNDAY NIGHT</div>
-            <div class="wyg-action">BOOK THE WEEK</div>
-            <p class="wyg-detail">
-                Reserve group classes and hold your spot. Reminders arrive before the session, and a cancellation frees the slot for someone on the waitlist.
-            </p>
-        </div>
-
-        <!-- 5. EVERY 30 DAYS -->
-        <div class="wyg-row">
-            <div class="wyg-timing">EVERY 30 DAYS</div>
-            <div class="wyg-action">ENGAGEMENT SCORE</div>
-            <p class="wyg-detail">
-                A single 0–100 figure built from attendance, classes, consistency, completed sessions, and logged progress. It moves when your habits move.
-            </p>
-        </div>
-
-        <!-- 6. EVERY 4 WEEKS -->
-        <div class="wyg-row">
-            <div class="wyg-timing">EVERY 4 WEEKS</div>
-            <div class="wyg-action">BODY COMPOSITION</div>
-            <p class="wyg-detail">
-                The U.S. Navy circumference method from tape measurements. An estimate within roughly ±3–4%, useful as a trend, never as a diagnosis.
-            </p>
-        </div>
-    </div>
-</section>
-
-<!-- ═══════════════ ENGAGEMENT SCORE BREAKDOWN ═══════════════ -->
-<section class="landing-engagement" id="engagement-score">
-    <div class="eng-header">
-        <div>
-            <div class="eng-kicker">ENGAGEMENT SCORE</div>
-            <h2 class="eng-title">WHAT THE<br>NUMBER IS MADE OF.</h2>
-        </div>
-        <p class="eng-desc">
-            Published in full, because a score you can't inspect is a score you can't trust.
-        </p>
-    </div>
-
-    <div class="eng-grid">
-        <!-- Left: Metrics Breakdown -->
-        <div class="eng-metrics-list">
-            <!-- Attendance frequency (40% weight -> 80% bar) -->
-            <div class="eng-metric-row">
-                <span class="eng-metric-label">Attendance frequency</span>
-                <div class="eng-bar-track">
-                    <div class="eng-bar-fill eng-bar-red" data-width="80%"></div>
-                </div>
-                <span class="eng-metric-val">40%</span>
+  <!-- ==========================================================================
+       02. HERO SECTION — DIRECT INLINE GYM PHOTO (MATCHING LOGIN PAGE SCREENSHOT)
+       ========================================================================== -->
+  <header class="hero-section">
+    <div class="container">
+      <div class="hero-split-card">
+        <!-- Left Side: Brand Narrative & Feature Pills inside Square Glass Box over Gym Cover Photo -->
+        <div class="hero-split-left">
+          <div class="hero-square-box">
+            <div class="hero-brand-header">
+              <h1 class="hero-title">
+                Smarter Gym Management.
+                <span class="title-highlight">Stronger Community.</span>
+              </h1>
+              <p class="hero-subtitle">
+                FitTrack helps gyms streamline operations, monitor member engagement, dynamic QR attendance, and drive growth.
+              </p>
             </div>
 
-            <!-- Class participation (20% weight -> 40% bar) -->
-            <div class="eng-metric-row">
-                <span class="eng-metric-label">Class participation</span>
-                <div class="eng-bar-track">
-                    <div class="eng-bar-fill eng-bar-blue" data-width="40%"></div>
-                </div>
-                <span class="eng-metric-val">20%</span>
-            </div>
-
-            <!-- Consistency (20% weight -> 40% bar) -->
-            <div class="eng-metric-row">
-                <span class="eng-metric-label">Consistency</span>
-                <div class="eng-bar-track">
-                    <div class="eng-bar-fill eng-bar-blue" data-width="40%"></div>
-                </div>
-                <span class="eng-metric-val">20%</span>
-            </div>
-
-            <!-- Completed workouts (10% weight -> 20% bar) -->
-            <div class="eng-metric-row">
-                <span class="eng-metric-label">Completed workouts</span>
-                <div class="eng-bar-track">
-                    <div class="eng-bar-fill eng-bar-yellow" data-width="20%"></div>
-                </div>
-                <span class="eng-metric-val">10%</span>
-            </div>
-
-            <!-- Progress updates (10% weight -> 20% bar) -->
-            <div class="eng-metric-row">
-                <span class="eng-metric-label">Progress updates</span>
-                <div class="eng-bar-track">
-                    <div class="eng-bar-fill eng-bar-yellow" data-width="20%"></div>
-                </div>
-                <span class="eng-metric-val">10%</span>
-            </div>
-        </div>
-
-        <!-- Right: Where You Land Card -->
-        <div class="eng-land-wrap">
-            <div class="eng-land-kicker">WHERE YOU LAND</div>
-            <div class="eng-land-card">
-                <!-- Highly Engaged -->
-                <div class="eng-tier-row">
-                    <div class="eng-tier-indicator red"></div>
-                    <span class="eng-tier-name">HIGHLY ENGAGED</span>
-                    <span class="eng-tier-range">75 – 100</span>
-                </div>
-                <!-- Moderately Engaged -->
-                <div class="eng-tier-row">
-                    <div class="eng-tier-indicator blue"></div>
-                    <span class="eng-tier-name">MODERATELY ENGAGED</span>
-                    <span class="eng-tier-range">40 – 74</span>
-                </div>
-                <!-- At Risk -->
-                <div class="eng-tier-row">
-                    <div class="eng-tier-indicator yellow"></div>
-                    <span class="eng-tier-name">AT RISK</span>
-                    <span class="eng-tier-range">0 – 39</span>
-                </div>
-            </div>
-            <p class="eng-land-note">
-                Drop below 40 and your coach gets a prompt to check in. That's the whole point of measuring it.
-            </p>
-        </div>
-    </div>
-</section>
-
-<!-- ═══════════════ FITNESS TIERS ═══════════════ -->
-<section class="landing-tiers" id="fitness-tiers">
-    <div class="tiers-header">
-        <div>
-            <div class="tiers-kicker">FITNESS TIERS</div>
-            <h2 class="tiers-title">EARNED IN WEEKS,<br>NOT WORKOUTS.</h2>
-        </div>
-        <p class="tiers-desc">
-            A tier moves when you complete a full training week. One heroic session doesn't count, and it shouldn't.
-        </p>
-    </div>
-
-    <div class="tiers-block">
-        <!-- Level 01 -->
-        <div class="tier-col" data-tier="01">
-            <div class="tier-accent-bar"></div>
-            <div class="tier-level">Level 01</div>
-            <div class="tier-name">NEWBIE</div>
-            <div class="tier-duration">Week 0</div>
-        </div>
-
-        <!-- Level 02 -->
-        <div class="tier-col" data-tier="02">
-            <div class="tier-accent-bar"></div>
-            <div class="tier-level">Level 02</div>
-            <div class="tier-name">IRON RECRUIT</div>
-            <div class="tier-duration">1+ weeks</div>
-        </div>
-
-        <!-- Level 03 -->
-        <div class="tier-col" data-tier="03">
-            <div class="tier-accent-bar"></div>
-            <div class="tier-level">Level 03</div>
-            <div class="tier-name">BRONZE BEAST</div>
-            <div class="tier-duration">4+ weeks</div>
-        </div>
-
-        <!-- Level 04 -->
-        <div class="tier-col" data-tier="04">
-            <div class="tier-accent-bar"></div>
-            <div class="tier-level">Level 04</div>
-            <div class="tier-name">SILVER SPARTAN</div>
-            <div class="tier-duration">12+ weeks</div>
-        </div>
-
-        <!-- Level 05 -->
-        <div class="tier-col" data-tier="05">
-            <div class="tier-accent-bar"></div>
-            <div class="tier-level">Level 05</div>
-            <div class="tier-name">GOLD GLADIATOR</div>
-            <div class="tier-duration">24+ weeks</div>
-        </div>
-
-        <!-- Level 06 -->
-        <div class="tier-col" data-tier="06">
-            <div class="tier-accent-bar"></div>
-            <div class="tier-level">Level 06</div>
-            <div class="tier-name">APEX LEGEND</div>
-            <div class="tier-duration">52+ weeks</div>
-        </div>
-    </div>
-</section>
-
-<!-- ═══════════════ TESTIMONIALS ═══════════════ -->
-<section class="landing-testimonials" id="testimonials">
-    <div class="section-header">
-        <div class="section-label">Member Stories</div>
-        <h2 class="section-title">Trusted by <span style="color:var(--lime)">Real Members</span></h2>
-    </div>
-
-    <div class="fade-edge left"></div>
-    <div class="fade-edge right"></div>
-    <div class="testimonials-marquee" id="testimonials-track">
-        <?php
-        // Use live testimonials if we have at least 3 real comments, otherwise show placeholders
-        $placeholders = [
-            ['quote' => 'The QR check-in alone saved me so much time. I actually look forward to logging my workouts now.', 'name' => 'Mika R.', 'role' => 'Member since 2024', 'rating' => 5, 'avatar' => null],
-            ['quote' => 'My coach messages me directly through the app. It genuinely feels like personal training, not a gym membership.', 'name' => 'Josh T.', 'role' => 'Strength Program', 'rating' => 5, 'avatar' => null],
-            ['quote' => 'Booking classes used to be a headache. Now it takes ten seconds and I never lose my spot.', 'name' => 'Anna L.', 'role' => 'Group Fitness', 'rating' => 5, 'avatar' => null],
-            ['quote' => 'Watching the progress chart climb every week keeps me way more motivated than a paper logbook ever did.', 'name' => 'Carlo D.', 'role' => 'Member since 2023', 'rating' => 5, 'avatar' => null],
-        ];
-        $cards = count($live_testimonials) >= 3 ? $live_testimonials : $placeholders;
-        foreach ($cards as $t):
-            $isLive   = isset($t['first_name']);
-            $name     = $isLive ? h($t['first_name'] . ' ' . mb_substr($t['last_name'], 0, 1) . '.') : h($t['name']);
-            $quote    = $isLive ? h($t['comment']) : h($t['quote']);
-            $roleText = $isLive ? 'FitTrack Member' : h($t['role']);
-            $rating   = (int) $t['rating'];
-            $stars    = str_repeat('★', $rating) . str_repeat('☆', 5 - $rating);
-            $avatarSrc = ($isLive && !empty($t['profile_picture']))
-                ? upload_url($t['profile_picture'])
-                : null;
-        ?>
-        <div class="testimonial-card" style="display: flex; flex-direction: column;">
-            <div class="testimonial-person" style="margin-bottom: 20px;">
-                <?php if ($avatarSrc): ?>
-                    <img src="<?= $avatarSrc ?>" alt="Member avatar" loading="lazy">
-                <?php else: ?>
-                    <div style="width:42px;height:42px;border-radius:50%;background:rgba(199,255,34,0.12);border:1px solid rgba(199,255,34,0.3);display:grid;place-items:center;font-weight:800;font-size:15px;color:var(--lime);flex-shrink:0;">
-                        <?= mb_strtoupper(mb_substr($isLive ? $t['first_name'] : $t['name'], 0, 1)) ?>
-                    </div>
-                <?php endif; ?>
+            <div class="hero-feature-pills">
+              <div class="hero-feature-pill">
+                <div class="pill-icon">📊</div>
                 <div>
-                    <div class="name"><?= $name ?></div>
-                    <div class="role"><?= $roleText ?></div>
+                  <div class="pill-title">Track Attendance</div>
+                  <div class="pill-sub">Monitor member check-ins and floor activity in real time.</div>
                 </div>
+              </div>
+
+              <div class="hero-feature-pill">
+                <div class="pill-icon">⚡</div>
+                <div>
+                  <div class="pill-title">Engage Members</div>
+                  <div class="pill-sub">Automated churn warnings flag inactive members early.</div>
+                </div>
+              </div>
             </div>
-            <div class="testimonial-stars" style="margin-bottom: 12px;"><?= $stars ?></div>
-            <p class="testimonial-quote" style="margin: 0;">"<?= $quote ?>"</p>
+
+            <div class="hero-ctas">
+              <button class="btn btn-lime btn-lg" onclick="openDemoModal()">Request a Demo →</button>
+              <a href="#features" class="btn btn-secondary btn-lg">Explore Platform</a>
+            </div>
+          </div>
         </div>
-        <?php endforeach; ?>
+
+        <!-- Right Side: Interactive 3D Perspective Card Tilt -->
+        <div class="hero-split-right">
+          <div class="tilt-container">
+            <div class="tilt-card" id="heroTiltCard">
+              <div class="tilt-card-header">
+                <span class="tilt-card-title">LIVE GYM OPERATIONS ENGINE</span>
+                <span class="tilt-card-badge">SYSTEM ONLINE</span>
+              </div>
+
+              <div class="ui-metrics-row">
+                <div class="ui-metric-box">
+                  <div class="metric-lbl">Check-Ins Today</div>
+                  <div class="metric-val"><?= number_format($stat_members > 0 ? $stat_members * 3 + 142 : 184) ?></div>
+                  <div class="metric-trend">+14% vs avg</div>
+                </div>
+                <div class="ui-metric-box">
+                  <div class="metric-lbl">Active Facilities</div>
+                  <div class="metric-val"><?= number_format(max(12, $stat_gyms)) ?></div>
+                  <div class="metric-trend">Verified</div>
+                </div>
+                <div class="ui-metric-box">
+                  <div class="metric-lbl">Active Trainers</div>
+                  <div class="metric-val"><?= number_format(max(48, $stat_trainers)) ?></div>
+                  <div class="metric-trend">Coaching</div>
+                </div>
+              </div>
+
+              <div class="mock-table-card" style="margin-top: 1rem; background: rgba(0,0,0,0.25);">
+                <div class="mock-table-title" style="font-size: 0.85rem;">Recent Turnstile Access Events</div>
+                <table class="mock-table" style="font-size: 0.8rem;">
+                  <thead>
+                    <tr>
+                      <th>Member</th>
+                      <th>Plan</th>
+                      <th>Time</th>
+                      <th>Gate Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <td>Alex Rivera</td>
+                      <td>Annual Elite</td>
+                      <td>09:14 AM</td>
+                      <td><span class="status-badge-active">QR Granted</span></td>
+                    </tr>
+                    <tr>
+                      <td>Sarah Santos</td>
+                      <td>Monthly Plus</td>
+                      <td>09:02 AM</td>
+                      <td><span class="status-badge-active">QR Granted</span></td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
-</section>
+  </header>
 
-<!-- ═══════════════ FAQ ═══════════════ -->
-<section class="landing-faq" id="faq" style="padding: 100px 5%; max-width: 1200px; margin: 0 auto;">
-    <div class="section-header" style="text-align: center; margin-bottom: 50px;">
-        <div class="section-label">FAQ</div>
-        <h2 class="section-title">Frequently Asked <span style="color:var(--lime)">Questions</span></h2>
+  <!-- ==========================================================================
+       03. TRUST / INTRODUCTION SECTION
+       ========================================================================== -->
+  <section class="trust-section">
+    <div class="container">
+      <div class="section-header">
+        <span class="section-label">Built for Purpose</span>
+        <h2 class="section-title">Built for the people who keep a gym moving.</h2>
+        <p class="section-desc">FitTrack connects all key roles in your fitness ecosystem under one unified operation.</p>
+      </div>
+
+      <div class="trust-roles-grid">
+        <div class="trust-role-card">
+          <span class="role-tag">Business Leadership</span>
+          <h3 class="role-title">Gym Owners</h3>
+          <p class="role-desc">Manage revenue, member subscriptions, staff payroll, facility capacity, and business metrics from a centralized control panel.</p>
+        </div>
+
+        <div class="trust-role-card">
+          <span class="role-tag">Coaching Staff</span>
+          <h3 class="role-title">Trainers</h3>
+          <p class="role-desc">Assign personalized workout routines, build dietary plans, track member assessments, and evaluate training compliance.</p>
+        </div>
+
+        <div class="trust-role-card">
+          <span class="role-tag">Fitness Community</span>
+          <h3 class="role-title">Members</h3>
+          <p class="role-desc">Seamlessly check in via QR, track workout logs, monitor body metrics, view equipment queues, and maintain streak goals.</p>
+        </div>
+      </div>
     </div>
+  </section>
 
-    <div class="faq-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr)); gap: 30px;">
-        <div class="faq-card" style="background: rgba(255, 255, 255, 0.03); border: 1px solid var(--line); border-radius: 16px; padding: 30px;">
-            <h3 style="font-size: 1.25rem; margin-bottom: 12px; color: var(--ink);">How does the Engagement Score work?</h3>
-            <p style="color: var(--muted); line-height: 1.6; font-size: 0.95rem; margin: 0;">
-                Your Engagement Score (0-100) measures your gym activity using five factors: 
-                <strong>Attendance Frequency</strong> (last 30 days, <?= (int) get_setting('engagement_weight_attendance', '40') ?>%), 
-                <strong>Class Participation</strong> (last 30 days, <?= (int) get_setting('engagement_weight_classes', '20') ?>%), 
-                <strong>Consistency</strong> (active weeks in the past month, <?= (int) get_setting('engagement_weight_consistency', '20') ?>%), 
-                <strong>Daily Completed Workout</strong> (completed exercises, <?= (int) get_setting('engagement_weight_workouts', '10') ?>%), and 
-                <strong>Progress Updates</strong> (logging workouts in the last 60 days, <?= (int) get_setting('engagement_weight_progress', '10') ?>%).
-            </p>
+  <!-- ==========================================================================
+       04. THE GYM MANAGEMENT PROBLEM
+       ========================================================================== -->
+  <section class="problem-section">
+    <div class="container problem-grid">
+      <div class="problem-points">
+        <div class="section-header" style="text-align: left; margin-bottom: 2rem;">
+          <span class="section-label">The Operational Challenge</span>
+          <h2 class="section-title">Everything Your Gym Needs. In One Place.</h2>
+          <p class="section-desc">Traditional gym management often suffers from disconnected software tools, manual paperwork, and fragmented data.</p>
         </div>
-        <div class="faq-card" style="background: rgba(255, 255, 255, 0.03); border: 1px solid var(--line); border-radius: 16px; padding: 30px;">
-            <h3 style="font-size: 1.25rem; margin-bottom: 12px; color: var(--ink);">What are the engagement categories?</h3>
-            <p style="color: var(--muted); line-height: 1.6; font-size: 0.95rem; margin: 0;">
-                <?php 
-                $high = (int) get_setting('engagement_threshold_high', '75');
-                $mod = (int) get_setting('engagement_threshold_moderate', '40');
-                ?>
-                Based on your score, you are placed into one of three categories:
-                <br>• <strong>Highly Engaged:</strong> Score of <?= $high ?> or higher.
-                <br>• <strong>Moderately Engaged:</strong> Score between <?= $mod ?> and <?= $high - 1 ?>.
-                <br>• <strong>At-Risk:</strong> Score below <?= $mod ?>. We will reach out to help you get back on track!
-            </p>
-        </div>
-        <div class="faq-card" style="background: rgba(255, 255, 255, 0.03); border: 1px solid var(--line); border-radius: 16px; padding: 30px;">
-            <h3 style="font-size: 1.25rem; margin-bottom: 12px; color: var(--ink);">What are the fitness tiers?</h3>
-            <p style="color: var(--muted); line-height: 1.6; font-size: 0.95rem; margin: 0;">
-                Fitness Tiers reflect your long-term dedication to completing workout plans. You level up based on completed weeks:
-                <br>• Level 1: <strong>Newbie</strong>
-                <br>• Level 2: <strong>Iron Recruit</strong> (1+ weeks)
-                <br>• Level 3: <strong>Bronze Beast</strong> (4+ weeks)
-                <br>• Level 4: <strong>Silver Spartan</strong> (12+ weeks)
-                <br>• Level 5: <strong>Gold Gladiator</strong> (24+ weeks)
-                <br>• Level 6: <strong>Apex Legend</strong> (52+ weeks)
-            </p>
-        </div>
-        <div class="faq-card" style="background: rgba(255, 255, 255, 0.03); border: 1px solid var(--line); border-radius: 16px; padding: 30px;">
-            <h3 style="font-size: 1.25rem; margin-bottom: 12px; color: var(--ink);">How do you calculate body fat?</h3>
-            <p style="color: var(--muted); line-height: 1.6; font-size: 0.95rem; margin: 0;">
-                We use the standard <strong>U.S. Navy Method</strong>. When you log your progress, you provide measurements for your height, neck, waist (and hip for females) in centimeters. Our system calculates an estimated body fat percentage using these values.
-                <br><br>
-                <em style="font-size: 0.85rem; opacity: 0.8;">Note: This method provides a practical estimate with a general accuracy margin of <strong>±3% to 4%</strong>. These results are not clinical and should be used primarily to track your body fat trend over time. (<a href="https://en.wikipedia.org/wiki/Body_fat_percentage#U.S._Navy_circumference_method" target="_blank" style="color: var(--lime); text-decoration: underline;">Source: U.S. Navy Circumference Method</a>) (<a href="https://pmc.ncbi.nlm.nih.gov/articles/PMC6650177/" target="_blank" style="color: var(--lime); text-decoration: underline;">Source: National Library of Medicine</a>)</em>
 
-            </p>
+        <div class="problem-point-card">
+          <div class="problem-icon">✕</div>
+          <div>
+            <div class="problem-text-title">Fragmented Member Records</div>
+            <div class="problem-text-desc">Membership status, medical forms, and payment histories scattered across spreadsheets.</div>
+          </div>
         </div>
-    </div>
-</section>
 
-<!-- ═══════════════ PRICING (FOR GYM OWNERS) ═══════════════ -->
-<section class="landing-section" id="pricing" style="position: relative; z-index: 10;">
-    <div class="section-header text-center pricing-reveal" style="text-align: center; margin-bottom: 40px;">
-        <h2 style="font-size: 2.5rem; margin-bottom: 16px;">Scale Your Gym, Automate Your Operations</h2>
-        <p style="font-size: 1.125rem; color: var(--muted); max-width: 600px; margin: 0 auto;">
-            Choose the platform built specifically for ambitious gym owners. 
-            All plans include a simple <strong style="color:var(--lime);">1% transaction fee</strong> on recorded revenue.
+        <div class="problem-point-card">
+          <div class="problem-icon">✕</div>
+          <div>
+            <div class="problem-text-title">Unmonitored Member Churn</div>
+            <div class="problem-text-desc">No automated warnings when regular members drop off or stop attending classes.</div>
+          </div>
+        </div>
+
+        <div class="problem-point-card">
+          <div class="problem-icon">✕</div>
+          <div>
+            <div class="problem-text-title">Disconnected Trainer Workflows</div>
+            <div class="problem-text-desc">Workout routines delivered on paper cards or unorganized instant messages.</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="problem-summary-card">
+        <span class="summary-tag">The FitTrack Engine</span>
+        <h3 class="summary-headline">FitTrack brings every operational thread together into a single live system.</h3>
+        <p class="summary-body">
+          From automated turnstile QR scanning to live trainer assignments and financial reporting, FitTrack eliminates administrative friction so your team can focus on member retention and growth.
         </p>
+      </div>
     </div>
-    
-    <div class="pricing-cards-container" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 24px; max-width: 1000px; margin: 0 auto; padding: 0 20px;">
-        <?php 
-        $publicPlans = get_platform_subscription_plans();
-        foreach ($publicPlans as $pKey => $p): 
-            $isPop = !empty($p['popular']);
-        ?>
-            <div class="pricing-card" style="background: <?= $isPop ? 'color-mix(in srgb, var(--lime) 5%, rgba(0,0,0,0.4))' : 'rgba(255, 255, 255, 0.02)' ?>; border: 1px solid <?= $isPop ? 'var(--lime)' : 'var(--line)' ?>; border-radius: 16px; padding: 32px; display: flex; flex-direction: column; <?= $isPop ? 'position: relative; transform: scale(1.05); z-index: 2; box-shadow: 0 20px 40px rgba(0,0,0,0.4);' : '' ?> visibility: hidden;">
-                <?php if ($isPop): ?>
-                    <div style="position: absolute; top: -12px; left: 50%; transform: translateX(-50%); background: var(--lime); color: #000; font-size: 0.75rem; font-weight: 700; padding: 4px 12px; border-radius: 999px; text-transform: uppercase; letter-spacing: 1px;">Most Popular</div>
-                <?php endif; ?>
-                <h3 style="font-size: 1.5rem; margin: 0 0 8px 0; <?= $isPop ? 'color: var(--lime);' : '' ?>"><?= h($p['name']) ?></h3>
-                <p style="color: var(--muted); font-size: 0.9rem; margin-bottom: 24px;"><?= h($p['desc']) ?></p>
-                <div style="font-size: 2.5rem; font-weight: 700; margin-bottom: 24px;">
-                    <?= h($p['price_label']) ?><span style="font-size: 1rem; font-weight: 400; color: var(--muted);">/mo</span>
-                </div>
-                <ul style="list-style: none; padding: 0; margin: 0 0 32px 0; color: <?= $isPop ? 'var(--ink)' : 'var(--muted)' ?>; font-size: 0.95rem; display: flex; flex-direction: column; gap: 12px; flex: 1;">
-                    <?php foreach ($p['features'] as $feat): ?>
-                        <li>✓ <?= h($feat) ?></li>
-                    <?php endforeach; ?>
-                </ul>
-                <a href="index.php?page=register&role=gym_owner" class="btn-landing <?= $isPop ? 'btn-landing-primary' : 'btn-landing-outline' ?>" style="text-align: center; width: 100%;">Get Started</a>
-            </div>
-        <?php endforeach; ?>
-    </div>
-</section>
+  </section>
 
-<!-- ═══════════════ CTA ═══════════════ -->
-<section class="landing-cta" id="cta">
-    <div class="cta-glow"></div>
-    <div class="cta-content gs-reveal">
-        <h2>Ready to Start Your <span style="color:var(--lime)">Transformation</span>?</h2>
-        <p>Join hundreds of members who are already hitting their goals with FitTrack. Your first step starts here.</p>
-        <div class="hero-cta">
-            <a href="index.php?page=register" class="btn-landing btn-landing-primary">
-                Create Free Account
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18">
-                    <path d="M5 12h14"></path>
-                    <path d="M12 5l7 7-7 7"></path>
-                </svg>
-            </a>
+  <!-- ==========================================================================
+       05. THE FITTRACK SOLUTION
+       ========================================================================== -->
+  <section class="solution-section">
+    <div class="container">
+      <div class="section-header">
+        <span class="section-label">Unified Architecture</span>
+        <h2 class="section-title">One Platform. Total Connectivity.</h2>
+        <p class="section-desc">Observe how FitTrack unifies every aspect of your facility into one smooth digital workflow.</p>
+      </div>
+
+      <div class="solution-flow">
+        <div class="flow-node">
+          <div class="flow-node-icon">🏢</div>
+          <div class="flow-node-title">Your Facility</div>
+          <div class="flow-node-desc">Front Desk & Floor</div>
         </div>
+
+        <div class="flow-arrow">➔</div>
+
+        <div class="flow-node flow-hub">
+          <div class="flow-node-icon">⚡</div>
+          <div class="flow-node-title">FITTRACK HUB</div>
+          <div class="flow-node-desc">Central Core Engine</div>
+        </div>
+
+        <div class="flow-arrow">➔</div>
+
+        <div class="flow-node">
+          <div class="flow-node-icon">📊</div>
+          <div class="flow-node-title">Live Insights</div>
+          <div class="flow-node-desc">Operations & Revenue</div>
+        </div>
+      </div>
     </div>
-</section>
+  </section>
 
-<!-- ═══════════════ FOOTER ═══════════════ -->
-<footer class="landing-footer">
-    <span>&copy; <?= date('Y') ?> FitTrack. All rights reserved.</span>
-    <span>
-        <a href="index.php?page=terms">Terms of Service</a> &middot;
-        <a href="index.php?page=privacy">Privacy Policy</a> &middot;
-        <a href="index.php?page=login">Sign In</a> &middot;
-        <a href="index.php?page=register">Register</a>
-    </span>
-</footer>
+  <!-- ==========================================================================
+       06. CORE FEATURES
+       ========================================================================== -->
+  <section class="features-section" id="features">
+    <div class="container">
+      <div class="section-header">
+        <span class="section-label">Platform Capabilities</span>
+        <h2 class="section-title">Comprehensive Tools Built for Gym Growth</h2>
+        <p class="section-desc">Designed to handle real commercial gym workloads with precision and reliability.</p>
+      </div>
 
-<!-- ═══════════════ GSAP + Lenis + Three.js ═══════════════ -->
-<script src="https://cdn.jsdelivr.net/npm/gsap@3/dist/gsap.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/gsap@3/dist/ScrollTrigger.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/gsap@3/dist/ScrollToPlugin.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/lenis@1/dist/lenis.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.js"></script>
-<script>
-document.addEventListener('DOMContentLoaded', () => {
-    gsap.registerPlugin(ScrollTrigger, ScrollToPlugin);
+      <div class="features-grid">
+        <div class="feature-card">
+          <div class="feature-icon-box">👥</div>
+          <h3 class="feature-title">Member Management</h3>
+          <p class="feature-desc">Complete digital records, membership plan statuses, profiles, and attendance history.</p>
+        </div>
 
-    // ─── LENIS — smooth inertia scroll, wired into GSAP's ticker/ScrollTrigger ───
-    const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    let lenis = null;
+        <div class="feature-card">
+          <div class="feature-icon-box">📱</div>
+          <h3 class="feature-title">Dynamic QR Attendance</h3>
+          <p class="feature-desc">Secure time-stamped check-ins using rotating dynamic QR codes to prevent pass-sharing.</p>
+        </div>
 
-    if (!prefersReducedMotion && window.Lenis) {
-        lenis = new Lenis({
-            duration: 1.1,
-            easing: t => Math.min(1, 1.001 - Math.pow(2, -10 * t)),
-            smoothWheel: true
-        });
+        <div class="feature-card">
+          <div class="feature-icon-box">💳</div>
+          <h3 class="feature-title">Online Payments</h3>
+          <p class="feature-desc">Streamlined membership billing, recurring payments, walk-in fees, and audit logging.</p>
+        </div>
 
-        lenis.on('scroll', ScrollTrigger.update);
+        <div class="feature-card">
+          <div class="feature-icon-box">🏋️</div>
+          <h3 class="feature-title">Trainer Management</h3>
+          <p class="feature-desc">Assign coaches to members, manage training schedules, and monitor client progression.</p>
+        </div>
 
-        gsap.ticker.add(time => lenis.raf(time * 1000));
-        gsap.ticker.lagSmoothing(0);
+        <div class="feature-card">
+          <div class="feature-icon-box">📋</div>
+          <h3 class="feature-title">Workout & Dietary Plans</h3>
+          <p class="feature-desc">Custom routine builders with automated calorie and macro calculation engines.</p>
+        </div>
 
-        // Let ScrollTrigger drive scroll position through Lenis instead of the native scrollbar
-        ScrollTrigger.scrollerProxy(document.body, {
-            scrollTop(value) {
-                if (arguments.length) { lenis.scrollTo(value, { immediate: true }); }
-                return lenis.scroll;
-            },
-            getBoundingClientRect() {
-                return { top: 0, left: 0, width: window.innerWidth, height: window.innerHeight };
-            }
-        });
+        <div class="feature-card">
+          <div class="feature-icon-box">⚡</div>
+          <h3 class="feature-title">Equipment Availability</h3>
+          <p class="feature-desc">Live equipment queue monitoring and maintenance schedule tracking.</p>
+        </div>
+
+        <div class="feature-card">
+          <div class="feature-icon-box">📈</div>
+          <h3 class="feature-title">Fitness Progress</h3>
+          <p class="feature-desc">Track weight, body measurement changes, strength records, and milestone achievements.</p>
+        </div>
+
+        <div class="feature-card">
+          <div class="feature-icon-box">🔔</div>
+          <h3 class="feature-title">Engagement Monitoring</h3>
+          <p class="feature-desc">Automated alerts flag inactive members early so staff can re-engage them before churn.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==========================================================================
+       07. FEATURE PRESENTATION (ALTERNATING ROWS WITH ACCURATE GYM PHOTOS)
+       ========================================================================== -->
+  <section class="feature-presentation-section">
+    <div class="container">
+      <!-- Row 1: Member Management -->
+      <div class="feature-row">
+        <div class="feature-text-block">
+          <span class="feature-label">01 — Administration</span>
+          <h2 class="feature-row-title">Member Management & Records</h2>
+          <p class="feature-row-desc">
+            Keep every member record clean, organized, and accessible. Easily verify subscription renewals, attendance streaks, and account status in seconds.
+          </p>
+          <ul class="feature-bullets">
+            <li class="feature-bullet-item"><span class="bullet-check">✓</span> Instant status verification (Active, Expiring, Pending)</li>
+            <li class="feature-bullet-item"><span class="bullet-check">✓</span> Automated membership renewal notifications</li>
+            <li class="feature-bullet-item"><span class="bullet-check">✓</span> Centralized profile storage and health assessments</li>
+          </ul>
+        </div>
+        <div class="feature-media-frame">
+          <img src="assets/landing/gym_member.png" alt="Member Training" class="feature-media-photo">
+          <div class="feature-media-ui-overlay">
+            <div class="media-ui-title">MEMBER STATUS</div>
+            <div class="media-ui-val">Active Annual Membership • Verified</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Row 2: Dynamic QR Attendance (ACCURATE QR SCAN PHOTO) -->
+      <div class="feature-row reverse">
+        <div class="feature-text-block">
+          <span class="feature-label">02 — Access Control</span>
+          <h2 class="feature-row-title">Dynamic QR Turnstile Verification</h2>
+          <p class="feature-row-desc">
+            Replace legacy keycards with secure dynamic QR scanning. Members generate a fresh security code on their smartphone for instant turnstile check-in.
+          </p>
+          <ul class="feature-bullets">
+            <li class="feature-bullet-item"><span class="bullet-check">✓</span> Prevents membership card sharing</li>
+            <li class="feature-bullet-item"><span class="bullet-check">✓</span> Logs peak hours and floor utilization in real time</li>
+            <li class="feature-bullet-item"><span class="bullet-check">✓</span> Automated self-checkout and session feedback</li>
+          </ul>
+        </div>
+        <div class="feature-media-frame">
+          <img src="assets/landing/gym_qr_scan.png" alt="Dynamic QR Turnstile Entrance" class="feature-media-photo">
+          <div class="feature-media-ui-overlay">
+            <div class="media-ui-title">DYNAMIC QR SCANNER</div>
+            <div class="media-ui-val">QR Code Verified — Turnstile Unlocked (08:42 AM)</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Row 3: Trainer Coaching -->
+      <div class="feature-row">
+        <div class="feature-text-block">
+          <span class="feature-label">03 — Coaching Staff</span>
+          <h2 class="feature-row-title">Personalized Trainer Guidance</h2>
+          <p class="feature-row-desc">
+            Empower personal trainers to build customized workout programs, log client body assessments, and monitor training compliance directly within the system.
+          </p>
+          <ul class="feature-bullets">
+            <li class="feature-bullet-item"><span class="bullet-check">✓</span> Custom routine templates and exercise libraries</li>
+            <li class="feature-bullet-item"><span class="bullet-check">✓</span> Trainer commission tracking and session logging</li>
+            <li class="feature-bullet-item"><span class="bullet-check">✓</span> Integrated client messaging and feedback</li>
+          </ul>
+        </div>
+        <div class="feature-media-frame">
+          <img src="assets/landing/gym_trainer.png" alt="Trainer Guidance" class="feature-media-photo">
+          <div class="feature-media-ui-overlay">
+            <div class="media-ui-title">COACHING DASHBOARD</div>
+            <div class="media-ui-val">12 Active Clients Assigned • 98% Program Compliance</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Row 4: Gym Operations & Analytics -->
+      <div class="feature-row reverse">
+        <div class="feature-text-block">
+          <span class="feature-label">04 — Business Intelligence</span>
+          <h2 class="feature-row-title">Live Facility Operations & Analytics</h2>
+          <p class="feature-row-desc">
+            Give gym management full real-time operational control. Monitor peak floor hours, staff schedules, and financial revenue stats on mobile or tablet devices.
+          </p>
+          <ul class="feature-bullets">
+            <li class="feature-bullet-item"><span class="bullet-check">✓</span> Real-time occupancy & check-in metrics</li>
+            <li class="feature-bullet-item"><span class="bullet-check">✓</span> Recurring revenue & payment audit logging</li>
+            <li class="feature-bullet-item"><span class="bullet-check">✓</span> Predictive member churn risk alerts</li>
+          </ul>
+        </div>
+        <div class="feature-media-frame">
+          <img src="assets/landing/gym_analytics_tablet.png" alt="Gym Operations Analytics Tablet" class="feature-media-photo">
+          <div class="feature-media-ui-overlay">
+            <div class="media-ui-title">OPERATIONS CONTROL</div>
+            <div class="media-ui-val">Live Facility Analytics • 100% System Synchronization</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==========================================================================
+       08. PRODUCT SHOWCASE ("SEE FITTRACK IN ACTION")
+       ========================================================================== -->
+  <section class="showcase-section">
+    <div class="container">
+      <div class="section-header">
+        <span class="section-label">Live Platform Demonstration</span>
+        <h2 class="section-title">See FitTrack in Action</h2>
+        <p class="section-desc">Explore how FitTrack’s interfaces present critical operational data cleanly and efficiently.</p>
+      </div>
+
+      <!-- Showcase Tabs Navigation -->
+      <div class="showcase-tabs-nav">
+        <button class="showcase-tab-btn active" data-tab="tab-dashboard">Dashboard</button>
+        <button class="showcase-tab-btn" data-tab="tab-members">Members</button>
+        <button class="showcase-tab-btn" data-tab="tab-attendance">Attendance</button>
+        <button class="showcase-tab-btn" data-tab="tab-payments">Payments</button>
+        <button class="showcase-tab-btn" data-tab="tab-trainers">Trainers</button>
+        <button class="showcase-tab-btn" data-tab="tab-analytics">Analytics</button>
+      </div>
+
+      <!-- Showcase Window Mockup -->
+      <div class="showcase-window">
+        <div class="showcase-window-header">
+          <div class="window-dots">
+            <span class="dot"></span>
+            <span class="dot"></span>
+            <span class="dot"></span>
+          </div>
+          <span class="window-title">fittrack.app / workspace / control-panel</span>
+          <span></span>
+        </div>
+
+        <div class="showcase-screen-content">
+          <!-- Pane 1: Dashboard -->
+          <div class="screen-pane active" id="tab-dashboard">
+            <div class="mock-stat-cards">
+              <div class="mock-stat-box">
+                <div class="mock-stat-label">Total Active Members</div>
+                <div class="mock-stat-num"><?= number_format(max(450, $stat_members * 5 + 320)) ?></div>
+                <div class="mock-stat-badge">+8.4% this month</div>
+              </div>
+              <div class="mock-stat-box">
+                <div class="mock-stat-label">Check-ins Today</div>
+                <div class="mock-stat-num">164</div>
+                <div class="mock-stat-badge">Peak Capacity: 74%</div>
+              </div>
+              <div class="mock-stat-box">
+                <div class="mock-stat-label">Monthly Revenue</div>
+                <div class="mock-stat-num">₱248,500</div>
+                <div class="mock-stat-badge">On Track</div>
+              </div>
+            </div>
+
+            <div class="mock-table-card">
+              <div class="mock-table-title">Recent Gym Access Logs</div>
+              <table class="mock-table">
+                <thead>
+                  <tr>
+                    <th>Member Name</th>
+                    <th>Plan</th>
+                    <th>Check-In Time</th>
+                    <th>Verification</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td>Alex Rivera</td>
+                    <td>Annual Elite</td>
+                    <td>09:14 AM</td>
+                    <td><span class="status-badge-active">QR Verified</span></td>
+                  </tr>
+                  <tr>
+                    <td>Sarah Santos</td>
+                    <td>Monthly Plus</td>
+                    <td>09:02 AM</td>
+                    <td><span class="status-badge-active">QR Verified</span></td>
+                  </tr>
+                  <tr>
+                    <td>Marcus Reyes</td>
+                    <td>Quarterly Starter</td>
+                    <td>08:45 AM</td>
+                    <td><span class="status-badge-active">QR Verified</span></td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- Pane 2: Members -->
+          <div class="screen-pane" id="tab-members">
+            <div class="mock-table-card">
+              <div class="mock-table-title">Member Directory & Subscriptions</div>
+              <table class="mock-table">
+                <thead>
+                  <tr>
+                    <th>Member</th>
+                    <th>Email</th>
+                    <th>Status</th>
+                    <th>Renewal Date</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td>Elena Cruz</td>
+                    <td>elena.c@gmail.com</td>
+                    <td><span class="status-badge-active">Active</span></td>
+                    <td>Oct 15, 2026</td>
+                  </tr>
+                  <tr>
+                    <td>David Miller</td>
+                    <td>david.m@outlook.com</td>
+                    <td><span class="status-badge-active">Active</span></td>
+                    <td>Nov 02, 2026</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- Pane 3: Attendance -->
+          <div class="screen-pane" id="tab-attendance">
+            <div class="mock-table-card">
+              <div class="mock-table-title">Dynamic QR Verification Logs</div>
+              <p style="color: var(--text-muted); font-size: 0.9rem; margin-bottom: 1rem;">Real-time stream of turnstile scan events.</p>
+              <table class="mock-table">
+                <thead>
+                  <tr>
+                    <th>Session ID</th>
+                    <th>User</th>
+                    <th>Entry Point</th>
+                    <th>Timestamp</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td>#ATT-8942</td>
+                    <td>John Dela Cruz</td>
+                    <td>Main Entrance Gate 1</td>
+                    <td>10:04:12 AM</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- Pane 4: Payments -->
+          <div class="screen-pane" id="tab-payments">
+            <div class="mock-table-card">
+              <div class="mock-table-title">Recent Transactions & Invoices</div>
+              <table class="mock-table">
+                <thead>
+                  <tr>
+                    <th>Transaction Ref</th>
+                    <th>Description</th>
+                    <th>Amount</th>
+                    <th>Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td>TXN-90412</td>
+                    <td>Quarterly Plus Membership</td>
+                    <td>₱3,200.00</td>
+                    <td><span class="status-badge-active">Paid</span></td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- Pane 5: Trainers -->
+          <div class="screen-pane" id="tab-trainers">
+            <div class="mock-table-card">
+              <div class="mock-table-title">Coaching Roster & Client Allocation</div>
+              <table class="mock-table">
+                <thead>
+                  <tr>
+                    <th>Trainer</th>
+                    <th>Specialty</th>
+                    <th>Assigned Clients</th>
+                    <th>Rating</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td>Coach Carlos Tan</td>
+                    <td>Strength & Conditioning</td>
+                    <td>14 Members</td>
+                    <td>4.9 ★</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- Pane 6: Analytics -->
+          <div class="screen-pane" id="tab-analytics">
+            <div class="mock-table-card">
+              <div class="mock-table-title">Retention & Engagement Insights</div>
+              <p style="color: var(--text-muted); font-size: 0.9rem;">Automated predictive metrics identifying members needing proactive outreach.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==========================================================================
+       09. HOW FITTRACK WORKS
+       ========================================================================== -->
+  <section class="how-section" id="how-it-works">
+    <div class="container">
+      <div class="section-header">
+        <span class="section-label">Simple Onboarding</span>
+        <h2 class="section-title">How FitTrack Works</h2>
+        <p class="section-desc">Get your commercial facility up and running in 4 clear steps.</p>
+      </div>
+
+      <div class="steps-grid">
+        <div class="step-card">
+          <div class="step-num">01</div>
+          <h3 class="step-title">Register Your Gym</h3>
+          <p class="step-desc">Submit your facility details, select your operational plan, and set up your workspace.</p>
+        </div>
+
+        <div class="step-card">
+          <div class="step-num">02</div>
+          <h3 class="step-title">Set Up Workspace</h3>
+          <p class="step-desc">Configure membership plans, add coaching staff, and define facility access rules.</p>
+        </div>
+
+        <div class="step-card">
+          <div class="step-num">03</div>
+          <h3 class="step-title">Manage Operations</h3>
+          <p class="step-desc">Enable QR turnstile verification, record payments, and assign workout plans.</p>
+        </div>
+
+        <div class="step-card">
+          <div class="step-num">04</div>
+          <h3 class="step-title">Monitor Engagement</h3>
+          <p class="step-desc">Track member attendance trends and receive automatic churn risk notifications.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==========================================================================
+       10. USER EXPERIENCE BY USER TYPE
+       ========================================================================== -->
+  <section class="users-section">
+    <div class="container">
+      <div class="section-header">
+        <span class="section-label">Tailored Interfaces</span>
+        <h2 class="section-title">Designed for Every User in Your Facility</h2>
+        <p class="section-desc">Customized experiences optimized for the specific tasks of owners, coaches, and members.</p>
+      </div>
+
+      <div class="users-tabs-container">
+        <div class="users-tab-header">
+          <button class="user-tab-btn active" data-user="user-owners">For Gym Owners</button>
+          <button class="user-tab-btn" data-user="user-trainers">For Trainers</button>
+          <button class="user-tab-btn" data-user="user-members">For Members</button>
+        </div>
+
+        <div class="user-pane-content active" id="user-owners">
+          <div>
+            <h3 class="user-pane-title">Complete Business Oversight</h3>
+            <p class="user-pane-desc">
+              Monitor peak occupancy, membership revenue, staff commissions, and churn metrics from a single executive dashboard.
+            </p>
+            <ul class="user-benefit-list">
+              <li class="user-benefit-item"><span class="bullet-check">✓</span> Live turnstile capacity metrics</li>
+              <li class="user-benefit-item"><span class="bullet-check">✓</span> Subscription billing reports</li>
+              <li class="user-benefit-item"><span class="bullet-check">✓</span> Staff role permission management</li>
+            </ul>
+          </div>
+          <img src="assets/landing/gym_management.png" alt="Gym Management" style="border-radius: var(--radius-lg); border: 1px solid var(--border-medium);">
+        </div>
+
+        <div class="user-pane-content" id="user-trainers">
+          <div>
+            <h3 class="user-pane-title">Professional Client Management</h3>
+            <p class="user-pane-desc">
+              Build workout templates, create dietary plans, track client assessment metrics, and communicate seamlessly.
+            </p>
+            <ul class="user-benefit-list">
+              <li class="user-benefit-item"><span class="bullet-check">✓</span> Custom routine library builder</li>
+              <li class="user-benefit-item"><span class="bullet-check">✓</span> Calorie & macro calculator integration</li>
+              <li class="user-benefit-item"><span class="bullet-check">✓</span> Direct member progress tracking</li>
+            </ul>
+          </div>
+          <img src="assets/landing/gym_trainer.png" alt="Trainer Workflows" style="border-radius: var(--radius-lg); border: 1px solid var(--border-medium);">
+        </div>
+
+        <div class="user-pane-content" id="user-members">
+          <div>
+            <h3 class="user-pane-title">Frictionless Member Mobile Experience</h3>
+            <p class="user-pane-desc">
+              Scan dynamic QR codes at the gate, track workout logs, follow diet plans, and view live equipment availability queues.
+            </p>
+            <ul class="user-benefit-list">
+              <li class="user-benefit-item"><span class="bullet-check">✓</span> Instant QR check-in</li>
+              <li class="user-benefit-item"><span class="bullet-check">✓</span> Goal achievement & streak logs</li>
+              <li class="user-benefit-item"><span class="bullet-check">✓</span> Equipment queue status</li>
+            </ul>
+          </div>
+          <img src="assets/landing/gym_member.png" alt="Member Mobile App" style="border-radius: var(--radius-lg); border: 1px solid var(--border-medium);">
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==========================================================================
+       11. TESTIMONIALS — INFINITE AUTO-SLIDING MARQUEE TICKER (6 COMMERCIAL REVIEWS)
+       ========================================================================== -->
+  <section class="testimonials-section" id="testimonials">
+    <div class="container">
+      <div class="section-header">
+        <span class="section-label">Proven Results</span>
+        <h2 class="section-title">Trusted by Commercial Fitness Leaders</h2>
+        <p class="section-desc">Hear how FitTrack transformed operations for real gym operators across the country.</p>
+      </div>
+    </div>
+
+    <!-- Infinite Marquee Ticker Track -->
+    <div class="ticker-container">
+      <div class="ticker-track">
+        <!-- Review Card 1 -->
+        <div class="testimonial-card ticker-card">
+          <div>
+            <div class="quote-icon">“</div>
+            <p class="quote-text">
+              FitTrack gave us total visibility over member attendance trends. Our turnstile lines disappeared after adopting dynamic QR verification.
+            </p>
+          </div>
+          <div class="author-info">
+            <div class="author-avatar">MR</div>
+            <div>
+              <div class="author-name">Mark Ramirez</div>
+              <div class="author-role">Owner • Titan Fitness Center</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Review Card 2 -->
+        <div class="testimonial-card ticker-card">
+          <div>
+            <div class="quote-icon">“</div>
+            <p class="quote-text">
+              The automated engagement monitoring flagged 45 inactive members last month. We re-engaged over 70% of them before their subscriptions lapsed.
+            </p>
+          </div>
+          <div class="author-info">
+            <div class="author-avatar">JC</div>
+            <div>
+              <div class="author-name">Jessica Cruz</div>
+              <div class="author-role">Operations Manager • Apex Athletics</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Review Card 3 -->
+        <div class="testimonial-card ticker-card">
+          <div>
+            <div class="quote-icon">“</div>
+            <p class="quote-text">
+              Assigning customized workout programs and dietary routines to my clients takes half the time now. It’s the cleanest tool I’ve used.
+            </p>
+          </div>
+          <div class="author-info">
+            <div class="author-avatar">DC</div>
+            <div>
+              <div class="author-name">David Castillo</div>
+              <div class="author-role">Head Coach • Elevate Performance</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Review Card 4 -->
+        <div class="testimonial-card ticker-card">
+          <div>
+            <div class="quote-icon">“</div>
+            <p class="quote-text">
+              Managing multi-branch gym locations used to be a nightmare of disconnected spreadsheets. FitTrack synchronized our staff and billing in 24 hours.
+            </p>
+          </div>
+          <div class="author-info">
+            <div class="author-avatar">SL</div>
+            <div>
+              <div class="author-name">Samantha Lim</div>
+              <div class="author-role">General Manager • MetroFit Philippines</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Review Card 5 -->
+        <div class="testimonial-card ticker-card">
+          <div>
+            <div class="quote-icon">“</div>
+            <p class="quote-text">
+              Online payment tracking and automated renewal reminders boosted our monthly cash flow predictability by 35%. Highly recommended!
+            </p>
+          </div>
+          <div class="author-info">
+            <div class="author-avatar">RT</div>
+            <div>
+              <div class="author-name">Ramon Torralba</div>
+              <div class="author-role">Managing Partner • Ironclad Gyms</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Review Card 6 -->
+        <div class="testimonial-card ticker-card">
+          <div>
+            <div class="quote-icon">“</div>
+            <p class="quote-text">
+              Our members love the dynamic QR mobile check-in. It feels ultra-modern, secure, and our front desk staff can focus on member service.
+            </p>
+          </div>
+          <div class="author-info">
+            <div class="author-avatar">AB</div>
+            <div>
+              <div class="author-name">Angela Bernardo</div>
+              <div class="author-role">Customer Success Lead • Pulse Fitness Studio</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Duplicate Set for Seamless 100% Infinite Auto-Scroll Loop -->
+        <div class="testimonial-card ticker-card">
+          <div>
+            <div class="quote-icon">“</div>
+            <p class="quote-text">
+              FitTrack gave us total visibility over member attendance trends. Our turnstile lines disappeared after adopting dynamic QR verification.
+            </p>
+          </div>
+          <div class="author-info">
+            <div class="author-avatar">MR</div>
+            <div>
+              <div class="author-name">Mark Ramirez</div>
+              <div class="author-role">Owner • Titan Fitness Center</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="testimonial-card ticker-card">
+          <div>
+            <div class="quote-icon">“</div>
+            <p class="quote-text">
+              The automated engagement monitoring flagged 45 inactive members last month. We re-engaged over 70% of them before their subscriptions lapsed.
+            </p>
+          </div>
+          <div class="author-info">
+            <div class="author-avatar">JC</div>
+            <div>
+              <div class="author-name">Jessica Cruz</div>
+              <div class="author-role">Operations Manager • Apex Athletics</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="testimonial-card ticker-card">
+          <div>
+            <div class="quote-icon">“</div>
+            <p class="quote-text">
+              Assigning customized workout programs and dietary routines to my clients takes half the time now. It’s the cleanest tool I’ve used.
+            </p>
+          </div>
+          <div class="author-info">
+            <div class="author-avatar">DC</div>
+            <div>
+              <div class="author-name">David Castillo</div>
+              <div class="author-role">Head Coach • Elevate Performance</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="testimonial-card ticker-card">
+          <div>
+            <div class="quote-icon">“</div>
+            <p class="quote-text">
+              Managing multi-branch gym locations used to be a nightmare of disconnected spreadsheets. FitTrack synchronized our staff and billing in 24 hours.
+            </p>
+          </div>
+          <div class="author-info">
+            <div class="author-avatar">SL</div>
+            <div>
+              <div class="author-name">Samantha Lim</div>
+              <div class="author-role">General Manager • MetroFit Philippines</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="testimonial-card ticker-card">
+          <div>
+            <div class="quote-icon">“</div>
+            <p class="quote-text">
+              Online payment tracking and automated renewal reminders boosted our monthly cash flow predictability by 35%. Highly recommended!
+            </p>
+          </div>
+          <div class="author-info">
+            <div class="author-avatar">RT</div>
+            <div>
+              <div class="author-name">Ramon Torralba</div>
+              <div class="author-role">Managing Partner • Ironclad Gyms</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="testimonial-card ticker-card">
+          <div>
+            <div class="quote-icon">“</div>
+            <p class="quote-text">
+              Our members love the dynamic QR mobile check-in. It feels ultra-modern, secure, and our front desk staff can focus on member service.
+            </p>
+          </div>
+          <div class="author-info">
+            <div class="author-avatar">AB</div>
+            <div>
+              <div class="author-name">Angela Bernardo</div>
+              <div class="author-role">Customer Success Lead • Pulse Fitness Studio</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==========================================================================
+       12. PRICING
+       ========================================================================== -->
+  <section class="pricing-section" id="pricing">
+    <div class="container">
+      <div class="section-header">
+        <span class="section-label">Transparent Commercial Plans</span>
+        <h2 class="section-title">Plans Built to Scale With Your Gym</h2>
+        <p class="section-desc">Select the right operational tier for your facility.</p>
+      </div>
+
+      <div class="pricing-grid">
+        <!-- Starter -->
+        <div class="pricing-card">
+          <h3 class="plan-name">Starter</h3>
+          <p class="plan-desc">Ideal for boutique fitness studios and single-location facilities.</p>
+          <div class="plan-price-box">
+            <span class="price-currency">₱</span>
+            <span class="price-val">499</span>
+            <span class="price-period">/ month</span>
+          </div>
+          <ul class="plan-features-list">
+            <li class="plan-feature-item"><span class="bullet-check">✓</span> Up to 150 Active Members</li>
+            <li class="plan-feature-item"><span class="bullet-check">✓</span> Dynamic QR Attendance</li>
+            <li class="plan-feature-item"><span class="bullet-check">✓</span> Basic Member Management</li>
+            <li class="plan-feature-item"><span class="bullet-check">✓</span> Email Support</li>
+          </ul>
+          <a href="index.php?page=gym_onboarding" class="btn btn-outline btn-lg" style="width: 100%;">Register Gym</a>
+        </div>
+
+        <!-- Professional (Popular) -->
+        <div class="pricing-card popular">
+          <span class="popular-badge">Most Popular</span>
+          <h3 class="plan-name">Professional</h3>
+          <p class="plan-desc">Designed for growing commercial gyms with full coaching staff.</p>
+          <div class="plan-price-box">
+            <span class="price-currency">₱</span>
+            <span class="price-val">999</span>
+            <span class="price-period">/ month</span>
+          </div>
+          <ul class="plan-features-list">
+            <li class="plan-feature-item"><span class="bullet-check">✓</span> Up to 500 Active Members</li>
+            <li class="plan-feature-item"><span class="bullet-check">✓</span> Everything in Starter</li>
+            <li class="plan-feature-item"><span class="bullet-check">✓</span> Trainer Management & Workouts</li>
+            <li class="plan-feature-item"><span class="bullet-check">✓</span> Online Payment Gateway</li>
+            <li class="plan-feature-item"><span class="bullet-check">✓</span> Engagement Churn Risk Alerts</li>
+          </ul>
+          <a href="index.php?page=gym_onboarding" class="btn btn-lime btn-lg" style="width: 100%;">Register Gym</a>
+        </div>
+
+        <!-- Business -->
+        <div class="pricing-card">
+          <h3 class="plan-name">Business</h3>
+          <p class="plan-desc">For large enterprise facilities requiring custom scale.</p>
+          <div class="plan-price-box">
+            <span class="price-currency">₱</span>
+            <span class="price-val">1,999</span>
+            <span class="price-period">/ month</span>
+          </div>
+          <ul class="plan-features-list">
+            <li class="plan-feature-item"><span class="bullet-check">✓</span> Unlimited Members</li>
+            <li class="plan-feature-item"><span class="bullet-check">✓</span> Everything in Professional</li>
+            <li class="plan-feature-item"><span class="bullet-check">✓</span> Multi-Branch Management</li>
+            <li class="plan-feature-item"><span class="bullet-check">✓</span> Dedicated Account Manager</li>
+            <li class="plan-feature-item"><span class="bullet-check">✓</span> Custom API Integrations</li>
+          </ul>
+          <a href="index.php?page=gym_onboarding" class="btn btn-outline btn-lg" style="width: 100%;">Register Gym</a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==========================================================================
+       13. FINAL CTA & FOOTER
+       ========================================================================== -->
+  <section class="cta-section">
+    <div class="container">
+      <div class="cta-box">
+        <h2 class="cta-title">Ready to bring your gym operations together?</h2>
+        <p class="cta-desc">
+          Manage your gym, members, trainers, payments, and engagement with FitTrack.
+        </p>
+        <div class="cta-btn-group">
+          <button class="btn btn-lime btn-lg" onclick="openDemoModal()">Request a Demo →</button>
+          <a href="index.php?page=gym_onboarding" class="btn btn-secondary btn-lg">Register Your Gym</a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- SaaS Footer -->
+  <footer class="saas-footer">
+    <div class="container">
+      <div class="footer-grid">
+        <div>
+          <a href="#" class="brand-logo-wrap">
+            <div class="brand-f-logo">F</div>
+            <div class="brand-text-block">
+              <div class="brand-logotype">
+                <span class="brand-fit">FIT</span><span class="brand-track">TRACK</span>
+              </div>
+              <span class="brand-tagline">MANAGE. ENGAGE. GROW.</span>
+            </div>
+          </a>
+          <p class="footer-brand-desc">
+            A data-driven web application for gym operations and member engagement monitoring. Built for modern commercial fitness centers.
+          </p>
+        </div>
+
+        <div>
+          <h4 class="footer-col-title">Platform</h4>
+          <ul class="footer-links">
+            <li><a href="#features" class="footer-link">Member Management</a></li>
+            <li><a href="#features" class="footer-link">Dynamic QR Access</a></li>
+            <li><a href="#features" class="footer-link">Trainer Coaching</a></li>
+            <li><a href="#features" class="footer-link">Engagement Engine</a></li>
+          </ul>
+        </div>
+
+        <div>
+          <h4 class="footer-col-title">Resources</h4>
+          <ul class="footer-links">
+            <li><a href="#how-it-works" class="footer-link">How It Works</a></li>
+            <li><a href="#pricing" class="footer-link">Pricing Plans</a></li>
+            <li><a href="#testimonials" class="footer-link">Customer Stories</a></li>
+          </ul>
+        </div>
+
+        <div>
+          <h4 class="footer-col-title">Account</h4>
+          <ul class="footer-links">
+            <li><a href="index.php?page=login" class="footer-link">Log In</a></li>
+            <li><a href="index.php?page=gym_onboarding" class="footer-link">Register Gym</a></li>
+            <li><a href="javascript:void(0)" onclick="openDemoModal()" class="footer-link">Request Demo</a></li>
+          </ul>
+        </div>
+
+        <div>
+          <h4 class="footer-col-title">Legal</h4>
+          <ul class="footer-links">
+            <li><a href="#" class="footer-link">Privacy Policy</a></li>
+            <li><a href="#" class="footer-link">Terms of Service</a></li>
+            <li><a href="#" class="footer-link">Security Compliance</a></li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="footer-bottom">
+        <div>© <?= date('Y') ?> FitTrack Systems. All rights reserved.</div>
+        <div>Commercial Gym Operations Engine</div>
+      </div>
+    </div>
+  </footer>
+
+  <!-- ==========================================================================
+       DEMO REQUEST MODAL
+       ========================================================================== -->
+  <div class="modal-backdrop" id="demoModalBackdrop" onclick="handleBackdropClick(event)">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3 class="modal-title">Request a Live FitTrack Demo</h3>
+        <button class="modal-close-btn" onclick="closeDemoModal()">×</button>
+      </div>
+
+      <div class="modal-body">
+        <form id="demoForm" onsubmit="submitDemoForm(event)">
+          <?= csrf_field() ?>
+          <input type="hidden" name="demo_request" value="1">
+
+          <div id="modalAlert" style="display: none; padding: 0.75rem; border-radius: 6px; font-size: 0.875rem; margin-bottom: 1rem;"></div>
+
+          <div class="form-group">
+            <label class="form-label">Full Name *</label>
+            <input type="text" name="full_name" class="form-input" placeholder="e.g. Alex Rivera" required>
+          </div>
+
+          <div class="form-grid-2">
+            <div class="form-group">
+              <label class="form-label">Work Email *</label>
+              <input type="email" name="work_email" class="form-input" placeholder="alex@yourgym.com" required>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Phone Number</label>
+              <input type="tel" name="phone" class="form-input" placeholder="+63 917 123 4567">
+            </div>
+          </div>
+
+          <div class="form-grid-2">
+            <div class="form-group">
+              <label class="form-label">Gym Name</label>
+              <input type="text" name="gym_name" class="form-input" placeholder="Titan Fitness">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Approx. Members</label>
+              <select name="approx_members" class="form-select">
+                <option value="1-150">1 - 150 members</option>
+                <option value="151-500">151 - 500 members</option>
+                <option value="500+">500+ members</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Your Role</label>
+            <select name="role" class="form-select">
+              <option value="Gym Owner">Gym Owner</option>
+              <option value="General Manager">General Manager</option>
+              <option value="Head Trainer">Head Trainer</option>
+              <option value="Other">Other</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Message / Specific Questions</label>
+            <textarea name="message" class="form-input" rows="3" placeholder="Tell us about your gym setup..."></textarea>
+          </div>
+
+          <button type="submit" class="btn btn-lime btn-lg" id="submitDemoBtn" style="width: 100%;">
+            Submit Demo Request
+          </button>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==========================================================================
+       VANILLA JAVASCRIPT LOGIC & 3D TILT EFFECT
+       ========================================================================== -->
+  <script>
+    // 1. Mousemove 3D Card Tilt Effect
+    const tiltCard = document.getElementById('heroTiltCard');
+    if (tiltCard && tiltCard.parentElement) {
+      const container = tiltCard.parentElement;
+      container.addEventListener('mousemove', (e) => {
+        const rect = container.getBoundingClientRect();
+        const x = e.clientX - rect.left - rect.width / 2;
+        const y = e.clientY - rect.top - rect.height / 2;
+        const rotateX = (-y / rect.height) * 14;
+        const rotateY = (x / rect.width) * 14;
+        tiltCard.style.transform = `rotateX(${rotateX}deg) rotateY(${rotateY}deg)`;
+      });
+      container.addEventListener('mouseleave', () => {
+        tiltCard.style.transform = `rotateX(0deg) rotateY(0deg)`;
+      });
     }
 
-    // ─── CUSTOM CURSOR ───
-    const cursorDot = document.getElementById('cursor-dot');
-    const cursorRing = document.getElementById('cursor-ring');
-    const isTouch = window.matchMedia('(hover: none), (pointer: coarse)').matches;
+    // 2. Sticky Navigation Blur
+    const nav = document.getElementById('mainNav');
+    window.addEventListener('scroll', () => {
+      if (window.scrollY > 40) {
+        nav.classList.add('scrolled');
+      } else {
+        nav.classList.remove('scrolled');
+      }
+    });
 
-    if (cursorDot && cursorRing && !isTouch) {
-        document.body.classList.add('has-custom-cursor');
-        let ringX = 0, ringY = 0, mouseX = 0, mouseY = 0;
-
-        window.addEventListener('mousemove', e => {
-            mouseX = e.clientX;
-            mouseY = e.clientY;
-            cursorDot.style.left = mouseX + 'px';
-            cursorDot.style.top = mouseY + 'px';
-        });
-
-        gsap.ticker.add(() => {
-            ringX += (mouseX - ringX) * 0.18;
-            ringY += (mouseY - ringY) * 0.18;
-            cursorRing.style.left = ringX + 'px';
-            cursorRing.style.top = ringY + 'px';
-        });
-
-        document.querySelectorAll('a, button, .btn-landing, .fs-dot, .hero-3d-scene').forEach(el => {
-            el.addEventListener('mouseenter', () => document.body.classList.add('cursor-hover'));
-            el.addEventListener('mouseleave', () => document.body.classList.remove('cursor-hover'));
-        });
-
-        document.addEventListener('mouseleave', () => document.body.classList.add('cursor-hidden'));
-        document.addEventListener('mouseenter', () => document.body.classList.remove('cursor-hidden'));
+    // 3. Mobile Menu Toggle
+    const mobileBtn = document.getElementById('mobileMenuBtn');
+    const mobileDrawer = document.getElementById('mobileDrawer');
+    if (mobileBtn && mobileDrawer) {
+      mobileBtn.addEventListener('click', () => {
+        mobileDrawer.classList.toggle('open');
+      });
+    }
+    function closeMobileMenu() {
+      if (mobileDrawer) mobileDrawer.classList.remove('open');
     }
 
-    // ─── MAGNETIC BUTTONS ───
-    if (!isTouch) {
-        document.querySelectorAll('.btn-landing').forEach(btn => {
-            const strength = 0.35;
+    // 4. Product Showcase Screen Switcher
+    const showcaseTabBtns = document.querySelectorAll('.showcase-tab-btn');
+    const showcasePanes = document.querySelectorAll('.screen-pane');
+    showcaseTabBtns.forEach(btn => {
+      btn.addEventListener('click', () => {
+        const targetId = btn.getAttribute('data-tab');
+        showcaseTabBtns.forEach(b => b.classList.remove('active'));
+        showcasePanes.forEach(p => p.classList.remove('active'));
+        
+        btn.classList.add('active');
+        const targetPane = document.getElementById(targetId);
+        if (targetPane) targetPane.classList.add('active');
+      });
+    });
 
-            btn.addEventListener('mousemove', e => {
-                const rect = btn.getBoundingClientRect();
-                const relX = e.clientX - rect.left - rect.width / 2;
-                const relY = e.clientY - rect.top - rect.height / 2;
-                gsap.to(btn, { x: relX * strength, y: relY * strength, duration: 0.4, ease: 'power2.out' });
-            });
+    // 5. User Experience Tab Switcher
+    const userTabBtns = document.querySelectorAll('.user-tab-btn');
+    const userPanes = document.querySelectorAll('.user-pane-content');
+    userTabBtns.forEach(btn => {
+      btn.addEventListener('click', () => {
+        const targetId = btn.getAttribute('data-user');
+        userTabBtns.forEach(b => b.classList.remove('active'));
+        userPanes.forEach(p => p.classList.remove('active'));
+        
+        btn.classList.add('active');
+        const targetPane = document.getElementById(targetId);
+        if (targetPane) targetPane.classList.add('active');
+      });
+    });
 
-            btn.addEventListener('mouseleave', () => {
-                gsap.to(btn, { x: 0, y: 0, duration: 0.5, ease: 'elastic.out(1, 0.4)' });
-            });
-        });
+    // 6. Demo Modal Logic
+    const demoModalBackdrop = document.getElementById('demoModalBackdrop');
+    function openDemoModal() {
+      if (demoModalBackdrop) {
+        demoModalBackdrop.classList.add('open');
+        document.body.style.overflow = 'hidden';
+      }
     }
 
-    // ─── SCROLL PROGRESS BAR ───
-    gsap.to('#scroll-progress', {
-        scaleX: 1,
-        ease: 'none',
-        scrollTrigger: {
-            trigger: document.body,
-            start: 'top top',
-            end: 'bottom bottom',
-            scrub: 0.3
-        }
-    });
-
-    // ─── HERO TIMELINE ───
-    const heroTl = gsap.timeline({ defaults: { ease: 'power3.out' } });
-
-    // Eyebrow pill
-    heroTl.from('.hero-eyebrow', {
-        y: 30, opacity: 0, duration: 0.8,
-        onStart() { this.targets()[0].style.visibility = 'visible'; }
-    });
-
-    // Title words — stagger with a clip effect
-    heroTl.from('.hero-title .word', {
-        y: 80, opacity: 0, duration: 0.9, stagger: 0.12,
-        onStart() { document.querySelector('.hero-title').style.visibility = 'visible'; }
-    }, '-=0.4');
-
-    // Subtitle
-    heroTl.from('.hero-subtitle', {
-        y: 30, opacity: 0, duration: 0.7,
-        onStart() { this.targets()[0].style.visibility = 'visible'; }
-    }, '-=0.4');
-
-    // CTA buttons
-    heroTl.from('.hero-cta', {
-        y: 30, opacity: 0, duration: 0.7,
-        onStart() { this.targets()[0].style.visibility = 'visible'; }
-    }, '-=0.35');
-
-    // Accent line draws in
-    heroTl.from('.hero-accent-line line', {
-        scaleX: 0, transformOrigin: 'center', duration: 1.2, ease: 'power2.inOut',
-        onStart() { document.querySelector('.hero-accent-line').style.visibility = 'visible'; }
-    }, '-=0.5');
-
-    // Scroll indicator
-    heroTl.from('.scroll-indicator', {
-        opacity: 0, y: 20, duration: 0.6,
-        onStart() { this.targets()[0].style.visibility = 'visible'; }
-    }, '-=0.3');
-
-    // Hero visual card — clip reveal + rise
-    heroTl.from('.hero-visual', {
-        y: 60, opacity: 0, scale: 0.96, duration: 1,
-        onStart() { document.querySelector('.hero-visual').style.visibility = 'visible'; }
-    }, '-=0.4');
-
-    // Hero visual — parallax drift while scrolling past the hero
-    gsap.to('.hero-visual-frame img', {
-        yPercent: 12,
-        ease: 'none',
-        scrollTrigger: {
-            trigger: '.landing-hero',
-            start: 'top top',
-            end: 'bottom top',
-            scrub: true
-        }
-    });
-
-    // ─── FLOATING SHAPES — continuous animation ───
-    document.querySelectorAll('.floating-shape').forEach((shape, i) => {
-        gsap.to(shape, {
-            y: `random(-40, 40)`,
-            x: `random(-20, 20)`,
-            rotation: `random(-25, 25)`,
-            duration: `random(4, 8)`,
-            repeat: -1,
-            yoyo: true,
-            ease: 'sine.inOut',
-            delay: i * 0.3
-        });
-    });
-
-    // ─── NAVBAR background on scroll ───
-    ScrollTrigger.create({
-        start: 'top -80',
-        onEnter: () => document.getElementById('landing-nav').style.background = 'rgba(9, 11, 16, 0.92)',
-        onLeaveBack: () => document.getElementById('landing-nav').style.background = 'rgba(9, 11, 16, 0.6)'
-    });
-
-    // ─── FEATURE STORY — pinned typographic scroll (CSS + text only, no 3D/video) ───
-    const fsPanels = gsap.utils.toArray('.fs-panel');
-    const fsDots = gsap.utils.toArray('.fs-dot');
-
-    if (fsPanels.length) {
-        let fsCurrent = 0;
-
-        function setFsActive(i) {
-            if (i === fsCurrent) return;
-            const prev = fsPanels[fsCurrent];
-            const next = fsPanels[i];
-
-            gsap.to(prev, { opacity: 0, y: -24, duration: 0.45, ease: 'power2.inOut' });
-            gsap.fromTo(next, { opacity: 0, y: 24 }, { opacity: 1, y: 0, duration: 0.45, ease: 'power2.inOut' });
-
-            prev.classList.remove('active');
-            next.classList.add('active');
-            fsDots[fsCurrent].classList.remove('active');
-            fsDots[i].classList.add('active');
-
-            document.documentElement.style.setProperty('--fs-color', next.dataset.color);
-            fsCurrent = i;
-        }
-
-        ScrollTrigger.create({
-            trigger: '.feature-story',
-            start: 'top top',
-            end: () => '+=' + (fsPanels.length * window.innerHeight),
-            pin: '.feature-story-pin',
-            pinSpacing: true,
-            onUpdate(self) {
-                const idx = Math.min(fsPanels.length - 1, Math.floor(self.progress * fsPanels.length));
-                setFsActive(idx);
-            }
-        });
+    function closeDemoModal() {
+      if (demoModalBackdrop) {
+        demoModalBackdrop.classList.remove('open');
+        document.body.style.overflow = '';
+      }
     }
 
-    // Section headers
-    document.querySelectorAll('.section-header').forEach(header => {
-        gsap.from(header.children, {
-            scrollTrigger: { trigger: header, start: 'top 85%' },
-            y: 40, opacity: 0, duration: 0.7, stagger: 0.1, ease: 'power2.out'
-        });
-    });
-
-    // ─── SHOWCASE — clip reveal + parallax images ───
-    document.querySelectorAll('.showcase-item').forEach((item, i) => {
-        gsap.from(item, {
-            scrollTrigger: { trigger: item, start: 'top 85%' },
-            clipPath: 'inset(100% 0% 0% 0%)',
-            duration: 1,
-            ease: 'power3.inOut',
-            delay: i * 0.08,
-            onStart() { item.style.visibility = 'visible'; }
-        });
-
-        // Each image drifts at a slightly different speed for a parallax feel
-        gsap.to(item.querySelector('img'), {
-            yPercent: item.classList.contains('tall') ? 10 : 16,
-            ease: 'none',
-            scrollTrigger: {
-                trigger: item,
-                start: 'top bottom',
-                end: 'bottom top',
-                scrub: true
-            }
-        });
-
-        gsap.from(item.querySelector('.showcase-caption'), {
-            scrollTrigger: { trigger: item, start: 'top 70%' },
-            y: 24, opacity: 0, duration: 0.6, delay: i * 0.08 + 0.3, ease: 'power2.out'
-        });
-    });
-
-    // ─── TESTIMONIALS — infinite scrolling marquee ───
-    const track = document.getElementById('testimonials-track');
-    if (track) {
-        // Duplicate the cards so the loop is seamless
-        track.innerHTML += track.innerHTML;
-
-        const marqueeTween = gsap.to(track, {
-            xPercent: -50,
-            ease: 'none',
-            duration: 30,
-            repeat: -1
-        });
-
-        track.addEventListener('mouseenter', () => marqueeTween.timeScale(0.15));
-        track.addEventListener('mouseleave', () => marqueeTween.timeScale(1));
-
-        gsap.from('.landing-testimonials .section-header', {
-            scrollTrigger: { trigger: '.landing-testimonials', start: 'top 85%' },
-            y: 30, opacity: 0, duration: 0.7, ease: 'power2.out'
-        });
+    function handleBackdropClick(e) {
+      if (e.target === demoModalBackdrop) {
+        closeDemoModal();
+      }
     }
 
-    // ─── STATS — count-up animation ───
-    document.querySelectorAll('[data-count]').forEach(el => {
-        const target = parseInt(el.dataset.count, 10);
-        const obj = { val: 0 };
+    // 7. Demo Form AJAX Submission
+    async function submitDemoForm(e) {
+      e.preventDefault();
+      const form = document.getElementById('demoForm');
+      const alertBox = document.getElementById('modalAlert');
+      const submitBtn = document.getElementById('submitDemoBtn');
 
-        ScrollTrigger.create({
-            trigger: el,
-            start: 'top 90%',
-            once: true,
-            onEnter() {
-                el.closest('.stat-item').style.visibility = 'visible';
-                gsap.to(obj, {
-                    val: target,
-                    duration: 2,
-                    ease: 'power1.out',
-                    snap: { val: 1 },
-                    onUpdate() { el.textContent = Math.round(obj.val); }
-                });
-            }
+      submitBtn.disabled = true;
+      submitBtn.innerText = 'Submitting...';
+      alertBox.style.display = 'none';
+
+      try {
+        const formData = new FormData(form);
+        const response = await fetch(window.location.href, {
+          method: 'POST',
+          body: formData
         });
-    });
 
-    // Stat items fade in
-    gsap.from('.stat-item', {
-        scrollTrigger: { trigger: '.stats-grid', start: 'top 85%' },
-        y: 30, opacity: 0, duration: 0.6, stagger: 0.1,
-        onStart() {
-            document.querySelectorAll('.stat-item').forEach(s => s.style.visibility = 'visible');
+        const result = await response.json();
+
+        if (result.success) {
+          alertBox.style.display = 'block';
+          alertBox.style.background = 'rgba(132, 204, 22, 0.15)';
+          alertBox.style.border = '1px solid #84cc16';
+          alertBox.style.color = '#a3e635';
+          alertBox.innerText = '✓ Thank you! Your demo request has been received. Our team will contact you shortly.';
+          form.reset();
+          setTimeout(() => {
+            closeDemoModal();
+            alertBox.style.display = 'none';
+          }, 3500);
+        } else {
+          alertBox.style.display = 'block';
+          alertBox.style.background = 'rgba(239, 68, 68, 0.15)';
+          alertBox.style.border = '1px solid #ef4444';
+          alertBox.style.color = '#f87171';
+          alertBox.innerText = (result.errors && result.errors.length) ? result.errors.join(', ') : 'Failed to submit request. Please try again.';
         }
-    });
-
-    // ─── STEPS — scroll-triggered stagger ───
-    gsap.from('.step-card', {
-        scrollTrigger: { trigger: '.steps-grid', start: 'top 80%' },
-        y: 50, opacity: 0, duration: 0.7, stagger: 0.15, ease: 'power2.out',
-        onStart() {
-            document.querySelectorAll('.step-card').forEach(c => c.style.visibility = 'visible');
-        }
-    });
-
-    // ─── WHAT YOU GET — stagger rows ───
-    gsap.from('.wyg-row', {
-        scrollTrigger: { trigger: '#what-you-get', start: 'top 80%' },
-        y: 30, opacity: 0, duration: 0.6, stagger: 0.1, ease: 'power2.out'
-    });
-
-    // ─── ENGAGEMENT SCORE — animated bar fill ───
-    ScrollTrigger.create({
-        trigger: '#engagement-score',
-        start: 'top 75%',
-        once: true,
-        onEnter() {
-            document.querySelectorAll('.eng-bar-fill').forEach(bar => {
-                bar.style.width = bar.dataset.width;
-            });
-        }
-    });
-
-    // ─── FITNESS TIERS — stagger columns ───
-    gsap.from('.tier-col', {
-        scrollTrigger: { trigger: '#fitness-tiers', start: 'top 80%' },
-        y: 24, opacity: 0, duration: 0.5, stagger: 0.08, ease: 'power2.out'
-    });
-
-    // ─── CTA — zoom-in entrance ───
-    gsap.from('.cta-content', {
-        scrollTrigger: { trigger: '.landing-cta', start: 'top 80%' },
-        scale: 0.9, opacity: 0, duration: 0.8, ease: 'power2.out',
-        onStart() { document.querySelector('.cta-content').style.visibility = 'visible'; }
-    });
-
-    // ─── PRICING — stagger cards ───
-    gsap.from('.pricing-card', {
-        scrollTrigger: { trigger: '#pricing', start: 'top 75%' },
-        y: 40, opacity: 0, duration: 0.6, stagger: 0.15, ease: 'power2.out',
-        onStart() {
-            document.querySelectorAll('.pricing-card').forEach(c => c.style.visibility = 'visible');
-        }
-    });
-
-    // ─── SMOOTH SCROLL for anchor links ───
-    document.querySelectorAll('a[href^="#"]').forEach(link => {
-        link.addEventListener('click', e => {
-            e.preventDefault();
-            const target = document.querySelector(link.getAttribute('href'));
-            if (!target) return;
-
-            if (lenis) {
-                lenis.scrollTo(target, { offset: -60, duration: 1.1 });
-            } else {
-                gsap.to(window, { duration: 1, scrollTo: { y: target, offsetY: 60 }, ease: 'power2.inOut' });
-            }
-        });
-    });
-
-    // ─── HERO CAROUSEL (SWIPER) ───
-    if (typeof Swiper !== 'undefined') {
-        new Swiper('.hero-swiper', {
-            effect: 'coverflow',
-            grabCursor: true,
-            centeredSlides: true,
-            slidesPerView: 'auto',
-            loop: true,
-            autoplay: {
-                delay: 3500,
-                disableOnInteraction: false,
-            },
-            coverflowEffect: {
-                rotate: 15,
-                stretch: 0,
-                depth: 250,
-                modifier: 1,
-                slideShadows: true,
-            },
-        });
+      } catch (err) {
+        alertBox.style.display = 'block';
+        alertBox.style.background = 'rgba(239, 68, 68, 0.15)';
+        alertBox.style.border = '1px solid #ef4444';
+        alertBox.style.color = '#f87171';
+        alertBox.innerText = 'Network error. Please try again.';
+      } finally {
+        submitBtn.disabled = false;
+        submitBtn.innerText = 'Submit Demo Request';
+      }
     }
+  </script>
 
-    // ─── MOBILE HAMBURGER MENU ───
-    const hamburgerBtn = document.getElementById('landing-hamburger');
-    const mobileMenu = document.getElementById('landing-mobile-menu');
-
-    if (hamburgerBtn && mobileMenu) {
-        function toggleMobileMenu(forceClose = false) {
-            const isOpen = forceClose ? false : !mobileMenu.classList.contains('open');
-            hamburgerBtn.classList.toggle('active', isOpen);
-            mobileMenu.classList.toggle('open', isOpen);
-            hamburgerBtn.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
-            document.body.style.overflow = isOpen ? 'hidden' : '';
-        }
-
-        hamburgerBtn.addEventListener('click', () => toggleMobileMenu());
-
-        mobileMenu.querySelectorAll('.mobile-nav-link, .mobile-menu-footer a').forEach(link => {
-            link.addEventListener('click', e => {
-                const href = link.getAttribute('href');
-                toggleMobileMenu(true);
-                if (href && href.startsWith('#')) {
-                    e.preventDefault();
-                    const target = document.querySelector(href);
-                    if (target) {
-                        if (lenis) {
-                            lenis.scrollTo(target, { offset: -60, duration: 1.1 });
-                        } else {
-                            gsap.to(window, { duration: 1, scrollTo: { y: target, offsetY: 60 }, ease: 'power2.inOut' });
-                        }
-                    }
-                }
-            });
-        });
-
-        document.addEventListener('keydown', e => {
-            if (e.key === 'Escape' && mobileMenu.classList.contains('open')) {
-                toggleMobileMenu(true);
-            }
-        });
-    }
-});
-
-</script>
 </body>
 </html>
 <?php

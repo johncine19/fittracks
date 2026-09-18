@@ -346,6 +346,262 @@ function member_dashboard(PDO $pdo, array $user): void
     .stat-card-progress:hover .member-stat-cta { color: var(--teal); }
     .stat-card-classes:hover .member-stat-cta { color: #a855f7; }
 
+    /* Missions & Leaderboard Smooth Panels */
+    .missions-panel-card {
+        background: linear-gradient(135deg, rgba(22, 27, 39, 0.85) 0%, rgba(15, 19, 28, 0.95) 100%);
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        border-radius: 14px;
+        padding: 20px;
+        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+        transition: all 0.25s ease;
+    }
+    .missions-panel-card:hover {
+        border-color: rgba(255, 255, 255, 0.14);
+    }
+    html[data-theme="light"] .missions-panel-card,
+    [data-theme="light"] .missions-panel-card {
+        background: #ffffff !important;
+        border: 1px solid #cbd5e1 !important;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.04) !important;
+    }
+
+    /* Mission Item Smooth Cards */
+    .mission-card-item {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        background: linear-gradient(135deg, rgba(22, 27, 39, 0.6) 0%, rgba(15, 19, 28, 0.75) 100%);
+        border: 1px solid rgba(255, 255, 255, 0.07);
+        border-radius: 12px;
+        padding: 14px 18px;
+        margin-bottom: 10px;
+        position: relative;
+        overflow: hidden;
+        transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+    }
+    .mission-card-item:hover {
+        transform: translateY(-2px);
+        border-color: color-mix(in srgb, var(--lime) 35%, var(--line));
+        box-shadow: 0 6px 20px rgba(0, 0, 0, 0.18);
+    }
+    .mission-card-item::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        bottom: 0;
+        width: 3px;
+        background: var(--lime);
+        opacity: 0;
+        transition: opacity 0.25s ease;
+    }
+    .mission-card-item:hover::before {
+        opacity: 1;
+    }
+    .mission-card-item.mission-completed {
+        background: linear-gradient(135deg, rgba(22, 27, 39, 0.35) 0%, rgba(15, 19, 28, 0.45) 100%);
+        border-color: color-mix(in srgb, #22c55e 20%, var(--line));
+    }
+    .mission-card-item.mission-completed::before {
+        background: #22c55e;
+        opacity: 0.5;
+    }
+    html[data-theme="light"] .mission-card-item,
+    [data-theme="light"] .mission-card-item {
+        background: #ffffff !important;
+        border: 1px solid #e2e8f0 !important;
+        box-shadow: 0 1px 4px rgba(0, 0, 0, 0.03) !important;
+    }
+    html[data-theme="light"] .mission-card-item:hover,
+    [data-theme="light"] .mission-card-item:hover {
+        background: #ffffff !important;
+        border-color: #84cc16 !important;
+        box-shadow: 0 4px 14px rgba(101, 163, 13, 0.1) !important;
+    }
+    html[data-theme="light"] .mission-card-item.mission-completed,
+    [data-theme="light"] .mission-card-item.mission-completed {
+        background: #f8fafc !important;
+        border-color: #bbf7d0 !important;
+    }
+
+    /* Explore Item Smooth Cards */
+    .explore-card-item {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+        background: linear-gradient(135deg, rgba(22, 27, 39, 0.6) 0%, rgba(15, 19, 28, 0.75) 100%);
+        border: 1px solid rgba(255, 255, 255, 0.07);
+        border-radius: 12px;
+        padding: 14px 18px;
+        margin-bottom: 10px;
+        position: relative;
+        overflow: hidden;
+        transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+    }
+    .explore-card-item:hover {
+        transform: translateY(-2px);
+        border-color: color-mix(in srgb, var(--lime) 35%, var(--line));
+        box-shadow: 0 6px 20px rgba(0, 0, 0, 0.18);
+    }
+    .explore-card-item::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        bottom: 0;
+        width: 3px;
+        background: var(--lime);
+        opacity: 0;
+        transition: opacity 0.25s ease;
+    }
+    .explore-card-item:hover::before {
+        opacity: 1;
+    }
+    .explore-card-item.accent-gym:hover {
+        border-color: rgba(168, 85, 247, 0.4);
+    }
+    .explore-card-item.accent-gym::before {
+        background: #a855f7;
+    }
+    html[data-theme="light"] .explore-card-item,
+    [data-theme="light"] .explore-card-item {
+        background: #ffffff !important;
+        border: 1px solid #e2e8f0 !important;
+        box-shadow: 0 1px 4px rgba(0, 0, 0, 0.03) !important;
+    }
+    html[data-theme="light"] .explore-card-item:hover,
+    [data-theme="light"] .explore-card-item:hover {
+        background: #ffffff !important;
+        border-color: #84cc16 !important;
+        box-shadow: 0 4px 14px rgba(101, 163, 13, 0.1) !important;
+    }
+    html[data-theme="light"] .explore-card-item.accent-gym:hover,
+    [data-theme="light"] .explore-card-item.accent-gym:hover {
+        border-color: #a855f7 !important;
+        box-shadow: 0 4px 14px rgba(168, 85, 247, 0.12) !important;
+    }
+
+    /* Explore Header & Action Buttons */
+    .explore-browse-btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 9px 18px;
+        background: var(--lime);
+        color: #080b0d !important;
+        font-size: 13px;
+        font-weight: 700;
+        border-radius: 10px;
+        text-decoration: none !important;
+        border: 1px solid transparent;
+        box-shadow: 0 4px 14px color-mix(in srgb, var(--lime) 28%, transparent);
+        transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+        cursor: pointer;
+    }
+    .explore-browse-btn:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 6px 20px color-mix(in srgb, var(--lime) 45%, transparent);
+        filter: brightness(1.06);
+        color: #080b0d !important;
+        text-decoration: none !important;
+    }
+    .explore-browse-btn svg {
+        transition: transform 0.2s ease;
+    }
+    .explore-browse-btn:hover svg {
+        transform: translateX(3px);
+    }
+
+    .explore-action-btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        padding: 7px 15px;
+        font-size: 12.5px;
+        font-weight: 700;
+        border-radius: 8px;
+        text-decoration: none !important;
+        flex-shrink: 0;
+        align-self: center;
+        transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+        cursor: pointer;
+    }
+    .explore-action-btn.btn-book {
+        background: color-mix(in srgb, var(--lime) 14%, transparent);
+        color: var(--lime) !important;
+        border: 1px solid color-mix(in srgb, var(--lime) 35%, transparent);
+    }
+    .explore-action-btn.btn-book:hover {
+        background: var(--lime);
+        color: #080b0d !important;
+        border-color: var(--lime);
+        box-shadow: 0 4px 14px color-mix(in srgb, var(--lime) 30%, transparent);
+        transform: translateY(-2px);
+        text-decoration: none !important;
+    }
+    .explore-action-btn.btn-view {
+        background: rgba(168, 85, 247, 0.14);
+        color: #c084fc !important;
+        border: 1px solid rgba(168, 85, 247, 0.35);
+    }
+    .explore-action-btn.btn-view:hover {
+        background: #a855f7;
+        color: #ffffff !important;
+        border-color: #a855f7;
+        box-shadow: 0 4px 14px rgba(168, 85, 247, 0.35);
+        transform: translateY(-2px);
+        text-decoration: none !important;
+    }
+    .explore-action-btn svg {
+        transition: transform 0.2s ease;
+    }
+    .explore-action-btn:hover svg {
+        transform: translateX(2px);
+    }
+
+    /* Light Theme Styling for Explore Buttons */
+    html[data-theme="light"] .explore-browse-btn,
+    [data-theme="light"] .explore-browse-btn {
+        background: #84cc16 !important;
+        color: #0f172a !important;
+        box-shadow: 0 2px 8px rgba(132, 204, 22, 0.25) !important;
+    }
+    html[data-theme="light"] .explore-browse-btn:hover,
+    [data-theme="light"] .explore-browse-btn:hover {
+        background: #65a30d !important;
+        color: #ffffff !important;
+        box-shadow: 0 4px 14px rgba(101, 163, 13, 0.3) !important;
+    }
+    html[data-theme="light"] .explore-action-btn.btn-book,
+    [data-theme="light"] .explore-action-btn.btn-book {
+        background: #f7fee7 !important;
+        color: #4d7c0f !important;
+        border-color: #bef264 !important;
+    }
+    html[data-theme="light"] .explore-action-btn.btn-book:hover,
+    [data-theme="light"] .explore-action-btn.btn-book:hover {
+        background: #84cc16 !important;
+        color: #ffffff !important;
+        border-color: #84cc16 !important;
+        box-shadow: 0 3px 10px rgba(132, 204, 22, 0.25) !important;
+    }
+    html[data-theme="light"] .explore-action-btn.btn-view,
+    [data-theme="light"] .explore-action-btn.btn-view {
+        background: #faf5ff !important;
+        color: #7e22ce !important;
+        border-color: #e9d5ff !important;
+    }
+    html[data-theme="light"] .explore-action-btn.btn-view:hover,
+    [data-theme="light"] .explore-action-btn.btn-view:hover {
+        background: #9333ea !important;
+        color: #ffffff !important;
+        border-color: #9333ea !important;
+        box-shadow: 0 3px 10px rgba(147, 51, 234, 0.25) !important;
+    }
+
     /* Light Theme Styling for Stat Cards */
     html[data-theme="light"] .member-stat-card,
     [data-theme="light"] .member-stat-card {
@@ -901,31 +1157,38 @@ function member_dashboard(PDO $pdo, array $user): void
     <!-- TAB 2: RANK & MISSIONS                     -->
     <!-- ========================================== -->
     <div id="panel-missions" class="member-tab-panel">
+        <?php
+        $gymId = $user['gym_id'] ?? scalar('SELECT gym_id FROM gym_members WHERE user_id = ? LIMIT 1', [$user['user_id']]);
+        $stmtLeaders = $pdo->prepare('SELECT u.user_id, u.first_name, u.last_name, u.engagement_score FROM users u JOIN gym_members gm ON u.user_id = gm.user_id WHERE u.role = "member" AND gm.gym_id = ? AND u.status = "active" ORDER BY u.engagement_score DESC LIMIT 5');
+        $stmtLeaders->execute([$gymId]);
+        $topLeaders = $stmtLeaders->fetchAll(PDO::FETCH_ASSOC);
+
+        $stmtBadges = $pdo->prepare('SELECT badge_type, unlocked_at FROM member_badges WHERE user_id = ? ORDER BY unlocked_at DESC');
+        $stmtBadges->execute([$user['user_id']]);
+        $badges = $stmtBadges->fetchAll(PDO::FETCH_ASSOC);
+        ?>
+
         <!-- Leaderboard & Badges Grid -->
         <div class="skeleton-content animate-fade-in" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr)); gap: 24px; margin-bottom: 24px;">
             <!-- Gym Leaderboard -->
-            <section class="panel" style="padding: 20px;">
+            <section id="gym-leaderboard-section" class="panel missions-panel-card" style="padding: 20px;">
                 <h3 style="margin: 0 0 16px; color: var(--ink); display: flex; align-items: center; gap: 8px;">
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--lime);"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/></svg>
                     Gym Leaderboard
                 </h3>
                 <?php
-                $gymId = $user['gym_id'] ?? scalar('SELECT gym_id FROM gym_members WHERE user_id = ? LIMIT 1', [$user['user_id']]);
-                $stmtLeaders = $pdo->prepare('SELECT u.first_name, u.last_name, u.engagement_score FROM users u JOIN gym_members gm ON u.user_id = gm.user_id WHERE u.role = "member" AND gm.gym_id = ? AND u.status = "active" ORDER BY u.engagement_score DESC LIMIT 5');
-                $stmtLeaders->execute([$gymId]);
-                $leaders = $stmtLeaders->fetchAll(PDO::FETCH_ASSOC);
-                if ($leaders) {
+                if ($topLeaders) {
                     $rank = 1;
-                    foreach ($leaders as $leader) {
-                        $isMe = ($leader['first_name'] === $user['first_name'] && $leader['last_name'] === $user['last_name']);
-                        $bg = $isMe ? 'color-mix(in srgb, var(--lime) 12%, transparent)' : 'transparent';
-                        $border = $isMe ? '1px solid color-mix(in srgb, var(--lime) 35%, transparent)' : '1px solid var(--line)';
-                        echo '<div style="display: flex; align-items: center; justify-content: space-between; padding: 10px; border-bottom: 1px solid var(--line); background: '.$bg.'; border: '.$border.'; border-radius: 8px; margin-bottom: 4px;">';
+                    foreach ($topLeaders as $leader) {
+                        $isMe = ((int)$leader['user_id'] === (int)$user['user_id']);
+                        $bg = $isMe ? 'color-mix(in srgb, var(--lime) 12%, transparent)' : 'color-mix(in srgb, var(--panel-soft) 40%, transparent)';
+                        $border = $isMe ? '1px solid color-mix(in srgb, var(--lime) 40%, transparent)' : '1px solid var(--line)';
+                        echo '<div style="display: flex; align-items: center; justify-content: space-between; padding: 11px 14px; background: '.$bg.'; border: '.$border.'; border-radius: 10px; margin-bottom: 8px; transition: all 0.2s ease;">';
                         echo '<div style="display: flex; align-items: center; gap: 12px;">';
-                        echo '<span style="font-weight: bold; color: var(--muted); width: 20px;">#'.$rank.'</span>';
-                        echo '<span style="font-weight: 600; color: var(--ink);">'.h($leader['first_name'].' '.mb_substr($leader['last_name'], 0, 1)).'.</span>';
+                        echo '<span style="font-weight: 800; color: '.($rank <= 3 ? 'var(--lime)' : 'var(--muted)').'; width: 22px; font-size: 13px;">#'.$rank.'</span>';
+                        echo '<span style="font-weight: 600; color: var(--ink); font-size: 13.5px;">'.h($leader['first_name'].' '.mb_substr($leader['last_name'], 0, 1)).'. '.($isMe ? '<small style="color:var(--lime);font-size:11px;font-weight:700;">(You)</small>' : '').'</span>';
                         echo '</div>';
-                        echo '<span style="font-weight: 800; color: var(--lime);">'.$leader['engagement_score'].'</span>';
+                        echo '<span style="font-weight: 800; color: var(--lime); font-size: 14px;">'.$leader['engagement_score'].' <small style="font-size:11px;font-weight:500;color:var(--muted)">pts</small></span>';
                         echo '</div>';
                         $rank++;
                     }
@@ -936,16 +1199,12 @@ function member_dashboard(PDO $pdo, array $user): void
             </section>
 
             <!-- My Badges -->
-            <section class="panel" style="padding: 20px;">
+            <section id="my-badges-section" class="panel missions-panel-card" style="padding: 20px;">
                 <h3 style="margin: 0 0 16px; color: var(--ink); display: flex; align-items: center; gap: 8px;">
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--lime);"><circle cx="12" cy="8" r="6"/><path d="M15.477 12.89 17 22l-5-3-5 3 1.523-9.11"/></svg>
                     My Badges
                 </h3>
                 <?php
-                $stmtBadges = $pdo->prepare('SELECT badge_type, unlocked_at FROM member_badges WHERE user_id = ? ORDER BY unlocked_at DESC');
-                $stmtBadges->execute([$user['user_id']]);
-                $badges = $stmtBadges->fetchAll(PDO::FETCH_ASSOC);
-
                 $badgeDefs = [
                     'early_bird' => [
                         'icon' => '<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color:var(--lime); display:inline-block;"><circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/></svg>',
@@ -965,21 +1224,21 @@ function member_dashboard(PDO $pdo, array $user): void
                 ];
 
                 if ($badges) {
-                    echo '<div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(80px, 1fr)); gap: 16px;">';
+                    echo '<div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(88px, 1fr)); gap: 14px;">';
                     foreach ($badges as $b) {
                         $def = $badgeDefs[$b['badge_type']] ?? [
                             'icon' => '<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color:var(--lime); display:inline-block;"><circle cx="12" cy="8" r="6"/><path d="M15.477 12.89 17 22l-5-3-5 3 1.523-9.11"/></svg>',
                             'name' => 'Unknown',
                             'desc' => 'Achievement Unlocked'
                         ];
-                        echo '<div style="text-align: center; background: var(--panel-soft); padding: 12px; border-radius: 12px; border: 1px solid var(--line);" title="'.h($def['desc']).' - Unlocked '.date('M j', strtotime($b['unlocked_at'])).'">';
+                        echo '<div style="text-align: center; background: color-mix(in srgb, var(--panel-soft) 45%, transparent); padding: 14px 10px; border-radius: 12px; border: 1px solid var(--line); transition: all 0.2s ease;" title="'.h($def['desc']).' - Unlocked '.date('M j', strtotime($b['unlocked_at'])).'">';
                         echo '<div style="margin-bottom: 8px; display: flex; align-items: center; justify-content: center;">'.$def['icon'].'</div>';
                         echo '<div style="font-size: 11px; font-weight: bold; color: var(--ink); line-height: 1.2;">'.$def['name'].'</div>';
                         echo '</div>';
                     }
                     echo '</div>';
                 } else {
-                    echo '<div style="text-align: center; padding: 20px; border: 1px dashed var(--line); border-radius: 12px;">';
+                    echo '<div style="text-align: center; padding: 28px 20px; border: 1px dashed var(--line); border-radius: 12px;">';
                     echo '<p style="color: var(--muted); font-size: 13px; margin: 0;">No badges unlocked yet. Keep training!</p>';
                     echo '</div>';
                 }
@@ -994,7 +1253,7 @@ function member_dashboard(PDO $pdo, array $user): void
         $totalMissions = count($missions);
         ?>
         <div id="missions-section" class="skeleton-content animate-fade-in delay-1" style="margin-bottom: 24px;">
-            <section class="panel" style="padding: 0; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.08);">
+            <section class="panel missions-panel-card" style="padding: 0; overflow: hidden;">
                 <div style="padding: 20px 24px 16px; border-bottom: 1px solid var(--line); display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
                     <div style="display: flex; align-items: center; gap: 10px;">
                         <h2 style="margin: 0; font-size: 18px; color: var(--ink);">Missions</h2>
@@ -1002,7 +1261,8 @@ function member_dashboard(PDO $pdo, array $user): void
                     </div>
                     <span style="font-size: 13px; color: var(--muted);">Complete missions to boost your Engagement Score!</span>
                 </div>
-                <div style="padding: 8px 24px 20px;">
+                <div style="padding: 18px 24px 24px;">
+                    <div class="mission-card-list">
                     <?php 
                     $missionIndex = 0;
                     foreach ($missions as $mission): 
@@ -1014,8 +1274,8 @@ function member_dashboard(PDO $pdo, array $user): void
                         $checkColor = $mission['completed'] ? '#22c55e' : 'var(--line)';
                         $checkBg = $mission['completed'] ? 'rgba(34, 197, 94, 0.15)' : 'color-mix(in srgb, var(--ink) 4%, transparent)';
                         ?>
-                        <div class="mission-item <?= $isHidden ? 'hidden-mission' : '' ?>" style="display: <?= $isHidden ? 'none' : 'flex' ?>; align-items: center; gap: 16px; padding: 16px 0; border-bottom: 1px solid var(--line); <?= $mission['completed'] ? 'opacity: 0.75;' : '' ?>">
-                            <div style="width: 38px; height: 38px; border-radius: 50%; border: 2px solid <?= $checkColor ?>; background: <?= $checkBg ?>; display: flex; align-items: center; justify-content: center; flex-shrink: 0; transition: all 0.3s;">
+                        <div class="mission-item mission-card-item <?= $isHidden ? 'hidden-mission' : '' ?> <?= $mission['completed'] ? 'mission-completed' : '' ?>" style="display: <?= $isHidden ? 'none' : 'flex' ?>;">
+                            <div style="width: 40px; height: 40px; border-radius: 50%; border: 2px solid <?= $checkColor ?>; background: <?= $checkBg ?>; display: flex; align-items: center; justify-content: center; flex-shrink: 0; transition: all 0.3s;">
                                 <?php if ($mission['completed']): ?>
                                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#22c55e" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
                                 <?php else: ?>
@@ -1025,25 +1285,26 @@ function member_dashboard(PDO $pdo, array $user): void
 
                             <div style="flex: 1; min-width: 0;">
                                 <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px;">
-                                    <span style="font-weight: 600; color: var(--ink); font-size: 14px; <?= $mission['completed'] ? 'text-decoration: line-through; color: var(--muted);' : '' ?>"><?= h($mission['title']) ?></span>
-                                    <span style="font-size: 12px; font-weight: 600; color: <?= $mission['completed'] ? '#22c55e' : 'var(--muted)' ?>; white-space: nowrap; margin-left: 8px;">
+                                    <span style="font-weight: 700; color: var(--ink); font-size: 14.5px; <?= $mission['completed'] ? 'text-decoration: line-through; color: var(--muted);' : '' ?>"><?= h($mission['title']) ?></span>
+                                    <span style="font-size: 12px; font-weight: 700; color: <?= $mission['completed'] ? '#22c55e' : 'var(--lime)' ?>; white-space: nowrap; margin-left: 8px;">
                                         +<?= $mission['earnedPoints'] ?>/<?= $mission['maxPoints'] ?> pts
                                     </span>
                                 </div>
-                                <div style="font-size: 12px; color: var(--muted); margin-bottom: 8px;"><?= h($mission['description']) ?></div>
+                                <div style="font-size: 12.5px; color: var(--muted); margin-bottom: 8px;"><?= h($mission['description']) ?></div>
                                 <div style="display: flex; align-items: center; gap: 10px;">
                                     <div style="flex: 1; height: 6px; background: color-mix(in srgb, var(--ink) 8%, transparent); border-radius: 3px; overflow: hidden;">
                                         <div style="width: <?= $pct ?>%; height: 100%; background: <?= $barColor ?>; border-radius: 3px; transition: width 0.5s ease;"></div>
                                     </div>
-                                    <span style="font-size: 11px; color: var(--muted); font-weight: 500; white-space: nowrap;"><?= $mission['current'] ?>/<?= $mission['target'] ?></span>
+                                    <span style="font-size: 11.5px; color: var(--muted); font-weight: 600; white-space: nowrap;"><?= $mission['current'] ?>/<?= $mission['target'] ?></span>
                                 </div>
                             </div>
                         </div>
                     <?php endforeach; ?>
+                    </div>
                     
                     <?php if (count($missions) > 2): ?>
-                        <div style="text-align: center; margin-top: 16px;">
-                            <button id="toggle-missions-btn" onclick="toggleMissions()" style="background: color-mix(in srgb, var(--lime) 12%, transparent); border: 1px solid color-mix(in srgb, var(--lime) 35%, transparent); color: var(--lime); font-size: 13px; font-weight: 600; cursor: pointer; padding: 6px 16px; border-radius: 20px; transition: all 0.2s;" onmouseover="this.style.background='color-mix(in srgb, var(--lime) 20%, transparent)'" onmouseout="this.style.background='color-mix(in srgb, var(--lime) 12%, transparent)'">
+                        <div style="text-align: center; margin-top: 18px;">
+                            <button id="toggle-missions-btn" onclick="toggleMissions()" style="background: color-mix(in srgb, var(--lime) 12%, transparent); border: 1px solid color-mix(in srgb, var(--lime) 35%, transparent); color: var(--lime); font-size: 13px; font-weight: 600; cursor: pointer; padding: 7px 18px; border-radius: 20px; transition: all 0.2s;" onmouseover="this.style.background='color-mix(in srgb, var(--lime) 20%, transparent)'" onmouseout="this.style.background='color-mix(in srgb, var(--lime) 12%, transparent)'">
                                 Show All Missions
                             </button>
                         </div>
@@ -1083,8 +1344,9 @@ function member_dashboard(PDO $pdo, array $user): void
                 <h3 style="margin: 0; font-size: 18px; color: var(--ink);">Classes & Gym Discovery</h3>
                 <p style="margin: 4px 0 0; color: var(--muted); font-size: 13px;">Curated classes and partner gym locations based on your fitness goals.</p>
             </div>
-            <a href="index.php?page=book_classes" class="btn btn-primary" style="font-size: 12.5px; padding: 8px 16px; border-radius: 8px;">
-                Browse All Classes ➔
+            <a href="index.php?page=book_classes" class="explore-browse-btn">
+                <span>Browse All Classes</span>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"></line><polyline points="12 5 19 12 12 19"></polyline></svg>
             </a>
         </div>
 
@@ -1092,51 +1354,82 @@ function member_dashboard(PDO $pdo, array $user): void
             <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr)); gap: 20px;">
                 <!-- Recommended Classes -->
                 <?php if (!empty($recommendations['classes'])): ?>
-                    <div class="panel" style="background:var(--surface); border:1px solid var(--line); border-radius:12px; padding:20px;">
-                        <h4 style="margin:0 0 16px; color:var(--lime); display:flex; align-items:center; gap:8px;">
-                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+                    <div class="panel missions-panel-card" style="padding: 22px;">
+                        <h4 style="margin:0 0 18px; color:var(--ink); font-size: 16px; display:flex; align-items:center; gap:8px;">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--lime);"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
                             Recommended Classes
                         </h4>
+                        <div>
                         <?php foreach ($recommendations['classes'] as $cls): ?>
-                            <div style="margin-bottom: 16px; padding-bottom:16px; border-bottom:1px solid rgba(255,255,255,0.05); display:flex; justify-content:space-between; align-items:flex-start; gap:12px;">
-                                <div>
-                                    <div style="font-weight:bold; font-size:1.05rem; color:var(--ink);"><?= h($cls['class_name']) ?></div>
-                                    <div style="font-size:0.85rem; color:var(--lime); margin: 2px 0 6px;">At <?= h($cls['gym_name']) ?></div>
-                                    <?php if (!empty($cls['description'])): ?>
-                                        <div style="font-size:0.85rem; color:var(--muted); line-height:1.4;"><?= h($cls['description']) ?></div>
-                                    <?php endif; ?>
+                            <div class="explore-card-item">
+                                <div style="display: flex; gap: 14px; align-items: flex-start; flex: 1; min-width: 0;">
+                                    <div style="width: 38px; height: 38px; border-radius: 10px; background: color-mix(in srgb, var(--lime) 15%, transparent); color: var(--lime); display: flex; align-items: center; justify-content: center; flex-shrink: 0; border: 1px solid color-mix(in srgb, var(--lime) 30%, transparent);">
+                                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+                                    </div>
+                                    <div style="flex: 1; min-width: 0;">
+                                        <div style="font-weight: 700; font-size: 14.5px; color: var(--ink); margin-bottom: 2px;"><?= h($cls['class_name']) ?></div>
+                                        <div style="font-size: 12px; color: var(--lime); font-weight: 600; margin-bottom: 6px; display: flex; align-items: center; gap: 4px;">
+                                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+                                            At <?= h($cls['gym_name']) ?>
+                                        </div>
+                                        <?php if (!empty($cls['description'])): ?>
+                                            <div style="font-size: 12.5px; color: var(--muted); line-height: 1.4;"><?= h($cls['description']) ?></div>
+                                        <?php endif; ?>
+                                    </div>
                                 </div>
-                                <a href="index.php?page=book_classes" class="btn btn-secondary" style="font-size:11.5px; padding:6px 10px; border-radius:6px; flex-shrink:0;">Book</a>
+                                <a href="index.php?page=book_classes" class="explore-action-btn btn-book">
+                                    <span>Book</span>
+                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg>
+                                </a>
                             </div>
                         <?php endforeach; ?>
+                        </div>
                     </div>
                 <?php endif; ?>
 
                 <!-- Recommended Gyms -->
                 <?php if (!empty($recommendations['gyms'])): ?>
-                    <div class="panel" style="background:var(--surface); border:1px solid var(--line); border-radius:12px; padding:20px;">
-                        <h4 style="margin:0 0 16px; color:var(--accent, #7c5cfc); display:flex; align-items:center; gap:8px;">
-                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><polyline points="9 22 9 12 15 12 15 22"></polyline></svg>
+                    <div class="panel missions-panel-card" style="padding: 22px;">
+                        <h4 style="margin:0 0 18px; color:var(--ink); font-size: 16px; display:flex; align-items:center; gap:8px;">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color: #a855f7;"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><polyline points="9 22 9 12 15 12 15 22"></polyline></svg>
                             Partner Gyms
                         </h4>
+                        <div>
                         <?php foreach ($recommendations['gyms'] as $gym): ?>
-                            <div style="margin-bottom: 16px; padding-bottom:16px; border-bottom:1px solid rgba(255,255,255,0.05); display:flex; justify-content:space-between; align-items:center;">
-                                <div>
-                                    <div style="font-weight:bold; font-size:1.05rem; color:var(--ink);"><?= h($gym['name']) ?></div>
-                                    <div style="font-size:0.85rem; color:var(--muted);"><?= h($gym['address']) ?></div>
+                            <div class="explore-card-item accent-gym">
+                                <div style="display: flex; gap: 14px; align-items: flex-start; flex: 1; min-width: 0;">
+                                    <div style="width: 38px; height: 38px; border-radius: 10px; background: rgba(168, 85, 247, 0.15); color: #a855f7; display: flex; align-items: center; justify-content: center; flex-shrink: 0; border: 1px solid rgba(168, 85, 247, 0.3);">
+                                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><polyline points="9 22 9 12 15 12 15 22"></polyline></svg>
+                                    </div>
+                                    <div style="flex: 1; min-width: 0;">
+                                        <div style="font-weight: 700; font-size: 14.5px; color: var(--ink); margin-bottom: 2px;"><?= h($gym['name']) ?></div>
+                                        <div style="font-size: 12px; color: var(--muted); font-weight: 500; display: flex; align-items: center; gap: 4px;">
+                                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="10" r="3"/><path d="M12 21.7C17.3 17 20 13 20 10a8 8 0 1 0-16 0c0 3 2.7 7 8 11.7z"/></svg>
+                                            <?= h($gym['address'] ?? 'Partner Gym Location') ?>
+                                        </div>
+                                    </div>
                                 </div>
-                                <a href="index.php?page=view_gym&gym_id=<?= (int)$gym['gym_id'] ?>" class="btn btn-primary" style="padding: 6px 12px; font-size:0.85rem;">View</a>
+                                <a href="index.php?page=view_gym&gym_id=<?= (int)$gym['gym_id'] ?>" class="explore-action-btn btn-view">
+                                    <span>View</span>
+                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg>
+                                </a>
                             </div>
                         <?php endforeach; ?>
+                        </div>
                     </div>
                 <?php endif; ?>
             </div>
         <?php else: ?>
-            <div style="text-align: center; padding: 48px 20px; background: var(--surface); border: 1px dashed var(--line); border-radius: 12px;">
-                <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="var(--muted)" stroke-width="1.5" style="margin-bottom: 12px;"><circle cx="12" cy="12" r="10"/><polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"/></svg>
-                <h4 style="margin: 0 0 6px; font-size: 16px; color: var(--ink);">Set a Primary Goal to Unlock Recommendations</h4>
-                <p style="margin: 0 0 16px; font-size: 13px; color: var(--muted);">We personalize classes and workout routines to your target fitness goal.</p>
-                <a href="index.php?page=profile" class="btn btn-primary" style="padding: 8px 18px; border-radius: 8px; font-size: 13px;">Update Profile Goal</a>
+            <div class="panel missions-panel-card" style="text-align: center; padding: 48px 24px; border-radius: 14px;">
+                <div style="width: 52px; height: 52px; border-radius: 14px; background: color-mix(in srgb, var(--lime) 15%, transparent); color: var(--lime); border: 1px solid color-mix(in srgb, var(--lime) 30%, transparent); display: inline-flex; align-items: center; justify-content: center; margin-bottom: 16px;">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"/></svg>
+                </div>
+                <h4 style="margin: 0 0 6px; font-size: 17px; color: var(--ink); font-weight: 700;">Set a Primary Goal to Unlock Recommendations</h4>
+                <p style="margin: 0 0 20px; font-size: 13.5px; color: var(--muted); max-width: 440px; margin-left: auto; margin-right: auto;">We personalize classes and workout routines to your target fitness goal.</p>
+                <a href="index.php?page=profile" class="explore-browse-btn" style="margin-top: 4px;">
+                    <span>Update Profile Goal</span>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg>
+                </a>
             </div>
         <?php endif; ?>
     </div>

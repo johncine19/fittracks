@@ -1,4 +1,5 @@
 <?php
+
 declare(strict_types=1);
 
 function member_equipment_page(): void
@@ -31,13 +32,14 @@ function member_equipment_page(): void
     $recentWaist = $lastLog['waist_cm'] ?? scalar('SELECT waist_cm FROM member_profiles WHERE user_id = ?', [$userId]);
     $recentChest = $lastLog['chest_cm'] ?? null;
     $recentArm = $lastLog['arm_cm'] ?? null;
-    ?>
+?>
 
     <style>
         /* Contrast fix for neon lime buttons across themes */
         :root {
             --lime-btn-text: #090b10;
         }
+
         [data-theme="light"] {
             --lime-btn-text: #ffffff;
         }
@@ -47,6 +49,7 @@ function member_equipment_page(): void
             color: var(--lime-btn-text) !important;
             font-weight: 800 !important;
         }
+
         .btn-lime:hover {
             opacity: 0.92;
         }
@@ -62,16 +65,18 @@ function member_equipment_page(): void
             cursor: pointer;
             transition: all 0.2s ease;
         }
+
         .filter-btn:hover {
             color: var(--ink);
             border-color: var(--ink);
         }
+
         .filter-btn.active {
             background: var(--lime);
             color: var(--lime-btn-text);
             border-color: var(--lime);
             font-weight: 800;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.12);
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.12);
         }
 
         /* Ensure lime-filled action buttons have crisp dark text in darkmode */
@@ -102,16 +107,19 @@ function member_equipment_page(): void
             transition: all 0.2s ease;
             box-sizing: border-box;
         }
+
         .btn-toggle-measurements:hover {
             background: color-mix(in srgb, var(--lime) 22%, transparent);
             border-color: var(--lime);
             color: var(--lime) !important;
         }
+
         [data-theme="light"] .btn-toggle-measurements {
             background: #ecfccb;
             color: #365314 !important;
             border-color: #bef264;
         }
+
         [data-theme="light"] .btn-toggle-measurements:hover {
             background: #d9f99d;
             border-color: #84cc16;
@@ -128,10 +136,12 @@ function member_equipment_page(): void
             gap: 4px;
             transition: color 0.2s ease;
         }
+
         .qp-full-link:hover {
             color: var(--lime) !important;
             text-decoration: underline;
         }
+
         [data-theme="light"] .qp-full-link:hover {
             color: #4d7c0f !important;
         }
@@ -141,6 +151,234 @@ function member_equipment_page(): void
             color: var(--lime-btn-text) !important;
             font-weight: 800 !important;
         }
+
+        /* 3D Flip Card System */
+        .equip-card-wrap {
+            perspective: 1200px;
+            -webkit-perspective: 1200px;
+            height: 100%;
+            min-height: 430px;
+            cursor: pointer;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        .equip-card-inner {
+            position: relative;
+            width: 100%;
+            height: 100%;
+            min-height: 430px;
+            transform-style: preserve-3d;
+            -webkit-transform-style: preserve-3d;
+            transition: transform 0.65s cubic-bezier(0.34, 1.25, 0.64, 1);
+            border-radius: 14px;
+        }
+
+        .equip-card-wrap.flipped .equip-card-inner {
+            transform: rotateY(180deg);
+            -webkit-transform: rotateY(180deg);
+        }
+
+        .equip-card-front,
+        .equip-card-back {
+            position: absolute;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+            -webkit-backface-visibility: hidden;
+            backface-visibility: hidden;
+            border-radius: 14px;
+            box-sizing: border-box;
+        }
+
+        .equip-card-front {
+            background: var(--panel);
+            border: 1px solid var(--line);
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            z-index: 2;
+            transform: rotateY(0deg);
+            -webkit-transform: rotateY(0deg);
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.03);
+            transition: border-color 0.2s ease, box-shadow 0.2s ease;
+        }
+
+        .equip-card-wrap:hover .equip-card-front {
+            border-color: color-mix(in srgb, var(--lime) 40%, var(--line));
+            box-shadow: var(--shadow);
+        }
+
+        .equip-card-back {
+            transform: rotateY(180deg);
+            -webkit-transform: rotateY(180deg);
+            overflow: hidden;
+            background: #080c14;
+            border: 1px solid rgba(255, 255, 255, 0.14);
+            border-radius: 14px;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            box-shadow: 0 12px 28px rgba(0, 0, 0, 0.38);
+            z-index: 1;
+            position: absolute;
+            inset: 0;
+        }
+
+        .equip-card-wrap.flipped .equip-card-back {
+            z-index: 2;
+        }
+
+        /* 2nd LAYER: Unfit Cover Image spanning 100% of the card to eliminate empty space */
+        .equip-back-bg-layer,
+        .equip-back-ambient-wrap {
+            position: absolute;
+            inset: -8px;
+            width: calc(100% + 16px);
+            height: calc(100% + 16px);
+            overflow: hidden;
+            z-index: 1;
+            pointer-events: none;
+        }
+
+        .equip-unfit-bg-img,
+        .equip-back-blur-bg {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            object-position: center;
+            filter: blur(6px) brightness(0.42) saturate(1.18);
+            transform: scale(1.08);
+        }
+
+        .equip-unfit-overlay,
+        .equip-back-overlay {
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(180deg, 
+                rgba(8, 12, 18, 0.58) 0%, 
+                rgba(8, 12, 18, 0.22) 35%, 
+                rgba(8, 12, 18, 0.65) 70%, 
+                rgba(8, 12, 18, 0.95) 100%
+            );
+            z-index: 2;
+            pointer-events: none;
+        }
+
+        .equip-back-content {
+            position: relative;
+            z-index: 3;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            padding: 18px 20px;
+            box-sizing: border-box;
+        }
+
+        /* FRONT LAYER: Fit contained image centered with zero cropping */
+        .equip-fit-front-stage,
+        .equip-floating-stage {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            margin: 6px 0;
+            min-height: 180px;
+            max-height: 220px;
+            border-radius: 12px;
+            overflow: hidden;
+            padding: 4px;
+        }
+
+        .equip-fit-front-img,
+        .equip-floating-hero-img {
+            max-width: 95%;
+            max-height: 100%;
+            width: auto;
+            height: auto;
+            object-fit: contain;
+            border-radius: 8px;
+            box-shadow: 0 12px 28px rgba(0, 0, 0, 0.75);
+            transition: transform 0.4s cubic-bezier(0.34, 1.25, 0.64, 1);
+            user-select: none;
+            pointer-events: none;
+        }
+
+        .equip-card-wrap.flipped:hover .equip-fit-front-img,
+        .equip-card-wrap.flipped:hover .equip-floating-hero-img {
+            transform: scale(1.04);
+        }
+
+        .btn-flip-trigger {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            font-size: 11px;
+            font-weight: 600;
+            padding: 3px 8px;
+            border-radius: 6px;
+            background: var(--panel-soft);
+            color: var(--muted);
+            border: 1px solid var(--line);
+            cursor: pointer;
+            transition: all 0.2s ease;
+            white-space: nowrap;
+        }
+
+        .btn-flip-trigger:hover {
+            color: var(--ink);
+            border-color: var(--lime);
+            background: color-mix(in srgb, var(--lime) 12%, var(--panel-soft));
+        }
+
+        .btn-flip-back {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            font-size: 11.5px;
+            font-weight: 600;
+            padding: 4px 10px;
+            border-radius: 7px;
+            background: rgba(0, 0, 0, 0.6);
+            color: #fff;
+            border: 1px solid rgba(255, 255, 255, 0.22);
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .btn-flip-back:hover {
+            background: rgba(0, 0, 0, 0.85);
+            border-color: var(--lime);
+            color: var(--lime);
+        }
+
+        .flip-hint-strip {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            font-size: 11.5px;
+            color: var(--muted);
+            background: color-mix(in srgb, var(--ink) 3%, transparent);
+            border: 1px dashed var(--line);
+            padding: 7px 10px;
+            border-radius: 8px;
+            margin-bottom: 14px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            user-select: none;
+        }
+
+        .flip-hint-strip:hover {
+            color: var(--ink);
+            border-color: var(--lime);
+            background: color-mix(in srgb, var(--lime) 10%, transparent);
+        }
+
         .equip-card {
             background: var(--panel);
             border: 1px solid var(--line);
@@ -151,12 +389,7 @@ function member_equipment_page(): void
             justify-content: space-between;
             transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
             position: relative;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.03);
-        }
-        .equip-card:hover {
-            transform: translateY(-3px);
-            box-shadow: var(--shadow);
-            border-color: color-mix(in srgb, var(--lime) 40%, var(--line));
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.03);
         }
 
         .unit-pill {
@@ -170,6 +403,7 @@ function member_equipment_page(): void
             font-size: 12px;
             margin-left: 6px;
         }
+
         [data-theme="light"] .unit-pill {
             background: #f1f5f9;
             border-color: #cbd5e1;
@@ -191,11 +425,13 @@ function member_equipment_page(): void
             flex-shrink: 0;
             width: fit-content;
         }
+
         .badge-available {
             background: rgba(16, 185, 129, 0.1);
             color: #059669;
             border: 1px solid rgba(16, 185, 129, 0.22);
         }
+
         [data-theme="dark"] .badge-available {
             background: rgba(16, 185, 129, 0.14);
             color: #34d399;
@@ -207,6 +443,7 @@ function member_equipment_page(): void
             color: #d97706;
             border: 1px solid rgba(245, 158, 11, 0.22);
         }
+
         [data-theme="dark"] .badge-in_use {
             background: rgba(245, 158, 11, 0.14);
             color: #fbbf24;
@@ -218,6 +455,7 @@ function member_equipment_page(): void
             color: #475569;
             border: 1px solid rgba(100, 116, 139, 0.2);
         }
+
         [data-theme="dark"] .badge-maintenance {
             background: rgba(148, 163, 184, 0.12);
             color: #94a3b8;
@@ -229,6 +467,7 @@ function member_equipment_page(): void
             color: #dc2626;
             border: 1px solid rgba(239, 68, 68, 0.22);
         }
+
         [data-theme="dark"] .badge-out_of_service {
             background: rgba(239, 68, 68, 0.14);
             color: #f87171;
@@ -238,18 +477,42 @@ function member_equipment_page(): void
         .claim-pulse {
             animation: borderPulse 1.8s infinite;
         }
+
         @keyframes borderPulse {
-            0% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.4); }
-            70% { box-shadow: 0 0 0 10px rgba(16, 185, 129, 0); }
-            100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
+            0% {
+                box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.4);
+            }
+
+            70% {
+                box-shadow: 0 0 0 10px rgba(16, 185, 129, 0);
+            }
+
+            100% {
+                box-shadow: 0 0 0 0 rgba(16, 185, 129, 0);
+            }
         }
+
         @keyframes pulse {
-            0% { opacity: 1; transform: scale(1); }
-            50% { opacity: 0.4; transform: scale(0.85); }
-            100% { opacity: 1; transform: scale(1); }
+            0% {
+                opacity: 1;
+                transform: scale(1);
+            }
+
+            50% {
+                opacity: 0.4;
+                transform: scale(0.85);
+            }
+
+            100% {
+                opacity: 1;
+                transform: scale(1);
+            }
         }
+
         @keyframes spin {
-            to { transform: rotate(360deg); }
+            to {
+                transform: rotate(360deg);
+            }
         }
 
         /* Member Equipment Inventory Pagination */
@@ -265,21 +528,25 @@ function member_equipment_page(): void
             border-radius: 12px;
             box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
         }
+
         .equip-page-info {
             font-size: 13px;
             color: var(--muted);
             font-weight: 500;
         }
+
         .equip-page-info strong {
             color: var(--ink);
             font-weight: 700;
         }
+
         .equip-page-controls {
             display: inline-flex;
             align-items: center;
             gap: 6px;
             user-select: none;
         }
+
         .btn-equip-page {
             min-width: 36px;
             height: 36px;
@@ -298,12 +565,14 @@ function member_equipment_page(): void
             text-decoration: none;
             line-height: 1;
         }
+
         .btn-equip-page:hover:not(.disabled):not(.active) {
             border-color: #eab308;
             color: #eab308;
             background: color-mix(in srgb, #eab308 12%, var(--panel-soft));
             transform: translateY(-1px);
         }
+
         .btn-equip-page.active {
             background: #eab308 !important;
             color: #0b0e14 !important;
@@ -313,11 +582,13 @@ function member_equipment_page(): void
             cursor: default;
             transform: none;
         }
+
         .btn-equip-page.disabled {
             opacity: 0.35;
             cursor: not-allowed;
             pointer-events: none;
         }
+
         .equip-page-ellipsis {
             min-width: 24px;
             height: 36px;
@@ -329,37 +600,46 @@ function member_equipment_page(): void
             font-size: 13px;
             letter-spacing: 0.08em;
         }
+
         .equip-page-size-wrap {
             display: inline-flex;
             align-items: center;
         }
+
         @media (max-width: 768px) {
             .equipment-member-container {
                 padding-bottom: 40px;
             }
+
             .equip-pagination-bar {
                 justify-content: center;
                 flex-direction: column;
                 gap: 12px;
                 text-align: center;
             }
+
             .equip-page-controls {
                 order: 1;
             }
+
             .equip-page-info {
                 order: 2;
             }
+
             .equip-page-size-wrap {
                 order: 3;
             }
+
             #equipment-grid {
                 grid-template-columns: 1fr !important;
                 gap: 16px !important;
             }
+
             .equip-card {
                 padding: 16px !important;
             }
         }
+
         @media (max-width: 480px) {
             .filter-btn {
                 padding: 6px 12px;
@@ -377,8 +657,9 @@ function member_equipment_page(): void
             border: 1px solid var(--line);
             padding: 12px 18px;
             border-radius: 14px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.03);
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.03);
         }
+
         .equip-strip-meta {
             display: flex;
             align-items: center;
@@ -386,6 +667,7 @@ function member_equipment_page(): void
             min-width: 0;
             flex-wrap: wrap;
         }
+
         .equip-gym-pill {
             display: inline-flex;
             align-items: center;
@@ -401,21 +683,25 @@ function member_equipment_page(): void
             max-width: 100%;
             min-width: 0;
         }
+
         .equip-gym-pill .gym-val {
             overflow: hidden;
             text-overflow: ellipsis;
             white-space: nowrap;
         }
+
         .equip-strip-desc {
             color: var(--muted);
             font-size: 13px;
         }
+
         .equip-strip-status {
             display: flex;
             align-items: center;
             gap: 10px;
             flex-shrink: 0;
         }
+
         .equip-live-pill {
             display: inline-flex;
             align-items: center;
@@ -441,19 +727,23 @@ function member_equipment_page(): void
                 padding: 12px 16px !important;
                 margin-bottom: 18px !important;
             }
+
             .equip-strip-meta {
                 display: contents !important;
             }
+
             .equip-gym-pill {
                 grid-column: 1 / 2 !important;
                 grid-row: 1 / 2 !important;
                 justify-self: start !important;
             }
+
             .equip-strip-status {
                 grid-column: 2 / 3 !important;
                 grid-row: 1 / 2 !important;
                 justify-self: end !important;
             }
+
             .equip-strip-desc {
                 grid-column: 1 / -1 !important;
                 grid-row: 2 / 3 !important;
@@ -462,11 +752,13 @@ function member_equipment_page(): void
                 line-height: 1.4 !important;
             }
         }
+
         @media (max-width: 420px) {
             .equip-gym-pill {
                 font-size: 12px !important;
                 padding: 4px 10px !important;
             }
+
             .equip-live-pill {
                 font-size: 11px !important;
                 padding: 4px 10px !important;
@@ -505,10 +797,11 @@ function member_equipment_page(): void
                 <!-- Search Input -->
                 <div style="flex: 1 1 260px; max-width: 400px; position: relative;">
                     <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--muted)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="position: absolute; left: 12px; top: 50%; transform: translateY(-50%); pointer-events: none;">
-                        <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+                        <circle cx="11" cy="11" r="8" />
+                        <line x1="21" y1="21" x2="16.65" y2="16.65" />
                     </svg>
-                    <input type="text" id="equipment-search" placeholder="Search by name, category, or area..." 
-                           style="width: 100%; padding: 10px 12px 10px 38px; border-radius: 8px; background: var(--bg); border: 1px solid var(--line); color: var(--ink); font-size: 13px; box-sizing: border-box; outline: none;">
+                    <input type="text" id="equipment-search" placeholder="Search by name, category, or area..."
+                        style="width: 100%; padding: 10px 12px 10px 38px; border-radius: 8px; background: var(--bg); border: 1px solid var(--line); color: var(--ink); font-size: 13px; box-sizing: border-box; outline: none;">
                 </div>
 
                 <!-- Status Filter Pills -->
@@ -551,7 +844,8 @@ function member_equipment_page(): void
         <!-- EMPTY SEARCH STATE -->
         <div id="empty-state" style="display: none; text-align: center; padding: 60px 20px; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; margin-top: 20px;">
             <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="var(--muted)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="margin-bottom: 16px;">
-                <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+                <circle cx="11" cy="11" r="8" />
+                <line x1="21" y1="21" x2="16.65" y2="16.65" />
             </svg>
             <h3 style="margin: 0 0 8px; color: var(--ink);">No equipment matches your filter</h3>
             <p style="margin: 0; color: var(--muted); font-size: 14px;">Try adjusting your search terms or filter selection.</p>
@@ -580,114 +874,195 @@ function member_equipment_page(): void
     </div>
 
     <script>
-    (function() {
-        const CURRENT_USER_ID = <?= $userId ?>;
-        const GYM_ID = <?= $gymId ?>;
-        const CSRF_TOKEN = <?= json_encode(csrf_token()) ?>;
-        let RECENT_WEIGHT = <?= json_encode($recentWeight !== null && $recentWeight !== false ? (float)$recentWeight : null) ?>;
-        let RECENT_BF = <?= json_encode($recentBf !== null && $recentBf !== false ? (float)$recentBf : null) ?>;
-        let RECENT_WAIST = <?= json_encode($recentWaist !== null && $recentWaist !== false ? (float)$recentWaist : null) ?>;
-        let RECENT_CHEST = <?= json_encode($recentChest !== null && $recentChest !== false ? (float)$recentChest : null) ?>;
-        let RECENT_ARM = <?= json_encode($recentArm !== null && $recentArm !== false ? (float)$recentArm : null) ?>;
-        let allEquipment = [];
-        let activeSession = null;
-        let myQueues = [];
-        let previousNotifiedQueueIds = new Set();
-        let activeFilter = 'all';
-        let categoryFilter = 'all';
-        let searchQuery = '';
-        let currentMemberPage = 1;
-        let memberPageSize = 8;
-        let timerInterval = null;
-        let pollInterval = null;
+        (function() {
+            const CURRENT_USER_ID = <?= $userId ?>;
+            const GYM_ID = <?= $gymId ?>;
+            const CSRF_TOKEN = <?= json_encode(csrf_token()) ?>;
+            let RECENT_WEIGHT = <?= json_encode($recentWeight !== null && $recentWeight !== false ? (float)$recentWeight : null) ?>;
+            let RECENT_BF = <?= json_encode($recentBf !== null && $recentBf !== false ? (float)$recentBf : null) ?>;
+            let RECENT_WAIST = <?= json_encode($recentWaist !== null && $recentWaist !== false ? (float)$recentWaist : null) ?>;
+            let RECENT_CHEST = <?= json_encode($recentChest !== null && $recentChest !== false ? (float)$recentChest : null) ?>;
+            let RECENT_ARM = <?= json_encode($recentArm !== null && $recentArm !== false ? (float)$recentArm : null) ?>;
+            let allEquipment = [];
+            let activeSession = null;
+            let myQueues = [];
+            let previousNotifiedQueueIds = new Set();
+            let activeFilter = 'all';
+            let categoryFilter = 'all';
+            let searchQuery = '';
+            let currentMemberPage = 1;
+            let memberPageSize = 8;
+            let timerInterval = null;
+            let pollInterval = null;
 
-        async function memberEquipPost(action, formData) {
-            formData.append('csrf_token', CSRF_TOKEN);
-            if (!formData.has('gym_id')) {
-                formData.append('gym_id', GYM_ID);
-            }
-            const res = await fetch(`index.php?page=equipment_api&action=${action}&gym_id=${GYM_ID}`, {
-                method: 'POST',
-                headers: {
-                    'X-Requested-With': 'XMLHttpRequest',
-                    'X-CSRF-Token': CSRF_TOKEN
-                },
-                body: formData
-            });
-            return await res.json();
-        }
-
-        const icons = {
-            available: '<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>',
-            in_use: '<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>',
-            maintenance: '<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>',
-            out_of_service: '<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>'
-        };
-
-        function formatDuration(totalSeconds) {
-            if (totalSeconds < 0) totalSeconds = 0;
-            const hrs = Math.floor(totalSeconds / 3600);
-            const mins = Math.floor((totalSeconds % 3600) / 60);
-            const secs = totalSeconds % 60;
-            if (hrs > 0) {
-                return String(hrs).padStart(2, '0') + ':' + String(mins).padStart(2, '0') + ':' + String(secs).padStart(2, '0');
-            }
-            return String(mins).padStart(2, '0') + ':' + String(secs).padStart(2, '0');
-        }
-
-        async function fetchEquipmentData() {
-            try {
-                const res = await fetch(`index.php?page=equipment_api&action=poll&gym_id=${GYM_ID}`, {
-                    headers: { 'Accept': 'application/json' }
+            async function memberEquipPost(action, formData) {
+                formData.append('csrf_token', CSRF_TOKEN);
+                if (!formData.has('gym_id')) {
+                    formData.append('gym_id', GYM_ID);
+                }
+                const res = await fetch(`index.php?page=equipment_api&action=${action}&gym_id=${GYM_ID}`, {
+                    method: 'POST',
+                    headers: {
+                        'X-Requested-With': 'XMLHttpRequest',
+                        'X-CSRF-Token': CSRF_TOKEN
+                    },
+                    body: formData
                 });
-                const data = await res.json();
-                if (!data.success) {
-                    console.warn(data.message);
+                return await res.json();
+            }
+
+            const icons = {
+                available: '<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>',
+                in_use: '<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>',
+                maintenance: '<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>',
+                out_of_service: '<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>'
+            };
+
+            function formatDuration(totalSeconds) {
+                if (totalSeconds < 0) totalSeconds = 0;
+                const hrs = Math.floor(totalSeconds / 3600);
+                const mins = Math.floor((totalSeconds % 3600) / 60);
+                const secs = totalSeconds % 60;
+                if (hrs > 0) {
+                    return String(hrs).padStart(2, '0') + ':' + String(mins).padStart(2, '0') + ':' + String(secs).padStart(2, '0');
+                }
+                return String(mins).padStart(2, '0') + ':' + String(secs).padStart(2, '0');
+            }
+
+            const EQUIPMENT_PHOTOS_BY_KEYWORD = [{
+                    keywords: ['treadmill', 'run', 'tread'],
+                    url: 'https://images.unsplash.com/photo-1576678927484-cc907957088c?w=800&q=80'
+                },
+                {
+                    keywords: ['bike', 'cycle', 'spin'],
+                    url: 'https://images.unsplash.com/photo-1520877880798-5ee008091152?w=800&q=80'
+                },
+                {
+                    keywords: ['rower', 'rowing'],
+                    url: 'https://images.unsplash.com/photo-1517963879433-6ad2b056d712?w=800&q=80'
+                },
+                {
+                    keywords: ['elliptical', 'cross-trainer', 'stepper'],
+                    url: 'https://images.unsplash.com/photo-1594737625785-a6cbdabd333c?w=800&q=80'
+                },
+                {
+                    keywords: ['bench', 'chest', 'incline', 'decline'],
+                    url: 'https://images.unsplash.com/photo-1517838277536-f5f99be501cd?w=800&q=80'
+                },
+                {
+                    keywords: ['squat', 'rack', 'cage', 'smith'],
+                    url: 'https://images.unsplash.com/photo-1534438327276-14e5300c3a48?w=800&q=80'
+                },
+                {
+                    keywords: ['dumbbell', 'free weight', 'kettlebell', 'barbell'],
+                    url: 'https://images.unsplash.com/photo-1586401100295-7a8096fd231a?w=800&q=80'
+                },
+                {
+                    keywords: ['cable', 'pulley', 'lat', 'crossover'],
+                    url: 'https://images.unsplash.com/photo-1540497077202-7c8a3999166f?w=800&q=80'
+                },
+                {
+                    keywords: ['leg press', 'hack', 'extension', 'curl'],
+                    url: 'https://images.unsplash.com/photo-1581009146145-b5ef050c2e1e?w=800&q=80'
+                }
+            ];
+
+            const CATEGORY_FALLBACK_IMAGES = {
+                'Cardio': 'https://images.unsplash.com/photo-1576678927484-cc907957088c?w=800&q=80',
+                'Strength': 'https://images.unsplash.com/photo-1534438327276-14e5300c3a48?w=800&q=80',
+                'Free Weights': 'https://images.unsplash.com/photo-1586401100295-7a8096fd231a?w=800&q=80',
+                'Machines': 'https://images.unsplash.com/photo-1581009146145-b5ef050c2e1e?w=800&q=80',
+                'Functional Training': 'https://images.unsplash.com/photo-1517838277536-f5f99be501cd?w=800&q=80',
+                'Other': 'assets/images/gym.avif'
+            };
+
+            function getEquipmentPhotoUrl(eq) {
+                if (eq && eq.image_url && String(eq.image_url).trim().length > 0) {
+                    return String(eq.image_url).trim();
+                }
+                const nameLower = ((eq && eq.name) || '').toLowerCase();
+                for (const item of EQUIPMENT_PHOTOS_BY_KEYWORD) {
+                    if (item.keywords.some(k => nameLower.includes(k))) {
+                        return item.url;
+                    }
+                }
+                const cat = (eq && eq.category) || 'Other';
+                return CATEGORY_FALLBACK_IMAGES[cat] || 'assets/images/gym.avif';
+            }
+
+            window.toggleEquipCardFlip = function(elementOrId, evt) {
+                if (evt) {
+                    evt.stopPropagation();
+                }
+                let cardWrap = null;
+                if (typeof elementOrId === 'number' || typeof elementOrId === 'string') {
+                    cardWrap = document.querySelector(`.equip-card-wrap[data-equipment-id="${elementOrId}"]`);
+                } else if (elementOrId && elementOrId.closest) {
+                    cardWrap = elementOrId.closest('.equip-card-wrap');
+                }
+                if (cardWrap) {
+                    cardWrap.classList.toggle('flipped');
+                }
+            };
+
+            async function fetchEquipmentData() {
+                try {
+                    const res = await fetch(`index.php?page=equipment_api&action=poll&gym_id=${GYM_ID}`, {
+                        headers: {
+                            'Accept': 'application/json'
+                        }
+                    });
+                    const data = await res.json();
+                    if (!data.success) {
+                        console.warn(data.message);
+                        return;
+                    }
+
+                    allEquipment = data.equipment || [];
+                    activeSession = data.active_session || null;
+                    myQueues = data.my_queues || [];
+
+                    // Audio cue when equipment becomes available for this member
+                    const currentNotifiedIds = new Set();
+                    let hasNewNotifiedQueue = false;
+                    myQueues.forEach(q => {
+                        if (q.queue_status === 'notified') {
+                            const qId = parseInt(q.queue_id || q.id || 0, 10);
+                            currentNotifiedIds.add(qId);
+                            if (!previousNotifiedQueueIds.has(qId)) {
+                                hasNewNotifiedQueue = true;
+                            }
+                        }
+                    });
+                    if (hasNewNotifiedQueue) {
+                        if (window.playNotifSound) window.playNotifSound('ready');
+                    }
+                    previousNotifiedQueueIds = currentNotifiedIds;
+
+                    renderActiveSessionBanner();
+                    renderMyQueuesSection();
+                    renderEquipmentGrid();
+                } catch (err) {
+                    console.error('Error syncing equipment:', err);
+                }
+            }
+
+            function renderActiveSessionBanner() {
+                const wrapper = document.getElementById('active-session-wrapper');
+                if (!activeSession) {
+                    wrapper.style.display = 'none';
+                    wrapper.innerHTML = '';
                     return;
                 }
 
-                allEquipment = data.equipment || [];
-                activeSession = data.active_session || null;
-                myQueues = data.my_queues || [];
-
-                // Audio cue when equipment becomes available for this member
-                const currentNotifiedIds = new Set();
-                let hasNewNotifiedQueue = false;
-                myQueues.forEach(q => {
-                    if (q.queue_status === 'notified') {
-                        const qId = parseInt(q.queue_id || q.id || 0, 10);
-                        currentNotifiedIds.add(qId);
-                        if (!previousNotifiedQueueIds.has(qId)) {
-                            hasNewNotifiedQueue = true;
-                        }
-                    }
+                const elapsed = activeSession.elapsed_seconds || 0;
+                const startTimeStr = new Date(activeSession.start_ts * 1000).toLocaleTimeString([], {
+                    hour: '2-digit',
+                    minute: '2-digit'
                 });
-                if (hasNewNotifiedQueue) {
-                    if (window.playNotifSound) window.playNotifSound('ready');
-                }
-                previousNotifiedQueueIds = currentNotifiedIds;
 
-                renderActiveSessionBanner();
-                renderMyQueuesSection();
-                renderEquipmentGrid();
-            } catch (err) {
-                console.error('Error syncing equipment:', err);
-            }
-        }
-
-        function renderActiveSessionBanner() {
-            const wrapper = document.getElementById('active-session-wrapper');
-            if (!activeSession) {
-                wrapper.style.display = 'none';
-                wrapper.innerHTML = '';
-                return;
-            }
-
-            const elapsed = activeSession.elapsed_seconds || 0;
-            const startTimeStr = new Date(activeSession.start_ts * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-
-            wrapper.style.display = 'block';
-            wrapper.innerHTML = `
+                wrapper.style.display = 'block';
+                wrapper.innerHTML = `
                 <div class="panel" style="background: linear-gradient(135deg, color-mix(in srgb, var(--lime) 14%, var(--panel)) 0%, var(--panel) 100%); border: 2px solid color-mix(in srgb, var(--lime) 40%, transparent); border-radius: 14px; padding: 22px 24px; box-shadow: var(--shadow); display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 16px;">
                     <div style="flex: 1 1 300px;">
                         <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 6px;">
@@ -719,26 +1094,26 @@ function member_equipment_page(): void
                 </div>
             `;
 
-            document.getElementById('btn-finish-session').addEventListener('click', () => confirmFinishSession(activeSession.session_id, activeSession.name + ' ' + activeSession.unit_number));
-        }
-
-        function renderMyQueuesSection() {
-            const wrapper = document.getElementById('my-queues-wrapper');
-            if (!myQueues || myQueues.length === 0) {
-                wrapper.style.display = 'none';
-                wrapper.innerHTML = '';
-                return;
+                document.getElementById('btn-finish-session').addEventListener('click', () => confirmFinishSession(activeSession.session_id, activeSession.name + ' ' + activeSession.unit_number));
             }
 
-            wrapper.style.display = 'block';
-            let cardsHtml = '';
+            function renderMyQueuesSection() {
+                const wrapper = document.getElementById('my-queues-wrapper');
+                if (!myQueues || myQueues.length === 0) {
+                    wrapper.style.display = 'none';
+                    wrapper.innerHTML = '';
+                    return;
+                }
 
-            myQueues.forEach(q => {
-                const isNotified = q.queue_status === 'notified';
-                const remainingSecs = Math.max(0, q.claim_remaining_seconds || 0);
+                wrapper.style.display = 'block';
+                let cardsHtml = '';
 
-                if (isNotified) {
-                    cardsHtml += `
+                myQueues.forEach(q => {
+                    const isNotified = q.queue_status === 'notified';
+                    const remainingSecs = Math.max(0, q.claim_remaining_seconds || 0);
+
+                    if (isNotified) {
+                        cardsHtml += `
                         <div class="panel claim-pulse" style="background: linear-gradient(135deg, rgba(16, 185, 129, 0.15) 0%, var(--panel) 100%); border: 2px solid #10b981; border-radius: 12px; padding: 18px 20px; margin-bottom: 12px; display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 14px;">
                             <div>
                                 <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 4px;">
@@ -763,11 +1138,11 @@ function member_equipment_page(): void
                             </div>
                         </div>
                     `;
-                } else {
-                    const ahead = q.members_ahead || 0;
-                    const aheadText = ahead === 0 ? 'You are next in line' : `${ahead} member${ahead > 1 ? 's' : ''} ahead of you`;
+                    } else {
+                        const ahead = q.members_ahead || 0;
+                        const aheadText = ahead === 0 ? 'You are next in line' : `${ahead} member${ahead > 1 ? 's' : ''} ahead of you`;
 
-                    cardsHtml += `
+                        cardsHtml += `
                         <div class="panel" style="background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 16px 20px; margin-bottom: 12px; display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 14px; box-shadow: 0 1px 4px rgba(0,0,0,0.03);">
                             <div style="display: flex; align-items: center; gap: 14px;">
                                 <div style="background: var(--panel-soft); border: 1px solid var(--line); width: 44px; height: 44px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 17px; font-weight: 800; color: var(--ink);">
@@ -793,113 +1168,120 @@ function member_equipment_page(): void
                             </div>
                         </div>
                     `;
-                }
-            });
+                    }
+                });
 
-            wrapper.innerHTML = `
+                wrapper.innerHTML = `
                 <div style="margin-bottom: 12px; display: flex; align-items: center; justify-content: space-between;">
                     <h3 style="margin: 0; font-size: 16px; color: var(--ink); text-transform: uppercase; letter-spacing: 0.05em;">My Equipment Queues</h3>
                     <span style="font-size: 12px; color: var(--muted);">${myQueues.length} active queue${myQueues.length > 1 ? 's' : ''}</span>
                 </div>
                 ${cardsHtml}
             `;
-        }
+            }
 
-        function renderEquipmentGrid() {
-            const grid = document.getElementById('equipment-grid');
-            const empty = document.getElementById('empty-state');
-            const paginationBar = document.getElementById('member-equip-pagination');
+            function renderEquipmentGrid() {
+                const grid = document.getElementById('equipment-grid');
+                const empty = document.getElementById('empty-state');
+                const paginationBar = document.getElementById('member-equip-pagination');
 
-            const filtered = allEquipment.filter(item => {
-                if (activeFilter !== 'all') {
-                    if (activeFilter === 'available' && item.status !== 'available') return false;
-                    if (activeFilter === 'in_use' && item.status !== 'in_use') return false;
-                    if (activeFilter === 'maintenance' && item.status !== 'maintenance' && item.status !== 'out_of_service') return false;
+                const filtered = allEquipment.filter(item => {
+                    if (activeFilter !== 'all') {
+                        if (activeFilter === 'available' && item.status !== 'available') return false;
+                        if (activeFilter === 'in_use' && item.status !== 'in_use') return false;
+                        if (activeFilter === 'maintenance' && item.status !== 'maintenance' && item.status !== 'out_of_service') return false;
+                    }
+
+                    if (categoryFilter !== 'all' && item.category !== categoryFilter) return false;
+
+                    if (searchQuery) {
+                        const haystack = (item.name + ' ' + item.unit_number + ' ' + item.category + ' ' + (item.location_area || '')).toLowerCase();
+                        if (!haystack.includes(searchQuery)) return false;
+                    }
+
+                    return true;
+                });
+
+                if (filtered.length === 0) {
+                    grid.innerHTML = '';
+                    empty.style.display = 'block';
+                    if (paginationBar) paginationBar.style.display = 'none';
+                    return;
                 }
 
-                if (categoryFilter !== 'all' && item.category !== categoryFilter) return false;
+                empty.style.display = 'none';
 
-                if (searchQuery) {
-                    const haystack = (item.name + ' ' + item.unit_number + ' ' + item.category + ' ' + (item.location_area || '')).toLowerCase();
-                    if (!haystack.includes(searchQuery)) return false;
+                // Pagination calculation
+                const totalFiltered = filtered.length;
+                const totalPages = Math.max(1, Math.ceil(totalFiltered / memberPageSize));
+                if (currentMemberPage > totalPages) {
+                    currentMemberPage = totalPages;
+                }
+                if (currentMemberPage < 1) {
+                    currentMemberPage = 1;
                 }
 
-                return true;
-            });
+                const startIndex = (currentMemberPage - 1) * memberPageSize;
+                const endIndex = Math.min(startIndex + memberPageSize, totalFiltered);
+                const pagedItems = filtered.slice(startIndex, endIndex);
 
-            if (filtered.length === 0) {
-                grid.innerHTML = '';
-                empty.style.display = 'block';
-                if (paginationBar) paginationBar.style.display = 'none';
-                return;
-            }
+                if (paginationBar) {
+                    paginationBar.style.display = 'flex';
+                    renderMemberPagination(totalFiltered, totalPages, startIndex, endIndex);
+                }
 
-            empty.style.display = 'none';
+                // Preserve flipped cards state across polling updates
+                const currentlyFlippedIds = new Set();
+                document.querySelectorAll('.equip-card-wrap.flipped').forEach(el => {
+                    const id = el.getAttribute('data-equipment-id');
+                    if (id) currentlyFlippedIds.add(String(id));
+                });
 
-            // Pagination calculation
-            const totalFiltered = filtered.length;
-            const totalPages = Math.max(1, Math.ceil(totalFiltered / memberPageSize));
-            if (currentMemberPage > totalPages) {
-                currentMemberPage = totalPages;
-            }
-            if (currentMemberPage < 1) {
-                currentMemberPage = 1;
-            }
+                let html = '';
+                pagedItems.forEach(eq => {
+                    const status = eq.status || 'available';
+                    const isUserUsing = activeSession && (parseInt(activeSession.equipment_id) === parseInt(eq.equipment_id));
+                    const userQueue = myQueues.find(q => parseInt(q.equipment_id) === parseInt(eq.equipment_id));
+                    const isReservedForOther = (status === 'available') && (parseInt(eq.claim_remaining_seconds || 0) > 0) && (parseInt(eq.notified_user_id || 0) !== CURRENT_USER_ID);
 
-            const startIndex = (currentMemberPage - 1) * memberPageSize;
-            const endIndex = Math.min(startIndex + memberPageSize, totalFiltered);
-            const pagedItems = filtered.slice(startIndex, endIndex);
+                    const statusLabel = {
+                        'available': isReservedForOther ? 'Reserved' : 'Available',
+                        'in_use': 'In Use',
+                        'maintenance': 'Maintenance',
+                        'out_of_service': 'Out of Service'
+                    } [status] || 'Available';
 
-            if (paginationBar) {
-                paginationBar.style.display = 'flex';
-                renderMemberPagination(totalFiltered, totalPages, startIndex, endIndex);
-            }
+                    const badgeClass = isReservedForOther ? 'badge-maintenance' : ('badge-' + status);
+                    const iconSvg = isReservedForOther ?
+                        '<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>' :
+                        (icons[status] || icons.available);
 
-            let html = '';
-            pagedItems.forEach(eq => {
-                const status = eq.status || 'available';
-                const isUserUsing = activeSession && (parseInt(activeSession.equipment_id) === parseInt(eq.equipment_id));
-                const userQueue = myQueues.find(q => parseInt(q.equipment_id) === parseInt(eq.equipment_id));
-                const isReservedForOther = (status === 'available') && (parseInt(eq.claim_remaining_seconds || 0) > 0) && (parseInt(eq.notified_user_id || 0) !== CURRENT_USER_ID);
-
-                const statusLabel = {
-                    'available': isReservedForOther ? 'Reserved' : 'Available',
-                    'in_use': 'In Use',
-                    'maintenance': 'Maintenance',
-                    'out_of_service': 'Out of Service'
-                }[status] || 'Available';
-
-                const badgeClass = isReservedForOther ? 'badge-maintenance' : ('badge-' + status);
-                const iconSvg = isReservedForOther ?
-                    '<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>' :
-                    (icons[status] || icons.available);
-
-                let actionBtnHtml = '';
-                if (isUserUsing) {
-                    actionBtnHtml = `
+                    let actionBtnHtml = '';
+                    if (isUserUsing) {
+                        actionBtnHtml = `
                         <button type="button" onclick="confirmFinishSession(${activeSession.session_id}, '${escapeHtml(eq.name)} ${escapeHtml(eq.unit_number)}')" class="btn" style="width: 100%; background: #ef4444; color: #fff; font-weight: 700; padding: 10px; border-radius: 8px; border: none; cursor: pointer;">
                             Finish My Session
                         </button>
                     `;
-                } else if (userQueue) {
-                    if (userQueue.queue_status === 'notified') {
-                        actionBtnHtml = `
+                    } else if (userQueue) {
+                        if (userQueue.queue_status === 'notified') {
+                            actionBtnHtml = `
                             <button type="button" onclick="window.claimEquipmentSession(${eq.equipment_id})" class="btn btn-lime" style="width: 100%; background: var(--lime); color: var(--lime-btn-text, #090b10); font-weight: 800; padding: 10px; border-radius: 8px; border: none; cursor: pointer; animation: pulse 1.5s infinite;">
                                 Claim Now (Next in Line!)
                             </button>
                         `;
-                    } else {
-                        actionBtnHtml = `
+                        } else {
+                            actionBtnHtml = `
                             <button type="button" onclick="window.leaveEquipmentQueue(${userQueue.queue_id}, '${escapeHtml(eq.name)}')" class="btn" style="width: 100%; background: rgba(245,158,11,0.12); color: #d97706; border: 1px solid rgba(245,158,11,0.3); font-weight: 700; padding: 10px; border-radius: 8px; cursor: pointer;">
                                 In Queue (#${userQueue.queue_position}) • Leave
                             </button>
                         `;
-                    }
-                } else if (status === 'available') {
-                    if (isReservedForOther) {
-                        const queueCount = parseInt(eq.waiting_queue_count || 0);
-                        const queueText = queueCount > 0 ? `Join Queue (${queueCount} in line)` : 'Join Queue';
-                        actionBtnHtml = `
+                        }
+                    } else if (status === 'available') {
+                        if (isReservedForOther) {
+                            const queueCount = parseInt(eq.waiting_queue_count || 0);
+                            const queueText = queueCount > 0 ? `Join Queue (${queueCount} in line)` : 'Join Queue';
+                            actionBtnHtml = `
                             <button type="button" onclick="confirmJoinQueue(${eq.equipment_id}, '${escapeHtml(eq.name)}', '${escapeHtml(eq.unit_number)}', ${queueCount})" class="btn" style="width: 100%; background: var(--panel-soft); color: #d97706; border: 1px solid rgba(217,119,6,0.3); font-weight: 600; padding: 10px; border-radius: 8px; cursor: pointer; transition: all 0.2s;"
                                     title="Currently reserved for the next queued member (2m claim window). You can join the queue behind them.">
                                 <span style="display: flex; align-items: center; justify-content: center; gap: 6px;">
@@ -908,71 +1290,71 @@ function member_equipment_page(): void
                                 </span>
                             </button>
                         `;
-                    } else {
-                        actionBtnHtml = `
+                        } else {
+                            actionBtnHtml = `
                             <button type="button" onclick="confirmStartSession(${eq.equipment_id}, '${escapeHtml(eq.name)}', '${escapeHtml(eq.unit_number)}')" class="btn btn-lime" style="width: 100%; background: var(--lime); color: var(--lime-btn-text, #090b10); font-weight: 800; padding: 10px; border-radius: 8px; border: none; cursor: pointer; transition: opacity 0.2s; box-shadow: 0 2px 8px rgba(0,0,0,0.1);"
                                     onmouseover="this.style.opacity='0.9'" onmouseout="this.style.opacity='1'">
                                 Use Equipment
                             </button>
                         `;
-                    }
-                } else if (status === 'in_use') {
-                    const queueCount = parseInt(eq.waiting_queue_count || 0);
-                    const queueText = queueCount > 0 ? `Join Queue (${queueCount} waiting)` : 'Join Queue';
-                    actionBtnHtml = `
+                        }
+                    } else if (status === 'in_use') {
+                        const queueCount = parseInt(eq.waiting_queue_count || 0);
+                        const queueText = queueCount > 0 ? `Join Queue (${queueCount} waiting)` : 'Join Queue';
+                        actionBtnHtml = `
                         <button type="button" onclick="confirmJoinQueue(${eq.equipment_id}, '${escapeHtml(eq.name)}', '${escapeHtml(eq.unit_number)}', ${queueCount})" class="btn" style="width: 100%; background: var(--panel-soft); color: var(--ink); border: 1px solid var(--line); font-weight: 600; padding: 10px; border-radius: 8px; cursor: pointer; transition: all 0.2s;"
                                 onmouseover="this.style.borderColor='var(--lime)'; this.style.color='var(--lime)'" onmouseout="this.style.borderColor='var(--line)'; this.style.color='var(--ink)'">
                             ${queueText}
                         </button>
                     `;
-                } else {
-                    actionBtnHtml = `
+                    } else {
+                        actionBtnHtml = `
                         <button type="button" disabled class="btn" style="width: 100%; background: var(--panel-soft); color: var(--muted); border: 1px solid var(--line); font-weight: 500; padding: 10px; border-radius: 8px; cursor: not-allowed; opacity: 0.6;">
                             Unavailable
                         </button>
                     `;
-                }
+                    }
 
-                let occupancyHtml = '';
-                if (status === 'in_use') {
-                    const occupant = eq.current_user_display ? escapeHtml(eq.current_user_display) : 'Occupied';
-                    occupancyHtml = `
+                    let occupancyHtml = '';
+                    if (status === 'in_use') {
+                        const occupant = eq.current_user_display ? escapeHtml(eq.current_user_display) : 'Occupied';
+                        occupancyHtml = `
                         <div style="font-size: 12px; color: var(--muted); display: flex; justify-content: space-between; margin-bottom: 6px;">
                             <span>Current user:</span>
                             <strong style="color: var(--ink);">${occupant}</strong>
                         </div>
                     `;
-                } else if (status === 'available') {
-                    if (isReservedForOther) {
-                        const resName = eq.notified_user_display ? escapeHtml(eq.notified_user_display) : 'Queued member';
-                        const remSec = parseInt(eq.claim_remaining_seconds || 0);
-                        occupancyHtml = `
+                    } else if (status === 'available') {
+                        if (isReservedForOther) {
+                            const resName = eq.notified_user_display ? escapeHtml(eq.notified_user_display) : 'Queued member';
+                            const remSec = parseInt(eq.claim_remaining_seconds || 0);
+                            occupancyHtml = `
                             <div style="font-size: 12px; color: var(--muted); display: flex; justify-content: space-between; margin-bottom: 6px;">
                                 <span>Availability:</span>
                                 <span style="color: #d97706; font-weight: 700;">Claim window: ${resName} (${remSec}s)</span>
                             </div>
                         `;
-                    } else {
-                        occupancyHtml = `
+                        } else {
+                            occupancyHtml = `
                             <div style="font-size: 12px; color: var(--muted); display: flex; justify-content: space-between; margin-bottom: 6px;">
                                 <span>Availability:</span>
                                 <span style="color: #059669; font-weight: 600;">Ready for use</span>
                             </div>
                         `;
-                    }
-                } else {
-                    const reason = eq.maintenance_reason ? escapeHtml(eq.maintenance_reason) : 'Scheduled maintenance';
-                    occupancyHtml = `
+                        }
+                    } else {
+                        const reason = eq.maintenance_reason ? escapeHtml(eq.maintenance_reason) : 'Scheduled maintenance';
+                        occupancyHtml = `
                         <div style="font-size: 12px; color: var(--muted); display: flex; justify-content: space-between; margin-bottom: 6px;">
                             <span>Status note:</span>
                             <span style="color: #d97706; text-align: right; max-width: 60%; font-weight: 500;">${reason}</span>
                         </div>
                     `;
-                }
+                    }
 
-                const queueCount = parseInt(eq.waiting_queue_count || 0);
-                const queueInfoHtml = `
-                    <div style="font-size: 12px; color: var(--muted); display: flex; justify-content: space-between; margin-bottom: 14px;">
+                    const queueCount = parseInt(eq.waiting_queue_count || 0);
+                    const queueInfoHtml = `
+                    <div style="font-size: 12px; color: var(--muted); display: flex; justify-content: space-between; margin-bottom: 12px;">
                         <span>Queue:</span>
                         <span style="color: ${queueCount > 0 ? '#d97706' : 'var(--muted)'}; font-weight: ${queueCount > 0 ? '700' : 'normal'};">
                             ${queueCount > 0 ? `${queueCount} member${queueCount > 1 ? 's' : ''} waiting` : 'No queue'}
@@ -980,246 +1362,323 @@ function member_equipment_page(): void
                     </div>
                 `;
 
-                const imageBanner = eq.image_url ? `
-                    <div style="margin: -20px -20px 14px -20px; height: 140px; overflow: hidden; border-radius: 14px 14px 0 0; position: relative; border-bottom: 1px solid var(--line);">
-                        <img src="${escapeHtml(eq.image_url)}" alt="${escapeHtml(eq.name)}" style="width: 100%; height: 100%; object-fit: cover;" loading="lazy">
-                        <div style="position: absolute; inset: 0; background: linear-gradient(to top, rgba(0,0,0,0.3) 0%, transparent 60%);"></div>
-                    </div>
-                ` : '';
+                    const photoUrl = getEquipmentPhotoUrl(eq);
+                    const isFlipped = currentlyFlippedIds.has(String(eq.equipment_id));
+                    const flippedClass = isFlipped ? ' flipped' : '';
 
-                html += `
-                    <div class="equip-card" style="overflow: hidden;">
-                        ${imageBanner}
-                        <div>
-                            <!-- Header with category and status badge -->
-                            <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; margin-bottom: 12px;">
-                                <span style="font-size: 12px; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em;">
-                                    ${escapeHtml(eq.category)}
-                                </span>
-                                <span class="equip-badge ${badgeClass}">
-                                    ${iconSvg} ${statusLabel}
-                                </span>
+                    html += `
+                    <div class="equip-card-wrap${flippedClass}" data-equipment-id="${eq.equipment_id}">
+                        <div class="equip-card-inner">
+                            <!-- FRONT FACE: Data & Action Controls -->
+                            <div class="equip-card-front" onclick="window.toggleEquipCardFlip(this, event)">
+                                <div>
+                                    <!-- Header with category, photo flip button, and status badge -->
+                                    <div style="display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 12px;">
+                                        <span style="font-size: 11.5px; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em;">
+                                            ${escapeHtml(eq.category)}
+                                        </span>
+                                        <div style="display: flex; align-items: center; gap: 6px;">
+                                            <button type="button" class="btn-flip-trigger" onclick="window.toggleEquipCardFlip(this, event)" title="Click to view equipment photo">
+                                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+                                                <span>Photo</span>
+                                            </button>
+                                            <span class="equip-badge ${badgeClass}">
+                                                ${iconSvg} ${statusLabel}
+                                            </span>
+                                        </div>
+                                    </div>
+
+                                    <!-- Title & Unit identifier -->
+                                    <h3 style="margin: 0 0 6px; font-size: 19px; color: var(--ink); display: flex; align-items: center; justify-content: space-between; gap: 8px;">
+                                        <span style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${escapeHtml(eq.name)}</span>
+                                        <span class="unit-pill" style="flex-shrink: 0;">${escapeHtml(eq.unit_number)}</span>
+                                    </h3>
+
+                                    <!-- Location and condition -->
+                                    <p style="margin: 0 0 14px; color: var(--muted); font-size: 13px; display: flex; align-items: center; gap: 8px;">
+                                        <span>${escapeHtml(eq.location_area || 'Main Floor')}</span>
+                                        <span>•</span>
+                                        <span style="color: var(--muted); font-size: 12px;">Condition: <strong>${escapeHtml(eq.equipment_condition || 'Good')}</strong></span>
+                                    </p>
+
+                                    <!-- Occupancy & Queue details -->
+                                    <div style="background: var(--panel-soft); padding: 11px 13px; border-radius: 9px; margin-bottom: 12px; border: 1px solid var(--line);">
+                                        ${occupancyHtml}
+                                        ${queueInfoHtml}
+                                    </div>
+
+                                    <!-- Visual Flip Hint Strip -->
+                                    <div class="flip-hint-strip" onclick="window.toggleEquipCardFlip(this, event)" title="Click card to flip to photo view">
+                                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 2v6h-6"/><path d="M3 12a9 9 0 0 1 15-6.7L21 8"/><path d="M3 22v-6h6"/><path d="M21 12a9 9 0 0 1-15 6.7L3 16"/></svg>
+                                        <span>Click card to view photo</span>
+                                    </div>
+                                </div>
+
+                                <!-- Action Button -->
+                                <div onclick="event.stopPropagation()">
+                                    ${actionBtnHtml}
+                                </div>
                             </div>
 
-                            <!-- Title & Unit identifier -->
-                            <h3 style="margin: 0 0 6px; font-size: 19px; color: var(--ink);">
-                                ${escapeHtml(eq.name)} <span class="unit-pill">${escapeHtml(eq.unit_number)}</span>
-                            </h3>
+                            <!-- BACK FACE: Dual-Layer Gym Equipment Photo View -->
+                            <div class="equip-card-back" onclick="window.toggleEquipCardFlip(this, event)">
+                                <!-- 2nd Layer: Unfit Cover Image spanning 100% of card (no empty space) -->
+                                <div class="equip-back-bg-layer">
+                                    <img src="${escapeHtml(photoUrl)}" alt="" class="equip-unfit-bg-img" loading="lazy" onerror="this.onerror=null; this.src='assets/images/gym.avif';">
+                                    <div class="equip-unfit-overlay"></div>
+                                </div>
 
-                            <!-- Location and condition -->
-                            <p style="margin: 0 0 16px; color: var(--muted); font-size: 13px; display: flex; align-items: center; gap: 8px;">
-                                <span>${escapeHtml(eq.location_area || 'Main Floor')}</span>
-                                <span>•</span>
-                                <span style="color: var(--muted); font-size: 12px;">Condition: <strong>${escapeHtml(eq.equipment_condition || 'Good')}</strong></span>
-                            </p>
+                                <div class="equip-back-content">
+                                    <!-- Back Top Header -->
+                                    <div style="display: flex; justify-content: space-between; align-items: center; gap: 8px;">
+                                        <div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
+                                            <span style="font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; background: rgba(0,0,0,0.65); color: #fff; padding: 3px 8px; border-radius: 6px; backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); border: 1px solid rgba(255,255,255,0.18);">
+                                                ${escapeHtml(eq.category)}
+                                            </span>
+                                            <span style="font-size: 11px; font-weight: 700; background: rgba(0,0,0,0.65); color: var(--lime); padding: 3px 8px; border-radius: 6px; backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); border: 1px solid rgba(255,255,255,0.18);">
+                                                ${escapeHtml(eq.unit_number)}
+                                            </span>
+                                        </div>
+                                        <button type="button" class="btn-flip-back" onclick="window.toggleEquipCardFlip(this, event)" title="Flip back to equipment details">
+                                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 2v6h-6"/><path d="M3 12a9 9 0 0 1 15-6.7L21 8"/><path d="M3 22v-6h6"/><path d="M21 12a9 9 0 0 1-15 6.7L3 16"/></svg>
+                                            <span>Info</span>
+                                        </button>
+                                    </div>
 
-                            <!-- Occupancy & Queue details -->
-                            <div style="background: var(--panel-soft); padding: 11px 13px; border-radius: 9px; margin-bottom: 16px; border: 1px solid var(--line);">
-                                ${occupancyHtml}
-                                ${queueInfoHtml}
+                                    <!-- Front Layer: Fit Contained Hero Equipment Photo Stage (zero cropping) -->
+                                    <div class="equip-fit-front-stage">
+                                        <img src="${escapeHtml(photoUrl)}" alt="${escapeHtml(eq.name)}" class="equip-fit-front-img" loading="lazy" onerror="this.onerror=null; this.src='assets/images/gym.avif';">
+                                    </div>
+
+                                    <!-- Back Bottom Details & Mirrored Action -->
+                                    <div>
+                                        <div style="margin-bottom: 12px;">
+                                            <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 6px; flex-wrap: wrap;">
+                                                <span class="equip-badge ${badgeClass}" style="box-shadow: 0 2px 8px rgba(0,0,0,0.4);">
+                                                    ${iconSvg} ${statusLabel}
+                                                </span>
+                                                <span style="font-size: 11.5px; color: rgba(255,255,255,0.85); background: rgba(0,0,0,0.55); padding: 2px 8px; border-radius: 6px; backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); border: 1px solid rgba(255,255,255,0.12);">
+                                                    ${escapeHtml(eq.location_area || 'Main Floor')}
+                                                </span>
+                                            </div>
+                                            <h3 style="margin: 0; font-size: 18px; color: #ffffff; font-weight: 700; text-shadow: 0 2px 6px rgba(0,0,0,0.8);">
+                                                ${escapeHtml(eq.name)}
+                                            </h3>
+                                        </div>
+
+                                        <!-- Action Button Mirrored On Back Face -->
+                                        <div onclick="event.stopPropagation()">
+                                            ${actionBtnHtml}
+                                        </div>
+
+                                        <div style="text-align: center; margin-top: 8px;">
+                                            <span style="font-size: 11px; color: rgba(255,255,255,0.65); font-weight: 500;">
+                                                Click card to flip back
+                                            </span>
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
-                        </div>
-
-                        <!-- Action Button -->
-                        <div>
-                            ${actionBtnHtml}
                         </div>
                     </div>
                 `;
-            });
+                });
 
-            grid.innerHTML = html;
-        }
+                grid.innerHTML = html;
+            }
 
-        function renderMemberPagination(totalItems, totalPages, startIndex, endIndex) {
-            const infoEl = document.getElementById('member-equip-page-info');
-            const buttonsEl = document.getElementById('member-equip-page-buttons');
-            if (!infoEl || !buttonsEl) return;
+            function renderMemberPagination(totalItems, totalPages, startIndex, endIndex) {
+                const infoEl = document.getElementById('member-equip-page-info');
+                const buttonsEl = document.getElementById('member-equip-page-buttons');
+                if (!infoEl || !buttonsEl) return;
 
-            infoEl.innerHTML = `Showing <strong>${startIndex + 1}–${endIndex}</strong> of <strong>${totalItems}</strong> units`;
+                infoEl.innerHTML = `Showing <strong>${startIndex + 1}–${endIndex}</strong> of <strong>${totalItems}</strong> units`;
 
-            if (totalPages <= 1) {
-                buttonsEl.innerHTML = `
+                if (totalPages <= 1) {
+                    buttonsEl.innerHTML = `
                     <button type="button" class="btn-equip-page disabled" aria-label="Previous page">&lt;</button>
                     <button type="button" class="btn-equip-page active">1</button>
                     <button type="button" class="btn-equip-page disabled" aria-label="Next page">&gt;</button>
                 `;
-                return;
-            }
+                    return;
+                }
 
-            let pages = [];
-            if (totalPages <= 5) {
-                for (let i = 1; i <= totalPages; i++) pages.push(i);
-            } else {
-                if (currentMemberPage <= 3) {
-                    pages = [1, 2, 3, '...', totalPages];
-                } else if (currentMemberPage >= totalPages - 2) {
-                    pages = [1, '...', totalPages - 2, totalPages - 1, totalPages];
+                let pages = [];
+                if (totalPages <= 5) {
+                    for (let i = 1; i <= totalPages; i++) pages.push(i);
                 } else {
-                    pages = [1, '...', currentMemberPage - 1, currentMemberPage, currentMemberPage + 1, '...', totalPages];
+                    if (currentMemberPage <= 3) {
+                        pages = [1, 2, 3, '...', totalPages];
+                    } else if (currentMemberPage >= totalPages - 2) {
+                        pages = [1, '...', totalPages - 2, totalPages - 1, totalPages];
+                    } else {
+                        pages = [1, '...', currentMemberPage - 1, currentMemberPage, currentMemberPage + 1, '...', totalPages];
+                    }
                 }
-            }
 
-            let btnsHtml = '';
-            // Previous button (<)
-            const prevDisabled = currentMemberPage <= 1 ? 'disabled' : '';
-            btnsHtml += `<button type="button" class="btn-equip-page ${prevDisabled}" onclick="goToMemberPage(${currentMemberPage - 1})" aria-label="Previous page">&lt;</button>`;
+                let btnsHtml = '';
+                // Previous button (<)
+                const prevDisabled = currentMemberPage <= 1 ? 'disabled' : '';
+                btnsHtml += `<button type="button" class="btn-equip-page ${prevDisabled}" onclick="goToMemberPage(${currentMemberPage - 1})" aria-label="Previous page">&lt;</button>`;
 
-            // Page numbers
-            pages.forEach(p => {
-                if (p === '...') {
-                    btnsHtml += `<span class="equip-page-ellipsis">...</span>`;
-                } else {
-                    const isActive = p === currentMemberPage ? 'active' : '';
-                    btnsHtml += `<button type="button" class="btn-equip-page ${isActive}" onclick="goToMemberPage(${p})">${p}</button>`;
-                }
-            });
-
-            // Next button (>)
-            const nextDisabled = currentMemberPage >= totalPages ? 'disabled' : '';
-            btnsHtml += `<button type="button" class="btn-equip-page ${nextDisabled}" onclick="goToMemberPage(${currentMemberPage + 1})" aria-label="Next page">&gt;</button>`;
-
-            buttonsEl.innerHTML = btnsHtml;
-        }
-
-        window.goToMemberPage = function(page) {
-            currentMemberPage = page;
-            renderEquipmentGrid();
-            const gridEl = document.getElementById('equipment-grid');
-            if (gridEl) {
-                const rect = gridEl.getBoundingClientRect();
-                if (rect.top < 0) {
-                    gridEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                }
-            }
-        };
-
-        window.changeMemberPageSize = function(size) {
-            memberPageSize = parseInt(size, 10) || 8;
-            currentMemberPage = 1;
-            renderEquipmentGrid();
-        };
-
-        // CONFIRM START SESSION
-        window.confirmStartSession = function(equipmentId, equipName, unitNumber) {
-            if (activeSession) {
-                Swal.fire({
-                    icon: 'warning',
-                    title: 'Active Session Exists',
-                    text: `You are currently using ${activeSession.name} ${activeSession.unit_number}. Please finish that session first.`,
-                    background: 'var(--panel)',
-                    color: 'var(--ink)',
-                    confirmButtonColor: 'var(--lime)'
+                // Page numbers
+                pages.forEach(p => {
+                    if (p === '...') {
+                        btnsHtml += `<span class="equip-page-ellipsis">...</span>`;
+                    } else {
+                        const isActive = p === currentMemberPage ? 'active' : '';
+                        btnsHtml += `<button type="button" class="btn-equip-page ${isActive}" onclick="goToMemberPage(${p})">${p}</button>`;
+                    }
                 });
-                return;
+
+                // Next button (>)
+                const nextDisabled = currentMemberPage >= totalPages ? 'disabled' : '';
+                btnsHtml += `<button type="button" class="btn-equip-page ${nextDisabled}" onclick="goToMemberPage(${currentMemberPage + 1})" aria-label="Next page">&gt;</button>`;
+
+                buttonsEl.innerHTML = btnsHtml;
             }
 
-            Swal.fire({
-                title: 'Start Equipment Session?',
-                html: `<strong>${escapeHtml(equipName)} ${escapeHtml(unitNumber)}</strong> is currently available.<br><span style="font-size:13px; color:var(--muted);">Your usage session and workout timer will start immediately.</span>`,
-                icon: 'question',
-                showCancelButton: true,
-                confirmButtonText: 'Start Session',
-                cancelButtonText: 'Cancel',
-                confirmButtonColor: 'var(--lime)',
-                cancelButtonColor: '#64748b',
-                background: 'var(--panel)',
-                color: 'var(--ink)'
-            }).then(async (result) => {
-                if (result.isConfirmed) {
-                    try {
-                        const formData = new FormData();
-                        formData.append('equipment_id', equipmentId);
-
-                        const data = await memberEquipPost('start_session', formData);
-
-                        if (data.success) {
-                            if (window.playNotifSound) window.playNotifSound('success');
-                            Swal.fire({
-                                icon: 'success',
-                                title: 'Session Started!',
-                                text: data.message,
-                                background: 'var(--panel)',
-                                color: 'var(--ink)',
-                                confirmButtonColor: 'var(--lime)',
-                                timer: 2000,
-                                showConfirmButton: false
-                            });
-                            fetchEquipmentData();
-                        } else {
-                            if (data.can_queue) {
-                                Swal.fire({
-                                    icon: 'info',
-                                    title: 'Equipment Occupied',
-                                    text: data.message,
-                                    showCancelButton: true,
-                                    confirmButtonText: 'Join Queue',
-                                    cancelButtonText: 'Cancel',
-                                    confirmButtonColor: 'var(--lime)',
-                                    background: 'var(--panel)',
-                                    color: 'var(--ink)'
-                                }).then(qRes => {
-                                    if (qRes.isConfirmed) {
-                                        confirmJoinQueue(equipmentId, equipName, unitNumber, 0);
-                                    }
-                                });
-                            } else {
-                                Swal.fire({
-                                    icon: 'error',
-                                    title: 'Cannot Start Session',
-                                    text: data.message || 'Unable to start session.',
-                                    background: 'var(--panel)',
-                                    color: 'var(--ink)',
-                                    confirmButtonColor: 'var(--lime)'
-                                });
-                            }
-                            fetchEquipmentData();
-                        }
-                    } catch (e) {
-                        console.error(e);
-                        Swal.fire({
-                            icon: 'error',
-                            title: 'Network Error',
-                            text: 'Failed to communicate with server.',
-                            background: 'var(--panel)',
-                            color: 'var(--ink)'
+            window.goToMemberPage = function(page) {
+                currentMemberPage = page;
+                renderEquipmentGrid();
+                const gridEl = document.getElementById('equipment-grid');
+                if (gridEl) {
+                    const rect = gridEl.getBoundingClientRect();
+                    if (rect.top < 0) {
+                        gridEl.scrollIntoView({
+                            behavior: 'smooth',
+                            block: 'start'
                         });
                     }
                 }
-            });
-        };
+            };
 
-        // CONFIRM FINISH SESSION
-        window.confirmFinishSession = function(sessionId, fullName) {
-            Swal.fire({
-                title: 'Finish Equipment Session?',
-                text: `Are you finished using ${fullName}?`,
-                icon: 'question',
-                showCancelButton: true,
-                confirmButtonText: 'Finish Session',
-                cancelButtonText: 'Continue Using',
-                confirmButtonColor: '#ef4444',
-                cancelButtonColor: '#64748b',
-                background: 'var(--panel)',
-                color: 'var(--ink)'
-            }).then(async (result) => {
-                if (result.isConfirmed) {
-                    try {
-                        const formData = new FormData();
-                        formData.append('session_id', sessionId);
+            window.changeMemberPageSize = function(size) {
+                memberPageSize = parseInt(size, 10) || 8;
+                currentMemberPage = 1;
+                renderEquipmentGrid();
+            };
 
-                        const data = await memberEquipPost('finish_session', formData);
+            // CONFIRM START SESSION
+            window.confirmStartSession = function(equipmentId, equipName, unitNumber) {
+                if (activeSession) {
+                    Swal.fire({
+                        icon: 'warning',
+                        title: 'Active Session Exists',
+                        text: `You are currently using ${activeSession.name} ${activeSession.unit_number}. Please finish that session first.`,
+                        background: 'var(--panel)',
+                        color: 'var(--ink)',
+                        confirmButtonColor: 'var(--lime)'
+                    });
+                    return;
+                }
 
-                        if (data.success) {
-                            if (window.playNotifSound) window.playNotifSound('success');
-                            fetchEquipmentData();
+                Swal.fire({
+                    title: 'Start Equipment Session?',
+                    html: `<strong>${escapeHtml(equipName)} ${escapeHtml(unitNumber)}</strong> is currently available.<br><span style="font-size:13px; color:var(--muted);">Your usage session and workout timer will start immediately.</span>`,
+                    icon: 'question',
+                    showCancelButton: true,
+                    confirmButtonText: 'Start Session',
+                    cancelButtonText: 'Cancel',
+                    confirmButtonColor: 'var(--lime)',
+                    cancelButtonColor: '#64748b',
+                    background: 'var(--panel)',
+                    color: 'var(--ink)'
+                }).then(async (result) => {
+                    if (result.isConfirmed) {
+                        try {
+                            const formData = new FormData();
+                            formData.append('equipment_id', equipmentId);
 
-                            // Prompt member to log progress now or later
-                            const formattedDur = formatDuration(data.duration_seconds || 0);
+                            const data = await memberEquipPost('start_session', formData);
+
+                            if (data.success) {
+                                if (window.playNotifSound) window.playNotifSound('success');
+                                Swal.fire({
+                                    icon: 'success',
+                                    title: 'Session Started!',
+                                    text: data.message,
+                                    background: 'var(--panel)',
+                                    color: 'var(--ink)',
+                                    confirmButtonColor: 'var(--lime)',
+                                    timer: 2000,
+                                    showConfirmButton: false
+                                });
+                                fetchEquipmentData();
+                            } else {
+                                if (data.can_queue) {
+                                    Swal.fire({
+                                        icon: 'info',
+                                        title: 'Equipment Occupied',
+                                        text: data.message,
+                                        showCancelButton: true,
+                                        confirmButtonText: 'Join Queue',
+                                        cancelButtonText: 'Cancel',
+                                        confirmButtonColor: 'var(--lime)',
+                                        background: 'var(--panel)',
+                                        color: 'var(--ink)'
+                                    }).then(qRes => {
+                                        if (qRes.isConfirmed) {
+                                            confirmJoinQueue(equipmentId, equipName, unitNumber, 0);
+                                        }
+                                    });
+                                } else {
+                                    Swal.fire({
+                                        icon: 'error',
+                                        title: 'Cannot Start Session',
+                                        text: data.message || 'Unable to start session.',
+                                        background: 'var(--panel)',
+                                        color: 'var(--ink)',
+                                        confirmButtonColor: 'var(--lime)'
+                                    });
+                                }
+                                fetchEquipmentData();
+                            }
+                        } catch (e) {
+                            console.error(e);
                             Swal.fire({
-                                icon: 'success',
-                                title: 'Session Completed! 🎉',
-                                html: `
+                                icon: 'error',
+                                title: 'Network Error',
+                                text: 'Failed to communicate with server.',
+                                background: 'var(--panel)',
+                                color: 'var(--ink)'
+                            });
+                        }
+                    }
+                });
+            };
+
+            // CONFIRM FINISH SESSION
+            window.confirmFinishSession = function(sessionId, fullName) {
+                Swal.fire({
+                    title: 'Finish Equipment Session?',
+                    text: `Are you finished using ${fullName}?`,
+                    icon: 'question',
+                    showCancelButton: true,
+                    confirmButtonText: 'Finish Session',
+                    cancelButtonText: 'Continue Using',
+                    confirmButtonColor: '#ef4444',
+                    cancelButtonColor: '#64748b',
+                    background: 'var(--panel)',
+                    color: 'var(--ink)'
+                }).then(async (result) => {
+                    if (result.isConfirmed) {
+                        try {
+                            const formData = new FormData();
+                            formData.append('session_id', sessionId);
+
+                            const data = await memberEquipPost('finish_session', formData);
+
+                            if (data.success) {
+                                if (window.playNotifSound) window.playNotifSound('success');
+                                fetchEquipmentData();
+
+                                // Prompt member to log progress now or later
+                                const formattedDur = formatDuration(data.duration_seconds || 0);
+                                Swal.fire({
+                                    icon: 'success',
+                                    title: 'Session Completed! 🎉',
+                                    html: `
                                     <div style="text-align: center; margin-top: 6px;">
                                         <p style="font-size: 15px; margin: 0 0 10px; color: var(--ink);">
                                             Great workout on <strong>${escapeHtml(fullName)}</strong>!
@@ -1233,67 +1692,67 @@ function member_equipment_page(): void
                                         </p>
                                     </div>
                                 `,
-                                showCancelButton: true,
-                                confirmButtonText: '<span style="display:inline-flex;align-items:center;gap:6px;color:var(--lime-btn-text, #090b10);font-weight:800;"><svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>Log Progress Now</span>',
-                                cancelButtonText: 'Later',
-                                confirmButtonColor: 'var(--lime)',
-                                cancelButtonColor: '#64748b',
-                                background: 'var(--panel)',
-                                color: 'var(--ink)'
-                            }).then((promptRes) => {
-                                if (promptRes.isConfirmed) {
-                                    openQuickProgressModal(fullName, data.duration_seconds || 0);
-                                } else {
-                                    Swal.fire({
-                                        toast: true,
-                                        position: 'top-end',
-                                        icon: 'info',
-                                        title: 'No problem! You can log your progress anytime in the Progress tab.',
-                                        showConfirmButton: false,
-                                        timer: 3500,
-                                        background: 'var(--panel)',
-                                        color: 'var(--ink)'
-                                    });
-                                }
-                            });
-                        } else {
+                                    showCancelButton: true,
+                                    confirmButtonText: '<span style="display:inline-flex;align-items:center;gap:6px;color:var(--lime-btn-text, #090b10);font-weight:800;"><svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>Log Progress Now</span>',
+                                    cancelButtonText: 'Later',
+                                    confirmButtonColor: 'var(--lime)',
+                                    cancelButtonColor: '#64748b',
+                                    background: 'var(--panel)',
+                                    color: 'var(--ink)'
+                                }).then((promptRes) => {
+                                    if (promptRes.isConfirmed) {
+                                        openQuickProgressModal(fullName, data.duration_seconds || 0);
+                                    } else {
+                                        Swal.fire({
+                                            toast: true,
+                                            position: 'top-end',
+                                            icon: 'info',
+                                            title: 'No problem! You can log your progress anytime in the Progress tab.',
+                                            showConfirmButton: false,
+                                            timer: 3500,
+                                            background: 'var(--panel)',
+                                            color: 'var(--ink)'
+                                        });
+                                    }
+                                });
+                            } else {
+                                Swal.fire({
+                                    icon: 'error',
+                                    title: 'Error',
+                                    text: data.message || 'Failed to finish session.',
+                                    background: 'var(--panel)',
+                                    color: 'var(--ink)'
+                                });
+                            }
+                        } catch (e) {
+                            console.error(e);
                             Swal.fire({
                                 icon: 'error',
-                                title: 'Error',
-                                text: data.message || 'Failed to finish session.',
+                                title: 'Network Error',
+                                text: 'Failed to communicate with server.',
                                 background: 'var(--panel)',
                                 color: 'var(--ink)'
                             });
                         }
-                    } catch (e) {
-                        console.error(e);
-                        Swal.fire({
-                            icon: 'error',
-                            title: 'Network Error',
-                            text: 'Failed to communicate with server.',
-                            background: 'var(--panel)',
-                            color: 'var(--ink)'
-                        });
                     }
-                }
-            });
-        };
+                });
+            };
 
-        // QUICK PROGRESS LOGGING MODAL
-        window.openQuickProgressModal = function(fullName, durationSeconds) {
-            const todayStr = new Date().toISOString().split('T')[0];
-            const durationMins = Math.max(1, Math.round((durationSeconds || 0) / 60));
-            const formattedDuration = formatDuration(durationSeconds || 0);
-            const defaultNotes = `Completed workout on ${fullName} (${durationMins} min${durationMins > 1 ? 's' : ''}, ${formattedDuration})`;
-            const weightVal = RECENT_WEIGHT ? Number(RECENT_WEIGHT).toFixed(1) : '';
-            const bfVal = RECENT_BF ? Number(RECENT_BF).toFixed(1) : '';
-            const waistVal = RECENT_WAIST ? Number(RECENT_WAIST).toFixed(1) : '';
-            const chestVal = RECENT_CHEST ? Number(RECENT_CHEST).toFixed(1) : '';
-            const armVal = RECENT_ARM ? Number(RECENT_ARM).toFixed(1) : '';
+            // QUICK PROGRESS LOGGING MODAL
+            window.openQuickProgressModal = function(fullName, durationSeconds) {
+                const todayStr = new Date().toISOString().split('T')[0];
+                const durationMins = Math.max(1, Math.round((durationSeconds || 0) / 60));
+                const formattedDuration = formatDuration(durationSeconds || 0);
+                const defaultNotes = `Completed workout on ${fullName} (${durationMins} min${durationMins > 1 ? 's' : ''}, ${formattedDuration})`;
+                const weightVal = RECENT_WEIGHT ? Number(RECENT_WEIGHT).toFixed(1) : '';
+                const bfVal = RECENT_BF ? Number(RECENT_BF).toFixed(1) : '';
+                const waistVal = RECENT_WAIST ? Number(RECENT_WAIST).toFixed(1) : '';
+                const chestVal = RECENT_CHEST ? Number(RECENT_CHEST).toFixed(1) : '';
+                const armVal = RECENT_ARM ? Number(RECENT_ARM).toFixed(1) : '';
 
-            Swal.fire({
-                title: 'Log Your Progress',
-                html: `
+                Swal.fire({
+                    title: 'Log Your Progress',
+                    html: `
                     <div style="text-align: left; font-size: 13.5px; color: var(--ink);">
                         <div style="background: var(--panel-soft); border: 1px solid var(--line); border-radius: 10px; padding: 10px 14px; margin-bottom: 16px; display: flex; align-items: center; justify-content: space-between; gap: 10px;">
                             <div>
@@ -1363,124 +1822,124 @@ function member_equipment_page(): void
                         </form>
                     </div>
                 `,
-                showCancelButton: true,
-                confirmButtonText: '<span style="color:var(--lime-btn-text, #090b10);font-weight:800;">Save Progress</span>',
-                cancelButtonText: 'Cancel',
-                confirmButtonColor: 'var(--lime)',
-                cancelButtonColor: '#64748b',
-                background: 'var(--panel)',
-                color: 'var(--ink)',
-                focusConfirm: false,
-                showLoaderOnConfirm: true,
-                preConfirm: async () => {
-                    const dateEl = document.getElementById('qp-date');
-                    const weightEl = document.getElementById('qp-weight');
-                    const bfEl = document.getElementById('qp-bodyfat');
-                    const notesEl = document.getElementById('qp-notes');
-                    const waistEl = document.getElementById('qp-waist');
-                    const chestEl = document.getElementById('qp-chest');
-                    const armEl = document.getElementById('qp-arm');
+                    showCancelButton: true,
+                    confirmButtonText: '<span style="color:var(--lime-btn-text, #090b10);font-weight:800;">Save Progress</span>',
+                    cancelButtonText: 'Cancel',
+                    confirmButtonColor: 'var(--lime)',
+                    cancelButtonColor: '#64748b',
+                    background: 'var(--panel)',
+                    color: 'var(--ink)',
+                    focusConfirm: false,
+                    showLoaderOnConfirm: true,
+                    preConfirm: async () => {
+                        const dateEl = document.getElementById('qp-date');
+                        const weightEl = document.getElementById('qp-weight');
+                        const bfEl = document.getElementById('qp-bodyfat');
+                        const notesEl = document.getElementById('qp-notes');
+                        const waistEl = document.getElementById('qp-waist');
+                        const chestEl = document.getElementById('qp-chest');
+                        const armEl = document.getElementById('qp-arm');
 
-                    if (!dateEl || !weightEl) return false;
+                        if (!dateEl || !weightEl) return false;
 
-                    const dateVal = dateEl.value.trim();
-                    const weightVal = parseFloat(weightEl.value);
+                        const dateVal = dateEl.value.trim();
+                        const weightVal = parseFloat(weightEl.value);
 
-                    if (!dateVal) {
-                        Swal.showValidationMessage('Please select a date.');
-                        return false;
-                    }
-                    if (isNaN(weightVal) || weightVal < 20 || weightVal > 300) {
-                        Swal.showValidationMessage('Please enter a valid weight between 20 and 300 kg.');
-                        return false;
-                    }
-
-                    const bfVal = bfEl && bfEl.value.trim() ? parseFloat(bfEl.value) : null;
-                    if (bfVal !== null && (isNaN(bfVal) || bfVal < 1 || bfVal > 70)) {
-                        Swal.showValidationMessage('Body fat percentage must be between 1% and 70%.');
-                        return false;
-                    }
-
-                    const waistVal = waistEl && waistEl.value.trim() ? parseFloat(waistEl.value) : null;
-                    if (waistVal !== null && (isNaN(waistVal) || waistVal < 30 || waistVal > 250)) {
-                        Swal.showValidationMessage('Waist measurement must be between 30 and 250 cm.');
-                        return false;
-                    }
-
-                    const chestVal = chestEl && chestEl.value.trim() ? parseFloat(chestEl.value) : null;
-                    if (chestVal !== null && (isNaN(chestVal) || chestVal < 30 || chestVal > 250)) {
-                        Swal.showValidationMessage('Chest measurement must be between 30 and 250 cm.');
-                        return false;
-                    }
-
-                    const armVal = armEl && armEl.value.trim() ? parseFloat(armEl.value) : null;
-                    if (armVal !== null && (isNaN(armVal) || armVal < 15 || armVal > 100)) {
-                        Swal.showValidationMessage('Arm measurement must be between 15 and 100 cm.');
-                        return false;
-                    }
-
-                    const notesVal = notesEl ? notesEl.value.trim() : '';
-
-                    try {
-                        const fd = new FormData();
-                        fd.append('log_date', dateVal);
-                        fd.append('weight_kg', weightVal);
-                        if (bfVal !== null) fd.append('body_fat_percent', bfVal);
-                        if (waistVal !== null) fd.append('waist_cm', waistVal);
-                        if (chestVal !== null) fd.append('chest_cm', chestVal);
-                        if (armVal !== null) fd.append('arm_cm', armVal);
-                        if (notesVal) fd.append('notes', notesVal);
-
-                        const res = await memberEquipPost('log_progress', fd);
-                        if (!res.success) {
-                            Swal.showValidationMessage(res.message || 'Failed to save progress.');
+                        if (!dateVal) {
+                            Swal.showValidationMessage('Please select a date.');
                             return false;
                         }
-                        return res;
-                    } catch (err) {
-                        console.error(err);
-                        Swal.showValidationMessage('Network error occurred while saving.');
-                        return false;
-                    }
-                }
-            }).then((saveResult) => {
-                if (saveResult.isConfirmed && saveResult.value && saveResult.value.success) {
-                    if (saveResult.value.weight_kg) {
-                        RECENT_WEIGHT = saveResult.value.weight_kg;
-                    }
-                    if (saveResult.value.waist_cm !== undefined && saveResult.value.waist_cm !== null) {
-                        RECENT_WAIST = saveResult.value.waist_cm;
-                    }
-                    if (saveResult.value.chest_cm !== undefined && saveResult.value.chest_cm !== null) {
-                        RECENT_CHEST = saveResult.value.chest_cm;
-                    }
-                    if (saveResult.value.arm_cm !== undefined && saveResult.value.arm_cm !== null) {
-                        RECENT_ARM = saveResult.value.arm_cm;
-                    }
-                    if (window.playNotifSound) window.playNotifSound('success');
-                    Swal.fire({
-                        icon: 'success',
-                        title: 'Progress Logged!',
-                        text: saveResult.value.message || 'Your progress has been saved.',
-                        background: 'var(--panel)',
-                        color: 'var(--ink)',
-                        confirmButtonColor: 'var(--lime)',
-                        timer: 2500,
-                        showConfirmButton: false
-                    });
-                }
-            });
-        };
+                        if (isNaN(weightVal) || weightVal < 20 || weightVal > 300) {
+                            Swal.showValidationMessage('Please enter a valid weight between 20 and 300 kg.');
+                            return false;
+                        }
 
-        // CONFIRM JOIN QUEUE
-        window.confirmJoinQueue = function(equipmentId, equipName, unitNumber, currentQueueCount) {
-            const nextPos = currentQueueCount + 1;
-            const minWait = Math.max(5, (nextPos - 1) * 15);
-            const maxWait = Math.max(10, nextPos * 20);
+                        const bfVal = bfEl && bfEl.value.trim() ? parseFloat(bfEl.value) : null;
+                        if (bfVal !== null && (isNaN(bfVal) || bfVal < 1 || bfVal > 70)) {
+                            Swal.showValidationMessage('Body fat percentage must be between 1% and 70%.');
+                            return false;
+                        }
 
-            Swal.fire({
-                title: 'Join Equipment Queue?',
-                html: `
+                        const waistVal = waistEl && waistEl.value.trim() ? parseFloat(waistEl.value) : null;
+                        if (waistVal !== null && (isNaN(waistVal) || waistVal < 30 || waistVal > 250)) {
+                            Swal.showValidationMessage('Waist measurement must be between 30 and 250 cm.');
+                            return false;
+                        }
+
+                        const chestVal = chestEl && chestEl.value.trim() ? parseFloat(chestEl.value) : null;
+                        if (chestVal !== null && (isNaN(chestVal) || chestVal < 30 || chestVal > 250)) {
+                            Swal.showValidationMessage('Chest measurement must be between 30 and 250 cm.');
+                            return false;
+                        }
+
+                        const armVal = armEl && armEl.value.trim() ? parseFloat(armEl.value) : null;
+                        if (armVal !== null && (isNaN(armVal) || armVal < 15 || armVal > 100)) {
+                            Swal.showValidationMessage('Arm measurement must be between 15 and 100 cm.');
+                            return false;
+                        }
+
+                        const notesVal = notesEl ? notesEl.value.trim() : '';
+
+                        try {
+                            const fd = new FormData();
+                            fd.append('log_date', dateVal);
+                            fd.append('weight_kg', weightVal);
+                            if (bfVal !== null) fd.append('body_fat_percent', bfVal);
+                            if (waistVal !== null) fd.append('waist_cm', waistVal);
+                            if (chestVal !== null) fd.append('chest_cm', chestVal);
+                            if (armVal !== null) fd.append('arm_cm', armVal);
+                            if (notesVal) fd.append('notes', notesVal);
+
+                            const res = await memberEquipPost('log_progress', fd);
+                            if (!res.success) {
+                                Swal.showValidationMessage(res.message || 'Failed to save progress.');
+                                return false;
+                            }
+                            return res;
+                        } catch (err) {
+                            console.error(err);
+                            Swal.showValidationMessage('Network error occurred while saving.');
+                            return false;
+                        }
+                    }
+                }).then((saveResult) => {
+                    if (saveResult.isConfirmed && saveResult.value && saveResult.value.success) {
+                        if (saveResult.value.weight_kg) {
+                            RECENT_WEIGHT = saveResult.value.weight_kg;
+                        }
+                        if (saveResult.value.waist_cm !== undefined && saveResult.value.waist_cm !== null) {
+                            RECENT_WAIST = saveResult.value.waist_cm;
+                        }
+                        if (saveResult.value.chest_cm !== undefined && saveResult.value.chest_cm !== null) {
+                            RECENT_CHEST = saveResult.value.chest_cm;
+                        }
+                        if (saveResult.value.arm_cm !== undefined && saveResult.value.arm_cm !== null) {
+                            RECENT_ARM = saveResult.value.arm_cm;
+                        }
+                        if (window.playNotifSound) window.playNotifSound('success');
+                        Swal.fire({
+                            icon: 'success',
+                            title: 'Progress Logged!',
+                            text: saveResult.value.message || 'Your progress has been saved.',
+                            background: 'var(--panel)',
+                            color: 'var(--ink)',
+                            confirmButtonColor: 'var(--lime)',
+                            timer: 2500,
+                            showConfirmButton: false
+                        });
+                    }
+                });
+            };
+
+            // CONFIRM JOIN QUEUE
+            window.confirmJoinQueue = function(equipmentId, equipName, unitNumber, currentQueueCount) {
+                const nextPos = currentQueueCount + 1;
+                const minWait = Math.max(5, (nextPos - 1) * 15);
+                const maxWait = Math.max(10, nextPos * 20);
+
+                Swal.fire({
+                    title: 'Join Equipment Queue?',
+                    html: `
                     <p style="margin-bottom: 12px;">You will be added to the queue for <strong>${escapeHtml(equipName)} ${escapeHtml(unitNumber)}</strong>.</p>
                     <div style="background: var(--panel-soft); padding: 14px; border-radius: 8px; border: 1px solid var(--line); text-align: left; font-size: 13px;">
                         <div style="display: flex; justify-content: space-between; margin-bottom: 6px;">
@@ -1493,194 +1952,200 @@ function member_equipment_page(): void
                         </div>
                     </div>
                 `,
-                icon: 'info',
-                showCancelButton: true,
-                confirmButtonText: 'Join Queue',
-                cancelButtonText: 'Cancel',
-                confirmButtonColor: 'var(--lime)',
-                cancelButtonColor: '#64748b',
-                background: 'var(--panel)',
-                color: 'var(--ink)'
-            }).then(async (result) => {
-                if (result.isConfirmed) {
-                    try {
-                        const formData = new FormData();
-                        formData.append('equipment_id', equipmentId);
+                    icon: 'info',
+                    showCancelButton: true,
+                    confirmButtonText: 'Join Queue',
+                    cancelButtonText: 'Cancel',
+                    confirmButtonColor: 'var(--lime)',
+                    cancelButtonColor: '#64748b',
+                    background: 'var(--panel)',
+                    color: 'var(--ink)'
+                }).then(async (result) => {
+                    if (result.isConfirmed) {
+                        try {
+                            const formData = new FormData();
+                            formData.append('equipment_id', equipmentId);
 
-                        const data = await memberEquipPost('join_queue', formData);
+                            const data = await memberEquipPost('join_queue', formData);
 
-                        if (data.success) {
-                            if (window.playNotifSound) window.playNotifSound('chime');
-                            Swal.fire({
-                                icon: 'success',
-                                title: 'Added to Queue!',
-                                text: data.message,
-                                background: 'var(--panel)',
-                                color: 'var(--ink)',
-                                confirmButtonColor: 'var(--lime)'
-                            });
-                            fetchEquipmentData();
-                        } else {
+                            if (data.success) {
+                                if (window.playNotifSound) window.playNotifSound('chime');
+                                Swal.fire({
+                                    icon: 'success',
+                                    title: 'Added to Queue!',
+                                    text: data.message,
+                                    background: 'var(--panel)',
+                                    color: 'var(--ink)',
+                                    confirmButtonColor: 'var(--lime)'
+                                });
+                                fetchEquipmentData();
+                            } else {
+                                Swal.fire({
+                                    icon: 'error',
+                                    title: 'Cannot Join Queue',
+                                    text: data.message || 'Unable to join queue.',
+                                    background: 'var(--panel)',
+                                    color: 'var(--ink)'
+                                });
+                            }
+                        } catch (e) {
+                            console.error(e);
                             Swal.fire({
                                 icon: 'error',
-                                title: 'Cannot Join Queue',
-                                text: data.message || 'Unable to join queue.',
+                                title: 'Network Error',
+                                text: 'Failed to communicate with server.',
                                 background: 'var(--panel)',
                                 color: 'var(--ink)'
                             });
                         }
-                    } catch (e) {
-                        console.error(e);
+                    }
+                });
+            };
+
+            // LEAVE QUEUE
+            window.leaveEquipmentQueue = function(queueId, equipName) {
+                Swal.fire({
+                    title: 'Leave Queue?',
+                    text: `Are you sure you want to give up your spot in the queue for ${equipName}?`,
+                    icon: 'warning',
+                    showCancelButton: true,
+                    confirmButtonText: 'Yes, Leave Queue',
+                    cancelButtonText: 'Stay in Queue',
+                    confirmButtonColor: '#ef4444',
+                    cancelButtonColor: '#64748b',
+                    background: 'var(--panel)',
+                    color: 'var(--ink)'
+                }).then(async (result) => {
+                    if (result.isConfirmed) {
+                        try {
+                            const formData = new FormData();
+                            formData.append('queue_id', queueId);
+
+                            const data = await memberEquipPost('leave_queue', formData);
+
+                            if (data.success) {
+                                Swal.fire({
+                                    icon: 'info',
+                                    title: 'Left Queue',
+                                    text: data.message,
+                                    background: 'var(--panel)',
+                                    color: 'var(--ink)',
+                                    timer: 1500,
+                                    showConfirmButton: false
+                                });
+                                fetchEquipmentData();
+                            }
+                        } catch (e) {
+                            console.error(e);
+                        }
+                    }
+                });
+            };
+
+            // CLAIM EQUIPMENT SESSION
+            window.claimEquipmentSession = async function(equipmentId) {
+                try {
+                    const formData = new FormData();
+                    formData.append('equipment_id', equipmentId);
+
+                    const data = await memberEquipPost('claim_session', formData);
+
+                    if (data.success) {
+                        if (window.playNotifSound) window.playNotifSound('ready');
+                        Swal.fire({
+                            icon: 'success',
+                            title: 'Equipment Claimed!',
+                            text: 'Your workout session has started. Great timing!',
+                            background: 'var(--panel)',
+                            color: 'var(--ink)',
+                            confirmButtonColor: 'var(--lime)'
+                        });
+                        fetchEquipmentData();
+                    } else {
                         Swal.fire({
                             icon: 'error',
-                            title: 'Network Error',
-                            text: 'Failed to communicate with server.',
+                            title: 'Claim Window Expired',
+                            text: data.message || 'Could not claim session.',
                             background: 'var(--panel)',
                             color: 'var(--ink)'
                         });
+                        fetchEquipmentData();
+                    }
+                } catch (e) {
+                    console.error(e);
+                }
+            };
+
+            // Timer interval: updates running session timer and claim countdowns every second
+            timerInterval = setInterval(() => {
+                if (activeSession) {
+                    activeSession.elapsed_seconds = (activeSession.elapsed_seconds || 0) + 1;
+                    const timerEl = document.getElementById('session-timer-display');
+                    if (timerEl) {
+                        timerEl.textContent = formatDuration(activeSession.elapsed_seconds);
                     }
                 }
-            });
-        };
 
-        // LEAVE QUEUE
-        window.leaveEquipmentQueue = function(queueId, equipName) {
-            Swal.fire({
-                title: 'Leave Queue?',
-                text: `Are you sure you want to give up your spot in the queue for ${equipName}?`,
-                icon: 'warning',
-                showCancelButton: true,
-                confirmButtonText: 'Yes, Leave Queue',
-                cancelButtonText: 'Stay in Queue',
-                confirmButtonColor: '#ef4444',
-                cancelButtonColor: '#64748b',
-                background: 'var(--panel)',
-                color: 'var(--ink)'
-            }).then(async (result) => {
-                if (result.isConfirmed) {
-                    try {
-                        const formData = new FormData();
-                        formData.append('queue_id', queueId);
-
-                        const data = await memberEquipPost('leave_queue', formData);
-
-                        if (data.success) {
-                            Swal.fire({
-                                icon: 'info',
-                                title: 'Left Queue',
-                                text: data.message,
-                                background: 'var(--panel)',
-                                color: 'var(--ink)',
-                                timer: 1500,
-                                showConfirmButton: false
-                            });
-                            fetchEquipmentData();
-                        }
-                    } catch (e) {
-                        console.error(e);
+                document.querySelectorAll('.claim-countdown').forEach(el => {
+                    let rem = parseInt(el.getAttribute('data-remain') || '0', 10);
+                    if (rem > 0) {
+                        rem--;
+                        el.setAttribute('data-remain', rem);
+                        el.textContent = formatDuration(rem);
+                    } else {
+                        el.textContent = 'Expired';
                     }
-                }
+                });
+            }, 1000);
+
+            // Polling interval: every 5 seconds
+            pollInterval = setInterval(fetchEquipmentData, 5000);
+
+            // Event listeners for filters
+            document.querySelectorAll('#status-filters .filter-btn').forEach(btn => {
+                btn.addEventListener('click', function() {
+                    document.querySelectorAll('#status-filters .filter-btn').forEach(b => b.classList.remove('active'));
+                    this.classList.add('active');
+                    activeFilter = this.getAttribute('data-status');
+                    currentMemberPage = 1;
+                    renderEquipmentGrid();
+                });
             });
-        };
 
-        // CLAIM EQUIPMENT SESSION
-        window.claimEquipmentSession = async function(equipmentId) {
-            try {
-                const formData = new FormData();
-                formData.append('equipment_id', equipmentId);
-
-                const data = await memberEquipPost('claim_session', formData);
-
-                if (data.success) {
-                    if (window.playNotifSound) window.playNotifSound('ready');
-                    Swal.fire({
-                        icon: 'success',
-                        title: 'Equipment Claimed!',
-                        text: 'Your workout session has started. Great timing!',
-                        background: 'var(--panel)',
-                        color: 'var(--ink)',
-                        confirmButtonColor: 'var(--lime)'
-                    });
-                    fetchEquipmentData();
-                } else {
-                    Swal.fire({
-                        icon: 'error',
-                        title: 'Claim Window Expired',
-                        text: data.message || 'Could not claim session.',
-                        background: 'var(--panel)',
-                        color: 'var(--ink)'
-                    });
-                    fetchEquipmentData();
-                }
-            } catch (e) {
-                console.error(e);
-            }
-        };
-
-        // Timer interval: updates running session timer and claim countdowns every second
-        timerInterval = setInterval(() => {
-            if (activeSession) {
-                activeSession.elapsed_seconds = (activeSession.elapsed_seconds || 0) + 1;
-                const timerEl = document.getElementById('session-timer-display');
-                if (timerEl) {
-                    timerEl.textContent = formatDuration(activeSession.elapsed_seconds);
-                }
-            }
-
-            document.querySelectorAll('.claim-countdown').forEach(el => {
-                let rem = parseInt(el.getAttribute('data-remain') || '0', 10);
-                if (rem > 0) {
-                    rem--;
-                    el.setAttribute('data-remain', rem);
-                    el.textContent = formatDuration(rem);
-                } else {
-                    el.textContent = 'Expired';
-                }
-            });
-        }, 1000);
-
-        // Polling interval: every 5 seconds
-        pollInterval = setInterval(fetchEquipmentData, 5000);
-
-        // Event listeners for filters
-        document.querySelectorAll('#status-filters .filter-btn').forEach(btn => {
-            btn.addEventListener('click', function() {
-                document.querySelectorAll('#status-filters .filter-btn').forEach(b => b.classList.remove('active'));
-                this.classList.add('active');
-                activeFilter = this.getAttribute('data-status');
+            document.getElementById('category-filter').addEventListener('change', function() {
+                categoryFilter = this.value;
                 currentMemberPage = 1;
                 renderEquipmentGrid();
             });
-        });
 
-        document.getElementById('category-filter').addEventListener('change', function() {
-            categoryFilter = this.value;
-            currentMemberPage = 1;
-            renderEquipmentGrid();
-        });
-
-        document.getElementById('equipment-search').addEventListener('input', function() {
-            searchQuery = this.value.trim().toLowerCase();
-            currentMemberPage = 1;
-            renderEquipmentGrid();
-        });
-
-        const memberPageSizeSelect = document.getElementById('member-equip-pagesize');
-        if (memberPageSizeSelect) {
-            memberPageSizeSelect.addEventListener('change', function() {
-                changeMemberPageSize(this.value);
+            document.getElementById('equipment-search').addEventListener('input', function() {
+                searchQuery = this.value.trim().toLowerCase();
+                currentMemberPage = 1;
+                renderEquipmentGrid();
             });
-        }
 
-        function escapeHtml(text) {
-            if (!text) return '';
-            const map = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' };
-            return String(text).replace(/[&<>"']/g, m => map[m]);
-        }
+            const memberPageSizeSelect = document.getElementById('member-equip-pagesize');
+            if (memberPageSizeSelect) {
+                memberPageSizeSelect.addEventListener('change', function() {
+                    changeMemberPageSize(this.value);
+                });
+            }
 
-        fetchEquipmentData();
-    })();
+            function escapeHtml(text) {
+                if (!text) return '';
+                const map = {
+                    '&': '&amp;',
+                    '<': '&lt;',
+                    '>': '&gt;',
+                    '"': '&quot;',
+                    "'": '&#039;'
+                };
+                return String(text).replace(/[&<>"']/g, m => map[m]);
+            }
+
+            fetchEquipmentData();
+        })();
     </script>
-    <?php
+<?php
     render_footer();
 }

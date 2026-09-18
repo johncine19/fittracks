@@ -210,73 +210,121 @@ function book_classes_page(): void
         <?php else: ?>
             <div class="class-card-grid">
                 <?php
-                $colors = ['#c7ff22', '#42dba5', '#ff9548', '#ff4d5d', '#a78bfa', '#38bdf8', '#f472b6', '#facc15'];
+                $colors = ['#c7ff22', '#42dba5', '#ff9548', '#38bdf8', '#a78bfa', '#f472b6', '#facc15', '#2dd4bf'];
                 $ci = 0;
                 foreach ($rows as $row):
                     $booked   = (int) $row['booked'];
                     $capacity = (int) $row['capacity'];
                     $pct      = $capacity > 0 ? min(100, round($booked / $capacity * 100)) : 0;
                     $full     = $booked >= $capacity;
-                    $barColor = $full ? '#ff4d5d' : ($pct >= 75 ? '#ff9548' : $colors[$ci % count($colors)]);
+                    $barColor = $full ? '#ef4444' : ($pct >= 75 ? '#ff9548' : $colors[$ci % count($colors)]);
                     $startDt  = new DateTime($row['start_datetime']);
                     $endDt    = new DateTime($row['end_datetime']);
+                    $isAlreadyBooked = ($row['is_booked'] ?? 0) > 0;
+
+                    $durDiff = $startDt->diff($endDt);
+                    $durStr = [];
+                    if ($durDiff->h > 0) $durStr[] = $durDiff->h . ' hr';
+                    if ($durDiff->i > 0) $durStr[] = $durDiff->i . ' min';
+                    $durationFormatted = !empty($durStr) ? implode(' ', $durStr) : '45 min';
+                    $isToday = $startDt->format('Y-m-d') === date('Y-m-d');
+                    $isTomorrow = $startDt->format('Y-m-d') === date('Y-m-d', strtotime('+1 day'));
+                    $dateLabel = $isToday ? 'Today' : ($isTomorrow ? 'Tomorrow' : $startDt->format('M j'));
                 ?>
-                    <div class="cc-card" data-class-name="<?= h(strtolower($row['class_name'])) ?>" data-instructor="<?= h(strtolower($row['instructor'])) ?>">
+                    <div class="cc-card <?= $isAlreadyBooked ? 'cc-booked' : '' ?> <?= $full ? 'cc-is-full' : '' ?>" style="--card-accent: <?= $colors[$ci % count($colors)] ?>;" data-class-name="<?= h(strtolower($row['class_name'])) ?>" data-instructor="<?= h(strtolower($row['instructor'])) ?>">
                         <div class="cc-header">
-                            <span class="cc-category" style="color:<?= $colors[$ci % count($colors)] ?>;border-color:<?= $colors[$ci % count($colors)] ?>"><?= h(strtoupper(substr($row['class_name'], 0, 8))) ?></span>
-                            <?php if ($full): ?>
-                                <span class="cc-full">Full</span>
+                            <span class="cc-category-badge">
+                                <span class="cc-category-dot"></span>
+                                <?= h(strtoupper(substr($row['class_name'], 0, 12))) ?>
+                            </span>
+                            <?php if ($isAlreadyBooked): ?>
+                                <span class="cc-badge-status status-booked">
+                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>
+                                    Booked
+                                </span>
+                            <?php elseif ($full): ?>
+                                <span class="cc-badge-status status-full">Full</span>
+                            <?php elseif ($capacity > 0 && ($capacity - $booked) <= 3): ?>
+                                <span class="cc-badge-status status-limited"><?= ($capacity - $booked) ?> spots left</span>
                             <?php endif; ?>
                         </div>
-                        <h3 class="cc-name" style="margin-bottom: 4px;"><?= h($row['class_name']) ?></h3>
-                        <?php if (!empty($row['description'])): ?>
-                            <p style="font-size: 13px; color: var(--muted); margin: 0 0 12px 0; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;"><?= h($row['description']) ?></p>
-                        <?php else: ?>
-                            <div style="height: 12px;"></div>
-                        <?php endif; ?>
-                        <div class="cc-meta">
-                            <div class="cc-meta-row">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-                                <?php
-                                    $durDiff = $startDt->diff($endDt);
-                                    $durStr = [];
-                                    if ($durDiff->h > 0) $durStr[] = $durDiff->h . ' hr';
-                                    if ($durDiff->i > 0) $durStr[] = $durDiff->i . ' min';
-                                ?>
-                                <?= h($startDt->format('g:i A')) ?> (<?= implode(' ', $durStr) ?>)
+
+                        <div>
+                            <h3 class="cc-name"><?= h($row['class_name']) ?></h3>
+                            <?php if (!empty($row['description'])): ?>
+                                <p class="cc-desc"><?= h($row['description']) ?></p>
+                            <?php else: ?>
+                                <p class="cc-desc cc-desc-muted">Instructor-led group training session</p>
+                            <?php endif; ?>
+                        </div>
+
+                        <div class="cc-meta-grid">
+                            <div class="cc-meta-item" title="Time & Duration">
+                                <div class="cc-meta-icon">
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                                </div>
+                                <div class="cc-meta-info">
+                                    <span class="cc-meta-val"><?= h($startDt->format('g:i A')) ?></span>
+                                    <span class="cc-meta-sub"><?= h($durationFormatted) ?></span>
+                                </div>
                             </div>
-                            <div class="cc-meta-row">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
-                                <?= h($startDt->format('D, M j')) ?>
+                            
+                            <div class="cc-meta-item" title="Session Date">
+                                <div class="cc-meta-icon">
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+                                </div>
+                                <div class="cc-meta-info">
+                                    <span class="cc-meta-val"><?= h($startDt->format('D, M j')) ?></span>
+                                    <span class="cc-meta-sub"><?= h($dateLabel) ?></span>
+                                </div>
                             </div>
-                            <div class="cc-meta-row">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
-                                <?= h($row['room_location'] ?? 'TBD') ?>
+
+                            <div class="cc-meta-item" title="Location">
+                                <div class="cc-meta-icon">
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+                                </div>
+                                <div class="cc-meta-info">
+                                    <span class="cc-meta-val"><?= h($row['room_location'] ?: 'Main Studio') ?></span>
+                                    <span class="cc-meta-sub">Location</span>
+                                </div>
                             </div>
-                            <div class="cc-meta-row">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-                                <?= h($row['instructor']) ?>
+
+                            <div class="cc-meta-item" title="Instructor">
+                                <div class="cc-meta-icon">
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                                </div>
+                                <div class="cc-meta-info">
+                                    <span class="cc-meta-val"><?= h($row['instructor']) ?></span>
+                                    <span class="cc-meta-sub">Trainer</span>
+                                </div>
                             </div>
                         </div>
+
                         <div class="cc-capacity">
                             <div class="cc-cap-header">
-                                <span>Capacity</span>
-                                <span class="cc-cap-nums"><?= $booked ?>/<?= $capacity ?></span>
+                                <span>Availability</span>
+                                <span class="cc-cap-nums"><strong><?= $booked ?></strong> / <?= $capacity ?> booked</span>
                             </div>
                             <div class="cc-bar-track">
                                 <div class="cc-bar-fill" style="width:<?= $pct ?>%;background:<?= $barColor ?>"></div>
                             </div>
                         </div>
-                        <form method="post" style="display: flex; gap: 8px;">
+
+                        <form method="post" class="cc-actions">
                             <?= csrf_field() ?>
                             <input type="hidden" name="schedule_id" value="<?= (int) $row['schedule_id'] ?>">
-                            <?php $isAlreadyBooked = $row['is_booked'] > 0; ?>
                             <?php if ($isAlreadyBooked): ?>
-                                <button type="submit" name="action" value="cancel" class="cc-book-btn" style="background:transparent;color:var(--danger);border:1px solid var(--danger);" data-confirm="Are you sure you want to cancel this booking?" data-confirm-btn="Yes, cancel">Cancel Booking</button>
-                                <button type="button" disabled class="cc-book-btn" style="background:transparent;color:var(--lime);border:1px solid var(--lime);">Already Booked</button>
+                                <button type="submit" name="action" value="cancel" class="cc-btn cc-btn-cancel" data-confirm="Are you sure you want to cancel this booking?" data-confirm-btn="Yes, cancel">
+                                    Cancel Booking
+                                </button>
                             <?php else: ?>
-                                <button type="submit" name="action" value="book" class="cc-book-btn" <?= $full ? 'disabled' : 'data-confirm="Are you sure you want to book this class?" data-confirm-btn="Yes, book"' ?>>
-                                    <?= $full ? 'Class Full' : 'Book Slot' ?>
+                                <button type="submit" name="action" value="book" class="cc-btn cc-btn-book <?= $full ? 'cc-btn-disabled' : '' ?>" <?= $full ? 'disabled' : 'data-confirm="Are you sure you want to book this class?" data-confirm-btn="Yes, book"' ?>>
+                                    <?php if ($full): ?>
+                                        Class Full
+                                    <?php else: ?>
+                                        <span>Reserve Spot</span>
+                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg>
+                                    <?php endif; ?>
                                 </button>
                             <?php endif; ?>
                         </form>
