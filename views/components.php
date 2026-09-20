@@ -2410,7 +2410,13 @@ function render_current_workout(int $memberUserId, bool $dashboardMode = false, 
     echo '<section class="panel workout-plan-card">';
     if (!$plan) {
         echo '<h2>Your workout plan</h2>';
-        echo '<p class="muted">No workout plan generated yet. Save your physical profile to create one.</p></section>';
+        $prof = member_profile($memberUserId);
+        if ($prof && !empty($prof['primary_goal'])) {
+            $gLabel = ucwords(str_replace('_', ' ', $prof['primary_goal']));
+            echo '<p class="muted">Your personalized workout plan is being prepared for <strong>' . h($gLabel) . '</strong>. You can view recommended exercises below or speak with your trainer to activate your custom schedule.</p></section>';
+        } else {
+            echo '<p class="muted">Set up your physical profile to start generating your custom workout plan.</p></section>';
+        }
         return;
     }
 
@@ -3657,7 +3663,18 @@ function render_exercise_recommendations(int $userId, bool $compact = false): vo
     echo '</div>';
 
     if (!$recs) {
-        echo '<p class="muted">Complete your physical profile to get personalised exercise recommendations.</p>';
+        if (!$profile) {
+            echo '<div style="padding: 12px 0;">';
+            echo '  <p class="muted" style="margin-bottom:10px;">Set up your physical profile to unlock personalized exercise recommendations tailored to your goals.</p>';
+            echo '  <a href="index.php?page=profile" class="btn btn-secondary" style="font-size:12.5px; padding:6px 14px; text-decoration:none; display:inline-flex; align-items:center; gap:6px;">Set Up Profile</a>';
+            echo '</div>';
+        } else {
+            $goalText = !empty($profile['primary_goal']) ? ucwords(str_replace('_', ' ', $profile['primary_goal'])) : 'your selected goal';
+            echo '<div style="padding: 12px 0;">';
+            echo '  <p class="muted" style="margin-bottom:4px;">Custom exercise recommendations for <strong>' . h($goalText) . '</strong> are currently being prepared.</p>';
+            echo '  <p class="muted" style="font-size:12px; margin:0;">Check back soon or consult your gym trainer to add exercises to your catalog.</p>';
+            echo '</div>';
+        }
         echo '</section>';
         return;
     }

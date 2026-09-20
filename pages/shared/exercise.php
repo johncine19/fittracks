@@ -178,10 +178,18 @@ function get_exercise_recommendations(int $userId): array
     $pdo = db();
     $memberGymId = (int) $pdo->query('SELECT gym_id FROM gym_members WHERE user_id = ' . $userId)->fetchColumn();
 
-    // Fetch exercises for this gym
+    // Fetch exercises for this gym, falling back to universal exercises (gym_id = 0) if none found
     $stmt = $pdo->prepare('SELECT * FROM exercises WHERE gym_id = ? ORDER BY category, name');
     $stmt->execute([$memberGymId]);
     $exercises = $stmt->fetchAll();
+    if (!$exercises && $memberGymId !== 0) {
+        $stmt = $pdo->prepare('SELECT * FROM exercises WHERE gym_id = 0 ORDER BY category, name');
+        $stmt->execute();
+        $exercises = $stmt->fetchAll();
+    }
+    if (!$exercises) {
+        $exercises = $pdo->query('SELECT * FROM exercises ORDER BY category, name')->fetchAll();
+    }
     if (!$exercises) {
         return [];
     }
