@@ -606,6 +606,15 @@ function diet_page(): void
     $plan->execute([$userId]);
     $activePlan = $plan->fetch();
 
+    // Auto-generate their tailored dietary plan if they don't have one active yet
+    if (!$activePlan) {
+        $autoPlanId = generate_dietary_plan($userId);
+        if ($autoPlanId) {
+            $plan->execute([$userId]);
+            $activePlan = $plan->fetch();
+        }
+    }
+
     $memberProfile = $pdo->query('SELECT dietary_restrictions, primary_goal FROM member_profiles WHERE user_id = ' . $userId)->fetch();
     $userDietaryRestriction = (string) ($memberProfile['dietary_restrictions'] ?? 'none');
 

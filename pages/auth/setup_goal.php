@@ -79,7 +79,12 @@ function setup_goal_page(): void
         // Also generate their actual workout plan using the basic goal mapping logic
         generate_workout_plan((int) $user['user_id']);
 
-        $msgBody = "Based on your goal to **" . $goal . "**, here is your starter guide!\n\n**Workout Structure:**\n$workoutStruct\n\n**Diet & Macros:**\n$dietStruct";
+        // Auto-generate their tailored dietary plan adhering to their dietary restrictions
+        generate_dietary_plan((int) $user['user_id']);
+
+        $restLabel = (string) ($profile['dietary_restrictions'] ?? 'none');
+        $restText = ($restLabel !== '' && $restLabel !== 'none') ? " (Tailored for " . ucwords(str_replace('-', ' ', $restLabel)) . " preferences)" : "";
+        $msgBody = "Based on your goal to **" . $goal . "**, your personalized workout and nutrition plans are now active!\n\n**Workout Structure:**\n$workoutStruct\n\n**Diet & Macros$restText:**\n$dietStruct";
         notify_user((int) $user['user_id'], 'system', 'Your Starter Plan is Ready!', $msgBody);
 
         flash('Goal saved! Check your notifications for your starter plan.', 'success');
