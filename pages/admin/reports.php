@@ -365,7 +365,7 @@ function reports_page(): void
             $t = $s + $w;
             
             $formattedLabel = $d;
-            if ($tf === 'daily') $formattedLabel = date('d-m-Y', strtotime($d));
+            if ($tf === 'daily') $formattedLabel = date('m/d/y', strtotime($d));
             elseif ($tf === 'monthly') $formattedLabel = date('M Y', strtotime($d . '-01'));
 
             $revenue[$tf][] = [
@@ -389,7 +389,7 @@ function reports_page(): void
             $attendanceTotals[$tf]['visits'] += $v;
             if ($v > $attendanceTotals[$tf]['max']) $attendanceTotals[$tf]['max'] = $v;
 
-            if ($tf === 'daily') $row[$key] = date('d-m-Y', strtotime($row[$key]));
+            if ($tf === 'daily') $row[$key] = date('m/d/y', strtotime($row[$key]));
             elseif ($tf === 'monthly') $row[$key] = date('M Y', strtotime($row[$key] . '-01'));
         }
         unset($row);
@@ -399,7 +399,7 @@ function reports_page(): void
             $walkinTotals[$tf]['visits'] += $v;
             if ($v > $walkinTotals[$tf]['max']) $walkinTotals[$tf]['max'] = $v;
 
-            if ($tf === 'daily') $row[$key] = date('d-m-Y', strtotime($row[$key]));
+            if ($tf === 'daily') $row[$key] = date('m/d/y', strtotime($row[$key]));
             elseif ($tf === 'monthly') $row[$key] = date('M Y', strtotime($row[$key] . '-01'));
         }
         unset($row);
@@ -496,6 +496,59 @@ function reports_page(): void
     render_header('Reports & Analytics', $user);
     ?>
     <style>
+        .tab-content {
+            width: 100% !important;
+            max-width: 100% !important;
+            box-sizing: border-box !important;
+        }
+        .report-panel,
+        .panel {
+            width: 100% !important;
+            max-width: 100% !important;
+            box-sizing: border-box !important;
+        }
+        .dash-grid {
+            width: 100% !important;
+            max-width: 100% !important;
+            box-sizing: border-box !important;
+        }
+        .dash-grid > * {
+            min-width: 0 !important;
+            max-width: 100% !important;
+            box-sizing: border-box !important;
+        }
+        .report-card-box {
+            background: rgba(255, 255, 255, 0.02);
+            border: 1px solid var(--line);
+            border-radius: 14px;
+            padding: 22px;
+            position: relative;
+            box-sizing: border-box !important;
+            width: 100% !important;
+            max-width: 100% !important;
+            min-width: 0 !important;
+        }
+        .chart-canvas {
+            position: relative !important;
+            width: 100% !important;
+            max-width: 100% !important;
+            min-width: 0 !important;
+            box-sizing: border-box !important;
+            overflow: hidden !important;
+        }
+        .chart-canvas canvas {
+            max-width: 100% !important;
+            width: 100% !important;
+            box-sizing: border-box !important;
+        }
+        .chart-header-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 16px;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
         .report-tabs {
             display: flex;
             gap: 10px;
@@ -505,6 +558,9 @@ function reports_page(): void
             padding-bottom: 8px;
             scrollbar-width: thin;
             scrollbar-color: rgba(255,255,255,0.12) transparent;
+            width: 100% !important;
+            max-width: 100% !important;
+            box-sizing: border-box !important;
         }
         .report-tabs::-webkit-scrollbar {
             height: 4px;
@@ -755,10 +811,57 @@ function reports_page(): void
             white-space: nowrap;
         }
         .rich-table {
-            width: 100%;
+            width: 100% !important;
+            min-width: 0 !important;
             margin: 0;
             border-collapse: collapse;
             font-size: 13px;
+        }
+        .report-dash-grid .table-wrap table,
+        .report-panel .table-wrap table {
+            min-width: 0 !important;
+        }
+        .compact-table-wrap {
+            overflow-x: hidden !important;
+        }
+        .compact-side-table {
+            width: 100% !important;
+            min-width: 100% !important;
+            table-layout: auto !important;
+        }
+        .compact-side-table th,
+        .compact-side-table td {
+            padding: 10px 14px !important;
+            box-sizing: border-box;
+        }
+        .compact-side-table th:first-child:not(:last-child),
+        .compact-side-table td:first-child:not(:last-child) {
+            white-space: nowrap !important;
+            width: auto !important;
+        }
+        .compact-side-table th:last-child:not(:first-child),
+        .compact-side-table td:last-child:not(:first-child) {
+            text-align: right !important;
+            white-space: nowrap !important;
+            width: 1% !important;
+        }
+        .compact-side-table td[colspan],
+        .rich-table td[colspan] {
+            text-align: center !important;
+            white-space: normal !important;
+            width: 100% !important;
+        }
+        .col-att-val {
+            color: #c084fc;
+        }
+        [data-theme="light"] .col-att-val {
+            color: #7c3aed !important;
+        }
+        .col-walk-val {
+            color: #38bdf8;
+        }
+        [data-theme="light"] .col-walk-val {
+            color: #0284c7 !important;
         }
         .rich-table thead th {
             position: sticky;
@@ -1231,8 +1334,9 @@ function reports_page(): void
                 overflow-x: auto !important;
                 -webkit-overflow-scrolling: touch !important;
             }
-            .panel {
-                padding: 16px !important;
+            .panel,
+            .report-panel {
+                padding: 14px 12px !important;
                 border-radius: 12px !important;
             }
             .trainers-desktop-table {
@@ -1243,16 +1347,38 @@ function reports_page(): void
                 flex-direction: column;
                 gap: 12px;
             }
-            .dash-grid {
-                grid-template-columns: 1fr !important;
+            .dash-grid,
+            .report-dash-grid,
+            .report-bottom-grid {
+                grid-template-columns: minmax(0, 1fr) !important;
                 gap: 16px !important;
+                width: 100% !important;
+            }
+            .dash-grid > * {
+                min-width: 0 !important;
+                max-width: 100% !important;
+                box-sizing: border-box !important;
+            }
+            .report-card-box {
+                padding: 14px 12px !important;
+                border-radius: 12px !important;
+            }
+            #revenue-chart-canvas-wrap,
+            #attendance-chart-canvas-wrap {
+                min-height: 250px !important;
+                height: 250px !important;
+            }
+            .chart-header-row {
+                flex-direction: column !important;
+                align-items: flex-start !important;
+                gap: 8px !important;
             }
             .engagement-chart-col {
                 position: static !important;
                 width: 100% !important;
             }
             .engagement-chart-box {
-                padding: 16px !important;
+                padding: 14px 12px !important;
             }
             .engagement-chart-wrap {
                 min-height: 240px !important;
@@ -1279,6 +1405,39 @@ function reports_page(): void
             .btn-engagement-manage {
                 padding: 3px 8px !important;
                 font-size: 11px !important;
+            }
+        }
+
+        @media (max-width: 520px) {
+            .panel,
+            .report-panel {
+                padding: 10px 8px !important;
+            }
+            .report-card-box {
+                padding: 12px 10px !important;
+            }
+            #revenue-chart-canvas-wrap,
+            #attendance-chart-canvas-wrap {
+                min-height: 220px !important;
+                height: 220px !important;
+            }
+            .chart-canvas {
+                min-height: 200px !important;
+                height: 200px !important;
+            }
+            .rich-table th,
+            .rich-table td {
+                padding: 7px 6px !important;
+                font-size: 11px !important;
+            }
+            .tf-controls {
+                width: 100%;
+                justify-content: space-between;
+            }
+            .tf-btn {
+                flex: 1;
+                text-align: center;
+                padding: 6px 8px;
             }
         }
 
@@ -1442,6 +1601,36 @@ function reports_page(): void
         [data-theme="light"] .btn-engagement-manage:hover {
             background: #e2e8f0 !important;
             color: #0f172a !important;
+        }
+        [data-theme="light"] .report-card-box {
+            background: #ffffff !important;
+            border: 1px solid #cbd5e1 !important;
+            box-shadow: 0 4px 14px rgba(0, 0, 0, 0.05) !important;
+        }
+        [data-theme="light"] .report-panel {
+            background: #ffffff !important;
+            border: 1px solid #cbd5e1 !important;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.04) !important;
+        }
+        [data-theme="light"] .tf-hint {
+            color: #475569 !important;
+        }
+        [data-theme="light"] .tf-btn {
+            background: #f8fafc;
+            color: #334155;
+            border: 1px solid #cbd5e1;
+        }
+        [data-theme="light"] .tf-btn.active {
+            background: #0f172a !important;
+            color: #ffffff !important;
+            border-color: #0f172a !important;
+        }
+        [data-theme="light"] .table-wrap {
+            background: #ffffff !important;
+            border-color: #cbd5e1 !important;
+        }
+        [data-theme="light"] #revenue-mix-empty-state {
+            border-color: #cbd5e1 !important;
         }
 
         @media print {
@@ -1614,7 +1803,7 @@ function reports_page(): void
 
     <!-- ==================== TAB 1: REVENUE & FINANCIALS ==================== -->
     <div id="revenue-tab" class="tab-content animate-fade-in">
-        <div class="panel" style="border-radius: 16px; padding: 26px;">
+        <div class="panel report-panel" style="border-radius: 16px; padding: 26px;">
             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 22px; flex-wrap: wrap; gap: 14px;">
                 <div>
                     <h2 style="margin:0 0 4px 0; font-size: 20px;">Multi-Stream Revenue Breakdown</h2>
@@ -1644,28 +1833,28 @@ function reports_page(): void
                 </span>
             </div>
 
-            <div class="dash-grid" style="grid-template-columns: 2.2fr 1.1fr; gap: 24px; align-items: start;">
+            <div class="dash-grid report-dash-grid" style="grid-template-columns: 2.2fr 1.1fr; gap: 24px; align-items: start;">
                 <!-- Main Stacked Bar Chart with Empty State Handler -->
-                <div style="background: rgba(255,255,255,0.02); border: 1px solid var(--line); border-radius: 14px; padding: 22px; position: relative;">
-                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+                <div class="report-card-box">
+                    <div class="chart-header-row">
                         <span style="font-size: 13px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em;">Stacked Financial Streams</span>
-                        <div style="display: flex; gap: 14px; font-size: 12.5px;">
+                        <div style="display: flex; gap: 12px; font-size: 12px; flex-wrap: wrap;">
                             <span style="display: inline-flex; align-items: center; gap: 6px; color: var(--ink);">
-                                <span style="width: 10px; height: 10px; border-radius: 3px; background: #84cc16;"></span> Subscriptions
+                                <span style="width: 10px; height: 10px; border-radius: 3px; background: #84cc16; flex-shrink: 0;"></span> Subscriptions
                             </span>
                             <span style="display: inline-flex; align-items: center; gap: 6px; color: var(--ink);">
-                                <span style="width: 10px; height: 10px; border-radius: 3px; background: #0ea5e9;"></span> Walk-In Passes
+                                <span style="width: 10px; height: 10px; border-radius: 3px; background: #0ea5e9; flex-shrink: 0;"></span> Walk-In Passes
                             </span>
                         </div>
                     </div>
 
                     <!-- Canvas Area -->
-                    <div class="chart-canvas" id="revenue-chart-canvas-wrap" style="min-height: 380px; height: 380px; display: <?= $revenueTotals['monthly']['total'] > 0 ? 'block' : 'none' ?>;">
+                    <div class="chart-canvas" id="revenue-chart-canvas-wrap" style="min-height: 360px; height: 360px; display: <?= $revenueTotals['monthly']['total'] > 0 ? 'block' : 'none' ?>;">
                         <canvas id="revenueChart"></canvas>
                     </div>
 
                     <!-- Intentional Empty State for Chart -->
-                    <div id="revenue-chart-empty-state" class="empty-state-box" style="display: <?= $revenueTotals['monthly']['total'] > 0 ? 'none' : 'flex' ?>; min-height: 380px;">
+                    <div id="revenue-chart-empty-state" class="empty-state-box" style="display: <?= $revenueTotals['monthly']['total'] > 0 ? 'none' : 'flex' ?>; min-height: 360px;">
                         <div class="empty-icon-circle">
                             <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 19v-14h3.5a4.5 4.5 0 1 1 0 9h-3.5"></path><path d="M6 8h12"></path><path d="M6 11h12"></path></svg>
                         </div>
@@ -1688,8 +1877,8 @@ function reports_page(): void
                 <!-- Revenue Mix Donut & Sticky Table -->
                 <div>
                     <!-- Donut Card with Empty State Placeholder -->
-                    <div style="background: rgba(255,255,255,0.02); border: 1px solid var(--line); border-radius: 14px; padding: 20px; margin-bottom: 20px;">
-                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                    <div class="report-card-box" style="margin-bottom: 20px;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; flex-wrap: wrap; gap: 8px;">
                             <h4 style="margin: 0; font-size: 13.5px; color: var(--ink); text-transform: uppercase; letter-spacing: 0.05em;">Revenue Mix</h4>
                             <span class="pill-badge neutral" id="mix-total-badge">
                                 <?= $revenueTotals['monthly']['total'] > 0 ? '₱' . number_format($revenueTotals['monthly']['total'], 2) . ' Total' : 'No Data' ?>
@@ -1788,7 +1977,7 @@ function reports_page(): void
 
     <!-- ==================== TAB 2: ATTENDANCE & PEAK RUSH ==================== -->
     <div id="attendance-tab" class="tab-content animate-fade-in" style="display: none;">
-        <div class="panel" style="border-radius: 16px; padding: 26px;">
+        <div class="panel report-panel" style="border-radius: 16px; padding: 26px;">
             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 22px; flex-wrap: wrap; gap: 14px;">
                 <div>
                     <h2 style="margin:0 0 4px 0; font-size: 20px;">Attendance & Peak Rush Intelligence</h2>
@@ -1819,8 +2008,8 @@ function reports_page(): void
                 </span>
             </div>
 
-            <div class="dash-grid" style="grid-template-columns: 2fr 1.1fr; gap: 24px; align-items: start; margin-bottom: 30px;">
-                <div style="background: rgba(255,255,255,0.02); border: 1px solid var(--line); border-radius: 14px; padding: 20px;">
+            <div class="dash-grid report-dash-grid" style="grid-template-columns: 2fr 1.1fr; gap: 24px; align-items: start; margin-bottom: 30px;">
+                <div class="report-card-box">
                     <div class="chart-canvas" id="attendance-chart-canvas-wrap" style="min-height: 330px; height: 330px; display: <?= $attendanceTotals['daily']['visits'] > 0 ? 'block' : 'none' ?>;">
                         <canvas id="attendanceChart"></canvas>
                     </div>
@@ -1843,18 +2032,18 @@ function reports_page(): void
                     </div>
                 </div>
 
-                <div class="table-wrap" style="max-height: 370px; overflow-y: auto; border: 1px solid var(--line); border-radius: 12px; background: var(--surface);">
+                <div class="table-wrap compact-table-wrap" style="max-height: 370px; overflow-y: auto; overflow-x: hidden; border: 1px solid var(--line); border-radius: 12px; background: var(--surface);">
                     <?php foreach (['daily', 'monthly', 'yearly'] as $tf): 
                         $key = ($tf === 'daily') ? 'day' : (($tf === 'monthly') ? 'month' : 'year');
                         $maxV = $attendanceTotals[$tf]['max'];
                         $hasAttData = $attendanceTotals[$tf]['visits'] > 0;
                     ?>
                         <div id="attendance-table-<?= $tf ?>" style="display: <?= $tf === 'daily' ? 'block' : 'none' ?>;">
-                            <table class="rich-table">
+                            <table class="rich-table compact-side-table">
                                 <thead>
                                     <tr>
                                         <th><?= ucfirst($key) ?></th>
-                                        <th style="text-align: right; color: #c084fc;">Visits</th>
+                                        <th class="col-att-val" style="text-align: right;">Visits</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -1869,7 +2058,7 @@ function reports_page(): void
                                                         <span class="peak-tag">★ Peak</span>
                                                     <?php endif; ?>
                                                 </td>
-                                                <td style="text-align: right; font-weight: 700; color: #c084fc;"><?= (int)$r['visits'] ?></td>
+                                                <td class="col-att-val" style="text-align: right; font-weight: 700;"><?= (int)$r['visits'] ?></td>
                                             </tr>
                                         <?php endforeach; ?>
                                     <?php else: ?>
@@ -1884,7 +2073,7 @@ function reports_page(): void
                                 <tfoot>
                                     <tr>
                                         <td>Total Visits:</td>
-                                        <td style="text-align: right; color: #c084fc;"><?= $attendanceTotals[$tf]['visits'] ?> check-ins</td>
+                                        <td class="col-att-val" style="text-align: right; font-weight: 700;"><?= $attendanceTotals[$tf]['visits'] ?></td>
                                     </tr>
                                 </tfoot>
                             </table>
@@ -1894,24 +2083,24 @@ function reports_page(): void
             </div>
 
             <!-- Bottom: 2 Advanced Charts (Hourly Peak Hours + Day of Week) -->
-            <div class="dash-grid" style="grid-template-columns: 1fr 1fr; gap: 24px;">
+            <div class="dash-grid report-bottom-grid" style="grid-template-columns: 1fr 1fr; gap: 24px;">
                 <!-- Peak Hours Rush Analysis -->
-                <div style="background: rgba(255,255,255,0.02); border: 1px solid var(--line); border-radius: 14px; padding: 22px;">
-                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
-                        <div>
+                <div class="report-card-box">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; flex-wrap: wrap; gap: 8px;">
+                        <div style="min-width: 0;">
                             <h3 style="margin: 0; font-size: 16px; color: var(--ink);">Hourly Rush Analysis</h3>
                             <span style="font-size: 12px; color: var(--muted);">Check-in frequency by hour of day (5:00 AM – 11:00 PM)</span>
                         </div>
                         <?php if ($peakHour !== null && $peakHourCount > 0): ?>
-                            <span class="pill-badge green">⚡ Peak: <?= date('g A', strtotime("$peakHour:00")) ?></span>
+                            <span class="pill-badge green" style="flex-shrink: 0;">⚡ Peak: <?= date('g A', strtotime("$peakHour:00")) ?></span>
                         <?php else: ?>
-                            <span class="pill-badge neutral">Awaiting Data</span>
+                            <span class="pill-badge neutral" style="flex-shrink: 0;">Awaiting Data</span>
                         <?php endif; ?>
                     </div>
 
-                    <div style="background: rgba(132,204,22,0.06); border: 1px solid rgba(132,204,22,0.2); border-radius: 8px; padding: 10px 14px; font-size: 12.5px; color: var(--muted); margin-bottom: 16px; display: flex; align-items: center; gap: 8px;">
-                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--lime)" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
-                        <span><strong>Staffing Optimization:</strong> Ensure high floor trainer presence during typical morning rush (6–8 AM) & evening surge (5–8 PM).</span>
+                    <div style="background: rgba(132,204,22,0.06); border: 1px solid rgba(132,204,22,0.2); border-radius: 8px; padding: 10px 14px; font-size: 12.5px; color: var(--muted); margin-bottom: 16px; display: flex; align-items: flex-start; gap: 8px;">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--lime)" stroke-width="2" style="flex-shrink: 0; margin-top: 2px;"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+                        <span style="min-width: 0;"><strong>Staffing Optimization:</strong> Ensure high floor trainer presence during typical morning rush (6–8 AM) & evening surge (5–8 PM).</span>
                     </div>
 
                     <div class="chart-canvas" style="min-height: 260px; height: 260px;">
@@ -1920,22 +2109,22 @@ function reports_page(): void
                 </div>
 
                 <!-- Day of Week Distribution -->
-                <div style="background: rgba(255,255,255,0.02); border: 1px solid var(--line); border-radius: 14px; padding: 22px;">
-                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
-                        <div>
+                <div class="report-card-box">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; flex-wrap: wrap; gap: 8px;">
+                        <div style="min-width: 0;">
                             <h3 style="margin: 0; font-size: 16px; color: var(--ink);">Day-of-Week Distribution</h3>
                             <span style="font-size: 12px; color: var(--muted);">Total check-in volume distributed from Monday to Sunday</span>
                         </div>
                         <?php if ($busiestDayName !== null && $busiestDayCount > 0): ?>
-                            <span class="pill-badge purple">📅 Busiest: <?= h($busiestDayName) ?></span>
+                            <span class="pill-badge purple" style="flex-shrink: 0;">📅 Busiest: <?= h($busiestDayName) ?></span>
                         <?php else: ?>
-                            <span class="pill-badge neutral">Awaiting Data</span>
+                            <span class="pill-badge neutral" style="flex-shrink: 0;">Awaiting Data</span>
                         <?php endif; ?>
                     </div>
 
-                    <div style="background: rgba(168,85,247,0.06); border: 1px solid rgba(168,85,247,0.2); border-radius: 8px; padding: 10px 14px; font-size: 12.5px; color: var(--muted); margin-bottom: 16px; display: flex; align-items: center; gap: 8px;">
-                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#c084fc" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
-                        <span><strong>Capacity Planning:</strong> Schedule facility maintenance and group classes around off-peak mid-week windows.</span>
+                    <div style="background: rgba(168,85,247,0.06); border: 1px solid rgba(168,85,247,0.2); border-radius: 8px; padding: 10px 14px; font-size: 12.5px; color: var(--muted); margin-bottom: 16px; display: flex; align-items: flex-start; gap: 8px;">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#c084fc" stroke-width="2" style="flex-shrink: 0; margin-top: 2px;"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
+                        <span style="min-width: 0;"><strong>Capacity Planning:</strong> Schedule facility maintenance and group classes around off-peak mid-week windows.</span>
                     </div>
 
                     <div class="chart-canvas" style="min-height: 260px; height: 260px;">
@@ -1948,7 +2137,7 @@ function reports_page(): void
 
     <!-- ==================== TAB 3: WALK-IN TRAFFIC ==================== -->
     <div id="walkin-tab" class="tab-content animate-fade-in" style="display: none;">
-        <div class="panel" style="border-radius: 16px; padding: 26px;">
+        <div class="panel report-panel" style="border-radius: 16px; padding: 26px;">
             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 22px; flex-wrap: wrap; gap: 14px;">
                 <div>
                     <h2 style="margin:0 0 4px 0; font-size: 20px;">Walk-In Visitor Analytics</h2>
@@ -1978,8 +2167,8 @@ function reports_page(): void
                 </span>
             </div>
 
-            <div class="dash-grid" style="grid-template-columns: 2fr 1.1fr; gap: 24px; align-items: start;">
-                <div style="background: rgba(255,255,255,0.02); border: 1px solid var(--line); border-radius: 14px; padding: 20px;">
+            <div class="dash-grid report-dash-grid" style="grid-template-columns: 2fr 1.1fr; gap: 24px; align-items: start;">
+                <div class="report-card-box">
                     <div class="chart-canvas" id="walkin-chart-canvas-wrap" style="min-height: 360px; height: 360px; display: <?= $walkinTotals['daily']['visits'] > 0 ? 'block' : 'none' ?>;">
                         <canvas id="walkinChart"></canvas>
                     </div>
@@ -2002,18 +2191,18 @@ function reports_page(): void
                     </div>
                 </div>
 
-                <div class="table-wrap" style="max-height: 400px; overflow-y: auto; border: 1px solid var(--line); border-radius: 12px; background: var(--surface);">
+                <div class="table-wrap compact-table-wrap" style="max-height: 400px; overflow-y: auto; overflow-x: hidden; border: 1px solid var(--line); border-radius: 12px; background: var(--surface);">
                     <?php foreach (['daily', 'monthly', 'yearly'] as $tf): 
                         $key = ($tf === 'daily') ? 'day' : (($tf === 'monthly') ? 'month' : 'year');
                         $maxV = $walkinTotals[$tf]['max'];
                         $hasWalkData = $walkinTotals[$tf]['visits'] > 0;
                     ?>
                         <div id="walkin-table-<?= $tf ?>" style="display: <?= $tf === 'daily' ? 'block' : 'none' ?>;">
-                            <table class="rich-table">
+                            <table class="rich-table compact-side-table">
                                 <thead>
                                     <tr>
                                         <th><?= ucfirst($key) ?></th>
-                                        <th style="text-align: right; color: #38bdf8;">Visits</th>
+                                        <th class="col-walk-val" style="text-align: right;">Visits</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -2028,7 +2217,7 @@ function reports_page(): void
                                                         <span class="peak-tag">★ Peak</span>
                                                     <?php endif; ?>
                                                 </td>
-                                                <td style="text-align: right; font-weight: 700; color: #38bdf8;"><?= (int)$r['visits'] ?></td>
+                                                <td class="col-walk-val" style="text-align: right; font-weight: 700;"><?= (int)$r['visits'] ?></td>
                                             </tr>
                                         <?php endforeach; ?>
                                     <?php else: ?>
@@ -2043,7 +2232,7 @@ function reports_page(): void
                                 <tfoot>
                                     <tr>
                                         <td>Total Passes:</td>
-                                        <td style="text-align: right; color: #38bdf8;"><?= $walkinTotals[$tf]['visits'] ?> passes</td>
+                                        <td class="col-walk-val" style="text-align: right; font-weight: 700;"><?= $walkinTotals[$tf]['visits'] ?></td>
                                     </tr>
                                 </tfoot>
                             </table>
@@ -2504,9 +2693,59 @@ function reports_page(): void
         });
 
         if (typeof Chart !== 'undefined') {
-            const isLight = document.documentElement.getAttribute('data-theme') === 'light';
-            Chart.defaults.color = isLight ? '#475569' : '#8892b0';
-            Chart.defaults.borderColor = isLight ? 'rgba(0, 0, 0, 0.08)' : 'rgba(255, 255, 255, 0.06)';
+            function getThemeColors() {
+                const isLight = document.documentElement.getAttribute('data-theme') === 'light';
+                return {
+                    isLight: isLight,
+                    textColor: isLight ? '#0f172a' : '#cbd5e1',
+                    tickFont: { family: "'Inter', system-ui, -apple-system, sans-serif", size: 11, weight: '600' },
+                    gridColor: isLight ? '#e2e8f0' : 'rgba(255, 255, 255, 0.08)',
+                    axisLineColor: isLight ? '#94a3b8' : 'rgba(255, 255, 255, 0.20)',
+                    tooltipBg: '#0f172a',
+                    tooltipTitle: '#ffffff',
+                    tooltipBorder: isLight ? '#334155' : 'rgba(255, 255, 255, 0.2)',
+                    
+                    revenue: {
+                        subs: isLight ? '#4d7c0f' : '#84cc16',
+                        subsHover: isLight ? '#3f6212' : '#a3e635',
+                        walk: isLight ? '#0284c7' : '#0ea5e9',
+                        walkHover: isLight ? '#0369a1' : '#38bdf8'
+                    },
+                    attendance: {
+                        line: isLight ? '#7c3aed' : '#a78bfa',
+                        fill: isLight ? 'rgba(124, 58, 237, 0.22)' : 'rgba(167, 139, 250, 0.15)',
+                        pointBg: isLight ? '#ffffff' : '#0f172a',
+                        pointBorder: isLight ? '#7c3aed' : '#a78bfa',
+                        pointHoverBg: isLight ? '#7c3aed' : '#ffffff'
+                    },
+                    hourly: {
+                        peak: isLight ? '#4d7c0f' : 'rgba(132, 204, 22, 0.95)',
+                        peakHover: isLight ? '#3f6212' : '#a3e635',
+                        normal: isLight ? 'rgba(77, 124, 15, 0.32)' : 'rgba(132, 204, 22, 0.35)',
+                        normalHover: isLight ? 'rgba(77, 124, 15, 0.55)' : 'rgba(132, 204, 22, 0.60)'
+                    },
+                    dayOfWeek: {
+                        peak: isLight ? '#7e22ce' : 'rgba(168, 85, 247, 0.95)',
+                        peakHover: isLight ? '#6b21a8' : '#c084fc',
+                        normal: isLight ? 'rgba(126, 34, 206, 0.30)' : 'rgba(168, 85, 247, 0.38)',
+                        normalHover: isLight ? 'rgba(126, 34, 206, 0.55)' : 'rgba(168, 85, 247, 0.60)'
+                    },
+                    walkin: {
+                        line: isLight ? '#0284c7' : '#38bdf8',
+                        fill: isLight ? 'rgba(2, 132, 199, 0.22)' : 'rgba(56, 189, 248, 0.15)',
+                        pointBg: isLight ? '#ffffff' : '#0f172a',
+                        pointBorder: isLight ? '#0284c7' : '#38bdf8',
+                        pointHoverBg: isLight ? '#0284c7' : '#ffffff'
+                    },
+                    engagement: {
+                        colors: isLight ? ['#059669', '#d97706', '#dc2626'] : ['#10b981', '#f59e0b', '#ef4444']
+                    }
+                };
+            }
+
+            const initialColors = getThemeColors();
+            Chart.defaults.color = initialColors.textColor;
+            Chart.defaults.borderColor = initialColors.gridColor;
             
             // 1. Revenue Stacked Bar Chart
             const revCanvas = document.getElementById('revenueChart');
@@ -2519,16 +2758,16 @@ function reports_page(): void
                             {
                                 label: 'Subscriptions',
                                 data: chartsData.revenue.monthly.subscriptions,
-                                backgroundColor: 'rgba(132, 204, 22, 0.85)',
-                                hoverBackgroundColor: '#a3e635',
+                                backgroundColor: initialColors.revenue.subs,
+                                hoverBackgroundColor: initialColors.revenue.subsHover,
                                 borderRadius: 5,
                                 barPercentage: 0.65
                             },
                             {
                                 label: 'Walk-In Passes',
                                 data: chartsData.revenue.monthly.walkins,
-                                backgroundColor: 'rgba(14, 165, 233, 0.85)',
-                                hoverBackgroundColor: '#38bdf8',
+                                backgroundColor: initialColors.revenue.walk,
+                                hoverBackgroundColor: initialColors.revenue.walkHover,
                                 borderRadius: 5,
                                 barPercentage: 0.65
                             }
@@ -2544,15 +2783,23 @@ function reports_page(): void
                         scales: { 
                             x: { 
                                 stacked: true,
-                                grid: { display: false } 
+                                grid: { display: false },
+                                border: { color: initialColors.axisLineColor, width: 1.5 },
+                                ticks: {
+                                    color: initialColors.textColor,
+                                    font: initialColors.tickFont
+                                }
                             },
                             y: { 
                                 stacked: true,
                                 beginAtZero: true,
                                 suggestedMin: 0,
                                 suggestedMax: 1000,
-                                grid: { color: 'rgba(255,255,255,0.05)' },
+                                grid: { color: initialColors.gridColor },
+                                border: { color: initialColors.axisLineColor, width: 1.5 },
                                 ticks: {
+                                    color: initialColors.textColor,
+                                    font: initialColors.tickFont,
                                     precision: 0,
                                     callback: function(val) {
                                         if (val % 1 !== 0) return '';
@@ -2564,10 +2811,10 @@ function reports_page(): void
                         plugins: { 
                             legend: { display: false },
                             tooltip: { 
-                                backgroundColor: '#0f172a', 
-                                titleColor: '#fff', 
+                                backgroundColor: initialColors.tooltipBg, 
+                                titleColor: initialColors.tooltipTitle, 
                                 padding: 14, 
-                                borderColor: 'rgba(255,255,255,0.12)', 
+                                borderColor: initialColors.tooltipBorder, 
                                 borderWidth: 1,
                                 cornerRadius: 8,
                                 callbacks: {
@@ -2599,7 +2846,7 @@ function reports_page(): void
                         labels: ['Subscriptions', 'Walk-Ins'],
                         datasets: [{
                             data: [subT, walkT],
-                            backgroundColor: ['#84cc16', '#0ea5e9'],
+                            backgroundColor: [initialColors.revenue.subs, initialColors.revenue.walk],
                             borderWidth: 0,
                             hoverOffset: 6
                         }]
@@ -2611,8 +2858,10 @@ function reports_page(): void
                         plugins: {
                             legend: { display: false },
                             tooltip: {
-                                backgroundColor: '#0f172a',
-                                titleColor: '#fff',
+                                backgroundColor: initialColors.tooltipBg,
+                                titleColor: initialColors.tooltipTitle,
+                                borderColor: initialColors.tooltipBorder,
+                                borderWidth: 1,
                                 padding: 12,
                                 callbacks: {
                                     label: function(ctx) {
@@ -2627,7 +2876,7 @@ function reports_page(): void
                 });
             }
 
-            // 3. Attendance Trend Chart
+            // 3. Attendance Trend Chart (High Contrast in Light & Dark Mode)
             const attCanvas = document.getElementById('attendanceChart');
             if (attCanvas) {
                 attendanceChartInstance = new Chart(attCanvas, {
@@ -2637,16 +2886,18 @@ function reports_page(): void
                         datasets: [{
                             label: 'Check-Ins',
                             data: chartsData.attendance.daily.data,
-                            borderColor: '#8b5cf6',
-                            backgroundColor: 'rgba(139, 92, 246, 0.12)',
+                            borderColor: initialColors.attendance.line,
+                            backgroundColor: initialColors.attendance.fill,
                             fill: true,
                             tension: 0.35,
-                            borderWidth: 3,
-                            pointBackgroundColor: '#0f172a',
-                            pointBorderColor: '#8b5cf6',
-                            pointBorderWidth: 2,
-                            pointRadius: 4,
-                            pointHoverRadius: 6
+                            borderWidth: 3.5,
+                            pointBackgroundColor: initialColors.attendance.pointBg,
+                            pointBorderColor: initialColors.attendance.pointBorder,
+                            pointBorderWidth: 2.5,
+                            pointRadius: 4.5,
+                            pointHoverRadius: 7,
+                            pointHoverBackgroundColor: initialColors.attendance.pointHoverBg,
+                            pointHoverBorderColor: '#ffffff'
                         }]
                     },
                     options: { 
@@ -2657,14 +2908,33 @@ function reports_page(): void
                                 beginAtZero: true,
                                 suggestedMin: 0,
                                 suggestedMax: 10,
-                                grid: { color: 'rgba(255,255,255,0.05)' },
-                                ticks: { precision: 0 }
+                                grid: { color: initialColors.gridColor },
+                                border: { color: initialColors.axisLineColor, width: 1.5 },
+                                ticks: { 
+                                    color: initialColors.textColor,
+                                    font: initialColors.tickFont,
+                                    precision: 0 
+                                }
                             }, 
-                            x: { grid: { display: false } }
+                            x: { 
+                                grid: { display: false },
+                                border: { color: initialColors.axisLineColor, width: 1.5 },
+                                ticks: { 
+                                    color: initialColors.textColor,
+                                    font: initialColors.tickFont 
+                                }
+                            }
                         }, 
                         plugins: { 
                             legend: { display: false },
-                            tooltip: { backgroundColor: '#0f172a', titleColor: '#fff', bodyColor: '#a78bfa', padding: 12, borderColor: 'rgba(139,92,246,0.2)', borderWidth: 1 }
+                            tooltip: { 
+                                backgroundColor: initialColors.tooltipBg, 
+                                titleColor: initialColors.tooltipTitle, 
+                                bodyColor: '#a78bfa', 
+                                padding: 12, 
+                                borderColor: initialColors.tooltipBorder, 
+                                borderWidth: 1 
+                            }
                         } 
                     }
                 });
@@ -2676,7 +2946,7 @@ function reports_page(): void
                 const hourlyColors = chartsData.hourly.labels.map(lbl => {
                     const isMorning = ['6 AM', '7 AM', '8 AM'].includes(lbl);
                     const isEvening = ['5 PM', '6 PM', '7 PM', '8 PM'].includes(lbl);
-                    return (isMorning || isEvening) ? 'rgba(132, 204, 22, 0.92)' : 'rgba(132, 204, 22, 0.32)';
+                    return (isMorning || isEvening) ? initialColors.hourly.peak : initialColors.hourly.normal;
                 });
 
                 hourlyChartInstance = new Chart(hrCanvas, {
@@ -2687,7 +2957,7 @@ function reports_page(): void
                             label: 'Visits',
                             data: chartsData.hourly.data,
                             backgroundColor: hourlyColors,
-                            hoverBackgroundColor: '#a3e635',
+                            hoverBackgroundColor: initialColors.hourly.peakHover,
                             borderRadius: 4
                         }]
                     },
@@ -2699,17 +2969,32 @@ function reports_page(): void
                                 beginAtZero: true, 
                                 suggestedMin: 0,
                                 suggestedMax: 5,
-                                grid: { color: 'rgba(255,255,255,0.05)' }, 
-                                ticks: { precision: 0, stepSize: 1 } 
+                                grid: { color: initialColors.gridColor },
+                                border: { color: initialColors.axisLineColor, width: 1.5 }, 
+                                ticks: { 
+                                    color: initialColors.textColor,
+                                    font: initialColors.tickFont,
+                                    precision: 0, 
+                                    stepSize: 1 
+                                } 
                             },
-                            x: { grid: { display: false }, ticks: { font: { size: 10 } } }
+                            x: { 
+                                grid: { display: false },
+                                border: { color: initialColors.axisLineColor, width: 1.5 }, 
+                                ticks: { 
+                                    color: initialColors.textColor,
+                                    font: { family: "'Inter', system-ui, sans-serif", size: 10.5, weight: '600' } 
+                                } 
+                            }
                         },
                         plugins: {
                             legend: { display: false },
                             tooltip: { 
-                                backgroundColor: '#0f172a', 
-                                titleColor: '#fff', 
+                                backgroundColor: initialColors.tooltipBg, 
+                                titleColor: initialColors.tooltipTitle, 
                                 bodyColor: '#84cc16', 
+                                borderColor: initialColors.tooltipBorder,
+                                borderWidth: 1,
                                 padding: 10,
                                 callbacks: {
                                     afterLabel: function(ctx) {
@@ -2731,7 +3016,7 @@ function reports_page(): void
             if (dowCanvas) {
                 const maxVal = Math.max(...chartsData.day_of_week.data);
                 const dowColors = chartsData.day_of_week.data.map(val => {
-                    return (val === maxVal && maxVal > 0) ? 'rgba(168, 85, 247, 0.95)' : 'rgba(168, 85, 247, 0.38)';
+                    return (val === maxVal && maxVal > 0) ? initialColors.dayOfWeek.peak : initialColors.dayOfWeek.normal;
                 });
 
                 dayOfWeekChartInstance = new Chart(dowCanvas, {
@@ -2742,7 +3027,7 @@ function reports_page(): void
                             label: 'Visits',
                             data: chartsData.day_of_week.data,
                             backgroundColor: dowColors,
-                            hoverBackgroundColor: '#c084fc',
+                            hoverBackgroundColor: initialColors.dayOfWeek.peakHover,
                             borderRadius: 4
                         }]
                     },
@@ -2754,14 +3039,27 @@ function reports_page(): void
                                 beginAtZero: true, 
                                 suggestedMin: 0,
                                 suggestedMax: 5,
-                                grid: { color: 'rgba(255,255,255,0.05)' }, 
-                                ticks: { precision: 0, stepSize: 1 } 
+                                grid: { color: initialColors.gridColor },
+                                border: { color: initialColors.axisLineColor, width: 1.5 }, 
+                                ticks: { 
+                                    color: initialColors.textColor,
+                                    font: initialColors.tickFont,
+                                    precision: 0, 
+                                    stepSize: 1 
+                                } 
                             },
-                            x: { grid: { display: false } }
+                            x: { 
+                                grid: { display: false },
+                                border: { color: initialColors.axisLineColor, width: 1.5 },
+                                ticks: {
+                                    color: initialColors.textColor,
+                                    font: initialColors.tickFont
+                                }
+                            }
                         },
                         plugins: {
                             legend: { display: false },
-                            tooltip: { backgroundColor: '#0f172a', titleColor: '#fff', bodyColor: '#c084fc', padding: 10 }
+                            tooltip: { backgroundColor: initialColors.tooltipBg, titleColor: initialColors.tooltipTitle, bodyColor: '#c084fc', borderColor: initialColors.tooltipBorder, borderWidth: 1, padding: 10 }
                         }
                     }
                 });
@@ -2777,16 +3075,18 @@ function reports_page(): void
                         datasets: [{
                             label: 'Walk-In Visitors',
                             data: chartsData.walkin.daily.data,
-                            borderColor: '#0ea5e9',
-                            backgroundColor: 'rgba(14, 165, 233, 0.12)',
+                            borderColor: initialColors.walkin.line,
+                            backgroundColor: initialColors.walkin.fill,
                             fill: true,
                             tension: 0.35,
-                            borderWidth: 3,
-                            pointBackgroundColor: '#0f172a',
-                            pointBorderColor: '#0ea5e9',
-                            pointBorderWidth: 2,
-                            pointRadius: 4,
-                            pointHoverRadius: 6
+                            borderWidth: 3.5,
+                            pointBackgroundColor: initialColors.walkin.pointBg,
+                            pointBorderColor: initialColors.walkin.pointBorder,
+                            pointBorderWidth: 2.5,
+                            pointRadius: 4.5,
+                            pointHoverRadius: 7,
+                            pointHoverBackgroundColor: initialColors.walkin.pointHoverBg,
+                            pointHoverBorderColor: '#ffffff'
                         }]
                     },
                     options: { 
@@ -2797,14 +3097,26 @@ function reports_page(): void
                                 beginAtZero: true, 
                                 suggestedMin: 0,
                                 suggestedMax: 5,
-                                grid: { color: 'rgba(255,255,255,0.05)' },
-                                ticks: { precision: 0 }
+                                grid: { color: initialColors.gridColor },
+                                border: { color: initialColors.axisLineColor, width: 1.5 },
+                                ticks: { 
+                                    color: initialColors.textColor,
+                                    font: initialColors.tickFont,
+                                    precision: 0 
+                                }
                             }, 
-                            x: { grid: { display: false } }
+                            x: { 
+                                grid: { display: false },
+                                border: { color: initialColors.axisLineColor, width: 1.5 },
+                                ticks: { 
+                                    color: initialColors.textColor,
+                                    font: initialColors.tickFont 
+                                }
+                            }
                         }, 
                         plugins: { 
                             legend: { display: false },
-                            tooltip: { backgroundColor: '#0f172a', titleColor: '#fff', bodyColor: '#38bdf8', padding: 12, borderColor: 'rgba(14,165,233,0.2)', borderWidth: 1 }
+                            tooltip: { backgroundColor: initialColors.tooltipBg, titleColor: initialColors.tooltipTitle, bodyColor: '#38bdf8', padding: 12, borderColor: initialColors.tooltipBorder, borderWidth: 1 }
                         } 
                     }
                 });
@@ -2819,7 +3131,7 @@ function reports_page(): void
                         labels: <?= $engagementLabels ?>,
                         datasets: [{
                             data: <?= $engagementJson ?>,
-                            backgroundColor: ['#10b981', '#f59e0b', '#ef4444'],
+                            backgroundColor: initialColors.engagement.colors,
                             borderWidth: 0,
                             hoverOffset: 6
                         }]
@@ -2832,19 +3144,153 @@ function reports_page(): void
                             legend: {
                                 position: 'bottom',
                                 labels: {
+                                    color: initialColors.textColor,
                                     padding: 14,
                                     boxWidth: 12,
                                     usePointStyle: true,
-                                    font: { size: 12, family: "'Inter', sans-serif" }
+                                    font: { size: 12, weight: '600', family: "'Inter', sans-serif" }
                                 }
                             },
                             tooltip: {
-                                backgroundColor: '#0f172a',
-                                titleColor: '#fff',
+                                backgroundColor: initialColors.tooltipBg,
+                                titleColor: initialColors.tooltipTitle,
+                                borderColor: initialColors.tooltipBorder,
+                                borderWidth: 1,
                                 padding: 10
                             }
                         }
                     }
+                });
+            }
+
+            // Dynamic theme observer for live dark/light mode switching
+            function applyThemeToCharts() {
+                if (typeof Chart === 'undefined') return;
+                const tc = getThemeColors();
+                Chart.defaults.color = tc.textColor;
+                Chart.defaults.borderColor = tc.gridColor;
+
+                // Update Revenue Bar
+                if (revenueChartInstance && revenueChartInstance.data.datasets.length >= 2) {
+                    revenueChartInstance.data.datasets[0].backgroundColor = tc.revenue.subs;
+                    revenueChartInstance.data.datasets[0].hoverBackgroundColor = tc.revenue.subsHover;
+                    revenueChartInstance.data.datasets[1].backgroundColor = tc.revenue.walk;
+                    revenueChartInstance.data.datasets[1].hoverBackgroundColor = tc.revenue.walkHover;
+                }
+
+                // Update Revenue Mix Donut
+                if (revenueMixChartInstance && revenueMixChartInstance.data.datasets.length) {
+                    revenueMixChartInstance.data.datasets[0].backgroundColor = [tc.revenue.subs, tc.revenue.walk];
+                }
+
+                // Update Attendance Line
+                if (attendanceChartInstance && attendanceChartInstance.data.datasets.length) {
+                    attendanceChartInstance.data.datasets[0].borderColor = tc.attendance.line;
+                    attendanceChartInstance.data.datasets[0].backgroundColor = tc.attendance.fill;
+                    attendanceChartInstance.data.datasets[0].pointBackgroundColor = tc.attendance.pointBg;
+                    attendanceChartInstance.data.datasets[0].pointBorderColor = tc.attendance.pointBorder;
+                    attendanceChartInstance.data.datasets[0].pointHoverBackgroundColor = tc.attendance.pointHoverBg;
+                }
+
+                // Update Hourly Bar
+                if (hourlyChartInstance && hourlyChartInstance.data.datasets.length) {
+                    hourlyChartInstance.data.datasets[0].backgroundColor = chartsData.hourly.labels.map(lbl => {
+                        const isRush = ['6 AM', '7 AM', '8 AM', '5 PM', '6 PM', '7 PM', '8 PM'].includes(lbl);
+                        return isRush ? tc.hourly.peak : tc.hourly.normal;
+                    });
+                    hourlyChartInstance.data.datasets[0].hoverBackgroundColor = tc.hourly.peakHover;
+                }
+
+                // Update Day of Week Bar
+                if (dayOfWeekChartInstance && dayOfWeekChartInstance.data.datasets.length) {
+                    const maxVal = Math.max(...chartsData.day_of_week.data);
+                    dayOfWeekChartInstance.data.datasets[0].backgroundColor = chartsData.day_of_week.data.map(val => {
+                        return (val === maxVal && maxVal > 0) ? tc.dayOfWeek.peak : tc.dayOfWeek.normal;
+                    });
+                    dayOfWeekChartInstance.data.datasets[0].hoverBackgroundColor = tc.dayOfWeek.peakHover;
+                }
+
+                // Update Walk-In Line
+                if (walkinChartInstance && walkinChartInstance.data.datasets.length) {
+                    walkinChartInstance.data.datasets[0].borderColor = tc.walkin.line;
+                    walkinChartInstance.data.datasets[0].backgroundColor = tc.walkin.fill;
+                    walkinChartInstance.data.datasets[0].pointBackgroundColor = tc.walkin.pointBg;
+                    walkinChartInstance.data.datasets[0].pointBorderColor = tc.walkin.pointBorder;
+                    walkinChartInstance.data.datasets[0].pointHoverBackgroundColor = tc.walkin.pointHoverBg;
+                }
+
+                // Update Engagement Doughnut
+                if (engagementChartInstance && engagementChartInstance.data.datasets.length) {
+                    engagementChartInstance.data.datasets[0].backgroundColor = tc.engagement.colors;
+                    if (engagementChartInstance.options.plugins && engagementChartInstance.options.plugins.legend) {
+                        engagementChartInstance.options.plugins.legend.labels.color = tc.textColor;
+                    }
+                }
+
+                const list = [
+                    revenueChartInstance,
+                    revenueMixChartInstance,
+                    attendanceChartInstance,
+                    hourlyChartInstance,
+                    dayOfWeekChartInstance,
+                    walkinChartInstance,
+                    engagementChartInstance
+                ];
+
+                list.forEach(c => {
+                    if (!c) return;
+                    if (c.options && c.options.scales) {
+                        if (c.options.scales.y) {
+                            if (c.options.scales.y.ticks) {
+                                c.options.scales.y.ticks.color = tc.textColor;
+                                c.options.scales.y.ticks.font = tc.tickFont;
+                            }
+                            if (c.options.scales.y.grid) {
+                                c.options.scales.y.grid.color = tc.gridColor;
+                            }
+                            if (!c.options.scales.y.border) c.options.scales.y.border = {};
+                            c.options.scales.y.border.color = tc.axisLineColor;
+                            c.options.scales.y.border.width = 1.5;
+                        }
+                        if (c.options.scales.x) {
+                            if (c.options.scales.x.ticks) {
+                                c.options.scales.x.ticks.color = tc.textColor;
+                                c.options.scales.x.ticks.font = (c === hourlyChartInstance) 
+                                    ? { family: "'Inter', system-ui, sans-serif", size: 10.5, weight: '600' }
+                                    : tc.tickFont;
+                            }
+                            if (c.options.scales.x.grid && c.options.scales.x.grid.display) {
+                                c.options.scales.x.grid.color = tc.gridColor;
+                            }
+                            if (!c.options.scales.x.border) c.options.scales.x.border = {};
+                            c.options.scales.x.border.color = tc.axisLineColor;
+                            c.options.scales.x.border.width = 1.5;
+                        }
+                    }
+                    if (c.options && c.options.plugins && c.options.plugins.tooltip) {
+                        c.options.plugins.tooltip.backgroundColor = tc.tooltipBg;
+                        c.options.plugins.tooltip.titleColor = tc.tooltipTitle;
+                        c.options.plugins.tooltip.borderColor = tc.tooltipBorder;
+                    }
+                    c.update('none');
+                });
+            }
+
+            try {
+                const themeObserver = new MutationObserver(function(mutations) {
+                    mutations.forEach(function(m) {
+                        if (m.attributeName === 'data-theme') {
+                            applyThemeToCharts();
+                        }
+                    });
+                });
+                themeObserver.observe(document.documentElement, { attributes: true });
+            } catch (e) {}
+
+            const themeBtn = document.getElementById('theme-toggle-btn');
+            if (themeBtn) {
+                themeBtn.addEventListener('click', function() {
+                    setTimeout(applyThemeToCharts, 50);
                 });
             }
         }

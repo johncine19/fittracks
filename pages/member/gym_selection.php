@@ -79,7 +79,10 @@ function gym_selection_page(): void
         /* Page Background Styling */
         body:has(.gym-select),
         body.auth-body:has(.gym-select),
-        body.app-body:has(.gym-select) {
+        body.app-body:has(.gym-select),
+        [data-theme="light"] body:has(.gym-select),
+        [data-theme="light"] body.auth-body:has(.gym-select),
+        [data-theme="light"] body.app-body:has(.gym-select) {
             background-color: #07090d !important;
             background-image: 
                 radial-gradient(ellipse at 50% 15%, rgba(199, 255, 34, 0.12) 0%, transparent 60%),
@@ -90,16 +93,7 @@ function gym_selection_page(): void
             background-repeat: no-repeat !important;
             background-attachment: fixed !important;
             min-height: 100vh !important;
-        }
-
-        [data-theme="light"] body:has(.gym-select),
-        [data-theme="light"] body.auth-body:has(.gym-select),
-        [data-theme="light"] body.app-body:has(.gym-select) {
-            background-color: #f8fafc !important;
-            background-image: 
-                radial-gradient(ellipse at 50% 15%, rgba(34, 197, 94, 0.08) 0%, transparent 65%),
-                linear-gradient(180deg, rgba(255, 255, 255, 0.88) 0%, rgba(248, 250, 252, 0.95) 100%),
-                url('assets/images/loginback.png?v=3') !important;
+            color: #f8fafc !important;
         }
 
         .auth-shell:has(.gym-select),
@@ -107,11 +101,18 @@ function gym_selection_page(): void
             background: transparent !important;
         }
 
-        /* Override the site's default boxed .panel treatment for this page only,
-           so it spans the viewport with the hero background instead of a narrow card. */
+        /* Override the site's default boxed .panel treatment & enforce permanent dark tokens */
         .panel.gym-select {
             --font-display: 'Oswald', 'Arial Narrow', sans-serif;
             --font-ui: 'DM Sans', var(--font-sans, system-ui), sans-serif;
+            --ink: #f8fafc !important;
+            --muted: #94a3b8 !important;
+            --panel: #0d121a !important;
+            --panel-soft: #141b27 !important;
+            --line: rgba(255, 255, 255, 0.12) !important;
+            --lime: #c7ff22 !important;
+            color-scheme: dark !important;
+            color: #f8fafc !important;
             max-width: 100% !important;
             width: 100% !important;
             margin: 0 !important;
@@ -121,25 +122,9 @@ function gym_selection_page(): void
             box-sizing: border-box;
             padding: 48px clamp(16px, 4vw, 72px) !important;
             overflow-x: hidden;
-            background-color: #07090d;
-            background-image: 
-                radial-gradient(ellipse at 50% 15%, rgba(199, 255, 34, 0.12) 0%, transparent 60%),
-                linear-gradient(180deg, rgba(7, 9, 13, 0.78) 0%, rgba(9, 12, 18, 0.92) 100%),
-                url('assets/images/loginback.png?v=3');
-            background-size: cover;
-            background-position: center top;
-            background-repeat: no-repeat;
-            background-attachment: fixed;
+            background: transparent !important;
             min-height: 100vh;
             position: relative;
-        }
-
-        [data-theme="light"] .panel.gym-select {
-            background-color: #f8fafc;
-            background-image: 
-                radial-gradient(ellipse at 50% 15%, rgba(34, 197, 94, 0.08) 0%, transparent 65%),
-                linear-gradient(180deg, rgba(255, 255, 255, 0.88) 0%, rgba(248, 250, 252, 0.95) 100%),
-                url('assets/images/loginback.png?v=3');
         }
 
         .gym-select, .gym-select input, .gym-select button { font-family: var(--font-ui); }
@@ -243,11 +228,6 @@ function gym_selection_page(): void
             box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5);
             transition: border-color 0.2s, box-shadow 0.2s;
         }
-        [data-theme="light"] #gym-search {
-            background: rgba(255, 255, 255, 0.88);
-            border: 1px solid rgba(0, 0, 0, 0.12);
-            box-shadow: 0 8px 20px -5px rgba(0, 0, 0, 0.06);
-        }
         #gym-search:focus {
             border-color: rgba(199, 255, 34, 0.5);
             box-shadow: 0 0 0 3px rgba(199, 255, 34, 0.15);
@@ -278,8 +258,8 @@ function gym_selection_page(): void
             background: rgba(14, 18, 17, 0.85);
             backdrop-filter: blur(8px);
             -webkit-backdrop-filter: blur(8px);
-            border: 1px solid rgba(255, 255, 255, 0.12);
-            color: var(--ink);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            color: #f8fafc;
             display: flex;
             align-items: center;
             justify-content: center;
@@ -287,11 +267,6 @@ function gym_selection_page(): void
             z-index: 5;
             box-shadow: 0 10px 25px rgba(0,0,0,0.5);
             transition: border-color 0.2s, color 0.2s, transform 0.15s;
-        }
-        [data-theme="light"] .carousel-nav {
-            background: rgba(255, 255, 255, 0.92);
-            border: 1px solid rgba(0, 0, 0, 0.1);
-            box-shadow: 0 8px 20px rgba(0,0,0,0.08);
         }
         .carousel-nav:hover { border-color: var(--lime); color: var(--lime); transform: translateY(-50%) scale(1.06); }
         .carousel-nav:focus-visible { outline: 2px solid var(--lime); outline-offset: 2px; }
@@ -307,10 +282,10 @@ function gym_selection_page(): void
             width: 300px;
             background:
                 radial-gradient(120% 90% at 100% 0%, rgba(199,255,34,0.06), transparent 60%),
-                rgba(14, 18, 17, 0.85);
+                rgba(14, 18, 17, 0.88);
             backdrop-filter: blur(14px);
             -webkit-backdrop-filter: blur(14px);
-            border: 1px solid rgba(255, 255, 255, 0.08);
+            border: 1px solid rgba(255, 255, 255, 0.10);
             border-radius: 14px;
             padding: 22px;
             cursor: pointer;
@@ -318,13 +293,13 @@ function gym_selection_page(): void
             overflow: hidden;
             will-change: transform;
             box-shadow: 0 20px 40px -15px rgba(0, 0, 0, 0.7);
+            color: #f8fafc;
+            transition: border-color 0.25s, transform 0.25s, box-shadow 0.25s;
         }
-        [data-theme="light"] .gym-card {
-            background:
-                radial-gradient(120% 90% at 100% 0%, rgba(34, 197, 94, 0.05), transparent 60%),
-                rgba(255, 255, 255, 0.90);
-            border: 1px solid rgba(0, 0, 0, 0.08);
-            box-shadow: 0 15px 35px -10px rgba(0, 0, 0, 0.08);
+        .gym-card:hover {
+            border-color: var(--lime);
+            transform: translateY(-4px);
+            box-shadow: 0 25px 45px -12px rgba(0, 0, 0, 0.85), 0 0 20px rgba(199, 255, 34, 0.15);
         }
         .gym-card::before {
             content: '';
@@ -453,6 +428,14 @@ function gym_selection_page(): void
         .gym-details-content {
             position: relative;
             z-index: 1;
+            --ink: #f8fafc !important;
+            --muted: #94a3b8 !important;
+            --panel: #0d121a !important;
+            --panel-soft: #141b27 !important;
+            --line: rgba(255, 255, 255, 0.12) !important;
+            --lime: #c7ff22 !important;
+            color-scheme: dark !important;
+            color: #f8fafc !important;
             background: rgba(12, 16, 15, 0.96);
             backdrop-filter: blur(20px);
             -webkit-backdrop-filter: blur(20px);
@@ -468,11 +451,6 @@ function gym_selection_page(): void
             scrollbar-color: rgba(199,255,34,0.35) transparent;
             font-family: var(--font-ui, inherit);
         }
-        [data-theme="light"] .gym-details-content {
-            background: rgba(255, 255, 255, 0.97);
-            border: 1px solid rgba(0, 0, 0, 0.1);
-            box-shadow: 0 25px 60px rgba(0,0,0,0.15);
-        }
         .gym-details-content::-webkit-scrollbar { width: 6px; }
         .gym-details-content::-webkit-scrollbar-track { background: transparent; }
         .gym-details-content::-webkit-scrollbar-thumb { background: rgba(199,255,34,0.3); border-radius: 999px; }
@@ -486,9 +464,6 @@ function gym_selection_page(): void
             backdrop-filter: blur(12px);
             -webkit-backdrop-filter: blur(12px);
             border-bottom: 1px solid var(--line);
-        }
-        [data-theme="light"] .modal-hero {
-            background: linear-gradient(160deg, rgba(34,197,94,0.08), transparent 70%), rgba(255, 255, 255, 0.98);
         }
         .modal-hero-top {
             display: flex;
@@ -586,15 +561,6 @@ function gym_selection_page(): void
             transform: scale(1.06);
         }
         .close-btn:focus-visible { outline: 2px solid var(--lime); outline-offset: 2px; }
-        [data-theme="light"] .close-btn {
-            background: rgba(0,0,0,0.04);
-            border-color: rgba(0,0,0,0.12);
-            color: #64748b;
-        }
-        [data-theme="light"] .close-btn:hover {
-            background: rgba(0,0,0,0.08);
-            color: #0f172a;
-        }
 
         .class-card {
             background: rgba(255,255,255,0.03);

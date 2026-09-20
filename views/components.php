@@ -1601,7 +1601,7 @@ function render_member_form(string $context, ?array $user = null, ?array $profil
                 $currentExp = isset($profile['fitness_tier']) ? (string)(in_array((int)$profile['fitness_tier'], [1,2]) ? 1 : (in_array((int)$profile['fitness_tier'], [3,4]) ? 2 : 3)) : '1';
                 $selectedExpLabel = $expOptions[$currentExp]['label'] ?? 'Starter';
                 ?>
-                <div class="pm-field full-span">
+                <div class="pm-field">
                     <label for="experienceTrigger_<?= h($context) ?>">Experience level</label>
                     <div class="custom-select-wrapper" id="experienceDropdown_<?= h($context) ?>">
                         <select name="experience_level" id="experienceSelect_<?= h($context) ?>" class="custom-select-native" <?= $context !== 'profile' ? 'required' : '' ?>>
@@ -1633,6 +1633,106 @@ function render_member_form(string $context, ?array $user = null, ?array $profil
                                          role="option"
                                          aria-selected="<?= $isSelected ? 'true' : 'false' ?>"
                                          onclick="selectCustomOption('experienceDropdown_<?= h($context) ?>', 'experienceSelect_<?= h($context) ?>', '<?= h(addslashes((string)$val)) ?>', '<?= h(addslashes($opt['label'])) ?>')">
+                                        <div class="custom-select-item-details">
+                                            <span class="custom-select-item-title"><?= h($opt['label']) ?></span>
+                                            <span class="custom-select-item-desc"><?= h($opt['desc']) ?></span>
+                                        </div>
+                                        <span class="custom-select-check"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span>
+                                    </div>
+                                <?php endforeach; ?>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Session Duration Custom Dropdown -->
+                <?php
+                $durationOptions = [
+                    '30' => ['label' => '30 mins (Quick)', 'desc' => 'Short, high-efficiency focused routine'],
+                    '45' => ['label' => '45–60 mins (Standard)', 'desc' => 'Optimal balance of warmup, lifting & conditioning'],
+                    '75' => ['label' => '75+ mins (Extended)', 'desc' => 'Complete bodybuilding or multi-phase training']
+                ];
+                $currentDurationVal = (int)($profile['preferred_duration_mins'] ?? 45);
+                $currentDurationKey = $currentDurationVal <= 30 ? '30' : ($currentDurationVal <= 60 ? '45' : '75');
+                $selectedDurationLabel = $durationOptions[$currentDurationKey]['label'] ?? '45–60 mins (Standard)';
+                ?>
+                <div class="pm-field">
+                    <label for="durationTrigger_<?= h($context) ?>">Session Duration</label>
+                    <div class="custom-select-wrapper" id="durationDropdown_<?= h($context) ?>">
+                        <select name="preferred_duration_mins" id="durationSelect_<?= h($context) ?>" class="custom-select-native">
+                            <?php foreach ($durationOptions as $mins => $opt): ?>
+                                <option value="<?= h((string)$mins) ?>" <?= selected((string)$mins, $currentDurationKey) ?>><?= h($opt['label']) ?></option>
+                            <?php endforeach; ?>
+                        </select>
+
+                        <button type="button" class="custom-select-trigger" id="durationTrigger_<?= h($context) ?>" onclick="toggleCustomDropdown('durationDropdown_<?= h($context) ?>', event)" aria-haspopup="listbox" aria-expanded="false">
+                            <span class="custom-select-trigger-content">
+                                <span class="custom-select-trigger-icon">
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                                </span>
+                                <span class="custom-select-trigger-text" id="durationTriggerText_<?= h($context) ?>"><?= h($selectedDurationLabel) ?></span>
+                            </span>
+                            <svg class="custom-select-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                                <polyline points="6 9 12 15 18 9"></polyline>
+                            </svg>
+                        </button>
+
+                        <div class="custom-select-menu" role="listbox">
+                            <div class="custom-select-list">
+                                <?php foreach ($durationOptions as $val => $opt): 
+                                    $isSelected = ((string)$val === $currentDurationKey);
+                                ?>
+                                    <div class="custom-select-item <?= $isSelected ? 'selected' : '' ?>"
+                                         data-value="<?= h((string)$val) ?>"
+                                         data-label="<?= h($opt['label']) ?>"
+                                         role="option"
+                                         aria-selected="<?= $isSelected ? 'true' : 'false' ?>"
+                                         onclick="selectCustomOption('durationDropdown_<?= h($context) ?>', 'durationSelect_<?= h($context) ?>', '<?= h(addslashes((string)$val)) ?>', '<?= h(addslashes($opt['label'])) ?>')">
+                                        <div class="custom-select-item-details">
+                                            <span class="custom-select-item-title"><?= h($opt['label']) ?></span>
+                                            <span class="custom-select-item-desc"><?= h($opt['desc']) ?></span>
+                                        </div>
+                                        <span class="custom-select-check"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span>
+                                    </div>
+                                <?php endforeach; ?>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Workout Frequency Custom Dropdown -->
+                <div class="pm-field full-span">
+                    <label for="weeklyWorkoutTrigger_lifestyle_<?= h($context) ?>">Workout Frequency</label>
+                    <div class="custom-select-wrapper" id="weeklyWorkoutDropdown_lifestyle_<?= h($context) ?>">
+                        <select name="weekly_workout_target" id="weeklyWorkoutTarget_lifestyle_<?= h($context) ?>" class="custom-select-native" onchange="const el = document.getElementById('weeklyWorkoutTarget_<?= h($context) ?>'); if (el) el.value = this.value;">
+                            <?php foreach ($weeklyWorkoutOptions as $val => $opt): ?>
+                                <option value="<?= $val ?>" <?= $selectedWeeklyWorkouts === $val ? 'selected' : '' ?>><?= h($opt['label']) ?> — <?= h($opt['desc']) ?></option>
+                            <?php endforeach; ?>
+                        </select>
+
+                        <button type="button" class="custom-select-trigger" id="weeklyWorkoutTrigger_lifestyle_<?= h($context) ?>" onclick="toggleCustomDropdown('weeklyWorkoutDropdown_lifestyle_<?= h($context) ?>', event)" aria-haspopup="listbox" aria-expanded="false">
+                            <span class="custom-select-trigger-content">
+                                <span class="custom-select-trigger-icon">
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+                                </span>
+                                <span class="custom-select-trigger-text" id="weeklyWorkoutTriggerText_lifestyle_<?= h($context) ?>"><?= h($selectedWeeklyLabel) ?></span>
+                            </span>
+                            <svg class="custom-select-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                                <polyline points="6 9 12 15 18 9"></polyline>
+                            </svg>
+                        </button>
+
+                        <div class="custom-select-menu" role="listbox">
+                            <div class="custom-select-list">
+                                <?php foreach ($weeklyWorkoutOptions as $val => $opt): 
+                                    $isSelected = ($val === $selectedWeeklyWorkouts);
+                                ?>
+                                    <div class="custom-select-item <?= $isSelected ? 'selected' : '' ?>"
+                                         data-value="<?= h((string)$val) ?>"
+                                         data-label="<?= h($opt['label']) ?>"
+                                         role="option"
+                                         aria-selected="<?= $isSelected ? 'true' : 'false' ?>"
+                                         onclick="selectCustomOption('weeklyWorkoutDropdown_lifestyle_<?= h($context) ?>', 'weeklyWorkoutTarget_lifestyle_<?= h($context) ?>', '<?= h(addslashes((string)$val)) ?>', '<?= h(addslashes($opt['label'])) ?>'); const syncEl = document.getElementById('weeklyWorkoutTarget_<?= h($context) ?>'); if (syncEl) syncEl.value = '<?= h(addslashes((string)$val)) ?>';">
                                         <div class="custom-select-item-details">
                                             <span class="custom-select-item-title"><?= h($opt['label']) ?></span>
                                             <span class="custom-select-item-desc"><?= h($opt['desc']) ?></span>

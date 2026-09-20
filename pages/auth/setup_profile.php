@@ -128,27 +128,80 @@ function setup_profile_page(): void
             margin-bottom: 20px;
         }
         .exp-card {
-            border: 1.5px solid var(--line);
-            background: var(--panel-soft);
-            border-radius: 12px;
-            padding: 12px 10px;
+            border: 1.5px solid #e2e8f0;
+            background: #ffffff;
+            border-radius: 14px;
+            padding: 14px 6px;
             cursor: pointer;
             text-align: center;
-            transition: all 0.2s ease;
+            transition: all 0.22s ease;
             position: relative;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03);
+            user-select: none;
         }
         .exp-card:hover {
-            border-color: var(--lime);
+            border-color: #84cc16;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 14px rgba(132, 204, 22, 0.15);
         }
         .exp-card.selected {
-            border-color: var(--lime);
-            background: color-mix(in srgb, var(--lime) 10%, var(--panel-soft));
-            box-shadow: 0 0 0 1px var(--lime);
+            border-color: #84cc16;
+            background: rgba(132, 204, 22, 0.07);
+            box-shadow: 0 0 0 2px rgba(132, 204, 22, 0.35);
         }
         .exp-card input[type="radio"] {
             position: absolute;
             opacity: 0;
             pointer-events: none;
+        }
+        .exp-card-icon-wrap {
+            width: 34px;
+            height: 34px;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 8px;
+            transition: all 0.2s ease;
+        }
+        .exp-card.selected .exp-card-icon-wrap {
+            transform: scale(1.1);
+        }
+        .exp-icon-starter {
+            background: rgba(34, 197, 94, 0.14);
+            color: #16a34a;
+        }
+        .exp-icon-intermediate {
+            background: rgba(59, 130, 246, 0.14);
+            color: #2563eb;
+        }
+        .exp-icon-advanced {
+            background: rgba(168, 85, 247, 0.14);
+            color: #9333ea;
+        }
+        .exp-card-title {
+            font-size: 13px;
+            font-weight: 700;
+            color: #0f172a;
+            line-height: 1.2;
+            white-space: nowrap;
+        }
+        .exp-card-sub {
+            font-size: 11px;
+            color: #64748b;
+            margin-top: 3px;
+            white-space: nowrap;
+        }
+        .exp-card.selected .exp-card-title {
+            color: #1e3a0f;
+        }
+        .exp-card.selected .exp-card-sub {
+            color: #4d7c0f;
+            font-weight: 600;
         }
         .metric-unit-tag {
             position: absolute;
@@ -189,7 +242,7 @@ function setup_profile_page(): void
             gap: 6px;
         }
         .step-dot {
-            width: 28px;
+            width: 22px;
             height: 5px;
             border-radius: 3px;
             background: var(--line);
@@ -228,7 +281,43 @@ function setup_profile_page(): void
         }
         .btn-step-next {
             flex: 1;
+            width: 100%;
+            box-sizing: border-box;
             margin: 0 !important;
+        }
+        .profile-step-pane > .split-form-group,
+        .profile-step-pane > .split-form-row-2col {
+            margin-bottom: 16px;
+        }
+        .split-input-wrap select {
+            width: 100%;
+            border: 1.5px solid #e2e8f0;
+            border-radius: 10px;
+            background-color: #ffffff;
+            padding: 13px 38px 13px 44px;
+            color: #0f172a;
+            font-size: 14px;
+            font-family: inherit;
+            transition: border-color 0.2s, box-shadow 0.2s;
+            box-sizing: border-box;
+            appearance: none;
+            -webkit-appearance: none;
+            -moz-appearance: none;
+            cursor: pointer;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right 14px center;
+            background-size: 16px 16px;
+        }
+        .split-input-wrap select:focus {
+            border-color: #84cc16;
+            outline: none;
+            box-shadow: 0 0 0 3px rgba(132, 204, 22, 0.18);
+        }
+        .split-input-wrap select option {
+            background: #ffffff;
+            color: #0f172a;
+            padding: 8px;
         }
         .live-preview-box {
             background: var(--panel-soft);
@@ -255,12 +344,101 @@ function setup_profile_page(): void
             margin-top: 2px;
         }
         @media (max-width: 640px) {
-            .exp-select-grid {
-                grid-template-columns: 1fr;
-            }
             .sex-select-grid {
                 grid-template-columns: 1fr;
             }
+        }
+        @media (max-width: 480px) {
+            .exp-select-grid {
+                gap: 6px;
+            }
+            .exp-card {
+                padding: 10px 4px;
+            }
+            .exp-card-icon-wrap {
+                width: 30px;
+                height: 30px;
+                margin-bottom: 5px;
+            }
+            .exp-card-title {
+                font-size: 11.5px;
+            }
+            .exp-card-sub {
+                font-size: 9.5px;
+            }
+        }
+        @media (max-width: 360px) {
+            .exp-select-grid {
+                grid-template-columns: 1fr;
+            }
+            .exp-card {
+                flex-direction: row;
+                justify-content: flex-start;
+                text-align: left;
+                padding: 10px 14px;
+                gap: 12px;
+            }
+            .exp-card-icon-wrap {
+                margin-bottom: 0;
+            }
+        }
+        .setup-schedule-preferences {
+            background: var(--panel-soft);
+            border: 1.5px solid var(--line);
+            border-radius: 12px;
+            padding: 14px 16px;
+            margin-bottom: 16px;
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
+        }
+        .setup-pref-group {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        .setup-pref-label {
+            font-size: 12px;
+            font-weight: 700;
+            color: var(--ink);
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .setup-pref-label svg {
+            color: var(--lime);
+            flex-shrink: 0;
+        }
+        .setup-chip-options {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+        .setup-chip-btn {
+            background: var(--panel);
+            border: 1.5px solid var(--line);
+            color: var(--muted);
+            border-radius: 8px;
+            padding: 7px 12px;
+            font-size: 12px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            user-select: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+        }
+        .setup-chip-btn:hover {
+            color: var(--ink);
+            border-color: color-mix(in srgb, var(--lime) 60%, var(--line));
+        }
+        .setup-chip-btn.active {
+            background: color-mix(in srgb, var(--lime) 15%, var(--panel));
+            border-color: var(--lime);
+            color: var(--lime);
+            font-weight: 700;
+            box-shadow: 0 0 10px color-mix(in srgb, var(--lime) 20%, transparent);
         }
     </style>
 
@@ -389,12 +567,13 @@ function setup_profile_page(): void
                     <div class="stepper-header-bar">
                         <span class="step-pill-indicator" id="step-badge-text">
                             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
-                            Step 1 of 3: Core Stats
+                            Step 1 of 4: Core Stats
                         </span>
                         <div class="step-dots-row">
                             <div class="step-dot active" id="sdot-1"></div>
                             <div class="step-dot" id="sdot-2"></div>
                             <div class="step-dot" id="sdot-3"></div>
+                            <div class="step-dot" id="sdot-4"></div>
                         </div>
                     </div>
 
@@ -458,13 +637,15 @@ function setup_profile_page(): void
                                 </div>
                             </div>
 
-                            <button type="button" class="split-submit-btn btn-step-next" onclick="goToProfileStep(2)">
-                                <span>Continue to Measurements</span>
-                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-                                    <line x1="5" y1="12" x2="19" y2="12"></line>
-                                    <polyline points="12 5 19 12 12 19"></polyline>
-                                </svg>
-                            </button>
+                            <div class="step-nav-actions">
+                                <button type="button" class="split-submit-btn btn-step-next" onclick="goToProfileStep(2)">
+                                    <span>Continue to Measurements</span>
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                                        <line x1="5" y1="12" x2="19" y2="12"></line>
+                                        <polyline points="12 5 19 12 12 19"></polyline>
+                                    </svg>
+                                </button>
+                            </div>
                         </div>
 
                         <!-- STEP 2: Body Circumference -->
@@ -550,18 +731,37 @@ function setup_profile_page(): void
                             <div class="exp-select-grid">
                                 <label class="exp-card selected" id="exp-1">
                                     <input type="radio" name="experience_level" value="1" checked>
-                                    <div style="font-size: 14px; font-weight: 700; color: var(--ink);">🟢 Starter</div>
-                                    <div style="font-size: 11px; color: var(--muted); margin-top: 4px;">&lt; 6 months</div>
+                                    <div class="exp-card-icon-wrap exp-icon-starter">
+                                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                                            <path d="M12 22v-8m0 0a4 4 0 1 0-4-4m4 4a4 4 0 1 1 4-4"/>
+                                        </svg>
+                                    </div>
+                                    <div class="exp-card-title">Starter</div>
+                                    <div class="exp-card-sub">&lt; 6 months</div>
                                 </label>
                                 <label class="exp-card" id="exp-2">
                                     <input type="radio" name="experience_level" value="2">
-                                    <div style="font-size: 14px; font-weight: 700; color: var(--ink);">🔵 Intermediate</div>
-                                    <div style="font-size: 11px; color: var(--muted); margin-top: 4px;">6mo – 2 yrs</div>
+                                    <div class="exp-card-icon-wrap exp-icon-intermediate">
+                                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                                            <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
+                                        </svg>
+                                    </div>
+                                    <div class="exp-card-title">Intermediate</div>
+                                    <div class="exp-card-sub">6mo – 2 yrs</div>
                                 </label>
                                 <label class="exp-card" id="exp-3">
                                     <input type="radio" name="experience_level" value="3">
-                                    <div style="font-size: 14px; font-weight: 700; color: var(--ink);">🟣 Advanced</div>
-                                    <div style="font-size: 11px; color: var(--muted); margin-top: 4px;">2+ yrs lifting</div>
+                                    <div class="exp-card-icon-wrap exp-icon-advanced">
+                                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                                            <path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/>
+                                            <path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/>
+                                            <path d="M4 22h16"/>
+                                            <path d="M10 14.66V17c0 .55-.45 1-1 1H8c-.55 0-1 .45-1 1v1h10v-1c0-.55-.45-1-1-1h-1c-.55 0-1-.45-1-1v-2.34"/>
+                                            <path d="M6 4h12a2 2 0 0 1 2 2v3a6 6 0 0 1-6 6h0a6 6 0 0 1-6-6V6a2 2 0 0 1 2-2Z"/>
+                                        </svg>
+                                    </div>
+                                    <div class="exp-card-title">Advanced</div>
+                                    <div class="exp-card-sub">2+ yrs lifting</div>
                                 </label>
                             </div>
 
@@ -571,7 +771,7 @@ function setup_profile_page(): void
                                     <svg class="split-input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                         <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
                                     </svg>
-                                    <select name="activity_level" id="field-activity" required style="background: transparent; border: none; color: var(--ink); width: 100%; font-size: 14px; padding: 10px 0; outline: none; cursor: pointer;">
+                                    <select name="activity_level" id="field-activity" required>
                                         <option value="sedentary">Sedentary (Desk job, minimal movement)</option>
                                         <option value="lightly_active" selected>Lightly Active (1–3 days exercise)</option>
                                         <option value="moderately_active">Moderately Active (3–5 days workout)</option>
@@ -591,7 +791,7 @@ function setup_profile_page(): void
                                         <line x1="10" y1="1" x2="10" y2="4"></line>
                                         <line x1="14" y1="1" x2="14" y2="4"></line>
                                     </svg>
-                                    <select name="dietary_restrictions" id="field-diet" required style="background: transparent; border: none; color: var(--ink); width: 100%; font-size: 14px; padding: 10px 0; outline: none; cursor: pointer;">
+                                    <select name="dietary_restrictions" id="field-diet" required>
                                         <option value="none" selected>Standard (No restrictions)</option>
                                         <option value="vegetarian">Vegetarian</option>
                                         <option value="vegan">Vegan</option>
@@ -608,6 +808,60 @@ function setup_profile_page(): void
 
                             <div class="step-nav-actions">
                                 <button type="button" class="btn-step-prev" onclick="goToProfileStep(2)">
+                                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+                                    Back
+                                </button>
+                                <button type="button" class="split-submit-btn btn-step-next" onclick="goToProfileStep(4)">
+                                    <span>Continue to Routine</span>
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                                        <line x1="5" y1="12" x2="19" y2="12"></line>
+                                        <polyline points="12 5 19 12 12 19"></polyline>
+                                    </svg>
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- STEP 4: Routine & Schedule -->
+                        <div class="profile-step-pane" id="pane-step-4">
+                            <div style="background: var(--panel-soft); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; margin-bottom: 18px; display: flex; align-items: center; gap: 10px; font-size: 13px; color: var(--muted);">
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--lime)" stroke-width="2" style="flex-shrink:0;">
+                                    <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
+                                </svg>
+                                <span>Set your realistic training availability to calibrate your customized workout routine.</span>
+                            </div>
+
+                            <!-- Routine Schedule Preferences: Days / Week & Session Duration -->
+                            <div class="setup-schedule-preferences">
+                                <div class="setup-pref-group">
+                                    <label class="setup-pref-label">
+                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+                                        Weekly Training Commitment:
+                                    </label>
+                                    <div class="setup-chip-options" id="prof-days-chip-options">
+                                        <input type="hidden" name="weekly_workout_target" id="input_weekly_workout_target" value="3">
+                                        <button type="button" class="setup-chip-btn" data-value="2">2 Days</button>
+                                        <button type="button" class="setup-chip-btn active" data-value="3">3 Days (Recommended)</button>
+                                        <button type="button" class="setup-chip-btn" data-value="4">4 Days</button>
+                                        <button type="button" class="setup-chip-btn" data-value="5">5+ Days</button>
+                                    </div>
+                                </div>
+
+                                <div class="setup-pref-group">
+                                    <label class="setup-pref-label">
+                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                                        Ideal Session Duration:
+                                    </label>
+                                    <div class="setup-chip-options" id="prof-duration-chip-options">
+                                        <input type="hidden" name="preferred_duration_mins" id="input_preferred_duration_mins" value="45">
+                                        <button type="button" class="setup-chip-btn" data-value="30">30 mins (Quick)</button>
+                                        <button type="button" class="setup-chip-btn active" data-value="45">45–60 mins (Standard)</button>
+                                        <button type="button" class="setup-chip-btn" data-value="75">75+ mins (Extended)</button>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="step-nav-actions">
+                                <button type="button" class="btn-step-prev" onclick="goToProfileStep(3)">
                                     <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
                                     Back
                                 </button>
@@ -684,7 +938,7 @@ function setup_profile_page(): void
 
         // Update dots and pill
         currentProfileStep = targetStep;
-        for (let i = 1; i <= 3; i++) {
+        for (let i = 1; i <= 4; i++) {
             const dot = document.getElementById(`sdot-${i}`);
             if (dot) {
                 dot.className = 'step-dot' + (i === targetStep ? ' active' : (i < targetStep ? ' done' : ''));
@@ -694,9 +948,10 @@ function setup_profile_page(): void
         const badge = document.getElementById('step-badge-text');
         if (badge) {
             const titles = {
-                1: 'Step 1 of 3: Core Stats',
-                2: 'Step 2 of 3: Measurements',
-                3: 'Step 3 of 3: Lifestyle & Diet'
+                1: 'Step 1 of 4: Core Stats',
+                2: 'Step 2 of 4: Measurements',
+                3: 'Step 3 of 4: Lifestyle & Diet',
+                4: 'Step 4 of 4: Routine & Schedule'
             };
             badge.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg> ${titles[targetStep] || ''}`;
         }
@@ -792,6 +1047,23 @@ function setup_profile_page(): void
         ['field-height', 'field-weight', 'field-age', 'field-neck', 'field-waist', 'field-hip'].forEach(id => {
             document.getElementById(id)?.addEventListener('input', updateLiveMetrics);
         });
+
+        // Routine Schedule Preference Chips (Days & Duration)
+        function initProfChips(containerId, inputId) {
+            const container = document.getElementById(containerId);
+            const hiddenInput = document.getElementById(inputId);
+            if (!container || !hiddenInput) return;
+            container.querySelectorAll('.setup-chip-btn').forEach(btn => {
+                btn.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    container.querySelectorAll('.setup-chip-btn').forEach(b => b.classList.remove('active'));
+                    this.classList.add('active');
+                    hiddenInput.value = this.getAttribute('data-value');
+                });
+            });
+        }
+        initProfChips('prof-days-chip-options', 'input_weekly_workout_target');
+        initProfChips('prof-duration-chip-options', 'input_preferred_duration_mins');
     })();
     </script>
     <?php

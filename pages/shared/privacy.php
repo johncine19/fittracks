@@ -75,7 +75,7 @@ function privacy_page(): void
                 </p>
             </section>
 
-            <section>
+            <section id="security">
                 <h2 style="font-size: 1.25rem; font-weight: 700; color: var(--ink); margin-bottom: 10px;">5. Data Storage & Security</h2>
                 <p style="color: var(--muted); margin: 0;">
                     We implement industry-standard cryptographic techniques, including bcrypt password hashing, SSL/TLS data transmission encryption, session timeouts, and rate limiting to protect your information against unauthorized access, loss, or alteration.

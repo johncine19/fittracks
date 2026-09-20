@@ -60,7 +60,7 @@ function my_workout_page(): void
     if ($plan) {
         $stmtEx = $pdo->prepare(
             'SELECT tpe.plan_exercise_id, tpe.exercise_id, tpe.day_of_week, tpe.sequence_order, 
-                    tpe.sets, tpe.reps, tpe.target_weight_kg, tpe.rest_seconds, tpe.notes, 
+                    tpe.sets, tpe.reps, tpe.target_weight_kg, tpe.rest_seconds, tpe.notes, tpe.tempo, tpe.rpe,
                     e.name, e.category, e.muscle_group, e.animation_url, e.difficulty_level 
              FROM training_plan_exercises tpe 
              JOIN exercises e ON e.exercise_id = tpe.exercise_id 
@@ -147,6 +147,8 @@ function my_workout_page(): void
                 'target_weight_kg' => $ex['target_weight_kg'] !== null ? (float)$ex['target_weight_kg'] : null,
                 'rest_seconds' => (int)($ex['rest_seconds'] ?? 60),
                 'notes' => $ex['notes'] ?? '',
+                'tempo' => $ex['tempo'] ?? '',
+                'rpe' => $ex['rpe'] ?? '',
                 'animation_url' => $ex['animation_url'] ?? '',
                 'is_completed' => $isComp
             ];
@@ -1147,9 +1149,12 @@ function my_workout_page(): void
                                             <h4 class="exercise-name-title">${escapeHtml(ex.name)}</h4>
                                             <div class="exercise-specs-text">
                                                 ${ex.sets} Sets &times; ${escapeHtml(ex.reps)}
-                                                ${ex.target_weight_kg ? ` &bull; ${ex.target_weight_kg} kg` : ''}
+                                                ${ex.target_weight_kg ? ` &bull; <strong style="color:var(--orange, #f59e0b);">${ex.target_weight_kg} kg</strong>` : ''}
                                                 &bull; Rest ${ex.rest_seconds}s
+                                                ${ex.tempo ? ` &bull; <span style="color:var(--lime); font-weight:600;">⚡ ${escapeHtml(ex.tempo)}</span>` : ''}
+                                                ${ex.rpe ? ` &bull; <span style="color:var(--orange, #f59e0b); font-weight:600;">🔥 ${escapeHtml(ex.rpe)}</span>` : ''}
                                             </div>
+                                            ${ex.notes ? `<div style="font-size:12px; color:var(--muted); margin-top:4px; font-style:italic;">"${escapeHtml(ex.notes)}"</div>` : ''}
                                         </div>
                                     </div>
                                     <div>
@@ -1296,7 +1301,14 @@ function my_workout_page(): void
 
                     document.getElementById('player-exercise-count').innerText = `Exercise ${currentExIndex + 1} of ${totalEx}`;
                     document.getElementById('player-exercise-name').innerText = ex.name;
-                    document.getElementById('player-exercise-target').innerHTML = `${ex.sets} Sets &times; ${ex.reps} Reps <br><span style="font-size:14px; opacity:0.7;">Rest: ${ex.rest_seconds}s</span>`;
+                    let targetHtml = `${ex.sets} Sets &times; ${ex.reps} Reps`;
+                    if (ex.target_weight_kg) targetHtml += ` &bull; ${ex.target_weight_kg} kg`;
+                    targetHtml += `<br><span style="font-size:14px; opacity:0.8;">Rest: ${ex.rest_seconds}s`;
+                    if (ex.tempo) targetHtml += ` &bull; Tempo: ${escapeHtml(ex.tempo)}`;
+                    if (ex.rpe) targetHtml += ` &bull; ${escapeHtml(ex.rpe)}`;
+                    targetHtml += `</span>`;
+                    if (ex.notes) targetHtml += `<br><span style="font-size:12px; opacity:0.7; font-style:italic;">"${escapeHtml(ex.notes)}"</span>`;
+                    document.getElementById('player-exercise-target').innerHTML = targetHtml;
 
                     document.getElementById('btn-complete-set').innerText = `Complete Set ${currentSet} of ${ex.sets}`;
 

@@ -108,6 +108,7 @@ function profile_page(): void
                 'target_endurance_distance_km'  => 'numeric|min_num:0.1|max_num:200',
                 'target_endurance_time_mins'    => 'numeric|min_num:1|max_num:1440',
                 'weekly_workout_target'         => 'numeric|min_num:1|max_num:7',
+                'preferred_duration_mins'       => 'numeric|min_num:15|max_num:180',
             ]);
             
             $newGoal = (string) post('primary_goal');
@@ -569,6 +570,18 @@ function profile_page(): void
                     <div class="settings-stat-body">
                         <span class="settings-stat-label">Workout Frequency</span>
                         <span class="settings-stat-value"><?= (int)$profile['weekly_workout_target'] ?> <small>days / wk</small></span>
+                    </div>
+                </div>
+                <?php endif; ?>
+
+                <?php if (!empty($profile['preferred_duration_mins'])): ?>
+                <div class="settings-stat-card">
+                    <div class="settings-stat-icon" style="background: color-mix(in srgb, var(--lime) 15%, transparent); color: var(--lime);">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                    </div>
+                    <div class="settings-stat-body">
+                        <span class="settings-stat-label">Session Duration</span>
+                        <span class="settings-stat-value"><?= (int)$profile['preferred_duration_mins'] ?> <small>mins</small></span>
                     </div>
                 </div>
                 <?php endif; ?>

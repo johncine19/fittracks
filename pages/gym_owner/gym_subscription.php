@@ -135,7 +135,7 @@ function gym_subscription_page(): void
                 ?>
                     <div class="pricing-card <?= $isPopular ? 'popular' : '' ?>">
                         <?php if ($isPopular): ?>
-                            <div class="popular-badge">MOST POPULAR</div>
+                            <div class="popular-badge">★ MOST POPULAR</div>
                         <?php endif; ?>
 
                         <h2 class="pricing-title <?= $isPopular ? 'popular-title' : '' ?>">
@@ -171,160 +171,19 @@ function gym_subscription_page(): void
                 <?php endforeach; ?>
             </div>
 
-            <!-- Full Plan Comparison Matrix Section for Gym Owners -->
-            <div style="margin-top: 48px; background: rgba(15, 21, 18, 0.88); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 20px; overflow: hidden; box-shadow: 0 20px 45px -10px rgba(0, 0, 0, 0.7);">
-                <div style="padding: 24px 28px 18px; border-bottom: 1px solid rgba(255, 255, 255, 0.08); display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
-                    <div>
-                        <h3 style="margin: 0 0 4px; font-size: 1.3rem; font-weight: 800; color: #fff;">Compare Plan Modules</h3>
-                        <p style="margin: 0; font-size: 13px; color: #94a3b8;">Review exact capability distribution before activating your gym subscription.</p>
-                    </div>
-                    <div style="font-size: 12px; color: #94a3b8; display: flex; align-items: center; gap: 14px; flex-wrap: wrap;">
-                        <span><strong style="color: #4ade80;">✓</strong> Full Access</span>
-                        <span><strong style="color: #cbd5e1;">Basic</strong> Starter</span>
-                        <span><strong style="color: #7dd3fc;">Advanced</strong> Pro</span>
-                        <span><strong style="color: #f87171;">🔒</strong> Locked</span>
-                    </div>
-                </div>
-
-                <div style="width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch;">
-                    <table style="width: 100%; min-width: 760px; border-collapse: collapse; text-align: left;">
-                        <thead>
-                            <tr style="background: rgba(255,255,255,0.02); border-bottom: 1px solid rgba(255,255,255,0.08);">
-                                <th style="padding: 14px 20px; font-size: 12px; font-weight: 800; text-transform: uppercase; color: #94a3b8; width: 34%;">Capability / Module</th>
-                                <th style="padding: 14px 20px; font-size: 12px; font-weight: 800; text-transform: uppercase; color: #cbd5e1; width: 22%;">Starter (₱499/mo)</th>
-                                <th style="padding: 14px 20px; font-size: 12px; font-weight: 800; text-transform: uppercase; color: var(--lime, #84cc16); background: rgba(132, 204, 22, 0.05); width: 22%;">Professional (₱999/mo) ★</th>
-                                <th style="padding: 14px 20px; font-size: 12px; font-weight: 800; text-transform: uppercase; color: #c084fc; width: 22%;">Business (₱1,999/mo)</th>
-                            </tr>
-                        </thead>
-                        <tbody style="font-size: 13.5px; color: #e2e8f0;">
-                            <!-- Category 1 -->
-                            <tr style="background: rgba(255,255,255,0.03);">
-                                <td colspan="4" style="padding: 8px 20px; font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.08em; color: var(--lime, #84cc16); border-bottom: 1px solid rgba(255,255,255,0.08);">01 — Target Profile & Capacity Limits</td>
-                            </tr>
-                            <tr style="border-bottom: 1px solid rgba(255,255,255,0.06);">
-                                <td style="padding: 12px 20px;"><strong>Target Gym Profile</strong></td>
-                                <td style="padding: 12px 20px;"><span style="background:rgba(255,255,255,0.06); color:#cbd5e1; padding:3px 8px; border-radius:5px; font-size:11.5px;">Small / Solo / Boutique</span></td>
-                                <td style="padding: 12px 20px; background: rgba(132, 204, 22, 0.03);"><span style="background:rgba(34,197,94,0.12); color:#4ade80; padding:3px 8px; border-radius:5px; font-size:11.5px; font-weight:600;">Growing Gyms with Staff</span></td>
-                                <td style="padding: 12px 20px;"><span style="background:rgba(168,85,247,0.12); color:#c084fc; padding:3px 8px; border-radius:5px; font-size:11.5px; font-weight:600;">Multi-Branch / Large</span></td>
-                            </tr>
-                            <tr style="border-bottom: 1px solid rgba(255,255,255,0.06);">
-                                <td style="padding: 12px 20px;"><strong>Active Member Capacity</strong></td>
-                                <td style="padding: 12px 20px;"><strong>100 Members</strong></td>
-                                <td style="padding: 12px 20px; background: rgba(132, 204, 22, 0.03);"><strong style="color: var(--lime, #84cc16);">500 Members</strong></td>
-                                <td style="padding: 12px 20px;"><strong style="color: #c084fc;">Unlimited</strong></td>
-                            </tr>
-
-                            <!-- Category 2 -->
-                            <tr style="background: rgba(255,255,255,0.03);">
-                                <td colspan="4" style="padding: 8px 20px; font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.08em; color: var(--lime, #84cc16); border-bottom: 1px solid rgba(255,255,255,0.08);">02 — Core Operations & Access Control</td>
-                            </tr>
-                            <tr style="border-bottom: 1px solid rgba(255,255,255,0.06);">
-                                <td style="padding: 12px 20px;">Walk-In & Daily Pass Management</td>
-                                <td style="padding: 12px 20px; color:#4ade80;">✓ Full Access</td>
-                                <td style="padding: 12px 20px; background: rgba(132, 204, 22, 0.03); color:#4ade80;">✓ Full Access</td>
-                                <td style="padding: 12px 20px; color:#4ade80;">✓ Full Access</td>
-                            </tr>
-                            <tr style="border-bottom: 1px solid rgba(255,255,255,0.06);">
-                                <td style="padding: 12px 20px;">Dynamic QR Check-in & Turnstile</td>
-                                <td style="padding: 12px 20px; color:#4ade80;">✓ Full Access</td>
-                                <td style="padding: 12px 20px; background: rgba(132, 204, 22, 0.03); color:#4ade80;">✓ Full Access</td>
-                                <td style="padding: 12px 20px; color:#4ade80;">✓ Full Access</td>
-                            </tr>
-                            <tr style="border-bottom: 1px solid rgba(255,255,255,0.06);">
-                                <td style="padding: 12px 20px;">Membership Plans & Online GCash Pay</td>
-                                <td style="padding: 12px 20px; color:#4ade80;">✓ Full Access</td>
-                                <td style="padding: 12px 20px; background: rgba(132, 204, 22, 0.03); color:#4ade80;">✓ Full Access</td>
-                                <td style="padding: 12px 20px; color:#4ade80;">✓ Full Access</td>
-                            </tr>
-
-                            <!-- Category 3 -->
-                            <tr style="background: rgba(255,255,255,0.03);">
-                                <td colspan="4" style="padding: 8px 20px; font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.08em; color: var(--lime, #84cc16); border-bottom: 1px solid rgba(255,255,255,0.08);">03 — Staff Coaching & Training Programs</td>
-                            </tr>
-                            <tr style="border-bottom: 1px solid rgba(255,255,255,0.06);">
-                                <td style="padding: 12px 20px;">Trainers & Client Assignments</td>
-                                <td style="padding: 12px 20px; color:#f87171;">🔒 <em>Locked</em></td>
-                                <td style="padding: 12px 20px; background: rgba(132, 204, 22, 0.03); color:#4ade80;">✓ Full Access</td>
-                                <td style="padding: 12px 20px; color:#4ade80;">✓ Full Access</td>
-                            </tr>
-                            <tr style="border-bottom: 1px solid rgba(255,255,255,0.06);">
-                                <td style="padding: 12px 20px;">Trainer Commission Tracking & Payouts</td>
-                                <td style="padding: 12px 20px; color:#f87171;">🔒 <em>Locked</em></td>
-                                <td style="padding: 12px 20px; background: rgba(132, 204, 22, 0.03); color:#4ade80;">✓ Full Access</td>
-                                <td style="padding: 12px 20px; color:#4ade80;">✓ Full Access</td>
-                            </tr>
-                            <tr style="border-bottom: 1px solid rgba(255,255,255,0.06);">
-                                <td style="padding: 12px 20px;">Workout Plans & Exercise Library</td>
-                                <td style="padding: 12px 20px; color:#f87171;">🔒 <em>Locked</em></td>
-                                <td style="padding: 12px 20px; background: rgba(132, 204, 22, 0.03); color:#4ade80;">✓ Full Access</td>
-                                <td style="padding: 12px 20px; color:#4ade80;">✓ Full Access</td>
-                            </tr>
-
-                            <!-- Category 4 -->
-                            <tr style="background: rgba(255,255,255,0.03);">
-                                <td colspan="4" style="padding: 8px 20px; font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.08em; color: var(--lime, #84cc16); border-bottom: 1px solid rgba(255,255,255,0.08);">04 — Group Classes & Online Booking</td>
-                            </tr>
-                            <tr style="border-bottom: 1px solid rgba(255,255,255,0.06);">
-                                <td style="padding: 12px 20px;">Class Scheduling & Member Bookings</td>
-                                <td style="padding: 12px 20px; color:#cbd5e1;">Basic Schedule</td>
-                                <td style="padding: 12px 20px; background: rgba(132, 204, 22, 0.03); color:#4ade80;">✓ Full Booking + Waitlists</td>
-                                <td style="padding: 12px 20px; color:#4ade80;">✓ Multi-Branch Booking</td>
-                            </tr>
-
-                            <!-- Category 5 -->
-                            <tr style="background: rgba(255,255,255,0.03);">
-                                <td colspan="4" style="padding: 8px 20px; font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.08em; color: var(--lime, #84cc16); border-bottom: 1px solid rgba(255,255,255,0.08);">05 — Member Retention & Automated Reminders</td>
-                            </tr>
-                            <tr style="border-bottom: 1px solid rgba(255,255,255,0.06);">
-                                <td style="padding: 12px 20px;">Automated Renewal Reminders</td>
-                                <td style="padding: 12px 20px; color:#cbd5e1;">Basic 7-Day Alert</td>
-                                <td style="padding: 12px 20px; background: rgba(132, 204, 22, 0.03); color:#7dd3fc;">Automated (30d/14d/7d/1d)</td>
-                                <td style="padding: 12px 20px; color:#c084fc;">Custom Workflows</td>
-                            </tr>
-                            <tr style="border-bottom: 1px solid rgba(255,255,255,0.06);">
-                                <td style="padding: 12px 20px;">Member Engagement Scoring & Churn Alerts</td>
-                                <td style="padding: 12px 20px; color:#f87171;">🔒 <em>Locked</em></td>
-                                <td style="padding: 12px 20px; background: rgba(132, 204, 22, 0.03); color:#4ade80;">✓ Churn Risk Alerts</td>
-                                <td style="padding: 12px 20px; color:#4ade80;">✓ Predictive Risk Analytics</td>
-                            </tr>
-
-                            <!-- Category 6 -->
-                            <tr style="background: rgba(255,255,255,0.03);">
-                                <td colspan="4" style="padding: 8px 20px; font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.08em; color: var(--lime, #84cc16); border-bottom: 1px solid rgba(255,255,255,0.08);">06 — Financial Reports & Governance</td>
-                            </tr>
-                            <tr style="border-bottom: 1px solid rgba(255,255,255,0.06);">
-                                <td style="padding: 12px 20px;">Dashboard Analytics & Metrics</td>
-                                <td style="padding: 12px 20px; color:#cbd5e1;">Basic KPIs</td>
-                                <td style="padding: 12px 20px; background: rgba(132, 204, 22, 0.03); color:#7dd3fc;">Advanced Charts & Trends</td>
-                                <td style="padding: 12px 20px; color:#c084fc;">Advanced + Branch Comparison</td>
-                            </tr>
-                            <tr style="border-bottom: 1px solid rgba(255,255,255,0.06);">
-                                <td style="padding: 12px 20px;">Financial Reports & Data Export</td>
-                                <td style="padding: 12px 20px; color:#cbd5e1;">Summary & CSV Export</td>
-                                <td style="padding: 12px 20px; background: rgba(132, 204, 22, 0.03); color:#7dd3fc;">Advanced Financials & Trends</td>
-                                <td style="padding: 12px 20px; color:#c084fc;">Consolidated Multi-Branch</td>
-                            </tr>
-                            <tr style="border-bottom: 1px solid rgba(255,255,255,0.06);">
-                                <td style="padding: 12px 20px;">Activity & Security Audit History</td>
-                                <td style="padding: 12px 20px; color:#cbd5e1;">Basic Activity Log</td>
-                                <td style="padding: 12px 20px; background: rgba(132, 204, 22, 0.03); color:#cbd5e1;">Staff Action History</td>
-                                <td style="padding: 12px 20px; color:#4ade80;">✓ Full Immutable Audit Trail</td>
-                            </tr>
-                            <tr style="border-bottom: 1px solid rgba(255,255,255,0.06);">
-                                <td style="padding: 12px 20px;">Custom App Brand Accent & Theme</td>
-                                <td style="padding: 12px 20px; color:#f87171;">🔒 <em>Locked</em></td>
-                                <td style="padding: 12px 20px; background: rgba(132, 204, 22, 0.03); color:#f87171;">🔒 <em>Locked</em></td>
-                                <td style="padding: 12px 20px; color:#4ade80;">✓ Full Access</td>
-                            </tr>
-                            <tr>
-                                <td style="padding: 12px 20px;">Multi-Branch Management Portal</td>
-                                <td style="padding: 12px 20px; color:#f87171;">🔒 <em>Locked</em></td>
-                                <td style="padding: 12px 20px; background: rgba(132, 204, 22, 0.03); color:#f87171;">🔒 <em>Locked</em></td>
-                                <td style="padding: 12px 20px; color:#4ade80;">✓ Multi-Branch Portal</td>
-                            </tr>
-                        </tbody>
-                    </table>
-                </div>
+            <!-- Plan Distribution Trigger CTA Button -->
+            <div class="pricing-distribution-cta" style="margin-top: 36px; text-align: center;">
+                <button type="button" class="btn-plan-distribution" onclick="openPlanDistributionModal()" id="btn-open-plan-distribution">
+                    <span class="btn-distribution-icon">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/>
+                        </svg>
+                    </span>
+                    <span class="btn-distribution-text">Compare Complete Plan Distribution & Capabilities</span>
+                    <svg class="btn-distribution-arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                        <polyline points="9 18 15 12 9 6"></polyline>
+                    </svg>
+                </button>
             </div>
 
             <div style="text-align: center; margin-top: 40px; padding-bottom: 20px;">
@@ -338,6 +197,202 @@ function gym_subscription_page(): void
                 </a>
             </div>
         </section>
+    </div>
+
+    <!-- ==========================================================================
+       SUBSCRIPTION PLAN DISTRIBUTION MODAL
+       ========================================================================== -->
+    <div class="modal-backdrop" id="planDistributionModalBackdrop" onclick="handleDistributionBackdropClick(event)">
+        <div class="modal-card distribution-modal-card">
+            <div class="modal-header distribution-modal-header">
+                <div>
+                    <div class="distribution-eyebrow">
+                        <span class="dot"></span>
+                        Commercial SaaS Capabilities
+                    </div>
+                    <h3 class="modal-title">Subscription Plan Distribution</h3>
+                </div>
+                <button type="button" class="modal-close-btn" onclick="closePlanDistributionModal()" aria-label="Close modal">
+                    &times;
+                </button>
+            </div>
+
+            <div class="modal-body distribution-modal-body">
+                <p class="distribution-intro">
+                    Review the exact capability distribution across our commercial gym tiers. Choose the plan that aligns with your facility scale and operations.
+                </p>
+
+                <div class="distribution-table-wrap">
+                    <table class="distribution-table">
+                        <thead>
+                            <tr>
+                                <th class="col-cap">Capability / Module</th>
+                                <th class="col-tier starter">
+                                    <div class="tier-head">
+                                        <span class="tier-name"><?= h($plans['starter']['name'] ?? 'Starter') ?></span>
+                                        <span class="tier-price"><?= h($plans['starter']['price_label'] ?? '₱599') ?><small>/mo</small></span>
+                                    </div>
+                                </th>
+                                <th class="col-tier popular">
+                                    <div class="tier-head">
+                                        <span class="popular-tag">★ Most Popular</span>
+                                        <span class="tier-name"><?= h($plans['professional']['name'] ?? 'Professional') ?></span>
+                                        <span class="tier-price"><?= h($plans['professional']['price_label'] ?? '₱999') ?><small>/mo</small></span>
+                                    </div>
+                                </th>
+                                <th class="col-tier business">
+                                    <div class="tier-head">
+                                        <span class="tier-name"><?= h($plans['business']['name'] ?? 'Business') ?></span>
+                                        <span class="tier-price"><?= h($plans['business']['price_label'] ?? '₱1,999') ?><small>/mo</small></span>
+                                    </div>
+                                </th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <!-- Category 1 -->
+                            <tr class="dist-cat-row">
+                                <td colspan="4">01 — Target Profile & Capacity Limits</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Target Facility Scale</strong></td>
+                                <td><span class="dist-pill muted">Boutique / Solo</span></td>
+                                <td class="col-popular"><span class="dist-pill lime">Growing Commercial</span></td>
+                                <td><span class="dist-pill purple">Multi-Branch / Enterprise</span></td>
+                            </tr>
+                            <tr>
+                                <td><strong>Active Member Capacity</strong></td>
+                                <td><span class="dist-text-highlight">Up to 100 Members</span></td>
+                                <td class="col-popular"><span class="dist-text-lime">Up to 500 Members</span></td>
+                                <td><span class="dist-text-purple">Unlimited Members</span></td>
+                            </tr>
+
+                            <!-- Category 2 -->
+                            <tr class="dist-cat-row">
+                                <td colspan="4">02 — Core Operations & Access Control</td>
+                            </tr>
+                            <tr>
+                                <td>Walk-In & Daily Pass Management</td>
+                                <td><span class="status-access">✓ Full Access</span></td>
+                                <td class="col-popular"><span class="status-access">✓ Full Access</span></td>
+                                <td><span class="status-access">✓ Full Access</span></td>
+                            </tr>
+                            <tr>
+                                <td>Dynamic QR Check-in & Attendance</td>
+                                <td><span class="status-access">✓ Full Access</span></td>
+                                <td class="col-popular"><span class="status-access">✓ Full Access</span></td>
+                                <td><span class="status-access">✓ Full Access</span></td>
+                            </tr>
+                            <tr>
+                                <td>Membership Plans & Online GCash Pay</td>
+                                <td><span class="status-access">✓ Full Access</span></td>
+                                <td class="col-popular"><span class="status-access">✓ Full Access</span></td>
+                                <td><span class="status-access">✓ Full Access</span></td>
+                            </tr>
+
+                            <!-- Category 3 -->
+                            <tr class="dist-cat-row">
+                                <td colspan="4">03 — Staff Coaching & Training Programs</td>
+                            </tr>
+                            <tr>
+                                <td>Trainers & Client Assignments</td>
+                                <td><span class="status-locked">🔒 Locked</span></td>
+                                <td class="col-popular"><span class="status-access">✓ Full Access</span></td>
+                                <td><span class="status-access">✓ Full Access</span></td>
+                            </tr>
+                            <tr>
+                                <td>Trainer Commission Tracking & Payouts</td>
+                                <td><span class="status-locked">🔒 Locked</span></td>
+                                <td class="col-popular"><span class="status-access">✓ Full Access</span></td>
+                                <td><span class="status-access">✓ Full Access</span></td>
+                            </tr>
+                            <tr>
+                                <td>Workout Plans & Exercise Library</td>
+                                <td><span class="status-locked">🔒 Locked</span></td>
+                                <td class="col-popular"><span class="status-access">✓ Full Access</span></td>
+                                <td><span class="status-access">✓ Full Access</span></td>
+                            </tr>
+
+                            <!-- Category 4 -->
+                            <tr class="dist-cat-row">
+                                <td colspan="4">04 — Group Classes & Online Booking</td>
+                            </tr>
+                            <tr>
+                                <td>Class Scheduling & Member Bookings</td>
+                                <td><span class="dist-pill muted">Basic Schedule</span></td>
+                                <td class="col-popular"><span class="status-access">✓ Full Booking + Waitlists</span></td>
+                                <td><span class="status-access">✓ Multi-Branch Booking</span></td>
+                            </tr>
+
+                            <!-- Category 5 -->
+                            <tr class="dist-cat-row">
+                                <td colspan="4">05 — Member Retention & Automated Reminders</td>
+                            </tr>
+                            <tr>
+                                <td>Automated Renewal Reminders</td>
+                                <td><span class="dist-pill muted">7-Day Alert</span></td>
+                                <td class="col-popular"><span class="dist-pill sky">Automated (30d/14d/7d/1d)</span></td>
+                                <td><span class="dist-pill purple">Custom Workflows</span></td>
+                            </tr>
+                            <tr>
+                                <td>Member Engagement & Churn Risk Alerts</td>
+                                <td><span class="status-locked">🔒 Locked</span></td>
+                                <td class="col-popular"><span class="status-access">✓ Churn Risk Alerts</span></td>
+                                <td><span class="status-access">✓ Predictive Risk AI</span></td>
+                            </tr>
+
+                            <!-- Category 6 -->
+                            <tr class="dist-cat-row">
+                                <td colspan="4">06 — Financial Reports & Governance</td>
+                            </tr>
+                            <tr>
+                                <td>Dashboard Analytics & Operational KPIs</td>
+                                <td><span class="dist-pill muted">Basic KPIs</span></td>
+                                <td class="col-popular"><span class="dist-pill sky">Advanced Charts & Trends</span></td>
+                                <td><span class="dist-pill purple">Branch Comparisons</span></td>
+                            </tr>
+                            <tr>
+                                <td>Financial Reports & Data CSV Export</td>
+                                <td><span class="dist-pill muted">Summary Export</span></td>
+                                <td class="col-popular"><span class="dist-pill sky">Advanced Trends & CSV</span></td>
+                                <td><span class="dist-pill purple">Consolidated Multi-Branch</span></td>
+                            </tr>
+                            <tr>
+                                <td>Activity & Security Audit History</td>
+                                <td><span class="dist-pill muted">Basic Activity Log</span></td>
+                                <td class="col-popular"><span class="dist-pill muted">Staff Action History</span></td>
+                                <td><span class="status-access">✓ Full Immutable Trail</span></td>
+                            </tr>
+                            <tr>
+                                <td>Custom App Brand Accent & Theme</td>
+                                <td><span class="status-locked">🔒 Locked</span></td>
+                                <td class="col-popular"><span class="status-locked">🔒 Locked</span></td>
+                                <td><span class="status-access">✓ Full Access</span></td>
+                            </tr>
+                            <tr>
+                                <td>Multi-Branch Centralized Portal</td>
+                                <td><span class="status-locked">🔒 Locked</span></td>
+                                <td class="col-popular"><span class="status-locked">🔒 Locked</span></td>
+                                <td><span class="status-access">✓ Full Access</span></td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div class="distribution-modal-footer">
+                <div class="dist-footer-ctas">
+                    <button type="button" class="btn btn-outline btn-sm" onclick="closePlanDistributionModal(); openPaymentModal('starter', '<?= h($plans['starter']['name'] ?? 'Starter') ?>', '<?= h($plans['starter']['price_label'] ?? '₱599') ?>')">
+                        Get <?= h($plans['starter']['name'] ?? 'Starter') ?> (<?= h($plans['starter']['price_label'] ?? '₱599') ?>)
+                    </button>
+                    <button type="button" class="btn btn-lime btn-sm" onclick="closePlanDistributionModal(); openPaymentModal('professional', '<?= h($plans['professional']['name'] ?? 'Professional') ?>', '<?= h($plans['professional']['price_label'] ?? '₱999') ?>')">
+                        Get <?= h($plans['professional']['name'] ?? 'Professional') ?> (<?= h($plans['professional']['price_label'] ?? '₱999') ?>)
+                    </button>
+                    <button type="button" class="btn btn-outline btn-sm" onclick="closePlanDistributionModal(); openPaymentModal('business', '<?= h($plans['business']['name'] ?? 'Business') ?>', '<?= h($plans['business']['price_label'] ?? '₱1,999') ?>')">
+                        Get <?= h($plans['business']['name'] ?? 'Business') ?> (<?= h($plans['business']['price_label'] ?? '₱1,999') ?>)
+                    </button>
+                </div>
+            </div>
+        </div>
     </div>
 
     <!-- Modal for Payment Method Selection -->
@@ -493,27 +548,57 @@ function gym_subscription_page(): void
             box-shadow: 0 0 45px rgba(132, 204, 22, 0.28), 0 30px 65px -10px rgba(0, 0, 0, 0.9);
         }
 
+        :root {
+            --lime: #84cc16;
+            --lime-bright: #a3e635;
+        }
+
         .popular-badge {
             position: absolute;
             top: -14px;
             left: 50%;
             transform: translateX(-50%);
-            background: var(--lime, #22c55e);
-            color: #0b110e;
+            background: #84cc16;
+            color: #081202 !important;
             font-size: 11px;
-            font-weight: 800;
-            letter-spacing: 0.8px;
+            font-weight: 900;
+            letter-spacing: 0.08em;
             padding: 5px 16px;
-            border-radius: 20px;
+            border-radius: 999px;
             text-transform: uppercase;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.4), 0 0 14px rgba(132, 204, 22, 0.5);
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            white-space: nowrap;
+            z-index: 5;
+            line-height: 1.1;
+        }
+
+        .popular-tag {
+            font-size: 0.68rem;
+            font-weight: 900;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            background: #84cc16;
+            color: #081202 !important;
+            padding: 3px 8px;
+            border-radius: 999px;
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            margin-bottom: 2px;
+            width: fit-content;
+            box-shadow: 0 0 12px rgba(132, 204, 22, 0.45);
+            line-height: 1.1;
         }
 
         .current-badge {
             display: inline-block;
-            background: rgba(34, 197, 94, 0.15);
-            color: var(--lime, #22c55e);
+            background: rgba(132, 204, 22, 0.15);
+            color: var(--lime-bright, #a3e635);
             font-size: 10px;
-            font-weight: 700;
+            font-weight: 800;
             padding: 3px 8px;
             border-radius: 4px;
             margin-left: 8px;
@@ -529,7 +614,7 @@ function gym_subscription_page(): void
         }
 
         .pricing-title.popular-title {
-            color: var(--lime, #22c55e);
+            color: var(--lime-bright, #a3e635);
         }
 
         .pricing-desc {
@@ -613,15 +698,16 @@ function gym_subscription_page(): void
         }
 
         .popular-btn {
-            background: var(--lime, #22c55e);
+            background: #84cc16;
             border: none;
-            color: #0b110e;
-            box-shadow: 0 4px 15px rgba(34, 197, 94, 0.3);
+            color: #081202;
+            box-shadow: 0 4px 18px rgba(132, 204, 22, 0.35);
         }
 
         .popular-btn:hover {
-            background: #1eb854;
-            box-shadow: 0 6px 20px rgba(34, 197, 94, 0.4);
+            background: #a3e635;
+            box-shadow: 0 6px 24px rgba(132, 204, 22, 0.5);
+            color: #081202;
         }
 
         @media (max-width: 960px) {
@@ -630,6 +716,344 @@ function gym_subscription_page(): void
                 max-width: 440px;
                 margin: 0 auto;
             }
+        }
+
+        /* Plan Distribution Trigger CTA Button */
+        .pricing-distribution-cta {
+            margin-top: 36px;
+            text-align: center;
+        }
+
+        .btn-plan-distribution {
+            background: rgba(18, 25, 21, 0.85);
+            border: 1px solid rgba(132, 204, 22, 0.4);
+            color: #f1f5f9;
+            font-size: 0.92rem;
+            font-weight: 700;
+            padding: 12px 26px;
+            border-radius: 999px;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+            box-shadow: 0 8px 24px -6px rgba(0, 0, 0, 0.5), 0 0 16px rgba(132, 204, 22, 0.08);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            transition: all 0.25s ease;
+        }
+
+        .btn-plan-distribution:hover {
+            border-color: var(--lime, #84cc16);
+            background: rgba(22, 32, 25, 0.95);
+            color: var(--lime, #84cc16);
+            transform: translateY(-2px);
+            box-shadow: 0 12px 30px -6px rgba(0, 0, 0, 0.6), 0 0 20px rgba(132, 204, 22, 0.25);
+        }
+
+        .btn-distribution-icon {
+            display: inline-flex;
+            color: var(--lime, #84cc16);
+        }
+
+        .btn-distribution-arrow {
+            transition: transform 0.2s ease;
+        }
+
+        .btn-plan-distribution:hover .btn-distribution-arrow {
+            transform: translateX(4px);
+        }
+
+        /* Distribution Modal Card */
+        .modal-backdrop {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background: rgba(0, 0, 0, 0.75);
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+            z-index: 10000;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            padding: 1.5rem;
+            box-sizing: border-box;
+        }
+
+        .modal-card.distribution-modal-card {
+            max-width: 960px;
+            width: 95%;
+            max-height: min(92vh, 860px);
+            background: #0b100d;
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            border-radius: 20px;
+            box-shadow: 0 35px 80px -15px rgba(0, 0, 0, 0.9);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .distribution-modal-header {
+            background: linear-gradient(180deg, rgba(132, 204, 22, 0.06) 0%, transparent 100%), #0e1411;
+            padding: 1.25rem 2rem;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .distribution-eyebrow {
+            font-size: 0.72rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.15em;
+            color: var(--lime, #84cc16);
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            margin-bottom: 2px;
+        }
+
+        .distribution-eyebrow .dot {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: var(--lime, #84cc16);
+        }
+
+        .distribution-modal-title, .modal-header .modal-title {
+            font-size: 1.25rem;
+            font-weight: 800;
+            color: #ffffff;
+            margin: 0;
+        }
+
+        .modal-close-btn {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            color: #94a3b8;
+            font-size: 1.25rem;
+            width: 32px;
+            height: 32px;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.15s ease;
+        }
+
+        .modal-close-btn:hover {
+            background: rgba(255, 255, 255, 0.15);
+            color: #fff;
+        }
+
+        .distribution-modal-body {
+            padding: 1.5rem 2rem;
+            overflow-y: auto;
+        }
+
+        .distribution-intro {
+            font-size: 0.9rem;
+            color: #94a3b8;
+            margin-bottom: 1.25rem;
+            line-height: 1.5;
+        }
+
+        .distribution-table-wrap {
+            width: 100%;
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+            border-radius: 12px;
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            background: rgba(14, 19, 16, 0.6);
+        }
+
+        .distribution-table {
+            width: 100%;
+            min-width: 700px;
+            border-collapse: collapse;
+            font-size: 0.88rem;
+            text-align: left;
+        }
+
+        .distribution-table th {
+            padding: 14px 18px;
+            background: rgba(18, 25, 21, 0.95);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            color: #ffffff;
+            vertical-align: bottom;
+        }
+
+        .distribution-table .col-cap {
+            width: 35%;
+            font-weight: 700;
+            color: #94a3b8;
+            font-size: 0.8rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .distribution-table .col-tier {
+            width: 21.6%;
+        }
+
+        .distribution-table .tier-head {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+
+        .distribution-table .tier-name {
+            font-weight: 800;
+            font-size: 1rem;
+        }
+
+        .distribution-table .tier-price {
+            font-size: 0.85rem;
+            color: #94a3b8;
+        }
+
+        .distribution-table th.col-tier.popular {
+            background: rgba(132, 204, 22, 0.08);
+            border-left: 1px solid rgba(132, 204, 22, 0.25);
+            border-right: 1px solid rgba(132, 204, 22, 0.25);
+        }
+
+        .distribution-table th.col-tier.popular .tier-name {
+            color: var(--lime-bright, #a3e635);
+        }
+
+        .distribution-table td {
+            padding: 12px 18px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+            color: #ffffff;
+        }
+
+        .distribution-table td.col-popular {
+            background: rgba(132, 204, 22, 0.04);
+            border-left: 1px solid rgba(132, 204, 22, 0.15);
+            border-right: 1px solid rgba(132, 204, 22, 0.15);
+        }
+
+        .dist-cat-row td {
+            background: rgba(255, 255, 255, 0.03);
+            font-size: 0.72rem;
+            font-weight: 800;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            color: var(--lime, #84cc16);
+            padding: 8px 18px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+        }
+
+        .dist-pill {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 0.78rem;
+            font-weight: 600;
+        }
+
+        .dist-pill.muted {
+            background: rgba(255, 255, 255, 0.06);
+            color: #cbd5e1;
+        }
+
+        .dist-pill.lime {
+            background: rgba(132, 204, 22, 0.15);
+            color: #bef264;
+        }
+
+        .dist-pill.sky {
+            background: rgba(56, 189, 248, 0.15);
+            color: #7dd3fc;
+        }
+
+        .dist-pill.purple {
+            background: rgba(168, 85, 247, 0.15);
+            color: #d8b4fe;
+        }
+
+        .status-access {
+            color: #4ade80;
+            font-weight: 600;
+            font-size: 0.82rem;
+        }
+
+        .status-locked {
+            color: #f87171;
+            font-size: 0.82rem;
+        }
+
+        .dist-text-highlight {
+            color: #f8fafc;
+            font-weight: 600;
+        }
+
+        .dist-text-lime {
+            color: var(--lime, #84cc16);
+            font-weight: 700;
+        }
+
+        .dist-text-purple {
+            color: #c084fc;
+            font-weight: 700;
+        }
+
+        .distribution-modal-footer {
+            padding: 1.25rem 2rem;
+            border-top: 1px solid rgba(255, 255, 255, 0.08);
+            background: #0e1411;
+            display: flex;
+            justify-content: flex-end;
+        }
+
+        .dist-footer-ctas {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            width: 100%;
+            justify-content: flex-end;
+        }
+
+        .dist-footer-ctas .btn {
+            padding: 8px 18px;
+            border-radius: 8px;
+            font-weight: 700;
+            font-size: 0.85rem;
+            cursor: pointer;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s ease;
+        }
+
+        .dist-footer-ctas .btn-outline {
+            background: transparent;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            color: #ffffff;
+        }
+
+        .dist-footer-ctas .btn-outline:hover {
+            background: rgba(255, 255, 255, 0.1);
+            border-color: rgba(255, 255, 255, 0.35);
+        }
+
+        .dist-footer-ctas .btn-lime {
+            background: var(--lime, #84cc16);
+            border: 1px solid var(--lime, #84cc16);
+            color: #081202;
+            box-shadow: 0 0 15px rgba(132, 204, 22, 0.3);
+        }
+
+        .dist-footer-ctas .btn-lime:hover {
+            background: var(--lime-bright, #a3e635);
+            border-color: var(--lime-bright, #a3e635);
+            box-shadow: 0 0 20px rgba(132, 204, 22, 0.45);
         }
     </style>
 
@@ -647,10 +1071,36 @@ function gym_subscription_page(): void
             document.getElementById('payment-modal').style.display = 'none';
         }
 
+        function openPlanDistributionModal() {
+            const modal = document.getElementById('planDistributionModalBackdrop');
+            if (modal) {
+                modal.style.display = 'flex';
+                document.body.style.overflow = 'hidden';
+            }
+        }
+
+        function closePlanDistributionModal() {
+            const modal = document.getElementById('planDistributionModalBackdrop');
+            if (modal) {
+                modal.style.display = 'none';
+                document.body.style.overflow = '';
+            }
+        }
+
+        function handleDistributionBackdropClick(event) {
+            if (event.target === document.getElementById('planDistributionModalBackdrop')) {
+                closePlanDistributionModal();
+            }
+        }
+
         window.onclick = function(event) {
-            const modal = document.getElementById('payment-modal');
-            if (event.target === modal) {
+            const paymentModal = document.getElementById('payment-modal');
+            const distModal = document.getElementById('planDistributionModalBackdrop');
+            if (event.target === paymentModal) {
                 closePaymentModal();
+            }
+            if (event.target === distModal) {
+                closePlanDistributionModal();
             }
         };
     </script>

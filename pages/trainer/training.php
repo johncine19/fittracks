@@ -51,8 +51,8 @@ function training_page(): void
                     ->execute([$target_member_id, $coachId, $newTitle, $planData['goal'], $startDate, $endDate]);
                 $newPlanId = $pdo->lastInsertId();
                 
-                $pdo->prepare('INSERT INTO training_plan_exercises (plan_id, exercise_id, day_of_week, sequence_order, sets, reps, rest_seconds) 
-                               SELECT ?, exercise_id, day_of_week, sequence_order, sets, reps, rest_seconds FROM training_plan_exercises WHERE plan_id = ?')
+                $pdo->prepare('INSERT INTO training_plan_exercises (plan_id, exercise_id, day_of_week, sequence_order, sets, reps, target_weight_kg, rest_seconds, notes, tempo, rpe) 
+                               SELECT ?, exercise_id, day_of_week, sequence_order, sets, reps, target_weight_kg, rest_seconds, notes, tempo, rpe FROM training_plan_exercises WHERE plan_id = ?')
                     ->execute([$newPlanId, $source_plan_id]);
                     
                 flash('Training plan duplicated successfully as a draft.', 'success');
@@ -76,8 +76,8 @@ function training_page(): void
                     ->execute([$planData['member_user_id'], $coachId, $planData['title'] . ' (Phase 2)', $planData['goal'], $newStart, $newEnd]);
                 $newPlanId = $pdo->lastInsertId();
                 
-                $pdo->prepare('INSERT INTO training_plan_exercises (plan_id, exercise_id, day_of_week, sequence_order, sets, reps, rest_seconds) 
-                               SELECT ?, exercise_id, day_of_week, sequence_order, sets, reps, rest_seconds FROM training_plan_exercises WHERE plan_id = ?')
+                $pdo->prepare('INSERT INTO training_plan_exercises (plan_id, exercise_id, day_of_week, sequence_order, sets, reps, target_weight_kg, rest_seconds, notes, tempo, rpe) 
+                               SELECT ?, exercise_id, day_of_week, sequence_order, sets, reps, target_weight_kg, rest_seconds, notes, tempo, rpe FROM training_plan_exercises WHERE plan_id = ?')
                     ->execute([$newPlanId, $source_plan_id]);
                     
                 flash('Training plan renewed as a new draft Phase 2.', 'success');
@@ -102,6 +102,7 @@ function training_page(): void
     $plans = query_all('
         SELECT tp.*, 
                CONCAT(u.first_name, " ", u.last_name) AS member,
+               u.profile_picture AS member_pic,
                (SELECT COUNT(*) FROM training_plan_exercises WHERE plan_id = tp.plan_id) AS expected_weekly,
                (SELECT COUNT(*) FROM exercise_completions WHERE plan_id = tp.plan_id) AS completed_count,
                (SELECT message_text FROM trainer_messages WHERE sender_id = tp.member_user_id AND recipient_id = ? ORDER BY sent_at DESC LIMIT 1) AS latest_feedback
@@ -239,7 +240,7 @@ function training_page(): void
             </div>
             <button type="button" class="btn btn-primary" onclick="document.getElementById('planModal').style.display='flex'" style="display:inline-flex; align-items:center; gap:6px; font-weight:700;">
                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
-                <span>+ Add Plan</span>
+                <span>Add Plan</span>
             </button>
         </div>
 
@@ -247,7 +248,7 @@ function training_page(): void
             <div style="padding: 40px 20px; text-align: center; color: var(--muted); background: color-mix(in srgb, var(--surface) 60%, var(--bg)); border-radius: 10px; border: 1px dashed var(--line);">
                 <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" style="opacity:0.6; margin-bottom:10px;"><path d="M6 4v16"/><path d="M10 4v16"/><path d="M6 12h4"/><path d="M14 4v16"/><path d="M18 4v16"/><path d="M14 12h4"/></svg>
                 <p style="margin:0 0 8px 0; font-weight:700; color:var(--ink);">No training plans created yet</p>
-                <p style="margin:0 0 16px 0; font-size:13px;">Click "+ Add Plan" to assign a new routine to a member and build their exercise schedule.</p>
+                <p style="margin:0 0 16px 0; font-size:13px;">Click "Add Plan" to assign a new routine to a member and build their exercise schedule.</p>
                 <button type="button" class="btn btn-primary" onclick="document.getElementById('planModal').style.display='flex'">+ Add First Plan</button>
             </div>
         <?php else: ?>
@@ -256,6 +257,7 @@ function training_page(): void
             $tableRows = array_map(function($p) use ($csrfStr) {
                 $safeJson = htmlspecialchars(json_encode($p));
                 $isDraft = ($p['status'] === 'draft');
+                $titleAttr = addslashes(h($p['title'] ?: 'Workout Plan'));
                 
                 if ($isDraft) {
                     $p['progress'] = '<div style="font-size:12px; color:var(--muted); min-width:80px;">N/A</div>';
@@ -300,27 +302,159 @@ function training_page(): void
                         $p['end_date'] = '<span style="color:var(--red); font-weight:600;">' . h($p['end_date']) . ' <br><small>(Expired)</small></span>';
                     }
                     
-                    $renewBtn = ($daysLeft <= 3) ? '<form method="post" style="display:inline;" onsubmit="return confirm(\'Renew this plan for another 4 weeks?\');">' .
-                                                   $csrfStr . '<input type="hidden" name="action" value="renew_plan"><input type="hidden" name="plan_id" value="'.$p['plan_id'].'">' .
-                                                   '<button type="submit" class="btn btn-primary" style="padding:4px 8px;font-size:12px;margin-right:4px;">Renew</button></form>' : '';
+                    $renewBtn = ($daysLeft <= 3) ? '<button type="button" onclick="confirmRenewPlan('.$p['plan_id'].', \''.$titleAttr.'\')" class="btn btn-primary" style="padding:4px 8px;font-size:12px;margin-right:4px;">Renew</button>' : '';
                     $buildBtn = '';
                 }
                 
                 $feedbackStr = $p['latest_feedback'] ? h(substr($p['latest_feedback'], 0, 30)) . (strlen($p['latest_feedback']) > 30 ? '...' : '') : '<i style="color:var(--muted);">None</i>';
                 $p['feedback'] = '<span style="font-size:12px; display:inline-block; max-width:150px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">' . $feedbackStr . '</span>';
                 
-                $duplicateBtn = '<button type="button" onclick="openDuplicateModal('.$p['plan_id'].')" class="btn btn-secondary" style="padding:4px 8px;font-size:12px;margin-right:4px;">Duplicate</button>';
+                $duplicateBtn = '<button type="button" onclick="openDuplicateModal('.$p['plan_id'].', \''.$titleAttr.'\')" class="btn btn-secondary" style="padding:4px 8px;font-size:12px;margin-right:4px;">Duplicate</button>';
                 
-                $p['actions'] = '<div style="display:flex; gap:4px; flex-wrap:wrap;">' . 
+                $deleteBtn = '<button type="button" onclick="confirmDeletePlan('.$p['plan_id'].', \''.$titleAttr.'\')" class="btn btn-danger" style="padding:4px 8px;font-size:12px;display:inline-flex;align-items:center;gap:4px;">' .
+                             '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>' .
+                             '<span>Delete</span></button>';
+
+                $p['actions'] = '<div style="display:flex; gap:4px; flex-wrap:wrap; align-items:center;">' . 
                                 $renewBtn . $buildBtn . $duplicateBtn . 
-                                '<button type="button" onclick="editPlan(' . $safeJson . ')" class="btn btn-secondary" style="padding:4px 8px;font-size:12px;">Edit</button>' .
-                                '<form method="post" style="display:inline;" onsubmit="return confirm(\'Delete this training plan?\');">' .
-                                $csrfStr . '<input type="hidden" name="action" value="delete_plan"><input type="hidden" name="plan_id" value="'.$p['plan_id'].'">' .
-                                '<button type="submit" class="btn btn-danger" style="padding:4px 8px;font-size:12px;">Delete</button></form></div>';
+                                '<button type="button" onclick="editPlan(' . $safeJson . ')" class="btn btn-secondary" style="padding:4px 8px;font-size:12px;margin-right:4px;">Edit</button>' .
+                                $deleteBtn . '</div>';
                 return $p;
             }, $plans);
-            echo render_simple_table($tableRows, ['member', 'title', 'start_date', 'end_date', 'status', 'progress', 'adherence', 'feedback', 'actions']);
             ?>
+
+            <!-- Desktop View: Standard Rich Table -->
+            <div class="plans-desktop-table">
+                <?= render_simple_table($tableRows, ['member', 'title', 'start_date', 'end_date', 'status', 'progress', 'adherence', 'feedback', 'actions']) ?>
+            </div>
+
+            <!-- Mobile View: Modern Optimized Cards -->
+            <div class="training-plans-mobile-cards">
+                <?php foreach ($plans as $p): 
+                    $safeJson = htmlspecialchars(json_encode($p));
+                    $isDraft = ($p['status'] === 'draft');
+                    $statusKey = strtolower((string)$p['status']);
+                    
+                    $startDate = !empty($p['start_date']) ? date('M j, Y', strtotime($p['start_date'])) : 'N/A';
+                    $endDate = !empty($p['end_date']) ? date('M j, Y', strtotime($p['end_date'])) : 'N/A';
+                    
+                    $daysLeft = null;
+                    $isExpiring = false;
+                    $isExpired = false;
+                    $elapsedWeeks = 0;
+                    $totalWeeks = 0;
+                    $adherencePercent = 0;
+                    
+                    if (!$isDraft && !empty($p['start_date']) && !empty($p['end_date'])) {
+                        $startTs = strtotime($p['start_date']);
+                        $endTs = strtotime($p['end_date']);
+                        $now = time();
+                        $totalWeeks = max(1, (int) ceil(($endTs - $startTs) / (7 * 86400)));
+                        $elapsedWeeks = max(1, (int) ceil(($now - $startTs) / (7 * 86400)));
+                        if ($now < $startTs) $elapsedWeeks = 0;
+                        if ($now > $endTs) $elapsedWeeks = $totalWeeks;
+                        
+                        $expectedTotal = (int)($p['expected_weekly'] ?? 0) * $elapsedWeeks;
+                        $completed = (int)($p['completed_count'] ?? 0);
+                        $adherencePercent = $expectedTotal > 0 ? min(100, round(($completed / $expectedTotal) * 100)) : ($elapsedWeeks > 0 ? 0 : 100);
+                        
+                        $daysLeft = ($endTs - $now) / 86400;
+                        $isExpiring = ($daysLeft <= 3 && $daysLeft >= 0);
+                        $isExpired = ($daysLeft < 0);
+                    }
+                ?>
+                    <div class="trainer-mcard">
+                        <div class="trainer-mcard-header">
+                            <div class="trainer-mcard-user">
+                                <?php if (!empty($p['member_pic'])): ?>
+                                    <img src="<?= h(upload_url($p['member_pic'])) ?>" alt="Member" class="trainer-mcard-avatar" loading="lazy" decoding="async">
+                                <?php else: ?>
+                                    <div class="trainer-mcard-initial"><?= h(substr($p['member'] ?? 'M', 0, 1)) ?></div>
+                                <?php endif; ?>
+                                <div>
+                                    <div class="trainer-mcard-name"><?= h($p['member']) ?></div>
+                                    <div class="trainer-mcard-sub"><?= h($p['title'] ?: 'Workout Routine') ?></div>
+                                </div>
+                            </div>
+                            <div>
+                                <?php if ($statusKey === 'active'): ?>
+                                    <span class="badge badge-active">Active</span>
+                                <?php elseif ($statusKey === 'draft'): ?>
+                                    <span class="badge badge-draft">Draft</span>
+                                <?php else: ?>
+                                    <span class="badge badge-other"><?= h(ucfirst($statusKey)) ?></span>
+                                <?php endif; ?>
+                            </div>
+                        </div>
+
+                        <?php if (!empty($p['goal'])): ?>
+                            <div class="trainer-mcard-goal">
+                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>
+                                <span>Goal: <strong><?= h(ucwords(str_replace('_', ' ', (string)$p['goal']))) ?></strong></span>
+                            </div>
+                        <?php endif; ?>
+
+                        <div class="trainer-mcard-grid">
+                            <div class="trainer-mcard-stat">
+                                <span class="mcard-stat-lbl">Start Date</span>
+                                <span class="mcard-stat-val"><?= $startDate ?></span>
+                            </div>
+                            <div class="trainer-mcard-stat">
+                                <span class="mcard-stat-lbl">End Date</span>
+                                <span class="mcard-stat-val">
+                                    <?= $endDate ?>
+                                    <?php if ($isExpiring): ?>
+                                        <span style="color:#f59e0b; font-size:11px; font-weight:700;">(Expiring)</span>
+                                    <?php elseif ($isExpired): ?>
+                                        <span style="color:var(--danger, #ef4444); font-size:11px; font-weight:700;">(Expired)</span>
+                                    <?php endif; ?>
+                                </span>
+                            </div>
+                            <?php if (!$isDraft): ?>
+                                <div class="trainer-mcard-stat">
+                                    <span class="mcard-stat-lbl">Progress</span>
+                                    <span class="mcard-stat-val">Week <?= $elapsedWeeks ?> of <?= $totalWeeks ?></span>
+                                </div>
+                                <div class="trainer-mcard-stat">
+                                    <span class="mcard-stat-lbl">Adherence</span>
+                                    <div style="display:flex; align-items:center; gap:6px; margin-top:3px;">
+                                        <div style="flex:1; background:rgba(128,128,128,0.2); height:6px; border-radius:3px; overflow:hidden;">
+                                            <div style="width:<?= $adherencePercent ?>%; background:var(--lime); height:100%;"></div>
+                                        </div>
+                                        <span style="font-size:11.5px; font-weight:700; color:var(--ink);"><?= $adherencePercent ?>%</span>
+                                    </div>
+                                </div>
+                            <?php endif; ?>
+                        </div>
+
+                        <?php if (!empty($p['latest_feedback'])): ?>
+                            <div class="trainer-mcard-feedback">
+                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="flex-shrink:0; margin-top:2px;"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+                                <span>"<?= h($p['latest_feedback']) ?>"</span>
+                            </div>
+                        <?php endif; ?>
+
+                        <div class="trainer-mcard-actions">
+                            <?php if ($isDraft): ?>
+                                <form method="get" action="index.php" style="flex:1 1 120px;">
+                                    <input type="hidden" name="page" value="workout_builder">
+                                    <input type="hidden" name="member_user_id" value="<?= (int)$p['member_user_id'] ?>">
+                                    <button type="submit" class="btn btn-primary btn-mcard" style="width:100%;">Build Workout</button>
+                                </form>
+                            <?php elseif ($daysLeft !== null && $daysLeft <= 3): ?>
+                                <button type="button" onclick="confirmRenewPlan(<?= (int)$p['plan_id'] ?>, '<?= addslashes(h($p['title'] ?: 'Workout Routine')) ?>')" class="btn btn-primary btn-mcard" style="flex:1 1 100px;">Renew</button>
+                            <?php endif; ?>
+
+                            <button type="button" onclick="openDuplicateModal(<?= (int)$p['plan_id'] ?>, '<?= addslashes(h($p['title'] ?: 'Workout Routine')) ?>')" class="btn btn-secondary btn-mcard">Duplicate</button>
+                            <button type="button" onclick="editPlan(<?= $safeJson ?>)" class="btn btn-secondary btn-mcard">Edit</button>
+                            <button type="button" onclick="confirmDeletePlan(<?= (int)$p['plan_id'] ?>, '<?= addslashes(h($p['title'] ?: 'Workout Routine')) ?>')" class="btn btn-danger btn-mcard" style="display:inline-flex; align-items:center; gap:5px;">
+                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+                                <span>Delete</span>
+                            </button>
+                        </div>
+                    </div>
+                <?php endforeach; ?>
+            </div>
         <?php endif; ?>
     </section>
 </div>
@@ -409,7 +543,8 @@ function training_page(): void
                     <p style="margin:0; font-style: italic;">No workout plans recorded in the system yet.</p>
                 </div>
             <?php else: ?>
-                <div class="table-responsive">
+                <!-- Desktop View: Standard Directory Table -->
+                <div class="all-workouts-desktop-table table-responsive">
                     <table style="width:100%; border-collapse:collapse;">
                         <thead>
                             <tr>
@@ -457,11 +592,11 @@ function training_page(): void
                                     </td>
                                     <td style="padding:12px;">
                                         <?php if ($statusKey === 'active'): ?>
-                                            <span class="badge" style="background: var(--lime); color: var(--bg); font-weight: 700;">Active</span>
+                                            <span class="badge badge-active">Active</span>
                                         <?php elseif ($statusKey === 'draft'): ?>
-                                            <span class="badge" style="background: #f59e0b; color: #000; font-weight: 700;">Draft</span>
+                                            <span class="badge badge-draft">Draft</span>
                                         <?php else: ?>
-                                            <span class="badge" style="background: var(--line); color: var(--muted);"><?= h(ucfirst($statusKey)) ?></span>
+                                            <span class="badge badge-other"><?= h(ucfirst($statusKey)) ?></span>
                                         <?php endif; ?>
                                     </td>
                                     <td style="padding:12px; font-size:12.5px; color:var(--muted);">
@@ -488,6 +623,86 @@ function training_page(): void
                         </tbody>
                     </table>
                 </div>
+
+                <!-- Mobile View: Modern Optimized Cards (Search & Filter Compatible) -->
+                <div class="all-workouts-mobile-cards" id="all-workouts-mobile-cards">
+                    <?php foreach ($allPlans as $row): 
+                        $statusKey = strtolower((string)$row['status']);
+                        $filterStatusCategory = in_array($statusKey, ['active', 'draft'], true) ? $statusKey : 'other';
+                        $searchBlob = strtolower($row['member'] . ' ' . $row['trainer'] . ' ' . $row['title'] . ' ' . $row['goal'] . ' #' . $row['plan_id']);
+                    ?>
+                        <div class="all-workout-card all-workout-row" data-status="<?= h($filterStatusCategory) ?>" data-search="<?= h($searchBlob) ?>">
+                            <div class="trainer-mcard-header">
+                                <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+                                    <span class="mcard-plan-id">#<?= h((string)$row['plan_id']) ?></span>
+                                    <span class="mcard-plan-title"><?= h($row['title'] ?: 'Workout Plan') ?></span>
+                                </div>
+                                <div>
+                                    <?php if ($statusKey === 'active'): ?>
+                                        <span class="badge badge-active">Active</span>
+                                    <?php elseif ($statusKey === 'draft'): ?>
+                                        <span class="badge badge-draft">Draft</span>
+                                    <?php else: ?>
+                                        <span class="badge badge-other"><?= h(ucfirst($statusKey)) ?></span>
+                                    <?php endif; ?>
+                                </div>
+                            </div>
+
+                            <?php if (!empty($row['goal'])): ?>
+                                <div class="trainer-mcard-goal">
+                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>
+                                    <span>Goal: <strong><?= h(ucwords(str_replace('_', ' ', (string)$row['goal']))) ?></strong></span>
+                                </div>
+                            <?php endif; ?>
+
+                            <div class="trainer-mcard-grid">
+                                <div class="trainer-mcard-stat">
+                                    <span class="mcard-stat-lbl">Member</span>
+                                    <div style="display:flex; align-items:center; gap:6px; margin-top:2px;">
+                                        <?php if ($row['member_pic']): ?>
+                                            <img src="<?= h(upload_url($row['member_pic'])) ?>" alt="Member" style="width:20px; height:20px; border-radius:50%; object-fit:cover;" loading="lazy" decoding="async">
+                                        <?php else: ?>
+                                            <div style="width:20px; height:20px; border-radius:50%; background:var(--line); display:flex; align-items:center; justify-content:center; font-size:10px; font-weight:700; color:var(--muted);"><?= h(substr($row['member'] ?? 'M', 0, 1)) ?></div>
+                                        <?php endif; ?>
+                                        <span style="font-weight:600; color:var(--ink); font-size:13px;"><?= h($row['member']) ?></span>
+                                    </div>
+                                </div>
+                                <div class="trainer-mcard-stat">
+                                    <span class="mcard-stat-lbl">Trainer</span>
+                                    <div style="display:flex; align-items:center; gap:6px; margin-top:2px;">
+                                        <?php if ($row['trainer_pic']): ?>
+                                            <img src="<?= h(upload_url($row['trainer_pic'])) ?>" alt="Trainer" style="width:20px; height:20px; border-radius:50%; object-fit:cover;" loading="lazy" decoding="async">
+                                        <?php else: ?>
+                                            <div style="width:20px; height:20px; border-radius:50%; background:var(--line); display:flex; align-items:center; justify-content:center; font-size:9px; color:var(--muted);"><?= h(substr($row['trainer'] ?? 'T', 0, 1)) ?></div>
+                                        <?php endif; ?>
+                                        <span style="font-size:12.5px; color:var(--muted);"><?= h($row['trainer'] ?: 'Assigned Coach') ?></span>
+                                    </div>
+                                </div>
+                                <div class="trainer-mcard-stat">
+                                    <span class="mcard-stat-lbl">Exercises</span>
+                                    <span class="mcard-stat-val"><?= (int)$row['exercise_count'] ?> movements</span>
+                                </div>
+                                <div class="trainer-mcard-stat">
+                                    <span class="mcard-stat-lbl">Start Date</span>
+                                    <span class="mcard-stat-val"><?= $row['start_date'] ? date('M j, Y', strtotime($row['start_date'])) : 'Pending' ?></span>
+                                </div>
+                            </div>
+
+                            <div class="trainer-mcard-actions">
+                                <a href="index.php?page=training&tab=all&view_plan_id=<?= (int)$row['plan_id'] ?>" class="btn btn-secondary btn-mcard" style="flex:1 1 120px; justify-content:center; display:inline-flex; align-items:center; gap:6px;">
+                                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+                                    <span>View Plan</span>
+                                </a>
+                                <?php if ($statusKey === 'draft'): ?>
+                                    <a href="index.php?page=workout_builder&member_user_id=<?= (int)$row['member_user_id'] ?>" class="btn btn-primary btn-mcard" style="flex:1 1 100px; justify-content:center; text-align:center;">
+                                        Build
+                                    </a>
+                                <?php endif; ?>
+                            </div>
+                        </div>
+                    <?php endforeach; ?>
+                </div>
+
                 <div id="all-workouts-no-results" style="display:none; padding:30px; text-align:center; color:var(--muted);">
                     No workout plans match the current search or status filter.
                 </div>
@@ -576,11 +791,53 @@ function training_page(): void
     border-color: color-mix(in srgb, var(--lime, #c7ff22) 40%, var(--line, rgba(255,255,255,0.1)));
     box-shadow: 0 4px 14px rgba(0, 0, 0, 0.1);
 }
+[data-theme="light"] .workout-main-nav {
+    background: #ffffff !important;
+    border: 1px solid #cbd5e1 !important;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05) !important;
+}
+[data-theme="light"] .workout-nav-pill {
+    color: #64748b !important;
+    border: 1px solid transparent !important;
+}
+[data-theme="light"] .workout-nav-pill svg {
+    stroke: #64748b !important;
+}
+[data-theme="light"] .workout-nav-pill:hover {
+    color: #0f172a !important;
+    background: #f8fafc !important;
+}
+[data-theme="light"] .workout-nav-pill:hover svg {
+    stroke: #0f172a !important;
+}
 [data-theme="light"] .workout-nav-pill.active {
-    background: #f1f5f9;
-    color: #0f172a;
-    border-color: var(--line, #e2e8f0);
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+    background: #f1f5f9 !important;
+    color: #0f172a !important;
+    border: 1px solid #cbd5e1 !important;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06) !important;
+}
+[data-theme="light"] .workout-nav-pill.active svg {
+    stroke: #0f172a !important;
+}
+[data-theme="light"] .workout-nav-pill.active .create-badge {
+    background: rgba(101, 163, 13, 0.14) !important;
+    color: #365314 !important;
+    border: 1px solid rgba(101, 163, 13, 0.35) !important;
+}
+[data-theme="light"] .workout-nav-pill:not(.active) .create-badge {
+    background: #f1f5f9 !important;
+    color: #64748b !important;
+    border: 1px solid #e2e8f0 !important;
+}
+[data-theme="light"] .workout-nav-pill.active .all-badge {
+    background: rgba(14, 165, 233, 0.14) !important;
+    color: #0369a1 !important;
+    border: 1px solid rgba(14, 165, 233, 0.35) !important;
+}
+[data-theme="light"] .workout-nav-pill:not(.active) .all-badge {
+    background: #f1f5f9 !important;
+    color: #64748b !important;
+    border: 1px solid #e2e8f0 !important;
 }
 .workout-nav-pill-title-row {
     display: inline-flex;
@@ -665,9 +922,337 @@ function training_page(): void
     color: var(--lime);
     border-color: var(--lime);
 }
+[data-theme="light"] .all-workout-filter-pill {
+    background: #ffffff;
+    border-color: #cbd5e1;
+    color: #64748b;
+}
+[data-theme="light"] .all-workout-filter-pill:hover {
+    color: #0f172a;
+    border-color: #94a3b8;
+    background: #f8fafc;
+}
+[data-theme="light"] .all-workout-filter-pill.active {
+    background: rgba(101, 163, 13, 0.14) !important;
+    color: #365314 !important;
+    border-color: #65a30d !important;
+}
+
+/* ==================================================== */
+/* MOBILE CARD OPTIMIZATION (BREAKPOINT: <= 768px)      */
+/* ==================================================== */
+.training-plans-mobile-cards,
+.all-workouts-mobile-cards {
+    display: none;
+}
+
+.trainer-mcard,
+.all-workout-card {
+    background: var(--panel-soft);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 14px 15px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    transition: transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+}
+.trainer-mcard:hover,
+.all-workout-card:hover {
+    border-color: color-mix(in srgb, var(--lime, #c7ff22) 30%, var(--line));
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.15);
+}
+
+[data-theme="light"] .trainer-mcard,
+[data-theme="light"] .all-workout-card {
+    background: #ffffff !important;
+    border: 1px solid #cbd5e1 !important;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04) !important;
+}
+[data-theme="light"] .trainer-mcard:hover,
+[data-theme="light"] .all-workout-card:hover {
+    border-color: #94a3b8 !important;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.08) !important;
+}
+
+.trainer-mcard-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 10px;
+}
+.trainer-mcard-user {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+.trainer-mcard-avatar {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    object-fit: cover;
+    flex-shrink: 0;
+}
+.trainer-mcard-initial {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    background: var(--line);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--muted);
+    flex-shrink: 0;
+}
+.trainer-mcard-name {
+    font-size: 14.5px;
+    font-weight: 700;
+    color: var(--ink);
+    line-height: 1.25;
+}
+.trainer-mcard-sub {
+    font-size: 12px;
+    color: var(--muted);
+    margin-top: 2px;
+}
+.mcard-plan-id {
+    font-size: 12px;
+    font-weight: 800;
+    color: var(--muted);
+    background: color-mix(in srgb, var(--ink) 6%, transparent);
+    padding: 2px 7px;
+    border-radius: 6px;
+}
+[data-theme="light"] .mcard-plan-id {
+    background: #f1f5f9;
+    color: #475569;
+}
+.mcard-plan-title {
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--ink);
+}
+.trainer-mcard-goal {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    color: var(--muted);
+    background: color-mix(in srgb, var(--ink) 4%, transparent);
+    padding: 6px 10px;
+    border-radius: 8px;
+}
+[data-theme="light"] .trainer-mcard-goal {
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    color: #475569;
+}
+.trainer-mcard-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 8px 12px;
+    padding: 10px;
+    background: color-mix(in srgb, var(--ink) 3%, transparent);
+    border-radius: 8px;
+}
+[data-theme="light"] .trainer-mcard-grid {
+    background: #f8fafc;
+    border: 1px solid #f1f5f9;
+}
+.trainer-mcard-stat {
+    display: flex;
+    flex-direction: column;
+}
+.mcard-stat-lbl {
+    font-size: 10.5px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--muted);
+    font-weight: 600;
+}
+.mcard-stat-val {
+    font-size: 12.5px;
+    font-weight: 600;
+    color: var(--ink);
+    margin-top: 2px;
+}
+.trainer-mcard-feedback {
+    display: flex;
+    align-items: flex-start;
+    gap: 6px;
+    font-size: 12px;
+    font-style: italic;
+    color: var(--muted);
+    padding: 6px 10px;
+    background: color-mix(in srgb, var(--ink) 3%, transparent);
+    border-radius: 8px;
+}
+.trainer-mcard-actions {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+    padding-top: 6px;
+    border-top: 1px solid var(--line);
+}
+.btn-mcard {
+    padding: 6px 12px !important;
+    font-size: 12px !important;
+    font-weight: 600 !important;
+}
+.badge-active {
+    background: var(--lime, #c7ff22) !important;
+    color: #0b110e !important;
+    font-weight: 700;
+}
+.badge-draft {
+    background: #f59e0b !important;
+    color: #000 !important;
+    font-weight: 700;
+}
+.badge-other {
+    background: var(--line) !important;
+    color: var(--muted) !important;
+}
+[data-theme="light"] .badge-other {
+    background: #e2e8f0 !important;
+    color: #64748b !important;
+}
+
+/* ==================================================== */
+/* SWEETALERT2 MODAL & BUTTON ENHANCEMENTS              */
+/* ==================================================== */
+.swal2-popup {
+    border: 1px solid var(--line) !important;
+    border-radius: 16px !important;
+    padding: 24px !important;
+    box-shadow: 0 20px 45px rgba(0, 0, 0, 0.45) !important;
+}
+[data-theme="light"] .swal2-popup {
+    border-color: #cbd5e1 !important;
+    box-shadow: 0 16px 36px rgba(0, 0, 0, 0.12) !important;
+}
+.swal2-title {
+    font-size: 1.35rem !important;
+    font-weight: 800 !important;
+    color: var(--ink) !important;
+    padding: 0 0 4px 0 !important;
+}
+.swal2-html-container {
+    margin: 0 !important;
+    overflow: visible !important;
+}
+.swal2-html-container select.form-control,
+.swal2-html-container input.form-control {
+    background: var(--panel, #0f172a) !important;
+    color: var(--ink, #f8fafc) !important;
+    border: 1px solid var(--line, rgba(255, 255, 255, 0.12)) !important;
+    border-radius: 8px !important;
+    padding: 10px 12px !important;
+    font-size: 13.5px !important;
+    outline: none !important;
+    transition: border-color 0.2s, box-shadow 0.2s !important;
+}
+.swal2-html-container select.form-control:focus,
+.swal2-html-container input.form-control:focus {
+    border-color: var(--lime, #c7ff22) !important;
+    box-shadow: 0 0 0 3px rgba(199, 255, 34, 0.2) !important;
+}
+[data-theme="light"] .swal2-html-container select.form-control,
+[data-theme="light"] .swal2-html-container input.form-control {
+    background: #ffffff !important;
+    color: #0f172a !important;
+    border-color: #cbd5e1 !important;
+}
+[data-theme="light"] .swal2-html-container select.form-control:focus,
+[data-theme="light"] .swal2-html-container input.form-control:focus {
+    border-color: #65a30d !important;
+    box-shadow: 0 0 0 3px rgba(101, 163, 13, 0.2) !important;
+}
+.swal2-html-container select.form-control option {
+    background: var(--panel, #0f172a) !important;
+    color: var(--ink, #f8fafc) !important;
+}
+[data-theme="light"] .swal2-html-container select.form-control option {
+    background: #ffffff !important;
+    color: #0f172a !important;
+}
+.swal2-actions {
+    display: flex !important;
+    justify-content: center !important;
+    align-items: center !important;
+    gap: 12px !important;
+    margin: 22px auto 0 !important;
+    width: 100% !important;
+}
+.swal2-styled {
+    margin: 0 !important;
+    padding: 10px 18px !important;
+    font-size: 13px !important;
+    font-weight: 700 !important;
+    border-radius: 8px !important;
+    box-shadow: none !important;
+    cursor: pointer !important;
+    transition: all 0.2s ease !important;
+}
+/* Lime Confirm Button (Duplicate, Save) */
+.swal2-styled.swal2-confirm:not([style*="239, 68, 68"]):not([style*="ef4444"]) {
+    background: var(--lime, #c7ff22) !important;
+    color: #0b110e !important;
+    border: 1px solid transparent !important;
+    box-shadow: 0 2px 10px rgba(199, 255, 34, 0.3) !important;
+}
+.swal2-styled.swal2-confirm:not([style*="239, 68, 68"]):not([style*="ef4444"]):hover {
+    background: #b5ee17 !important;
+    box-shadow: 0 4px 14px rgba(199, 255, 34, 0.45) !important;
+}
+/* Red Confirm Button (Delete) */
+.swal2-styled.swal2-confirm[style*="239, 68, 68"],
+.swal2-styled.swal2-confirm[style*="ef4444"] {
+    background: #ef4444 !important;
+    color: #ffffff !important;
+    border: 1px solid transparent !important;
+    box-shadow: 0 2px 10px rgba(239, 68, 68, 0.3) !important;
+}
+.swal2-styled.swal2-confirm[style*="239, 68, 68"]:hover,
+.swal2-styled.swal2-confirm[style*="ef4444"]:hover {
+    background: #dc2626 !important;
+    box-shadow: 0 4px 14px rgba(239, 68, 68, 0.45) !important;
+}
+/* Cancel Button */
+.swal2-styled.swal2-cancel {
+    background: var(--surface, #1a2233) !important;
+    color: var(--ink, #ffffff) !important;
+    border: 1px solid var(--line, rgba(255, 255, 255, 0.12)) !important;
+}
+.swal2-styled.swal2-cancel:hover {
+    background: color-mix(in srgb, var(--ink) 8%, var(--surface, #1a2233)) !important;
+    border-color: var(--line) !important;
+}
+[data-theme="light"] .swal2-styled.swal2-cancel {
+    background: #f1f5f9 !important;
+    color: #334155 !important;
+    border-color: #cbd5e1 !important;
+}
+[data-theme="light"] .swal2-styled.swal2-cancel:hover {
+    background: #e2e8f0 !important;
+    color: #0f172a !important;
+}
 
 /* Multi-Device Responsive Breakpoints */
 @media (max-width: 768px) {
+    .plans-desktop-table,
+    .all-workouts-desktop-table {
+        display: none !important;
+    }
+    .training-plans-mobile-cards,
+    .all-workouts-mobile-cards {
+        display: flex !important;
+        flex-direction: column;
+        gap: 12px;
+    }
     .all-workouts-toolbar {
         flex-direction: column;
         align-items: stretch !important;
@@ -868,10 +1453,12 @@ function editPlan(p) {
         },
         showCancelButton: true,
         confirmButtonText: 'Save Changes',
+        cancelButtonText: 'Cancel',
         confirmButtonColor: 'var(--lime, #c7ff22)',
-        cancelButtonColor: 'transparent',
+        cancelButtonColor: '#334155',
         background: getComputedStyle(document.documentElement).getPropertyValue('--panel-bg').trim() || '#121721',
         color: getComputedStyle(document.documentElement).getPropertyValue('--ink').trim() || '#ffffff',
+        reverseButtons: true,
         preConfirm: () => {
             const form = document.getElementById('editPlanForm');
             if (!form.title.value || !form.start_date.value) {
@@ -884,42 +1471,172 @@ function editPlan(p) {
 }
 
 // Duplicate Plan Modal (SweetAlert2)
-function openDuplicateModal(planId) {
+function openDuplicateModal(planId, planTitle) {
     let membersOptions = '';
     <?php foreach ($members as $member): ?>
         membersOptions += `<option value="<?= (int) $member['member_user_id'] ?>"><?= h($member['name']) ?></option>`;
     <?php endforeach; ?>
     
     <?php $csrfStr = csrf_field(); ?>
+    const titleText = planTitle ? `"${planTitle}"` : 'this training plan';
 
     Swal.fire({
         title: 'Duplicate Plan',
         html: `
-            <form id="duplicatePlanForm" method="post" style="text-align: left; display: flex; flex-direction: column; gap: 12px; margin-top: 15px;">
-                <?= $csrfStr ?>
-                <input type="hidden" name="action" value="duplicate_plan">
-                <input type="hidden" name="plan_id" value="${planId}">
-                <p style="margin:0; color:var(--ink); font-size:13.5px;">Select the member to clone this workout structure to:</p>
-                <label style="display:block; color: var(--muted); font-size: 13px; font-weight:600;">Target Member *
-                    <select name="target_member_id" class="form-control" style="width: 100%; box-sizing: border-box; margin-top:5px; background:var(--panel); color:var(--ink); border:1px solid var(--line); border-radius:8px; padding:8px 12px;" required>
-                        <option value="">-- Select Target Member --</option>
-                        ${membersOptions}
-                    </select>
-                </label>
-            </form>
+            <div style="text-align: left; margin-top: 8px;">
+                <div style="display:flex; align-items:center; gap:10px; padding:10px 14px; background:color-mix(in srgb, var(--ink) 4%, transparent); border:1px solid var(--line); border-radius:10px; margin-bottom:14px;">
+                    <div style="width:34px; height:34px; border-radius:8px; background:color-mix(in srgb, var(--lime) 15%, transparent); display:flex; align-items:center; justify-content:center; color:var(--lime); flex-shrink:0;">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+                    </div>
+                    <div style="flex:1; min-width:0;">
+                        <div style="font-size:11px; text-transform:uppercase; letter-spacing:0.5px; color:var(--muted); font-weight:700;">Source Routine</div>
+                        <div style="font-size:13.5px; font-weight:700; color:var(--ink); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${titleText}</div>
+                    </div>
+                </div>
+
+                <form id="duplicatePlanForm" method="post" style="display: flex; flex-direction: column; gap: 12px;">
+                    <?= $csrfStr ?>
+                    <input type="hidden" name="action" value="duplicate_plan">
+                    <input type="hidden" name="plan_id" value="${planId}">
+                    <p style="margin:0; color:var(--muted); font-size:13px; line-height:1.4;">Select the member who will receive a copy of this routine as a new draft:</p>
+                    <label style="display:block; color: var(--ink); font-size: 13px; font-weight:600;">
+                        Target Member <span style="color:var(--danger, #ef4444);">*</span>
+                        <select name="target_member_id" class="form-control" style="width: 100%; box-sizing: border-box; margin-top:6px;" required>
+                            <option value="">-- Select Target Member --</option>
+                            ${membersOptions}
+                        </select>
+                    </label>
+                </form>
+            </div>
         `,
         showCancelButton: true,
         confirmButtonText: 'Duplicate as Draft',
+        cancelButtonText: 'Cancel',
         confirmButtonColor: 'var(--lime, #c7ff22)',
-        cancelButtonColor: 'transparent',
+        cancelButtonColor: '#334155',
         background: getComputedStyle(document.documentElement).getPropertyValue('--panel-bg').trim() || '#121721',
         color: getComputedStyle(document.documentElement).getPropertyValue('--ink').trim() || '#ffffff',
+        reverseButtons: true,
+        focusCancel: true,
         preConfirm: () => {
             const form = document.getElementById('duplicatePlanForm');
             if (!form.target_member_id.value) {
                 Swal.showValidationMessage('Please select a target member');
                 return false;
             }
+            form.submit();
+        }
+    });
+}
+
+// Delete Plan Confirmation Modal (SweetAlert2)
+function confirmDeletePlan(planId, planTitle) {
+    const escapedTitle = planTitle ? `"${planTitle}"` : 'this training plan';
+    Swal.fire({
+        title: 'Delete Training Plan?',
+        html: `
+            <div style="text-align:left; margin-top:8px;">
+                <p style="margin:0; color:var(--ink); font-size:14px; line-height:1.4;">
+                    Are you sure you want to permanently delete <strong>${escapedTitle}</strong>?
+                </p>
+                <div style="display:flex; align-items:flex-start; gap:8px; margin-top:12px; padding:10px 12px; background:rgba(239, 68, 68, 0.1); border:1px solid rgba(239, 68, 68, 0.25); border-radius:8px; color:#f87171; font-size:12px; line-height:1.4;">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="flex-shrink:0; margin-top:1px;"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+                    <span>This will remove all exercises, assigned schedule days, and member tracking data for this plan. This action cannot be undone.</span>
+                </div>
+            </div>
+        `,
+        icon: 'warning',
+        iconColor: '#ef4444',
+        showCancelButton: true,
+        confirmButtonText: 'Yes, Delete Plan',
+        cancelButtonText: 'Cancel',
+        confirmButtonColor: '#ef4444',
+        cancelButtonColor: '#334155',
+        background: getComputedStyle(document.documentElement).getPropertyValue('--panel-bg').trim() || '#121721',
+        color: getComputedStyle(document.documentElement).getPropertyValue('--ink').trim() || '#ffffff',
+        reverseButtons: true,
+        focusCancel: true
+    }).then((result) => {
+        if (result.isConfirmed) {
+            const form = document.createElement('form');
+            form.method = 'POST';
+            form.action = 'index.php?page=training';
+            
+            const csrfInput = document.createElement('input');
+            csrfInput.type = 'hidden';
+            csrfInput.name = 'csrf_token';
+            csrfInput.value = '<?= csrf_token() ?>';
+            form.appendChild(csrfInput);
+
+            const actionInput = document.createElement('input');
+            actionInput.type = 'hidden';
+            actionInput.name = 'action';
+            actionInput.value = 'delete_plan';
+            form.appendChild(actionInput);
+
+            const idInput = document.createElement('input');
+            idInput.type = 'hidden';
+            idInput.name = 'plan_id';
+            idInput.value = planId;
+            form.appendChild(idInput);
+
+            document.body.appendChild(form);
+            form.submit();
+        }
+    });
+}
+
+// Renew Plan Confirmation Modal (SweetAlert2)
+function confirmRenewPlan(planId, planTitle) {
+    const escapedTitle = planTitle ? `"${planTitle}"` : 'this training plan';
+    Swal.fire({
+        title: 'Renew Training Plan?',
+        html: `
+            <div style="text-align:left; margin-top:8px;">
+                <p style="margin:0; color:var(--ink); font-size:14px; line-height:1.4;">
+                    Extend <strong>${escapedTitle}</strong> for an additional <strong>4 weeks</strong>?
+                </p>
+                <p style="margin:8px 0 0 0; color:var(--muted); font-size:12.5px; line-height:1.4;">
+                    The end date will be extended automatically and the routine will remain active for your client.
+                </p>
+            </div>
+        `,
+        icon: 'question',
+        iconColor: 'var(--lime, #c7ff22)',
+        showCancelButton: true,
+        confirmButtonText: 'Yes, Renew Plan',
+        cancelButtonText: 'Cancel',
+        confirmButtonColor: 'var(--lime, #c7ff22)',
+        cancelButtonColor: '#334155',
+        background: getComputedStyle(document.documentElement).getPropertyValue('--panel-bg').trim() || '#121721',
+        color: getComputedStyle(document.documentElement).getPropertyValue('--ink').trim() || '#ffffff',
+        reverseButtons: true,
+        focusCancel: false
+    }).then((result) => {
+        if (result.isConfirmed) {
+            const form = document.createElement('form');
+            form.method = 'POST';
+            form.action = 'index.php?page=training';
+            
+            const csrfInput = document.createElement('input');
+            csrfInput.type = 'hidden';
+            csrfInput.name = 'csrf_token';
+            csrfInput.value = '<?= csrf_token() ?>';
+            form.appendChild(csrfInput);
+
+            const actionInput = document.createElement('input');
+            actionInput.type = 'hidden';
+            actionInput.name = 'action';
+            actionInput.value = 'renew_plan';
+            form.appendChild(actionInput);
+
+            const idInput = document.createElement('input');
+            idInput.type = 'hidden';
+            idInput.name = 'plan_id';
+            idInput.value = planId;
+            form.appendChild(idInput);
+
+            document.body.appendChild(form);
             form.submit();
         }
     });

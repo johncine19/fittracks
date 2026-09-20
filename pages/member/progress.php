@@ -1121,8 +1121,9 @@ function progress_page(): void
                 <script>
                 document.addEventListener('DOMContentLoaded', function () {
                     const isDark = document.documentElement.getAttribute('data-theme') !== 'light';
-                    const gridColor  = isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.07)';
-                    const tickColor  = isDark ? '#8792ad' : '#555';
+                    const gridColor  = isDark ? 'rgba(255,255,255,0.06)' : '#e2e8f0';
+                    const tickColor  = isDark ? '#cbd5e1' : '#0f172a';
+                    const axisBorder = isDark ? 'rgba(255,255,255,0.15)' : '#94a3b8';
                     window.weightChartInstance = new Chart(document.getElementById('weightChart'), {
                         type: 'line',
                         data: {
@@ -1131,10 +1132,12 @@ function progress_page(): void
                                 label: 'Weight (kg)',
                                 data: <?= json_encode($chartWeights, JSON_HEX_TAG) ?>,
                                 borderColor: 'var(--lime)',
-                                backgroundColor: 'color-mix(in srgb, var(--lime) 8%, transparent)',
-                                borderWidth: 2,
-                                pointRadius: 4,
-                                pointBackgroundColor: 'var(--lime)',
+                                backgroundColor: 'color-mix(in srgb, var(--lime) 14%, transparent)',
+                                borderWidth: 2.5,
+                                pointRadius: 4.5,
+                                pointBackgroundColor: isDark ? 'var(--lime)' : '#ffffff',
+                                pointBorderColor: 'var(--lime)',
+                                pointBorderWidth: 2,
                                 tension: 0.3,
                                 fill: true,
                             }
@@ -1155,8 +1158,16 @@ function progress_page(): void
                             responsive: true,
                             plugins: { legend: { display: false } },
                             scales: {
-                                y: { grid: { color: gridColor }, ticks: { color: tickColor } },
-                                x: { grid: { color: gridColor }, ticks: { color: tickColor } }
+                                y: { 
+                                    grid: { color: gridColor }, 
+                                    border: { color: axisBorder },
+                                    ticks: { color: tickColor, font: { weight: '600' } } 
+                                },
+                                x: { 
+                                    grid: { color: gridColor }, 
+                                    border: { color: axisBorder },
+                                    ticks: { color: tickColor, font: { weight: '600' } } 
+                                }
                             }
                         }
                     });

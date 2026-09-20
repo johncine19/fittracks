@@ -25,6 +25,7 @@ if (!function_exists('landing_icon')) {
             'menu' => '<svg' . $classAttr . ' xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>',
             'alert-circle' => '<svg' . $classAttr . ' xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>',
             'shield' => '<svg' . $classAttr . ' xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><polyline points="9 12 11 14 15 10"/></svg>',
+            'play' => '<svg' . $classAttr . ' xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="currentColor" stroke="none"><polygon points="6 4 20 12 6 20 6 4"/></svg>',
         ];
 
         return $icons[$name] ?? '';
@@ -134,6 +135,33 @@ function landing_page(): void
         $stat_trainers = (int) scalar('SELECT COUNT(*) FROM users WHERE role = "trainer" AND status = "active"');
     } catch (\Throwable $e) {
     }
+
+    // ── Platform Subscription Plans ──────────────────────────────────
+    $platformPlans = get_platform_subscription_plans();
+    $starterPlan = $platformPlans['starter'] ?? [
+        'name' => 'Starter',
+        'price' => 599,
+        'price_label' => '₱599',
+        'desc' => 'Ideal for boutique fitness studios and single-location facilities.',
+        'popular' => false,
+        'features' => ['Up to 100 Active Members', 'Walk-in Management & Daily Pass', 'Dynamic QR Check-in & Scanner', 'Membership Plans & GCash / Online Pay', 'Basic Expiration Reminders (7-Day Notice)', 'Basic Financial Reports & CSV Export', 'Basic Activity History']
+    ];
+    $proPlan = $platformPlans['professional'] ?? [
+        'name' => 'Professional',
+        'price' => 999,
+        'price_label' => '₱999',
+        'desc' => 'Designed for growing commercial gyms with full coaching staff.',
+        'popular' => true,
+        'features' => ['Up to 500 Active Members', 'Personal Trainers & Client Assignments', 'Trainer Commission Tracking & Payouts', 'Workout Plans & Exercise Library', 'Class Scheduling & Online Booking with Waitlists', 'Automated Multi-Stage Renewal Reminders (30d/14d/7d/1d)', 'Member Engagement Scoring & Churn Risk Alerts', 'Advanced Analytics & Financial Growth Trends', 'Staff Activity Logs']
+    ];
+    $businessPlan = $platformPlans['business'] ?? [
+        'name' => 'Business',
+        'price' => 1999,
+        'price_label' => '₱1,999',
+        'desc' => 'For multi-branch & large-scale fitness centers.',
+        'popular' => false,
+        'features' => ['Unlimited Active Members', 'Multi-Branch Management & Centralized Dashboard', 'Consolidated Cross-Branch Financial Reporting', 'Full Compliance Security Audit Trail (IPs, Diffs)', 'Custom App Brand Color & White-Label Theme', 'Dedicated Account Manager & Priority Support']
+    ];
     ?>
     <!doctype html>
     <html lang="en">
@@ -180,8 +208,8 @@ function landing_page(): void
 
                 <div class="nav-actions">
                     <a href="index.php?page=login" class="nav-auth-link">Log In</a>
-                    <a href="index.php?page=gym_onboarding" class="btn btn-outline btn-sm">Register Gym</a>
-                    <button class="btn btn-lime btn-sm" onclick="openDemoModal()">Request a Demo</button>
+                    <a href="javascript:void(0)" onclick="openDemoModal()" class="nav-demo-link">Request Demo</a>
+                    <a href="index.php?page=gym_onboarding" class="btn btn-lime btn-sm">Register Gym</a>
                 </div>
 
                 <button class="mobile-toggle" id="mobileMenuBtn" aria-label="Toggle Navigation">
@@ -198,10 +226,8 @@ function landing_page(): void
             <a href="#pricing" class="mobile-drawer-link" onclick="closeMobileMenu()">Pricing</a>
             <a href="#faq" class="mobile-drawer-link" onclick="closeMobileMenu()">FAQ</a>
             <a href="index.php?page=login" class="mobile-drawer-link" onclick="closeMobileMenu()">Log In</a>
-            <a href="index.php?page=gym_onboarding" class="mobile-drawer-link" onclick="closeMobileMenu()">Register Your
-                Gym</a>
-            <button class="btn btn-lime btn-lg" onclick="closeMobileMenu(); openDemoModal();"
-                style="margin-top: 1rem;">Request a Demo</button>
+            <a href="javascript:void(0)" class="mobile-drawer-link" onclick="closeMobileMenu(); openDemoModal();">Request Demo Walkthrough</a>
+            <a href="index.php?page=gym_onboarding" class="btn btn-lime mobile-drawer-cta" onclick="closeMobileMenu()">Register Your Gym</a>
         </div>
 
         <!-- Ambient Lighting Glow Orbs -->
@@ -245,11 +271,33 @@ function landing_page(): void
                             </div>
                         </div>
 
-                        <div class="hero-ctas">
-                            <button class="btn btn-lime btn-lg" onclick="openDemoModal()">
-                                <span>Request a Demo →</span>
-                            </button>
-                            <a href="#features" class="btn btn-secondary btn-lg">Explore Platform</a>
+                        <div class="hero-cta-block">
+                            <div class="hero-ctas">
+                                <a href="index.php?page=gym_onboarding" class="btn btn-lime btn-lg">
+                                    <span>Register Your Gym</span>
+                                    <?= landing_icon('arrow-right', 'btn-svg') ?>
+                                </a>
+                                <button class="btn btn-secondary btn-lg" onclick="openDemoModal()">
+                                    <?= landing_icon('play', 'btn-svg') ?>
+                                    <span>Request a Demo</span>
+                                </button>
+                            </div>
+                            <div class="hero-cta-cues">
+                                <span class="cta-cue-item">
+                                    <span class="cue-check"><?= landing_icon('check', 'check-svg') ?></span>
+                                    Instant 2-min setup
+                                </span>
+                                <span class="cta-cue-bullet">·</span>
+                                <span class="cta-cue-item">
+                                    <span class="cue-check"><?= landing_icon('check', 'check-svg') ?></span>
+                                    No credit card required
+                                </span>
+                                <span class="cta-cue-bullet">·</span>
+                                <span class="cta-cue-item">
+                                    <span class="cue-check"><?= landing_icon('check', 'check-svg') ?></span>
+                                    Cancel anytime
+                                </span>
+                            </div>
                         </div>
                     </div>
 
@@ -575,12 +623,30 @@ function landing_page(): void
         <!-- ==========================================================================
        07. FEATURE PRESENTATION (ALTERNATING ROWS WITH ACCURATE GYM PHOTOS)
        ========================================================================== -->
-        <section class="feature-presentation-section reveal-on-scroll">
+        <section class="feature-presentation-section reveal-on-scroll" id="feature-deepdives">
             <div class="container">
-                <!-- Row 1: Member Management -->
-                <div class="feature-row">
-                    <div class="feature-text-block">
-                        <span class="feature-label">01 — Administration</span>
+                <!-- Mobile-Only Segmented Pill Tabs -->
+                <div class="deepdive-mobile-nav" id="deepdiveMobileNav">
+                    <button class="deepdive-pill-btn active" onclick="switchDeepDiveTab(0)">
+                        <span class="pill-num">01</span> Members
+                    </button>
+                    <button class="deepdive-pill-btn" onclick="switchDeepDiveTab(1)">
+                        <span class="pill-num">02</span> QR Access
+                    </button>
+                    <button class="deepdive-pill-btn" onclick="switchDeepDiveTab(2)">
+                        <span class="pill-num">03</span> Trainers
+                    </button>
+                    <button class="deepdive-pill-btn" onclick="switchDeepDiveTab(3)">
+                        <span class="pill-num">04</span> Analytics
+                    </button>
+                </div>
+
+                <!-- Feature Presentation Track: Alternating rows on desktop, horizontal snap carousel on mobile -->
+                <div class="feature-presentation-track" id="featurePresentationTrack">
+                    <!-- Row 1: Member Management -->
+                    <div class="feature-row" id="deepdiveCard-0">
+                        <div class="feature-text-block">
+                            <span class="feature-label">01 — Administration</span>
                         <h2 class="feature-row-title">Member Management & Records</h2>
                         <p class="feature-row-desc">
                             Keep every member record clean, organized, and accessible. Easily verify subscription renewals,
@@ -611,7 +677,7 @@ function landing_page(): void
                 </div>
 
                 <!-- Row 2: Dynamic QR Attendance -->
-                <div class="feature-row reverse">
+                <div class="feature-row reverse" id="deepdiveCard-1">
                     <div class="feature-text-block">
                         <span class="feature-label">02 — Access Control</span>
                         <h2 class="feature-row-title">Dynamic QR Turnstile Verification</h2>
@@ -645,7 +711,7 @@ function landing_page(): void
                 </div>
 
                 <!-- Row 3: Trainer Coaching -->
-                <div class="feature-row">
+                <div class="feature-row" id="deepdiveCard-2">
                     <div class="feature-text-block">
                         <span class="feature-label">03 — Coaching Staff</span>
                         <h2 class="feature-row-title">Personalized Trainer Guidance</h2>
@@ -678,7 +744,7 @@ function landing_page(): void
                 </div>
 
                 <!-- Row 4: Gym Operations & Analytics -->
-                <div class="feature-row reverse">
+                <div class="feature-row reverse" id="deepdiveCard-3">
                     <div class="feature-text-block">
                         <span class="feature-label">04 — Business Intelligence</span>
                         <h2 class="feature-row-title">Live Facility Operations & Analytics</h2>
@@ -711,7 +777,16 @@ function landing_page(): void
                     </div>
                 </div>
             </div>
-        </section>
+
+            <!-- Mobile-Only Carousel Dot Indicators -->
+            <div class="deepdive-dots" id="deepdiveDots">
+                <button class="deepdive-dot active" aria-label="01 Members" onclick="switchDeepDiveTab(0)"></button>
+                <button class="deepdive-dot" aria-label="02 QR Access" onclick="switchDeepDiveTab(1)"></button>
+                <button class="deepdive-dot" aria-label="03 Trainers" onclick="switchDeepDiveTab(2)"></button>
+                <button class="deepdive-dot" aria-label="04 Analytics" onclick="switchDeepDiveTab(3)"></button>
+            </div>
+        </div>
+    </section>
 
         <!-- Ambient Glow Orb -->
         <div class="ambient-glow glow-middle"></div>
@@ -1319,108 +1394,64 @@ function landing_page(): void
                     <p class="section-desc">Select the right operational tier for your facility.</p>
                 </div>
 
-                <div class="pricing-grid">
-                    <!-- Starter -->
-                    <div class="pricing-card">
-                        <h3 class="plan-name">Starter</h3>
-                        <p class="plan-desc">Ideal for boutique fitness studios and single-location facilities.</p>
+                <div class="pricing-grid" id="pricingGrid">
+                    <?php foreach ($platformPlans as $pKey => $p): 
+                        $isPop = !empty($p['popular']);
+                    ?>
+                    <!-- <?= h($p['name']) ?> -->
+                    <div class="pricing-card <?= $isPop ? 'popular' : '' ?>">
+                        <?php if ($isPop): ?>
+                            <span class="popular-badge">★ Most Popular</span>
+                        <?php endif; ?>
+                        <h3 class="plan-name"><?= h($p['name']) ?></h3>
+                        <p class="plan-desc"><?= h($p['desc']) ?></p>
                         <div class="plan-price-box">
                             <span class="price-currency">₱</span>
-                            <span class="price-val">499</span>
+                            <span class="price-val"><?= number_format((float)$p['price']) ?></span>
                             <span class="price-period">/ month</span>
                         </div>
                         <ul class="plan-features-list">
-                            <li class="plan-feature-item">
-                                <span class="bullet-check"><?= landing_icon('check', 'check-svg') ?></span>
-                                Up to 150 Active Members
-                            </li>
-                            <li class="plan-feature-item">
-                                <span class="bullet-check"><?= landing_icon('check', 'check-svg') ?></span>
-                                Dynamic QR Attendance
-                            </li>
-                            <li class="plan-feature-item">
-                                <span class="bullet-check"><?= landing_icon('check', 'check-svg') ?></span>
-                                Basic Member Management
-                            </li>
-                            <li class="plan-feature-item">
-                                <span class="bullet-check"><?= landing_icon('check', 'check-svg') ?></span>
-                                Email Support
-                            </li>
+                            <?php foreach ($p['features'] as $feat): ?>
+                                <li class="plan-feature-item">
+                                    <span class="bullet-check"><?= landing_icon('check', 'check-svg') ?></span>
+                                    <?= h($feat) ?>
+                                </li>
+                            <?php endforeach; ?>
                         </ul>
-                        <a href="index.php?page=gym_onboarding" class="btn btn-outline btn-lg" style="width: 100%;">Register
-                            Gym</a>
+                        <a href="index.php?page=gym_onboarding" class="btn <?= $isPop ? 'btn-lime' : 'btn-outline' ?> btn-lg" style="width: 100%;">
+                            Register Gym
+                        </a>
                     </div>
+                    <?php endforeach; ?>
+                </div>
 
-                    <!-- Professional (Popular) -->
-                    <div class="pricing-card popular">
-                        <span class="popular-badge">Most Popular</span>
-                        <h3 class="plan-name">Professional</h3>
-                        <p class="plan-desc">Designed for growing commercial gyms with full coaching staff.</p>
-                        <div class="plan-price-box">
-                            <span class="price-currency">₱</span>
-                            <span class="price-val">999</span>
-                            <span class="price-period">/ month</span>
-                        </div>
-                        <ul class="plan-features-list">
-                            <li class="plan-feature-item">
-                                <span class="bullet-check"><?= landing_icon('check', 'check-svg') ?></span>
-                                Up to 500 Active Members
-                            </li>
-                            <li class="plan-feature-item">
-                                <span class="bullet-check"><?= landing_icon('check', 'check-svg') ?></span>
-                                Everything in Starter
-                            </li>
-                            <li class="plan-feature-item">
-                                <span class="bullet-check"><?= landing_icon('check', 'check-svg') ?></span>
-                                Trainer Management & Workouts
-                            </li>
-                            <li class="plan-feature-item">
-                                <span class="bullet-check"><?= landing_icon('check', 'check-svg') ?></span>
-                                Online Payment Gateway
-                            </li>
-                            <li class="plan-feature-item">
-                                <span class="bullet-check"><?= landing_icon('check', 'check-svg') ?></span>
-                                Engagement Churn Risk Alerts
-                            </li>
-                        </ul>
-                        <a href="index.php?page=gym_onboarding" class="btn btn-lime btn-lg" style="width: 100%;">Register
-                            Gym</a>
-                    </div>
+                <!-- Pricing Carousel Dot Indicators for Mobile -->
+                <div class="pricing-dots" id="pricingDots">
+                    <button class="pricing-dot" aria-label="Starter Plan" onclick="scrollToPricingPlan(0)"></button>
+                    <button class="pricing-dot active" aria-label="Professional Plan" onclick="scrollToPricingPlan(1)"></button>
+                    <button class="pricing-dot" aria-label="Business Plan" onclick="scrollToPricingPlan(2)"></button>
+                </div>
 
-                    <!-- Business -->
-                    <div class="pricing-card">
-                        <h3 class="plan-name">Business</h3>
-                        <p class="plan-desc">For large enterprise facilities requiring custom scale.</p>
-                        <div class="plan-price-box">
-                            <span class="price-currency">₱</span>
-                            <span class="price-val">1,999</span>
-                            <span class="price-period">/ month</span>
-                        </div>
-                        <ul class="plan-features-list">
-                            <li class="plan-feature-item">
-                                <span class="bullet-check"><?= landing_icon('check', 'check-svg') ?></span>
-                                Unlimited Members
-                            </li>
-                            <li class="plan-feature-item">
-                                <span class="bullet-check"><?= landing_icon('check', 'check-svg') ?></span>
-                                Everything in Professional
-                            </li>
-                            <li class="plan-feature-item">
-                                <span class="bullet-check"><?= landing_icon('check', 'check-svg') ?></span>
-                                Multi-Branch Management
-                            </li>
-                            <li class="plan-feature-item">
-                                <span class="bullet-check"><?= landing_icon('check', 'check-svg') ?></span>
-                                Dedicated Account Manager
-                            </li>
-                            <li class="plan-feature-item">
-                                <span class="bullet-check"><?= landing_icon('check', 'check-svg') ?></span>
-                                Custom API Integrations
-                            </li>
-                        </ul>
-                        <a href="index.php?page=gym_onboarding" class="btn btn-outline btn-lg" style="width: 100%;">Register
-                            Gym</a>
-                    </div>
+                <!-- Plan Distribution Trigger CTA Button -->
+                <div class="pricing-distribution-cta">
+                    <button type="button" class="btn-plan-distribution" onclick="openPlanDistributionModal()" id="btn-open-plan-distribution">
+                        <span class="btn-distribution-icon">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/>
+                            </svg>
+                        </span>
+                        <span class="btn-distribution-text">Compare Complete Plan Distribution & Capabilities</span>
+                        <svg class="btn-distribution-arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                            <polyline points="9 18 15 12 9 6"></polyline>
+                        </svg>
+                    </button>
+                </div>
+
+                <div class="pricing-bottom-cue">
+                    <span>Need multi-branch licensing or a custom walkthrough?</span>
+                    <a href="javascript:void(0)" onclick="openDemoModal()" class="pricing-demo-link">
+                        Request a Personalized Demo →
+                    </a>
                 </div>
             </div>
         </section>
@@ -1436,11 +1467,30 @@ function landing_page(): void
                         Manage your gym, members, trainers, payments, and engagement with FitTrack.
                     </p>
                     <div class="cta-btn-group">
-                        <button class="btn btn-lime btn-lg" onclick="openDemoModal()">
-                            <span>Request a Demo</span>
+                        <a href="index.php?page=gym_onboarding" class="btn btn-lime btn-lg">
+                            <span>Register Your Gym</span>
                             <?= landing_icon('arrow-right', 'btn-svg') ?>
+                        </a>
+                        <button class="btn btn-secondary btn-lg" onclick="openDemoModal()">
+                            <?= landing_icon('play', 'btn-svg') ?>
+                            <span>Request a Demo</span>
                         </button>
-                        <a href="index.php?page=gym_onboarding" class="btn btn-secondary btn-lg">Register Your Gym</a>
+                    </div>
+                    <div class="cta-micro-cues">
+                        <span class="cta-cue-item">
+                            <span class="cue-check"><?= landing_icon('check', 'check-svg') ?></span>
+                            Free setup in under 2 minutes
+                        </span>
+                        <span class="cta-cue-bullet">·</span>
+                        <span class="cta-cue-item">
+                            <span class="cue-check"><?= landing_icon('check', 'check-svg') ?></span>
+                            No credit card required
+                        </span>
+                        <span class="cta-cue-bullet">·</span>
+                        <span class="cta-cue-item">
+                            <span class="cue-check"><?= landing_icon('check', 'check-svg') ?></span>
+                            Cancel anytime
+                        </span>
                     </div>
                 </div>
             </div>
@@ -1450,7 +1500,7 @@ function landing_page(): void
         <footer class="saas-footer">
             <div class="container">
                 <div class="footer-grid">
-                    <div>
+                    <div class="footer-brand-col">
                         <a href="#" class="brand-logo-wrap">
                             <div class="brand-f-logo">F</div>
                             <div class="brand-text-block">
@@ -1498,9 +1548,9 @@ function landing_page(): void
                     <div>
                         <h4 class="footer-col-title">Legal</h4>
                         <ul class="footer-links">
-                            <li><a href="#" class="footer-link">Privacy Policy</a></li>
-                            <li><a href="#" class="footer-link">Terms of Service</a></li>
-                            <li><a href="#" class="footer-link">Security Compliance</a></li>
+                            <li><a href="index.php?page=privacy" class="footer-link">Privacy Policy</a></li>
+                            <li><a href="index.php?page=terms" class="footer-link">Terms of Service</a></li>
+                            <li><a href="index.php?page=privacy#security" class="footer-link">Security Compliance</a></li>
                         </ul>
                     </div>
                 </div>
@@ -1511,6 +1561,196 @@ function landing_page(): void
                 </div>
             </div>
         </footer>
+
+        <!-- ==========================================================================
+       SUBSCRIPTION PLAN DISTRIBUTION MODAL
+       ========================================================================== -->
+        <div class="modal-backdrop" id="planDistributionModalBackdrop" onclick="handleDistributionBackdropClick(event)">
+            <div class="modal-card distribution-modal-card">
+                <div class="modal-header distribution-modal-header">
+                    <div>
+                        <div class="distribution-eyebrow">
+                            <span class="dot"></span>
+                            Commercial SaaS Capabilities
+                        </div>
+                        <h3 class="modal-title">Subscription Plan Distribution</h3>
+                    </div>
+                    <button class="modal-close-btn" onclick="closePlanDistributionModal()" aria-label="Close modal">
+                        <?= landing_icon('x', 'close-icon-svg') ?>
+                    </button>
+                </div>
+
+                <div class="modal-body distribution-modal-body">
+                    <p class="distribution-intro">
+                        Review the exact capability distribution across our commercial gym tiers. Choose the plan that aligns with your facility scale and operations.
+                    </p>
+
+                    <div class="distribution-table-wrap">
+                        <table class="distribution-table">
+                            <thead>
+                                <tr>
+                                    <th class="col-cap">Capability / Module</th>
+                                    <th class="col-tier starter">
+                                        <div class="tier-head">
+                                            <span class="tier-name"><?= h($starterPlan['name']) ?></span>
+                                            <span class="tier-price"><?= h($starterPlan['price_label']) ?><small>/mo</small></span>
+                                        </div>
+                                    </th>
+                                    <th class="col-tier popular">
+                                        <div class="tier-head">
+                                            <span class="popular-tag">★ Most Popular</span>
+                                            <span class="tier-name"><?= h($proPlan['name']) ?></span>
+                                            <span class="tier-price"><?= h($proPlan['price_label']) ?><small>/mo</small></span>
+                                        </div>
+                                    </th>
+                                    <th class="col-tier business">
+                                        <div class="tier-head">
+                                            <span class="tier-name"><?= h($businessPlan['name']) ?></span>
+                                            <span class="tier-price"><?= h($businessPlan['price_label']) ?><small>/mo</small></span>
+                                        </div>
+                                    </th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <!-- Category 1 -->
+                                <tr class="dist-cat-row">
+                                    <td colspan="4">01 — Target Profile & Capacity Limits</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Target Facility Scale</strong></td>
+                                    <td><span class="dist-pill muted">Boutique / Solo</span></td>
+                                    <td class="col-popular"><span class="dist-pill lime">Growing Commercial</span></td>
+                                    <td><span class="dist-pill purple">Multi-Branch / Enterprise</span></td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Active Member Capacity</strong></td>
+                                    <td><span class="dist-text-highlight">Up to 150 Members</span></td>
+                                    <td class="col-popular"><span class="dist-text-lime">Up to 500 Members</span></td>
+                                    <td><span class="dist-text-purple">Unlimited Members</span></td>
+                                </tr>
+
+                                <!-- Category 2 -->
+                                <tr class="dist-cat-row">
+                                    <td colspan="4">02 — Core Operations & Access Control</td>
+                                </tr>
+                                <tr>
+                                    <td>Walk-In & Daily Pass Management</td>
+                                    <td><span class="status-access">✓ Full Access</span></td>
+                                    <td class="col-popular"><span class="status-access">✓ Full Access</span></td>
+                                    <td><span class="status-access">✓ Full Access</span></td>
+                                </tr>
+                                <tr>
+                                    <td>Dynamic QR Check-in & Attendance</td>
+                                    <td><span class="status-access">✓ Full Access</span></td>
+                                    <td class="col-popular"><span class="status-access">✓ Full Access</span></td>
+                                    <td><span class="status-access">✓ Full Access</span></td>
+                                </tr>
+                                <tr>
+                                    <td>Membership Plans & Online GCash Pay</td>
+                                    <td><span class="status-access">✓ Full Access</span></td>
+                                    <td class="col-popular"><span class="status-access">✓ Full Access</span></td>
+                                    <td><span class="status-access">✓ Full Access</span></td>
+                                </tr>
+
+                                <!-- Category 3 -->
+                                <tr class="dist-cat-row">
+                                    <td colspan="4">03 — Staff Coaching & Training Programs</td>
+                                </tr>
+                                <tr>
+                                    <td>Trainers & Client Assignments</td>
+                                    <td><span class="status-locked">🔒 Locked</span></td>
+                                    <td class="col-popular"><span class="status-access">✓ Full Access</span></td>
+                                    <td><span class="status-access">✓ Full Access</span></td>
+                                </tr>
+                                <tr>
+                                    <td>Trainer Commission Tracking & Payouts</td>
+                                    <td><span class="status-locked">🔒 Locked</span></td>
+                                    <td class="col-popular"><span class="status-access">✓ Full Access</span></td>
+                                    <td><span class="status-access">✓ Full Access</span></td>
+                                </tr>
+                                <tr>
+                                    <td>Workout Plans & Exercise Library</td>
+                                    <td><span class="status-locked">🔒 Locked</span></td>
+                                    <td class="col-popular"><span class="status-access">✓ Full Access</span></td>
+                                    <td><span class="status-access">✓ Full Access</span></td>
+                                </tr>
+
+                                <!-- Category 4 -->
+                                <tr class="dist-cat-row">
+                                    <td colspan="4">04 — Group Classes & Online Booking</td>
+                                </tr>
+                                <tr>
+                                    <td>Class Scheduling & Member Bookings</td>
+                                    <td><span class="dist-pill muted">Basic Schedule</span></td>
+                                    <td class="col-popular"><span class="status-access">✓ Full Booking + Waitlists</span></td>
+                                    <td><span class="status-access">✓ Multi-Branch Booking</span></td>
+                                </tr>
+
+                                <!-- Category 5 -->
+                                <tr class="dist-cat-row">
+                                    <td colspan="4">05 — Member Retention & Automated Reminders</td>
+                                </tr>
+                                <tr>
+                                    <td>Automated Renewal Reminders</td>
+                                    <td><span class="dist-pill muted">7-Day Alert</span></td>
+                                    <td class="col-popular"><span class="dist-pill sky">Automated (30d/14d/7d/1d)</span></td>
+                                    <td><span class="dist-pill purple">Custom Workflows</span></td>
+                                </tr>
+                                <tr>
+                                    <td>Member Engagement & Churn Risk Alerts</td>
+                                    <td><span class="status-locked">🔒 Locked</span></td>
+                                    <td class="col-popular"><span class="status-access">✓ Churn Risk Alerts</span></td>
+                                    <td><span class="status-access">✓ Predictive Risk AI</span></td>
+                                </tr>
+
+                                <!-- Category 6 -->
+                                <tr class="dist-cat-row">
+                                    <td colspan="4">06 — Financial Reports & Governance</td>
+                                </tr>
+                                <tr>
+                                    <td>Dashboard Analytics & Operational KPIs</td>
+                                    <td><span class="dist-pill muted">Basic KPIs</span></td>
+                                    <td class="col-popular"><span class="dist-pill sky">Advanced Charts & Trends</span></td>
+                                    <td><span class="dist-pill purple">Branch Comparisons</span></td>
+                                </tr>
+                                <tr>
+                                    <td>Financial Reports & Data CSV Export</td>
+                                    <td><span class="dist-pill muted">Summary Export</span></td>
+                                    <td class="col-popular"><span class="dist-pill sky">Advanced Trends & CSV</span></td>
+                                    <td><span class="dist-pill purple">Consolidated Multi-Branch</span></td>
+                                </tr>
+                                <tr>
+                                    <td>Activity & Security Audit History</td>
+                                    <td><span class="dist-pill muted">Basic Activity Log</span></td>
+                                    <td class="col-popular"><span class="dist-pill muted">Staff Action History</span></td>
+                                    <td><span class="status-access">✓ Full Immutable Trail</span></td>
+                                </tr>
+                                <tr>
+                                    <td>Custom App Brand Accent & Theme</td>
+                                    <td><span class="status-locked">🔒 Locked</span></td>
+                                    <td class="col-popular"><span class="status-locked">🔒 Locked</span></td>
+                                    <td><span class="status-access">✓ Full Access</span></td>
+                                </tr>
+                                <tr>
+                                    <td>Multi-Branch Centralized Portal</td>
+                                    <td><span class="status-locked">🔒 Locked</span></td>
+                                    <td class="col-popular"><span class="status-locked">🔒 Locked</span></td>
+                                    <td><span class="status-access">✓ Full Access</span></td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div class="distribution-modal-footer">
+                    <div class="dist-footer-ctas">
+                        <a href="index.php?page=gym_onboarding" class="btn btn-outline btn-sm">Get <?= h($starterPlan['name']) ?> (<?= h($starterPlan['price_label']) ?>)</a>
+                        <a href="index.php?page=gym_onboarding" class="btn btn-lime btn-sm">Get <?= h($proPlan['name']) ?> (<?= h($proPlan['price_label']) ?>)</a>
+                        <a href="index.php?page=gym_onboarding" class="btn btn-outline btn-sm">Get <?= h($businessPlan['name']) ?> (<?= h($businessPlan['price_label']) ?>)</a>
+                    </div>
+                </div>
+            </div>
+        </div>
 
         <!-- ==========================================================================
        DEMO REQUEST MODAL
@@ -1577,11 +1817,11 @@ function landing_page(): void
 
                         <div class="form-group">
                             <label class="form-label">Message / Specific Questions</label>
-                            <textarea name="message" class="form-input" rows="3"
+                            <textarea name="message" class="form-input" rows="2"
                                 placeholder="Tell us about your gym setup..."></textarea>
                         </div>
 
-                        <button type="submit" class="btn btn-lime btn-lg" id="submitDemoBtn" style="width: 100%;">
+                        <button type="submit" class="btn btn-lime" id="submitDemoBtn" style="width: 100%;">
                             Submit Demo Request
                         </button>
                     </form>
@@ -1593,9 +1833,9 @@ function landing_page(): void
        VANILLA JAVASCRIPT LOGIC, 3D TILT EFFECT & SCROLL OBSERVER
        ========================================================================== -->
         <script>
-            // 1. Mousemove 3D Card Tilt Effect
+            // 1. Mousemove 3D Card Tilt Effect (Only on devices that support hover)
             const tiltCard = document.getElementById('heroTiltCard');
-            if (tiltCard && tiltCard.parentElement) {
+            if (tiltCard && tiltCard.parentElement && window.matchMedia('(hover: hover)').matches) {
                 const container = tiltCard.parentElement;
                 container.addEventListener('mousemove', (e) => {
                     const rect = container.getBoundingClientRect();
@@ -1618,19 +1858,39 @@ function landing_page(): void
                 } else {
                     nav.classList.remove('scrolled');
                 }
-            });
+            }, { passive: true });
 
-            // 3. Mobile Menu Toggle
+            // 3. Mobile Menu Toggle & Body Scroll Lock
             const mobileBtn = document.getElementById('mobileMenuBtn');
             const mobileDrawer = document.getElementById('mobileDrawer');
             if (mobileBtn && mobileDrawer) {
-                mobileBtn.addEventListener('click', () => {
-                    mobileDrawer.classList.toggle('open');
+                mobileBtn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    const isOpen = mobileDrawer.classList.toggle('open');
+                    document.body.style.overflow = isOpen ? 'hidden' : '';
                 });
             }
             function closeMobileMenu() {
-                if (mobileDrawer) mobileDrawer.classList.remove('open');
+                if (mobileDrawer) {
+                    mobileDrawer.classList.remove('open');
+                    document.body.style.overflow = '';
+                }
             }
+
+            // Close mobile menu on outside click or escape key
+            document.addEventListener('click', (e) => {
+                if (mobileDrawer && mobileDrawer.classList.contains('open')) {
+                    if (!mobileDrawer.contains(e.target) && !mobileBtn.contains(e.target)) {
+                        closeMobileMenu();
+                    }
+                }
+            });
+            document.addEventListener('keydown', (e) => {
+                if (e.key === 'Escape') {
+                    closeMobileMenu();
+                    closeDemoModal();
+                }
+            });
 
             // 3.5 Hero Laptop Mockup Carousel JS
             let heroLaptopCurrentIndex = 0;
@@ -1691,6 +1951,21 @@ function landing_page(): void
                 heroLaptopContainer.addEventListener('mouseleave', () => {
                     startHeroLaptopAutoSlide();
                 });
+
+                // Touch swipe support for mobile
+                let touchStartX = 0;
+                let touchEndX = 0;
+                heroLaptopContainer.addEventListener('touchstart', (e) => {
+                    touchStartX = e.changedTouches[0].screenX;
+                }, { passive: true });
+                heroLaptopContainer.addEventListener('touchend', (e) => {
+                    touchEndX = e.changedTouches[0].screenX;
+                    if (touchStartX - touchEndX > 40) {
+                        changeHeroLaptopSlide(1);
+                    } else if (touchEndX - touchStartX > 40) {
+                        changeHeroLaptopSlide(-1);
+                    }
+                }, { passive: true });
             }
 
             if (heroLaptopTotalSlides > 0) {
@@ -1753,7 +2028,7 @@ function landing_page(): void
                 startLaptopAutoSlide();
             }
 
-            // Pause on hover, resume on leave
+            // Pause on hover, resume on leave & touch swipe support
             const laptopWrapper = document.getElementById('laptopCarousel');
             if (laptopWrapper) {
                 laptopWrapper.addEventListener('mouseenter', () => {
@@ -1762,6 +2037,21 @@ function landing_page(): void
                 laptopWrapper.addEventListener('mouseleave', () => {
                     startLaptopAutoSlide();
                 });
+
+                // Touch swipe support for mobile
+                let laptopTouchStartX = 0;
+                let laptopTouchEndX = 0;
+                laptopWrapper.addEventListener('touchstart', (e) => {
+                    laptopTouchStartX = e.changedTouches[0].screenX;
+                }, { passive: true });
+                laptopWrapper.addEventListener('touchend', (e) => {
+                    laptopTouchEndX = e.changedTouches[0].screenX;
+                    if (laptopTouchStartX - laptopTouchEndX > 40) {
+                        changeLaptopSlide(1);
+                    } else if (laptopTouchEndX - laptopTouchStartX > 40) {
+                        changeLaptopSlide(-1);
+                    }
+                }, { passive: true });
             }
 
             startLaptopAutoSlide();
@@ -1780,6 +2070,175 @@ function landing_page(): void
                     if (targetPane) targetPane.classList.add('active');
                 });
             });
+
+            // 5.5 Mobile Pricing Horizontal Carousel Scroll & Dot Sync
+            const pricingGrid = document.getElementById('pricingGrid');
+            const pricingDots = document.querySelectorAll('.pricing-dot');
+            const pricingSection = document.getElementById('pricing');
+            let userInteractedWithPricing = false;
+
+            function scrollToPricingPlan(index, smooth = true) {
+                if (!pricingGrid) return;
+                const cards = pricingGrid.querySelectorAll('.pricing-card');
+                if (cards[index]) {
+                    const card = cards[index];
+                    const targetLeft = card.offsetLeft - (pricingGrid.clientWidth - card.clientWidth) / 2;
+                    pricingGrid.scrollTo({ left: targetLeft, behavior: smooth ? 'smooth' : 'auto' });
+                }
+            }
+
+            function centerPopularPlan(smooth = false) {
+                if (!pricingGrid || window.innerWidth > 768) return;
+                // Index 1 is the Professional (Most Popular) plan
+                scrollToPricingPlan(1, smooth);
+                pricingDots.forEach((dot, idx) => {
+                    dot.classList.toggle('active', idx === 1);
+                });
+            }
+
+            if (pricingGrid && pricingDots.length > 0) {
+                // Initialize Most Popular plan centered on mobile
+                const initPopularCenter = () => {
+                    if (window.innerWidth <= 768 && !userInteractedWithPricing) {
+                        centerPopularPlan(false);
+                    }
+                };
+
+                // Trigger on DOM ready, load, and layout stabilization
+                initPopularCenter();
+                setTimeout(initPopularCenter, 60);
+                setTimeout(initPopularCenter, 300);
+                window.addEventListener('load', initPopularCenter);
+
+                // Re-center on window resize if user hasn't scrolled manually
+                window.addEventListener('resize', () => {
+                    if (!userInteractedWithPricing) {
+                        initPopularCenter();
+                    }
+                });
+
+                // When user navigates to #pricing via nav links, smooth center the Popular plan
+                document.querySelectorAll('a[href="#pricing"], a[href$="#pricing"]').forEach(link => {
+                    link.addEventListener('click', () => {
+                        userInteractedWithPricing = false;
+                        setTimeout(() => {
+                            centerPopularPlan(true);
+                        }, 250);
+                    });
+                });
+
+                // Intersection observer: ensures the Popular plan is centered when user scrolls to pricing
+                if (pricingSection && 'IntersectionObserver' in window) {
+                    const pricingObserver = new IntersectionObserver((entries) => {
+                        entries.forEach(entry => {
+                            if (entry.isIntersecting && !userInteractedWithPricing) {
+                                centerPopularPlan(false);
+                            }
+                        });
+                    }, { threshold: 0.15 });
+                    pricingObserver.observe(pricingSection);
+                }
+
+                // Dot sync on carousel scroll
+                pricingGrid.addEventListener('scroll', () => {
+                    const cards = pricingGrid.querySelectorAll('.pricing-card');
+                    const scrollCenter = pricingGrid.scrollLeft + (pricingGrid.clientWidth / 2);
+                    let closestIndex = 0;
+                    let minDiff = Infinity;
+                    cards.forEach((card, idx) => {
+                        const cardCenter = card.offsetLeft + (card.offsetWidth / 2);
+                        const diff = Math.abs(cardCenter - scrollCenter);
+                        if (diff < minDiff) {
+                            minDiff = diff;
+                            closestIndex = idx;
+                        }
+                    });
+                    pricingDots.forEach((dot, idx) => {
+                        dot.classList.toggle('active', idx === closestIndex);
+                    });
+                }, { passive: true });
+
+                // Detect touch interaction
+                pricingGrid.addEventListener('touchstart', () => {
+                    userInteractedWithPricing = true;
+                }, { passive: true });
+
+                // Mouse drag-to-scroll support for responsive simulation
+                let isDragging = false;
+                let startX = 0;
+                let startScrollLeft = 0;
+
+                pricingGrid.addEventListener('mousedown', (e) => {
+                    if (window.innerWidth > 768) return;
+                    userInteractedWithPricing = true;
+                    isDragging = true;
+                    pricingGrid.style.scrollSnapType = 'none';
+                    startX = e.pageX - pricingGrid.offsetLeft;
+                    startScrollLeft = pricingGrid.scrollLeft;
+                });
+
+                window.addEventListener('mouseup', () => {
+                    if (!isDragging) return;
+                    isDragging = false;
+                    pricingGrid.style.scrollSnapType = 'x mandatory';
+                });
+
+                pricingGrid.addEventListener('mousemove', (e) => {
+                    if (!isDragging) return;
+                    e.preventDefault();
+                    const x = e.pageX - pricingGrid.offsetLeft;
+                    const walk = (x - startX) * 1.1;
+                    pricingGrid.scrollLeft = startScrollLeft - walk;
+                });
+            }
+
+            // 5.6 Mobile Feature Deep Dives Synchronized Carousel & Pill Tabs
+            const deepDiveTrack = document.getElementById('featurePresentationTrack');
+            const deepDivePills = document.querySelectorAll('.deepdive-pill-btn');
+            const deepDiveDots = document.querySelectorAll('.deepdive-dot');
+
+            function switchDeepDiveTab(index, smooth = true) {
+                if (!deepDiveTrack) return;
+                const cards = deepDiveTrack.querySelectorAll('.feature-row');
+                if (cards[index]) {
+                    deepDiveTrack.scrollTo({ left: cards[index].offsetLeft, behavior: smooth ? 'smooth' : 'auto' });
+                }
+                updateDeepDiveActiveState(index);
+            }
+
+            function updateDeepDiveActiveState(index) {
+                deepDivePills.forEach((pill, idx) => {
+                    pill.classList.toggle('active', idx === index);
+                    if (idx === index) {
+                        pill.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+                    }
+                });
+                deepDiveDots.forEach((dot, idx) => {
+                    dot.classList.toggle('active', idx === index);
+                });
+            }
+
+            if (deepDiveTrack && deepDivePills.length > 0) {
+                let deepDiveScrollTimer = null;
+                deepDiveTrack.addEventListener('scroll', () => {
+                    clearTimeout(deepDiveScrollTimer);
+                    deepDiveScrollTimer = setTimeout(() => {
+                        const cards = deepDiveTrack.querySelectorAll('.feature-row');
+                        if (!cards.length) return;
+                        const scrollLeft = deepDiveTrack.scrollLeft;
+                        let closestIndex = 0;
+                        let minDiff = Infinity;
+                        cards.forEach((card, idx) => {
+                            const diff = Math.abs(card.offsetLeft - scrollLeft);
+                            if (diff < minDiff) {
+                                minDiff = diff;
+                                closestIndex = idx;
+                            }
+                        });
+                        updateDeepDiveActiveState(closestIndex);
+                    }, 30);
+                }, { passive: true });
+            }
 
             // 6. Demo Modal Logic
             const demoModalBackdrop = document.getElementById('demoModalBackdrop');
@@ -1802,6 +2261,36 @@ function landing_page(): void
                     closeDemoModal();
                 }
             }
+
+            // 6.5 Subscription Plan Distribution Modal Logic
+            const planDistributionModalBackdrop = document.getElementById('planDistributionModalBackdrop');
+            function openPlanDistributionModal() {
+                if (planDistributionModalBackdrop) {
+                    planDistributionModalBackdrop.classList.add('open');
+                    document.body.style.overflow = 'hidden';
+                }
+            }
+
+            function closePlanDistributionModal() {
+                if (planDistributionModalBackdrop) {
+                    planDistributionModalBackdrop.classList.remove('open');
+                    document.body.style.overflow = '';
+                }
+            }
+
+            function handleDistributionBackdropClick(e) {
+                if (e.target === planDistributionModalBackdrop) {
+                    closePlanDistributionModal();
+                }
+            }
+
+            // Global Escape key support for modals
+            document.addEventListener('keydown', function(e) {
+                if (e.key === 'Escape') {
+                    closeDemoModal();
+                    closePlanDistributionModal();
+                }
+            });
 
             // 7. Demo Form AJAX Submission
             async function submitDemoForm(e) {

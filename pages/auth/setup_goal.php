@@ -1,4 +1,5 @@
 <?php
+
 declare(strict_types=1);
 
 function setup_goal_page(): void
@@ -36,12 +37,18 @@ function setup_goal_page(): void
             redirect('setup_goal');
         }
 
-        // Save detailed goal
-        $pdo = db();
-        $pdo->prepare('UPDATE member_profiles SET primary_goal = ? WHERE user_id = ?')->execute([$goal, $user['user_id']]);
+        $weeklyTarget = max(1, min(7, (int) (post('weekly_workout_target') ?: ($profile['weekly_workout_target'] ?? 3))));
+        $durationMins = max(15, min(180, (int) (post('preferred_duration_mins') ?: ($profile['preferred_duration_mins'] ?? 45))));
 
-        // Re-fetch profile with goal
+        // Save primary goal (schedule preferences are already stored in profile setup)
+        $pdo = db();
+        $pdo->prepare('UPDATE member_profiles SET primary_goal = ? WHERE user_id = ?')
+            ->execute([$goal, $user['user_id']]);
+
+        // Re-fetch profile with goal & schedule
         $profile['primary_goal'] = $goal;
+        $profile['weekly_workout_target'] = $weeklyTarget;
+        $profile['preferred_duration_mins'] = $durationMins;
 
         // Map detailed goal to basic goal for recommendation engine
         $basicGoal = map_detailed_goal_to_basic($goal);
@@ -123,39 +130,45 @@ function setup_goal_page(): void
     $categoryMeta = [
         'Aesthetic & Muscle Building Goals' => [
             'name' => 'Muscle & Aesthetics',
+            'desc' => 'Target hypertrophy, muscular definition, and aesthetic symmetry.',
             'count' => 5,
-            'icon' => '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>'
+            'icon' => '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>'
         ],
         'Athletic & Performance Goals' => [
             'name' => 'Athletics & Power',
+            'desc' => 'Build maximum strength, explosive power, speed, and endurance.',
             'count' => 4,
-            'icon' => '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>'
+            'icon' => '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>'
         ],
         'Body Composition Goals' => [
             'name' => 'Weight & Fat Loss',
+            'desc' => 'Burn calories, drop stubborn body fat, or achieve body recomposition.',
             'count' => 3,
-            'icon' => '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.21 15.89A10 10 0 1 1 8 2.83"></path><path d="M22 12A10 10 0 0 0 12 2v10z"></path></svg>'
+            'icon' => '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.21 15.89A10 10 0 1 1 8 2.83"></path><path d="M22 12A10 10 0 0 0 12 2v10z"></path></svg>'
         ]
     ];
 
     $totalGoals = array_sum(array_map('count', $goals));
 
     render_header('Select Your Goal', null);
-    ?>
+?>
     <style>
         .split-login-frame.goal-mode {
             max-width: 1180px;
         }
+
         .goal-toolbar {
             display: flex;
             flex-direction: column;
             gap: 12px;
             margin-bottom: 18px;
         }
+
         .goal-search-wrap {
             position: relative;
             width: 100%;
         }
+
         .goal-search-wrap svg {
             position: absolute;
             left: 14px;
@@ -167,6 +180,7 @@ function setup_goal_page(): void
             pointer-events: none;
             transition: color 0.2s;
         }
+
         #goal-search {
             width: 100%;
             background: var(--panel-soft);
@@ -180,11 +194,13 @@ function setup_goal_page(): void
             box-sizing: border-box;
             transition: all 0.2s;
         }
+
         #goal-search:focus {
             background: var(--panel);
             border-color: var(--lime);
             box-shadow: 0 0 0 2px color-mix(in srgb, var(--lime) 25%, transparent);
         }
+
         .category-tabs {
             display: flex;
             gap: 8px;
@@ -193,7 +209,11 @@ function setup_goal_page(): void
             scrollbar-width: none;
             -webkit-overflow-scrolling: touch;
         }
-        .category-tabs::-webkit-scrollbar { display: none; }
+
+        .category-tabs::-webkit-scrollbar {
+            display: none;
+        }
+
         .category-tab-btn {
             background: var(--panel-soft);
             border: 1px solid var(--line);
@@ -210,16 +230,19 @@ function setup_goal_page(): void
             transition: all 0.2s ease;
             user-select: none;
         }
+
         .category-tab-btn:hover {
             color: var(--ink);
             border-color: var(--lime);
         }
+
         .category-tab-btn.active {
             background: color-mix(in srgb, var(--lime) 12%, var(--panel));
             border-color: var(--lime);
             color: var(--ink);
             font-weight: 700;
         }
+
         .category-tab-btn .badge-count {
             background: var(--panel);
             color: var(--muted);
@@ -228,10 +251,12 @@ function setup_goal_page(): void
             font-size: 11px;
             font-weight: 700;
         }
+
         .category-tab-btn.active .badge-count {
             background: var(--lime);
             color: #090b10;
         }
+
         .goals-grid {
             display: grid;
             grid-template-columns: repeat(2, 1fr);
@@ -241,13 +266,16 @@ function setup_goal_page(): void
             overflow-y: auto;
             padding-right: 4px;
         }
+
         .goals-grid::-webkit-scrollbar {
             width: 5px;
         }
+
         .goals-grid::-webkit-scrollbar-thumb {
             background: var(--line);
             border-radius: 4px;
         }
+
         .goal-card {
             position: relative;
             background: var(--panel-soft);
@@ -261,20 +289,24 @@ function setup_goal_page(): void
             transition: all 0.2s ease;
             user-select: none;
         }
+
         .goal-card:hover {
             transform: translateY(-2px);
             border-color: var(--lime);
         }
+
         .goal-card.selected {
             border-color: var(--lime);
             background: color-mix(in srgb, var(--lime) 10%, var(--panel));
             box-shadow: 0 0 0 2px color-mix(in srgb, var(--lime) 30%, transparent);
         }
+
         .goal-card input[type="radio"] {
             position: absolute;
             opacity: 0;
             pointer-events: none;
         }
+
         .goal-icon-box {
             width: 38px;
             height: 38px;
@@ -288,19 +320,23 @@ function setup_goal_page(): void
             color: var(--ink);
             transition: all 0.2s;
         }
+
         .goal-card:hover .goal-icon-box {
             color: var(--lime);
             border-color: var(--lime);
         }
+
         .goal-card.selected .goal-icon-box {
             background: var(--lime);
             color: #090b10;
             border-color: var(--lime);
         }
+
         .goal-content {
             flex-grow: 1;
             min-width: 0;
         }
+
         .goal-title {
             font-weight: 700;
             font-size: 13px;
@@ -308,6 +344,7 @@ function setup_goal_page(): void
             line-height: 1.3;
             margin-bottom: 3px;
         }
+
         .goal-desc {
             font-size: 11px;
             color: var(--muted);
@@ -317,6 +354,7 @@ function setup_goal_page(): void
             -webkit-box-orient: vertical;
             overflow: hidden;
         }
+
         .goal-check-indicator {
             width: 20px;
             height: 20px;
@@ -330,6 +368,7 @@ function setup_goal_page(): void
             transition: all 0.2s;
             background: var(--panel);
         }
+
         .goal-check-indicator svg {
             display: none;
             width: 11px;
@@ -337,13 +376,16 @@ function setup_goal_page(): void
             color: #090b10;
             stroke-width: 3;
         }
+
         .goal-card.selected .goal-check-indicator {
             border-color: var(--lime);
             background: var(--lime);
         }
+
         .goal-card.selected .goal-check-indicator svg {
             display: block;
         }
+
         .goal-no-results {
             display: none;
             text-align: center;
@@ -355,7 +397,11 @@ function setup_goal_page(): void
             border: 1.5px dashed var(--line);
             font-size: 13px;
         }
-        .goal-no-results.show { display: block; }
+
+        .goal-no-results.show {
+            display: block;
+        }
+
         .goal-selected-callout {
             background: var(--panel-soft);
             border: 1px solid var(--line);
@@ -367,10 +413,226 @@ function setup_goal_page(): void
             justify-content: space-between;
             font-size: 13px;
         }
+
+        .goal-stage-pane {
+            display: none;
+            animation: fadeInStage 0.25s ease forwards;
+        }
+
+        .goal-stage-pane.active {
+            display: block;
+        }
+
+        @keyframes fadeInStage {
+            from { opacity: 0; transform: translateY(6px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .stage-prompt {
+            font-size: 13px;
+            color: var(--muted);
+            margin-bottom: 14px;
+            line-height: 1.4;
+        }
+
+        /* Focus Category Track Cards (Stage 1) */
+        .focus-category-list {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            margin-bottom: 8px;
+        }
+
+        .focus-category-card {
+            background: var(--panel-soft);
+            border: 1.5px solid var(--line);
+            border-radius: 12px;
+            padding: 14px 16px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            transition: all 0.2s ease;
+            text-align: left;
+            width: 100%;
+            position: relative;
+            box-sizing: border-box;
+        }
+
+        .focus-category-card:hover {
+            border-color: var(--lime);
+            background: color-mix(in srgb, var(--lime) 7%, var(--panel-soft));
+            transform: translateY(-2px);
+            box-shadow: 0 4px 14px rgba(0, 0, 0, 0.12);
+        }
+
+        .focus-category-icon {
+            width: 44px;
+            height: 44px;
+            border-radius: 11px;
+            background: var(--panel);
+            border: 1.5px solid var(--line);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--lime);
+            flex-shrink: 0;
+            transition: all 0.2s ease;
+        }
+
+        .focus-category-card:hover .focus-category-icon {
+            background: var(--lime);
+            color: #090b10;
+            border-color: var(--lime);
+        }
+
+        .focus-category-info {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .focus-category-top {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 3px;
+        }
+
+        .focus-category-title {
+            font-size: 14px;
+            font-weight: 700;
+            color: var(--ink);
+        }
+
+        .focus-category-badge {
+            background: var(--panel);
+            border: 1px solid var(--line);
+            color: var(--muted);
+            font-size: 11px;
+            font-weight: 700;
+            padding: 2px 7px;
+            border-radius: 999px;
+            white-space: nowrap;
+        }
+
+        .focus-category-card:hover .focus-category-badge {
+            border-color: color-mix(in srgb, var(--lime) 50%, var(--line));
+            color: var(--ink);
+        }
+
+        .focus-category-desc {
+            font-size: 11.5px;
+            color: var(--muted);
+            line-height: 1.35;
+        }
+
+        .focus-category-arrow {
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            background: var(--panel);
+            border: 1px solid var(--line);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--muted);
+            flex-shrink: 0;
+            transition: all 0.2s ease;
+        }
+
+        .focus-category-card:hover .focus-category-arrow {
+            background: var(--lime);
+            color: #090b10;
+            border-color: var(--lime);
+            transform: translateX(2px);
+        }
+
+        /* Stage 2 Navigation Header */
+        .stage2-nav-bar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 14px;
+            gap: 10px;
+        }
+
+        .stage2-back-btn {
+            background: var(--panel-soft);
+            border: 1px solid var(--line);
+            color: var(--muted);
+            border-radius: 8px;
+            padding: 6px 12px;
+            font-size: 12px;
+            font-weight: 600;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            transition: all 0.2s ease;
+        }
+
+        .stage2-back-btn:hover {
+            color: var(--ink);
+            border-color: var(--lime);
+        }
+
+        .stage2-active-pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 12px;
+            font-weight: 700;
+            color: var(--lime);
+            background: color-mix(in srgb, var(--lime) 10%, var(--panel));
+            border: 1px solid color-mix(in srgb, var(--lime) 30%, transparent);
+            border-radius: 20px;
+            padding: 4px 12px;
+        }
+
+        .stage2-active-pill svg {
+            width: 14px;
+            height: 14px;
+        }
+
+        .goals-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 10px;
+            margin-bottom: 16px;
+            /* Zero scroll trap: display all category cards directly */
+            max-height: none;
+            overflow: visible;
+        }
+
+        .schedule-preset-badge {
+            background: color-mix(in srgb, var(--lime) 8%, var(--panel-soft));
+            border: 1px solid color-mix(in srgb, var(--lime) 22%, var(--line));
+            border-radius: 10px;
+            padding: 10px 14px;
+            margin-bottom: 14px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 12px;
+            color: var(--ink);
+        }
+
+        .schedule-preset-badge svg {
+            color: var(--lime);
+            flex-shrink: 0;
+        }
+
         @media (max-width: 768px) {
             .goals-grid {
                 grid-template-columns: 1fr;
-                max-height: 340px;
+            }
+
+            .focus-category-desc {
+                display: none;
+            }
+
+            .focus-category-card {
+                padding: 12px 14px;
             }
         }
     </style>
@@ -449,7 +711,7 @@ function setup_goal_page(): void
                         <div class="showcase-feature-item">
                             <div class="showcase-feature-icon">
                                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-                                    <path d="M6 5v14M18 5v14M6 12h12M3 8v8M21 8v8"/>
+                                    <path d="M6 5v14M18 5v14M6 12h12M3 8v8M21 8v8" />
                                 </svg>
                             </div>
                             <div class="showcase-feature-body">
@@ -498,85 +760,134 @@ function setup_goal_page(): void
 
                     <!-- Stepper Header -->
                     <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; padding-bottom: 12px; border-bottom: 1px solid var(--line);">
-                        <span style="display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 700; color: var(--lime); text-transform: uppercase; letter-spacing: 0.05em;">
-                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
-                            Step 2 of 2: Fitness Goal
+                        <span id="stepper-indicator-label" style="display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 700; color: var(--lime); text-transform: uppercase; letter-spacing: 0.05em;">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                                <polyline points="20 6 9 17 4 12" />
+                            </svg>
+                            <span id="stepper-step-text">Step 2: Focus Track (1 of 2)</span>
                         </span>
                         <div style="display: flex; gap: 6px;">
-                            <div style="width: 28px; height: 5px; border-radius: 3px; background: color-mix(in srgb, var(--lime) 60%, var(--line));"></div>
-                            <div style="width: 28px; height: 5px; border-radius: 3px; background: var(--lime); box-shadow: 0 0 8px color-mix(in srgb, var(--lime) 50%, transparent);"></div>
-                        </div>
-                    </div>
-
-                    <!-- Search & Filter Controls -->
-                    <div class="goal-toolbar">
-                        <div class="goal-search-wrap">
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                <circle cx="11" cy="11" r="8"></circle>
-                                <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
-                            </svg>
-                            <input type="text" id="goal-search" placeholder="Search goals (e.g., strength, abs, fat loss)..." autocomplete="off">
-                        </div>
-
-                        <div class="category-tabs" role="tablist">
-                            <button type="button" class="category-tab-btn active" data-category="all">
-                                <span>All Goals</span>
-                                <span class="badge-count"><?= $totalGoals ?></span>
-                            </button>
-                            <?php foreach ($categoryMeta as $catKey => $meta): ?>
-                                <button type="button" class="category-tab-btn" data-category="<?= htmlspecialchars($catKey, ENT_QUOTES) ?>">
-                                    <?= $meta['icon'] ?>
-                                    <span><?= htmlspecialchars($meta['name']) ?></span>
-                                    <span class="badge-count"><?= $meta['count'] ?></span>
-                                </button>
-                            <?php endforeach; ?>
+                            <div id="stepper-bar-1" style="width: 28px; height: 5px; border-radius: 3px; background: var(--lime); box-shadow: 0 0 8px color-mix(in srgb, var(--lime) 50%, transparent);"></div>
+                            <div id="stepper-bar-2" style="width: 28px; height: 5px; border-radius: 3px; background: color-mix(in srgb, var(--lime) 30%, var(--line)); transition: all 0.3s ease;"></div>
                         </div>
                     </div>
 
                     <form method="post" action="index.php?page=setup_goal" id="goal-form" class="split-card-form" novalidate onsubmit="const btn = document.getElementById('submit-goal-btn'); if (btn) { btn.disabled = true; btn.innerHTML = '<svg class=\'fitness-loader mini\' viewBox=\'0 0 24 24\' fill=\'none\' stroke=\'currentColor\' stroke-width=\'2\' stroke-linecap=\'round\' stroke-linejoin=\'round\' style=\'margin-right:8px;\'><line x1=\'6\' y1=\'12\' x2=\'18\' y2=\'12\'></line><rect x=\'4\' y=\'8\' width=\'2\' height=\'8\' rx=\'1\'></rect><rect x=\'18\' y=\'8\' width=\'2\' height=\'8\' rx=\'1\'></rect><rect x=\'2\' y=\'10\' width=\'2\' height=\'4\' rx=\'1\'></rect><rect x=\'20\' y=\'10\' width=\'2\' height=\'4\' rx=\'1\'></rect></svg> GENERATING PLAN...'; }">
                         <?= csrf_field() ?>
 
-                        <!-- Interactive Goal Cards Grid -->
-                        <div class="goals-grid" id="goals-grid">
-                            <?php foreach ($goals as $catName => $catGoals): ?>
-                                <?php foreach ($catGoals as $gName => $gDesc): ?>
-                                    <?php 
-                                        $icon = $goalIcons[$gName] ?? '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/></svg>';
-                                    ?>
-                                    <label class="goal-card" data-category="<?= htmlspecialchars($catName, ENT_QUOTES) ?>" data-title="<?= strtolower(htmlspecialchars($gName, ENT_QUOTES)) ?>" data-desc="<?= strtolower(htmlspecialchars($gDesc, ENT_QUOTES)) ?>">
-                                        <input type="radio" name="primary_goal" value="<?= htmlspecialchars($gName, ENT_QUOTES) ?>" required>
-                                        <div class="goal-icon-box">
-                                            <?= $icon ?>
-                                        </div>
-                                        <div class="goal-content">
-                                            <div class="goal-title"><?= htmlspecialchars($gName) ?></div>
-                                            <div class="goal-desc"><?= htmlspecialchars($gDesc) ?></div>
-                                        </div>
-                                        <div class="goal-check-indicator">
-                                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><polyline points="20 6 9 17 4 12"/></svg>
-                                        </div>
-                                    </label>
-                                <?php endforeach; ?>
-                            <?php endforeach; ?>
+                        <!-- Preserve profile schedule preferences as hidden fields -->
+                        <?php
+                        $initDays = max(2, min(5, (int)($profile['weekly_workout_target'] ?: 3)));
+                        $initDuration = (int)($profile['preferred_duration_mins'] ?: 45);
+                        ?>
+                        <input type="hidden" name="weekly_workout_target" value="<?= $initDays ?>">
+                        <input type="hidden" name="preferred_duration_mins" value="<?= $initDuration ?>">
 
-                            <div class="goal-no-results" id="no-results-box">
-                                No goals match your search. Try another keyword or clear the search.
+                        <!-- STAGE 1: Pick Focus Area Track -->
+                        <div class="goal-stage-pane active" id="goal-stage-1">
+                            <div class="stage-prompt">
+                                Select a training track to explore targeted goals:
+                            </div>
+
+                            <!-- Instant Search across all goals -->
+                            <div class="goal-toolbar" style="margin-bottom: 14px;">
+                                <div class="goal-search-wrap">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <circle cx="11" cy="11" r="8"></circle>
+                                        <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                                    </svg>
+                                    <input type="text" id="goal-search" placeholder="Quick search goals (e.g., strength, abs, fat loss)..." autocomplete="off">
+                                </div>
+                            </div>
+
+                            <div class="focus-category-list" id="category-cards-list">
+                                <?php foreach ($categoryMeta as $catKey => $meta): ?>
+                                    <div class="focus-category-card" data-category="<?= htmlspecialchars($catKey, ENT_QUOTES) ?>" onclick="selectCategory('<?= htmlspecialchars($catKey, ENT_QUOTES) ?>')">
+                                        <div class="focus-category-icon">
+                                            <?= $meta['icon'] ?>
+                                        </div>
+                                        <div class="focus-category-info">
+                                            <div class="focus-category-top">
+                                                <span class="focus-category-title"><?= htmlspecialchars($meta['name']) ?></span>
+                                                <span class="focus-category-badge"><?= $meta['count'] ?> Goals</span>
+                                            </div>
+                                            <div class="focus-category-desc"><?= htmlspecialchars($meta['desc']) ?></div>
+                                        </div>
+                                        <div class="focus-category-arrow">
+                                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"></polyline></svg>
+                                        </div>
+                                    </div>
+                                <?php endforeach; ?>
                             </div>
                         </div>
 
-                        <!-- Live Selected Goal Confirmation Box -->
-                        <div class="goal-selected-callout">
-                            <span style="color: var(--muted);">Selected Goal:</span>
-                            <strong style="color: var(--lime);" id="selected-goal-display">None chosen yet</strong>
-                        </div>
+                        <!-- STAGE 2: Pick Specific Goal & Confirm -->
+                        <div class="goal-stage-pane" id="goal-stage-2">
+                            <div class="stage2-nav-bar">
+                                <button type="button" class="stage2-back-btn" onclick="goToStage(1)">
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"></polyline></svg>
+                                    <span>All Tracks</span>
+                                </button>
+                                <div class="stage2-active-pill" id="stage2-category-pill">
+                                    <span>Muscle & Aesthetics</span>
+                                </div>
+                            </div>
 
-                        <button type="submit" class="split-submit-btn" id="submit-goal-btn" disabled style="opacity: 0.6; cursor: not-allowed;">
-                            <span>Confirm Goal & Generate Plan</span>
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-                                <line x1="5" y1="12" x2="19" y2="12"></line>
-                                <polyline points="12 5 19 12 12 19"></polyline>
-                            </svg>
-                        </button>
+                            <!-- Interactive Goal Cards Grid (Compact, only 3-5 cards shown) -->
+                            <div class="goals-grid" id="goals-grid">
+                                <?php foreach ($goals as $catName => $catGoals): ?>
+                                    <?php foreach ($catGoals as $gName => $gDesc): ?>
+                                        <?php
+                                        $icon = $goalIcons[$gName] ?? '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/></svg>';
+                                        ?>
+                                        <label class="goal-card" data-category="<?= htmlspecialchars($catName, ENT_QUOTES) ?>" data-title="<?= strtolower(htmlspecialchars($gName, ENT_QUOTES)) ?>" data-desc="<?= strtolower(htmlspecialchars($gDesc, ENT_QUOTES)) ?>">
+                                            <input type="radio" name="primary_goal" value="<?= htmlspecialchars($gName, ENT_QUOTES) ?>" required>
+                                            <div class="goal-icon-box">
+                                                <?= $icon ?>
+                                            </div>
+                                            <div class="goal-content">
+                                                <div class="goal-title"><?= htmlspecialchars($gName) ?></div>
+                                                <div class="goal-desc"><?= htmlspecialchars($gDesc) ?></div>
+                                            </div>
+                                            <div class="goal-check-indicator">
+                                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                                                    <polyline points="20 6 9 17 4 12" />
+                                                </svg>
+                                            </div>
+                                        </label>
+                                    <?php endforeach; ?>
+                                <?php endforeach; ?>
+
+                                <div class="goal-no-results" id="no-results-box">
+                                    No goals match your search. Try another keyword or clear the search.
+                                </div>
+                            </div>
+
+                            <!-- Pre-calibrated schedule reminder from profile setup -->
+                            <div class="schedule-preset-badge">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
+                                    <line x1="16" y1="2" x2="16" y2="6"/>
+                                    <line x1="8" y1="2" x2="8" y2="6"/>
+                                    <line x1="3" y1="10" x2="21" y2="10"/>
+                                </svg>
+                                <span>Pre-calibrated routine: <strong><?= $initDays ?> days/week &bull; ~<?= $initDuration ?> min sessions</strong></span>
+                            </div>
+
+                            <!-- Live Selected Goal Confirmation Box -->
+                            <div class="goal-selected-callout">
+                                <span style="color: var(--muted);">Selected Goal:</span>
+                                <strong style="color: var(--lime);" id="selected-goal-display">None chosen yet</strong>
+                            </div>
+
+                            <button type="submit" class="split-submit-btn" id="submit-goal-btn" disabled style="opacity: 0.6; cursor: not-allowed;">
+                                <span>Confirm Goal & Generate Plan</span>
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                                    <line x1="5" y1="12" x2="19" y2="12"></line>
+                                    <polyline points="12 5 19 12 12 19"></polyline>
+                                </svg>
+                            </button>
+                        </div>
                     </form>
                 </div>
             </div>
@@ -584,83 +895,121 @@ function setup_goal_page(): void
     </div>
 
     <script>
-    (function() {
-        const goalCards = document.querySelectorAll('.goal-card');
-        const submitBtn = document.getElementById('submit-goal-btn');
-        const selectedDisplay = document.getElementById('selected-goal-display');
-        const searchInput = document.getElementById('goal-search');
-        const categoryTabs = document.querySelectorAll('.category-tab-btn');
-        const noResults = document.getElementById('no-results-box');
+        (function() {
+            const stage1 = document.getElementById('goal-stage-1');
+            const stage2 = document.getElementById('goal-stage-2');
+            const stepperText = document.getElementById('stepper-step-text');
+            const stepperBar2 = document.getElementById('stepper-bar-2');
+            const stage2Pill = document.getElementById('stage2-category-pill');
+            const searchInput = document.getElementById('goal-search');
+            const goalCards = document.querySelectorAll('.goal-card');
+            const submitBtn = document.getElementById('submit-goal-btn');
+            const selectedDisplay = document.getElementById('selected-goal-display');
+            const noResults = document.getElementById('no-results-box');
 
-        let activeCategory = 'all';
-        let searchQuery = '';
+            let currentCategory = 'all';
+            let searchQuery = '';
 
-        // Card Selection Logic
-        goalCards.forEach(card => {
-            card.addEventListener('click', function() {
-                goalCards.forEach(c => c.classList.remove('selected'));
-                this.classList.add('selected');
-                const radio = this.querySelector('input[type="radio"]');
-                if (radio) radio.checked = true;
-
-                const goalTitle = this.querySelector('.goal-title')?.textContent || 'Selected';
-                selectedDisplay.textContent = goalTitle;
-
-                if (submitBtn) {
-                    submitBtn.disabled = false;
-                    submitBtn.style.opacity = '1';
-                    submitBtn.style.cursor = 'pointer';
+            window.goToStage = function(stageNum, categoryKey) {
+                if (stageNum === 1) {
+                    if (stage1) stage1.classList.add('active');
+                    if (stage2) stage2.classList.remove('active');
+                    if (stepperText) stepperText.textContent = 'Step 2: Focus Track (1 of 2)';
+                    if (stepperBar2) {
+                        stepperBar2.style.background = 'color-mix(in srgb, var(--lime) 30%, var(--line))';
+                        stepperBar2.style.boxShadow = 'none';
+                    }
+                    if (searchInput && searchQuery) {
+                        searchInput.value = '';
+                        searchQuery = '';
+                    }
+                } else if (stageNum === 2) {
+                    if (stage1) stage1.classList.remove('active');
+                    if (stage2) stage2.classList.add('active');
+                    if (stepperText) stepperText.textContent = 'Step 2: Target Goal (2 of 2)';
+                    if (stepperBar2) {
+                        stepperBar2.style.background = 'var(--lime)';
+                        stepperBar2.style.boxShadow = '0 0 8px color-mix(in srgb, var(--lime) 50%, transparent)';
+                    }
+                    if (categoryKey) {
+                        currentCategory = categoryKey;
+                        const card = document.querySelector(`.focus-category-card[data-category="${categoryKey}"]`);
+                        const catTitle = card ? card.querySelector('.focus-category-title')?.textContent : categoryKey;
+                        if (stage2Pill) {
+                            stage2Pill.innerHTML = `<span>${catTitle}</span>`;
+                        }
+                    }
+                    filterGoals();
                 }
-            });
-        });
+            };
 
-        // Category Tab Filter
-        categoryTabs.forEach(tab => {
-            tab.addEventListener('click', function() {
-                categoryTabs.forEach(t => t.classList.remove('active'));
-                this.classList.add('active');
-                activeCategory = this.getAttribute('data-category');
-                filterGoals();
-            });
-        });
+            window.selectCategory = function(catKey) {
+                goToStage(2, catKey);
+            };
 
-        // Search Input Filter
-        if (searchInput) {
-            searchInput.addEventListener('input', function() {
-                searchQuery = this.value.trim().toLowerCase();
-                filterGoals();
-            });
-        }
-
-        function filterGoals() {
-            let visibleCount = 0;
-
+            // Goal Card Click Handler
             goalCards.forEach(card => {
-                const cardCat = card.getAttribute('data-category');
-                const title = card.getAttribute('data-title');
-                const desc = card.getAttribute('data-desc');
+                card.addEventListener('click', function() {
+                    goalCards.forEach(c => c.classList.remove('selected'));
+                    this.classList.add('selected');
+                    const radio = this.querySelector('input[type="radio"]');
+                    if (radio) radio.checked = true;
 
-                const matchesCat = (activeCategory === 'all' || cardCat === activeCategory);
-                const matchesSearch = (!searchQuery || title.includes(searchQuery) || desc.includes(searchQuery));
+                    const goalTitle = this.querySelector('.goal-title')?.textContent || 'Selected';
+                    if (selectedDisplay) selectedDisplay.textContent = goalTitle;
 
-                if (matchesCat && matchesSearch) {
-                    card.style.display = 'flex';
-                    visibleCount++;
-                } else {
-                    card.style.display = 'none';
-                }
+                    if (submitBtn) {
+                        submitBtn.disabled = false;
+                        submitBtn.style.opacity = '1';
+                        submitBtn.style.cursor = 'pointer';
+                    }
+                });
             });
 
-            if (noResults) {
-                if (visibleCount === 0) {
-                    noResults.classList.add('show');
-                } else {
-                    noResults.classList.remove('show');
+            // Quick Search Listener
+            if (searchInput) {
+                searchInput.addEventListener('input', function() {
+                    searchQuery = this.value.trim().toLowerCase();
+                    if (searchQuery.length > 0) {
+                        currentCategory = 'all';
+                        if (stage2Pill) {
+                            stage2Pill.innerHTML = `<span>Search: "${searchQuery}"</span>`;
+                        }
+                        goToStage(2, null);
+                    } else {
+                        goToStage(1);
+                    }
+                });
+            }
+
+            function filterGoals() {
+                let visibleCount = 0;
+                goalCards.forEach(card => {
+                    const cardCat = card.getAttribute('data-category');
+                    const title = card.getAttribute('data-title');
+                    const desc = card.getAttribute('data-desc');
+
+                    const matchesCat = (currentCategory === 'all' || cardCat === currentCategory);
+                    const matchesSearch = (!searchQuery || title.includes(searchQuery) || desc.includes(searchQuery));
+
+                    if (matchesCat && matchesSearch) {
+                        card.style.display = 'flex';
+                        visibleCount++;
+                    } else {
+                        card.style.display = 'none';
+                    }
+                });
+
+                if (noResults) {
+                    if (visibleCount === 0) {
+                        noResults.classList.add('show');
+                    } else {
+                        noResults.classList.remove('show');
+                    }
                 }
             }
-        }
-    })();
+        })();
     </script>
-    <?php
+<?php
     render_footer();
 }
