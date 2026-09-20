@@ -1304,5 +1304,3 @@ function generate_dietary_plan(int $memberUserId, ?int $trainerId = null, bool $
 
     return $planId;
 }
-
-
