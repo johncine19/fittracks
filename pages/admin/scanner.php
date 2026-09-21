@@ -1665,15 +1665,6 @@ function scanner_page(): void
         color: #0f172a !important;
         border-color: #cbd5e1 !important;
     }
-    [data-theme="light"] #swal-method-select {
-        background: #f8fafc !important;
-        color: #0f172a !important;
-        border-color: #cbd5e1 !important;
-    }
-    [data-theme="light"] #swal-method-select option {
-        background: #ffffff !important;
-        color: #0f172a !important;
-    }
     </style>
 
     <div class="scanner-page-wrap">
@@ -2339,14 +2330,6 @@ function scanner_page(): void
                                     </button>
                                 </div>
                                 <input type="hidden" id="swal-method" value="cash">
-
-                                <div style="margin-top: 8px;">
-                                    <select id="swal-method-select" onchange="window.setSwalMethod(this.value)" style="width: 100%; height: 38px; border-radius: 8px; padding: 0 10px; font-size: 0.82rem; outline: none;">
-                                        <option value="cash">Payment Method: Cash</option>
-                                        <option value="gcash">Payment Method: GCash</option>
-                                        <option value="card">Payment Method: Debit / Credit Card</option>
-                                    </select>
-                                </div>
                             </div>
                         `,
                         background: 'var(--panel)',
@@ -2360,8 +2343,6 @@ function scanner_page(): void
                             window.setSwalMethod = function(m, btn) {
                                 const hidden = document.getElementById('swal-method');
                                 if (hidden) hidden.value = m;
-                                const sel = document.getElementById('swal-method-select');
-                                if (sel) sel.value = m;
                                 document.querySelectorAll('.swal-method-btn').forEach(b => {
                                     b.classList.toggle('active', b.getAttribute('data-method') === m);
                                 });
