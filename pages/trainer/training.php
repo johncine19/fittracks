@@ -8,38 +8,98 @@ function training_page(): void
     $memberId = (int) ($_GET['member_user_id'] ?? post('member_user_id', 0));
     $pdo = db();
 
+    $gymId = null;
+    if ($user['role'] === 'gym_owner') {
+        $gymId = $user['gym_id'] ?? scalar('SELECT gym_id FROM gyms WHERE owner_user_id = ?', [$user['user_id']]) ?? scalar('SELECT gym_id FROM gyms ORDER BY gym_id ASC LIMIT 1');
+    }
+
     // ----------------------------------------------------
     // POST ACTIONS (Add, Edit, Delete, Duplicate, Renew)
     // ----------------------------------------------------
     if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
-        $action = post('action', 'add_plan');
+        $action = post('action', '');
         $title = trim((string) post('title'));
         
         if ($action === 'add_plan') {
+            $targetMemberId = (int) post('member_user_id', 0);
+            if ($targetMemberId <= 0 && $memberId > 0) {
+                $targetMemberId = $memberId;
+            }
+            if ($targetMemberId <= 0 || !scalar('SELECT 1 FROM users WHERE user_id = ?', [$targetMemberId])) {
+                flash('Cannot create plan: Please select a valid active member.', 'error');
+                redirect('training');
+            }
             $pdo->prepare('INSERT INTO training_plans (member_user_id, trainer_id, title, goal, start_date, end_date, status) VALUES (?, ?, ?, ?, NULL, NULL, "draft")')
-                ->execute([$memberId, $coachId, $title, post('goal')]);
+                ->execute([$targetMemberId, $coachId, $title ?: 'Workout Plan', post('goal')]);
             
             // Go straight to workout builder
-            header('Location: index.php?page=workout_builder&member_user_id=' . $memberId);
+            header('Location: index.php?page=workout_builder&member_user_id=' . $targetMemberId);
             exit;
         } elseif ($action === 'edit_plan') {
             $plan_id = (int) post('plan_id');
-            $pdo->prepare('UPDATE training_plans SET member_user_id=?, title=?, goal=?, start_date=?, end_date=? WHERE plan_id=? AND trainer_id=?')
-                ->execute([$memberId, $title, post('goal'), post('start_date'), post('end_date') ?: null, $plan_id, $coachId]);
+            $targetMemberId = (int) post('member_user_id', 0);
+            if ($targetMemberId <= 0) {
+                $targetMemberId = (int) scalar('SELECT member_user_id FROM training_plans WHERE plan_id = ?', [$plan_id]);
+            }
+            if ($targetMemberId <= 0 || !scalar('SELECT 1 FROM users WHERE user_id = ?', [$targetMemberId])) {
+                flash('Cannot update plan: Invalid member reference.', 'error');
+                redirect('training');
+            }
+            $pdo->prepare('UPDATE training_plans SET member_user_id=?, title=?, goal=?, start_date=?, end_date=? WHERE plan_id=?')
+                ->execute([$targetMemberId, $title, post('goal'), post('start_date'), post('end_date') ?: null, $plan_id]);
             flash('Training plan updated.', 'success');
         } elseif ($action === 'delete_plan') {
             $plan_id = (int) post('plan_id');
-            $pdo->prepare('DELETE FROM training_plans WHERE plan_id=? AND trainer_id=?')->execute([$plan_id, $coachId]);
-            flash('Training plan deleted.', 'info');
+            if ($plan_id > 0) {
+                // Determine authorization to delete
+                $canDelete = false;
+                if ($user['role'] === 'platform_admin') {
+                    $canDelete = true;
+                } elseif ($user['role'] === 'gym_owner') {
+                    $planMember = scalar('SELECT member_user_id FROM training_plans WHERE plan_id = ?', [$plan_id]);
+                    $isMemberInGym = $planMember && scalar('SELECT 1 FROM gym_members WHERE user_id = ? AND gym_id = ?', [$planMember, $gymId]);
+                    $isTrainerInGym = scalar('SELECT 1 FROM training_plans tp JOIN trainer_profiles tpr ON tp.trainer_id = tpr.trainer_id JOIN gym_members gm ON tpr.user_id = gm.user_id WHERE tp.plan_id = ? AND gm.gym_id = ?', [$plan_id, $gymId]);
+                    if ($isMemberInGym || $isTrainerInGym || scalar('SELECT 1 FROM training_plans WHERE plan_id = ? AND trainer_id = ?', [$plan_id, $coachId])) {
+                        $canDelete = true;
+                    }
+                } else {
+                    // Trainer can delete their own plans
+                    if (scalar('SELECT 1 FROM training_plans WHERE plan_id = ? AND trainer_id = ?', [$plan_id, $coachId])) {
+                        $canDelete = true;
+                    }
+                }
+
+                if ($canDelete) {
+                    $pdo->beginTransaction();
+                    try {
+                        $pdo->prepare('DELETE FROM exercise_completions WHERE plan_id = ?')->execute([$plan_id]);
+                        $pdo->prepare('DELETE FROM training_plan_exercises WHERE plan_id = ?')->execute([$plan_id]);
+                        $pdo->prepare('DELETE FROM training_plans WHERE plan_id = ?')->execute([$plan_id]);
+                        $pdo->commit();
+                        flash('Training plan permanently deleted.', 'info');
+                    } catch (\Throwable $e) {
+                        if ($pdo->inTransaction()) {
+                            $pdo->rollBack();
+                        }
+                        flash('Failed to delete training plan: ' . $e->getMessage(), 'error');
+                    }
+                } else {
+                    flash('You are not authorized to delete this training plan.', 'error');
+                }
+            }
         } elseif ($action === 'duplicate_plan') {
             $source_plan_id = (int) post('plan_id');
-            $target_member_id = (int) post('target_member_id');
+            $target_member_id = (int) post('target_member_id', 0);
+            if ($target_member_id <= 0 || !scalar('SELECT 1 FROM users WHERE user_id = ?', [$target_member_id])) {
+                flash('Cannot duplicate plan: Please select a valid target member.', 'error');
+                redirect('training');
+            }
             
-            $source_plan = $pdo->prepare('SELECT title, goal FROM training_plans WHERE plan_id = ? AND trainer_id = ?');
-            $source_plan->execute([$source_plan_id, $coachId]);
+            $source_plan = $pdo->prepare('SELECT title, goal FROM training_plans WHERE plan_id = ?');
+            $source_plan->execute([$source_plan_id]);
             $planData = $source_plan->fetch();
             
-            if ($planData && $target_member_id) {
+            if ($planData) {
                 // Get active membership for target
                 $membership = $pdo->query('SELECT start_date, end_date FROM memberships WHERE user_id = ' . $target_member_id . ' AND status = "active" ORDER BY end_date DESC LIMIT 1')->fetch();
                 $startDate = $membership ? $membership['start_date'] : date('Y-m-d');
@@ -60,11 +120,16 @@ function training_page(): void
         } elseif ($action === 'renew_plan') {
             $source_plan_id = (int) post('plan_id');
             
-            $source_plan = $pdo->prepare('SELECT * FROM training_plans WHERE plan_id = ? AND trainer_id = ?');
-            $source_plan->execute([$source_plan_id, $coachId]);
+            $source_plan = $pdo->prepare('SELECT * FROM training_plans WHERE plan_id = ?');
+            $source_plan->execute([$source_plan_id]);
             $planData = $source_plan->fetch();
             
             if ($planData) {
+                $renewMemberId = (int) $planData['member_user_id'];
+                if ($renewMemberId <= 0 || !scalar('SELECT 1 FROM users WHERE user_id = ?', [$renewMemberId])) {
+                    flash('Cannot renew plan: Associated member account is not found.', 'error');
+                    redirect('training');
+                }
                 $oldEndDate = strtotime($planData['end_date'] ?? date('Y-m-d'));
                 $newStart = date('Y-m-d', strtotime('+1 day', $oldEndDate));
                 if ($newStart < date('Y-m-d')) {
@@ -73,7 +138,7 @@ function training_page(): void
                 $newEnd = date('Y-m-d', strtotime('+4 weeks', strtotime($newStart)));
                 
                 $pdo->prepare('INSERT INTO training_plans (member_user_id, trainer_id, title, goal, start_date, end_date, status) VALUES (?, ?, ?, ?, ?, ?, "draft")')
-                    ->execute([$planData['member_user_id'], $coachId, $planData['title'] . ' (Phase 2)', $planData['goal'], $newStart, $newEnd]);
+                    ->execute([$renewMemberId, $coachId, $planData['title'] . ' (Phase 2)', $planData['goal'], $newStart, $newEnd]);
                 $newPlanId = $pdo->lastInsertId();
                 
                 $pdo->prepare('INSERT INTO training_plan_exercises (plan_id, exercise_id, day_of_week, sequence_order, sets, reps, target_weight_kg, rest_seconds, notes, tempo, rpe) 
@@ -83,20 +148,25 @@ function training_page(): void
                 flash('Training plan renewed as a new draft Phase 2.', 'success');
             }
         }
+        $returnTab = trim((string) post('return_tab', ''));
+        if ($returnTab) {
+            redirect('training&tab=' . urlencode($returnTab));
+        }
         redirect('training');
     }
 
     // ----------------------------------------------------
     // TAB 1 DATA: Eligible Members & Created Plans
     // ----------------------------------------------------
-    $gymId = null;
-    if ($user['role'] === 'gym_owner') {
-        $gymId = $user['gym_id'] ?? scalar('SELECT gym_id FROM gyms WHERE owner_user_id = ?', [$user['user_id']]) ?? scalar('SELECT gym_id FROM gyms ORDER BY gym_id ASC LIMIT 1');
+    if ($user['role'] === 'gym_owner' && $gymId) {
         $members = query_all('SELECT gm.user_id AS member_user_id, CONCAT(u.first_name, " ", u.last_name) AS name, mp.primary_goal, EXISTS (SELECT 1 FROM memberships m WHERE m.user_id = u.user_id AND m.status = "active" AND m.end_date >= CURRENT_DATE) AS has_membership FROM gym_members gm JOIN users u ON u.user_id = gm.user_id LEFT JOIN member_profiles mp ON mp.user_id = u.user_id WHERE gm.gym_id = ? AND u.status = "active" AND NOT EXISTS (SELECT 1 FROM training_plans tp WHERE tp.member_user_id = gm.user_id AND tp.trainer_id = ? AND tp.status IN ("active", "draft"))', [$gymId, $coachId]);
+        $allGymMembers = query_all('SELECT gm.user_id AS member_user_id, CONCAT(u.first_name, " ", u.last_name) AS name FROM gym_members gm JOIN users u ON u.user_id = gm.user_id WHERE gm.gym_id = ? AND u.status = "active" ORDER BY u.first_name ASC', [$gymId]);
     } elseif ($user['role'] === 'trainer') {
         $members = query_all('SELECT ca.member_user_id, CONCAT(u.first_name, " ", u.last_name) AS name, mp.primary_goal, EXISTS (SELECT 1 FROM memberships m WHERE m.user_id = u.user_id AND m.status = "active" AND m.end_date >= CURRENT_DATE) AS has_membership FROM trainer_assignments ca JOIN users u ON u.user_id = ca.member_user_id LEFT JOIN member_profiles mp ON mp.user_id = u.user_id WHERE ca.trainer_id = ? AND ca.status = "active" AND NOT EXISTS (SELECT 1 FROM training_plans tp WHERE tp.member_user_id = ca.member_user_id AND tp.trainer_id = ca.trainer_id AND tp.status IN ("active", "draft"))', [$coachId]);
+        $allGymMembers = query_all('SELECT ca.member_user_id, CONCAT(u.first_name, " ", u.last_name) AS name FROM trainer_assignments ca JOIN users u ON u.user_id = ca.member_user_id WHERE ca.trainer_id = ? AND ca.status = "active" ORDER BY u.first_name ASC', [$coachId]);
     } else {
         $members = query_all('SELECT u.user_id AS member_user_id, CONCAT(u.first_name, " ", u.last_name) AS name, mp.primary_goal, 1 AS has_membership FROM users u LEFT JOIN member_profiles mp ON mp.user_id = u.user_id WHERE u.role = "member" AND u.status = "active" LIMIT 100');
+        $allGymMembers = query_all('SELECT u.user_id AS member_user_id, CONCAT(u.first_name, " ", u.last_name) AS name FROM users u WHERE u.role = "member" AND u.status = "active" ORDER BY u.first_name ASC LIMIT 100');
     }
 
     $plans = query_all('
@@ -496,10 +566,15 @@ function training_page(): void
                         </p>
                     </div>
                 </div>
-                <div>
-                    <a href="index.php?page=workout_builder&member_user_id=<?= (int)$viewPlan['member_user_id'] ?>" class="btn btn-primary" style="font-size: 13px; font-weight: 700;">
-                        Open in Workout Builder
+                <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+                    <a href="index.php?page=workout_builder&member_user_id=<?= (int)$viewPlan['member_user_id'] ?>" class="btn btn-primary" style="font-size: 13px; font-weight: 700; padding: 8px 16px; border-radius: 8px; text-decoration: none; display: inline-flex; align-items: center; gap: 7px; min-height: 38px;">
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>
+                        <span>Open in Workout Builder</span>
                     </a>
+                    <button type="button" onclick="confirmDeletePlan(<?= (int)$viewPlanId ?>, '<?= addslashes(h($viewPlan['title'] ?: 'Workout Routine')) ?>')" class="btn btn-danger" style="font-size: 13px; font-weight: 700; padding: 8px 16px; border-radius: 8px; display: inline-flex; align-items: center; gap: 6px; min-height: 38px;">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+                        <span>Delete Plan</span>
+                    </button>
                 </div>
             </div>
         </div>
@@ -512,29 +587,19 @@ function training_page(): void
             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1.25rem; flex-wrap:wrap; gap:12px;">
                 <div>
                     <h2 style="margin:0; font-size:1.25rem; color:var(--ink);">All Workout Plans</h2>
-                    <p class="muted" style="margin:3px 0 0 0; font-size:13px;">Complete directory of workout regimens created for members.</p>
+                    <p class="muted" style="margin:4px 0 0 0; font-size:13px;">Complete directory of workout regimens created for members.</p>
                 </div>
-            </div>
-
-            <!-- Instant Real-Time Search & Status Filter Toolbar -->
-            <div class="all-workouts-toolbar" style="display:flex; justify-content:space-between; align-items:center; gap:12px; margin-bottom:16px; flex-wrap:wrap;">
-                <div class="all-workout-filters-wrap" style="display:flex; align-items:center; gap:6px; flex-wrap:wrap;">
-                    <button type="button" class="all-workout-filter-pill active" onclick="setAllWorkoutsStatusFilter('all', this)">
-                        All (<?= count($allPlans) ?>)
-                    </button>
-                    <button type="button" class="all-workout-filter-pill" onclick="setAllWorkoutsStatusFilter('active', this)">
-                        Active (<?= $allCountActive ?>)
-                    </button>
-                    <button type="button" class="all-workout-filter-pill" onclick="setAllWorkoutsStatusFilter('draft', this)">
-                        Draft (<?= $allCountDraft ?>)
-                    </button>
-                    <button type="button" class="all-workout-filter-pill" onclick="setAllWorkoutsStatusFilter('other', this)">
-                        Expired / Other (<?= $allCountExpired ?>)
-                    </button>
-                </div>
-                <div class="all-workouts-search-wrap" style="position:relative; flex:1 1 240px; max-width:340px;">
-                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="position:absolute; left:11px; top:50%; transform:translateY(-50%); color:var(--muted); pointer-events:none;"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-                    <input type="text" id="all-workouts-search" oninput="filterAllWorkouts()" placeholder="Search member, trainer, or plan title..." style="width:100%; box-sizing:border-box; padding:8px 12px 8px 34px; border-radius:8px; border:1px solid var(--line); background:var(--panel); color:var(--ink); font-size:13px;">
+                <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+                    <div style="display:flex; gap:6px;" class="all-workout-filters-wrap" id="all-workouts-filters">
+                        <button type="button" class="all-workout-filter-pill active" onclick="setAllWorkoutsStatusFilter('all', this)">All (<?= count($allPlans) ?>)</button>
+                        <button type="button" class="all-workout-filter-pill" onclick="setAllWorkoutsStatusFilter('active', this)">Active (<?= count(array_filter($allPlans, fn($p) => strtolower((string)$p['status']) === 'active')) ?>)</button>
+                        <button type="button" class="all-workout-filter-pill" onclick="setAllWorkoutsStatusFilter('draft', this)">Draft (<?= count(array_filter($allPlans, fn($p) => strtolower((string)$p['status']) === 'draft')) ?>)</button>
+                        <button type="button" class="all-workout-filter-pill" onclick="setAllWorkoutsStatusFilter('other', this)">Expired / Other (<?= count(array_filter($allPlans, fn($p) => !in_array(strtolower((string)$p['status']), ['active', 'draft'], true))) ?>)</button>
+                    </div>
+                    <div style="position:relative; min-width:240px;">
+                        <input type="text" id="all-workouts-search" oninput="filterAllWorkouts()" placeholder="Search member, trainer, or plan title..." style="width:100%; box-sizing:border-box; padding:7px 12px 7px 32px; font-size:12.5px; border-radius:8px; border:1px solid var(--line); background:var(--panel); color:var(--ink);">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="position:absolute; left:10px; top:50%; transform:translateY(-50%); color:var(--muted); pointer-events:none;"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                    </div>
                 </div>
             </div>
 
@@ -606,7 +671,7 @@ function training_page(): void
                                         <?= $row['start_date'] ? date('M j, Y', strtotime($row['start_date'])) : 'Pending' ?>
                                     </td>
                                     <td style="padding:12px; text-align:right;">
-                                        <div style="display:inline-flex; gap:6px; justify-content:flex-end;">
+                                        <div style="display:inline-flex; gap:6px; justify-content:flex-end; align-items:center;">
                                             <a href="index.php?page=training&tab=all&view_plan_id=<?= $row['plan_id'] ?>" class="btn btn-secondary" style="padding:5px 10px; font-size:12px; display:inline-flex; align-items:center; gap:4px;">
                                                 <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
                                                 <span>View Plan</span>
@@ -616,6 +681,10 @@ function training_page(): void
                                                     Build
                                                 </a>
                                             <?php endif; ?>
+                                            <button type="button" onclick="confirmDeletePlan(<?= (int)$row['plan_id'] ?>, '<?= addslashes(h($row['title'] ?: 'Workout Routine')) ?>')" class="btn btn-danger" style="padding:5px 10px; font-size:12px; display:inline-flex; align-items:center; gap:4px;" title="Delete Plan">
+                                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+                                                <span>Delete</span>
+                                            </button>
                                         </div>
                                     </td>
                                 </tr>
@@ -689,15 +758,19 @@ function training_page(): void
                             </div>
 
                             <div class="trainer-mcard-actions">
-                                <a href="index.php?page=training&tab=all&view_plan_id=<?= (int)$row['plan_id'] ?>" class="btn btn-secondary btn-mcard" style="flex:1 1 120px; justify-content:center; display:inline-flex; align-items:center; gap:6px;">
+                                <a href="index.php?page=training&tab=all&view_plan_id=<?= (int)$row['plan_id'] ?>" class="btn btn-secondary btn-mcard" style="flex:1 1 110px; justify-content:center; display:inline-flex; align-items:center; gap:6px;">
                                     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
                                     <span>View Plan</span>
                                 </a>
                                 <?php if ($statusKey === 'draft'): ?>
-                                    <a href="index.php?page=workout_builder&member_user_id=<?= (int)$row['member_user_id'] ?>" class="btn btn-primary btn-mcard" style="flex:1 1 100px; justify-content:center; text-align:center;">
+                                    <a href="index.php?page=workout_builder&member_user_id=<?= (int)$row['member_user_id'] ?>" class="btn btn-primary btn-mcard" style="flex:1 1 80px; justify-content:center; text-align:center;">
                                         Build
                                     </a>
                                 <?php endif; ?>
+                                <button type="button" onclick="confirmDeletePlan(<?= (int)$row['plan_id'] ?>, '<?= addslashes(h($row['title'] ?: 'Workout Routine')) ?>')" class="btn btn-danger btn-mcard" style="flex:1 1 80px; justify-content:center; display:inline-flex; align-items:center; gap:5px;">
+                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+                                    <span>Delete</span>
+                                </button>
                             </div>
                         </div>
                     <?php endforeach; ?>
@@ -1410,9 +1483,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
 // Edit Training Plan Modal (SweetAlert2)
 function editPlan(p) {
-    let membersOptions = '';
-    <?php foreach ($members as $member): ?>
-        membersOptions += `<option value="<?= (int) $member['member_user_id'] ?>"><?= h($member['name']) ?></option>`;
+    let membersOptions = `<option value="${p.member_user_id}" selected>${p.member || 'Current Member'}</option>`;
+    <?php foreach ($allGymMembers as $member): ?>
+        if (String(<?= (int) $member['member_user_id'] ?>) !== String(p.member_user_id)) {
+            membersOptions += `<option value="<?= (int) $member['member_user_id'] ?>"><?= h($member['name']) ?></option>`;
+        }
     <?php endforeach; ?>
     
     <?php $csrfStr = csrf_field(); ?>
@@ -1472,8 +1547,8 @@ function editPlan(p) {
 
 // Duplicate Plan Modal (SweetAlert2)
 function openDuplicateModal(planId, planTitle) {
-    let membersOptions = '';
-    <?php foreach ($members as $member): ?>
+    let membersOptions = '<option value="">-- Select Member --</option>';
+    <?php foreach ($allGymMembers as $member): ?>
         membersOptions += `<option value="<?= (int) $member['member_user_id'] ?>"><?= h($member['name']) ?></option>`;
     <?php endforeach; ?>
     
@@ -1579,6 +1654,24 @@ function confirmDeletePlan(planId, planTitle) {
             idInput.name = 'plan_id';
             idInput.value = planId;
             form.appendChild(idInput);
+
+            const urlParams = new URLSearchParams(window.location.search);
+            let currentTab = urlParams.get('tab') || '';
+            if (!currentTab) {
+                const viewAll = document.getElementById('view-all-workouts');
+                if (viewAll && viewAll.style.display !== 'none') {
+                    currentTab = 'all';
+                } else {
+                    currentTab = localStorage.getItem('fittracks_workouts_active_tab') || 'all';
+                }
+            }
+            if (currentTab) {
+                const tabInput = document.createElement('input');
+                tabInput.type = 'hidden';
+                tabInput.name = 'return_tab';
+                tabInput.value = currentTab;
+                form.appendChild(tabInput);
+            }
 
             document.body.appendChild(form);
             form.submit();

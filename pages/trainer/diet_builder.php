@@ -310,22 +310,150 @@ function diet_builder_page(): void
         </div>
         <p style="color: var(--muted); font-size: 13px; margin: 4px 0 0;">Manage daily meals, nutrition, and macro targets tailored to this member's goals and dietary needs.</p>
     </div>
-    <div style="display: flex; gap: 10px; flex-wrap: wrap; align-items: center;">
-        <a href="<?= h($backUrl) ?>" class="btn btn-ghost" style="text-decoration: none;">&larr; Back</a>
+    <div class="diet-actions-wrap">
+        <a href="<?= h($backUrl) ?>" class="diet-action-btn diet-btn-back" title="Go back">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+            <span>Back</span>
+        </a>
         <form method="post" style="margin:0;">
             <?= csrf_field() ?>
             <input type="hidden" name="action" value="generate_plan">
-            <button class="btn" style="background:var(--accent); color:white;" onclick="return confirm('Auto-generate a dietary plan? This will clear any draft meals you have added manually.');">Generate Plan</button>
+            <button type="submit" class="diet-action-btn diet-btn-generate" onclick="return confirm('Auto-generate a dietary plan? This will clear any draft meals you have added manually.');" title="Auto-generate an optimized 7-day meal plan">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3Z"/></svg>
+                <span>Generate Plan</span>
+            </button>
         </form>
         <form method="post" style="margin:0;">
             <?= csrf_field() ?>
             <input type="hidden" name="action" value="publish">
-            <button class="btn btn-primary" onclick="return confirm('Publish this diet plan?');">Publish Plan</button>
+            <button type="submit" class="diet-action-btn diet-btn-publish" onclick="return confirm('Publish this diet plan?');" title="Publish this diet plan to member">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                <span>Publish Plan</span>
+            </button>
         </form>
     </div>
 </div>
 
 <style>
+.diet-actions-wrap {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    align-items: center;
+}
+.diet-action-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 7px;
+    padding: 9px 16px;
+    min-height: 40px;
+    border-radius: 8px;
+    font-size: 13.5px;
+    font-weight: 700;
+    cursor: pointer;
+    text-decoration: none;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    box-sizing: border-box;
+    line-height: 1;
+    border: 1px solid transparent;
+}
+.diet-action-btn svg {
+    flex-shrink: 0;
+}
+
+/* Back Button */
+.diet-btn-back {
+    background: var(--panel-soft);
+    color: var(--ink);
+    border-color: var(--line);
+}
+.diet-btn-back:hover {
+    background: var(--panel);
+    border-color: var(--muted);
+    color: var(--ink);
+    text-decoration: none;
+    transform: translateX(-2px);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
+}
+
+/* Generate Plan Button */
+.diet-btn-generate {
+    background: color-mix(in srgb, var(--lime) 14%, transparent);
+    color: var(--lime);
+    border-color: color-mix(in srgb, var(--lime) 45%, transparent);
+}
+.diet-btn-generate:hover {
+    background: var(--lime);
+    color: #080b0d;
+    border-color: var(--lime);
+    box-shadow: 0 0 16px rgba(132, 204, 22, 0.35);
+    transform: translateY(-1px);
+}
+
+/* Publish Plan Button */
+.diet-btn-publish {
+    background: var(--lime);
+    color: #080b0d;
+    border-color: var(--lime);
+}
+.diet-btn-publish:hover {
+    background: var(--lime-dark);
+    border-color: var(--lime-dark);
+    color: #080b0d;
+    box-shadow: 0 0 16px rgba(132, 204, 22, 0.35);
+    transform: translateY(-1px);
+}
+
+/* Light Theme Overrides */
+[data-theme="light"] .diet-btn-back {
+    background: #ffffff;
+    color: #1e293b;
+    border-color: #cbd5e1;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+}
+[data-theme="light"] .diet-btn-back:hover {
+    background: #f8fafc;
+    border-color: #94a3b8;
+    color: #0f172a;
+}
+[data-theme="light"] .diet-btn-generate {
+    background: rgba(101, 163, 13, 0.12);
+    color: #365314;
+    border-color: rgba(101, 163, 13, 0.45);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+}
+[data-theme="light"] .diet-btn-generate:hover {
+    background: #65a30d;
+    color: #ffffff;
+    border-color: #65a30d;
+    box-shadow: 0 4px 12px rgba(101, 163, 13, 0.28);
+}
+[data-theme="light"] .diet-btn-publish {
+    background: #65a30d;
+    color: #ffffff;
+    border-color: #65a30d;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+}
+[data-theme="light"] .diet-btn-publish:hover {
+    background: #4d7c0f;
+    border-color: #4d7c0f;
+    color: #ffffff;
+    box-shadow: 0 4px 12px rgba(101, 163, 13, 0.3);
+}
+
+@media (max-width: 600px) {
+    .diet-actions-wrap {
+        width: 100%;
+    }
+    .diet-actions-wrap form {
+        flex: 1;
+    }
+    .diet-action-btn {
+        width: 100%;
+    }
+}
+
 .diet-builder-layout {
     display: grid;
     grid-template-columns: 340px 1fr;

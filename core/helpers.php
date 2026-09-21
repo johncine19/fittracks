@@ -63,7 +63,17 @@ function flash(?string $message = null, string $type = 'success'): ?array
 
 function redirect(string $page = 'dashboard'): never
 {
-    header('Location: index.php?page=' . urlencode($page));
+    if (str_starts_with($page, 'index.php') || str_starts_with($page, 'http://') || str_starts_with($page, 'https://')) {
+        header('Location: ' . $page);
+    } elseif (str_contains($page, '?')) {
+        [$p, $query] = explode('?', $page, 2);
+        header('Location: index.php?page=' . urlencode($p) . '&' . $query);
+    } elseif (str_contains($page, '&')) {
+        [$p, $query] = explode('&', $page, 2);
+        header('Location: index.php?page=' . urlencode($p) . '&' . $query);
+    } else {
+        header('Location: index.php?page=' . urlencode($page));
+    }
     exit;
 }
 
