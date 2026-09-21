@@ -4174,3 +4174,30 @@ body:has(.subscription-viewport) .auth-shell {
 [data-theme="light"] .swal2-html-container {
     color: #475569 !important;
 }
+
+/* Universal Sound Toggle Alignment */
+.btn-sound-toggle {
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    gap: 7px !important;
+    vertical-align: middle;
+}
+.sound-toggle-icon {
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    line-height: 1 !important;
+    flex-shrink: 0 !important;
+}
+.sound-toggle-icon svg {
+    display: block !important;
+    width: 15px !important;
+    height: 15px !important;
+    margin: 0 !important;
+}
+.sound-toggle-text {
+    display: inline-flex !important;
+    align-items: center !important;
+    line-height: 1 !important;
+}

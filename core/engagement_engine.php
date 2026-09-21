@@ -272,46 +272,73 @@ function send_at_risk_notification_job(array $payload): void
 function process_automated_at_risk_notifications(): void
 {
     $pdo = db();
-    $atRiskMembers = get_inactive_members(99999);
     
-    $inactivityThreshold = (int) get_setting('at_risk_inactivity_days', '3');
-    $cooldownDays = (int) get_setting('at_risk_notification_cooldown', '14');
+    // Load platform defaults
+    $globalThreshold = (int) get_setting('at_risk_inactivity_days', '3');
+    $globalCooldown = (int) get_setting('at_risk_notification_cooldown', '14');
     
-    $userIds = [];
-    foreach ($atRiskMembers as $member) {
-        if (($member['days_inactive'] ?? 0) >= $inactivityThreshold) {
-            $userIds[] = (int) $member['user_id'];
+    // Load gym-level overrides
+    $gymOverrides = [];
+    try {
+        $gymRows = $pdo->query('SELECT gym_id, inactivity_threshold_days, inactivity_cooldown_days, auto_inactivity_alerts FROM gyms')->fetchAll(PDO::FETCH_ASSOC);
+        foreach ($gymRows as $g) {
+            $gymOverrides[(int)$g['gym_id']] = $g;
         }
-    }
-    
-    if (empty($userIds)) {
-        return;
-    }
-    
-    // Batch query to get recent notification counts for all these users
-    $placeholders = implode(',', array_fill(0, count($userIds), '?'));
-    $sql = "SELECT user_id, COUNT(*) as cnt FROM notifications 
-            WHERE user_id IN ($placeholders) 
-            AND type = 'system' 
-            AND title = 'We miss you at the gym!' 
-            AND created_at >= DATE_SUB(NOW(), INTERVAL ? DAY)
-            GROUP BY user_id";
-            
-    $params = $userIds;
-    $params[] = $cooldownDays;
-    
-    $stmt = $pdo->prepare($sql);
-    $stmt->execute($params);
-    $rows = $stmt->fetchAll();
-    
-    $notifCounts = [];
-    foreach ($rows as $row) {
-        $notifCounts[(int)$row['user_id']] = (int)$row['cnt'];
-    }
-    
-    foreach ($userIds as $userId) {
-        if (($notifCounts[$userId] ?? 0) === 0) {
-            // Instead of sending synchronously, queue it
+    } catch (Throwable $e) {}
+
+    // Fetch members with their primary gym affiliation and inactivity duration
+    $atRiskMembers = query_all(
+        'SELECT u.user_id, u.first_name, u.last_name, u.email, u.created_at, u.engagement_score,
+                COALESCE(gm.gym_id, mp.gym_id) as gym_id,
+                MAX(a.check_in_time) as last_checkin, 
+                COALESCE(DATEDIFF(CURDATE(), MAX(a.check_in_time)), DATEDIFF(CURDATE(), u.created_at)) as days_inactive
+         FROM users u
+         LEFT JOIN gym_members gm ON gm.user_id = u.user_id
+         LEFT JOIN memberships m ON m.user_id = u.user_id AND m.status = "active"
+         LEFT JOIN membership_plans mp ON mp.plan_id = m.plan_id
+         LEFT JOIN attendance a ON u.user_id = a.user_id
+         WHERE u.role = "member" AND u.status = "active"
+         GROUP BY u.user_id'
+    );
+
+    foreach ($atRiskMembers as $member) {
+        $userId = (int) $member['user_id'];
+        $daysInactive = (int) ($member['days_inactive'] ?? 0);
+        if ($daysInactive < 1) {
+            continue;
+        }
+
+        $gymId = !empty($member['gym_id']) ? (int) $member['gym_id'] : null;
+        $gymConfig = $gymId && isset($gymOverrides[$gymId]) ? $gymOverrides[$gymId] : null;
+
+        // Check if gym disabled automated alerts
+        if ($gymConfig && isset($gymConfig['auto_inactivity_alerts']) && (int)$gymConfig['auto_inactivity_alerts'] === 0) {
+            continue;
+        }
+
+        // Determine effective threshold and cooldown (Gym override > Platform default)
+        $effectiveThreshold = ($gymConfig && !empty($gymConfig['inactivity_threshold_days']))
+            ? (int) $gymConfig['inactivity_threshold_days']
+            : $globalThreshold;
+
+        if ($daysInactive < $effectiveThreshold) {
+            continue;
+        }
+
+        $effectiveCooldown = ($gymConfig && !empty($gymConfig['inactivity_cooldown_days']))
+            ? (int) $gymConfig['inactivity_cooldown_days']
+            : $globalCooldown;
+
+        // Check if user already received reminder within their effective cooldown window
+        $stmt = $pdo->prepare("SELECT COUNT(*) FROM notifications 
+                               WHERE user_id = ? 
+                                 AND type = 'system' 
+                                 AND title = 'We miss you at the gym!' 
+                                 AND created_at >= DATE_SUB(NOW(), INTERVAL ? DAY)");
+        $stmt->execute([$userId, $effectiveCooldown]);
+        $recentCount = (int) $stmt->fetchColumn();
+
+        if ($recentCount === 0) {
             Queue::push('send_at_risk_notification_job', ['user_id' => $userId]);
         }
     }

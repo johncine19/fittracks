@@ -130,6 +130,8 @@ function walk_ins_page(): void
     $rows->execute($params);
     $rows = $rows->fetchAll();
     
+    $gymWalkInFee = $gymId ? (float) (scalar('SELECT walk_in_fee FROM gyms WHERE gym_id = ?', [$gymId]) ?: 100.0) : 100.0;
+
     render_header('Walk-in Transactions', $user);
     ?>
     <section class="panel">
@@ -159,7 +161,7 @@ function walk_ins_page(): void
                         <input name="contact_info" type="tel" pattern="[0-9]{11}" maxlength="11" title="Please enter exactly 11 digits" placeholder="09123456789">
                     </label>
                     <label>Amount Paid
-                        <input name="amount_paid" type="number" step="0.01" min="0" placeholder="0.00" required>
+                        <input name="amount_paid" type="number" step="0.01" min="0" value="<?= h((string)($gymWalkInFee ?? '100.00')) ?>" placeholder="0.00" required>
                     </label>
                     <label>Payment Method
                         <select name="payment_method">

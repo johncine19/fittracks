@@ -20,6 +20,14 @@ function gym_profile_page(): void
         $name = trim((string) post('name'));
         $address = trim((string) post('address'));
         $contact = trim((string) post('contact_info'));
+        $walkInFee = max(0.0, (float) (post('walk_in_fee') !== null ? post('walk_in_fee') : 100.0));
+        $inactivityThreshold = post('inactivity_threshold_days') !== '' && post('inactivity_threshold_days') !== null 
+            ? max(1, (int) post('inactivity_threshold_days')) 
+            : null;
+        $inactivityCooldown = post('inactivity_cooldown_days') !== '' && post('inactivity_cooldown_days') !== null 
+            ? max(1, (int) post('inactivity_cooldown_days')) 
+            : null;
+        $autoInactivityAlerts = isset($_POST['auto_inactivity_alerts']) ? 1 : 0;
         if ($canCustomBrand) {
             $brandColor = trim((string) post('brand_color'));
             if ($brandColor !== '' && !preg_match('/^#[0-9A-Fa-f]{6}$/', $brandColor)) {
@@ -88,8 +96,8 @@ function gym_profile_page(): void
         }
 
         if ($name && $address) {
-            $pdo->prepare('UPDATE gyms SET name = ?, address = ?, contact_info = ?, business_permit_url = ?, logo_url = ?, brand_color = ? WHERE gym_id = ?')
-                ->execute([$name, $address, $contact, $permitUrl, $logoUrl, $brandColor, $gym['gym_id']]);
+            $pdo->prepare('UPDATE gyms SET name = ?, address = ?, contact_info = ?, walk_in_fee = ?, inactivity_threshold_days = ?, inactivity_cooldown_days = ?, auto_inactivity_alerts = ?, business_permit_url = ?, logo_url = ?, brand_color = ? WHERE gym_id = ?')
+                ->execute([$name, $address, $contact, $walkInFee, $inactivityThreshold, $inactivityCooldown, $autoInactivityAlerts, $permitUrl, $logoUrl, $brandColor, $gym['gym_id']]);
             flash('Gym profile updated successfully.', 'success');
             redirect('gym_profile');
         } else {
@@ -598,6 +606,47 @@ function gym_profile_page(): void
             word-break: break-all;
         }
 
+        .gym-switch-label {
+            position: relative;
+            display: inline-block;
+            width: 46px;
+            height: 26px;
+            flex-shrink: 0;
+            margin: 0;
+            cursor: pointer;
+        }
+        .gym-switch-label input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+        .gym-switch-slider {
+            position: absolute;
+            cursor: pointer;
+            inset: 0;
+            background-color: var(--line);
+            transition: .3s;
+            border-radius: 26px;
+        }
+        .gym-switch-slider:before {
+            position: absolute;
+            content: "";
+            height: 18px;
+            width: 18px;
+            left: 4px;
+            bottom: 4px;
+            background-color: white;
+            transition: .3s;
+            border-radius: 50%;
+        }
+        .gym-switch-label input:checked + .gym-switch-slider {
+            background-color: var(--lime, #84cc16);
+        }
+        .gym-switch-label input:checked + .gym-switch-slider:before {
+            transform: translateX(20px);
+            background-color: #06090e;
+        }
+
         .sticky-save-bar {
             margin-top: 24px;
             padding: 16px 24px;
@@ -873,6 +922,15 @@ function gym_profile_page(): void
                             </div>
                             <span class="field-hint">Phone or official email displayed to prospective gym members.</span>
                         </div>
+
+                        <div>
+                            <label class="field-label">Walk-in / Day Pass Fee (PHP)</label>
+                            <div class="input-icon-wrap">
+                                <span class="input-icon" style="font-weight: 800; font-size: 15px; color: var(--lime, #84cc16);">₱</span>
+                                <input type="number" step="0.01" min="0" name="walk_in_fee" class="input-with-icon" value="<?= h((string)($gym['walk_in_fee'] ?? '100.00')) ?>" placeholder="100.00">
+                            </div>
+                            <span class="field-hint">Default rate automatically charged at the QR Scanner Terminal when visitors or expired members check in.</span>
+                        </div>
                     </div>
                 </div>
                 
@@ -934,6 +992,53 @@ function gym_profile_page(): void
                         <span style="font-size: 11.5px; color: var(--muted);">Supports PDF, JPG, PNG (Max 10MB)</span>
                         <input type="file" name="business_permit" id="permit-file-input" accept=".pdf,.jpg,.jpeg,.png">
                     </label>
+                </div>
+
+                <div class="profile-card">
+                    <div class="profile-card-header">
+                        <h3 class="profile-card-title">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path><path d="M13.73 21a2 2 0 0 1-3.46 0"></path></svg>
+                            Member Inactivity & Churn Reminders
+                        </h3>
+                        <small style="color: var(--muted); font-size: 12px;">Automated retention nudges</small>
+                    </div>
+
+                    <div class="profile-input-group">
+                        <div style="display: flex; align-items: center; justify-content: space-between; padding: 14px 16px; background: var(--panel-soft); border: 1px solid var(--line); border-radius: 12px; gap: 14px;">
+                            <div>
+                                <strong style="display: block; font-size: 14px; color: var(--ink);">Automated "We Miss You!" Reminders</strong>
+                                <span style="font-size: 12px; color: var(--muted); line-height: 1.4; display: block; margin-top: 2px;">Automatically dispatch in-app and email reminders to members who stop attending.</span>
+                            </div>
+                            <label class="gym-switch-label" title="Toggle automated inactive reminders">
+                                <input type="checkbox" name="auto_inactivity_alerts" value="1" <?= ($gym['auto_inactivity_alerts'] ?? 1) ? 'checked' : '' ?>>
+                                <span class="gym-switch-slider"></span>
+                            </label>
+                        </div>
+
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px;">
+                            <div>
+                                <label class="field-label">Inactivity Threshold (Days)</label>
+                                <div class="input-icon-wrap">
+                                    <span class="input-icon">
+                                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+                                    </span>
+                                    <input type="number" min="1" max="90" name="inactivity_threshold_days" class="input-with-icon" value="<?= h((string)($gym['inactivity_threshold_days'] ?? '')) ?>" placeholder="Default: <?= (int)get_setting('at_risk_inactivity_days', '3') ?> days">
+                                </div>
+                                <span class="field-hint">Days of absence before member is flagged. Blank = Platform default (<?= (int)get_setting('at_risk_inactivity_days', '3') ?>d).</span>
+                            </div>
+
+                            <div>
+                                <label class="field-label">Re-send Cooldown (Days)</label>
+                                <div class="input-icon-wrap">
+                                    <span class="input-icon">
+                                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
+                                    </span>
+                                    <input type="number" min="1" max="180" name="inactivity_cooldown_days" class="input-with-icon" value="<?= h((string)($gym['inactivity_cooldown_days'] ?? '')) ?>" placeholder="Default: <?= (int)get_setting('at_risk_notification_cooldown', '14') ?> days">
+                                </div>
+                                <span class="field-hint">Minimum days between reminders to the same member. Blank = Platform default (<?= (int)get_setting('at_risk_notification_cooldown', '14') ?>d).</span>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
             

@@ -146,7 +146,13 @@ function profile_page(): void
             }
             redirect('profile');
         } elseif (isset($_POST['update_platform_settings']) && $user['role'] === 'platform_admin') {
-            $keys = ['platform_name', 'contact_email', 'registration_enabled'];
+            $keys = [
+                'platform_name', 
+                'contact_email', 
+                'registration_enabled',
+                'at_risk_inactivity_days',
+                'at_risk_notification_cooldown'
+            ];
             $pdo = db();
             foreach ($keys as $key) {
                 if (isset($_POST[$key])) {
@@ -157,7 +163,9 @@ function profile_page(): void
             audit_log((int)$user['user_id'], 'edit', 'platform_settings', null, json_encode([
                 'platform_name' => $_POST['platform_name'] ?? '',
                 'contact_email' => $_POST['contact_email'] ?? '',
-                'registration_enabled' => $_POST['registration_enabled'] ?? ''
+                'registration_enabled' => $_POST['registration_enabled'] ?? '',
+                'at_risk_inactivity_days' => $_POST['at_risk_inactivity_days'] ?? '',
+                'at_risk_notification_cooldown' => $_POST['at_risk_notification_cooldown'] ?? ''
             ]));
             flash('Platform settings updated successfully.', 'success');
             redirect('profile');
@@ -757,6 +765,24 @@ function profile_page(): void
                         <option value="1" <?= ($sysSettings['registration_enabled']['setting_value'] ?? '1') === '1' ? 'selected' : '' ?>>Enabled (Allow new gyms and members to register)</option>
                         <option value="0" <?= ($sysSettings['registration_enabled']['setting_value'] ?? '1') === '0' ? 'selected' : '' ?>>Disabled</option>
                     </select>
+                </label>
+
+                <h3 style="grid-column: 1 / -1; margin-top: 24px; font-size: 1.05rem; color: var(--ink); border-bottom: 1px solid var(--line); padding-bottom: 8px; display: flex; align-items: center; gap: 8px;">
+                    <span>🔔 Inactive Member Notifications</span>
+                </h3>
+
+                <label>Inactivity Threshold (Days)
+                    <input type="number" min="1" max="90" name="at_risk_inactivity_days" value="<?= h($sysSettings['at_risk_inactivity_days']['setting_value'] ?? '3') ?>" required>
+                    <span class="muted" style="font-size: 12px; display: block; margin-top: 4px;">
+                        Days of absence/no check-ins before a member is flagged as inactive and eligible for an automated reminder.
+                    </span>
+                </label>
+
+                <label>Re-send Cooldown (Days)
+                    <input type="number" min="1" max="180" name="at_risk_notification_cooldown" value="<?= h($sysSettings['at_risk_notification_cooldown']['setting_value'] ?? '14') ?>" required>
+                    <span class="muted" style="font-size: 12px; display: block; margin-top: 4px;">
+                        Minimum days to wait before sending another "We miss you!" reminder to the same member.
+                    </span>
                 </label>
 
                 <div style="grid-column: 1 / -1; margin-top: 10px;">
