@@ -91,3 +91,84 @@ Per the document, this is computed from three inputs:
 ## 6. Notes for Your Existing Codebase
 - Your current FITTRACKS hardening work (CSRF, rate limiting, email verification, N+1 fixes, audit logging) is infrastructure this feature set sits on top of — no rework needed there.
 - The engagement score and attendance modules are the most novel/differentiating parts relative to the reviewed systems (Odoo, SmartFit, FitBoat) per your own synthesis in Chapter 2.3 — prioritize these for your defense/demo.
+
+---
+
+## 7. Operational Enhancements & Automation Architecture
+
+### 7.1 Optical QR Scanner & Kiosk Terminal (`pages/admin/scanner.php`)
+- **Modern HUD & Live Counters**: Real-time attendance ticker, live digital clock, and dynamic occupancy badges (`Checked In Today`, `Currently Inside`).
+- **Low-Level Camera Engine**: Directly integrates `Html5Qrcode` with custom laser sweep animations, front/rear camera switcher, and hardware flashlight (torch) control.
+- **Kiosk Mode**: Fullscreen mode (`toggleKioskMode()`) with responsive layout protection for `.app-frame` to prevent column squishing on widescreen monitors.
+- **Walk-In Payment Modal**: Fast 1-tap payment selector (Cash, GCash, Card) and auto-calculated change calculator with high-contrast UI.
+- **Sound Toggle Standardization**: Pixel-perfect alignment of `.btn-sound-toggle` and `.sound-toggle-icon` across scanner and equipment modules.
+
+### 7.2 Configurable Walk-in Pricing
+- **Schema**: `gyms.walk_in_fee DECIMAL(10,2) NOT NULL DEFAULT 100.00`.
+- **Gym Owner Control**: Configurable in **Gym Profile** (`pages/admin/gym_profile.php`).
+- **Auto-Detection**: The scanner terminal and walk-in entry forms dynamically detect the gym's configured walk-in fee and pre-fill payment dialogs automatically.
+
+### 7.3 Hierarchical Inactive Member Notifications & Churn Prevention
+To balance platform standardization with gym owner autonomy, the system uses a 2-tier hierarchical configuration:
+
+| Layer | Location | Key Settings | Behavior |
+|---|---|---|---|
+| **Platform Admin** | Platform Settings (`settings.php`) | `at_risk_inactivity_days` (default: 3), `at_risk_notification_cooldown` (default: 14) | Sets global fallback defaults for all gyms on the platform. |
+| **Gym Owner** | Gym Profile (`gym_profile.php`) | `auto_inactivity_alerts` (toggle), `inactivity_threshold_days` (override), `inactivity_cooldown_days` (override) | Customizes alert thresholds per gym or disables automated alerts entirely. |
+
+- **Automated Engine Execution (`cron.php` & `core/engagement_engine.php`)**:
+  - `cron.php` pushes `process_automated_at_risk_notifications` to the queue worker.
+  - The worker checks each gym's `auto_inactivity_alerts`. If toggled OFF (`0`), member alerts for that gym are skipped.
+  - Resolves effective days using: `Gym Override ?? Platform Default`.
+  - Sends in-app reminder (`"We miss you at the gym!"`) and dispatches notification emails (`Emails::sendInactiveReminder`) respecting cooldown intervals.
+
+### 7.4 TiDB Cloud Migration Scripts
+```sql
+ALTER TABLE `gyms`
+  ADD COLUMN IF NOT EXISTS `walk_in_fee` DECIMAL(10,2) NOT NULL DEFAULT 100.00,
+  ADD COLUMN IF NOT EXISTS `inactivity_threshold_days` INT UNSIGNED DEFAULT NULL,
+  ADD COLUMN IF NOT EXISTS `inactivity_cooldown_days` INT UNSIGNED DEFAULT NULL,
+  ADD COLUMN IF NOT EXISTS `auto_inactivity_alerts` TINYINT(1) NOT NULL DEFAULT 1;
+```
+
+### 7.5 Biometric & Nutrition Calculation Engine (`core/helpers.php`)
+FitTracks automatically calculates personalized dietary plans from biometric member data:
+1. **Basal Metabolic Rate (BMR)** — **Mifflin-St Jeor Equation**:
+   - Men: `BMR = (10 × weight_kg) + (6.25 × height_cm) - (5 × age) + 5`
+   - Women: `BMR = (10 × weight_kg) + (6.25 × height_cm) - (5 × age) - 161`
+2. **Total Daily Energy Expenditure (TDEE)**:
+   - `TDEE = BMR × Activity Multiplier`
+   - Multipliers: Sedentary (`1.20`), Lightly Active (`1.375`), Moderately Active (`1.55`), Very Active (`1.725`), Extra Active (`1.90`).
+3. **Goal-Based Calorie Targets**:
+   - Fat Loss: `TDEE - 500 kcal` (safe deficit)
+   - Muscle Gain: `TDEE + 300 kcal` (controlled surplus)
+   - Maintenance / General Health: `TDEE` (enforced minimum floor: `1,200 kcal`)
+4. **Macronutrient Gram Distributions**:
+   - Uses `diet_rules` table based on goal and experience level (e.g. 35% Protein / 35% Carbs / 30% Fat).
+   - Protein Grams: `(Target Calories × Protein%) ÷ 4 kcal/g`
+   - Carbohydrate Grams: `(Target Calories × Carbs%) ÷ 4 kcal/g`
+   - Dietary Fat Grams: `(Target Calories × Fat%) ÷ 9 kcal/g`
+   - Automatically filters meals matching the member's dietary restrictions (e.g. vegan, halal, keto).
+
+### 7.6 Integrated Nutrition APIs & Equipment Queue API
+1. **CalorieNinjas API (`pages/member/food_lookup.php`)**:
+   - Natural Language Processing (NLP) nutrition lookup (`https://api.calorieninjas.com/v1/nutrition?query=...`).
+   - Converts natural phrases (e.g., *"2 eggs and 1 cup brown rice"*) into exact calories, protein, carbs, fat, fiber, sugar, sodium, and potassium.
+   - Configured via `.env` key: `CALORIENINJAS_API_KEY`.
+2. **Open Food Facts API (`pages/member/food_lookup.php`)**:
+   - Barcode and packaged product lookup mirror.
+   - Enables members, trainers, and gym owners to search and 1-click import external items directly into their gym's local food library (`action=import_external_food`).
+3. **Real-Time Gym Equipment Queue API (`pages/shared/equipment_api.php`)**:
+   - Dynamic real-time polling endpoint (`action=poll`) for equipment queue status, session countdown timers, waitlist position tracking, and audio chime notification triggers.
+
+### 7.7 Member Engagement Score Formula (`core/engagement_engine.php`)
+Calculates a weighted engagement score (0–100) reflecting member health and retention:
+- **Attendance Rate** (Weight configured via system settings)
+- **Class Bookings & Attendance**
+- **Weekly Consistency Streak** (Activity across 4 distinct weeks)
+- **Completed Daily Workouts** (Workouts on 8+ distinct days)
+- **Progress Tracking Updates** (Weigh-ins / body measurement logs)
+- **Classification Tiers**:
+  - `Highly Engaged`: Score ≥ 75
+  - `Moderately Engaged`: Score 40 – 74
+  - `At-Risk`: Score < 40 (eligible for automated churn re-engagement)
