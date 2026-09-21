@@ -887,6 +887,25 @@ function scanner_page(): void
         align-items: center;
         gap: 6px;
     }
+    .btn-stop-scanner-style {
+        color: var(--danger) !important;
+        border-color: color-mix(in srgb, var(--danger) 35%, transparent) !important;
+    }
+    .btn-stop-scanner-style:hover {
+        background: color-mix(in srgb, var(--danger) 15%, transparent) !important;
+        border-color: var(--danger) !important;
+        color: var(--danger) !important;
+        transform: translateY(-1px);
+    }
+    [data-theme="light"] .btn-stop-scanner-style {
+        color: #dc2626 !important;
+        border-color: #fca5a5 !important;
+        background: #fff5f5 !important;
+    }
+    [data-theme="light"] .btn-stop-scanner-style:hover {
+        background: #fee2e2 !important;
+        border-color: #ef4444 !important;
+    }
 
     /* -------------------------------------------------------------
        Right Column: Live Verification HUD & Reception Stream
@@ -1586,6 +1605,44 @@ function scanner_page(): void
         color: #0f172a !important;
     }
 
+    /* Walk-in SweetAlert Dialog */
+    .swal-method-btn {
+        background: #151a24;
+        color: #f8fafc;
+        border: 1px solid rgba(255, 255, 255, 0.14);
+        padding: 12px 6px;
+        border-radius: 12px;
+        font-weight: 700;
+        cursor: pointer;
+        font-size: 0.85rem;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 6px;
+        transition: all 0.2s ease;
+    }
+    .swal-method-btn:hover {
+        background: #1c2230;
+        border-color: rgba(255, 255, 255, 0.25);
+        transform: translateY(-1px);
+    }
+    .swal-method-btn.active {
+        border-color: var(--lime) !important;
+        background: color-mix(in srgb, var(--lime) 15%, #151a24) !important;
+        color: var(--lime) !important;
+        box-shadow: 0 0 16px color-mix(in srgb, var(--lime) 20%, transparent);
+    }
+    .swal-icon-wrap {
+        height: 26px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: inherit;
+    }
+    .swal-icon-wrap svg {
+        display: block;
+    }
+
     /* Walk-in SweetAlert Dialog In Light Mode */
     [data-theme="light"] .swal-method-btn {
         background: #f8fafc !important;
@@ -1594,11 +1651,14 @@ function scanner_page(): void
     }
     [data-theme="light"] .swal-method-btn:hover {
         background: #f1f5f9 !important;
+        border-color: #94a3b8 !important;
+        transform: translateY(-1px);
     }
     [data-theme="light"] .swal-method-btn.active {
         background: #f0fdf4 !important;
         border-color: #16a34a !important;
         color: #15803d !important;
+        box-shadow: 0 4px 14px rgba(22, 163, 74, 0.16) !important;
     }
     [data-theme="light"] #swal-amount {
         background: #f8fafc !important;
@@ -1750,9 +1810,13 @@ function scanner_page(): void
                         <span>Position member QR code inside the brackets. Tokens auto-verify.</span>
                     </div>
                     <div style="display: flex; gap: 8px;">
-                        <button type="button" class="term-btn-icon" id="btn-pause-scanner" style="display: none;">
+                        <button type="button" class="term-btn-icon" id="btn-pause-scanner" style="display: none;" title="Pause or resume live scanning">
                             <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>
                             <span>Pause</span>
+                        </button>
+                        <button type="button" class="term-btn-icon btn-stop-scanner-style" id="btn-stop-scanner" style="display: none;" title="Turn off camera and return to standby">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="2"/></svg>
+                            <span>Stop</span>
                         </button>
                     </div>
                 </div>
@@ -1954,6 +2018,7 @@ function scanner_page(): void
         const btnFlipCam = document.getElementById('btn-flip-cam');
         const btnToggleTorch = document.getElementById('btn-toggle-torch');
         const btnPauseScanner = document.getElementById('btn-pause-scanner');
+        const btnStopScanner = document.getElementById('btn-stop-scanner');
         const qrFileInput = document.getElementById('qr-file-input');
         const topBadge = document.getElementById('viewfinder-badge-top');
         const topBadgeText = document.getElementById('viewfinder-badge-text');
@@ -2045,15 +2110,16 @@ function scanner_page(): void
 
                 let cameraIdToUse = preferredCameraId;
                 if (!cameraIdToUse) {
-                    // Try to prefer back camera on mobile or saved camera
                     const savedCamera = localStorage.getItem('fittracks_scanner_cam');
                     const foundSaved = availableCameras.find(c => c.id === savedCamera);
                     if (foundSaved) {
                         cameraIdToUse = foundSaved.id;
                     } else {
-                        // Look for environment/rear camera
+                        // 1. Prefer rear/environment camera (phones/tablets)
                         const rear = availableCameras.find(c => /back|rear|environment/i.test(c.label));
-                        cameraIdToUse = rear ? rear.id : availableCameras[0].id;
+                        // 2. Prefer real physical webcam over virtual drivers (OBS, ManyCam, DroidCam)
+                        const physical = availableCameras.find(c => !/virtual|obs|manycam|droidcam|splitcam|ndi/i.test(c.label));
+                        cameraIdToUse = rear ? rear.id : (physical ? physical.id : availableCameras[0].id);
                     }
                 }
 
@@ -2077,12 +2143,33 @@ function scanner_page(): void
                     aspectRatio: 1.0
                 };
 
-                await html5QrCode.start(
-                    cameraIdToUse,
-                    config,
-                    onQrCodeScanned,
-                    onQrScanFailure
-                );
+                try {
+                    await html5QrCode.start(
+                        cameraIdToUse,
+                        config,
+                        onQrCodeScanned,
+                        onQrScanFailure
+                    );
+                } catch (startErr) {
+                    // If the camera failed and it's a virtual camera (like OBS), try auto-failing over to a physical camera
+                    const isVirtual = availableCameras.some(c => c.id === cameraIdToUse && /virtual|obs|manycam|droidcam/i.test(c.label));
+                    const physicalFallback = availableCameras.find(c => c.id !== cameraIdToUse && !/virtual|obs|manycam|droidcam/i.test(c.label));
+                    if (isVirtual && physicalFallback) {
+                        console.warn("Virtual camera failed, auto-failing over to physical webcam:", physicalFallback.label);
+                        cameraIdToUse = physicalFallback.id;
+                        currentCameraId = cameraIdToUse;
+                        cameraSelect.value = currentCameraId;
+                        localStorage.setItem('fittracks_scanner_cam', currentCameraId);
+                        await html5QrCode.start(
+                            cameraIdToUse,
+                            config,
+                            onQrCodeScanned,
+                            onQrScanFailure
+                        );
+                    } else {
+                        throw startErr;
+                    }
+                }
 
                 isScannerRunning = true;
                 isScannerPaused = false;
@@ -2090,6 +2177,7 @@ function scanner_page(): void
                 viewfinderWrap.classList.add('scanning');
                 btnPauseScanner.style.display = 'inline-flex';
                 btnPauseScanner.querySelector('span').textContent = 'Pause';
+                btnStopScanner.style.display = 'inline-flex';
                 topBadge.classList.add('is-active');
                 topBadgeText.textContent = 'LIVE SCANNING';
 
@@ -2107,14 +2195,26 @@ function scanner_page(): void
                 standbyScreen.style.display = 'flex';
                 topBadge.classList.remove('is-active');
                 topBadgeText.textContent = 'OFFLINE';
+                btnPauseScanner.style.display = 'none';
+                btnStopScanner.style.display = 'none';
 
-                let errMsg = 'Camera permission was denied. Please allow camera access in your browser.';
-                if (err && err.name === 'NotFoundError') {
-                    errMsg = 'No camera device found on this system.';
-                } else if (err && err.name === 'NotReadableError') {
-                    errMsg = 'Camera is currently in use by another application.';
+                const errStr = (typeof err === 'string' ? err : (err?.message || err?.name || String(err))).toLowerCase();
+                let errTitle = 'Camera Error';
+                let errMsg = 'Could not start camera stream.';
+
+                if (errStr.includes('notfound') || errStr.includes('devicesnotfound')) {
+                    errTitle = 'No Camera Detected';
+                    errMsg = 'No webcam or optical sensor found on this system.';
+                } else if (errStr.includes('notreadable') || errStr.includes('could not start video source') || errStr.includes('track') || errStr.includes('in use') || errStr.includes('source')) {
+                    errTitle = 'Camera Unavailable';
+                    errMsg = 'The selected camera (e.g. OBS Virtual Camera) is inactive or in use by another app. Please select your physical webcam from the dropdown above.';
+                } else if (errStr.includes('notallowed') || errStr.includes('permission') || errStr.includes('denied')) {
+                    errTitle = 'Camera Access Required';
+                    errMsg = 'Camera permission was denied. Please allow camera access in your browser.';
+                } else {
+                    errMsg = (err && err.message) ? err.message : 'Camera failed to activate. Please choose another camera from the dropdown.';
                 }
-                showErrorResult('Camera Access Required', errMsg);
+                showErrorResult(errTitle, errMsg);
             }
         }
 
@@ -2175,7 +2275,9 @@ function scanner_page(): void
         // Process Attendance with Server
         function processAttendanceData(qrString, method = 'qr_code') {
             isProcessing = true;
-            processedTokensInSession.add(qrString);
+            if (method !== 'image_file') {
+                processedTokensInSession.add(qrString);
+            }
 
             // Audio & Visual Trigger
             viewfinderWrap.classList.add('flash-success');
@@ -2218,17 +2320,21 @@ function scanner_page(): void
                                 <label style="display: block; font-size: 0.78rem; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 8px;">
                                     Payment Method
                                 </label>
-                                <div class="swal-pay-methods" style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 8px;">
-                                    <button type="button" class="swal-method-btn active" data-method="cash" onclick="window.setSwalMethod('cash', this)" style="padding: 10px 6px; border-radius: 10px; font-weight: 700; cursor: pointer; font-size: 0.85rem; display: flex; flex-direction: column; align-items: center; gap: 4px; transition: all 0.2s;">
-                                        <span style="font-size: 1.25rem;">💵</span>
+                                <div class="swal-pay-methods" style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 10px;">
+                                    <button type="button" class="swal-method-btn active" data-method="cash" onclick="window.setSwalMethod('cash', this)">
+                                        <span class="swal-icon-wrap" style="font-weight: 900; font-size: 1.45rem; line-height: 1;">₱</span>
                                         <span>Cash</span>
                                     </button>
-                                    <button type="button" class="swal-method-btn" data-method="gcash" onclick="window.setSwalMethod('gcash', this)" style="padding: 10px 6px; border-radius: 10px; font-weight: 700; cursor: pointer; font-size: 0.85rem; display: flex; flex-direction: column; align-items: center; gap: 4px; transition: all 0.2s;">
-                                        <span style="font-size: 1.25rem;">📱</span>
+                                    <button type="button" class="swal-method-btn" data-method="gcash" onclick="window.setSwalMethod('gcash', this)">
+                                        <span class="swal-icon-wrap">
+                                            <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="2" width="12" height="20" rx="2"></rect><line x1="10" y1="18" x2="14" y2="18"></line></svg>
+                                        </span>
                                         <span>GCash</span>
                                     </button>
-                                    <button type="button" class="swal-method-btn" data-method="card" onclick="window.setSwalMethod('card', this)" style="padding: 10px 6px; border-radius: 10px; font-weight: 700; cursor: pointer; font-size: 0.85rem; display: flex; flex-direction: column; align-items: center; gap: 4px; transition: all 0.2s;">
-                                        <span style="font-size: 1.25rem;">💳</span>
+                                    <button type="button" class="swal-method-btn" data-method="card" onclick="window.setSwalMethod('card', this)">
+                                        <span class="swal-icon-wrap">
+                                            <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="20" height="14" rx="2"></rect><line x1="2" y1="10" x2="22" y2="10"></line></svg>
+                                        </span>
                                         <span>Card</span>
                                     </button>
                                 </div>
@@ -2294,6 +2400,9 @@ function scanner_page(): void
                     handleSuccessResponse(data);
                 } else {
                     showErrorResult('Scan Verification Failed', data.message);
+                    setTimeout(() => {
+                        processedTokensInSession.delete(qrString);
+                    }, 4000);
                 }
             })
             .catch(err => {
@@ -2421,21 +2530,36 @@ function scanner_page(): void
             activityList.insertBefore(row, activityList.firstChild);
         }
 
+        // Dedicated offscreen instance for file scans (does not interfere with active camera stream)
+        let fileScannerInstance = null;
+        function getFileScanner() {
+            if (!fileScannerInstance) {
+                let dummy = document.getElementById('qr-file-dummy-container');
+                if (!dummy) {
+                    dummy = document.createElement('div');
+                    dummy.id = 'qr-file-dummy-container';
+                    dummy.style.display = 'none';
+                    document.body.appendChild(dummy);
+                }
+                fileScannerInstance = new Html5Qrcode('qr-file-dummy-container');
+            }
+            return fileScannerInstance;
+        }
+
         // Scan from Image File
         qrFileInput.addEventListener('change', function(e) {
             const file = e.target.files && e.target.files[0];
             if (!file) return;
 
-            initScannerEngine();
             setHudState('processing');
 
-            html5QrCode.scanFile(file, false)
+            getFileScanner().scanFile(file, false)
                 .then(decodedText => {
                     processAttendanceData(decodedText, 'image_file');
                     qrFileInput.value = '';
                 })
                 .catch(err => {
-                    console.error(err);
+                    console.error("File QR decode error:", err);
                     showErrorResult('No QR Code Found', 'Could not detect a valid FitTrack QR code in this image.');
                     qrFileInput.value = '';
                 });
@@ -2487,6 +2611,35 @@ function scanner_page(): void
             }
         });
 
+        // Stop Camera Scanner Completely (Returns to Standby Screen)
+        async function stopCameraScanner() {
+            if (!html5QrCode) return;
+            try {
+                if (isScannerRunning) {
+                    await html5QrCode.stop();
+                }
+            } catch (e) {
+                console.warn("Camera stop error:", e);
+            }
+            isScannerRunning = false;
+            isScannerPaused = false;
+            viewfinderWrap.classList.remove('scanning');
+            standbyScreen.style.display = 'flex';
+            topBadge.classList.remove('is-active');
+            topBadgeText.textContent = 'STANDBY';
+            btnPauseScanner.style.display = 'none';
+            btnStopScanner.style.display = 'none';
+            btnFlipCam.style.display = 'none';
+            btnToggleTorch.style.display = 'none';
+            if (isTorchOn) {
+                isTorchOn = false;
+                btnToggleTorch.classList.remove('active');
+            }
+            setHudState('idle');
+        }
+
+        btnStopScanner.addEventListener('click', stopCameraScanner);
+
         // Drag & Drop image files onto the viewfinder
         viewfinderWrap.addEventListener('dragover', (e) => {
             e.preventDefault();
@@ -2500,9 +2653,8 @@ function scanner_page(): void
             viewfinderWrap.style.borderColor = '';
             if (e.dataTransfer.files && e.dataTransfer.files[0]) {
                 const file = e.dataTransfer.files[0];
-                initScannerEngine();
                 setHudState('processing');
-                html5QrCode.scanFile(file, false)
+                getFileScanner().scanFile(file, false)
                     .then(decodedText => processAttendanceData(decodedText, 'image_file'))
                     .catch(() => showErrorResult('No QR Code Found', 'Dropped image did not contain a readable QR code.'));
             }
