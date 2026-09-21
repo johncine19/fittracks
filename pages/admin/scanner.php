@@ -829,12 +829,12 @@ function scanner_page(): void
     .standby-title {
         font-size: 1.2rem;
         font-weight: 800;
-        color: var(--ink);
+        color: #f8fafc;
         margin-bottom: 6px;
     }
     .standby-desc {
         font-size: 0.84rem;
-        color: var(--muted);
+        color: #94a3b8;
         max-width: 320px;
         line-height: 1.45;
         margin-bottom: 20px;
@@ -1357,6 +1357,262 @@ function scanner_page(): void
     body.scanner-kiosk-mode .scanner-page-wrap {
         max-width: 100% !important;
         padding: 8px 16px 40px !important;
+    }
+
+    /* =========================================================
+       Light Mode Theme Adaptations for Scanner Terminal
+       ========================================================= */
+    [data-theme="light"] .scanner-page-wrap {
+        color: #1e293b;
+    }
+    [data-theme="light"] .terminal-digital-time {
+        color: #0f172a;
+    }
+    [data-theme="light"] .terminal-digital-date {
+        color: #64748b;
+    }
+    [data-theme="light"] .terminal-hud-pill {
+        background: #f0fdf4 !important;
+        border-color: #bbf7d0 !important;
+        color: #15803d !important;
+    }
+    [data-theme="light"] .pulse-dot {
+        background: #16a34a !important;
+        box-shadow: 0 0 10px #16a34a !important;
+    }
+
+    /* Terminal Action Buttons in Light Mode */
+    [data-theme="light"] .term-btn-icon {
+        background: #ffffff;
+        color: #1e293b;
+        border: 1px solid #cbd5e1;
+        box-shadow: 0 2px 6px rgba(0, 0, 0, 0.04);
+    }
+    [data-theme="light"] .term-btn-icon:hover {
+        background: #f0fdf4;
+        border-color: #86efac;
+        color: #15803d;
+        box-shadow: 0 4px 12px rgba(22, 163, 74, 0.12);
+    }
+    [data-theme="light"] .term-btn-icon.active {
+        background: #16a34a !important;
+        color: #ffffff !important;
+        border-color: #16a34a !important;
+    }
+
+    /* Cards & Containers */
+    [data-theme="light"] .scanner-terminal-card,
+    [data-theme="light"] .verification-card,
+    [data-theme="light"] .activity-feed-card,
+    [data-theme="light"] .term-stat-box {
+        background: #ffffff !important;
+        border-color: #cbd5e1 !important;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05) !important;
+    }
+
+    /* Viewfinder & Standby Screen in Light Mode */
+    [data-theme="light"] .viewfinder-wrapper {
+        background: #f8fafc !important;
+        border: 2px solid #cbd5e1 !important;
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.06), inset 0 0 30px rgba(0, 0, 0, 0.02) !important;
+    }
+    [data-theme="light"] .viewfinder-wrapper.scanning {
+        border-color: #16a34a !important;
+        box-shadow: 0 0 30px rgba(22, 163, 74, 0.25) !important;
+    }
+    [data-theme="light"] .viewfinder-standby-screen {
+        background: radial-gradient(circle at center, #ffffff 0%, #f1f5f9 100%) !important;
+    }
+    [data-theme="light"] .standby-icon-box {
+        background: #f0fdf4 !important;
+        border-color: #bbf7d0 !important;
+        color: #16a34a !important;
+        box-shadow: 0 10px 24px rgba(22, 163, 74, 0.14) !important;
+    }
+    [data-theme="light"] .standby-title {
+        color: #0f172a !important;
+    }
+    [data-theme="light"] .standby-desc {
+        color: #475569 !important;
+    }
+    [data-theme="light"] .btn-start-camera {
+        background: #16a34a !important;
+        color: #ffffff !important;
+        box-shadow: 0 6px 20px rgba(22, 163, 74, 0.35) !important;
+    }
+    [data-theme="light"] .btn-start-camera:hover {
+        background: #15803d !important;
+        box-shadow: 0 10px 28px rgba(22, 163, 74, 0.45) !important;
+    }
+    [data-theme="light"] .standby-file-drop {
+        color: #64748b !important;
+    }
+    [data-theme="light"] .standby-file-link {
+        color: #15803d !important;
+        font-weight: 700;
+    }
+    [data-theme="light"] .viewfinder-badge-top {
+        background: rgba(255, 255, 255, 0.92) !important;
+        border-color: #cbd5e1 !important;
+        color: #0f172a !important;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08) !important;
+    }
+
+    /* Reticle & Laser on Light Mode */
+    [data-theme="light"] .reticle-corner {
+        border-color: #22c55e !important;
+        filter: drop-shadow(0 0 8px #22c55e) !important;
+    }
+    [data-theme="light"] .reticle-center-guide {
+        color: #16a34a !important;
+    }
+    [data-theme="light"] .scanner-laser {
+        background: linear-gradient(90deg, transparent 0%, #22c55e 50%, transparent 100%) !important;
+        box-shadow: 0 0 14px 2px #22c55e, 0 0 28px #22c55e !important;
+    }
+
+    /* Select Dropdowns */
+    [data-theme="light"] .scanner-select {
+        background: #f8fafc !important;
+        border-color: #cbd5e1 !important;
+        color: #0f172a !important;
+    }
+    [data-theme="light"] .scanner-select option {
+        background: #ffffff !important;
+        color: #0f172a !important;
+    }
+
+    /* Stat Boxes */
+    [data-theme="light"] .term-stat-num {
+        color: #0f172a !important;
+    }
+    [data-theme="light"] .term-stat-label {
+        color: #64748b !important;
+    }
+    [data-theme="light"] .term-stat-icon.green {
+        background: #f0fdf4 !important;
+        color: #16a34a !important;
+        border-color: #bbf7d0 !important;
+    }
+    [data-theme="light"] .term-stat-icon.blue {
+        background: #f0f9ff !important;
+        color: #0284c7 !important;
+        border-color: #bae6fd !important;
+    }
+
+    /* Verification Card In Light Mode */
+    [data-theme="light"] .veri-member-name {
+        color: #0f172a !important;
+    }
+    [data-theme="light"] .veri-chip {
+        background: #f1f5f9 !important;
+        border-color: #cbd5e1 !important;
+        color: #475569 !important;
+    }
+    [data-theme="light"] .veri-chip.highlight {
+        background: #f0fdf4 !important;
+        border-color: #bbf7d0 !important;
+        color: #15803d !important;
+    }
+    [data-theme="light"] .veri-status-tag.tag-idle {
+        background: #f1f5f9 !important;
+        color: #64748b !important;
+        border-color: #cbd5e1 !important;
+    }
+
+    /* Activity Stream */
+    [data-theme="light"] .activity-feed-title {
+        color: #0f172a !important;
+    }
+    [data-theme="light"] .activity-feed-filter {
+        background: #f1f5f9 !important;
+    }
+    [data-theme="light"] .filter-tab {
+        color: #64748b !important;
+    }
+    [data-theme="light"] .filter-tab.active {
+        background: #ffffff !important;
+        color: #0f172a !important;
+        box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08) !important;
+    }
+    [data-theme="light"] .activity-item {
+        background: #f8fafc !important;
+        border-color: #e2e8f0 !important;
+    }
+    [data-theme="light"] .activity-item:hover {
+        background: #ffffff !important;
+        border-color: #86efac !important;
+        box-shadow: 0 4px 14px rgba(0, 0, 0, 0.05) !important;
+    }
+    [data-theme="light"] .activity-name {
+        color: #0f172a !important;
+    }
+    [data-theme="light"] .activity-sub {
+        color: #64748b !important;
+    }
+
+    /* Manual Entry Modal In Light Mode */
+    [data-theme="light"] .manual-modal-overlay {
+        background: rgba(15, 23, 42, 0.45) !important;
+    }
+    [data-theme="light"] .manual-modal-card {
+        background: #ffffff !important;
+        border-color: #cbd5e1 !important;
+        box-shadow: 0 20px 50px rgba(0, 0, 0, 0.15) !important;
+    }
+    [data-theme="light"] .manual-modal-header {
+        border-bottom-color: #e2e8f0 !important;
+    }
+    [data-theme="light"] .manual-modal-header h3 {
+        color: #0f172a !important;
+    }
+    [data-theme="light"] .manual-search-box {
+        border-bottom-color: #e2e8f0 !important;
+    }
+    [data-theme="light"] .manual-search-input {
+        background: #f8fafc !important;
+        border-color: #cbd5e1 !important;
+        color: #0f172a !important;
+    }
+    [data-theme="light"] .manual-item {
+        background: #f8fafc !important;
+        border-color: #e2e8f0 !important;
+    }
+    [data-theme="light"] .manual-item:hover {
+        background: #ffffff !important;
+        border-color: #16a34a !important;
+    }
+    [data-theme="light"] .manual-item-name {
+        color: #0f172a !important;
+    }
+
+    /* Walk-in SweetAlert Dialog In Light Mode */
+    [data-theme="light"] .swal-method-btn {
+        background: #f8fafc !important;
+        color: #1e293b !important;
+        border: 1px solid #cbd5e1 !important;
+    }
+    [data-theme="light"] .swal-method-btn:hover {
+        background: #f1f5f9 !important;
+    }
+    [data-theme="light"] .swal-method-btn.active {
+        background: #f0fdf4 !important;
+        border-color: #16a34a !important;
+        color: #15803d !important;
+    }
+    [data-theme="light"] #swal-amount {
+        background: #f8fafc !important;
+        color: #0f172a !important;
+        border-color: #cbd5e1 !important;
+    }
+    [data-theme="light"] #swal-method-select {
+        background: #f8fafc !important;
+        color: #0f172a !important;
+        border-color: #cbd5e1 !important;
+    }
+    [data-theme="light"] #swal-method-select option {
+        background: #ffffff !important;
+        color: #0f172a !important;
     }
     </style>
 
@@ -1956,22 +2212,22 @@ function scanner_page(): void
                                 </div>
                                 <div style="position: relative; margin-bottom: 16px;">
                                     <span style="position: absolute; left: 14px; top: 50%; transform: translateY(-50%); font-weight: 800; color: var(--lime); font-size: 16px;">₱</span>
-                                    <input type="number" id="swal-amount" class="swal2-input" placeholder="0.00" step="0.01" min="0" value="${defaultFee}" style="width: 100% !important; margin: 0 !important; padding-left: 36px !important; height: 46px !important; background: #151a24 !important; color: #f8fafc !important; border: 1px solid rgba(255, 255, 255, 0.15) !important; border-radius: 12px !important; box-sizing: border-box !important; font-size: 1.15rem !important; font-weight: 800 !important;">
+                                    <input type="number" id="swal-amount" class="swal2-input swal-amount-input" placeholder="0.00" step="0.01" min="0" value="${defaultFee}" style="width: 100% !important; margin: 0 !important; padding-left: 36px !important; height: 46px !important; border-radius: 12px !important; box-sizing: border-box !important; font-size: 1.15rem !important; font-weight: 800 !important;">
                                 </div>
 
                                 <label style="display: block; font-size: 0.78rem; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 8px;">
                                     Payment Method
                                 </label>
                                 <div class="swal-pay-methods" style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 8px;">
-                                    <button type="button" class="swal-method-btn active" data-method="cash" onclick="window.setSwalMethod('cash', this)" style="padding: 10px 6px; border-radius: 10px; border: 2px solid var(--lime); background: color-mix(in srgb, var(--lime) 15%, #151a24); color: var(--lime); font-weight: 700; cursor: pointer; font-size: 0.85rem; display: flex; flex-direction: column; align-items: center; gap: 4px; transition: all 0.2s;">
+                                    <button type="button" class="swal-method-btn active" data-method="cash" onclick="window.setSwalMethod('cash', this)" style="padding: 10px 6px; border-radius: 10px; font-weight: 700; cursor: pointer; font-size: 0.85rem; display: flex; flex-direction: column; align-items: center; gap: 4px; transition: all 0.2s;">
                                         <span style="font-size: 1.25rem;">💵</span>
                                         <span>Cash</span>
                                     </button>
-                                    <button type="button" class="swal-method-btn" data-method="gcash" onclick="window.setSwalMethod('gcash', this)" style="padding: 10px 6px; border-radius: 10px; border: 1px solid rgba(255, 255, 255, 0.14); background: #151a24; color: #f8fafc; font-weight: 700; cursor: pointer; font-size: 0.85rem; display: flex; flex-direction: column; align-items: center; gap: 4px; transition: all 0.2s;">
+                                    <button type="button" class="swal-method-btn" data-method="gcash" onclick="window.setSwalMethod('gcash', this)" style="padding: 10px 6px; border-radius: 10px; font-weight: 700; cursor: pointer; font-size: 0.85rem; display: flex; flex-direction: column; align-items: center; gap: 4px; transition: all 0.2s;">
                                         <span style="font-size: 1.25rem;">📱</span>
                                         <span>GCash</span>
                                     </button>
-                                    <button type="button" class="swal-method-btn" data-method="card" onclick="window.setSwalMethod('card', this)" style="padding: 10px 6px; border-radius: 10px; border: 1px solid rgba(255, 255, 255, 0.14); background: #151a24; color: #f8fafc; font-weight: 700; cursor: pointer; font-size: 0.85rem; display: flex; flex-direction: column; align-items: center; gap: 4px; transition: all 0.2s;">
+                                    <button type="button" class="swal-method-btn" data-method="card" onclick="window.setSwalMethod('card', this)" style="padding: 10px 6px; border-radius: 10px; font-weight: 700; cursor: pointer; font-size: 0.85rem; display: flex; flex-direction: column; align-items: center; gap: 4px; transition: all 0.2s;">
                                         <span style="font-size: 1.25rem;">💳</span>
                                         <span>Card</span>
                                     </button>
@@ -1979,10 +2235,10 @@ function scanner_page(): void
                                 <input type="hidden" id="swal-method" value="cash">
 
                                 <div style="margin-top: 8px;">
-                                    <select id="swal-method-select" onchange="window.setSwalMethod(this.value)" style="width: 100%; height: 38px; background: #151a24 !important; color: #f8fafc !important; border: 1px solid rgba(255, 255, 255, 0.14); border-radius: 8px; padding: 0 10px; font-size: 0.82rem; outline: none;">
-                                        <option value="cash" style="background: #151a24; color: #ffffff;">Payment Method: Cash</option>
-                                        <option value="gcash" style="background: #151a24; color: #ffffff;">Payment Method: GCash</option>
-                                        <option value="card" style="background: #151a24; color: #ffffff;">Payment Method: Debit / Credit Card</option>
+                                    <select id="swal-method-select" onchange="window.setSwalMethod(this.value)" style="width: 100%; height: 38px; border-radius: 8px; padding: 0 10px; font-size: 0.82rem; outline: none;">
+                                        <option value="cash">Payment Method: Cash</option>
+                                        <option value="gcash">Payment Method: GCash</option>
+                                        <option value="card">Payment Method: Debit / Credit Card</option>
                                     </select>
                                 </div>
                             </div>
@@ -2001,10 +2257,7 @@ function scanner_page(): void
                                 const sel = document.getElementById('swal-method-select');
                                 if (sel) sel.value = m;
                                 document.querySelectorAll('.swal-method-btn').forEach(b => {
-                                    const match = b.getAttribute('data-method') === m;
-                                    b.style.borderColor = match ? 'var(--lime)' : 'rgba(255, 255, 255, 0.14)';
-                                    b.style.background = match ? 'color-mix(in srgb, var(--lime) 15%, #151a24)' : '#151a24';
-                                    b.style.color = match ? 'var(--lime)' : '#f8fafc';
+                                    b.classList.toggle('active', b.getAttribute('data-method') === m);
                                 });
                             };
                         },
