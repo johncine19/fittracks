@@ -3304,6 +3304,8 @@ body:has(.subscription-viewport) .auth-shell {
 }
 
 .split-form-group label {
+    display: inline-flex;
+    align-items: baseline;
     font-size: 13px;
     font-weight: 600;
     color: #334155;
@@ -3759,23 +3761,289 @@ body:has(.subscription-viewport) .auth-shell {
    ========================================================================== */
 
 /* ==========================================================================
-   Gym Onboarding Enhancements for Split Layout
+   Gym Onboarding Centered Wizard Layout (Replaces Split-Screen)
    ========================================================================== */
-.split-login-frame.onboarding-mode {
-    max-width: 1120px;
-    grid-template-columns: 1fr 1.08fr;
+.onboarding-wizard-frame {
+    width: 100%;
+    max-width: 820px;
+    margin: 0 auto;
+    position: relative;
+    z-index: 2;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+.onboarding-brand-header {
+    text-align: center;
+    margin-bottom: 22px;
+}
+
+.onboarding-brand-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 12px;
+    text-decoration: none;
+    transition: opacity 0.2s ease;
+}
+
+.onboarding-brand-link:hover {
+    opacity: 0.9;
+}
+
+.onboarding-brand-icon {
+    width: 40px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.onboarding-brand-text {
+    display: flex;
+    flex-direction: column;
+    text-align: left;
+}
+
+.onboarding-brand-name {
+    font-size: 24px;
+    font-weight: 900;
+    letter-spacing: -0.03em;
+    font-style: italic;
+    color: #ffffff;
+    font-family: 'Bricolage Grotesque', Inter, sans-serif;
+    line-height: 1;
+}
+
+.onboarding-brand-name span {
+    color: #84cc16;
+}
+
+.onboarding-brand-tagline {
+    font-size: 10.5px;
+    color: #94a3b8;
+    font-weight: 600;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    margin-top: 3px;
 }
 
 .split-login-card.onboarding-card {
-    max-width: 520px;
-    padding: 28px 26px;
+    max-width: 820px;
+    width: 100%;
+    padding: 34px 40px;
+    border-radius: 22px;
+    box-shadow: 0 24px 60px -15px rgba(0, 0, 0, 0.75), 0 0 0 1px rgba(255, 255, 255, 0.1);
+}
+
+.split-login-card.onboarding-card .split-form-row-2col {
+    gap: 16px;
+    margin-bottom: 12px;
+}
+
+.split-login-card.onboarding-card .split-file-upload-box {
+    min-height: 94px;
+    padding: 14px 16px;
+    gap: 4px;
+}
+
+.onboarding-review-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 16px;
+    margin-bottom: 4px;
+}
+
+.step1-layout-grid {
+    display: grid;
+    grid-template-columns: 1.12fr 0.88fr;
+    gap: 22px;
+    align-items: start;
+}
+
+.step1-form-col {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.step1-preview-col {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.facility-preview-card {
+    background: linear-gradient(145deg, #f8fafc 0%, #f1f5f9 100%);
+    border: 1.5px solid #e2e8f0;
+    border-radius: 16px;
+    padding: 16px 18px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.04);
+}
+
+.facility-preview-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.facility-preview-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 10.5px;
+    font-weight: 700;
+    color: #65a30d;
+    background: rgba(132, 204, 22, 0.12);
+    border: 1px solid rgba(132, 204, 22, 0.25);
+    border-radius: 99px;
+    padding: 2px 8px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.pulse-indicator {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: #84cc16;
+    box-shadow: 0 0 0 0 rgba(132, 204, 22, 0.7);
+    animation: pulseGreen 1.8s infinite;
+}
+
+@keyframes pulseGreen {
+    0% { box-shadow: 0 0 0 0 rgba(132, 204, 22, 0.7); }
+    70% { box-shadow: 0 0 0 6px rgba(132, 204, 22, 0); }
+    100% { box-shadow: 0 0 0 0 rgba(132, 204, 22, 0); }
+}
+
+.facility-preview-status {
+    font-size: 11px;
+    font-weight: 600;
+    color: #d97706;
+    background: rgba(245, 158, 11, 0.12);
+    border-radius: 5px;
+    padding: 2px 7px;
+}
+
+.facility-preview-body {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid #e2e8f0;
+}
+
+.facility-preview-icon-wrap {
+    width: 42px;
+    height: 42px;
+    border-radius: 11px;
+    background: #0f172a;
+    color: #84cc16;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.12);
+}
+
+.facility-preview-icon-wrap svg {
+    width: 20px;
+    height: 20px;
+}
+
+.facility-preview-meta {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.facility-preview-title {
+    margin: 0;
+    font-size: 14.5px;
+    font-weight: 800;
+    color: #0f172a;
+    word-break: break-word;
+    font-family: 'Bricolage Grotesque', Inter, sans-serif;
+    line-height: 1.25;
+}
+
+.facility-preview-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11.5px;
+    color: #64748b;
+    word-break: break-word;
+}
+
+.facility-preview-item svg {
+    width: 12px;
+    height: 12px;
+    flex-shrink: 0;
+    opacity: 0.8;
+}
+
+.facility-preview-perks {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.perk-title {
+    font-size: 10.5px;
+    font-weight: 700;
+    color: #475569;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+    margin-bottom: 2px;
+}
+
+.perk-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 7px;
+    font-size: 11.5px;
+    color: #334155;
+    line-height: 1.35;
+}
+
+.perk-item svg {
+    width: 14px;
+    height: 14px;
+    flex-shrink: 0;
+    margin-top: 1px;
+}
+
+@media (max-width: 768px) {
+    .split-login-card.onboarding-card {
+        padding: 24px 18px;
+        border-radius: 18px;
+    }
+    .onboarding-review-grid {
+        grid-template-columns: 1fr;
+        gap: 12px;
+    }
+    .step1-layout-grid {
+        grid-template-columns: 1fr;
+        gap: 16px;
+    }
+    .step1-preview-col {
+        display: none;
+    }
 }
 
 .split-file-upload-box {
     border: 1.5px dashed #cbd5e1;
     background: #f8fafc;
     border-radius: 10px;
-    padding: 14px 12px;
+    padding: 12px 10px;
     text-align: center;
     cursor: pointer;
     position: relative;
@@ -3784,7 +4052,8 @@ body:has(.subscription-viewport) .auth-shell {
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    gap: 4px;
+    gap: 3px;
+    min-height: 84px;
 }
 
 .split-file-upload-box:hover,
@@ -3804,8 +4073,8 @@ body:has(.subscription-viewport) .auth-shell {
 }
 
 .split-upload-icon {
-    width: 26px;
-    height: 26px;
+    width: 22px;
+    height: 22px;
     color: #64748b;
     margin-bottom: 2px;
     transition: color 0.2s;
@@ -3817,23 +4086,369 @@ body:has(.subscription-viewport) .auth-shell {
 }
 
 .split-upload-title {
-    font-size: 12.5px;
+    font-size: 12px;
     font-weight: 600;
     color: #1e293b;
+    line-height: 1.2;
 }
 
 .split-upload-desc {
-    font-size: 11px;
+    font-size: 10.5px;
     color: #64748b;
+    line-height: 1.2;
 }
 
 .split-upload-filename {
-    font-size: 11.5px;
+    font-size: 11px;
     font-weight: 600;
     color: #65a30d;
     margin-top: 2px;
     display: none;
     word-break: break-all;
+}
+
+/* Document Requirement Badges */
+.req-star {
+    display: inline;
+    color: #ef4444;
+    font-weight: 700;
+    margin-left: 1px;
+    line-height: 1;
+}
+
+.opt-label {
+    font-weight: 400;
+    color: #94a3b8;
+    font-size: 11.5px;
+    margin-left: 4px;
+}
+
+.badge-doc-req {
+    display: inline-flex;
+    align-items: center;
+    font-size: 9.5px;
+    font-weight: 700;
+    padding: 1px 5px;
+    border-radius: 4px;
+    background: rgba(239, 68, 68, 0.12);
+    color: #dc2626;
+    border: 1px solid rgba(239, 68, 68, 0.28);
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+    margin-left: 5px;
+    vertical-align: middle;
+}
+
+.badge-doc-opt {
+    display: inline-flex;
+    align-items: center;
+    font-size: 9.5px;
+    font-weight: 600;
+    padding: 1px 5px;
+    border-radius: 4px;
+    background: rgba(100, 116, 139, 0.12);
+    color: #64748b;
+    border: 1px solid rgba(100, 116, 139, 0.24);
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+    margin-left: 5px;
+    vertical-align: middle;
+}
+
+.onboarding-section-title {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+    color: #64748b;
+    margin-top: 8px;
+    margin-bottom: 2px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.onboarding-section-title::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: #e2e8f0;
+}
+
+/* Onboarding Multi-Step Stepper & Pane Styles */
+.onboarding-card .split-step-pane.step-hidden {
+    display: none !important;
+}
+
+.onboarding-stepper {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px;
+    margin-bottom: 20px;
+    user-select: none;
+}
+
+.stepper-item {
+    background: transparent;
+    border: none;
+    padding: 0;
+    cursor: pointer;
+    text-align: left;
+    display: flex;
+    flex-direction: column;
+    gap: 7px;
+    outline: none;
+    transition: all 0.2s ease;
+}
+
+.stepper-label {
+    font-size: 12.5px;
+    font-weight: 600;
+    color: #64748b;
+    transition: color 0.2s ease;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    letter-spacing: -0.01em;
+}
+
+.stepper-bar {
+    width: 100%;
+    height: 4.5px;
+    border-radius: 99px;
+    background: #e2e8f0;
+    transition: background 0.25s ease, box-shadow 0.25s ease;
+    display: block;
+}
+
+.stepper-item.active .stepper-label {
+    color: #65a30d;
+    font-weight: 700;
+}
+
+.stepper-item.active .stepper-bar {
+    background: #84cc16;
+    box-shadow: 0 0 10px rgba(132, 204, 22, 0.45);
+}
+
+.stepper-item.completed .stepper-label {
+    color: #0f172a;
+    font-weight: 600;
+}
+
+.stepper-item.completed .stepper-bar {
+    background: #65a30d;
+}
+
+.stepper-item:hover:not(.active):not(.completed) .stepper-label {
+    color: #334155;
+}
+
+.onboarding-nav-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-top: 6px;
+}
+
+.split-back-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    background: #f1f5f9;
+    color: #475569;
+    border: 1.5px solid #e2e8f0;
+    border-radius: 12px;
+    padding: 12px 18px;
+    font-size: 13.5px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    white-space: nowrap;
+    text-decoration: none;
+    box-sizing: border-box;
+}
+
+.split-back-btn:hover {
+    background: #e2e8f0;
+    color: #0f172a;
+    border-color: #cbd5e1;
+}
+
+.onboarding-nav-row .split-submit-btn {
+    flex: 1;
+    margin-top: 0 !important;
+}
+
+/* Step 3: Review Application Summary Cards */
+.review-card {
+    background: #f8fafc;
+    border: 1.5px solid #e2e8f0;
+    border-radius: 12px;
+    padding: 12px 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    min-width: 0;
+    overflow: hidden;
+    box-sizing: border-box;
+}
+
+.review-card-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    border-bottom: 1px solid #e2e8f0;
+    padding-bottom: 6px;
+}
+
+.review-card-title-wrap {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    color: #334155;
+    font-size: 12px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+}
+
+.review-edit-btn {
+    background: transparent;
+    border: none;
+    color: #65a30d;
+    font-size: 11.5px;
+    font-weight: 700;
+    cursor: pointer;
+    padding: 2px 7px;
+    border-radius: 4px;
+    transition: all 0.15s ease;
+}
+
+.review-edit-btn:hover {
+    background: rgba(132, 204, 22, 0.12);
+    color: #4d7c0f;
+}
+
+.review-card-body {
+    display: flex;
+    flex-direction: column;
+    gap: 7px;
+    min-width: 0;
+}
+
+.review-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    font-size: 12px;
+    min-width: 0;
+}
+
+.review-row.align-top {
+    align-items: flex-start;
+}
+
+.review-label {
+    color: #64748b;
+    font-weight: 500;
+    flex-shrink: 0;
+    font-size: 11.5px;
+    white-space: nowrap;
+}
+
+.review-value {
+    color: #0f172a;
+    font-weight: 600;
+    text-align: right;
+    word-break: break-word;
+    min-width: 0;
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 6px;
+    overflow: hidden;
+}
+
+.review-value-stack {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 3px;
+    min-width: 0;
+    flex: 1;
+    overflow: hidden;
+}
+
+.review-id-title {
+    font-size: 11.5px;
+    font-weight: 700;
+    color: #0f172a;
+    text-align: right;
+    line-height: 1.25;
+    word-break: break-word;
+    max-width: 100%;
+}
+
+.review-file-badge {
+    display: inline-block;
+    background: rgba(132, 204, 22, 0.14);
+    color: #3f6212;
+    border: 1px solid rgba(132, 204, 22, 0.35);
+    padding: 2.5px 8px;
+    border-radius: 6px;
+    font-size: 11px;
+    font-weight: 600;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    vertical-align: middle;
+    box-sizing: border-box;
+}
+
+.review-file-badge.optional {
+    background: #f1f5f9;
+    color: #64748b;
+    border-color: #cbd5e1;
+}
+
+#rev-fb-page {
+    display: inline-block;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.review-trust-banner {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: rgba(132, 204, 22, 0.08);
+    border: 1px solid rgba(132, 204, 22, 0.25);
+    border-radius: 10px;
+    padding: 10px 12px;
+    color: #3f6212;
+    font-size: 11.5px;
+    line-height: 1.4;
+}
+
+.review-trust-banner svg {
+    flex-shrink: 0;
+    color: #65a30d;
+}
+
+@media (max-width: 480px) {
+    .stepper-label {
+        font-size: 11px;
+    }
+    .onboarding-stepper {
+        gap: 8px;
+    }
 }
 
 /* ==========================================================================

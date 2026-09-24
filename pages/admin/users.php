@@ -288,7 +288,8 @@ function users_page(): void
         $totalFound = (int) scalar('SELECT COUNT(*) FROM users u WHERE ' . $where, $params);
 
         $sql = 'SELECT u.*, tp.specialization, tp.bio, 
-                (SELECT g1.name FROM gyms g1 WHERE g1.owner_user_id = u.user_id LIMIT 1) AS owner_gym_name,
+                (SELECT g1.name FROM gyms g1 WHERE g1.owner_user_id = u.user_id ORDER BY g1.gym_id DESC LIMIT 1) AS owner_gym_name,
+                (SELECT g1.status FROM gyms g1 WHERE g1.owner_user_id = u.user_id ORDER BY g1.gym_id DESC LIMIT 1) AS owner_gym_status,
                 (SELECT g2.name FROM trainer_profiles tp2 JOIN gyms g2 ON tp2.gym_id = g2.gym_id WHERE tp2.user_id = u.user_id LIMIT 1) AS trainer_gym_name,
                 (SELECT g3.name FROM gym_members gm JOIN gyms g3 ON gm.gym_id = g3.gym_id WHERE gm.user_id = u.user_id LIMIT 1) AS member_gym_name
                 FROM users u 
@@ -320,12 +321,14 @@ function users_page(): void
                 'status'           => $row['status'],
                 'avatar_html'      => render_avatar($row),
                 'associated_gym'   => $associatedGym,
+                'owner_gym_status' => $row['owner_gym_status'] ?? null,
                 'specialization'   => $row['specialization'] ?? 'General Trainer',
                 'engagement_score' => (int) ($row['engagement_score'] ?? 0),
                 'joined_formatted' => date('M j, Y', strtotime($row['created_at'])),
                 'can_delete'       => (int) $row['user_id'] !== (int) $user['user_id'],
                 'is_member'        => $row['role'] === 'member',
                 'is_trainer'       => $row['role'] === 'trainer',
+                'is_gym_owner'     => $row['role'] === 'gym_owner',
                 'raw_user'         => $row
             ];
         }
@@ -391,7 +394,8 @@ function users_page(): void
     $totalPages = max(1, (int) ceil($total / $limit));
 
     $sql = 'SELECT u.*, tp.specialization, tp.bio, 
-            (SELECT g1.name FROM gyms g1 WHERE g1.owner_user_id = u.user_id LIMIT 1) AS owner_gym_name,
+            (SELECT g1.name FROM gyms g1 WHERE g1.owner_user_id = u.user_id ORDER BY g1.gym_id DESC LIMIT 1) AS owner_gym_name,
+            (SELECT g1.status FROM gyms g1 WHERE g1.owner_user_id = u.user_id ORDER BY g1.gym_id DESC LIMIT 1) AS owner_gym_status,
             (SELECT g2.name FROM trainer_profiles tp2 JOIN gyms g2 ON tp2.gym_id = g2.gym_id WHERE tp2.user_id = u.user_id LIMIT 1) AS trainer_gym_name,
             (SELECT g3.name FROM gym_members gm JOIN gyms g3 ON gm.gym_id = g3.gym_id WHERE gm.user_id = u.user_id LIMIT 1) AS member_gym_name
             FROM users u 
@@ -405,6 +409,22 @@ function users_page(): void
     $rows = $stmt->fetchAll();
     
     $allGyms = db()->query('SELECT gym_id, name FROM gyms ORDER BY name ASC')->fetchAll();
+
+    $renderGymBadge = function(?string $status, bool $hasGym): string {
+        if (!$hasGym) {
+            return '<span class="badge badge-gym-unsubmitted" style="font-size: 10px; padding: 1px 6px; letter-spacing: 0.3px;">Not Submitted</span>';
+        }
+        if ($status === 'approved') {
+            return '<span class="badge badge-gym-approved" style="font-size: 10px; padding: 1px 6px; letter-spacing: 0.3px;">✓ Verified</span>';
+        }
+        if ($status === 'rejected') {
+            return '<span class="badge badge-gym-rejected" style="font-size: 10px; padding: 1px 6px; letter-spacing: 0.3px;">✕ Rejected</span>';
+        }
+        if ($status === 'pending') {
+            return '<span class="badge badge-gym-pending" style="font-size: 10px; padding: 1px 6px; letter-spacing: 0.3px;">⏳ Pending</span>';
+        }
+        return '<span class="badge badge-gym-rejected" style="font-size: 10px; padding: 1px 6px; letter-spacing: 0.3px;">' . htmlspecialchars(ucfirst($status ?? 'Unknown')) . '</span>';
+    };
     
     render_header('Users', $user);
     ?>
@@ -415,6 +435,12 @@ function users_page(): void
     .badge-trainer        { background: rgba(59, 130, 246, 0.12); color: #60a5fa; border: 1px solid rgba(59, 130, 246, 0.25); }
     .badge-member         { background: rgba(20, 184, 166, 0.12); color: #2dd4bf; border: 1px solid rgba(20, 184, 166, 0.25); }
 
+    /* Gym Verification Badges */
+    .badge-gym-approved    { background: rgba(34, 197, 94, 0.14); color: #22c55e; border: 1px solid rgba(34, 197, 94, 0.3); font-weight: 600; border-radius: 4px; }
+    .badge-gym-pending     { background: rgba(234, 179, 8, 0.14); color: #eab308; border: 1px solid rgba(234, 179, 8, 0.3); font-weight: 600; border-radius: 4px; }
+    .badge-gym-rejected    { background: rgba(239, 68, 68, 0.14); color: #ef4444; border: 1px solid rgba(239, 68, 68, 0.3); font-weight: 600; border-radius: 4px; }
+    .badge-gym-unsubmitted { background: rgba(148, 163, 184, 0.12); color: #94a3b8; border: 1px solid rgba(148, 163, 184, 0.25); font-weight: 600; border-radius: 4px; }
+
     html[data-theme="light"] .badge-platform_admin,
     [data-theme="light"] .badge-platform_admin { background: rgba(132, 204, 22, 0.15); color: #4d7c0f; border-color: rgba(132, 204, 22, 0.35); }
     html[data-theme="light"] .badge-gym_owner,
@@ -423,6 +449,15 @@ function users_page(): void
     [data-theme="light"] .badge-trainer { background: rgba(59, 130, 246, 0.12); color: #1d4ed8; border-color: rgba(59, 130, 246, 0.3); }
     html[data-theme="light"] .badge-member,
     [data-theme="light"] .badge-member { background: rgba(20, 184, 166, 0.12); color: #0f766e; border-color: rgba(20, 184, 166, 0.3); }
+
+    html[data-theme="light"] .badge-gym-approved,
+    [data-theme="light"] .badge-gym-approved { background: rgba(22, 163, 74, 0.12); color: #15803d; border-color: rgba(22, 163, 74, 0.3); }
+    html[data-theme="light"] .badge-gym-pending,
+    [data-theme="light"] .badge-gym-pending { background: rgba(202, 138, 4, 0.12); color: #a16207; border-color: rgba(202, 138, 4, 0.3); }
+    html[data-theme="light"] .badge-gym-rejected,
+    [data-theme="light"] .badge-gym-rejected { background: rgba(239, 68, 68, 0.12); color: #b91c1c; border-color: rgba(239, 68, 68, 0.3); }
+    html[data-theme="light"] .badge-gym-unsubmitted,
+    [data-theme="light"] .badge-gym-unsubmitted { background: rgba(100, 116, 139, 0.12); color: #64748b; border-color: rgba(100, 116, 139, 0.25); }
 
     /* Desktop vs Mobile Toggle */
     .users-desktop-table {
@@ -954,7 +989,17 @@ function users_page(): void
                         ?>
                         <td>
                             <?php if ($associatedGym): ?>
-                                <span style="font-weight: 500; color: var(--ink);"><?= h($associatedGym) ?></span>
+                                <div style="display: flex; flex-direction: column; gap: 4px; align-items: flex-start;">
+                                    <span style="font-weight: 500; color: var(--ink);"><?= h($associatedGym) ?></span>
+                                    <?php if ($row['role'] === 'gym_owner'): ?>
+                                        <?= $renderGymBadge($row['owner_gym_status'] ?? null, true) ?>
+                                    <?php endif; ?>
+                                </div>
+                            <?php elseif ($row['role'] === 'gym_owner'): ?>
+                                <div style="display: flex; flex-direction: column; gap: 4px; align-items: flex-start;">
+                                    <span class="muted">—</span>
+                                    <?= $renderGymBadge(null, false) ?>
+                                </div>
                             <?php else: ?>
                                 <span class="muted">—</span>
                             <?php endif; ?>
@@ -1051,13 +1096,18 @@ function users_page(): void
                             <span class="user-card-detail-value email-value" title="<?= h($row['email']) ?>"><?= h($row['email']) ?></span>
                         </div>
 
-                        <?php if ($isAdmin && $associatedGym): ?>
+                        <?php if ($isAdmin && ($associatedGym || $row['role'] === 'gym_owner')): ?>
                         <div class="user-card-detail-item">
                             <span class="user-card-detail-label">
                                 <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 21h18M3 7v14M21 7v14M6 11h4M6 15h4M14 11h4M14 15h4M9 21v-4h6v4M3 7l9-4 9 4"/></svg>
                                 Gym / Branch
                             </span>
-                            <span class="user-card-detail-value"><?= h($associatedGym) ?></span>
+                            <div class="user-card-detail-value" style="display:flex; flex-direction:column; align-items:flex-end; gap:3px;">
+                                <span><?= h($associatedGym ?: '—') ?></span>
+                                <?php if ($row['role'] === 'gym_owner'): ?>
+                                    <?= $renderGymBadge($row['owner_gym_status'] ?? null, !empty($associatedGym)) ?>
+                                <?php endif; ?>
+                            </div>
                         </div>
                         <?php endif; ?>
 
@@ -1333,9 +1383,23 @@ function users_page(): void
         const roleClass = 'badge badge-' + u.role;
         const statusClass = 'badge badge-' + u.status;
         const roleDisplayName = escapeUserHtml(u.role_display);
+
+        let gymBadgeHtml = '';
+        if (u.is_gym_owner) {
+            if (u.owner_gym_status === 'approved') {
+                gymBadgeHtml = '<span class="badge badge-gym-approved" style="font-size: 10px; padding: 1px 6px; letter-spacing: 0.3px;">✓ Verified</span>';
+            } else if (u.owner_gym_status === 'rejected') {
+                gymBadgeHtml = '<span class="badge badge-gym-rejected" style="font-size: 10px; padding: 1px 6px; letter-spacing: 0.3px;">✕ Rejected</span>';
+            } else if (u.owner_gym_status === 'pending') {
+                gymBadgeHtml = '<span class="badge badge-gym-pending" style="font-size: 10px; padding: 1px 6px; letter-spacing: 0.3px;">⏳ Pending</span>';
+            } else if (!u.associated_gym) {
+                gymBadgeHtml = '<span class="badge badge-gym-unsubmitted" style="font-size: 10px; padding: 1px 6px; letter-spacing: 0.3px;">Not Submitted</span>';
+            }
+        }
+
         const associatedGymHtml = u.associated_gym 
-            ? `<span style="font-weight: 500; color: var(--ink);">${escapeUserHtml(u.associated_gym)}</span>`
-            : `<span class="muted">—</span>`;
+            ? `<div style="display:flex;flex-direction:column;gap:4px;align-items:flex-start;"><span style="font-weight: 500; color: var(--ink);">${escapeUserHtml(u.associated_gym)}</span>${gymBadgeHtml}</div>`
+            : (gymBadgeHtml ? `<div style="display:flex;flex-direction:column;gap:4px;align-items:flex-start;"><span class="muted">—</span>${gymBadgeHtml}</div>` : `<span class="muted">—</span>`);
         const specHtml = u.is_trainer
             ? `<span style="color:var(--ink);">${escapeUserHtml(u.specialization)}</span>`
             : `<span class="muted">—</span>`;
@@ -1401,6 +1465,19 @@ function users_page(): void
         const roleDisplayName = escapeUserHtml(u.role_display);
         const rawUserJson = escapeUserHtml(JSON.stringify(u.raw_user));
 
+        let gymBadgeHtml = '';
+        if (u.is_gym_owner) {
+            if (u.owner_gym_status === 'approved') {
+                gymBadgeHtml = '<span class="badge badge-gym-approved" style="font-size: 10px; padding: 1px 6px; letter-spacing: 0.3px;">✓ Verified</span>';
+            } else if (u.owner_gym_status === 'rejected') {
+                gymBadgeHtml = '<span class="badge badge-gym-rejected" style="font-size: 10px; padding: 1px 6px; letter-spacing: 0.3px;">✕ Rejected</span>';
+            } else if (u.owner_gym_status === 'pending') {
+                gymBadgeHtml = '<span class="badge badge-gym-pending" style="font-size: 10px; padding: 1px 6px; letter-spacing: 0.3px;">⏳ Pending</span>';
+            } else if (!u.associated_gym) {
+                gymBadgeHtml = '<span class="badge badge-gym-unsubmitted" style="font-size: 10px; padding: 1px 6px; letter-spacing: 0.3px;">Not Submitted</span>';
+            }
+        }
+
         return `
         <div class="user-card-item" data-name="${escapeUserHtml(u.full_name.toLowerCase())}" data-email="${escapeUserHtml(u.email.toLowerCase())}" data-phone="${escapeUserHtml(u.phone)}" data-role="${escapeUserHtml(u.role)}" data-id="${u.user_id}">
             <div class="user-card-header">
@@ -1426,13 +1503,16 @@ function users_page(): void
                     <span class="user-card-detail-value email-value" title="${escapeUserHtml(u.email)}">${escapeUserHtml(u.email)}</span>
                 </div>
 
-                ${IS_ADMIN && u.associated_gym ? `
+                ${IS_ADMIN && (u.associated_gym || u.is_gym_owner) ? `
                 <div class="user-card-detail-item">
                     <span class="user-card-detail-label">
                         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 21h18M3 7v14M21 7v14M6 11h4M6 15h4M14 11h4M14 15h4M9 21v-4h6v4M3 7l9-4 9 4"/></svg>
                         Gym / Branch
                     </span>
-                    <span class="user-card-detail-value">${escapeUserHtml(u.associated_gym)}</span>
+                    <div class="user-card-detail-value" style="display:flex; flex-direction:column; align-items:flex-end; gap:3px;">
+                        <span>${escapeUserHtml(u.associated_gym || '—')}</span>
+                        ${gymBadgeHtml}
+                    </div>
                 </div>
                 ` : ''}
 

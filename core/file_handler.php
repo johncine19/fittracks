@@ -447,8 +447,10 @@ final class FileUpload
     /**
      * Stores a business permit under assets/permits.
      * Keeps PDF original; compresses image permits to high-clarity WebP.
+    /**
+     * Internal helper to store verification documents (PDF or image).
      */
-    public static function storeBusinessPermit(array $file, int $userId): string
+    private static function storeVerificationDoc(array $file, int $userId, string $prefix, string $label): string
     {
         self::validatePermit($file);
 
@@ -462,17 +464,19 @@ final class FileUpload
 
             $uploadDir = __DIR__ . '/../assets/permits/';
             if (!is_dir($uploadDir)) mkdir($uploadDir, 0775, true);
-            $filename = 'permit_' . $userId . '_' . bin2hex(random_bytes(8)) . '.pdf';
-            if (!move_uploaded_file($file['tmp_name'], $uploadDir . $filename)) throw new RuntimeException('Could not save the business permit.');
+            $filename = $prefix . '_' . $userId . '_' . bin2hex(random_bytes(8)) . '.pdf';
+            if (!move_uploaded_file($file['tmp_name'], $uploadDir . $filename)) {
+                throw new RuntimeException("Could not save the {$label}.");
+            }
             return $filename;
         }
 
         $tempDir = sys_get_temp_dir() . '/';
-        $filename = 'permit_' . $userId . '_' . bin2hex(random_bytes(8)) . '.webp';
+        $filename = $prefix . '_' . $userId . '_' . bin2hex(random_bytes(8)) . '.webp';
         $destPath = $tempDir . $filename;
 
         if (!self::processAndStoreImage($file['tmp_name'], $destPath, 2000, 2000, 85)) {
-            throw new RuntimeException('Could not process the business permit.');
+            throw new RuntimeException("Could not process the {$label}.");
         }
 
         $cloudinaryUrl = self::uploadToCloudinary($destPath, 'image/webp', 'fittracks_permits');
@@ -487,47 +491,34 @@ final class FileUpload
         return $filename;
     }
 
+    public static function storeBusinessPermit(array $file, int $userId): string
+    {
+        return self::storeVerificationDoc($file, $userId, 'permit', 'business permit');
+    }
+
     /**
      * Stores a valid ID under assets/permits.
      * Keeps PDF original; compresses image IDs to high-clarity WebP.
      */
     public static function storeValidId(array $file, int $userId): string
     {
-        self::validatePermit($file);
+        return self::storeVerificationDoc($file, $userId, 'id', 'valid ID');
+    }
 
-        $finfo = finfo_open(FILEINFO_MIME_TYPE);
-        $mime = finfo_file($finfo, $file['tmp_name']);
-        finfo_close($finfo);
+    /**
+     * Stores a Barangay Clearance under assets/permits.
+     */
+    public static function storeBarangayClearance(array $file, int $userId): string
+    {
+        return self::storeVerificationDoc($file, $userId, 'brgy', 'barangay clearance');
+    }
 
-        if ($mime === 'application/pdf') {
-            $cloudinaryUrl = self::uploadToCloudinary($file['tmp_name'], 'application/pdf', 'fittracks_permits');
-            if ($cloudinaryUrl) return $cloudinaryUrl;
-
-            $uploadDir = __DIR__ . '/../assets/permits/';
-            if (!is_dir($uploadDir)) mkdir($uploadDir, 0775, true);
-            $filename = 'id_' . $userId . '_' . bin2hex(random_bytes(8)) . '.pdf';
-            if (!move_uploaded_file($file['tmp_name'], $uploadDir . $filename)) throw new RuntimeException('Could not save the valid ID.');
-            return $filename;
-        }
-
-        $tempDir = sys_get_temp_dir() . '/';
-        $filename = 'id_' . $userId . '_' . bin2hex(random_bytes(8)) . '.webp';
-        $destPath = $tempDir . $filename;
-
-        if (!self::processAndStoreImage($file['tmp_name'], $destPath, 2000, 2000, 85)) {
-            throw new RuntimeException('Could not process the valid ID.');
-        }
-
-        $cloudinaryUrl = self::uploadToCloudinary($destPath, 'image/webp', 'fittracks_permits');
-        if ($cloudinaryUrl) {
-            unlink($destPath);
-            return $cloudinaryUrl;
-        }
-
-        $uploadDir = __DIR__ . '/../assets/permits/';
-        if (!is_dir($uploadDir)) mkdir($uploadDir, 0775, true);
-        rename($destPath, $uploadDir . $filename);
-        return $filename;
+    /**
+     * Stores a Fire Safety Inspection Certificate under assets/permits.
+     */
+    public static function storeFireSafetyCert(array $file, int $userId): string
+    {
+        return self::storeVerificationDoc($file, $userId, 'fire_safety', 'fire safety inspection certificate');
     }
 
     /**

@@ -142,7 +142,7 @@ function gym_pending_page(): void
                             </div>
                             <div class="showcase-feature-body">
                                 <h4>Documents Received</h4>
-                                <p>Your business permit and valid ID have been securely saved and queued.</p>
+                                <p>Your business credentials and identification documents have been securely saved and queued.</p>
                             </div>
                         </div>
 
