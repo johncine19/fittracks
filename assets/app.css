@@ -3838,14 +3838,14 @@ body:has(.subscription-viewport) .auth-shell {
 }
 
 .split-login-card.onboarding-card .split-form-row-2col {
-    gap: 16px;
-    margin-bottom: 12px;
+    gap: 14px;
+    margin-bottom: 10px;
 }
 
 .split-login-card.onboarding-card .split-file-upload-box {
-    min-height: 94px;
-    padding: 14px 16px;
-    gap: 4px;
+    min-height: 58px;
+    padding: 6px 10px;
+    gap: 0;
 }
 
 .onboarding-review-grid {
@@ -4043,23 +4043,28 @@ body:has(.subscription-viewport) .auth-shell {
     border: 1.5px dashed #cbd5e1;
     background: #f8fafc;
     border-radius: 10px;
-    padding: 12px 10px;
-    text-align: center;
+    padding: 8px 12px;
     cursor: pointer;
     position: relative;
     transition: all 0.2s ease;
     display: flex;
-    flex-direction: column;
     align-items: center;
     justify-content: center;
-    gap: 3px;
-    min-height: 84px;
+    min-height: 58px;
+    box-sizing: border-box;
 }
 
-.split-file-upload-box:hover,
-.split-file-upload-box.has-file {
+.split-file-upload-box:hover {
     border-color: #84cc16;
-    background: rgba(132, 204, 22, 0.06);
+    background: rgba(132, 204, 22, 0.05);
+}
+
+.split-file-upload-box.has-file {
+    border-style: solid;
+    border-color: rgba(132, 204, 22, 0.45);
+    background: #ffffff;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+    padding: 6px 10px;
 }
 
 .split-file-upload-box input[type="file"] {
@@ -4072,39 +4077,359 @@ body:has(.subscription-viewport) .auth-shell {
     z-index: 2;
 }
 
-.split-upload-icon {
+.split-file-upload-box.has-file input[type="file"] {
+    z-index: 1;
+}
+
+/* Empty State */
+.doc-upload-empty {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    pointer-events: none;
+}
+
+.doc-upload-empty .split-upload-icon {
     width: 22px;
     height: 22px;
     color: #64748b;
-    margin-bottom: 2px;
+    flex-shrink: 0;
     transition: color 0.2s;
 }
 
-.split-file-upload-box:hover .split-upload-icon,
-.split-file-upload-box.has-file .split-upload-icon {
+.split-file-upload-box:hover .doc-upload-empty .split-upload-icon {
     color: #65a30d;
 }
 
-.split-upload-title {
-    font-size: 12px;
-    font-weight: 600;
-    color: #1e293b;
-    line-height: 1.2;
+.doc-upload-text {
+    display: flex;
+    flex-direction: column;
+    text-align: left;
+    min-width: 0;
 }
 
-.split-upload-desc {
+.doc-upload-text .split-upload-title {
+    font-size: 12px;
+    font-weight: 700;
+    color: #1e293b;
+    line-height: 1.25;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.doc-upload-text .split-upload-desc {
     font-size: 10.5px;
     color: #64748b;
     line-height: 1.2;
+    margin-top: 1px;
 }
 
-.split-upload-filename {
+/* Filled / Inline Preview State */
+.doc-upload-filled {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    box-sizing: border-box;
+}
+
+.doc-preview-thumb-wrap {
+    width: 44px;
+    height: 44px;
+    border-radius: 8px;
+    background: #f1f5f9;
+    border: 1px solid #e2e8f0;
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    position: relative;
+    z-index: 4;
+    cursor: pointer;
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.doc-preview-thumb-wrap:hover {
+    transform: scale(1.05);
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.12);
+}
+
+.doc-thumb-img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+}
+
+.doc-thumb-pdf {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 1px;
+    width: 100%;
+    height: 100%;
+    background: rgba(239, 68, 68, 0.08);
+}
+
+.doc-thumb-pdf svg {
+    width: 18px;
+    height: 18px;
+    color: #ef4444;
+}
+
+.doc-thumb-pdf span {
+    font-size: 8.5px;
+    font-weight: 800;
+    color: #b91c1c;
+    letter-spacing: 0.5px;
+}
+
+.doc-upload-meta {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    text-align: left;
+    gap: 2px;
+}
+
+.doc-upload-name {
+    font-size: 11.5px;
+    font-weight: 700;
+    color: #0f172a;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    line-height: 1.25;
+}
+
+.doc-upload-subinfo {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 10.5px;
+}
+
+.doc-upload-size {
+    color: #64748b;
+    font-weight: 500;
+}
+
+.doc-upload-badge {
+    color: #3f6212;
+    font-weight: 700;
+    background: rgba(132, 204, 22, 0.16);
+    border: 1px solid rgba(132, 204, 22, 0.3);
+    padding: 0.5px 5px;
+    border-radius: 4px;
+    font-size: 9.5px;
+}
+
+.doc-upload-actions {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    flex-shrink: 0;
+    position: relative;
+    z-index: 4;
+}
+
+.doc-action-btn {
+    border: none;
+    border-radius: 6px;
+    padding: 4px 8px;
     font-size: 11px;
-    font-weight: 600;
-    color: #65a30d;
-    margin-top: 2px;
-    display: none;
-    word-break: break-all;
+    font-weight: 700;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    transition: all 0.15s ease;
+    line-height: 1.2;
+}
+
+.doc-action-btn.view {
+    background: #0f172a;
+    color: #ffffff;
+}
+
+.doc-action-btn.view:hover {
+    background: #334155;
+    box-shadow: 0 2px 6px rgba(15, 23, 42, 0.2);
+}
+
+.doc-action-btn.view svg {
+    width: 12px;
+    height: 12px;
+}
+
+.doc-action-btn.remove {
+    background: #f1f5f9;
+    color: #64748b;
+    padding: 5px 6px;
+}
+
+.doc-action-btn.remove:hover {
+    background: #fee2e2;
+    color: #ef4444;
+}
+
+.doc-action-btn.remove svg {
+    width: 12px;
+    height: 12px;
+}
+
+/* Document Lightbox Preview Modal */
+.doc-lightbox-modal {
+    position: fixed;
+    inset: 0;
+    z-index: 10000;
+    background: rgba(15, 23, 42, 0.78);
+    backdrop-filter: blur(5px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 16px;
+    animation: docFadeIn 0.2s ease-out;
+}
+
+@keyframes docFadeIn {
+    from { opacity: 0; transform: scale(0.97); }
+    to { opacity: 1; transform: scale(1); }
+}
+
+.doc-lightbox-dialog {
+    background: #ffffff;
+    border-radius: 18px;
+    max-width: 660px;
+    width: 100%;
+    max-height: 88vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    box-shadow: 0 25px 60px -15px rgba(0, 0, 0, 0.45);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.doc-lightbox-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 18px;
+    border-bottom: 1px solid #e2e8f0;
+    background: #ffffff;
+}
+
+.doc-lightbox-title-wrap {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13.5px;
+    font-weight: 800;
+    color: #0f172a;
+    min-width: 0;
+}
+
+.doc-lightbox-title-wrap span {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.doc-lightbox-close-btn {
+    background: transparent;
+    border: none;
+    font-size: 22px;
+    line-height: 1;
+    color: #64748b;
+    cursor: pointer;
+    padding: 2px 8px;
+    border-radius: 6px;
+    transition: all 0.15s ease;
+}
+
+.doc-lightbox-close-btn:hover {
+    background: #f1f5f9;
+    color: #0f172a;
+}
+
+.doc-lightbox-body {
+    flex: 1;
+    overflow: auto;
+    padding: 16px;
+    background: #f8fafc;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 260px;
+    max-height: 64vh;
+}
+
+.doc-lightbox-img {
+    max-width: 100%;
+    max-height: 58vh;
+    object-fit: contain;
+    border-radius: 10px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+    border: 1px solid #e2e8f0;
+    background: #ffffff;
+}
+
+.doc-lightbox-frame {
+    width: 100%;
+    height: 58vh;
+    border: none;
+    border-radius: 10px;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.08);
+}
+
+.doc-lightbox-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 18px;
+    border-top: 1px solid #e2e8f0;
+    background: #ffffff;
+}
+
+.doc-lightbox-meta {
+    font-size: 11.5px;
+    color: #64748b;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 70%;
+}
+
+.doc-lightbox-btn {
+    background: #0f172a;
+    color: #ffffff;
+    border: none;
+    border-radius: 8px;
+    padding: 6px 16px;
+    font-size: 12px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: background 0.15s ease;
+}
+
+.doc-lightbox-btn:hover {
+    background: #334155;
+}
+
+.review-file-badge.clickable {
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.review-file-badge.clickable:hover {
+    background: rgba(132, 204, 22, 0.25);
+    border-color: #65a30d;
+    transform: translateY(-1px);
 }
 
 /* Document Requirement Badges */

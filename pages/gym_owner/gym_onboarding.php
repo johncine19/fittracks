@@ -26,16 +26,25 @@ function gym_onboarding_page(): void
     if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         verify_csrf();
         $gymName = trim((string) post('gym_name'));
-        $gymAddress = trim((string) post('gym_address'));
+        $street = trim((string) post('street'));
+        $barangay = trim((string) post('barangay'));
+        $city = trim((string) post('city'));
+        $province = trim((string) post('province'));
+        $zipcode = substr(preg_replace('/[^0-9]/', '', (string) post('zipcode')), 0, 4);
         $gymContact = preg_replace('/[^0-9]/', '', (string) post('gym_contact_info'));
         $validIdType = trim((string) post('valid_id_type'));
         $validIdTypeOther = trim((string) post('valid_id_type_other'));
         $fbPageUrl = trim((string) post('fb_page_url'));
 
-        if (!$gymName || !$gymAddress || !$gymContact) {
-            flash('Facility name, mobile number, and complete address are required.', 'danger');
+        $addressParts = array_filter([$street, $barangay, $city, $province, $zipcode], fn($val) => $val !== '');
+        $gymAddress = implode(', ', $addressParts);
+
+        if (!$gymName || !$street || !$barangay || !$city || !$province || !$zipcode || !$gymContact) {
+            flash('Facility name, mobile number, and all address fields (street, barangay, city, province, and zipcode) are required.', 'danger');
         } elseif (strlen($gymContact) !== 11) {
             flash('Mobile number must be exactly 11 digits (e.g. 09123456789).', 'danger');
+        } elseif (strlen($zipcode) !== 4) {
+            flash('ZIP code must be exactly 4 digits (e.g. 7214).', 'danger');
         } elseif (empty($validIdType)) {
             flash('Please select your Valid Government ID type.', 'danger');
         } else {
@@ -134,11 +143,117 @@ function gym_onboarding_page(): void
     render_header('Gym Onboarding', $user);
     ?>
     <style>
+        /* Viewport & Wizard Frame Spacing - Compact & balanced */
+        body:has(.onboarding-wizard-frame) .split-login-viewport,
+        .split-login-viewport:has(.onboarding-wizard-frame) {
+            padding: 14px 16px !important;
+            min-height: 100vh !important;
+            min-height: 100dvh !important;
+            display: flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+        }
+
+        .onboarding-wizard-frame {
+            margin: 0 auto !important;
+            width: 100% !important;
+            max-width: 700px !important;
+        }
+
+        .onboarding-brand-header {
+            margin-bottom: 10px !important;
+        }
+        .onboarding-brand-icon svg {
+            width: 30px !important;
+            height: 30px !important;
+        }
+        .onboarding-brand-name {
+            font-size: 20px !important;
+        }
+        .onboarding-brand-tagline {
+            font-size: 9.5px !important;
+            margin-top: 1px !important;
+        }
+
+        /* Card Padding & Sizing - Proportional 700px container */
+        .split-login-card.onboarding-card {
+            padding: 20px 28px 18px !important;
+            border-radius: 18px !important;
+            max-width: 700px !important;
+            box-shadow: 0 20px 50px -15px rgba(0, 0, 0, 0.65), 0 0 0 1px rgba(255, 255, 255, 0.1) !important;
+            box-sizing: border-box !important;
+            overflow: hidden !important;
+        }
+
+        .onboarding-card .split-card-header {
+            margin-bottom: 10px !important;
+        }
+        .onboarding-card .split-card-title {
+            font-size: 1.5rem !important;
+            margin: 0 0 2px !important;
+            line-height: 1.15 !important;
+        }
+        .onboarding-card .split-card-subtitle {
+            font-size: 12.5px !important;
+            line-height: 1.2 !important;
+        }
+
+        /* Stepper */
+        .onboarding-stepper {
+            margin-bottom: 12px !important;
+            gap: 10px !important;
+        }
+        .onboarding-stepper .stepper-item {
+            gap: 4px !important;
+        }
+        .onboarding-stepper .stepper-label {
+            font-size: 11.5px !important;
+        }
+        .onboarding-stepper .stepper-bar {
+            height: 3.5px !important;
+        }
+
+        /* Section Title */
+        .onboarding-card .onboarding-section-title {
+            font-size: 10.5px !important;
+            margin-top: 0 !important;
+            margin-bottom: 8px !important;
+            letter-spacing: 0.5px !important;
+        }
+
+        /* Form Structure & Strict Grid Containment */
+        .onboarding-card .split-card-form {
+            gap: 0 !important;
+            width: 100% !important;
+        }
+        .onboarding-card .split-step-pane {
+            gap: 0 !important;
+            width: 100% !important;
+        }
+        .onboarding-card .split-form-row-2col {
+            display: grid !important;
+            grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) !important;
+            gap: 12px !important;
+            margin-bottom: 8px !important;
+            width: 100% !important;
+            box-sizing: border-box !important;
+        }
+        .onboarding-card .split-form-group {
+            gap: 3px !important;
+            min-width: 0 !important;
+            width: 100% !important;
+            box-sizing: border-box !important;
+        }
         .onboarding-card .split-form-group label {
             display: inline-flex !important;
             align-items: baseline !important;
             flex-direction: row !important;
             gap: 1px !important;
+            font-size: 11.5px !important;
+            font-weight: 600 !important;
+            color: #334155 !important;
+            margin-bottom: 1px !important;
+            white-space: nowrap !important;
         }
         .onboarding-card .req-star {
             display: inline !important;
@@ -149,6 +264,177 @@ function gym_onboarding_page(): void
         }
         .onboarding-card .opt-label {
             display: inline !important;
+            font-size: 10.5px !important;
+            color: #64748b !important;
+        }
+
+        /* Form Inputs */
+        .onboarding-card .split-input-wrap {
+            width: 100% !important;
+            min-width: 0 !important;
+            box-sizing: border-box !important;
+        }
+        .onboarding-card .split-input-wrap input,
+        .onboarding-card .split-input-wrap select {
+            height: 39px !important;
+            padding: 7px 12px 7px 38px !important;
+            font-size: 13px !important;
+            border-radius: 9px !important;
+            width: 100% !important;
+            box-sizing: border-box !important;
+        }
+        .onboarding-card .split-input-wrap select {
+            padding-right: 28px !important;
+            text-overflow: ellipsis !important;
+            white-space: nowrap !important;
+            overflow: hidden !important;
+        }
+        .onboarding-card .split-input-icon {
+            left: 12px !important;
+            width: 16px !important;
+            height: 16px !important;
+        }
+
+        /* Upload Boxes (Step 2) - Strict Ellipsis & Overflow Protection */
+        .onboarding-card .split-file-upload-box {
+            min-height: 40px !important;
+            padding: 5px 8px !important;
+            border-radius: 8px !important;
+            width: 100% !important;
+            max-width: 100% !important;
+            min-width: 0 !important;
+            overflow: hidden !important;
+            box-sizing: border-box !important;
+        }
+        .onboarding-card .doc-upload-empty {
+            gap: 8px !important;
+            width: 100% !important;
+            min-width: 0 !important;
+        }
+        .onboarding-card .doc-upload-empty .split-upload-icon {
+            width: 18px !important;
+            height: 18px !important;
+            flex-shrink: 0 !important;
+        }
+        .onboarding-card .doc-upload-text {
+            min-width: 0 !important;
+            overflow: hidden !important;
+        }
+        .onboarding-card .doc-upload-text .split-upload-title {
+            font-size: 11px !important;
+            white-space: nowrap !important;
+            overflow: hidden !important;
+            text-overflow: ellipsis !important;
+        }
+        .onboarding-card .doc-upload-text .split-upload-desc {
+            font-size: 9.5px !important;
+            white-space: nowrap !important;
+            overflow: hidden !important;
+            text-overflow: ellipsis !important;
+        }
+        .onboarding-card .doc-upload-filled {
+            width: 100% !important;
+            max-width: 100% !important;
+            min-width: 0 !important;
+            overflow: hidden !important;
+            align-items: center !important;
+            gap: 8px !important;
+            box-sizing: border-box !important;
+        }
+        .onboarding-card .doc-upload-filled[style*="display: none"],
+        .onboarding-card .doc-upload-filled[style*="display:none"] {
+            display: none !important;
+        }
+        .onboarding-card .doc-upload-empty[style*="display: none"],
+        .onboarding-card .doc-upload-empty[style*="display:none"] {
+            display: none !important;
+        }
+        .onboarding-card .doc-preview-thumb-wrap {
+            width: 32px !important;
+            height: 32px !important;
+            flex-shrink: 0 !important;
+        }
+        .onboarding-card .doc-upload-meta {
+            flex: 1 1 0% !important;
+            min-width: 0 !important;
+            max-width: 100% !important;
+            overflow: hidden !important;
+            text-align: left !important;
+        }
+        .onboarding-card .doc-upload-name {
+            display: block !important;
+            width: 100% !important;
+            min-width: 0 !important;
+            font-size: 11px !important;
+            font-weight: 700 !important;
+            color: #0f172a !important;
+            white-space: nowrap !important;
+            overflow: hidden !important;
+            text-overflow: ellipsis !important;
+            line-height: 1.25 !important;
+        }
+        .onboarding-card .doc-upload-subinfo {
+            display: flex !important;
+            align-items: center !important;
+            gap: 5px !important;
+            font-size: 10px !important;
+            min-width: 0 !important;
+            white-space: nowrap !important;
+            overflow: hidden !important;
+        }
+        .onboarding-card .doc-upload-actions {
+            display: flex !important;
+            align-items: center !important;
+            gap: 4px !important;
+            flex-shrink: 0 !important;
+        }
+        .onboarding-card .doc-action-btn.view {
+            padding: 3px 7px !important;
+            font-size: 10.5px !important;
+        }
+        .onboarding-card .doc-action-btn.remove {
+            padding: 3px 6px !important;
+            font-size: 13px !important;
+        }
+
+        /* Review Details (Step 3) */
+        .onboarding-card .review-card {
+            padding: 8px 12px !important;
+            border-radius: 10px !important;
+        }
+        .onboarding-card .review-row {
+            font-size: 11.5px !important;
+            padding: 2px 0 !important;
+        }
+        .onboarding-card .review-trust-banner {
+            padding: 6px 10px !important;
+            font-size: 10.5px !important;
+            margin-top: 6px !important;
+        }
+
+        /* Navigation Buttons */
+        .onboarding-card .onboarding-nav-row {
+            margin-top: 10px !important;
+            gap: 8px !important;
+        }
+        .onboarding-card .split-submit-btn {
+            padding: 10px 18px !important;
+            font-size: 13.5px !important;
+            font-weight: 700 !important;
+            border-radius: 10px !important;
+            height: 40px !important;
+        }
+        .onboarding-card .split-back-btn {
+            padding: 9px 14px !important;
+            font-size: 12.5px !important;
+            border-radius: 10px !important;
+            height: 40px !important;
+        }
+
+        /* Footer Finish Later */
+        .onboarding-card .split-card-footer {
+            margin-top: 8px !important;
+            font-size: 12px !important;
         }
     </style>
     <div class="split-login-viewport">
@@ -198,123 +484,154 @@ function gym_onboarding_page(): void
 
                         <!-- STEP 1: Facility Information -->
                         <div class="split-step-pane" id="onboarding-pane-1">
-                            <div class="step1-layout-grid">
-                                <!-- Left Column: Form Fields -->
-                                <div class="step1-form-col">
-                                    <div class="onboarding-section-title">Facility Information</div>
+                            <div class="onboarding-section-title" style="margin-top: 0; margin-bottom: 12px;">Facility Information</div>
 
-                                    <div class="split-form-group">
-                                        <label>Gym / Facility Name<span class="req-star" style="color: #ef4444; font-weight: 700; margin-left: 1px;">*</span></label>
-                                        <div class="split-input-wrap auth-input-group">
-                                            <svg class="split-input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                                <path d="M3 21h18M3 7v14M21 7v14M9 21V11M15 21V11M9 7l3-4 3 4"></path>
-                                            </svg>
-                                            <input type="text" name="gym_name" id="gym_name" required placeholder="e.g. Iron Forge Gym"
-                                                   value="<?= h(post('gym_name')) ?>"
-                                                   oninvalid="this.setCustomValidity('Please enter your gym name.')"
-                                                   oninput="this.setCustomValidity(''); updateFacilityLivePreview();">
-                                        </div>
-                                    </div>
-
-                                    <div class="split-form-group">
-                                        <label>Mobile Number<span class="req-star" style="color: #ef4444; font-weight: 700; margin-left: 1px;">*</span></label>
-                                        <div class="split-input-wrap auth-input-group">
-                                            <svg class="split-input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                                <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"></path>
-                                            </svg>
-                                            <input type="tel" inputmode="numeric" name="gym_contact_info" id="gym_contact_info" required
-                                                   pattern="[0-9]{11}" maxlength="11" placeholder="09123456789"
-                                                   value="<?= h(post('gym_contact_info')) ?>"
-                                                   title="Please enter an 11-digit mobile number (e.g. 09123456789)"
-                                                   onkeypress="return event.charCode >= 48 && event.charCode <= 57"
-                                                   oninput="this.value=this.value.replace(/[^0-9]/g,'').slice(0,11); this.setCustomValidity(''); updateFacilityLivePreview();"
-                                                   oninvalid="this.setCustomValidity('Please enter an 11-digit mobile number.')">
-                                        </div>
-                                    </div>
-
-                                    <div class="split-form-group">
-                                        <label>Complete Facility Address<span class="req-star" style="color: #ef4444; font-weight: 700; margin-left: 1px;">*</span></label>
-                                        <div class="split-input-wrap auth-input-group">
-                                            <svg class="split-input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                                <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
-                                                <circle cx="12" cy="10" r="3"></circle>
-                                            </svg>
-                                            <input type="text" name="gym_address" id="gym_address" required placeholder="Unit, Street, Barangay, City, Province"
-                                                   value="<?= h(post('gym_address')) ?>"
-                                                   oninvalid="this.setCustomValidity('Please enter the full address of your gym.')"
-                                                   oninput="this.setCustomValidity(''); updateFacilityLivePreview();">
-                                        </div>
-                                    </div>
-
-                                    <!-- Step 1 Continue Button -->
-                                    <button type="button" class="split-submit-btn" style="margin-top: 6px;" onclick="goToStep(2)">
-                                        <span>Continue to Documents</span>
-                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                                            <line x1="5" y1="12" x2="19" y2="12"></line>
-                                            <polyline points="12 5 19 12 12 19"></polyline>
+                            <!-- Row 1: Gym / Facility Name & Mobile Number -->
+                            <div class="split-form-row-2col">
+                                <div class="split-form-group">
+                                    <label>Gym / Facility Name<span class="req-star">*</span></label>
+                                    <div class="split-input-wrap auth-input-group">
+                                        <svg class="split-input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                            <path d="M3 21h18M3 7v14M21 7v14M9 21V11M15 21V11M9 7l3-4 3 4"></path>
                                         </svg>
-                                    </button>
-                                </div>
-
-                                <!-- Right Column: Live Facility Preview Card -->
-                                <div class="step1-preview-col">
-                                    <div class="onboarding-section-title">Facility Profile Preview</div>
-                                    
-                                    <div class="facility-preview-card">
-                                        <div class="facility-preview-header">
-                                            <div class="facility-preview-badge">
-                                                <span class="pulse-indicator"></span>
-                                                <span>Live Preview</span>
-                                            </div>
-                                            <span class="facility-preview-status">Under Setup</span>
-                                        </div>
-
-                                        <div class="facility-preview-body">
-                                            <div class="facility-preview-icon-wrap">
-                                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                                    <path d="M3 21h18M3 7v14M21 7v14M9 21V11M15 21V11M9 7l3-4 3 4"></path>
-                                                </svg>
-                                            </div>
-                                            <div class="facility-preview-meta">
-                                                <h4 class="facility-preview-title" id="prev-gym-name">Iron Forge Gym</h4>
-                                                <div class="facility-preview-item">
-                                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
-                                                    <span id="prev-gym-contact">09123456789</span>
-                                                </div>
-                                                <div class="facility-preview-item">
-                                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
-                                                    <span id="prev-gym-address">City / Province Address</span>
-                                                </div>
-                                            </div>
-                                        </div>
-
-                                        <div class="facility-preview-perks">
-                                            <div class="perk-title">What happens after verification:</div>
-                                            <div class="perk-item">
-                                                <svg viewBox="0 0 24 24" fill="none" stroke="#65a30d" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
-                                                <span>Listed on member search &amp; map directory</span>
-                                            </div>
-                                            <div class="perk-item">
-                                                <svg viewBox="0 0 24 24" fill="none" stroke="#65a30d" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
-                                                <span>Automated QR check-ins &amp; access control</span>
-                                            </div>
-                                            <div class="perk-item">
-                                                <svg viewBox="0 0 24 24" fill="none" stroke="#65a30d" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
-                                                <span>Direct membership subscriptions &amp; billing</span>
-                                            </div>
-                                        </div>
+                                        <input type="text" name="gym_name" id="gym_name" required placeholder="e.g. Velocity Fitness"
+                                               value="<?= h(post('gym_name')) ?>"
+                                               oninvalid="this.setCustomValidity('Please enter your gym name.')"
+                                               oninput="this.setCustomValidity('')">
                                     </div>
                                 </div>
+
+                                <div class="split-form-group">
+                                    <label>Mobile Number<span class="req-star">*</span></label>
+                                    <div class="split-input-wrap auth-input-group">
+                                        <svg class="split-input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                            <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"></path>
+                                        </svg>
+                                        <input type="tel" inputmode="numeric" name="gym_contact_info" id="gym_contact_info" required
+                                               pattern="[0-9]{11}" maxlength="11" placeholder="09123456789"
+                                               value="<?= h(post('gym_contact_info')) ?>"
+                                               title="Please enter an 11-digit mobile number (e.g. 09123456789)"
+                                               onkeypress="return event.charCode >= 48 && event.charCode <= 57"
+                                               oninput="this.value=this.value.replace(/[^0-9]/g,'').slice(0,11); this.setCustomValidity('');"
+                                               oninvalid="this.setCustomValidity('Please enter an 11-digit mobile number.')">
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Row 2: Street Address & Barangay -->
+                            <div class="split-form-row-2col">
+                                <div class="split-form-group">
+                                    <label>Street Address<span class="req-star">*</span></label>
+                                    <div class="split-input-wrap auth-input-group">
+                                        <svg class="split-input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                            <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
+                                            <polyline points="9 22 9 12 15 12 15 22"></polyline>
+                                        </svg>
+                                        <input type="text" name="street" id="street" required placeholder="Building No., Street / Road"
+                                               value="<?= h(post('street')) ?>"
+                                               oninvalid="this.setCustomValidity('Please enter the street address.')"
+                                               oninput="this.setCustomValidity('')">
+                                    </div>
+                                </div>
+
+                                <div class="split-form-group">
+                                    <label>Barangay<span class="req-star">*</span></label>
+                                    <div class="split-input-wrap auth-input-group">
+                                        <svg class="split-input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                            <path d="M12 22s-8-4.5-8-11.8A8 8 0 0 1 12 2a8 8 0 0 1 8 8.2c0 7.3-8 11.8-8 11.8z"></path>
+                                            <circle cx="12" cy="10" r="3"></circle>
+                                        </svg>
+                                        <input type="text" name="barangay" id="barangay" required placeholder="e.g. Brgy. Poblacion"
+                                               value="<?= h(post('barangay')) ?>"
+                                               oninvalid="this.setCustomValidity('Please enter the barangay.')"
+                                               oninput="this.setCustomValidity('')">
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Row 3: City & Province -->
+                            <div class="split-form-row-2col">
+                                <div class="split-form-group">
+                                    <label>City / Municipality<span class="req-star">*</span></label>
+                                    <div class="split-input-wrap auth-input-group">
+                                        <svg class="split-input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                            <rect x="4" y="2" width="16" height="20" rx="2" ry="2"></rect>
+                                            <line x1="9" y1="22" x2="9" y2="22.01"></line>
+                                            <line x1="15" y1="22" x2="15" y2="22.01"></line>
+                                            <line x1="9" y1="18" x2="9" y2="18.01"></line>
+                                            <line x1="15" y1="18" x2="15" y2="18.01"></line>
+                                            <line x1="9" y1="14" x2="9" y2="14.01"></line>
+                                            <line x1="15" y1="14" x2="15" y2="14.01"></line>
+                                            <line x1="9" y1="10" x2="9" y2="10.01"></line>
+                                            <line x1="15" y1="10" x2="15" y2="10.01"></line>
+                                            <line x1="9" y1="6" x2="9" y2="6.01"></line>
+                                            <line x1="15" y1="6" x2="15" y2="6.01"></line>
+                                        </svg>
+                                        <input type="text" name="city" id="city" required placeholder="e.g. Tangub City"
+                                               value="<?= h(post('city')) ?>"
+                                               oninvalid="this.setCustomValidity('Please enter the city or municipality.')"
+                                               oninput="this.setCustomValidity('')">
+                                    </div>
+                                </div>
+
+                                <div class="split-form-group">
+                                    <label>Province<span class="req-star">*</span></label>
+                                    <div class="split-input-wrap auth-input-group">
+                                        <svg class="split-input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                            <circle cx="12" cy="12" r="10"></circle>
+                                            <line x1="2" y1="12" x2="22" y2="12"></line>
+                                            <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path>
+                                        </svg>
+                                        <input type="text" name="province" id="province" required placeholder="e.g. Misamis Occidental"
+                                               value="<?= h(post('province')) ?>"
+                                               oninvalid="this.setCustomValidity('Please enter the province.')"
+                                               oninput="this.setCustomValidity('')">
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Row 4: Zip Code -->
+                            <div class="split-form-row-2col">
+                                <div class="split-form-group">
+                                    <label>ZIP / Postal Code<span class="req-star">*</span></label>
+                                    <div class="split-input-wrap auth-input-group">
+                                        <svg class="split-input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                            <line x1="4" y1="9" x2="20" y2="9"></line>
+                                            <line x1="4" y1="15" x2="20" y2="15"></line>
+                                            <line x1="10" y1="3" x2="8" y2="21"></line>
+                                            <line x1="16" y1="3" x2="14" y2="21"></line>
+                                        </svg>
+                                        <input type="tel" inputmode="numeric" name="zipcode" id="zipcode" required
+                                               pattern="[0-9]{4}" maxlength="4" placeholder="e.g. 7214"
+                                               value="<?= h(post('zipcode')) ?>"
+                                               title="Please enter a 4-digit ZIP code (e.g. 7214)"
+                                               onkeypress="return event.charCode >= 48 && event.charCode <= 57"
+                                               oninput="this.value = this.value.replace(/[^0-9]/g, '').slice(0, 4); this.setCustomValidity('');"
+                                               oninvalid="this.setCustomValidity('Please enter a 4-digit ZIP code.')">
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Step 1 Navigation Row -->
+                            <div class="onboarding-nav-row">
+                                <button type="button" class="split-submit-btn" onclick="goToStep(2)">
+                                    <span>Continue to Documents</span>
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                                        <line x1="5" y1="12" x2="19" y2="12"></line>
+                                        <polyline points="12 5 19 12 12 19"></polyline>
+                                    </svg>
+                                </button>
                             </div>
                         </div>
 
                         <!-- STEP 2: Verification Documents -->
                         <div class="split-step-pane step-hidden" id="onboarding-pane-2">
-                            <!-- 1. Government Identification -->
-                            <div class="onboarding-section-title">Government Identification</div>
+                            <div class="onboarding-section-title">Verification Documents</div>
+
+                            <!-- Row 1: Valid ID Type & Valid ID Upload -->
                             <div class="split-form-row-2col">
                                 <div class="split-form-group">
-                                    <label>Valid ID Type<span class="req-star" style="color: #ef4444; font-weight: 700; margin-left: 1px;">*</span></label>
+                                    <label>Valid ID Type<span class="req-star">*</span></label>
                                     <div class="split-input-wrap auth-input-group">
                                         <svg class="split-input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                                             <rect x="3" y="4" width="18" height="16" rx="2"></rect>
@@ -348,90 +665,183 @@ function gym_onboarding_page(): void
 
                                 <!-- Valid ID Upload Box -->
                                 <div class="split-form-group">
-                                    <label>Upload Valid ID<span class="req-star" style="color: #ef4444; font-weight: 700; margin-left: 1px;">*</span></label>
+                                    <label>Upload Valid ID<span class="req-star">*</span></label>
                                     <div class="split-file-upload-box" id="box-valid-id">
-                                        <input type="file" name="valid_id" id="input-valid-id" required accept=".pdf,.jpg,.jpeg,.png"
-                                               onchange="handleFileChosen(this, 'filename-id', 'box-valid-id')"
+                                        <input type="file" name="valid_id" id="input-valid-id" required accept=".pdf,.jpg,.jpeg,.png,.webp"
+                                               onchange="handleDocFileChosen(this, 'id', 'Valid Government ID')"
                                                oninvalid="this.setCustomValidity('Please upload your valid government ID.')"
                                                oninput="this.setCustomValidity('')">
-                                        <svg class="split-upload-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                            <rect x="3" y="4" width="18" height="16" rx="2"></rect>
-                                            <circle cx="9" cy="10" r="2"></circle>
-                                            <line x1="15" y1="8" x2="17" y2="8"></line>
-                                            <line x1="15" y1="12" x2="17" y2="12"></line>
-                                            <line x1="7" y1="16" x2="17" y2="16"></line>
-                                        </svg>
-                                        <span class="split-upload-title" id="title-valid-id">Upload Valid ID</span>
-                                        <span class="split-upload-desc">Image or PDF (Max 5MB)</span>
-                                        <span class="split-upload-filename" id="filename-id"></span>
+                                        
+                                        <!-- Empty State -->
+                                        <div class="doc-upload-empty" id="empty-id">
+                                            <svg class="split-upload-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                                <rect x="3" y="4" width="18" height="16" rx="2"></rect>
+                                                <circle cx="9" cy="10" r="2"></circle>
+                                                <line x1="15" y1="8" x2="17" y2="8"></line>
+                                                <line x1="15" y1="12" x2="17" y2="12"></line>
+                                                <line x1="7" y1="16" x2="17" y2="16"></line>
+                                            </svg>
+                                            <div class="doc-upload-text">
+                                                <span class="split-upload-title" id="title-valid-id">Upload Valid ID</span>
+                                                <span class="split-upload-desc">JPG, PNG or PDF (Max 5MB)</span>
+                                            </div>
+                                        </div>
+
+                                        <!-- Filled / Inline Preview State -->
+                                        <div class="doc-upload-filled" id="filled-id" style="display: none;">
+                                            <div class="doc-preview-thumb-wrap" id="thumb-id" onclick="openDocPreview('input-valid-id', event)" title="Click to expand preview"></div>
+                                            <div class="doc-upload-meta">
+                                                <div class="doc-upload-name" id="filename-id">file.jpg</div>
+                                                <div class="doc-upload-subinfo">
+                                                    <span class="doc-upload-size" id="size-id">0 KB</span>
+                                                    <span class="doc-upload-badge">✓ Attached</span>
+                                                </div>
+                                            </div>
+                                            <div class="doc-upload-actions">
+                                                <button type="button" class="doc-action-btn view" onclick="openDocPreview('input-valid-id', event)" title="Preview Full Document">
+                                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                                                    <span>View</span>
+                                                </button>
+                                                <button type="button" class="doc-action-btn remove" onclick="clearDocFile('input-valid-id', 'id', event)" title="Remove file">&times;</button>
+                                            </div>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
 
-                            <!-- 2. Required Business Documents -->
-                            <div class="onboarding-section-title">Required Business Documents</div>
+                            <!-- Row 2: Business Permit & Barangay Clearance -->
                             <div class="split-form-row-2col">
                                 <!-- Business Permit Upload Box -->
                                 <div class="split-form-group">
-                                    <label>Business Permit<span class="req-star" style="color: #ef4444; font-weight: 700; margin-left: 1px;">*</span></label>
-                                    <div class="split-file-upload-box" id="box-business-permit">
-                                        <input type="file" name="business_permit" id="input-business-permit" required accept=".pdf,.jpg,.jpeg,.png"
-                                               onchange="handleFileChosen(this, 'filename-permit', 'box-business-permit')"
+                                    <label>Business Permit<span class="req-star">*</span></label>
+                                    <div class="split-file-upload-box" id="box-permit">
+                                        <input type="file" name="business_permit" id="input-business-permit" required accept=".pdf,.jpg,.jpeg,.png,.webp"
+                                               onchange="handleDocFileChosen(this, 'permit', 'Business Permit')"
                                                oninvalid="this.setCustomValidity('Please upload your business permit.')"
                                                oninput="this.setCustomValidity('')">
-                                        <svg class="split-upload-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
-                                            <polyline points="14 2 14 8 20 8"></polyline>
-                                            <line x1="16" y1="13" x2="8" y2="13"></line>
-                                            <line x1="16" y1="17" x2="8" y2="17"></line>
-                                            <polyline points="10 9 9 9 8 9"></polyline>
-                                        </svg>
-                                        <span class="split-upload-title">Business Permit</span>
-                                        <span class="split-upload-desc">DTI, SEC or Mayor's Permit</span>
-                                        <span class="split-upload-filename" id="filename-permit"></span>
+                                        
+                                        <!-- Empty State -->
+                                        <div class="doc-upload-empty" id="empty-permit">
+                                            <svg class="split-upload-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                                                <polyline points="14 2 14 8 20 8"></polyline>
+                                                <line x1="16" y1="13" x2="8" y2="13"></line>
+                                                <line x1="16" y1="17" x2="8" y2="17"></line>
+                                            </svg>
+                                            <div class="doc-upload-text">
+                                                <span class="split-upload-title">Business Permit</span>
+                                                <span class="split-upload-desc">DTI, SEC or Mayor's Permit</span>
+                                            </div>
+                                        </div>
+
+                                        <!-- Filled / Inline Preview State -->
+                                        <div class="doc-upload-filled" id="filled-permit" style="display: none;">
+                                            <div class="doc-preview-thumb-wrap" id="thumb-permit" onclick="openDocPreview('input-business-permit', event)" title="Click to expand preview"></div>
+                                            <div class="doc-upload-meta">
+                                                <div class="doc-upload-name" id="filename-permit">file.jpg</div>
+                                                <div class="doc-upload-subinfo">
+                                                    <span class="doc-upload-size" id="size-permit">0 KB</span>
+                                                    <span class="doc-upload-badge">✓ Attached</span>
+                                                </div>
+                                            </div>
+                                            <div class="doc-upload-actions">
+                                                <button type="button" class="doc-action-btn view" onclick="openDocPreview('input-business-permit', event)" title="Preview Full Document">
+                                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                                                    <span>View</span>
+                                                </button>
+                                                <button type="button" class="doc-action-btn remove" onclick="clearDocFile('input-business-permit', 'permit', event)" title="Remove file">&times;</button>
+                                            </div>
+                                        </div>
                                     </div>
                                 </div>
 
                                 <!-- Barangay Clearance Upload Box -->
                                 <div class="split-form-group">
-                                    <label>Barangay Clearance<span class="req-star" style="color: #ef4444; font-weight: 700; margin-left: 1px;">*</span></label>
-                                    <div class="split-file-upload-box" id="box-barangay-clearance">
-                                        <input type="file" name="barangay_clearance" id="input-barangay-clearance" required accept=".pdf,.jpg,.jpeg,.png"
-                                               onchange="handleFileChosen(this, 'filename-barangay', 'box-barangay-clearance')"
+                                    <label>Barangay Clearance<span class="req-star">*</span></label>
+                                    <div class="split-file-upload-box" id="box-barangay">
+                                        <input type="file" name="barangay_clearance" id="input-barangay-clearance" required accept=".pdf,.jpg,.jpeg,.png,.webp"
+                                               onchange="handleDocFileChosen(this, 'barangay', 'Barangay Clearance')"
                                                oninvalid="this.setCustomValidity('Please upload your Barangay Clearance.')"
                                                oninput="this.setCustomValidity('')">
-                                        <svg class="split-upload-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
-                                            <polyline points="9 12 11 14 15 10"></polyline>
-                                        </svg>
-                                        <span class="split-upload-title">Barangay Clearance</span>
-                                        <span class="split-upload-desc">Current year clearance</span>
-                                        <span class="split-upload-filename" id="filename-barangay"></span>
+                                        
+                                        <!-- Empty State -->
+                                        <div class="doc-upload-empty" id="empty-barangay">
+                                            <svg class="split-upload-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
+                                                <polyline points="9 12 11 14 15 10"></polyline>
+                                            </svg>
+                                            <div class="doc-upload-text">
+                                                <span class="split-upload-title">Barangay Clearance</span>
+                                                <span class="split-upload-desc">Current year clearance</span>
+                                            </div>
+                                        </div>
+
+                                        <!-- Filled / Inline Preview State -->
+                                        <div class="doc-upload-filled" id="filled-barangay" style="display: none;">
+                                            <div class="doc-preview-thumb-wrap" id="thumb-barangay" onclick="openDocPreview('input-barangay-clearance', event)" title="Click to expand preview"></div>
+                                            <div class="doc-upload-meta">
+                                                <div class="doc-upload-name" id="filename-barangay">file.jpg</div>
+                                                <div class="doc-upload-subinfo">
+                                                    <span class="doc-upload-size" id="size-barangay">0 KB</span>
+                                                    <span class="doc-upload-badge">✓ Attached</span>
+                                                </div>
+                                            </div>
+                                            <div class="doc-upload-actions">
+                                                <button type="button" class="doc-action-btn view" onclick="openDocPreview('input-barangay-clearance', event)" title="Preview Full Document">
+                                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                                                    <span>View</span>
+                                                </button>
+                                                <button type="button" class="doc-action-btn remove" onclick="clearDocFile('input-barangay-clearance', 'barangay', event)" title="Remove file">&times;</button>
+                                            </div>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
 
-                            <!-- 3. Optional Verification & Social -->
-                            <div class="onboarding-section-title">Optional Verification & Social</div>
+                            <!-- Row 3: Fire Safety Cert. & Facebook Page Link -->
                             <div class="split-form-row-2col">
                                 <!-- Fire Safety Inspection Certificate Upload Box -->
                                 <div class="split-form-group">
-                                    <label>Fire Safety Cert. <span class="opt-label" style="font-weight: 400; color: #94a3b8; font-size: 11.5px; margin-left: 4px;">(Optional)</span></label>
+                                    <label>Fire Safety Cert. <span class="opt-label">(Optional)</span></label>
                                     <div class="split-file-upload-box" id="box-fire-safety">
-                                        <input type="file" name="fire_safety_cert" id="input-fire-safety" accept=".pdf,.jpg,.jpeg,.png"
-                                               onchange="handleFileChosen(this, 'filename-fire-safety', 'box-fire-safety')">
-                                        <svg class="split-upload-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                            <path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z"></path>
-                                        </svg>
-                                        <span class="split-upload-title">Fire Safety Cert.</span>
-                                        <span class="split-upload-desc">FSIC document (Optional)</span>
-                                        <span class="split-upload-filename" id="filename-fire-safety"></span>
+                                        <input type="file" name="fire_safety_cert" id="input-fire-safety" accept=".pdf,.jpg,.jpeg,.png,.webp"
+                                               onchange="handleDocFileChosen(this, 'fire-safety', 'Fire Safety Inspection Certificate')">
+                                        
+                                        <!-- Empty State -->
+                                        <div class="doc-upload-empty" id="empty-fire-safety">
+                                            <svg class="split-upload-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                                <path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z"></path>
+                                            </svg>
+                                            <div class="doc-upload-text">
+                                                <span class="split-upload-title">Fire Safety Cert.</span>
+                                                <span class="split-upload-desc">FSIC document (Optional)</span>
+                                            </div>
+                                        </div>
+
+                                        <!-- Filled / Inline Preview State -->
+                                        <div class="doc-upload-filled" id="filled-fire-safety" style="display: none;">
+                                            <div class="doc-preview-thumb-wrap" id="thumb-fire-safety" onclick="openDocPreview('input-fire-safety', event)" title="Click to expand preview"></div>
+                                            <div class="doc-upload-meta">
+                                                <div class="doc-upload-name" id="filename-fire-safety">file.jpg</div>
+                                                <div class="doc-upload-subinfo">
+                                                    <span class="doc-upload-size" id="size-fire-safety">0 KB</span>
+                                                    <span class="doc-upload-badge">✓ Attached</span>
+                                                </div>
+                                            </div>
+                                            <div class="doc-upload-actions">
+                                                <button type="button" class="doc-action-btn view" onclick="openDocPreview('input-fire-safety', event)" title="Preview Full Document">
+                                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                                                    <span>View</span>
+                                                </button>
+                                                <button type="button" class="doc-action-btn remove" onclick="clearDocFile('input-fire-safety', 'fire-safety', event)" title="Remove file">&times;</button>
+                                            </div>
+                                        </div>
                                     </div>
                                 </div>
 
                                 <!-- Facebook Page Link Input -->
                                 <div class="split-form-group">
-                                    <label>Facebook Page <span class="opt-label" style="font-weight: 400; color: #94a3b8; font-size: 11.5px; margin-left: 4px;">(Optional)</span></label>
+                                    <label>Facebook Page <span class="opt-label">(Optional)</span></label>
                                     <div class="split-input-wrap auth-input-group">
                                         <svg class="split-input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                                             <path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z"></path>
@@ -570,12 +980,204 @@ function gym_onboarding_page(): void
                             <div>Need to finish later? <a href="index.php?page=logout" class="signup-link">Sign out</a></div>
                         </div>
                     </form>
+
+                    <!-- Document Lightbox Preview Modal -->
+                    <div id="docPreviewModal" class="doc-lightbox-modal" style="display: none;" onclick="closeDocPreviewModal(event)">
+                        <div class="doc-lightbox-dialog" onclick="event.stopPropagation()">
+                            <div class="doc-lightbox-header">
+                                <div class="doc-lightbox-title-wrap">
+                                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                        <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
+                                        <circle cx="8.5" cy="8.5" r="1.5"/>
+                                        <polyline points="21 15 16 10 5 21"/>
+                                    </svg>
+                                    <span id="docLightboxTitle">Document Preview</span>
+                                </div>
+                                <div style="display: flex; align-items: center; gap: 8px;">
+                                    <a id="docLightboxDownload" href="#" target="_blank" class="doc-action-btn view" style="text-decoration: none; padding: 5px 9px;" title="Open in new tab">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+                                        <span>New Tab</span>
+                                    </a>
+                                    <button type="button" class="doc-lightbox-close-btn" onclick="closeDocPreviewModal()" title="Close (Esc)">&times;</button>
+                                </div>
+                            </div>
+                            <div class="doc-lightbox-body" id="docLightboxBody">
+                                <!-- Preview image or iframe dynamically inserted -->
+                            </div>
+                            <div class="doc-lightbox-footer">
+                                <div class="doc-lightbox-meta" id="docLightboxMeta">—</div>
+                                <button type="button" class="doc-lightbox-btn" onclick="closeDocPreviewModal()">Done</button>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
 
     <script>
     let currentStep = 1;
+
+    function formatFileSize(bytes) {
+        if (!bytes || bytes === 0) return '0 KB';
+        const k = 1024;
+        const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+        const i = Math.floor(Math.log(bytes) / Math.log(k));
+        return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+    }
+
+    function handleDocFileChosen(input, key, docTitle) {
+        const file = input && input.files && input.files[0];
+        const boxMap = {
+            'id': 'box-valid-id',
+            'permit': 'box-permit',
+            'barangay': 'box-barangay',
+            'fire-safety': 'box-fire-safety'
+        };
+        const box = document.getElementById(boxMap[key] || ('box-' + key));
+        const emptyEl = document.getElementById('empty-' + key);
+        const filledEl = document.getElementById('filled-' + key);
+        const thumbEl = document.getElementById('thumb-' + key);
+        const nameEl = document.getElementById('filename-' + key);
+        const sizeEl = document.getElementById('size-' + key);
+
+        if (!file) {
+            if (emptyEl) emptyEl.style.display = 'flex';
+            if (filledEl) filledEl.style.display = 'none';
+            if (box) box.classList.remove('has-file');
+            return;
+        }
+
+        if (nameEl) {
+            nameEl.textContent = file.name;
+            nameEl.title = file.name;
+        }
+        if (sizeEl) sizeEl.textContent = formatFileSize(file.size);
+
+        const isPdf = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
+        if (thumbEl) {
+            thumbEl.innerHTML = '';
+            if (isPdf) {
+                thumbEl.innerHTML = `
+                    <div class="doc-thumb-pdf">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                            <polyline points="14 2 14 8 20 8"></polyline>
+                            <line x1="16" y1="13" x2="8" y2="13"></line>
+                            <line x1="16" y1="17" x2="8" y2="17"></line>
+                            <polyline points="10 9 9 9 8 9"></polyline>
+                        </svg>
+                        <span>PDF</span>
+                    </div>
+                `;
+            } else {
+                const objectUrl = URL.createObjectURL(file);
+                const img = document.createElement('img');
+                img.src = objectUrl;
+                img.className = 'doc-thumb-img';
+                img.alt = file.name;
+                thumbEl.appendChild(img);
+            }
+        }
+
+        if (emptyEl) emptyEl.style.display = 'none';
+        if (filledEl) filledEl.style.display = 'flex';
+        if (box) box.classList.add('has-file');
+    }
+
+    function clearDocFile(inputId, key, event) {
+        if (event) {
+            event.preventDefault();
+            event.stopPropagation();
+        }
+        const input = document.getElementById(inputId);
+        if (input) {
+            input.value = '';
+        }
+        const boxMap = {
+            'id': 'box-valid-id',
+            'permit': 'box-permit',
+            'barangay': 'box-barangay',
+            'fire-safety': 'box-fire-safety'
+        };
+        const box = document.getElementById(boxMap[key] || ('box-' + key));
+        const emptyEl = document.getElementById('empty-' + key);
+        const filledEl = document.getElementById('filled-' + key);
+        const thumbEl = document.getElementById('thumb-' + key);
+
+        if (emptyEl) emptyEl.style.display = 'flex';
+        if (filledEl) filledEl.style.display = 'none';
+        if (thumbEl) thumbEl.innerHTML = '';
+        if (box) box.classList.remove('has-file');
+    }
+
+    function openDocPreview(inputId, event) {
+        if (event) {
+            event.preventDefault();
+            event.stopPropagation();
+        }
+        const input = document.getElementById(inputId);
+        if (!input || !input.files || !input.files[0]) {
+            return;
+        }
+        const file = input.files[0];
+        const isPdf = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
+        const modal = document.getElementById('docPreviewModal');
+        const titleEl = document.getElementById('docLightboxTitle');
+        const bodyEl = document.getElementById('docLightboxBody');
+        const metaEl = document.getElementById('docLightboxMeta');
+        const downloadLink = document.getElementById('docLightboxDownload');
+
+        if (!modal || !bodyEl) return;
+
+        const fileUrl = URL.createObjectURL(file);
+
+        const titleMap = {
+            'input-valid-id': 'Valid Government ID',
+            'input-business-permit': 'Business Permit',
+            'input-barangay-clearance': 'Barangay Clearance',
+            'input-fire-safety': 'Fire Safety Inspection Certificate'
+        };
+        const titlePrefix = titleMap[inputId] || 'Document';
+        if (titleEl) titleEl.textContent = `${titlePrefix} — ${file.name}`;
+        if (metaEl) metaEl.textContent = `${file.name} (${formatFileSize(file.size)})`;
+        if (downloadLink) {
+            downloadLink.href = fileUrl;
+            downloadLink.download = file.name;
+        }
+
+        bodyEl.innerHTML = '';
+        if (isPdf) {
+            const frame = document.createElement('iframe');
+            frame.src = fileUrl + '#toolbar=0';
+            frame.className = 'doc-lightbox-frame';
+            frame.title = file.name;
+            bodyEl.appendChild(frame);
+        } else {
+            const img = document.createElement('img');
+            img.src = fileUrl;
+            img.className = 'doc-lightbox-img';
+            img.alt = file.name;
+            bodyEl.appendChild(img);
+        }
+
+        modal.style.display = 'flex';
+    }
+
+    function closeDocPreviewModal(event) {
+        if (event && event.target && event.target.closest('.doc-lightbox-dialog') && event.target.tagName !== 'BUTTON' && !event.target.classList.contains('doc-lightbox-close-btn')) {
+            return;
+        }
+        const modal = document.getElementById('docPreviewModal');
+        const bodyEl = document.getElementById('docLightboxBody');
+        if (modal) modal.style.display = 'none';
+        if (bodyEl) bodyEl.innerHTML = '';
+    }
+
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape') {
+            closeDocPreviewModal();
+        }
+    });
 
     function handleIdTypeChange(val) {
         const otherWrap = document.getElementById('other-id-wrap');
@@ -601,7 +1203,11 @@ function gym_onboarding_page(): void
         if (targetStep >= 2) {
             const gn = document.getElementById('gym_name');
             const gc = document.getElementById('gym_contact_info');
-            const ga = document.getElementById('gym_address');
+            const st = document.getElementById('street');
+            const bg = document.getElementById('barangay');
+            const ct = document.getElementById('city');
+            const pr = document.getElementById('province');
+            const zc = document.getElementById('zipcode');
 
             if (gn && !gn.value.trim()) {
                 goToStepDirect(1);
@@ -621,11 +1227,41 @@ function gym_onboarding_page(): void
                     gc.setCustomValidity('');
                 }
             }
-            if (ga && !ga.value.trim()) {
+            if (st && !st.value.trim()) {
                 goToStepDirect(1);
-                ga.focus();
-                ga.reportValidity();
+                st.focus();
+                st.reportValidity();
                 return;
+            }
+            if (bg && !bg.value.trim()) {
+                goToStepDirect(1);
+                bg.focus();
+                bg.reportValidity();
+                return;
+            }
+            if (ct && !ct.value.trim()) {
+                goToStepDirect(1);
+                ct.focus();
+                ct.reportValidity();
+                return;
+            }
+            if (pr && !pr.value.trim()) {
+                goToStepDirect(1);
+                pr.focus();
+                pr.reportValidity();
+                return;
+            }
+            if (zc) {
+                const zcDigits = zc.value.replace(/[^0-9]/g, '');
+                if (zcDigits.length !== 4) {
+                    goToStepDirect(1);
+                    zc.focus();
+                    zc.setCustomValidity('Please enter a 4-digit ZIP code.');
+                    zc.reportValidity();
+                    return;
+                } else {
+                    zc.setCustomValidity('');
+                }
             }
         }
 
@@ -718,7 +1354,12 @@ function gym_onboarding_page(): void
     function populateReviewData() {
         const gn = document.getElementById('gym_name')?.value || '—';
         const gc = document.getElementById('gym_contact_info')?.value || '—';
-        const ga = document.getElementById('gym_address')?.value || '—';
+        const st = document.getElementById('street')?.value.trim() || '';
+        const bg = document.getElementById('barangay')?.value.trim() || '';
+        const ct = document.getElementById('city')?.value.trim() || '';
+        const pr = document.getElementById('province')?.value.trim() || '';
+        const zc = document.getElementById('zipcode')?.value.trim() || '';
+        const fullAddress = [st, bg, ct, pr, zc].filter(Boolean).join(', ') || '—';
 
         const idTypeVal = document.getElementById('valid_id_type')?.value || '—';
         const idOtherVal = document.getElementById('valid_id_type_other')?.value || '';
@@ -735,7 +1376,7 @@ function gym_onboarding_page(): void
         const revGymAddress = document.getElementById('rev-gym-address');
         if (revGymName) revGymName.textContent = gn;
         if (revGymContact) revGymContact.textContent = gc;
-        if (revGymAddress) revGymAddress.textContent = ga;
+        if (revGymAddress) revGymAddress.textContent = fullAddress;
 
         const revIdType = document.getElementById('rev-id-type');
         const revIdFile = document.getElementById('rev-id-file');
@@ -747,27 +1388,37 @@ function gym_onboarding_page(): void
         }
         if (revIdFile) {
             revIdFile.textContent = '✓ ' + idFile;
-            revIdFile.title = idFile;
+            revIdFile.title = 'Click to preview ' + idFile;
+            revIdFile.classList.add('clickable');
+            revIdFile.onclick = (e) => openDocPreview('input-valid-id', e);
         }
         if (revPermitFile) {
             revPermitFile.textContent = '✓ ' + permitFile;
-            revPermitFile.title = permitFile;
+            revPermitFile.title = 'Click to preview ' + permitFile;
+            revPermitFile.classList.add('clickable');
+            revPermitFile.onclick = (e) => openDocPreview('input-business-permit', e);
         }
         if (revBrgyFile) {
             revBrgyFile.textContent = '✓ ' + brgyFile;
-            revBrgyFile.title = brgyFile;
+            revBrgyFile.title = 'Click to preview ' + brgyFile;
+            revBrgyFile.classList.add('clickable');
+            revBrgyFile.onclick = (e) => openDocPreview('input-barangay-clearance', e);
         }
 
         const revFire = document.getElementById('rev-fire-file');
         if (revFire) {
             if (fireFile) {
                 revFire.textContent = '✓ ' + fireFile;
-                revFire.title = fireFile;
+                revFire.title = 'Click to preview ' + fireFile;
                 revFire.classList.remove('optional');
+                revFire.classList.add('clickable');
+                revFire.onclick = (e) => openDocPreview('input-fire-safety', e);
             } else {
                 revFire.textContent = 'None (Optional)';
                 revFire.title = '';
                 revFire.classList.add('optional');
+                revFire.classList.remove('clickable');
+                revFire.onclick = null;
             }
         }
 
@@ -803,21 +1454,7 @@ function gym_onboarding_page(): void
         }
     }
 
-    function updateFacilityLivePreview() {
-        const gn = document.getElementById('gym_name')?.value.trim();
-        const gc = document.getElementById('gym_contact_info')?.value.trim();
-        const ga = document.getElementById('gym_address')?.value.trim();
 
-        const prevName = document.getElementById('prev-gym-name');
-        const prevContact = document.getElementById('prev-gym-contact');
-        const prevAddress = document.getElementById('prev-gym-address');
-
-        if (prevName) prevName.textContent = gn ? gn : 'Iron Forge Gym';
-        if (prevContact) prevContact.textContent = gc ? gc : '09123456789';
-        if (prevAddress) prevAddress.textContent = ga ? ga : 'City / Province Address';
-    }
-
-    document.addEventListener('DOMContentLoaded', updateFacilityLivePreview);
     </script>
     <?php
     render_footer();
