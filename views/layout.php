@@ -34,7 +34,6 @@ function render_header(string $title, ?array $user = null): void
                 'plans' => 'Plans',
                 'training' => 'Workouts',
                 'memberships' => 'Memberships',
-                'payments' => 'Payments',
                 'commissions' => 'Commissions',
                 'walk_ins' => 'Walk-ins',
                 'classes' => 'Classes',
@@ -80,6 +79,7 @@ function render_header(string $title, ?array $user = null): void
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <title><?= h($title) ?> - <?= h($gym['name'] ?? 'FitTrack') ?></title>
         <link rel="stylesheet" href="assets/app.css?v=<?= filemtime(__DIR__ . '/../assets/app.css') ?>">
+        <link rel="stylesheet" href="assets/dropdown.css?v=<?= file_exists(__DIR__ . '/../assets/dropdown.css') ? filemtime(__DIR__ . '/../assets/dropdown.css') : 1 ?>">
         <?php if ($gym && !empty($gym['brand_color'])): ?>
             <style>
                 :root, [data-theme="light"], [data-theme="dark"] {
@@ -105,6 +105,7 @@ function render_header(string $title, ?array $user = null): void
                     .replace(/'/g, '&#039;');
             };
         </script>
+        <script src="assets/dropdown.js?v=<?= file_exists(__DIR__ . '/../assets/dropdown.js') ? filemtime(__DIR__ . '/../assets/dropdown.js') : 1 ?>"></script>
         <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
         <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
         <script>
@@ -632,6 +633,7 @@ function render_header(string $title, ?array $user = null): void
                             }
                         }
                         $isActive = ($page === $key 
+                            || ($key === 'memberships' && in_array($page, ['memberships', 'payments'], true))
                             || ($key === 'training' && in_array($page, ['training', 'admin_workouts', 'workout_builder'], true))
                             || ($key === 'trainer_assignments' && $page === 'diet_builder' && in_array($role, ['gym_owner', 'platform_admin'], true))
                             || ($key === 'trainer_members' && $page === 'diet_builder' && $role === 'trainer')

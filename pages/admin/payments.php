@@ -6,26 +6,128 @@ function payments_page(): void
     $user = require_roles(['platform_admin', 'gym_owner', 'member']);
     $isPlatformAdmin = ($user['role'] === 'platform_admin');
 
-    // Gym owners can record membership payments
+    // ── AJAX: Hybrid Live Search for Members ─────────────────────────
+    if (($_GET['action'] ?? post('action')) === 'search_members') {
+        if (ob_get_level()) ob_clean();
+        header('Content-Type: application/json');
+
+        $gymId = 0;
+        if ($user['role'] === 'gym_owner') {
+            $gymId = (int) scalar('SELECT gym_id FROM gyms WHERE owner_user_id = ?', [$user['user_id']]);
+        }
+
+        $q = trim((string)($_GET['q'] ?? post('q') ?? ''));
+        $sql = 'SELECT u.user_id, u.first_name, u.last_name, u.email, u.profile_picture
+                FROM users u
+                WHERE u.role = "member" AND u.status = "active"';
+        $params = [];
+        if ($gymId > 0) {
+            $sql .= ' AND EXISTS (SELECT 1 FROM gym_members gm WHERE gm.user_id = u.user_id AND gm.gym_id = ?)';
+            $params[] = $gymId;
+        }
+        if ($q !== '') {
+            $pattern = '%' . $q . '%';
+            $sql .= ' AND (u.first_name LIKE ? OR u.last_name LIKE ? OR CONCAT(u.first_name, " ", u.last_name) LIKE ? OR u.email LIKE ?)';
+            $params[] = $pattern;
+            $params[] = $pattern;
+            $params[] = $pattern;
+            $params[] = $pattern;
+        }
+        $sql .= ' ORDER BY u.first_name ASC LIMIT 50';
+        $stmt = db()->prepare($sql);
+        $stmt->execute($params);
+        $membersFound = $stmt->fetchAll();
+
+        $results = array_map(function ($m) {
+            $firstName = trim((string)($m['first_name'] ?? ''));
+            $lastName = trim((string)($m['last_name'] ?? ''));
+            $fullName = trim($firstName . ' ' . $lastName) ?: 'Member';
+            $ini = (!empty($firstName) ? strtoupper(substr($firstName, 0, 1)) : '') . (!empty($lastName) ? strtoupper(substr($lastName, 0, 1)) : '');
+            return [
+                'id' => (int)$m['user_id'],
+                'name' => $fullName,
+                'email' => (string)($m['email'] ?? ''),
+                'initials' => $ini ?: 'M',
+                'avatar' => !empty($m['profile_picture']) ? (string)$m['profile_picture'] : null
+            ];
+        }, $membersFound);
+
+        echo json_encode(['results' => $results]);
+        exit;
+    }
+
+    // Gym owners can record membership payments (Unified Single-Step Checkout)
     if ($user['role'] === 'gym_owner' && $_SERVER['REQUEST_METHOD'] === 'POST') {
         $receipt = post('receipt_number') ?: 'RCPT-' . date('Ymd') . '-' . random_int(1000, 9999);
         $membershipId = (int) post('membership_id');
-        $status = post('status');
+        $planId = (int) post('plan_id');
+        $memberUserId = (int) post('user_id');
+        $status = post('status') ?: 'paid';
+        $paymentDate = post('payment_date') ?: date('Y-m-d');
+        $amount = (float) post('amount');
+        $paymentMethod = post('payment_method') ?: 'cash';
+
+        $gym = db()->query('SELECT gym_id FROM gyms WHERE owner_user_id = ' . (int) $user['user_id'])->fetch();
+        $gymId = $gym ? (int) $gym['gym_id'] : 0;
+
+        // If no pre-existing membership_id, but plan_id and user_id are supplied, create the membership!
+        if (!$membershipId && $planId && $memberUserId) {
+            $plan = db()->query('SELECT plan_id, plan_name, price, duration_days FROM membership_plans WHERE plan_id = ' . $planId)->fetch();
+            if ($plan) {
+                $duration = (int) ($plan['duration_days'] ?? 30);
+                $start = new DateTime($paymentDate);
+                $end = (clone $start)->modify('+' . $duration . ' days')->format('Y-m-d');
+                $membershipStatus = ($status === 'paid') ? 'active' : 'pending';
+
+                // Handle existing active plan for renewal or upgrade
+                $currentActive = db()->query("SELECT m.* FROM memberships m WHERE m.user_id = $memberUserId AND m.status = 'active' ORDER BY m.end_date DESC LIMIT 1")->fetch();
+                if ($currentActive) {
+                    if ((int)$currentActive['plan_id'] === $planId) {
+                        // Queue renewal from previous end date
+                        $start = new DateTime($currentActive['end_date']);
+                        $end = (clone $start)->modify('+' . $duration . ' days')->format('Y-m-d');
+                        if ($status !== 'paid') {
+                            $membershipStatus = 'pending';
+                        }
+                    } else {
+                        // Upgrade/switch: cancel older active plan
+                        if ($status === 'paid') {
+                            db()->prepare("UPDATE memberships SET status = 'cancelled' WHERE membership_id = ?")->execute([$currentActive['membership_id']]);
+                        }
+                    }
+                }
+
+                db()->prepare('INSERT INTO memberships (user_id, plan_id, start_date, end_date, status) VALUES (?, ?, ?, ?, ?)')
+                    ->execute([$memberUserId, $planId, $start->format('Y-m-d'), $end, $membershipStatus]);
+                $membershipId = (int) db()->lastInsertId();
+
+                if ($gymId) {
+                    db()->prepare('INSERT IGNORE INTO gym_members (gym_id, user_id) VALUES (?, ?)')->execute([$gymId, $memberUserId]);
+                }
+            }
+        }
+
+        if (!$membershipId) {
+            flash('Error: A member and membership plan must be selected.', 'danger');
+            redirect('payments');
+        }
+
         db()->prepare('INSERT INTO payments (membership_id, amount, payment_date, payment_method, status, receipt_number, processed_by) VALUES (?, ?, ?, ?, ?, ?, ?)')
-            ->execute([$membershipId, post('amount'), post('payment_date'), post('payment_method'), $status, $receipt, $user['user_id']]);
+            ->execute([$membershipId, $amount, $paymentDate, $paymentMethod, $status, $receipt, $user['user_id']]);
 
         $paymentId = (int) db()->lastInsertId();
 
         // If the payment is marked as paid, automatically activate the membership
         if ($status === 'paid') {
             db()->prepare('UPDATE memberships SET status = "active" WHERE membership_id = ? AND status = "pending"')->execute([$membershipId]);
-            process_trainer_commission($paymentId, (float) post('amount'));
+            process_trainer_commission($paymentId, $amount);
         }
 
         $paymentInfo = query_all(
-            'SELECT m.user_id, p.plan_name
+            'SELECT m.user_id, p.plan_name, u.email, u.first_name, u.last_name
              FROM memberships m
              JOIN membership_plans p ON p.plan_id = m.plan_id
+             JOIN users u ON u.user_id = m.user_id
              WHERE m.membership_id = ?',
             [$membershipId]
         );
@@ -35,13 +137,29 @@ function payments_page(): void
                 (int) $info['user_id'],
                 'system',
                 'Payment recorded',
-                money(post('amount')) . ' received for ' . $info['plan_name'] . '. Receipt: ' . $receipt . '.'
+                money($amount) . ' received for ' . $info['plan_name'] . '. Receipt: ' . $receipt . '.'
             );
+
+            if ($status === 'paid' && class_exists('Emails')) {
+                try {
+                    Emails::sendPaymentConfirmation(
+                        $info['email'],
+                        $info['first_name'] . ' ' . $info['last_name'],
+                        $info['plan_name']
+                    );
+                } catch (\Throwable $e) {}
+            }
         }
 
-        audit_log($user['user_id'], 'create', 'payment', (string) $paymentId, json_encode(['membership_id' => $membershipId, 'amount' => post('amount'), 'status' => $status, 'receipt' => $receipt]));
+        audit_log($user['user_id'], 'create', 'payment', (string) $paymentId, json_encode(['membership_id' => $membershipId, 'amount' => $amount, 'status' => $status, 'receipt' => $receipt]));
         flash('Payment recorded.');
-        redirect('payments');
+        redirect('memberships&view=payments');
+    }
+
+    // Backward-compatibility redirect:
+    // Gym owners and members now use the unified "Memberships & Payments" hub at ?page=memberships&view=payments
+    if (!$isPlatformAdmin && ($_GET['action'] ?? post('action')) !== 'search_members') {
+        redirect('memberships&view=payments');
     }
 
     $page = max(1, (int)($_GET['p'] ?? 1));
@@ -213,7 +331,43 @@ function payments_page(): void
         $paymentWhere = 'WHERE p.gym_id = ' . (int) $gymId;
     }
 
-    $memberships = db()->query('SELECT m.membership_id, u.first_name, u.last_name, p.plan_name, m.status, CONCAT(u.first_name, " ", u.last_name, " — ", p.plan_name, " (", m.status, ")") AS label, p.price FROM memberships m JOIN users u ON u.user_id = m.user_id JOIN membership_plans p ON p.plan_id = m.plan_id ' . $membershipWhere . ' ORDER BY m.created_at DESC')->fetchAll();
+    $memberSql = 'SELECT u.user_id, u.first_name, u.last_name, u.email, u.profile_picture, CONCAT(u.first_name, " ", u.last_name) AS name 
+                  FROM users u 
+                  WHERE u.role = "member" AND u.status = "active"';
+    if ($user['role'] === 'gym_owner' && $gymId) {
+        $memberSql .= ' AND EXISTS (SELECT 1 FROM gym_members gm WHERE gm.user_id = u.user_id AND gm.gym_id = ' . (int)$gymId . ')';
+    }
+    $memberSql .= ' ORDER BY u.first_name';
+    $members = db()->query($memberSql)->fetchAll();
+    $initialMembersData = array_map(function ($m) {
+        $firstName = trim((string)($m['first_name'] ?? ''));
+        $lastName = trim((string)($m['last_name'] ?? ''));
+        $fullName = trim($firstName . ' ' . $lastName) ?: (string)($m['name'] ?? 'Member');
+        $ini = (!empty($firstName) ? strtoupper(substr($firstName, 0, 1)) : '') . (!empty($lastName) ? strtoupper(substr($lastName, 0, 1)) : '');
+        return [
+            'id' => (int) $m['user_id'],
+            'name' => $fullName,
+            'email' => (string) ($m['email'] ?? ''),
+            'initials' => $ini ?: 'M',
+            'avatar' => !empty($m['profile_picture']) ? (string)$m['profile_picture'] : null
+        ];
+    }, $members ?: []);
+
+    $plans = ($gymId ? db()->query('SELECT plan_id, plan_name, price, duration_days FROM membership_plans WHERE gym_id = ' . (int) $gymId . ' ORDER BY price ASC')->fetchAll() : []);
+    if (empty($plans)) {
+        $plans = db()->query('SELECT plan_id, plan_name, price, duration_days FROM membership_plans ORDER BY price ASC')->fetchAll();
+    }
+    $plansData = array_map(function ($p) {
+        return [
+            'id' => (int) $p['plan_id'],
+            'name' => (string) $p['plan_name'],
+            'price' => (float) $p['price'],
+            'formatted_price' => function_exists('money') ? money($p['price']) : ('₱' . number_format((float) $p['price'], 2)),
+            'duration' => (int) ($p['duration_days'] ?? 30)
+        ];
+    }, $plans ?: []);
+
+    $memberships = db()->query('SELECT m.membership_id, m.user_id, u.first_name, u.last_name, p.plan_name, m.status, CONCAT(u.first_name, " ", u.last_name, " — ", p.plan_name, " (", m.status, ")") AS label, p.price, m.end_date FROM memberships m JOIN users u ON u.user_id = m.user_id JOIN membership_plans p ON p.plan_id = m.plan_id ' . $membershipWhere . ' ORDER BY m.created_at DESC')->fetchAll();
     $membershipsData = array_map(function ($m) {
         $first = trim((string)($m['first_name'] ?? ''));
         $last = trim((string)($m['last_name'] ?? ''));
@@ -221,13 +375,15 @@ function payments_page(): void
         $ini = (!empty($first) ? strtoupper(substr($first, 0, 1)) : '') . (!empty($last) ? strtoupper(substr($last, 0, 1)) : '');
         return [
             'id' => (int) $m['membership_id'],
+            'user_id' => (int) $m['user_id'],
             'name' => $name,
             'plan_name' => (string) ($m['plan_name'] ?? ''),
             'status' => (string) ($m['status'] ?? 'active'),
             'price' => (float) ($m['price'] ?? 0),
             'formatted_price' => function_exists('money') ? money($m['price']) : ('₱' . number_format((float) $m['price'], 2)),
             'initials' => $ini ?: 'M',
-            'label' => (string) $m['label']
+            'label' => (string) $m['label'],
+            'end_date' => $m['end_date'] ? date('M j, Y', strtotime($m['end_date'])) : ''
         ];
     }, $memberships ?: []);
 
@@ -389,17 +545,24 @@ function payments_page(): void
     
     <?php if ($user['role'] === 'gym_owner'): ?>
     <script>
+    window.paymentMembersData = <?= json_encode($initialMembersData ?? [], JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP) ?>;
+    window.paymentPlansData = <?= json_encode($plansData ?? [], JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP) ?>;
     window.paymentMembershipsData = <?= json_encode($membershipsData ?? [], JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP) ?>;
 
     function recordPayment() {
+        const members = Array.isArray(window.paymentMembersData) ? window.paymentMembersData : [];
+        const plans = Array.isArray(window.paymentPlansData) ? window.paymentPlansData : [];
         const memberships = Array.isArray(window.paymentMembershipsData) ? window.paymentMembershipsData : [];
+
         const methodOptions = [
-            { id: 'cash', label: 'Cash', svg: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="2"/><path d="M6 12h.01M18 12h.01"/></svg>' },
-            { id: 'card', label: 'Card', svg: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>' },
-            { id: 'bank_transfer', label: 'Bank Transfer', svg: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 21h18M3 10h18M5 10v11M19 10v11M9 10v11M15 10v11M12 2L2 7h20L12 2z"/></svg>' },
-            { id: 'online', label: 'Online', svg: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="5" y="2" width="14" height="20" rx="2" ry="2"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg>' },
-            { id: 'other', label: 'Other', svg: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg>' }
+            { id: 'cash', label: 'Cash', icon: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="2"/><path d="M6 12h.01M18 12h.01"/></svg>' },
+            { id: 'gcash', label: 'GCash', icon: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>' },
+            { id: 'card', label: 'Card', icon: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>' },
+            { id: 'bank_transfer', label: 'Bank Transfer', icon: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 21h18M3 10h18M5 10v11M19 10v11M9 10v11M15 10v11M12 2L2 7h20L12 2z"/></svg>' },
+            { id: 'online', label: 'Online', icon: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="5" y="2" width="14" height="20" rx="2" ry="2"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg>' },
+            { id: 'other', label: 'Other', icon: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg>' }
         ];
+
         const statusOptions = [
             { id: 'paid', label: 'Paid', dotClass: 'status-dot-active' },
             { id: 'pending', label: 'Pending', dotClass: 'status-dot-pending' },
@@ -407,38 +570,35 @@ function payments_page(): void
             { id: 'refunded', label: 'Refunded', dotClass: 'status-dot-expired' }
         ];
 
-        let selectedMembershipId = null;
-        let selectedMethod = 'cash';
-        let selectedStatus = 'paid';
+        let memberDrop = null;
+        let itemDrop = null;
+        let methodDrop = null;
+        let statusDrop = null;
+        let searchTimer = null;
 
         Swal.fire({
             title: 'Record Payment',
-            width: '460px',
+            width: '480px',
             html: `
-                <form id="recordPaymentForm" method="post" style="text-align: left; display: flex; flex-direction: column; gap: 14px; margin-top: 15px; min-height: 330px; position: relative;">
+                <form id="recordPaymentForm" method="post" style="text-align: left; display: flex; flex-direction: column; gap: 14px; margin-top: 15px; min-height: 380px; position: relative;">
                     <?= csrf_field() ?>
+                    <input type="hidden" name="user_id" id="modalPaymentUserId" value="">
+                    <input type="hidden" name="membership_id" id="modalPaymentMembershipId" value="">
+                    <input type="hidden" name="plan_id" id="modalPaymentPlanId" value="">
                     
-                    <!-- Membership Dropdown -->
+                    <!-- 1. Member Selector (Hybrid Live Search) -->
                     <div>
-                        <label style="display:block; color: var(--muted); font-size: 13.5px; margin-bottom: 6px; font-weight: 500;">Membership *</label>
-                        <div class="wb-combobox-wrap" id="paymentMembershipWrap" style="position: relative; width: 100%; z-index: 60;">
-                            <input type="hidden" name="membership_id" id="paymentMembershipId" value="" required>
-                            
-                            <div id="paymentMembershipTrigger" class="wb-combobox-trigger" tabindex="0" role="combobox" aria-expanded="false" aria-haspopup="listbox">
-                                <div id="paymentMembershipTriggerContent" style="display: flex; align-items: center; gap: 8px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0;">
-                                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="opacity: 0.6; flex-shrink: 0;"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
-                                    <span id="paymentMembershipPlaceholder" style="color: var(--muted); font-size: 14px;">Select Membership...</span>
-                                </div>
-                                <svg id="paymentMembershipChevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="transition: transform 0.2s ease; opacity: 0.7;"><polyline points="6 9 12 15 18 9"></polyline></svg>
-                            </div>
+                        <label style="display:block; color: var(--muted); font-size: 13.5px; margin-bottom: 6px; font-weight: 500;">Member *</label>
+                        <div id="paymentMemberWrap"></div>
+                    </div>
 
-                            <div id="paymentMembershipMenu" class="wb-combobox-menu">
-                                <div id="paymentMembershipListContainer" class="wb-combobox-list" role="listbox" style="padding: 4px;"></div>
-                            </div>
-                        </div>
+                    <!-- 2. Payment For / Plan Selector -->
+                    <div>
+                        <label style="display:block; color: var(--muted); font-size: 13.5px; margin-bottom: 6px; font-weight: 500;">Payment For / Plan *</label>
+                        <div id="paymentItemWrap"></div>
                     </div>
                     
-                    <!-- Amount & Payment Date in Row -->
+                    <!-- 3. Amount & Payment Date in Row -->
                     <div style="display:flex; gap:12px;">
                         <div style="flex:1;">
                             <label style="display:block; color: var(--muted); font-size: 13.5px; margin-bottom: 6px; font-weight: 500;">Amount *</label>
@@ -450,48 +610,20 @@ function payments_page(): void
                         </div>
                     </div>
                     
-                    <!-- Method & Status in Row -->
+                    <!-- 4. Method & Status in Row -->
                     <div style="display:flex; gap:12px;">
                         <div style="flex:1;">
                             <label style="display:block; color: var(--muted); font-size: 13.5px; margin-bottom: 6px; font-weight: 500;">Method *</label>
-                            <div class="wb-combobox-wrap" id="paymentMethodWrap" style="position: relative; width: 100%; z-index: 50;">
-                                <input type="hidden" name="payment_method" id="paymentMethodInput" value="cash" required>
-                                
-                                <div id="paymentMethodTrigger" class="wb-combobox-trigger" tabindex="0" role="combobox" aria-expanded="false" aria-haspopup="listbox">
-                                    <div id="paymentMethodTriggerContent" style="display: flex; align-items: center; gap: 8px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
-                                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="opacity: 0.8; flex-shrink: 0;"><rect x="2" y="6" width="20" height="12" rx="2"></rect><circle cx="12" cy="12" r="2"></circle><path d="M6 12h.01M18 12h.01"></path></svg>
-                                        <span style="font-weight: 600; color: var(--ink); font-size: 13.5px;">Cash</span>
-                                    </div>
-                                    <svg id="paymentMethodChevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="transition: transform 0.2s ease; opacity: 0.7;"><polyline points="6 9 12 15 18 9"></polyline></svg>
-                                </div>
-
-                                <div id="paymentMethodMenu" class="wb-combobox-menu">
-                                    <div id="paymentMethodListContainer" class="wb-combobox-list" role="listbox" style="padding: 4px;"></div>
-                                </div>
-                            </div>
+                            <div id="paymentMethodWrap"></div>
                         </div>
 
                         <div style="flex:1;">
                             <label style="display:block; color: var(--muted); font-size: 13.5px; margin-bottom: 6px; font-weight: 500;">Status *</label>
-                            <div class="wb-combobox-wrap" id="paymentStatusWrap" style="position: relative; width: 100%; z-index: 40;">
-                                <input type="hidden" name="status" id="paymentStatusInput" value="paid" required>
-                                
-                                <div id="paymentStatusTrigger" class="wb-combobox-trigger" tabindex="0" role="combobox" aria-expanded="false" aria-haspopup="listbox">
-                                    <div id="paymentStatusTriggerContent" style="display: flex; align-items: center; gap: 8px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
-                                        <span class="status-indicator-dot status-dot-active"></span>
-                                        <span style="font-weight: 600; color: var(--ink); font-size: 13.5px;">Paid</span>
-                                    </div>
-                                    <svg id="paymentStatusChevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="transition: transform 0.2s ease; opacity: 0.7;"><polyline points="6 9 12 15 18 9"></polyline></svg>
-                                </div>
-
-                                <div id="paymentStatusMenu" class="wb-combobox-menu">
-                                    <div id="paymentStatusListContainer" class="wb-combobox-list" role="listbox" style="padding: 4px;"></div>
-                                </div>
-                            </div>
+                            <div id="paymentStatusWrap"></div>
                         </div>
                     </div>
                     
-                    <!-- Receipt # -->
+                    <!-- 5. Receipt # -->
                     <div>
                         <label style="display:block; color: var(--muted); font-size: 13.5px; margin-bottom: 6px; font-weight: 500;">Receipt #</label>
                         <input name="receipt_number" class="wb-modal-input" placeholder="Auto-generated">
@@ -505,275 +637,145 @@ function payments_page(): void
             background: 'var(--bg)',
             color: 'var(--ink)',
             didOpen: () => {
-                const membershipTrigger = document.getElementById('paymentMembershipTrigger');
-                const membershipMenu = document.getElementById('paymentMembershipMenu');
-                const membershipChevron = document.getElementById('paymentMembershipChevron');
-                const membershipTriggerContent = document.getElementById('paymentMembershipTriggerContent');
-                const membershipListContainer = document.getElementById('paymentMembershipListContainer');
-                const membershipIdInput = document.getElementById('paymentMembershipId');
                 const amountInput = document.getElementById('modalPaymentAmount');
+                const userIdInput = document.getElementById('modalPaymentUserId');
+                const membershipIdInput = document.getElementById('modalPaymentMembershipId');
+                const planIdInput = document.getElementById('modalPaymentPlanId');
 
-                const methodTrigger = document.getElementById('paymentMethodTrigger');
-                const methodMenu = document.getElementById('paymentMethodMenu');
-                const methodChevron = document.getElementById('paymentMethodChevron');
-                const methodTriggerContent = document.getElementById('paymentMethodTriggerContent');
-                const methodListContainer = document.getElementById('paymentMethodListContainer');
-                const methodInput = document.getElementById('paymentMethodInput');
-
-                const statusTrigger = document.getElementById('paymentStatusTrigger');
-                const statusMenu = document.getElementById('paymentStatusMenu');
-                const statusChevron = document.getElementById('paymentStatusChevron');
-                const statusTriggerContent = document.getElementById('paymentStatusTriggerContent');
-                const statusListContainer = document.getElementById('paymentStatusListContainer');
-                const statusInput = document.getElementById('paymentStatusInput');
-
-                function escapeHtml(str) {
-                    if (typeof window.escapeHtml === 'function') return window.escapeHtml(str);
-                    const d = document.createElement('div');
-                    d.textContent = str;
-                    return d.innerHTML;
-                }
-
-                // Render Membership List
-                function renderMemberships() {
-                    if (memberships.length === 0) {
-                        membershipListContainer.innerHTML = '<div style="padding: 12px; text-align: center; color: var(--muted); font-size: 13px;">No active memberships</div>';
-                        return;
-                    }
-                    membershipListContainer.innerHTML = memberships.map(m => {
-                        const isSelected = selectedMembershipId === m.id;
-                        return `
-                            <div class="wb-combobox-item ${isSelected ? 'selected' : ''}" data-id="${m.id}" role="option" style="padding: 9px 12px;">
-                                <div style="display: flex; align-items: center; justify-content: space-between; width: 100%; gap: 10px;">
-                                    <div style="display: flex; align-items: center; gap: 10px; min-width: 0;">
-                                        <div class="wb-combobox-avatar" style="width: 26px; height: 26px; font-size: 10px;">
-                                            ${escapeHtml(m.initials)}
-                                        </div>
-                                        <div style="display: flex; flex-direction: column; min-width: 0; text-align: left;">
-                                            <span style="font-weight: 600; font-size: 13px; color: var(--ink); line-height: 1.2; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
-                                                ${escapeHtml(m.name)}
-                                            </span>
-                                            <span style="font-size: 11.5px; color: var(--muted); margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
-                                                ${escapeHtml(m.plan_name)} &bull; ${escapeHtml(m.status)}
-                                            </span>
-                                        </div>
-                                    </div>
-                                    <div style="display: flex; align-items: center; gap: 8px; flex-shrink: 0;">
-                                        <span style="font-size: 12px; font-weight: 700; color: var(--lime);">${escapeHtml(m.formatted_price)}</span>
-                                        ${isSelected ? '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--lime)" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>' : ''}
-                                    </div>
-                                </div>
-                            </div>
-                        `;
-                    }).join('');
-
-                    membershipListContainer.querySelectorAll('.wb-combobox-item').forEach(el => {
-                        el.addEventListener('click', (e) => {
-                            e.stopPropagation();
-                            const id = parseInt(el.getAttribute('data-id'), 10);
-                            selectMembership(id);
-                            closeMembershipMenu();
+                function buildItemOptions(userId) {
+                    if (!userId) return [];
+                    const items = [];
+                    // 1. Existing memberships for this user
+                    const userMemberships = memberships.filter(m => String(m.user_id) === String(userId));
+                    userMemberships.forEach(m => {
+                        items.push({
+                            id: 'm_' + m.id,
+                            membershipId: m.id,
+                            planId: null,
+                            label: `${m.plan_name} (Existing Membership)`,
+                            subtitle: `Status: ${m.status}${m.end_date ? ' • Exp: ' + m.end_date : ''}`,
+                            price: m.formatted_price,
+                            rawPrice: m.price,
+                            icon: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="8.5" cy="7" r="4"></circle><polyline points="17 11 19 13 23 9"></polyline></svg>'
                         });
                     });
-                }
 
-                function selectMembership(id) {
-                    selectedMembershipId = id;
-                    membershipIdInput.value = id || '';
-                    membershipTrigger.classList.remove('error');
-                    const m = memberships.find(item => item.id === id);
-                    if (m) {
-                        amountInput.value = (m.price > 0) ? m.price.toFixed(2) : '';
-                        membershipTriggerContent.innerHTML = `
-                            <div class="wb-combobox-avatar" style="width: 22px; height: 22px; font-size: 9.5px; border-width: 1px;">
-                                ${escapeHtml(m.initials)}
-                            </div>
-                            <span style="font-weight: 600; color: var(--ink); font-size: 13.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
-                                ${escapeHtml(m.name)}
-                            </span>
-                            <span style="font-size: 11.5px; color: var(--muted); margin-left: 2px;">
-                                (${escapeHtml(m.plan_name)})
-                            </span>
-                            <span style="font-size: 12px; font-weight: 700; color: var(--lime); margin-left: auto; padding-right: 4px;">
-                                ${escapeHtml(m.formatted_price)}
-                            </span>
-                        `;
-                    } else {
-                        membershipTriggerContent.innerHTML = `
-                            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="opacity: 0.6; flex-shrink: 0;"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
-                            <span id="paymentMembershipPlaceholder" style="color: var(--muted); font-size: 14px;">Select Membership...</span>
-                        `;
-                    }
-                    renderMemberships();
-                }
-
-                // Render Method List
-                function renderMethods() {
-                    methodListContainer.innerHTML = methodOptions.map(opt => {
-                        const isSelected = selectedMethod === opt.id;
-                        return `
-                            <div class="wb-combobox-item ${isSelected ? 'selected' : ''}" data-method="${opt.id}" role="option" style="padding: 9px 12px;">
-                                <div style="display: flex; align-items: center; justify-content: space-between; width: 100%;">
-                                    <div style="display: flex; align-items: center; gap: 8px;">
-                                        <span style="opacity: 0.8; display: flex; align-items: center;">${opt.svg}</span>
-                                        <span style="font-weight: 600; font-size: 13.5px; color: var(--ink);">${escapeHtml(opt.label)}</span>
-                                    </div>
-                                    ${isSelected ? '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--lime)" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>' : ''}
-                                </div>
-                            </div>
-                        `;
-                    }).join('');
-
-                    methodListContainer.querySelectorAll('.wb-combobox-item').forEach(el => {
-                        el.addEventListener('click', (e) => {
-                            e.stopPropagation();
-                            const m = el.getAttribute('data-method');
-                            selectMethod(m);
-                            closeMethodMenu();
+                    // 2. All available plans for this gym
+                    plans.forEach(p => {
+                        items.push({
+                            id: 'p_' + p.id,
+                            membershipId: null,
+                            planId: p.id,
+                            label: `${p.name} (New Subscription)`,
+                            subtitle: `${p.duration} days`,
+                            price: p.formatted_price,
+                            rawPrice: p.price,
+                            icon: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="16" rx="3"></rect><line x1="3" y1="10" x2="21" y2="10"></line></svg>'
                         });
                     });
+
+                    return items;
                 }
 
-                function selectMethod(m) {
-                    selectedMethod = m;
-                    methodInput.value = m;
-                    const opt = methodOptions.find(o => o.id === m) || methodOptions[0];
-                    methodTriggerContent.innerHTML = `
-                        <span style="opacity: 0.8; display: flex; align-items: center;">${opt.svg}</span>
-                        <span style="font-weight: 600; color: var(--ink); font-size: 13.5px;">${escapeHtml(opt.label)}</span>
-                    `;
-                    renderMethods();
-                }
-
-                // Render Status List
-                function renderStatuses() {
-                    statusListContainer.innerHTML = statusOptions.map(opt => {
-                        const isSelected = selectedStatus === opt.id;
-                        return `
-                            <div class="wb-combobox-item ${isSelected ? 'selected' : ''}" data-status="${opt.id}" role="option" style="padding: 9px 12px;">
-                                <div style="display: flex; align-items: center; justify-content: space-between; width: 100%;">
-                                    <div style="display: flex; align-items: center; gap: 8px;">
-                                        <span class="status-indicator-dot ${opt.dotClass}"></span>
-                                        <span style="font-weight: 600; font-size: 13.5px; color: var(--ink);">${escapeHtml(opt.label)}</span>
-                                    </div>
-                                    ${isSelected ? '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--lime)" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>' : ''}
-                                </div>
-                            </div>
-                        `;
-                    }).join('');
-
-                    statusListContainer.querySelectorAll('.wb-combobox-item').forEach(el => {
-                        el.addEventListener('click', (e) => {
-                            e.stopPropagation();
-                            const s = el.getAttribute('data-status');
-                            selectStatus(s);
-                            closeStatusMenu();
-                        });
-                    });
-                }
-
-                function selectStatus(s) {
-                    selectedStatus = s;
-                    statusInput.value = s;
-                    const opt = statusOptions.find(o => o.id === s) || statusOptions[0];
-                    statusTriggerContent.innerHTML = `
-                        <span class="status-indicator-dot ${opt.dotClass}"></span>
-                        <span style="font-weight: 600; color: var(--ink); font-size: 13.5px;">${escapeHtml(opt.label)}</span>
-                    `;
-                    renderStatuses();
-                }
-
-                // Coordinated Open/Close
-                function openMembershipMenu() {
-                    closeMethodMenu();
-                    closeStatusMenu();
-                    document.getElementById('paymentMembershipWrap').style.zIndex = '90';
-                    membershipMenu.style.display = 'block';
-                    membershipChevron.style.transform = 'rotate(180deg)';
-                    membershipTrigger.setAttribute('aria-expanded', 'true');
-                }
-                function closeMembershipMenu() {
-                    document.getElementById('paymentMembershipWrap').style.zIndex = '60';
-                    membershipMenu.style.display = 'none';
-                    membershipChevron.style.transform = 'rotate(0deg)';
-                    membershipTrigger.setAttribute('aria-expanded', 'false');
-                }
-
-                function openMethodMenu() {
-                    closeMembershipMenu();
-                    closeStatusMenu();
-                    document.getElementById('paymentMethodWrap').style.zIndex = '90';
-                    methodMenu.style.display = 'block';
-                    methodChevron.style.transform = 'rotate(180deg)';
-                    methodTrigger.setAttribute('aria-expanded', 'true');
-                }
-                function closeMethodMenu() {
-                    document.getElementById('paymentMethodWrap').style.zIndex = '50';
-                    methodMenu.style.display = 'none';
-                    methodChevron.style.transform = 'rotate(0deg)';
-                    methodTrigger.setAttribute('aria-expanded', 'false');
-                }
-
-                function openStatusMenu() {
-                    closeMembershipMenu();
-                    closeMethodMenu();
-                    document.getElementById('paymentStatusWrap').style.zIndex = '90';
-                    statusMenu.style.display = 'block';
-                    statusChevron.style.transform = 'rotate(180deg)';
-                    statusTrigger.setAttribute('aria-expanded', 'true');
-                }
-                function closeStatusMenu() {
-                    document.getElementById('paymentStatusWrap').style.zIndex = '40';
-                    statusMenu.style.display = 'none';
-                    statusChevron.style.transform = 'rotate(0deg)';
-                    statusTrigger.setAttribute('aria-expanded', 'false');
-                }
-
-                membershipTrigger.addEventListener('click', (e) => {
-                    e.stopPropagation();
-                    if (membershipMenu.style.display === 'block') closeMembershipMenu();
-                    else openMembershipMenu();
-                });
-
-                methodTrigger.addEventListener('click', (e) => {
-                    e.stopPropagation();
-                    if (methodMenu.style.display === 'block') closeMethodMenu();
-                    else openMethodMenu();
-                });
-
-                statusTrigger.addEventListener('click', (e) => {
-                    e.stopPropagation();
-                    if (statusMenu.style.display === 'block') closeStatusMenu();
-                    else openStatusMenu();
-                });
-
-                document.addEventListener('click', function onDocClick(e) {
-                    if (!document.getElementById('recordPaymentForm')) {
-                        document.removeEventListener('click', onDocClick);
-                        return;
+                itemDrop = new FitDropdown({
+                    container: '#paymentItemWrap',
+                    placeholder: 'Select a member first...',
+                    zIndex: 60,
+                    items: [],
+                    onChange: (selectedItem) => {
+                        if (selectedItem) {
+                            membershipIdInput.value = selectedItem.membershipId || '';
+                            planIdInput.value = selectedItem.planId || '';
+                            if (selectedItem.rawPrice !== undefined) {
+                                amountInput.value = Number(selectedItem.rawPrice).toFixed(2);
+                            }
+                        } else {
+                            membershipIdInput.value = '';
+                            planIdInput.value = '';
+                        }
                     }
-                    const mWrap = document.getElementById('paymentMembershipWrap');
-                    const metWrap = document.getElementById('paymentMethodWrap');
-                    const sWrap = document.getElementById('paymentStatusWrap');
-
-                    if (mWrap && !mWrap.contains(e.target)) closeMembershipMenu();
-                    if (metWrap && !metWrap.contains(e.target)) closeMethodMenu();
-                    if (sWrap && !sWrap.contains(e.target)) closeStatusMenu();
                 });
 
-                renderMemberships();
-                renderMethods();
-                renderStatuses();
+                memberDrop = new FitDropdown({
+                    container: '#paymentMemberWrap',
+                    placeholder: 'Search member by name or email...',
+                    searchable: true,
+                    searchPlaceholder: 'Search members...',
+                    allowClear: true,
+                    zIndex: 70,
+                    items: members,
+                    onSearch: (q, updateBadge, setResults) => {
+                        clearTimeout(searchTimer);
+                        if (!q.trim()) {
+                            updateBadge('');
+                            setResults(members);
+                            return;
+                        }
+                        updateBadge('Searching...');
+                        searchTimer = setTimeout(() => {
+                            fetch('index.php?page=payments&action=search_members&q=' + encodeURIComponent(q.trim()))
+                                .then(r => r.json())
+                                .then(data => {
+                                    if (data && data.results && Array.isArray(data.results)) {
+                                        updateBadge(data.results.length + ' found');
+                                        setResults(data.results);
+                                    } else {
+                                        updateBadge('');
+                                    }
+                                })
+                                .catch(() => updateBadge(''));
+                        }, 200);
+                    },
+                    onChange: (selectedMember) => {
+                        if (selectedMember) {
+                            userIdInput.value = selectedMember.id;
+                            const newItems = buildItemOptions(selectedMember.id);
+                            itemDrop.setItems(newItems);
+                            if (newItems.length > 0) {
+                                itemDrop.select(newItems[0].id, true);
+                            }
+                        } else {
+                            userIdInput.value = '';
+                            membershipIdInput.value = '';
+                            planIdInput.value = '';
+                            itemDrop.setItems([]);
+                            itemDrop.select(null);
+                            amountInput.value = '';
+                        }
+                    }
+                });
+
+                methodDrop = new FitDropdown({
+                    container: '#paymentMethodWrap',
+                    name: 'payment_method',
+                    value: 'cash',
+                    zIndex: 50,
+                    items: methodOptions
+                });
+
+                statusDrop = new FitDropdown({
+                    container: '#paymentStatusWrap',
+                    name: 'status',
+                    value: 'paid',
+                    zIndex: 40,
+                    items: statusOptions
+                });
             },
             preConfirm: () => {
                 const form = document.getElementById('recordPaymentForm');
-                const membershipId = document.getElementById('paymentMembershipId').value;
+                const userId = document.getElementById('modalPaymentUserId').value;
+                const membershipId = document.getElementById('modalPaymentMembershipId').value;
+                const planId = document.getElementById('modalPaymentPlanId').value;
                 const amount = form.amount.value;
                 const paymentDate = form.payment_date.value;
 
                 let valid = true;
-                if (!membershipId) {
-                    document.getElementById('paymentMembershipTrigger').classList.add('error');
+                if (!userId) {
+                    if (memberDrop) memberDrop.setError(true);
+                    valid = false;
+                }
+                if (!membershipId && !planId) {
+                    if (itemDrop) itemDrop.setError(true);
                     valid = false;
                 }
                 if (!valid || !amount || !paymentDate) {
@@ -937,230 +939,6 @@ function payments_page(): void
         background: #ffffff;
         border-color: #cbd5e1;
         box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03);
-    }
-
-    /* ============================================================
-       SweetAlert Modal Custom Combobox & Dropdown Design System
-       ============================================================ */
-    .swal2-popup {
-        overflow: visible !important;
-    }
-    .swal2-html-container {
-        overflow: visible !important;
-        position: relative !important;
-        z-index: 30 !important;
-    }
-    .swal2-popup .swal2-actions {
-        z-index: 10 !important;
-        position: relative !important;
-        margin-top: 18px !important;
-    }
-
-    .wb-combobox-wrap {
-        position: relative;
-        width: 100%;
-    }
-    .wb-combobox-trigger {
-        width: 100%;
-        box-sizing: border-box;
-        background: #141d2b;
-        border: 1px solid #334155;
-        border-radius: 8px;
-        padding: 10px 14px;
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        cursor: pointer;
-        user-select: none;
-        transition: all 0.2s ease;
-        outline: none;
-        color: #f8fafc;
-        height: 42px;
-    }
-    .wb-combobox-trigger:hover,
-    .wb-combobox-trigger:focus {
-        border-color: var(--lime, #84cc16);
-        box-shadow: 0 0 0 2px rgba(132, 204, 22, 0.2);
-    }
-    .wb-combobox-trigger.error {
-        border-color: #ef4444 !important;
-        box-shadow: 0 0 0 2px rgba(239, 68, 68, 0.25) !important;
-    }
-    [data-theme="light"] .wb-combobox-trigger {
-        background: #ffffff;
-        border: 1px solid #cbd5e1;
-        color: #0f172a;
-    }
-    [data-theme="light"] .wb-combobox-trigger:hover,
-    [data-theme="light"] .wb-combobox-trigger:focus {
-        border-color: var(--lime, #65a30d);
-        box-shadow: 0 0 0 2px rgba(101, 163, 13, 0.18);
-    }
-
-    .wb-combobox-menu {
-        display: none;
-        position: absolute;
-        top: calc(100% + 5px);
-        left: 0;
-        right: 0;
-        background: #141d2c;
-        border: 1px solid #2e3d52;
-        border-radius: 10px;
-        box-shadow: 0 16px 36px rgba(0, 0, 0, 0.65), 0 4px 12px rgba(0, 0, 0, 0.4);
-        z-index: 99999;
-        overflow: hidden;
-        text-align: left;
-    }
-    [data-theme="light"] .wb-combobox-menu {
-        background: #ffffff;
-        border-color: #cbd5e1;
-        box-shadow: 0 16px 36px rgba(0, 0, 0, 0.12), 0 4px 12px rgba(0, 0, 0, 0.08);
-    }
-
-    .wb-combobox-list {
-        max-height: 180px;
-        overflow-y: auto;
-        padding: 4px;
-        scrollbar-width: thin;
-        scrollbar-color: #334155 #141d2c;
-    }
-    .wb-combobox-list::-webkit-scrollbar {
-        width: 6px;
-    }
-    .wb-combobox-list::-webkit-scrollbar-track {
-        background: #141d2c;
-    }
-    .wb-combobox-list::-webkit-scrollbar-thumb {
-        background: #334155;
-        border-radius: 3px;
-    }
-    [data-theme="light"] .wb-combobox-list {
-        scrollbar-color: #cbd5e1 #ffffff;
-    }
-    [data-theme="light"] .wb-combobox-list::-webkit-scrollbar-track {
-        background: #f8fafc;
-    }
-    [data-theme="light"] .wb-combobox-list::-webkit-scrollbar-thumb {
-        background: #cbd5e1;
-    }
-
-    .wb-combobox-item {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        padding: 8px 10px;
-        border-radius: 6px;
-        cursor: pointer;
-        transition: background 0.15s ease;
-        user-select: none;
-        margin-bottom: 2px;
-        color: #f8fafc;
-    }
-    .wb-combobox-item:hover,
-    .wb-combobox-item.active {
-        background: #1e2a3c;
-    }
-    .wb-combobox-item.selected {
-        background: rgba(132, 204, 22, 0.16);
-    }
-    [data-theme="light"] .wb-combobox-item {
-        color: #0f172a;
-    }
-    [data-theme="light"] .wb-combobox-item:hover,
-    [data-theme="light"] .wb-combobox-item.active {
-        background: #f1f5f9;
-    }
-    [data-theme="light"] .wb-combobox-item.selected {
-        background: rgba(101, 163, 13, 0.12);
-    }
-
-    .wb-combobox-avatar {
-        width: 26px;
-        height: 26px;
-        border-radius: 50%;
-        background: #223049;
-        color: var(--lime, #84cc16);
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-size: 10px;
-        font-weight: 700;
-        border: 1px solid rgba(132, 204, 22, 0.3);
-        flex-shrink: 0;
-    }
-    [data-theme="light"] .wb-combobox-avatar {
-        background: #ecfccb;
-        color: #3f6212;
-        border-color: #bef264;
-    }
-
-    /* Modal Inputs */
-    .wb-modal-input,
-    .wb-modal-date-input {
-        width: 100%;
-        box-sizing: border-box;
-        height: 42px;
-        border-radius: 8px;
-        border: 1px solid #334155;
-        background: #141d2b;
-        color: #f8fafc;
-        padding: 10px 14px;
-        font-size: 13.5px;
-        outline: none;
-        transition: all 0.2s ease;
-        font-family: inherit;
-    }
-    .wb-modal-input:focus,
-    .wb-modal-date-input:focus {
-        border-color: var(--lime, #84cc16);
-        box-shadow: 0 0 0 2px rgba(132, 204, 22, 0.2);
-    }
-    [data-theme="light"] .wb-modal-input,
-    [data-theme="light"] .wb-modal-date-input {
-        background: #ffffff !important;
-        border-color: #cbd5e1 !important;
-        color: #0f172a !important;
-    }
-    [data-theme="light"] .wb-modal-input:focus,
-    [data-theme="light"] .wb-modal-date-input:focus {
-        border-color: var(--lime, #65a30d) !important;
-        box-shadow: 0 0 0 2px rgba(101, 163, 13, 0.18) !important;
-    }
-
-    /* Status Indicator Dots */
-    .status-indicator-dot {
-        width: 8px;
-        height: 8px;
-        border-radius: 50%;
-        display: inline-block;
-        flex-shrink: 0;
-    }
-    .status-dot-active {
-        background: #84cc16;
-        box-shadow: 0 0 6px rgba(132, 204, 22, 0.6);
-    }
-    .status-dot-pending {
-        background: #f59e0b;
-        box-shadow: 0 0 6px rgba(245, 158, 11, 0.6);
-    }
-    .status-dot-expired {
-        background: #64748b;
-    }
-    .status-dot-cancelled {
-        background: #ef4444;
-        box-shadow: 0 0 6px rgba(239, 68, 68, 0.6);
-    }
-    [data-theme="light"] .status-dot-active {
-        background: #16a34a;
-        box-shadow: 0 0 6px rgba(22, 163, 74, 0.35);
-    }
-    [data-theme="light"] .status-dot-pending {
-        background: #d97706;
-        box-shadow: 0 0 6px rgba(217, 119, 6, 0.35);
-    }
-    [data-theme="light"] .status-dot-cancelled {
-        background: #dc2626;
-        box-shadow: 0 0 6px rgba(220, 38, 38, 0.35);
     }
     </style>
     <?php
