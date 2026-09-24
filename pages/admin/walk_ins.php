@@ -13,12 +13,18 @@ function walk_ins_page(): void
     // Handle walk-in to member conversion
     if ($_SERVER['REQUEST_METHOD'] === 'POST' && post('action') === 'convert') {
         $transactionId = (int) post('transaction_id');
-        $email = trim((string) post('convert_email'));
+        $email = strtolower(trim((string) post('convert_email')));
         $firstName = mb_convert_case(trim((string) post('convert_first_name')), MB_CASE_TITLE, 'UTF-8');
         $lastName = mb_convert_case(trim((string) post('convert_last_name')), MB_CASE_TITLE, 'UTF-8');
+        $phone = preg_replace('/[^0-9]/', '', (string) post('convert_phone'));
 
         if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
             flash('Please enter a valid email address.', 'danger');
+            redirect('walk_ins');
+        }
+
+        if (strlen($phone) !== 11) {
+            flash('Mobile number is required and must be exactly 11 digits.', 'danger');
             redirect('walk_ins');
         }
 
@@ -33,8 +39,8 @@ function walk_ins_page(): void
         $pdo = db();
         $pdo->prepare(
             'INSERT INTO users (role, first_name, last_name, email, password_hash, phone, status, email_verified_at)
-             VALUES ("member", ?, ?, ?, ?, NULL, "active", NOW())'
-        )->execute([$firstName, $lastName, $email, password_hash($plainPassword, PASSWORD_DEFAULT)]);
+             VALUES ("member", ?, ?, ?, ?, ?, "active", NOW())'
+        )->execute([$firstName, $lastName, $email, password_hash($plainPassword, PASSWORD_DEFAULT), $phone]);
         $newUserId = (int) $pdo->lastInsertId();
 
         $walkInRecord = $pdo->prepare('SELECT gym_id FROM walk_in_transactions WHERE transaction_id = ?');
@@ -94,11 +100,10 @@ function walk_ins_page(): void
     // Handle new walk-in recording
     if ($_SERVER['REQUEST_METHOD'] === 'POST' && post('action') !== 'convert') {
         $contact_info = preg_replace('/[^0-9]/', '', (string)post('contact_info'));
-        if ($contact_info !== '' && strlen($contact_info) !== 11) {
-            flash('Phone number must be exactly 11 digits.', 'danger');
+        if (strlen($contact_info) !== 11) {
+            flash('Mobile number is required and must be exactly 11 digits.', 'danger');
             redirect('walk_ins');
         }
-        $contact_info = $contact_info ?: 'N/A';
         $guestName = mb_convert_case(trim((string) post('guest_name')), MB_CASE_TITLE, 'UTF-8');
 
         $stmt = db()->prepare('INSERT INTO walk_in_transactions (gym_id, guest_name, contact_info, amount_paid, payment_method, visit_date, processed_by) VALUES (?, ?, ?, ?, ?, NOW(), ?)');
@@ -157,8 +162,8 @@ function walk_ins_page(): void
                     <label>Guest Name
                         <input name="guest_name" placeholder="John Doe" required autocapitalize="words" style="text-transform: capitalize;" onblur="this.value = this.value.trim().replace(/\b\w/g, l => l.toUpperCase())">
                     </label>
-                    <label>Contact Info (Optional)
-                        <input name="contact_info" type="tel" pattern="[0-9]{11}" maxlength="11" title="Please enter exactly 11 digits" placeholder="09123456789">
+                    <label>Mobile Number *
+                        <input name="contact_info" type="tel" pattern="[0-9]{11}" maxlength="11" required title="Please enter exactly 11 digits" placeholder="09123456789" oninput="this.value=this.value.replace(/[^0-9]/g,'').slice(0,11)">
                     </label>
                     <label>Amount Paid
                         <input name="amount_paid" type="number" step="0.01" min="0" value="<?= h((string)($gymWalkInFee ?? '100.00')) ?>" placeholder="0.00" required>
@@ -196,8 +201,11 @@ function walk_ins_page(): void
                     <label>Last Name
                         <input name="convert_last_name" id="convert_last_name" required placeholder="Last name" autocapitalize="words" style="text-transform: capitalize;" onblur="this.value = this.value.trim().replace(/\b\w/g, l => l.toUpperCase())">
                     </label>
-                    <label style="grid-column:1/-1">Email Address
-                        <input name="convert_email" type="email" required placeholder="member@example.com">
+                    <label>Email Address *
+                        <input name="convert_email" type="email" required placeholder="member@example.com" style="text-transform: lowercase;" oninput="this.value = this.value.toLowerCase()" onblur="this.value = this.value.trim().toLowerCase()">
+                    </label>
+                    <label>Mobile Number *
+                        <input name="convert_phone" id="convert_phone" type="tel" pattern="[0-9]{11}" maxlength="11" required title="Please enter exactly 11 digits" placeholder="09123456789" oninput="this.value=this.value.replace(/[^0-9]/g,'').slice(0,11)">
                     </label>
                     <p class="muted" style="grid-column:1/-1;font-size:12px;margin:0;">
                         A secure password will be auto-generated and sent to this email address.
@@ -274,7 +282,8 @@ function walk_ins_page(): void
                                 <button type="button" class="btn-sm btn-ghost btn-convert-member"
                                     data-id="<?= (int)$row['transaction_id'] ?>"
                                     data-first="<?= h($guestFirst) ?>"
-                                    data-last="<?= h($guestLast) ?>">
+                                    data-last="<?= h($guestLast) ?>"
+                                    data-phone="<?= h(($row['contact_info'] && $row['contact_info'] !== 'N/A') ? $row['contact_info'] : '') ?>">
                                     Convert to Member
                                 </button>
                             <?php else: ?>
@@ -296,15 +305,17 @@ function walk_ins_page(): void
             openConvertModal(
                 parseInt(btn.getAttribute('data-id'), 10),
                 btn.getAttribute('data-first') || '',
-                btn.getAttribute('data-last') || ''
+                btn.getAttribute('data-last') || '',
+                btn.getAttribute('data-phone') || ''
             );
         }
     });
 
-    function openConvertModal(transactionId, firstName, lastName) {
+    function openConvertModal(transactionId, firstName, lastName, phone) {
         document.getElementById('convert_transaction_id').value = transactionId;
         document.getElementById('convert_first_name').value = firstName;
         document.getElementById('convert_last_name').value = lastName;
+        document.getElementById('convert_phone').value = phone || '';
         document.getElementById('convertModal').showModal();
     }
     </script>

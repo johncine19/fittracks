@@ -10,17 +10,20 @@ function profile_page(): void
 
     if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if (isset($_POST['update_account'])) {
-            $email    = trim((string) ($_POST['email']    ?? ''));
-            $phone    = trim((string) ($_POST['phone']    ?? ''));
+            $email    = strtolower(trim((string) ($_POST['email']    ?? '')));
+            $phone    = preg_replace('/[^0-9]/', '', (string) ($_POST['phone'] ?? ''));
             $fname    = mb_convert_case(trim((string) ($_POST['first_name'] ?? '')), MB_CASE_TITLE, 'UTF-8');
             $lname    = mb_convert_case(trim((string) ($_POST['last_name']  ?? '')), MB_CASE_TITLE, 'UTF-8');
             $password = (string) ($_POST['password'] ?? '');
 
+            $_POST['email'] = $email;
+            $_POST['phone'] = $phone;
             $validator = new Validator();
             $valid = $validator->validate($_POST, [
                 'first_name' => 'required|min:1|max:100',
                 'last_name'  => 'required|min:1|max:100',
                 'email'      => 'required|email|max:255',
+                'phone'      => 'required|digits:11',
             ]);
 
             if ($valid && $password !== '' && !is_acceptable_password($password)) {
@@ -847,8 +850,8 @@ function profile_page(): void
                 </div>
                 <label>First name <input name="first_name" required value="<?= h($user['first_name']) ?>" autocapitalize="words" style="text-transform: capitalize;" onblur="this.value = this.value.trim().replace(/\b\w/g, l => l.toUpperCase())"></label>
                 <label>Last name <input name="last_name" required value="<?= h($user['last_name']) ?>" autocapitalize="words" style="text-transform: capitalize;" onblur="this.value = this.value.trim().replace(/\b\w/g, l => l.toUpperCase())"></label>
-                <label>Email <input type="email" name="email" required value="<?= h($user['email']) ?>"></label>
-                <label>Phone <input name="phone" type="tel" maxlength="11" placeholder="09xxxxxxxxx" value="<?= h($user['phone'] ?? '') ?>" oninput="this.value=this.value.replace(/[^0-9]/g,'').slice(0,11)"></label>
+                <label>Email <input type="email" name="email" required value="<?= h($user['email']) ?>" style="text-transform: lowercase;" oninput="this.value = this.value.toLowerCase()" onblur="this.value = this.value.trim().toLowerCase()"></label>
+                <label>Mobile Number * <input name="phone" type="tel" pattern="[0-9]{11}" maxlength="11" required title="Please enter exactly 11 digits" placeholder="09123456789" value="<?= h($user['phone'] ?? '') ?>" oninput="this.value=this.value.replace(/[^0-9]/g,'').slice(0,11)"></label>
                 <label style="grid-column:1/-1">New password
                     <input type="password" name="password" placeholder="Leave blank to keep current">
                     <small class="muted" style="font-weight:400;">Min. 8 characters, with a letter and a number.</small>

@@ -95,13 +95,13 @@ function gym_profile_page(): void
             }
         }
 
-        if ($name && $address) {
+        if ($name && $address && $contact) {
             $pdo->prepare('UPDATE gyms SET name = ?, address = ?, contact_info = ?, walk_in_fee = ?, inactivity_threshold_days = ?, inactivity_cooldown_days = ?, auto_inactivity_alerts = ?, business_permit_url = ?, logo_url = ?, brand_color = ? WHERE gym_id = ?')
                 ->execute([$name, $address, $contact, $walkInFee, $inactivityThreshold, $inactivityCooldown, $autoInactivityAlerts, $permitUrl, $logoUrl, $brandColor, $gym['gym_id']]);
             flash('Gym profile updated successfully.', 'success');
             redirect('gym_profile');
         } else {
-            flash('Name and address are required.', 'danger');
+            flash('Name, address, and mobile number / contact information are required.', 'danger');
         }
     }
 
@@ -913,12 +913,12 @@ function gym_profile_page(): void
                         </div>
 
                         <div>
-                            <label class="field-label">Contact Information</label>
+                            <label class="field-label">Contact Information / Mobile Number <span style="color: var(--danger, #ef4444);">*</span></label>
                             <div class="input-icon-wrap">
                                 <span class="input-icon">
                                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
                                 </span>
-                                <input type="text" name="contact_info" class="input-with-icon" value="<?= h($gym['contact_info']) ?>" placeholder="e.g. +63 912 345 6789 / info@gym.com">
+                                <input type="text" name="contact_info" class="input-with-icon" value="<?= h($gym['contact_info']) ?>" required placeholder="e.g. 09123456789 / info@gym.com">
                             </div>
                             <span class="field-hint">Phone or official email displayed to prospective gym members.</span>
                         </div>

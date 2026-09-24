@@ -785,8 +785,8 @@ function render_member_form(string $context, ?array $user = null, ?array $profil
                     <label class="pm-field">First name <input name="first_name" required value="<?= h($user['first_name'] ?? '') ?>"></label>
                     <label class="pm-field">Last name  <input name="last_name"  required value="<?= h($user['last_name']  ?? '') ?>"></label>
                     <label class="pm-field">Email      <input type="email" name="email" required value="<?= h($user['email'] ?? '') ?>"></label>
-                    <label class="pm-field">Phone
-                        <input name="phone" type="tel" pattern="[0-9]{11}" maxlength="11"
+                    <label class="pm-field">Mobile Number *
+                        <input name="phone" type="tel" pattern="[0-9]{11}" maxlength="11" required
                                title="Please enter exactly 11 digits" placeholder="09123456789"
                                value="<?= h($user['phone'] ?? '') ?>"
                                oninput="this.value=this.value.replace(/[^0-9]/g,'').slice(0,11)">
@@ -4362,10 +4362,11 @@ function render_registration_form(): void
             </div>
 
             <div class="auth-field">
-                <label>PHONE <span style="font-weight:400;text-transform:none;letter-spacing:0;">(optional)</span></label>
+                <label>MOBILE NUMBER *</label>
                 <div class="auth-input-group">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"></path></svg>
-                    <input name="phone" type="tel" maxlength="11" placeholder="09xxxxxxxxx"
+                    <input name="phone" type="tel" pattern="[0-9]{11}" maxlength="11" required placeholder="09123456789"
+                           title="Please enter exactly 11 digits"
                            oninput="this.value=this.value.replace(/[^0-9]/g,'').slice(0,11)">
                 </div>
             </div>

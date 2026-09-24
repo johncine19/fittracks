@@ -57,6 +57,8 @@ function landing_page(): void
                 $errors[] = 'Full Name is required';
             if (!$email || !filter_var($email, FILTER_VALIDATE_EMAIL))
                 $errors[] = 'A valid work email is required';
+            if (!$phone)
+                $errors[] = 'Mobile number is required';
 
             if (empty($errors)) {
                 // Create table if not exists
@@ -1785,8 +1787,8 @@ function landing_page(): void
                                     required>
                             </div>
                             <div class="form-group">
-                                <label class="form-label">Phone Number</label>
-                                <input type="tel" name="phone" class="form-input" placeholder="+63 917 123 4567">
+                                <label class="form-label">Mobile Number *</label>
+                                <input type="tel" name="phone" class="form-input" placeholder="09123456789" required>
                             </div>
                         </div>
 

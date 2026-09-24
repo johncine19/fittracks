@@ -26,51 +26,66 @@ function users_page(): void
     };
 
     if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
+        $isAjax = (isset($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest')
+            || (isset($_SERVER['HTTP_ACCEPT']) && strpos($_SERVER['HTTP_ACCEPT'], 'application/json') !== false)
+            || post('ajax') === '1';
+
+        $sendCreateResponse = function(bool $success, string $message, string $level = 'danger') use ($isAjax) {
+            if ($isAjax) {
+                if (ob_get_level()) ob_clean();
+                header('Content-Type: application/json');
+                echo json_encode([
+                    'success' => $success,
+                    'message' => $message,
+                    'csrf_token' => csrf_token(),
+                ]);
+                exit;
+            }
+            if (!$success) {
+                $_SESSION['_old_create_user'] = $_POST;
+            } else {
+                unset($_SESSION['_old_create_user']);
+            }
+            flash($message, $level);
+            redirect('users');
+            return;
+        };
+
         if (post('action') === 'create') {
             $roleToCreate = post('role');
             if (!$isAdmin && !in_array($roleToCreate, ['trainer', 'member'])) {
-                flash('You do not have permission to create this role.', 'danger');
-                redirect('users');
+                $sendCreateResponse(false, 'You do not have permission to create this role.');
                 return;
             }
 
-            $phone = (string)post('phone');
-            if ($phone !== '') {
-                $phone = preg_replace('/[^0-9]/', '', $phone);
-                if (strlen($phone) !== 11) {
-                    flash('Phone number must be exactly 11 digits.', 'danger');
-                    redirect('users');
-                    return;
-                }
+            $phone = preg_replace('/[^0-9]/', '', (string)post('phone'));
+            if (strlen($phone) !== 11) {
+                $sendCreateResponse(false, 'Mobile number is required and must be exactly 11 digits.');
+                return;
             }
 
-            $email = trim((string) post('email'));
+            $email = strtolower(trim((string) post('email')));
             if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
-                flash('Please enter a valid email address.', 'danger');
-                redirect('users');
+                $sendCreateResponse(false, 'Please enter a valid email address.');
                 return;
             }
             if (scalar('SELECT user_id FROM users WHERE email = ?', [$email])) {
-                flash('A user with that email already exists.', 'danger');
-                redirect('users');
+                $sendCreateResponse(false, 'A user with that email already exists.');
                 return;
             }
             if (!is_acceptable_password((string) post('password'))) {
-                flash('Password must be at least 8 characters, with a letter and a number, and not be a common password.', 'danger');
-                redirect('users');
+                $sendCreateResponse(false, 'Password must be at least 8 characters, with a letter and a number, and not be a common password.');
                 return;
             }
 
             if ($roleToCreate === 'member' && !$isAdmin && !gym_can_add_member($gymId)) {
                 $limit = gym_member_limit();
                 $activeCount = gym_active_member_count($gymId);
-                flash("Active member capacity reached ({$activeCount}/{$limit} members). Please upgrade your subscription plan to add more members.", 'warning');
-                redirect('users');
+                $sendCreateResponse(false, "Active member capacity reached ({$activeCount}/{$limit} members). Please upgrade your subscription plan to add more members.", 'warning');
                 return;
             }
             if ($roleToCreate === 'trainer' && !$isAdmin && !gym_has_feature('trainers')) {
-                flash("Trainer management is a Professional & Business plan feature. Please upgrade your subscription.", 'warning');
-                redirect('users');
+                $sendCreateResponse(false, "Trainer management is a Professional & Business plan feature. Please upgrade your subscription.", 'warning');
                 return;
             }
 
@@ -96,8 +111,7 @@ function users_page(): void
                 $plainPassword
             );
 
-            flash('User created successfully. Login credentials have been emailed to ' . $email . '.', 'success');
-            redirect('users');
+            $sendCreateResponse(true, 'User created successfully. Login credentials have been emailed to ' . $email . '.', 'success');
             return;
 
         } elseif (post('action') === 'status') {
@@ -137,10 +151,27 @@ function users_page(): void
             }
             
             $newPassword = (string) post('new_password');
-            $phone = post('phone') !== '' ? preg_replace('/[^0-9]/', '', (string)post('phone')) : null;
+            $phone = preg_replace('/[^0-9]/', '', (string)post('phone'));
+            if (strlen($phone) !== 11) {
+                flash('Mobile number is required and must be exactly 11 digits.', 'danger');
+                redirect('users');
+                return;
+            }
             $editFirstName = mb_convert_case(trim((string) post('first_name')), MB_CASE_TITLE, 'UTF-8');
             $editLastName  = mb_convert_case(trim((string) post('last_name')), MB_CASE_TITLE, 'UTF-8');
             
+            $editEmail = strtolower(trim((string) post('email')));
+            if (!filter_var($editEmail, FILTER_VALIDATE_EMAIL)) {
+                flash('Please enter a valid email address.', 'danger');
+                redirect('users');
+                return;
+            }
+            if (scalar('SELECT user_id FROM users WHERE email = ? AND user_id != ?', [$editEmail, $editUserId])) {
+                flash('That email is already in use by another account.', 'danger');
+                redirect('users');
+                return;
+            }
+
             if ($newPassword !== '') {
                 if (!is_acceptable_password($newPassword)) {
                     flash('New password must be at least 8 characters, with a letter and a number.', 'danger');
@@ -149,10 +180,10 @@ function users_page(): void
                 }
                 $hash = password_hash($newPassword, PASSWORD_DEFAULT);
                 db()->prepare('UPDATE users SET first_name=?, last_name=?, email=?, phone=?, role=?, password_hash=? WHERE user_id=?')
-                    ->execute([$editFirstName, $editLastName, post('email'), $phone, post('role'), $hash, $editUserId]);
+                    ->execute([$editFirstName, $editLastName, $editEmail, $phone, post('role'), $hash, $editUserId]);
             } else {
                 db()->prepare('UPDATE users SET first_name=?, last_name=?, email=?, phone=?, role=? WHERE user_id=?')
-                    ->execute([$editFirstName, $editLastName, post('email'), $phone, post('role'), $editUserId]);
+                    ->execute([$editFirstName, $editLastName, $editEmail, $phone, post('role'), $editUserId]);
             }
             
             if (post('role') === 'trainer') {
@@ -587,6 +618,131 @@ function users_page(): void
         white-space: nowrap;
         box-sizing: border-box;
     }
+
+    /* ── Create User Modal: Compact 2-by-2 Layout & Mobile Tuning ── */
+    #createUserModal.modal {
+        max-width: 520px;
+        overflow: visible !important;
+    }
+    #createUserModal .modal-body {
+        overflow: visible !important;
+    }
+    #createUserModal .grid-form {
+        display: grid !important;
+        grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+        align-items: start !important;
+        gap: 12px 14px;
+    }
+    #createUserModal #trainer_fields {
+        grid-column: 1 / -1;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 12px 14px;
+    }
+
+    #createUserModal .fit-dropdown-wrap {
+        width: 100%;
+        position: relative;
+    }
+    #createUserModal .fit-dropdown-trigger {
+        height: 38px;
+        border-radius: 7px;
+        padding: 8px 10px;
+    }
+    #createUserModal .fit-dropdown-menu {
+        z-index: 999999 !important;
+    }
+
+    @media (max-width: 640px) {
+        #createUserModal.modal {
+            width: 95% !important;
+            max-width: 400px !important;
+            border-radius: 10px !important;
+            margin: auto !important;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.45) !important;
+        }
+        #createUserModal .modal-header {
+            padding: 10px 14px !important;
+        }
+        #createUserModal .modal-header h3 {
+            font-size: 15px !important;
+            font-weight: 700 !important;
+        }
+        #createUserModal .modal-close {
+            padding: 3px !important;
+        }
+        #createUserModal .modal-close svg {
+            width: 16px !important;
+            height: 16px !important;
+        }
+        #createUserModal .modal-body {
+            padding: 10px 12px 14px !important;
+        }
+        #createUserModal .grid-form {
+            grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+            gap: 7px 10px !important;
+        }
+        #createUserModal #trainer_fields {
+            gap: 7px 10px !important;
+        }
+        #createUserModal label {
+            font-size: 11px !important;
+            font-weight: 600 !important;
+            gap: 3px !important;
+            color: var(--muted) !important;
+            margin: 0 !important;
+        }
+        #createUserModal input,
+        #createUserModal select {
+            height: 33px !important;
+            padding: 5px 8px !important;
+            font-size: 12px !important;
+            border-radius: 6px !important;
+            border-width: 1px !important;
+            box-sizing: border-box !important;
+        }
+        #createUserModal .pwd-toggle-wrap input {
+            padding-right: 30px !important;
+        }
+        #createUserModal .pwd-toggle-btn {
+            right: 6px !important;
+            padding: 2px !important;
+        }
+        #createUserModal .pwd-toggle-btn svg {
+            width: 14px !important;
+            height: 14px !important;
+        }
+        #createUserModal #new_user_pass_hint {
+            font-size: 10px !important;
+            margin-top: 2px !important;
+            line-height: 1.15 !important;
+        }
+        #createUserModal #createUserSubmitBtn {
+            grid-column: 1 / -1 !important;
+            margin-top: 5px !important;
+            padding: 6px 12px !important;
+            font-size: 12.5px !important;
+            height: 35px !important;
+            font-weight: 700 !important;
+            border-radius: 6px !important;
+        }
+        #createUserModal .fit-dropdown-trigger {
+            height: 33px !important;
+            padding: 4px 8px !important;
+            font-size: 12px !important;
+            border-radius: 6px !important;
+        }
+        #createUserModal .fit-dropdown-trigger-content span {
+            font-size: 12px !important;
+        }
+        #createUserModal .fit-dropdown-chevron {
+            width: 13px !important;
+            height: 13px !important;
+        }
+        #createUserModal .fit-dropdown-item {
+            padding: 6px 8px !important;
+            font-size: 12px !important;
+        }
+    }
     </style>
     <div class="skeleton-wrapper">
         <section class="panel">
@@ -615,6 +771,10 @@ function users_page(): void
             <button onclick="document.getElementById('createUserModal').showModal()">+ Create User</button>
         </div>
 
+        <?php
+            $oldUser = $_SESSION['_old_create_user'] ?? [];
+            unset($_SESSION['_old_create_user']);
+        ?>
         <dialog id="createUserModal" class="modal">
             <div class="modal-header">
                 <h3>Create User</h3>
@@ -623,59 +783,64 @@ function users_page(): void
                 </button>
             </div>
             <div class="modal-body">
-                <form method="post" class="form grid-form">
+                <form id="createUserForm" method="post" class="form grid-form" style="align-items: start;">
                     <?= csrf_field() ?>
                     <input type="hidden" name="action" value="create">
                     <label>First name
-                        <input name="first_name" placeholder="John" required autocapitalize="words" style="text-transform: capitalize;" onblur="this.value = this.value.trim().replace(/\b\w/g, l => l.toUpperCase())">
+                        <input name="first_name" value="<?= h($oldUser['first_name'] ?? '') ?>" placeholder="John" required autocapitalize="words" style="text-transform: capitalize;" onblur="this.value = this.value.trim().replace(/\b\w/g, l => l.toUpperCase())">
                     </label>
                     <label>Last name
-                        <input name="last_name" placeholder="Doe" required autocapitalize="words" style="text-transform: capitalize;" onblur="this.value = this.value.trim().replace(/\b\w/g, l => l.toUpperCase())">
+                        <input name="last_name" value="<?= h($oldUser['last_name'] ?? '') ?>" placeholder="Doe" required autocapitalize="words" style="text-transform: capitalize;" onblur="this.value = this.value.trim().replace(/\b\w/g, l => l.toUpperCase())">
                     </label>
                     <label>Email
-                        <input name="email" type="email" placeholder="john@example.com" required>
+                        <input name="email" type="email" value="<?= h($oldUser['email'] ?? '') ?>" placeholder="john@example.com" required style="text-transform: lowercase;" oninput="this.value = this.value.toLowerCase()" onblur="this.value = this.value.trim().toLowerCase()">
                     </label>
-                    <label>Phone
-                        <input name="phone" type="tel" pattern="[0-9]{11}" maxlength="11" title="Please enter exactly 11 digits" placeholder="09123456789">
+                    <label>Mobile Number *
+                        <input name="phone" type="tel" pattern="[0-9]{11}" maxlength="11" title="Please enter exactly 11 digits" placeholder="09123456789" value="<?= h($oldUser['phone'] ?? '') ?>" required oninput="this.value=this.value.replace(/[^0-9]/g,'').slice(0,11)">
                     </label>
                     <label>Password
-                        <input name="password" type="password" placeholder="Min. 8 characters" required>
+                        <input name="password" id="new_user_password" type="password" minlength="8" placeholder="Min. 8 characters" required autocomplete="new-password">
+                        <small id="new_user_pass_hint" style="display:block; font-size:12px; margin-top:4px; color:var(--muted); font-weight:400;">
+                            Must be at least 8 characters with a letter and a number.
+                        </small>
                     </label>
                     <label>Role
-                        <select name="role" id="new_user_role" onchange="toggleTrainerFields(this.value)">
-                            <?php 
-                                $allowedRoles = $isAdmin ? ['gym_owner' => 'Gym Owner', 'trainer' => 'Trainer', 'member' => 'Member'] : ['trainer' => 'Trainer', 'member' => 'Member'];
-                                foreach ($allowedRoles as $roleValue => $roleLabel): 
-                            ?>
-                                <option value="<?= h($roleValue) ?>"><?= h($roleLabel) ?></option>
-                            <?php endforeach; ?>
-                        </select>
+                        <div id="roleComboboxWrap"></div>
                     </label>
-                    <div id="trainer_fields" style="display: none; grid-column: 1 / -1; gap: 1rem;">
-                        <label style="width: 100%;">Specialization <small style="font-weight:400">(trainer only)</small>
-                            <input name="specialization" id="new_user_spec" placeholder="e.g. Strength & Conditioning" style="width: 100%; box-sizing: border-box;">
+                    <div id="trainer_fields" style="display: <?= ($oldUser['role'] ?? '') === 'trainer' ? 'grid' : 'none' ?>; grid-column: 1 / -1; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px;">
+                        <label>Specialization <small style="font-weight:400">(trainer only)</small>
+                            <input name="specialization" id="new_user_spec" value="<?= h($oldUser['specialization'] ?? '') ?>" placeholder="e.g. Strength & Conditioning">
                         </label>
-                        <label style="width: 100%; margin-top: 1rem;">Bio <small style="font-weight:400">(trainer only)</small>
-                            <input name="bio" placeholder="Short bio" style="width: 100%; box-sizing: border-box;">
+                        <label>Bio <small style="font-weight:400">(trainer only)</small>
+                            <input name="bio" value="<?= h($oldUser['bio'] ?? '') ?>" placeholder="Short bio">
                         </label>
                     </div>
                     <script>
                         function toggleTrainerFields(role) {
                             const tf = document.getElementById('trainer_fields');
                             const spec = document.getElementById('new_user_spec');
+                            if (!tf) return;
                             if (role === 'trainer') {
-                                tf.style.display = 'block';
-                                spec.required = true;
+                                tf.style.display = 'grid';
+                                tf.style.gridTemplateColumns = 'repeat(2, minmax(0, 1fr))';
+                                if (spec) spec.required = true;
                             } else {
                                 tf.style.display = 'none';
-                                spec.required = false;
+                                if (spec) spec.required = false;
                             }
                         }
                     </script>
-                    <button style="grid-column: 1 / -1; margin-top: 10px;">Create user</button>
+                    <button id="createUserSubmitBtn" style="grid-column: 1 / -1; margin-top: 10px;">Create user</button>
                 </form>
             </div>
         </dialog>
+        <?php if (!empty($oldUser)): ?>
+            <script>
+                document.addEventListener('DOMContentLoaded', function() {
+                    document.getElementById('createUserModal')?.showModal();
+                });
+            </script>
+        <?php endif; ?>
 
         <div style="display:flex; justify-content:space-between; align-items:flex-end; margin-bottom: 12px; border-bottom: 1px solid var(--line); padding-bottom: 8px; flex-wrap:wrap; gap:16px;">
             <div style="display:flex; gap:16px; overflow-x:auto;">
@@ -1009,8 +1174,8 @@ function users_page(): void
                         <label style="display:block; flex:1; color: var(--muted); font-size: 14px;">First name * <input name="first_name" id="eu_fn" class="form-control" required autocapitalize="words" style="width: 100%; box-sizing: border-box; text-transform: capitalize;" onblur="this.value = this.value.trim().replace(/\b\w/g, l => l.toUpperCase())"></label>
                         <label style="display:block; flex:1; color: var(--muted); font-size: 14px;">Last name * <input name="last_name" id="eu_ln" class="form-control" required autocapitalize="words" style="width: 100%; box-sizing: border-box; text-transform: capitalize;" onblur="this.value = this.value.trim().replace(/\b\w/g, l => l.toUpperCase())"></label>
                     </div>
-                    <label style="display:block; color: var(--muted); font-size: 14px;">Email * <input type="email" name="email" id="eu_email" class="form-control" required style="width: 100%; box-sizing: border-box;"></label>
-                    <label style="display:block; color: var(--muted); font-size: 14px;">Phone <input type="tel" name="phone" id="eu_phone" class="form-control" style="width: 100%; box-sizing: border-box;"></label>
+                    <label style="display:block; color: var(--muted); font-size: 14px;">Email * <input type="email" name="email" id="eu_email" class="form-control" required style="width: 100%; box-sizing: border-box; text-transform: lowercase;" oninput="this.value = this.value.toLowerCase()" onblur="this.value = this.value.trim().toLowerCase()"></label>
+                    <label style="display:block; color: var(--muted); font-size: 14px;">Mobile Number * <input type="tel" name="phone" id="eu_phone" class="form-control" pattern="[0-9]{11}" maxlength="11" title="Please enter exactly 11 digits" placeholder="09123456789" required style="width: 100%; box-sizing: border-box;"></label>
                     <label style="display:block; color: var(--muted); font-size: 14px;">Role *
                         <select name="role" id="eu_role" class="form-control" style="width: 100%; box-sizing: border-box;" onchange="toggleEditTrainerFields(this.value)">
                             ${<?= $isAdmin ? 'true' : 'false' ?> ? `
@@ -1053,6 +1218,13 @@ function users_page(): void
                 if (!form.first_name.value || !form.last_name.value || !form.email.value) {
                     Swal.showValidationMessage('Name and email are required');
                     return false;
+                }
+                const newPass = form.new_password ? form.new_password.value.trim() : '';
+                if (newPass !== '') {
+                    if (newPass.length < 8 || !/[a-zA-Z]/.test(newPass) || !/[0-9]/.test(newPass)) {
+                        Swal.showValidationMessage('New password must be at least 8 characters, with a letter and a number.');
+                        return false;
+                    }
                 }
                 if (form.role.value === 'trainer' && !form.specialization.value) {
                     Swal.showValidationMessage('Specialization is required for trainers');
@@ -1460,6 +1632,146 @@ function users_page(): void
                 });
             }, 250);
         });
+    }
+
+    // ── Create User Form: Real-time Password Checking & AJAX Submission ───
+    const createUserForm = document.getElementById('createUserForm');
+    const createUserPass = document.getElementById('new_user_password');
+    const createUserHint = document.getElementById('new_user_pass_hint');
+
+    if (createUserPass && createUserHint) {
+        createUserPass.addEventListener('input', function() {
+            const val = this.value;
+            if (!val) {
+                createUserHint.style.color = 'var(--muted)';
+                createUserHint.textContent = 'Must be at least 8 characters with a letter and a number.';
+                return;
+            }
+            const hasLength = val.length >= 8;
+            const hasLetter = /[a-zA-Z]/.test(val);
+            const hasNumber = /[0-9]/.test(val);
+
+            if (hasLength && hasLetter && hasNumber) {
+                createUserHint.style.color = 'var(--lime, #84cc16)';
+                createUserHint.textContent = '✓ Password meets requirements';
+            } else {
+                const missing = [];
+                if (!hasLength) missing.push(`${val.length}/8 characters`);
+                if (!hasLetter) missing.push('letter');
+                if (!hasNumber) missing.push('number');
+                createUserHint.style.color = 'var(--danger, #ef4444)';
+                createUserHint.textContent = 'Requires: ' + missing.join(', ');
+            }
+        });
+    }
+
+    if (createUserForm) {
+        createUserForm.addEventListener('submit', async function(e) {
+            e.preventDefault();
+
+            const pass = createUserPass ? createUserPass.value : '';
+            if (pass.length < 8 || !/[a-zA-Z]/.test(pass) || !/[0-9]/.test(pass)) {
+                Swal.fire({
+                    icon: 'warning',
+                    title: 'Password Requirement',
+                    text: 'Password must be at least 8 characters, with a letter and a number, and not be a common password.',
+                    confirmButtonColor: 'var(--lime-dark)'
+                });
+                createUserPass?.focus();
+                return;
+            }
+
+            const submitBtn = document.getElementById('createUserSubmitBtn') || createUserForm.querySelector('button[type="submit"]') || createUserForm.querySelector('button:not([type="button"])');
+            const origBtnText = submitBtn ? submitBtn.innerHTML : 'Create user';
+            if (submitBtn) {
+                submitBtn.disabled = true;
+                submitBtn.innerHTML = '<span class="loader" style="width:14px;height:14px;border:2px solid currentColor;border-bottom-color:transparent;border-radius:50%;display:inline-block;animation:rotation 1s linear infinite;margin-right:8px;vertical-align:-2px;"></span> Creating user...';
+            }
+
+            try {
+                const formData = new FormData(createUserForm);
+                formData.append('ajax', '1');
+
+                const response = await fetch('index.php?page=users', {
+                    method: 'POST',
+                    headers: {
+                        'X-Requested-With': 'XMLHttpRequest'
+                    },
+                    body: formData
+                });
+
+                const data = await response.json();
+
+                if (!data.success) {
+                    // KEEP MODAL OPEN, ALL CREDENTIALS INTACT!
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'Unable to Create User',
+                        text: data.message || 'An error occurred.',
+                        confirmButtonColor: 'var(--lime-dark)'
+                    });
+                    if (submitBtn) {
+                        submitBtn.disabled = false;
+                        submitBtn.innerHTML = origBtnText;
+                    }
+                    return;
+                }
+
+                // Success
+                document.getElementById('createUserModal')?.close();
+                Swal.fire({
+                    icon: 'success',
+                    title: 'User Created',
+                    text: data.message,
+                    confirmButtonColor: 'var(--lime-dark)'
+                }).then(() => {
+                    window.location.reload();
+                });
+
+            } catch (err) {
+                console.error('Create user fetch error:', err);
+                createUserForm.submit();
+            }
+        });
+    }
+
+    // ── Global Custom Role Dropdown Initialization ─────────────────────────
+    const roleItems = [
+        <?php if ($isAdmin): ?>
+        {
+            id: 'gym_owner',
+            label: 'Gym Owner',
+            icon: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#c084fc" stroke-width="2"><path d="M3 21h18M3 7v14M21 7v14M6 11h3M6 15h3M15 11h3M15 15h3M9 3l3 3 3-3"/></svg>'
+        },
+        <?php endif; ?>
+        {
+            id: 'trainer',
+            label: 'Trainer',
+            icon: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#60a5fa" stroke-width="2"><path d="M6 4v16M18 4v16M2 8h4M18 8h4M2 16h4M18 16h4M6 12h12"/></svg>'
+        },
+        {
+            id: 'member',
+            label: 'Member',
+            icon: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#2dd4bf" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>'
+        }
+    ];
+
+    const initialRole = <?= json_encode($oldUser['role'] ?? ($isAdmin ? 'gym_owner' : 'trainer')) ?>;
+
+    if (typeof FitDropdown !== 'undefined') {
+        window.createUserRoleDropdown = new FitDropdown({
+            container: '#roleComboboxWrap',
+            name: 'role',
+            id: 'new_user_role',
+            value: initialRole,
+            searchable: false,
+            zIndex: 100,
+            items: roleItems,
+            onChange: function(val, item) {
+                toggleTrainerFields(val);
+            }
+        });
+        toggleTrainerFields(initialRole);
     }
     </script>
     <?php
