@@ -1478,29 +1478,29 @@ function updateLocalFoodDropdown() {
         const isSelected = (selectedLocalFoodId === id);
         const img = food.image_url || '';
         const dietTag = (food.dietary_restriction && food.dietary_restriction !== 'none') 
-            ? `<span class="custom-food-tag">${food.dietary_restriction}</span>` 
+            ? `<span class="custom-food-tag">${escapeHtml(food.dietary_restriction)}</span>` 
             : '';
-        const serving = food.serving_size ? `<span>${food.serving_size}</span> &bull; ` : '';
+        const serving = food.serving_size ? `<span>${escapeHtml(food.serving_size)}</span> &bull; ` : '';
 
         return `
             <div class="custom-food-item ${isSelected ? 'is-selected' : ''}" data-food-id="${id}">
-                ${img ? `<img src="${img}" class="custom-food-thumb" alt="${food.name}" onerror="this.style.display='none'">` : `
+                ${img ? `<img src="${escapeHtml(img)}" class="custom-food-thumb" alt="${escapeHtml(food.name)}" onerror="this.style.display='none'">` : `
                     <div class="custom-food-thumb" style="display: flex; align-items: center; justify-content: center; color: var(--muted);">
                         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8h1a4 4 0 0 1 0 8h-1"/><path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z"/></svg>
                     </div>
                 `}
                 <div style="flex: 1; min-width: 0;">
                     <div style="display: flex; align-items: center; justify-content: space-between; gap: 6px;">
-                        <span class="custom-food-title">${food.name}</span>
+                        <span class="custom-food-title">${escapeHtml(food.name)}</span>
                         ${dietTag}
                     </div>
                     <div class="custom-food-meta">
                         ${serving}
-                        <span class="custom-food-cal">${food.calories} kcal</span>
+                        <span class="custom-food-cal">${escapeHtml(food.calories)} kcal</span>
                         <span style="opacity: 0.5;">&bull;</span>
-                        <span>P: ${food.protein_g}g</span>
-                        <span>C: ${food.carbs_g}g</span>
-                        <span>F: ${food.fat_g}g</span>
+                        <span>P: ${escapeHtml(food.protein_g)}g</span>
+                        <span>C: ${escapeHtml(food.carbs_g)}g</span>
+                        <span>F: ${escapeHtml(food.fat_g)}g</span>
                     </div>
                 </div>
             </div>
@@ -1680,7 +1680,12 @@ let modalSearchDebounce = null;
 
 function escapeHtml(str) {
     if (!str) return '';
-    return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
 }
 
 function openOnlineSearchModal() {
@@ -1756,7 +1761,7 @@ function executeModalOnlineSearch(query) {
 
                 return `
                     <div class="modal-online-food-item" data-idx="${idx}" style="padding: 10px 12px; border-radius: 8px; border: 1px solid var(--line); background: var(--bg); cursor: pointer; display: flex; align-items: center; gap: 12px; transition: all 0.15s ease;">
-                        ${img ? `<img src="${img}" style="width: 42px; height: 42px; border-radius: 6px; object-fit: cover; flex-shrink: 0; background: var(--panel-soft);" onerror="this.style.display='none'">` : `
+                        ${img ? `<img src="${escapeHtml(img)}" style="width: 42px; height: 42px; border-radius: 6px; object-fit: cover; flex-shrink: 0; background: var(--panel-soft);" onerror="this.style.display='none'">` : `
                             <div style="width: 42px; height: 42px; border-radius: 6px; background: var(--panel-soft); display: flex; align-items: center; justify-content: center; flex-shrink: 0; color: var(--muted);">
                                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/></svg>
                             </div>

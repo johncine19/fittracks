@@ -42,9 +42,46 @@ function workout_builder_page(): void
     $trainerProfile = $pdo->query('SELECT gym_id FROM trainer_profiles WHERE trainer_id = ' . $trainerId)->fetch();
     
     if ($user['role'] === 'gym_owner') {
-        $trainerGymId = $user['gym_id'] ?? scalar('SELECT gym_id FROM gyms WHERE owner_user_id = ?', [$user['user_id']]) ?? scalar('SELECT gym_id FROM gyms ORDER BY gym_id ASC LIMIT 1');
+        $trainerGymId = (int) (scalar('SELECT gym_id FROM gyms WHERE owner_user_id = ?', [$user['user_id']]) ?? 0);
     } else {
         $trainerGymId = (int) ($trainerProfile['gym_id'] ?? 0);
+        if (!$trainerGymId) {
+            $trainerGymId = (int) (scalar('SELECT gym_id FROM gym_members WHERE user_id = ? LIMIT 1', [$memberId]) ?? 0);
+        }
+        if (!$trainerGymId) {
+            $trainerGymId = (int) (scalar('SELECT mp.gym_id FROM memberships m JOIN membership_plans mp ON m.plan_id = mp.plan_id WHERE m.user_id = ? AND m.status = "active" LIMIT 1', [$memberId]) ?? 0);
+        }
+    }
+    
+    // AJAX Live Search for Exercises (Hybrid Search server-side query)
+    if (isset($_GET['action']) && $_GET['action'] === 'search_exercises') {
+        header('Content-Type: application/json; charset=utf-8');
+        $q = trim((string)($_GET['q'] ?? ''));
+        if ($trainerGymId <= 0 || $q === '') {
+            echo json_encode(['results' => []]);
+            exit;
+        }
+        $searchStmt = $pdo->prepare('
+            SELECT exercise_id, name, muscle_group, category, difficulty_level 
+            FROM exercises 
+            WHERE gym_id = ? AND (name LIKE ? OR muscle_group LIKE ? OR category LIKE ?)
+            ORDER BY muscle_group, name
+            LIMIT 50
+        ');
+        $like = '%' . $q . '%';
+        $searchStmt->execute([$trainerGymId, $like, $like, $like]);
+        $results = [];
+        foreach ($searchStmt->fetchAll() as $row) {
+            $results[] = [
+                'id' => (int)$row['exercise_id'],
+                'name' => $row['name'],
+                'muscle_group' => !empty($row['muscle_group']) ? ucwords((string)$row['muscle_group']) : 'General',
+                'category' => !empty($row['category']) ? ucwords((string)$row['category']) : '',
+                'difficulty' => (int)($row['difficulty_level'] ?? 1)
+            ];
+        }
+        echo json_encode(['results' => $results]);
+        exit;
     }
     
     // Check if there is an active draft plan for this member by this trainer
@@ -221,10 +258,26 @@ function workout_builder_page(): void
         }
     }
 
-    // Fetch exercises for the dropdown
-    $stmt = $pdo->prepare('SELECT exercise_id, name, muscle_group, category, difficulty_level FROM exercises WHERE (gym_id = ? OR gym_id = 0) ORDER BY muscle_group, name');
-    $stmt->execute([$trainerGymId]);
-    $allExercises = $stmt->fetchAll();
+    // Fetch exercises for the dropdown - strictly scoped to the gym matching exercises page
+    if ($trainerGymId > 0) {
+        $stmt = $pdo->prepare('SELECT exercise_id, name, muscle_group, category, difficulty_level FROM exercises WHERE gym_id = ? ORDER BY muscle_group, name');
+        $stmt->execute([$trainerGymId]);
+        $allExercises = $stmt->fetchAll();
+    } else {
+        $allExercises = [];
+    }
+
+    $exercisesData = [];
+    foreach ($allExercises as $ex) {
+        $exercisesData[] = [
+            'id' => (int)$ex['exercise_id'],
+            'name' => $ex['name'],
+            'muscle_group' => !empty($ex['muscle_group']) ? ucwords((string)$ex['muscle_group']) : 'General',
+            'category' => !empty($ex['category']) ? ucwords((string)$ex['category']) : '',
+            'difficulty' => (int)($ex['difficulty_level'] ?? 1)
+        ];
+    }
+    $exercisesJson = json_encode($exercisesData, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP);
 
     // Fetch assigned exercises for this draft
     $stmt = $pdo->prepare('
@@ -259,6 +312,329 @@ function workout_builder_page(): void
     <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
 
     <style>
+        /* -------------------------------------------------------------
+           SweetAlert Modal Inputs & Form Controls (Dark & Light)
+        ------------------------------------------------------------- */
+        .swal2-html-container .wb-modal-label {
+            display: block;
+            color: #94a3b8;
+            margin-bottom: 5px;
+            font-weight: 600;
+            font-size: 12.5px;
+            letter-spacing: 0.2px;
+        }
+        [data-theme="light"] .swal2-html-container .wb-modal-label {
+            color: #334155 !important;
+        }
+
+        .swal2-html-container .form-control,
+        .swal2-html-container input.wb-modal-input,
+        .swal2-html-container select.wb-modal-select {
+            width: 100% !important;
+            box-sizing: border-box !important;
+            background: #141d2b !important;
+            border: 1px solid #334155 !important;
+            color: #f8fafc !important;
+            border-radius: 8px !important;
+            padding: 9px 12px !important;
+            font-size: 13px !important;
+            outline: none !important;
+            transition: border-color 0.2s, box-shadow 0.2s, background 0.2s, color 0.2s !important;
+        }
+        .swal2-html-container .form-control::placeholder,
+        .swal2-html-container input.wb-modal-input::placeholder {
+            color: #64748b !important;
+        }
+        .swal2-html-container .form-control:focus,
+        .swal2-html-container input.wb-modal-input:focus,
+        .swal2-html-container select.wb-modal-select:focus {
+            border-color: var(--lime, #84cc16) !important;
+            box-shadow: 0 0 0 2px rgba(132, 204, 22, 0.25) !important;
+        }
+        .swal2-html-container select.form-control option,
+        .swal2-html-container select.wb-modal-select option {
+            background: #141d2b !important;
+            color: #f8fafc !important;
+        }
+
+        /* Light Mode Input & Select Overrides */
+        [data-theme="light"] .swal2-html-container .form-control,
+        [data-theme="light"] .swal2-html-container input.wb-modal-input,
+        [data-theme="light"] .swal2-html-container select.wb-modal-select {
+            background: #ffffff !important;
+            border: 1px solid #cbd5e1 !important;
+            color: #0f172a !important;
+        }
+        [data-theme="light"] .swal2-html-container .form-control::placeholder,
+        [data-theme="light"] .swal2-html-container input.wb-modal-input::placeholder {
+            color: #94a3b8 !important;
+        }
+        [data-theme="light"] .swal2-html-container .form-control:focus,
+        [data-theme="light"] .swal2-html-container input.wb-modal-input:focus,
+        [data-theme="light"] .swal2-html-container select.wb-modal-select:focus {
+            border-color: var(--lime, #65a30d) !important;
+            box-shadow: 0 0 0 2px rgba(101, 163, 13, 0.2) !important;
+        }
+        [data-theme="light"] .swal2-html-container select.form-control option,
+        [data-theme="light"] .swal2-html-container select.wb-modal-select option {
+            background: #ffffff !important;
+            color: #0f172a !important;
+        }
+
+        /* Stacking context: ensure dropdown sits above SweetAlert action buttons */
+        .swal2-popup .swal2-html-container {
+            z-index: 30 !important;
+            position: relative !important;
+        }
+        .swal2-popup .swal2-actions {
+            z-index: 1 !important;
+            position: relative !important;
+        }
+
+        /* Custom Combobox for Workout Builder Exercise Dropdown (Dark & Light) */
+        .wb-combobox-wrap {
+            position: relative;
+            width: 100%;
+            z-index: 50;
+        }
+        .wb-combobox-trigger {
+            width: 100%;
+            box-sizing: border-box;
+            background: #141d2b;
+            border: 1px solid #334155;
+            border-radius: 8px;
+            padding: 10px 14px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            cursor: pointer;
+            user-select: none;
+            transition: all 0.2s ease;
+            outline: none;
+            color: #f8fafc;
+        }
+        .wb-combobox-trigger:hover, .wb-combobox-trigger:focus {
+            border-color: var(--lime, #84cc16);
+            box-shadow: 0 0 0 2px rgba(132, 204, 22, 0.2);
+        }
+        .wb-combobox-trigger.error {
+            border-color: #ef4444 !important;
+            box-shadow: 0 0 0 2px rgba(239, 68, 68, 0.25) !important;
+        }
+
+        /* Light Mode Combobox Trigger */
+        [data-theme="light"] .wb-combobox-trigger {
+            background: #ffffff;
+            border: 1px solid #cbd5e1;
+            color: #0f172a;
+        }
+        [data-theme="light"] .wb-combobox-trigger:hover,
+        [data-theme="light"] .wb-combobox-trigger:focus {
+            border-color: var(--lime, #65a30d);
+            box-shadow: 0 0 0 2px rgba(101, 163, 13, 0.18);
+        }
+        [data-theme="light"] #wbExTriggerPlaceholder {
+            color: #64748b !important;
+        }
+        [data-theme="light"] #wbExChevron {
+            color: #64748b !important;
+        }
+
+        .wb-combobox-menu {
+            display: none;
+            position: absolute;
+            top: calc(100% + 6px);
+            left: 0;
+            right: 0;
+            background: #141d2c;
+            border: 1px solid #2e3d52;
+            border-radius: 10px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.8), 0 6px 16px rgba(0, 0, 0, 0.5);
+            z-index: 99999;
+            overflow: hidden;
+            text-align: left;
+        }
+        [data-theme="light"] .wb-combobox-menu {
+            background: #ffffff;
+            border: 1px solid #cbd5e1;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.16), 0 6px 16px rgba(0, 0, 0, 0.08);
+        }
+
+        .wb-combobox-search-wrap {
+            padding: 10px;
+            border-bottom: 1px solid #243247;
+            background: #0f1724;
+        }
+        [data-theme="light"] .wb-combobox-search-wrap {
+            background: #f8fafc;
+            border-bottom: 1px solid #e2e8f0;
+        }
+
+        .wb-combobox-search-box {
+            position: relative;
+            display: flex;
+            align-items: center;
+        }
+        .wb-combobox-search-input {
+            width: 100%;
+            box-sizing: border-box;
+            background: #090f18;
+            border: 1px solid #28374d;
+            border-radius: 6px;
+            padding: 8px 30px 8px 32px;
+            color: #f8fafc;
+            font-size: 13px;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+        .wb-combobox-search-input:focus {
+            border-color: var(--lime, #84cc16);
+        }
+        [data-theme="light"] .wb-combobox-search-input {
+            background: #ffffff;
+            border: 1px solid #cbd5e1;
+            color: #0f172a;
+        }
+        [data-theme="light"] .wb-combobox-search-input::placeholder {
+            color: #94a3b8;
+        }
+        [data-theme="light"] .wb-combobox-search-input:focus {
+            border-color: var(--lime, #65a30d);
+        }
+
+        .wb-combobox-list {
+            max-height: 220px;
+            overflow-y: auto;
+            padding: 6px 6px 14px 6px;
+            scrollbar-width: thin;
+            scrollbar-color: #334155 #141d2c;
+        }
+        .wb-combobox-list::-webkit-scrollbar {
+            width: 6px;
+        }
+        .wb-combobox-list::-webkit-scrollbar-track {
+            background: #141d2c;
+        }
+        .wb-combobox-list::-webkit-scrollbar-thumb {
+            background: #334155;
+            border-radius: 3px;
+        }
+        [data-theme="light"] .wb-combobox-list {
+            scrollbar-color: #cbd5e1 #ffffff;
+        }
+        [data-theme="light"] .wb-combobox-list::-webkit-scrollbar-track {
+            background: #f8fafc;
+        }
+        [data-theme="light"] .wb-combobox-list::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+        }
+
+        .wb-combobox-group-header {
+            padding: 7px 10px 4px;
+            font-size: 11px;
+            font-weight: 700;
+            text-transform: uppercase;
+            color: #94a3b8;
+            letter-spacing: 0.5px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+            margin: 4px 0 2px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        [data-theme="light"] .wb-combobox-group-header {
+            color: #64748b;
+            border-bottom: 1px solid #e2e8f0;
+        }
+
+        .wb-combobox-item {
+            padding: 8px 12px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            border-radius: 6px;
+            cursor: pointer;
+            margin-bottom: 2px;
+            transition: background 0.15s;
+        }
+        .wb-combobox-item:hover {
+            background: #1f2c42;
+        }
+        .wb-combobox-item.active {
+            background: rgba(132, 204, 22, 0.15);
+            border: 1px solid rgba(132, 204, 22, 0.3);
+        }
+        [data-theme="light"] .wb-combobox-item:hover {
+            background: #f1f5f9;
+        }
+        [data-theme="light"] .wb-combobox-item.active {
+            background: rgba(101, 163, 13, 0.12);
+            border: 1px solid rgba(101, 163, 13, 0.3);
+        }
+
+        .wb-combobox-item-name {
+            color: #f1f5f9;
+            font-size: 13px;
+            font-weight: 600;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        [data-theme="light"] .wb-combobox-item-name {
+            color: #1e293b;
+        }
+
+        .wb-combobox-item-category {
+            font-size: 10px;
+            color: #94a3b8;
+            background: #1c2738;
+            padding: 1px 6px;
+            border-radius: 4px;
+            text-transform: capitalize;
+        }
+        [data-theme="light"] .wb-combobox-item-category {
+            color: #475569;
+            background: #e2e8f0;
+        }
+
+        .wb-selected-pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            font-weight: 600;
+            font-size: 13.5px;
+            color: #f8fafc;
+        }
+        [data-theme="light"] .wb-selected-pill {
+            color: #0f172a;
+        }
+
+        .wb-group-badge {
+            background: #1c2b3d;
+            color: var(--lime, #84cc16);
+            border: 1px solid rgba(132, 204, 22, 0.3);
+            border-radius: 999px;
+            padding: 2px 8px;
+            font-size: 11px;
+            font-weight: 600;
+        }
+        [data-theme="light"] .wb-group-badge {
+            background: #ecfccb;
+            color: #365314;
+            border: 1px solid #bef264;
+        }
+
+        /* SweetAlert Light Mode Buttons */
+        [data-theme="light"] .swal2-popup:not(.swal2-toast) .swal2-cancel {
+            background: #f1f5f9 !important;
+            color: #334155 !important;
+            border: 1px solid #cbd5e1 !important;
+        }
+        [data-theme="light"] .swal2-popup:not(.swal2-toast) .swal2-cancel:hover {
+            background: #e2e8f0 !important;
+            color: #0f172a !important;
+        }
+        
         .builder-header-wrap {
             display: flex;
             justify-content: space-between;
@@ -1124,16 +1500,21 @@ function workout_builder_page(): void
         <?php
         $currentGroup = '';
         foreach ($allExercises as $ex) {
-            if ($currentGroup !== $ex['muscle_group']) {
+            $group = !empty($ex['muscle_group']) ? ucwords((string)$ex['muscle_group']) : 'General';
+            if ($currentGroup !== $group) {
                 if ($currentGroup !== '') echo '</optgroup>';
-                $currentGroup = $ex['muscle_group'];
-                echo '<optgroup label="' . h(ucwords($currentGroup)) . '">';
+                $currentGroup = $group;
+                echo '<optgroup label="' . h($currentGroup) . '">';
             }
-            echo '<option value="' . $ex['exercise_id'] . '">' . h($ex['name']) . '</option>';
+            echo '<option value="' . (int)$ex['exercise_id'] . '">' . h($ex['name']) . '</option>';
         }
         if ($currentGroup !== '') echo '</optgroup>';
         ?>
     </div>
+    
+    <script>
+        window.gymExercisesData = <?= $exercisesJson ?>;
+    </script>
 
     <!-- Hidden template choices for presets modal -->
     <div id="templateOptionsPayload" style="display:none;">
@@ -1406,46 +1787,96 @@ function workout_builder_page(): void
         });
     }
 
-    // 6. Add Exercise Modal
+    // 6. Add Exercise Modal with Custom Dark Combobox & Hybrid Live Search
     function openAddExerciseModal(dayNum, dayName) {
-        const optionsHtml = document.getElementById('exerciseOptions').innerHTML;
-        
+        const exercisesList = window.gymExercisesData || [];
+        const hasExercises = exercisesList.length > 0;
+
+        if (!hasExercises) {
+            Swal.fire({
+                title: 'No Exercises in Library',
+                icon: 'warning',
+                html: `
+                    <div style="text-align: left; font-size: 14px; line-height: 1.5; color: var(--ink);">
+                        <p>There are currently no exercises in your gym's exercise library.</p>
+                        <p style="color: var(--muted); font-size: 13px; margin-top: 8px;">Please add exercises to your gym's library on the <strong>Exercises</strong> page before adding them to a workout routine.</p>
+                    </div>
+                `,
+                showCancelButton: true,
+                confirmButtonText: '<i class="fas fa-dumbbell" style="margin-right: 6px;"></i>Go to Exercises Page',
+                confirmButtonColor: 'var(--lime-dark, #84cc16)',
+                cancelButtonText: 'Cancel',
+                cancelButtonColor: '#6c757d',
+                background: 'var(--bg)',
+                color: 'var(--ink)'
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    window.location.href = 'index.php?page=exercises';
+                }
+            });
+            return;
+        }
+
         Swal.fire({
             title: 'Add Exercise • ' + dayName,
             width: 'min(94vw, 560px)',
             html: `
-                <form id="addExForm" method="post" style="text-align: left; display: flex; flex-direction: column; gap: 12px; font-size: 13px;">
+                <form id="addExForm" method="post" style="text-align: left; display: flex; flex-direction: column; gap: 14px; font-size: 13px;">
                     <?= csrf_field() ?>
                     <input type="hidden" name="action" value="add_exercise">
                     <input type="hidden" name="day_of_week" value="${dayNum}">
+                    <input type="hidden" name="exercise_id" id="wbExerciseId" value="" required>
                     
-                    <div>
-                        <label style="display:block; color: var(--muted); margin-bottom: 4px;">Exercise *</label>
-                        <select name="exercise_id" class="form-control" required style="width:100%;">
-                            <option value="">Select an exercise...</option>
-                            ${optionsHtml}
-                        </select>
+                    <!-- Custom Themed Combobox with Hybrid Live Search -->
+                    <div class="wb-combobox-wrap">
+                        <label class="wb-modal-label">Exercise *</label>
+                        
+                        <div id="wbExTrigger" class="wb-combobox-trigger" tabindex="0">
+                            <div id="wbExTriggerContent" style="display: flex; align-items: center; gap: 8px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis;">
+                                <i class="fas fa-dumbbell" style="color: #64748b; font-size: 13px;"></i>
+                                <span id="wbExTriggerPlaceholder" style="font-size: 13.5px;">Select an exercise...</span>
+                            </div>
+                            <i id="wbExChevron" class="fas fa-chevron-down" style="font-size: 12px; transition: transform 0.2s ease; flex-shrink: 0; margin-left: 8px;"></i>
+                        </div>
+
+                        <div id="wbExMenu" class="wb-combobox-menu">
+                            <div class="wb-combobox-search-wrap">
+                                <div class="wb-combobox-search-box">
+                                    <i class="fas fa-search" style="position: absolute; left: 11px; color: #64748b; font-size: 12px;"></i>
+                                    <input type="text" id="wbExSearchInput" class="wb-combobox-search-input" placeholder="Search exercises by name, muscle, category..." autocomplete="off">
+                                    <span id="wbExSearchClear" style="position: absolute; right: 8px; color: #64748b; font-size: 12px; cursor: pointer; display: none; padding: 3px 6px; border-radius: 4px;" title="Clear">✕</span>
+                                </div>
+                                <div style="display: flex; justify-content: space-between; align-items: center; font-size: 11px; color: #64748b; margin-top: 5px; padding: 0 2px;">
+                                    <span id="wbExCount">All exercises</span>
+                                    <span id="wbExLiveSpinner" style="display: none; color: var(--lime);"><i class="fas fa-circle-notch fa-spin"></i> Searching...</span>
+                                </div>
+                            </div>
+
+                            <div id="wbExList" class="wb-combobox-list">
+                                <!-- Rendered dynamically -->
+                            </div>
+                        </div>
                     </div>
                     
                     <div style="display:grid; grid-template-columns: 1fr 1fr 1fr; gap:10px;">
                         <div>
-                            <label style="display:block; color: var(--muted); margin-bottom: 4px;">Sets *</label>
-                            <input type="number" name="sets" value="3" min="1" max="20" class="form-control" required style="width:100%;">
+                            <label class="wb-modal-label">Sets *</label>
+                            <input type="number" name="sets" value="3" min="1" max="20" class="form-control wb-modal-input" required>
                         </div>
                         <div>
-                            <label style="display:block; color: var(--muted); margin-bottom: 4px;">Reps *</label>
-                            <input type="text" name="reps" value="10-12" class="form-control" placeholder="e.g. 8-10, 12, Failure" required style="width:100%;">
+                            <label class="wb-modal-label">Reps *</label>
+                            <input type="text" name="reps" value="10-12" class="form-control wb-modal-input" placeholder="e.g. 8-10, 12, Failure" required>
                         </div>
                         <div>
-                            <label style="display:block; color: var(--muted); margin-bottom: 4px;">Target Wt (kg)</label>
-                            <input type="number" step="0.5" name="target_weight_kg" placeholder="e.g. 60" class="form-control" style="width:100%;">
+                            <label class="wb-modal-label">Target Wt (kg)</label>
+                            <input type="number" step="0.5" name="target_weight_kg" placeholder="e.g. 60" class="form-control wb-modal-input">
                         </div>
                     </div>
 
                     <div style="display:grid; grid-template-columns: 1fr 1fr 1fr; gap:10px;">
                         <div>
-                            <label style="display:block; color: var(--muted); margin-bottom: 4px;">Rest (s)</label>
-                            <select name="rest_seconds" class="form-control" style="width:100%;">
+                            <label class="wb-modal-label">Rest (s)</label>
+                            <select name="rest_seconds" class="form-control wb-modal-select">
                                 <option value="0">0s</option>
                                 <option value="30">30s</option>
                                 <option value="45">45s</option>
@@ -1456,18 +1887,18 @@ function workout_builder_page(): void
                             </select>
                         </div>
                         <div>
-                            <label style="display:block; color: var(--muted); margin-bottom: 4px;">Tempo</label>
-                            <input type="text" name="tempo" placeholder="e.g. 3-0-1-0" class="form-control" style="width:100%;">
+                            <label class="wb-modal-label">Tempo</label>
+                            <input type="text" name="tempo" placeholder="e.g. 3-0-1-0" class="form-control wb-modal-input">
                         </div>
                         <div>
-                            <label style="display:block; color: var(--muted); margin-bottom: 4px;">RPE</label>
-                            <input type="text" name="rpe" placeholder="e.g. RPE 8" class="form-control" style="width:100%;">
+                            <label class="wb-modal-label">RPE</label>
+                            <input type="text" name="rpe" placeholder="e.g. RPE 8" class="form-control wb-modal-input">
                         </div>
                     </div>
                     
                     <div>
-                        <label style="display:block; color: var(--muted); margin-bottom: 4px;">Coaching Cues / Notes</label>
-                        <input type="text" name="notes" placeholder="e.g. Focus on deep stretch at the bottom, pause 1s" class="form-control" style="width:100%;">
+                        <label class="wb-modal-label">Coaching Cues / Notes</label>
+                        <input type="text" name="notes" placeholder="e.g. Focus on deep stretch at the bottom, pause 1s" class="form-control wb-modal-input">
                     </div>
                 </form>
             `,
@@ -1477,10 +1908,207 @@ function workout_builder_page(): void
             cancelButtonColor: '#6c757d',
             background: 'var(--bg)',
             color: 'var(--ink)',
+            didOpen: () => {
+                const swalContainer = Swal.getHtmlContainer();
+                if (swalContainer) {
+                    swalContainer.style.overflow = 'visible';
+                    swalContainer.style.zIndex = '30';
+                    swalContainer.style.position = 'relative';
+                }
+                const swalActions = Swal.getActions();
+                if (swalActions) {
+                    swalActions.style.zIndex = '1';
+                    swalActions.style.position = 'relative';
+                }
+                const swalPopup = Swal.getPopup();
+                if (swalPopup) swalPopup.style.overflow = 'visible';
+
+                const trigger = document.getElementById('wbExTrigger');
+                const menu = document.getElementById('wbExMenu');
+                const chevron = document.getElementById('wbExChevron');
+                const searchInput = document.getElementById('wbExSearchInput');
+                const searchClear = document.getElementById('wbExSearchClear');
+                const listEl = document.getElementById('wbExList');
+                const countEl = document.getElementById('wbExCount');
+                const spinner = document.getElementById('wbExLiveSpinner');
+                const hiddenInput = document.getElementById('wbExerciseId');
+                const triggerContent = document.getElementById('wbExTriggerContent');
+
+                let selectedId = null;
+                let localExercises = [...(window.gymExercisesData || [])];
+                let ajaxTimer = null;
+                const esc = window.escapeHtml || function(s) {
+                    return String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#039;');
+                };
+
+                function renderList(query = '') {
+                    const q = query.trim().toLowerCase();
+                    const filtered = localExercises.filter(e => {
+                        if (!q) return true;
+                        return (e.name && e.name.toLowerCase().includes(q)) ||
+                               (e.muscle_group && e.muscle_group.toLowerCase().includes(q)) ||
+                               (e.category && e.category.toLowerCase().includes(q));
+                    });
+
+                    if (countEl) {
+                        countEl.textContent = q ? `${filtered.length} matching` : `${localExercises.length} exercises available`;
+                    }
+
+                    if (filtered.length === 0) {
+                        listEl.innerHTML = `
+                            <div style="padding: 22px 10px; text-align: center; color: #94a3b8; font-size: 13px;">
+                                <i class="fas fa-search" style="font-size: 20px; margin-bottom: 8px; display: block; opacity: 0.35;"></i>
+                                No exercises found matching "${esc(q)}"
+                            </div>
+                        `;
+                        return;
+                    }
+
+                    // Group exercises by muscle group
+                    const grouped = {};
+                    filtered.forEach(item => {
+                        const grp = item.muscle_group || 'General';
+                        if (!grouped[grp]) grouped[grp] = [];
+                        grouped[grp].push(item);
+                    });
+
+                    let html = '';
+                    for (const [grpName, items] of Object.entries(grouped)) {
+                        html += `
+                            <div class="wb-combobox-group-header">
+                                <span>${esc(grpName)}</span>
+                                <span style="font-size: 10px; font-weight: normal; opacity: 0.7;">${items.length}</span>
+                            </div>
+                        `;
+                        items.forEach(item => {
+                            const isSelected = selectedId === item.id;
+                            html += `
+                                <div class="wb-combobox-item ${isSelected ? 'active' : ''}" data-id="${item.id}" data-name="${encodeURIComponent(item.name)}" data-group="${encodeURIComponent(item.muscle_group)}">
+                                    <div style="display: flex; align-items: center; gap: 8px; min-width: 0;">
+                                        <i class="fas fa-dumbbell" style="color: ${isSelected ? 'var(--lime)' : '#64748b'}; font-size: 12px; flex-shrink: 0;"></i>
+                                        <span class="wb-combobox-item-name">
+                                            ${esc(item.name)}
+                                        </span>
+                                        ${item.category ? `<span class="wb-combobox-item-category">${esc(item.category)}</span>` : ''}
+                                    </div>
+                                    ${isSelected ? '<i class="fas fa-check" style="color: var(--lime); font-size: 12px; margin-left: 8px;"></i>' : ''}
+                                </div>
+                            `;
+                        });
+                    }
+                    listEl.innerHTML = html;
+
+                    // Click listeners
+                    listEl.querySelectorAll('.wb-combobox-item').forEach(el => {
+                        el.addEventListener('click', (e) => {
+                            e.stopPropagation();
+                            const id = parseInt(el.getAttribute('data-id'), 10);
+                            const name = decodeURIComponent(el.getAttribute('data-name'));
+                            const grp = decodeURIComponent(el.getAttribute('data-group'));
+                            selectExercise(id, name, grp);
+                        });
+                    });
+                }
+
+                function selectExercise(id, name, grp) {
+                    selectedId = id;
+                    hiddenInput.value = id;
+                    trigger.classList.remove('error');
+                    triggerContent.innerHTML = `
+                        <span class="wb-selected-pill">
+                            <i class="fas fa-dumbbell" style="color: var(--lime);"></i>
+                            <span>${esc(name)}</span>
+                        </span>
+                        <span class="wb-group-badge">
+                            ${esc(grp)}
+                        </span>
+                    `;
+                    menu.style.display = 'none';
+                    chevron.style.transform = 'rotate(0deg)';
+                    renderList(searchInput.value);
+                }
+
+                // Toggle dropdown menu
+                trigger.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    const isOpen = menu.style.display === 'block';
+                    menu.style.display = isOpen ? 'none' : 'block';
+                    chevron.style.transform = isOpen ? 'rotate(0deg)' : 'rotate(180deg)';
+                    if (!isOpen) {
+                        setTimeout(() => searchInput.focus(), 60);
+                    }
+                });
+
+                // Close on click outside
+                const outsideClickListener = (e) => {
+                    if (!trigger.contains(e.target) && !menu.contains(e.target)) {
+                        menu.style.display = 'none';
+                        chevron.style.transform = 'rotate(0deg)';
+                    }
+                };
+                document.addEventListener('click', outsideClickListener);
+
+                // Hybrid Search: 0ms instant local filter + 250ms debounced AJAX
+                searchInput.addEventListener('input', (e) => {
+                    const val = e.target.value;
+                    searchClear.style.display = val ? 'block' : 'none';
+                    
+                    // 1. 0ms instant local filter
+                    renderList(val);
+
+                    // 2. 250ms debounced AJAX server query
+                    if (ajaxTimer) clearTimeout(ajaxTimer);
+                    const qTrim = val.trim();
+                    if (qTrim.length >= 1) {
+                        if (spinner) spinner.style.display = 'inline-block';
+                        ajaxTimer = setTimeout(() => {
+                            fetch('index.php?page=workout_builder&member_user_id=<?= $memberId ?>&action=search_exercises&q=' + encodeURIComponent(qTrim), {
+                                headers: { 'X-Requested-With': 'XMLHttpRequest' }
+                            })
+                            .then(r => r.json())
+                            .then(data => {
+                                if (spinner) spinner.style.display = 'none';
+                                if (searchInput.value.trim().toLowerCase() !== qTrim.toLowerCase()) return;
+                                const results = data.results || [];
+                                results.forEach(res => {
+                                    if (!localExercises.some(item => item.id === res.id)) {
+                                        localExercises.push(res);
+                                        window.gymExercisesData.push(res);
+                                    }
+                                });
+                                renderList(searchInput.value);
+                            })
+                            .catch(() => {
+                                if (spinner) spinner.style.display = 'none';
+                            });
+                        }, 250);
+                    } else {
+                        if (spinner) spinner.style.display = 'none';
+                    }
+                });
+
+                searchClear.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    searchInput.value = '';
+                    searchClear.style.display = 'none';
+                    if (spinner) spinner.style.display = 'none';
+                    renderList('');
+                    searchInput.focus();
+                });
+
+                // Initial render
+                renderList('');
+            },
             preConfirm: () => {
                 const form = document.getElementById('addExForm');
-                if (!form.exercise_id.value || !form.sets.value || !form.reps.value) {
-                    Swal.showValidationMessage('Please select exercise and enter sets and reps');
+                const trigger = document.getElementById('wbExTrigger');
+                if (!form.exercise_id.value) {
+                    if (trigger) trigger.classList.add('error');
+                    Swal.showValidationMessage('Please select an exercise from the dropdown');
+                    return false;
+                }
+                if (!form.sets.value || !form.reps.value) {
+                    Swal.showValidationMessage('Please enter sets and reps');
                     return false;
                 }
                 form.submit();
@@ -1501,23 +2129,23 @@ function workout_builder_page(): void
                     
                     <div style="display:grid; grid-template-columns: 1fr 1fr 1fr; gap:10px;">
                         <div>
-                            <label style="display:block; color: var(--muted); margin-bottom: 4px;">Sets *</label>
-                            <input type="number" name="sets" value="${ex.sets}" min="1" max="20" class="form-control" required style="width:100%;">
+                            <label class="wb-modal-label">Sets *</label>
+                            <input type="number" name="sets" value="${ex.sets}" min="1" max="20" class="form-control wb-modal-input" required>
                         </div>
                         <div>
-                            <label style="display:block; color: var(--muted); margin-bottom: 4px;">Reps *</label>
-                            <input type="text" name="reps" value="${escapeHtml(ex.reps || '10')}" class="form-control" required style="width:100%;">
+                            <label class="wb-modal-label">Reps *</label>
+                            <input type="text" name="reps" value="${escapeHtml(ex.reps || '10')}" class="form-control wb-modal-input" required>
                         </div>
                         <div>
-                            <label style="display:block; color: var(--muted); margin-bottom: 4px;">Target Wt (kg)</label>
-                            <input type="number" step="0.5" name="target_weight_kg" value="${ex.target_weight_kg || ''}" placeholder="e.g. 60" class="form-control" style="width:100%;">
+                            <label class="wb-modal-label">Target Wt (kg)</label>
+                            <input type="number" step="0.5" name="target_weight_kg" value="${ex.target_weight_kg || ''}" placeholder="e.g. 60" class="form-control wb-modal-input">
                         </div>
                     </div>
 
                     <div style="display:grid; grid-template-columns: 1fr 1fr 1fr; gap:10px;">
                         <div>
-                            <label style="display:block; color: var(--muted); margin-bottom: 4px;">Rest (s)</label>
-                            <select name="rest_seconds" class="form-control" style="width:100%;">
+                            <label class="wb-modal-label">Rest (s)</label>
+                            <select name="rest_seconds" class="form-control wb-modal-select">
                                 <option value="0" ${ex.rest_seconds == 0 ? 'selected' : ''}>0s</option>
                                 <option value="30" ${ex.rest_seconds == 30 ? 'selected' : ''}>30s</option>
                                 <option value="45" ${ex.rest_seconds == 45 ? 'selected' : ''}>45s</option>
@@ -1528,18 +2156,18 @@ function workout_builder_page(): void
                             </select>
                         </div>
                         <div>
-                            <label style="display:block; color: var(--muted); margin-bottom: 4px;">Tempo</label>
-                            <input type="text" name="tempo" value="${escapeHtml(ex.tempo || '')}" placeholder="e.g. 3-0-1-0" class="form-control" style="width:100%;">
+                            <label class="wb-modal-label">Tempo</label>
+                            <input type="text" name="tempo" value="${escapeHtml(ex.tempo || '')}" placeholder="e.g. 3-0-1-0" class="form-control wb-modal-input">
                         </div>
                         <div>
-                            <label style="display:block; color: var(--muted); margin-bottom: 4px;">RPE</label>
-                            <input type="text" name="rpe" value="${escapeHtml(ex.rpe || '')}" placeholder="e.g. RPE 8" class="form-control" style="width:100%;">
+                            <label class="wb-modal-label">RPE</label>
+                            <input type="text" name="rpe" value="${escapeHtml(ex.rpe || '')}" placeholder="e.g. RPE 8" class="form-control wb-modal-input">
                         </div>
                     </div>
                     
                     <div>
-                        <label style="display:block; color: var(--muted); margin-bottom: 4px;">Coaching Cues / Notes</label>
-                        <input type="text" name="notes" value="${escapeHtml(ex.notes || '')}" placeholder="e.g. Keep chest tall" class="form-control" style="width:100%;">
+                        <label class="wb-modal-label">Coaching Cues / Notes</label>
+                        <input type="text" name="notes" value="${escapeHtml(ex.notes || '')}" placeholder="e.g. Keep chest tall" class="form-control wb-modal-input">
                     </div>
                 </form>
             `,

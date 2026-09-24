@@ -372,16 +372,16 @@ function training_page(): void
                         $p['end_date'] = '<span style="color:var(--red); font-weight:600;">' . h($p['end_date']) . ' <br><small>(Expired)</small></span>';
                     }
                     
-                    $renewBtn = ($daysLeft <= 3) ? '<button type="button" onclick="confirmRenewPlan('.$p['plan_id'].', \''.$titleAttr.'\')" class="btn btn-primary" style="padding:4px 8px;font-size:12px;margin-right:4px;">Renew</button>' : '';
+                    $renewBtn = ($daysLeft <= 3) ? '<button type="button" class="btn btn-primary btn-renew-plan" data-plan-id="'.$p['plan_id'].'" data-plan-title="'.h($p['title'] ?: 'Workout Plan').'" style="padding:4px 8px;font-size:12px;margin-right:4px;">Renew</button>' : '';
                     $buildBtn = '';
                 }
                 
                 $feedbackStr = $p['latest_feedback'] ? h(substr($p['latest_feedback'], 0, 30)) . (strlen($p['latest_feedback']) > 30 ? '...' : '') : '<i style="color:var(--muted);">None</i>';
                 $p['feedback'] = '<span style="font-size:12px; display:inline-block; max-width:150px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">' . $feedbackStr . '</span>';
                 
-                $duplicateBtn = '<button type="button" onclick="openDuplicateModal('.$p['plan_id'].', \''.$titleAttr.'\')" class="btn btn-secondary" style="padding:4px 8px;font-size:12px;margin-right:4px;">Duplicate</button>';
+                $duplicateBtn = '<button type="button" class="btn btn-secondary btn-duplicate-plan" data-plan-id="'.$p['plan_id'].'" data-plan-title="'.h($p['title'] ?: 'Workout Plan').'" style="padding:4px 8px;font-size:12px;margin-right:4px;">Duplicate</button>';
                 
-                $deleteBtn = '<button type="button" onclick="confirmDeletePlan('.$p['plan_id'].', \''.$titleAttr.'\')" class="btn btn-danger" style="padding:4px 8px;font-size:12px;display:inline-flex;align-items:center;gap:4px;">' .
+                $deleteBtn = '<button type="button" class="btn btn-danger btn-delete-plan" data-plan-id="'.$p['plan_id'].'" data-plan-title="'.h($p['title'] ?: 'Workout Plan').'" style="padding:4px 8px;font-size:12px;display:inline-flex;align-items:center;gap:4px;">' .
                              '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>' .
                              '<span>Delete</span></button>';
 
@@ -512,12 +512,12 @@ function training_page(): void
                                     <button type="submit" class="btn btn-primary btn-mcard" style="width:100%;">Build Workout</button>
                                 </form>
                             <?php elseif ($daysLeft !== null && $daysLeft <= 3): ?>
-                                <button type="button" onclick="confirmRenewPlan(<?= (int)$p['plan_id'] ?>, '<?= addslashes(h($p['title'] ?: 'Workout Routine')) ?>')" class="btn btn-primary btn-mcard" style="flex:1 1 100px;">Renew</button>
+                                <button type="button" class="btn btn-primary btn-mcard btn-renew-plan" data-plan-id="<?= (int)$p['plan_id'] ?>" data-plan-title="<?= h($p['title'] ?: 'Workout Routine') ?>" style="flex:1 1 100px;">Renew</button>
                             <?php endif; ?>
 
-                            <button type="button" onclick="openDuplicateModal(<?= (int)$p['plan_id'] ?>, '<?= addslashes(h($p['title'] ?: 'Workout Routine')) ?>')" class="btn btn-secondary btn-mcard">Duplicate</button>
+                            <button type="button" class="btn btn-secondary btn-mcard btn-duplicate-plan" data-plan-id="<?= (int)$p['plan_id'] ?>" data-plan-title="<?= h($p['title'] ?: 'Workout Routine') ?>">Duplicate</button>
                             <button type="button" onclick="editPlan(<?= $safeJson ?>)" class="btn btn-secondary btn-mcard">Edit</button>
-                            <button type="button" onclick="confirmDeletePlan(<?= (int)$p['plan_id'] ?>, '<?= addslashes(h($p['title'] ?: 'Workout Routine')) ?>')" class="btn btn-danger btn-mcard" style="display:inline-flex; align-items:center; gap:5px;">
+                            <button type="button" class="btn btn-danger btn-mcard btn-delete-plan" data-plan-id="<?= (int)$p['plan_id'] ?>" data-plan-title="<?= h($p['title'] ?: 'Workout Routine') ?>" style="display:inline-flex; align-items:center; gap:5px;">
                                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
                                 <span>Delete</span>
                             </button>
@@ -571,7 +571,7 @@ function training_page(): void
                         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>
                         <span>Open in Workout Builder</span>
                     </a>
-                    <button type="button" onclick="confirmDeletePlan(<?= (int)$viewPlanId ?>, '<?= addslashes(h($viewPlan['title'] ?: 'Workout Routine')) ?>')" class="btn btn-danger" style="font-size: 13px; font-weight: 700; padding: 8px 16px; border-radius: 8px; display: inline-flex; align-items: center; gap: 6px; min-height: 38px;">
+                    <button type="button" class="btn btn-danger btn-delete-plan" data-plan-id="<?= (int)$viewPlanId ?>" data-plan-title="<?= h($viewPlan['title'] ?: 'Workout Routine') ?>" style="font-size: 13px; font-weight: 700; padding: 8px 16px; border-radius: 8px; display: inline-flex; align-items: center; gap: 6px; min-height: 38px;">
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
                         <span>Delete Plan</span>
                     </button>
@@ -681,7 +681,7 @@ function training_page(): void
                                                     Build
                                                 </a>
                                             <?php endif; ?>
-                                            <button type="button" onclick="confirmDeletePlan(<?= (int)$row['plan_id'] ?>, '<?= addslashes(h($row['title'] ?: 'Workout Routine')) ?>')" class="btn btn-danger" style="padding:5px 10px; font-size:12px; display:inline-flex; align-items:center; gap:4px;" title="Delete Plan">
+                                            <button type="button" class="btn btn-danger btn-delete-plan" data-plan-id="<?= (int)$row['plan_id'] ?>" data-plan-title="<?= h($row['title'] ?: 'Workout Routine') ?>" style="padding:5px 10px; font-size:12px; display:inline-flex; align-items:center; gap:4px;" title="Delete Plan">
                                                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
                                                 <span>Delete</span>
                                             </button>
@@ -767,7 +767,7 @@ function training_page(): void
                                         Build
                                     </a>
                                 <?php endif; ?>
-                                <button type="button" onclick="confirmDeletePlan(<?= (int)$row['plan_id'] ?>, '<?= addslashes(h($row['title'] ?: 'Workout Routine')) ?>')" class="btn btn-danger btn-mcard" style="flex:1 1 80px; justify-content:center; display:inline-flex; align-items:center; gap:5px;">
+                                <button type="button" class="btn btn-danger btn-mcard btn-delete-plan" data-plan-id="<?= (int)$row['plan_id'] ?>" data-plan-title="<?= h($row['title'] ?: 'Workout Routine') ?>" style="flex:1 1 80px; justify-content:center; display:inline-flex; align-items:center; gap:5px;">
                                     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
                                     <span>Delete</span>
                                 </button>
@@ -1545,6 +1545,25 @@ function editPlan(p) {
     });
 }
 
+// Event delegation for plan action buttons
+document.addEventListener('click', function(e) {
+    const renewBtn = e.target.closest('.btn-renew-plan');
+    if (renewBtn) {
+        confirmRenewPlan(parseInt(renewBtn.getAttribute('data-plan-id'), 10), renewBtn.getAttribute('data-plan-title') || '');
+        return;
+    }
+    const dupBtn = e.target.closest('.btn-duplicate-plan');
+    if (dupBtn) {
+        openDuplicateModal(parseInt(dupBtn.getAttribute('data-plan-id'), 10), dupBtn.getAttribute('data-plan-title') || '');
+        return;
+    }
+    const delBtn = e.target.closest('.btn-delete-plan');
+    if (delBtn) {
+        confirmDeletePlan(parseInt(delBtn.getAttribute('data-plan-id'), 10), delBtn.getAttribute('data-plan-title') || '');
+        return;
+    }
+});
+
 // Duplicate Plan Modal (SweetAlert2)
 function openDuplicateModal(planId, planTitle) {
     let membersOptions = '<option value="">-- Select Member --</option>';
@@ -1553,7 +1572,7 @@ function openDuplicateModal(planId, planTitle) {
     <?php endforeach; ?>
     
     <?php $csrfStr = csrf_field(); ?>
-    const titleText = planTitle ? `"${planTitle}"` : 'this training plan';
+    const safeTitle = planTitle ? `"${typeof escapeHtml === 'function' ? escapeHtml(planTitle) : planTitle}"` : 'this training plan';
 
     Swal.fire({
         title: 'Duplicate Plan',
@@ -1565,7 +1584,7 @@ function openDuplicateModal(planId, planTitle) {
                     </div>
                     <div style="flex:1; min-width:0;">
                         <div style="font-size:11px; text-transform:uppercase; letter-spacing:0.5px; color:var(--muted); font-weight:700;">Source Routine</div>
-                        <div style="font-size:13.5px; font-weight:700; color:var(--ink); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${titleText}</div>
+                        <div style="font-size:13.5px; font-weight:700; color:var(--ink); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${safeTitle}</div>
                     </div>
                 </div>
 
@@ -1606,13 +1625,13 @@ function openDuplicateModal(planId, planTitle) {
 
 // Delete Plan Confirmation Modal (SweetAlert2)
 function confirmDeletePlan(planId, planTitle) {
-    const escapedTitle = planTitle ? `"${planTitle}"` : 'this training plan';
+    const safeTitle = planTitle ? `"${typeof escapeHtml === 'function' ? escapeHtml(planTitle) : planTitle}"` : 'this training plan';
     Swal.fire({
         title: 'Delete Training Plan?',
         html: `
             <div style="text-align:left; margin-top:8px;">
                 <p style="margin:0; color:var(--ink); font-size:14px; line-height:1.4;">
-                    Are you sure you want to permanently delete <strong>${escapedTitle}</strong>?
+                    Are you sure you want to permanently delete <strong>${safeTitle}</strong>?
                 </p>
                 <div style="display:flex; align-items:flex-start; gap:8px; margin-top:12px; padding:10px 12px; background:rgba(239, 68, 68, 0.1); border:1px solid rgba(239, 68, 68, 0.25); border-radius:8px; color:#f87171; font-size:12px; line-height:1.4;">
                     <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="flex-shrink:0; margin-top:1px;"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
@@ -1681,13 +1700,13 @@ function confirmDeletePlan(planId, planTitle) {
 
 // Renew Plan Confirmation Modal (SweetAlert2)
 function confirmRenewPlan(planId, planTitle) {
-    const escapedTitle = planTitle ? `"${planTitle}"` : 'this training plan';
+    const safeTitle = planTitle ? `"${typeof escapeHtml === 'function' ? escapeHtml(planTitle) : planTitle}"` : 'this training plan';
     Swal.fire({
         title: 'Renew Training Plan?',
         html: `
             <div style="text-align:left; margin-top:8px;">
                 <p style="margin:0; color:var(--ink); font-size:14px; line-height:1.4;">
-                    Extend <strong>${escapedTitle}</strong> for an additional <strong>4 weeks</strong>?
+                    Extend <strong>${safeTitle}</strong> for an additional <strong>4 weeks</strong>?
                 </p>
                 <p style="margin:8px 0 0 0; color:var(--muted); font-size:12.5px; line-height:1.4;">
                     The end date will be extended automatically and the routine will remain active for your client.

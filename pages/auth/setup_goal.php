@@ -941,7 +941,8 @@ function setup_goal_page(): void
                         const card = document.querySelector(`.focus-category-card[data-category="${categoryKey}"]`);
                         const catTitle = card ? card.querySelector('.focus-category-title')?.textContent : categoryKey;
                         if (stage2Pill) {
-                            stage2Pill.innerHTML = `<span>${catTitle}</span>`;
+                            const safeCat = typeof escapeHtml === 'function' ? escapeHtml(catTitle) : catTitle;
+                            stage2Pill.innerHTML = `<span>${safeCat}</span>`;
                         }
                     }
                     filterGoals();
@@ -978,7 +979,8 @@ function setup_goal_page(): void
                     if (searchQuery.length > 0) {
                         currentCategory = 'all';
                         if (stage2Pill) {
-                            stage2Pill.innerHTML = `<span>Search: "${searchQuery}"</span>`;
+                            const safeQuery = typeof escapeHtml === 'function' ? escapeHtml(searchQuery) : searchQuery;
+                            stage2Pill.innerHTML = `<span>Search: "${safeQuery}"</span>`;
                         }
                         goToStage(2, null);
                     } else {

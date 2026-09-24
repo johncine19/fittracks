@@ -579,22 +579,24 @@ function get_available_workout_templates(): array
  */
 function _find_exercise_id(PDO $pdo, int $gymId, string $targetName, ?string $fallbackMuscle = null): ?int
 {
-    // 1. Exact match (gym-specific or global)
-    $stmt = $pdo->prepare('SELECT exercise_id FROM exercises WHERE (gym_id = ? OR gym_id = 0) AND LOWER(name) = LOWER(?) ORDER BY (gym_id = ?) DESC LIMIT 1');
-    $stmt->execute([$gymId, $targetName, $gymId]);
+    if ($gymId <= 0) return null;
+
+    // 1. Exact match in gym
+    $stmt = $pdo->prepare('SELECT exercise_id FROM exercises WHERE gym_id = ? AND LOWER(name) = LOWER(?) LIMIT 1');
+    $stmt->execute([$gymId, $targetName]);
     $id = $stmt->fetchColumn();
     if ($id) return (int) $id;
 
-    // 2. Substring / LIKE match
-    $stmt = $pdo->prepare('SELECT exercise_id FROM exercises WHERE (gym_id = ? OR gym_id = 0) AND LOWER(name) LIKE LOWER(?) ORDER BY (gym_id = ?) DESC LIMIT 1');
-    $stmt->execute([$gymId, '%' . $targetName . '%', $gymId]);
+    // 2. Substring / LIKE match in gym
+    $stmt = $pdo->prepare('SELECT exercise_id FROM exercises WHERE gym_id = ? AND LOWER(name) LIKE LOWER(?) LIMIT 1');
+    $stmt->execute([$gymId, '%' . $targetName . '%']);
     $id = $stmt->fetchColumn();
     if ($id) return (int) $id;
 
-    // 3. Fallback by muscle group if provided
+    // 3. Fallback by muscle group if provided in gym
     if ($fallbackMuscle) {
-        $stmt = $pdo->prepare('SELECT exercise_id FROM exercises WHERE (gym_id = ? OR gym_id = 0) AND LOWER(muscle_group) = LOWER(?) ORDER BY (gym_id = ?) DESC LIMIT 1');
-        $stmt->execute([$gymId, $fallbackMuscle, $gymId]);
+        $stmt = $pdo->prepare('SELECT exercise_id FROM exercises WHERE gym_id = ? AND LOWER(muscle_group) = LOWER(?) LIMIT 1');
+        $stmt->execute([$gymId, $fallbackMuscle]);
         $id = $stmt->fetchColumn();
         if ($id) return (int) $id;
     }
@@ -680,6 +682,22 @@ function auto_populate_plan_advanced(int $planId, int $memberUserId, array $opti
 
     // Member gym
     $memberGymId = (int) $pdo->query('SELECT gym_id FROM gym_members WHERE user_id = ' . $memberUserId)->fetchColumn();
+    if (!$memberGymId) {
+        $memberGymId = (int) ($pdo->query('
+            SELECT mp.gym_id 
+            FROM memberships m 
+            JOIN membership_plans mp ON m.plan_id = mp.plan_id 
+            WHERE m.user_id = ' . $memberUserId . ' AND m.status = "active" 
+            ORDER BY m.membership_id DESC LIMIT 1
+        ')->fetchColumn() ?: 0);
+    }
+    if (!$memberGymId) {
+        $memberGymId = (int) ($pdo->query('
+            SELECT tp.gym_id 
+            FROM training_plans p 
+            JOIN trainer_profiles tp ON p.trainer_id = tp.trainer_id 
+            WHERE p.plan_id = ' . (int)$planId)->fetchColumn() ?: 0);
+    }
 
     // Map days count to days of week
     $daysMap = match($daysCount) {
@@ -706,7 +724,7 @@ function auto_populate_plan_advanced(int $planId, int $memberUserId, array $opti
     $pdo->prepare('DELETE FROM training_plan_exercises WHERE plan_id = ?')->execute([$planId]);
 
     // Fetch exercises available for this gym
-    $stmt = $pdo->prepare('SELECT * FROM exercises WHERE (gym_id = ? OR gym_id = 0) ORDER BY muscle_group, name');
+    $stmt = $pdo->prepare('SELECT * FROM exercises WHERE gym_id = ? ORDER BY muscle_group, name');
     $stmt->execute([$memberGymId]);
     $allExercises = $stmt->fetchAll();
 
@@ -808,6 +826,22 @@ function auto_populate_day_focused(int $planId, int $memberUserId, int $dayOfWee
 
     // Member gym
     $memberGymId = (int) $pdo->query('SELECT gym_id FROM gym_members WHERE user_id = ' . $memberUserId)->fetchColumn();
+    if (!$memberGymId) {
+        $memberGymId = (int) ($pdo->query('
+            SELECT mp.gym_id 
+            FROM memberships m 
+            JOIN membership_plans mp ON m.plan_id = mp.plan_id 
+            WHERE m.user_id = ' . $memberUserId . ' AND m.status = "active" 
+            ORDER BY m.membership_id DESC LIMIT 1
+        ')->fetchColumn() ?: 0);
+    }
+    if (!$memberGymId) {
+        $memberGymId = (int) ($pdo->query('
+            SELECT tp.gym_id 
+            FROM training_plans p 
+            JOIN trainer_profiles tp ON p.trainer_id = tp.trainer_id 
+            WHERE p.plan_id = ' . (int)$planId)->fetchColumn() ?: 0);
+    }
 
     // Clear exercises for this day
     $pdo->prepare('DELETE FROM training_plan_exercises WHERE plan_id = ? AND day_of_week = ?')->execute([$planId, $dayOfWeek]);
@@ -824,7 +858,7 @@ function auto_populate_day_focused(int $planId, int $memberUserId, int $dayOfWee
 
     $placeholders = implode(',', array_fill(0, count($targetMuscles), '?'));
     $params = array_merge([$memberGymId], $targetMuscles);
-    $stmt = $pdo->prepare("SELECT * FROM exercises WHERE (gym_id = ? OR gym_id = 0) AND muscle_group IN ($placeholders) ORDER BY muscle_group, name");
+    $stmt = $pdo->prepare("SELECT * FROM exercises WHERE gym_id = ? AND muscle_group IN ($placeholders) ORDER BY muscle_group, name");
     $stmt->execute($params);
     $exercises = $stmt->fetchAll();
 

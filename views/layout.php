@@ -93,9 +93,71 @@ function render_header(string $title, ?array $user = null): void
                 const saved = localStorage.getItem('fittracks_theme') || 'light';
                 document.documentElement.setAttribute('data-theme', saved);
             })();
+
+            // Global robust HTML entity escaping helper for client-side templates
+            window.escapeHtml = function(str) {
+                if (str === null || str === undefined) return '';
+                return String(str)
+                    .replace(/&/g, '&amp;')
+                    .replace(/</g, '&lt;')
+                    .replace(/>/g, '&gt;')
+                    .replace(/"/g, '&quot;')
+                    .replace(/'/g, '&#039;');
+            };
         </script>
-        <script src="https://cdn.jsdelivr.net/npm/chart.js" defer></script>
         <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+        <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+        <script>
+            if (typeof Chart === 'undefined') {
+                document.write('<script src="assets/chart.umd.min.js"><\/script>');
+            }
+        </script>
+        <script>
+            // Global SVG Vector Icons for SweetAlert2 (eliminates distorted CSS multi-div checkmarks)
+            (function() {
+                if (!window.Swal) return;
+                const checkmarkSvg = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round" style="display:block;margin:auto;"><polyline points="20 6 9 17 4 12"></polyline></svg>';
+                const crossSvg = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round" style="display:block;margin:auto;"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>';
+                const warnSvg = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" style="display:block;margin:auto;"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>';
+                const infoSvg = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" style="display:block;margin:auto;"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>';
+
+                function injectToastIcon(opts) {
+                    if (!opts || typeof opts !== 'object') return opts;
+                    if (opts.icon === 'success' && !opts.iconHtml) opts.iconHtml = checkmarkSvg;
+                    else if ((opts.icon === 'error' || opts.icon === 'danger') && !opts.iconHtml) opts.iconHtml = crossSvg;
+                    else if (opts.icon === 'warning' && !opts.iconHtml) opts.iconHtml = warnSvg;
+                    else if (opts.icon === 'info' && !opts.iconHtml) opts.iconHtml = infoSvg;
+                    return opts;
+                }
+
+                const origFire = window.Swal.fire.bind(window.Swal);
+                window.Swal.fire = function(...args) {
+                    if (args.length === 1 && typeof args[0] === 'object') {
+                        args[0] = injectToastIcon(args[0]);
+                    } else if (args.length >= 3 && typeof args[2] === 'string') {
+                        const icon = args[2];
+                        const svg = icon === 'success' ? checkmarkSvg : (icon === 'error' ? crossSvg : (icon === 'warning' ? warnSvg : (icon === 'info' ? infoSvg : null)));
+                        if (svg) {
+                            return origFire({ title: args[0], html: args[1], icon: icon, iconHtml: svg });
+                        }
+                    }
+                    return origFire(...args);
+                };
+
+                const origMixin = window.Swal.mixin.bind(window.Swal);
+                window.Swal.mixin = function(mixinOpts) {
+                    const instance = origMixin(mixinOpts);
+                    const origInstFire = instance.fire.bind(instance);
+                    instance.fire = function(...args) {
+                        if (args.length === 1 && typeof args[0] === 'object') {
+                            args[0] = injectToastIcon(args[0]);
+                        }
+                        return origInstFire(...args);
+                    };
+                    return instance;
+                };
+            })();
+        </script>
         <script src="assets/audio.js?v=<?= filemtime(__DIR__ . '/../assets/audio.js') ?>"></script>
     </head>
     <body class="<?= $user ? 'app-body' : 'auth-body' ?>">
@@ -115,43 +177,160 @@ function render_header(string $title, ?array $user = null): void
 
         /* Sleek Modern Toast & Card Styling */
         .swal2-popup.swal2-toast {
-            border-radius: 14px !important;
-            padding: 12px 18px !important;
-            box-shadow: 0 12px 36px rgba(0, 0, 0, 0.5), 0 2px 8px rgba(0, 0, 0, 0.25) !important;
-            border: 1px solid rgba(255, 255, 255, 0.12) !important;
-            background: rgba(18, 23, 33, 0.96) !important;
-            backdrop-filter: blur(16px) !important;
-            -webkit-backdrop-filter: blur(16px) !important;
+            border-radius: 12px !important;
+            padding: 12px 16px !important;
+            box-shadow: 0 12px 36px rgba(0, 0, 0, 0.45), 0 2px 8px rgba(0, 0, 0, 0.25) !important;
+            border: 1px solid rgba(255, 255, 255, 0.1) !important;
+            background: rgba(18, 23, 33, 0.95) !important;
+            backdrop-filter: blur(20px) saturate(180%) !important;
+            -webkit-backdrop-filter: blur(20px) saturate(180%) !important;
             font-size: 13.5px !important;
-            align-items: flex-start !important;
+            display: flex !important;
+            align-items: center !important;
             cursor: pointer !important;
-            transition: transform 0.2s ease, box-shadow 0.2s ease !important;
+            transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.2s ease !important;
         }
         .swal2-popup.swal2-toast:hover {
             transform: translateY(-2px) !important;
-            box-shadow: 0 16px 40px rgba(0, 0, 0, 0.6), 0 4px 12px rgba(0, 0, 0, 0.3) !important;
+            box-shadow: 0 16px 40px rgba(0, 0, 0, 0.55), 0 4px 12px rgba(0, 0, 0, 0.3) !important;
         }
         [data-theme="light"] .swal2-popup.swal2-toast {
-            background: rgba(255, 255, 255, 0.97) !important;
+            background: rgba(255, 255, 255, 0.96) !important;
             border: 1px solid #cbd5e1 !important;
-            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.12), 0 2px 6px rgba(0, 0, 0, 0.06) !important;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1), 0 2px 6px rgba(0, 0, 0, 0.05) !important;
             color: #0f172a !important;
         }
-        .swal2-toast .swal2-icon {
-            width: 22px !important;
-            height: 22px !important;
-            min-width: 22px !important;
-            margin: 2px 12px 0 0 !important;
-            border-width: 2px !important;
-            transform: scale(0.85);
+
+        /* High-specificity override: Completely eliminate SweetAlert's internal animated multi-div lines */
+        .swal2-popup.swal2-toast .swal2-icon [class^="swal2-success-"],
+        .swal2-popup.swal2-toast .swal2-icon [class^="swal2-x-mark"],
+        .swal2-popup.swal2-toast .swal2-icon .swal2-success-ring,
+        .swal2-popup.swal2-toast .swal2-icon .swal2-success-fix,
+        .swal2-popup.swal2-toast .swal2-icon .swal2-success-line-tip,
+        .swal2-popup.swal2-toast .swal2-icon .swal2-success-line-long,
+        .swal2-popup.swal2-toast .swal2-icon [class*="circular-line"],
+        .swal2-popup.swal2-toast .swal2-icon > div:not(.swal2-icon-content),
+        .swal2-popup.swal2-toast .swal2-icon > span {
+            display: none !important;
+            visibility: hidden !important;
+            opacity: 0 !important;
+            width: 0 !important;
+            height: 0 !important;
+            border: none !important;
+            transform: none !important;
+            position: static !important;
         }
+        .swal2-popup.swal2-toast .swal2-icon::before,
+        .swal2-popup.swal2-toast .swal2-icon::after {
+            display: none !important;
+        }
+
+        /* Modern Vector SVG Toast Icon Badges */
+        .swal2-popup.swal2-toast .swal2-icon {
+            width: 28px !important;
+            height: 28px !important;
+            min-width: 28px !important;
+            max-width: 28px !important;
+            margin: 0 12px 0 0 !important;
+            border-radius: 50% !important;
+            display: inline-flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+            position: relative !important;
+            transform: none !important;
+            flex-shrink: 0 !important;
+            border: 1.5px solid transparent !important;
+            box-sizing: border-box !important;
+            overflow: hidden !important;
+        }
+        .swal2-popup.swal2-toast .swal2-icon .swal2-icon-content {
+            display: flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+            width: 100% !important;
+            height: 100% !important;
+            font-size: 14px !important;
+            line-height: 1 !important;
+            visibility: visible !important;
+            opacity: 1 !important;
+        }
+        .swal2-popup.swal2-toast .swal2-icon .swal2-icon-content svg {
+            display: block !important;
+            width: 16px !important;
+            height: 16px !important;
+            visibility: visible !important;
+            opacity: 1 !important;
+            flex-shrink: 0 !important;
+        }
+
+        /* Success Icon - Unmistakable Bold Green Checkmark (✓) */
+        .swal2-toast .swal2-icon.swal2-success {
+            border-color: rgba(132, 204, 22, 0.5) !important;
+            background-color: rgba(132, 204, 22, 0.14) !important;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2384cc16' stroke-width='3.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='20 6 9 17 4 12'/%3E%3C/svg%3E") !important;
+            background-repeat: no-repeat !important;
+            background-position: center !important;
+            background-size: 15px 15px !important;
+        }
+        [data-theme="light"] .swal2-toast .swal2-icon.swal2-success {
+            border-color: rgba(101, 163, 13, 0.5) !important;
+            background-color: rgba(101, 163, 13, 0.14) !important;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2365a30d' stroke-width='3.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='20 6 9 17 4 12'/%3E%3C/svg%3E") !important;
+        }
+
+        /* Error Icon - Bold Red Cross (✕) */
+        .swal2-toast .swal2-icon.swal2-error {
+            border-color: rgba(239, 68, 68, 0.5) !important;
+            background-color: rgba(239, 68, 68, 0.14) !important;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23ef4444' stroke-width='3.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cline x1='18' y1='6' x2='6' y2='18'/%3E%3Cline x1='6' y1='6' x2='18' y2='18'/%3E%3C/svg%3E") !important;
+            background-repeat: no-repeat !important;
+            background-position: center !important;
+            background-size: 14px 14px !important;
+        }
+        [data-theme="light"] .swal2-toast .swal2-icon.swal2-error {
+            border-color: rgba(220, 38, 38, 0.5) !important;
+            background-color: rgba(220, 38, 38, 0.14) !important;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23dc2626' stroke-width='3.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cline x1='18' y1='6' x2='6' y2='18'/%3E%3Cline x1='6' y1='6' x2='18' y2='18'/%3E%3C/svg%3E") !important;
+        }
+
+        /* Warning Icon - Amber Alert Triangle */
+        .swal2-toast .swal2-icon.swal2-warning {
+            border-color: rgba(245, 158, 11, 0.5) !important;
+            background-color: rgba(245, 158, 11, 0.14) !important;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23f59e0b' stroke-width='2.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z'/%3E%3Cline x1='12' y1='9' x2='12' y2='13'/%3E%3Cline x1='12' y1='17' x2='12.01' y2='17'/%3E%3C/svg%3E") !important;
+            background-repeat: no-repeat !important;
+            background-position: center !important;
+            background-size: 15px 15px !important;
+        }
+        [data-theme="light"] .swal2-toast .swal2-icon.swal2-warning {
+            border-color: rgba(217, 119, 6, 0.5) !important;
+            background-color: rgba(217, 119, 6, 0.14) !important;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23d97706' stroke-width='2.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z'/%3E%3Cline x1='12' y1='9' x2='12' y2='13'/%3E%3Cline x1='12' y1='17' x2='12.01' y2='17'/%3E%3C/svg%3E") !important;
+        }
+
+        /* Info Icon - Sky Blue Info Badge */
+        .swal2-toast .swal2-icon.swal2-info {
+            border-color: rgba(56, 189, 248, 0.5) !important;
+            background-color: rgba(56, 189, 248, 0.14) !important;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2338bdf8' stroke-width='2.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='10'/%3E%3Cline x1='12' y1='16' x2='12' y2='12'/%3E%3Cline x1='12' y1='8' x2='12.01' y2='8'/%3E%3C/svg%3E") !important;
+            background-repeat: no-repeat !important;
+            background-position: center !important;
+            background-size: 15px 15px !important;
+        }
+        [data-theme="light"] .swal2-toast .swal2-icon.swal2-info {
+            border-color: rgba(2, 132, 199, 0.5) !important;
+            background-color: rgba(2, 132, 199, 0.14) !important;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%230284c7' stroke-width='2.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='10'/%3E%3Cline x1='12' y1='16' x2='12' y2='12'/%3E%3Cline x1='12' y1='8' x2='12.01' y2='8'/%3E%3C/svg%3E") !important;
+        }
+
+        /* Toast Content Typography */
         .swal2-toast .swal2-title {
             font-size: 13.5px !important;
-            font-weight: 700 !important;
+            font-weight: 600 !important;
             margin: 0 !important;
             padding: 0 !important;
-            line-height: 1.35 !important;
-            color: var(--ink, #ffffff) !important;
+            line-height: 1.4 !important;
+            color: #f8fafc !important;
         }
         [data-theme="light"] .swal2-toast .swal2-title {
             color: #0f172a !important;
@@ -159,14 +338,14 @@ function render_header(string $title, ?array $user = null): void
         .swal2-toast .swal2-html-container {
             font-size: 12.5px !important;
             font-weight: 400 !important;
-            margin: 4px 0 0 0 !important;
+            margin: 2px 0 0 0 !important;
             padding: 0 !important;
             line-height: 1.4 !important;
             text-align: left !important;
-            color: var(--ink, #ffffff) !important;
+            color: #cbd5e1 !important;
         }
         [data-theme="light"] .swal2-toast .swal2-html-container {
-            color: #334155 !important;
+            color: #475569 !important;
         }
         .swal2-toast .swal2-actions {
             margin: 8px 0 0 0 !important;
@@ -176,7 +355,7 @@ function render_header(string $title, ?array $user = null): void
             gap: 6px !important;
         }
         .swal2-toast .swal2-confirm {
-            background: var(--lime, #bef264) !important;
+            background: #84cc16 !important;
             color: #080b0d !important;
             font-size: 11.5px !important;
             font-weight: 700 !important;
@@ -184,7 +363,7 @@ function render_header(string $title, ?array $user = null): void
             padding: 5px 14px !important;
             min-height: auto !important;
             margin: 0 !important;
-            box-shadow: 0 2px 8px rgba(190, 242, 100, 0.25) !important;
+            box-shadow: 0 2px 8px rgba(132, 204, 22, 0.25) !important;
             border: none !important;
             cursor: pointer !important;
             transition: all 0.2s ease !important;
@@ -193,11 +372,18 @@ function render_header(string $title, ?array $user = null): void
             opacity: 0.92 !important;
             transform: translateY(-1px) !important;
         }
+        
+        /* Dynamic Timer Progress Bar */
         .swal2-toast .swal2-timer-progress-bar {
-            background: var(--lime, #bef264) !important;
-            height: 2.5px !important;
-            border-radius: 0 0 14px 14px;
+            height: 3px !important;
+            border-radius: 0 0 12px 12px !important;
+            opacity: 0.9 !important;
+            background: #84cc16 !important;
         }
+        .swal2-toast:has(.swal2-icon.swal2-success) .swal2-timer-progress-bar { background: #84cc16 !important; }
+        .swal2-toast:has(.swal2-icon.swal2-error) .swal2-timer-progress-bar { background: #ef4444 !important; }
+        .swal2-toast:has(.swal2-icon.swal2-warning) .swal2-timer-progress-bar { background: #f59e0b !important; }
+        .swal2-toast:has(.swal2-icon.swal2-info) .swal2-timer-progress-bar { background: #38bdf8 !important; }
 
         /* Mobile specific bottom pill positioning */
         @media (max-width: 768px) {
@@ -221,10 +407,14 @@ function render_header(string $title, ?array $user = null): void
                 font-size: 12px !important;
             }
             .swal2-toast .swal2-icon {
-                width: 20px !important;
-                height: 20px !important;
-                min-width: 20px !important;
-                margin: 2px 8px 0 0 !important;
+                width: 24px !important;
+                height: 24px !important;
+                min-width: 24px !important;
+                margin: 0 10px 0 0 !important;
+            }
+            .swal2-toast .swal2-icon::after {
+                width: 13px !important;
+                height: 13px !important;
             }
         }
 
@@ -375,8 +565,13 @@ function render_header(string $title, ?array $user = null): void
                         toast.onclick = () => Swal.close();
                     }
                 });
+                const flashType = <?= json_encode($flash['type'] === 'danger' ? 'error' : $flash['type']) ?>;
+                const checkmarkSvg = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round" style="display:block;margin:auto;"><polyline points="20 6 9 17 4 12"></polyline></svg>';
+                const crossSvg = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round" style="display:block;margin:auto;"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>';
+                
                 Toast.fire({
-                    icon: <?= json_encode($flash['type'] === 'danger' ? 'error' : $flash['type']) ?>,
+                    icon: flashType,
+                    iconHtml: flashType === 'success' ? checkmarkSvg : (flashType === 'error' ? crossSvg : undefined),
                     html: <?= json_encode($flash['message']) ?>
                 });
             });

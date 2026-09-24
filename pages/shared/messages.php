@@ -4,8 +4,213 @@ declare(strict_types=1);
 function messages_page(): void
 {
     $user = require_login();
+    $role = $user['role'] ?? '';
+    $isGymOwner = in_array($role, ['gym_owner', 'admin'], true);
+    $currentGymId = 0;
+
+    if ($isGymOwner) {
+        $currentGymId = (int) ($user['gym_id'] ?? 0);
+        if (!$currentGymId) {
+            $currentGymId = (int) scalar('SELECT gym_id FROM gyms WHERE owner_user_id = ? LIMIT 1', [$user['user_id']]);
+        }
+        if (!$currentGymId) {
+            $cg = get_user_gym($user);
+            $currentGymId = (int) ($cg['gym_id'] ?? 0);
+        }
+    } elseif ($role === 'trainer' || $role === 'member') {
+        $cg = get_user_gym($user);
+        $currentGymId = (int) ($cg['gym_id'] ?? 0);
+    }
+
+    $canMessageUser = function(int $targetUserId) use ($user, $role, $isGymOwner, $currentGymId): bool {
+        if ($targetUserId <= 0 || (int)$user['user_id'] === $targetUserId) {
+            return false;
+        }
+
+        if ($role === 'platform_admin') {
+            return (bool) scalar('SELECT 1 FROM users WHERE user_id = ? AND status = "active"', [$targetUserId]);
+        }
+
+        if ($isGymOwner) {
+            if ($currentGymId <= 0) {
+                return false;
+            }
+            return (bool) scalar('
+                SELECT 1 FROM users u
+                WHERE u.user_id = ?
+                  AND u.status = "active"
+                  AND (
+                      (u.role = "trainer" AND (
+                          EXISTS (SELECT 1 FROM trainer_profiles tp WHERE tp.user_id = u.user_id AND tp.gym_id = ?) OR
+                          EXISTS (SELECT 1 FROM gym_members gm WHERE gm.user_id = u.user_id AND gm.gym_id = ?)
+                      )) OR
+                      (u.role = "member" AND (
+                          EXISTS (SELECT 1 FROM gym_members gm WHERE gm.user_id = u.user_id AND gm.gym_id = ?) OR
+                          EXISTS (SELECT 1 FROM memberships m JOIN membership_plans mp ON mp.plan_id = m.plan_id WHERE m.user_id = u.user_id AND mp.gym_id = ?)
+                      ))
+                  )
+                LIMIT 1',
+                [$targetUserId, $currentGymId, $currentGymId, $currentGymId, $currentGymId]
+            );
+        }
+
+        if ($role === 'trainer') {
+            return (bool) scalar('
+                SELECT 1 FROM users u
+                WHERE u.user_id = ?
+                  AND u.status = "active"
+                  AND (
+                      (u.role IN ("admin", "gym_owner") AND EXISTS (SELECT 1 FROM gyms g WHERE g.owner_user_id = u.user_id AND g.gym_id = ?))
+                      OR u.user_id IN (
+                          SELECT ta.member_user_id FROM trainer_assignments ta 
+                          JOIN trainer_profiles tp ON tp.trainer_id = ta.trainer_id 
+                          WHERE tp.user_id = ? AND ta.status = "active"
+                      )
+                  )
+                LIMIT 1',
+                [$targetUserId, $currentGymId, $user['user_id']]
+            );
+        }
+
+        if ($role === 'member') {
+            return (bool) scalar('
+                SELECT 1 FROM users u
+                WHERE u.user_id = ?
+                  AND u.status = "active"
+                  AND (
+                      (u.role = "trainer" AND (
+                          EXISTS (SELECT 1 FROM trainer_profiles tp WHERE tp.user_id = u.user_id AND tp.gym_id = ?)
+                          OR u.user_id IN (
+                              SELECT tp.user_id FROM trainer_assignments ta 
+                              JOIN trainer_profiles tp ON tp.trainer_id = ta.trainer_id 
+                              WHERE ta.member_user_id = ? AND ta.status = "active"
+                          )
+                      ))
+                      OR (u.role IN ("admin", "gym_owner") AND EXISTS (SELECT 1 FROM gyms g WHERE g.owner_user_id = u.user_id AND g.gym_id = ?))
+                  )
+                LIMIT 1',
+                [$targetUserId, $currentGymId, $user['user_id'], $currentGymId]
+            );
+        }
+
+        return false;
+    };
+
     $isAjax = (isset($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest')
               || (isset($_SERVER['CONTENT_TYPE']) && str_contains($_SERVER['CONTENT_TYPE'], 'application/json'));
+
+    // ── AJAX: Search Contacts for Compose Modal ─────────────────────────
+    if (($_GET['action'] ?? post('action')) === 'search_contacts') {
+        if (ob_get_level()) ob_clean();
+        header('Content-Type: application/json');
+
+        $searchQuery = trim((string) ($_GET['q'] ?? post('q') ?? ''));
+        $searchPattern = '%' . $searchQuery . '%';
+
+        $results = [];
+        if ($isGymOwner) {
+            if ($currentGymId > 0) {
+                $sql = 'SELECT u.user_id, u.first_name, u.last_name, u.profile_picture, u.role 
+                        FROM users u
+                        WHERE u.user_id != ?
+                          AND u.status = "active"
+                          AND (
+                              (u.role = "trainer" AND (
+                                  EXISTS (SELECT 1 FROM trainer_profiles tp WHERE tp.user_id = u.user_id AND tp.gym_id = ?) OR
+                                  EXISTS (SELECT 1 FROM gym_members gm WHERE gm.user_id = u.user_id AND gm.gym_id = ?)
+                              )) OR
+                              (u.role = "member" AND (
+                                  EXISTS (SELECT 1 FROM gym_members gm WHERE gm.user_id = u.user_id AND gm.gym_id = ?) OR
+                                  EXISTS (SELECT 1 FROM memberships m JOIN membership_plans mp ON mp.plan_id = m.plan_id WHERE m.user_id = u.user_id AND mp.gym_id = ?)
+                              ))
+                          )';
+                $params = [$user['user_id'], $currentGymId, $currentGymId, $currentGymId, $currentGymId];
+                if ($searchQuery !== '') {
+                    $sql .= ' AND (u.first_name LIKE ? OR u.last_name LIKE ? OR CONCAT(u.first_name, " ", u.last_name) LIKE ?)';
+                    $params[] = $searchPattern;
+                    $params[] = $searchPattern;
+                    $params[] = $searchPattern;
+                }
+                $sql .= ' ORDER BY u.first_name ASC LIMIT 50';
+                $results = query_all($sql, $params);
+            }
+        } elseif ($role === 'trainer') {
+            $sql = 'SELECT u.user_id, u.first_name, u.last_name, u.profile_picture, u.role FROM users u
+                    WHERE u.user_id != ?
+                      AND u.status = "active"
+                      AND (
+                          (u.role IN ("admin", "gym_owner") AND EXISTS (SELECT 1 FROM gyms g WHERE g.owner_user_id = u.user_id AND g.gym_id = ?))
+                          OR u.user_id IN (
+                              SELECT ta.member_user_id FROM trainer_assignments ta 
+                              JOIN trainer_profiles tp ON tp.trainer_id = ta.trainer_id 
+                              WHERE tp.user_id = ? AND ta.status = "active"
+                          )
+                      )';
+            $params = [$user['user_id'], $currentGymId, $user['user_id']];
+            if ($searchQuery !== '') {
+                $sql .= ' AND (u.first_name LIKE ? OR u.last_name LIKE ? OR CONCAT(u.first_name, " ", u.last_name) LIKE ?)';
+                $params[] = $searchPattern;
+                $params[] = $searchPattern;
+                $params[] = $searchPattern;
+            }
+            $sql .= ' ORDER BY u.first_name ASC LIMIT 50';
+            $results = query_all($sql, $params);
+        } elseif ($role === 'member') {
+            $sql = 'SELECT u.user_id, u.first_name, u.last_name, u.profile_picture, u.role FROM users u
+                    WHERE u.user_id != ?
+                      AND u.status = "active"
+                      AND (
+                          (u.role = "trainer" AND (
+                              EXISTS (SELECT 1 FROM trainer_profiles tp WHERE tp.user_id = u.user_id AND tp.gym_id = ?)
+                              OR u.user_id IN (
+                                  SELECT tp.user_id FROM trainer_assignments ta 
+                                  JOIN trainer_profiles tp ON tp.trainer_id = ta.trainer_id 
+                                  WHERE ta.member_user_id = ? AND ta.status = "active"
+                              )
+                          ))
+                          OR (u.role IN ("admin", "gym_owner") AND EXISTS (SELECT 1 FROM gyms g WHERE g.owner_user_id = u.user_id AND g.gym_id = ?))
+                      )';
+            $params = [$user['user_id'], $currentGymId, $user['user_id'], $currentGymId];
+            if ($searchQuery !== '') {
+                $sql .= ' AND (u.first_name LIKE ? OR u.last_name LIKE ? OR CONCAT(u.first_name, " ", u.last_name) LIKE ?)';
+                $params[] = $searchPattern;
+                $params[] = $searchPattern;
+                $params[] = $searchPattern;
+            }
+            $sql .= ' ORDER BY u.first_name ASC LIMIT 50';
+            $results = query_all($sql, $params);
+        } else {
+            $sql = 'SELECT user_id, first_name, last_name, profile_picture, role FROM users
+                    WHERE user_id != ?
+                      AND status = "active"
+                      AND role IN ("gym_owner", "trainer", "member", "admin")';
+            $params = [$user['user_id']];
+            if ($searchQuery !== '') {
+                $sql .= ' AND (first_name LIKE ? OR last_name LIKE ? OR CONCAT(first_name, " ", last_name) LIKE ?)';
+                $params[] = $searchPattern;
+                $params[] = $searchPattern;
+                $params[] = $searchPattern;
+            }
+            $sql .= ' ORDER BY first_name ASC LIMIT 50';
+            $results = query_all($sql, $params);
+        }
+
+        $contactsData = [];
+        foreach ($results as $c) {
+            $contactsData[] = [
+                'user_id'    => (int) $c['user_id'],
+                'first_name' => $c['first_name'],
+                'last_name'  => $c['last_name'],
+                'full_name'  => trim($c['first_name'] . ' ' . $c['last_name']),
+                'role'       => ucfirst($c['role']),
+                'avatar_html'=> render_avatar($c),
+                'chat_url'   => 'index.php?page=messages&chat=' . (int) $c['user_id']
+            ];
+        }
+
+        echo json_encode(['contacts' => $contactsData]);
+        exit;
+    }
 
     // ── AJAX: Poll for new messages ──────────────────────────────────────
     if ($_SERVER['REQUEST_METHOD'] === 'POST' && post('action') === 'poll_messages' && $isAjax) {
@@ -13,7 +218,7 @@ function messages_page(): void
         header('Content-Type: application/json');
         $recipientId = (int) post('recipient_id');
         $lastId      = (int) post('last_message_id');
-        if ($recipientId <= 0) { echo json_encode(['messages' => []]); exit; }
+        if ($recipientId <= 0 || !$canMessageUser($recipientId)) { echo json_encode(['messages' => []]); exit; }
         $newRows = query_all(
             'SELECT m.message_id, m.sender_id, m.message_text, m.sent_at,
                     CONCAT(s.first_name, " ", s.last_name) AS sender_name
@@ -41,7 +246,9 @@ function messages_page(): void
         $error = null;
 
         if ($recipientId && $text !== '') {
-            if (mb_strlen($text) > 1000) {
+            if (!$canMessageUser($recipientId)) {
+                $error = 'You can only message members and trainers within your gym.';
+            } elseif (mb_strlen($text) > 1000) {
                 $error = 'Message is too long. Maximum 1000 characters.';
             } else {
                 $pdo = db();
@@ -59,6 +266,10 @@ function messages_page(): void
                     notify_user($recipientId, 'coach_message', $title, $text, (int) $user['user_id']);
                 }
             }
+        } elseif (!$recipientId) {
+            $error = 'Invalid recipient.';
+        } elseif ($text === '') {
+            $error = 'Message cannot be empty.';
         }
 
         // AJAX response
@@ -68,8 +279,6 @@ function messages_page(): void
             if ($error) {
                 echo json_encode(['success' => false, 'error' => $error]);
             } else {
-                // Fetch the stored sent_at from DB so timezone formatting matches
-                // the server-rendered message bubbles (date('g:i A', strtotime($sent_at)))
                 $sentAtRaw = scalar('SELECT sent_at FROM trainer_messages WHERE message_id = ?', [$newMessageId]);
                 $sentFormatted = $sentAtRaw ? date('g:i A', strtotime($sentAtRaw)) : date('g:i A');
                 echo json_encode([
@@ -84,45 +293,111 @@ function messages_page(): void
 
         // Fallback: normal redirect
         flash($error ?? 'Message sent.', $error ? 'danger' : 'success');
-        header('Location: index.php?page=messages&chat=' . $recipientId);
+        header('Location: index.php?page=messages' . ($recipientId && !$error ? '&chat=' . $recipientId : ''));
         exit;
     }
 
     // Get list of users this person has conversed with
-    $conversations = query_all(
-        'SELECT u.user_id, u.first_name, u.last_name, u.profile_picture, u.role,
-                (SELECT message_text FROM trainer_messages WHERE (sender_id = u.user_id AND recipient_id = ?) OR (sender_id = ? AND recipient_id = u.user_id) ORDER BY sent_at DESC LIMIT 1) as last_message,
-                (SELECT sent_at FROM trainer_messages WHERE (sender_id = u.user_id AND recipient_id = ?) OR (sender_id = ? AND recipient_id = u.user_id) ORDER BY sent_at DESC LIMIT 1) as last_time
-         FROM users u
-         WHERE u.user_id IN (
-            SELECT sender_id FROM trainer_messages WHERE recipient_id = ?
-            UNION
-            SELECT recipient_id FROM trainer_messages WHERE sender_id = ?
-         )
-         ' . ($user['role'] === 'admin' ? ' OR (u.role = "trainer" AND u.status = "active") ' : '') . '
-         ' . ($user['role'] === 'trainer' ? ' OR (u.role = "admin" AND u.status = "active") OR u.user_id IN (SELECT ta.member_user_id FROM trainer_assignments ta JOIN trainer_profiles tp ON tp.trainer_id = ta.trainer_id WHERE tp.user_id = ' . (int)$user['user_id'] . ' AND ta.status = "active") ' : '') . '
-         ORDER BY last_time DESC',
-        [$user['user_id'], $user['user_id'], $user['user_id'], $user['user_id'], $user['user_id'], $user['user_id']]
-    );
+    if ($isGymOwner) {
+        $conversations = query_all(
+            'SELECT u.user_id, u.first_name, u.last_name, u.profile_picture, u.role,
+                    (SELECT message_text FROM trainer_messages WHERE (sender_id = u.user_id AND recipient_id = ?) OR (sender_id = ? AND recipient_id = u.user_id) ORDER BY sent_at DESC LIMIT 1) as last_message,
+                    (SELECT sent_at FROM trainer_messages WHERE (sender_id = u.user_id AND recipient_id = ?) OR (sender_id = ? AND recipient_id = u.user_id) ORDER BY sent_at DESC LIMIT 1) as last_time
+             FROM users u
+             WHERE (
+                u.user_id IN (
+                   SELECT sender_id FROM trainer_messages WHERE recipient_id = ?
+                   UNION
+                   SELECT recipient_id FROM trainer_messages WHERE sender_id = ?
+                )
+                OR (u.role = "trainer" AND u.status = "active" AND (
+                    EXISTS (SELECT 1 FROM trainer_profiles tp WHERE tp.user_id = u.user_id AND tp.gym_id = ?) OR
+                    EXISTS (SELECT 1 FROM gym_members gm WHERE gm.user_id = u.user_id AND gm.gym_id = ?)
+                ))
+             )
+             AND (
+                (u.role = "trainer" AND (
+                    EXISTS (SELECT 1 FROM trainer_profiles tp WHERE tp.user_id = u.user_id AND tp.gym_id = ?) OR
+                    EXISTS (SELECT 1 FROM gym_members gm WHERE gm.user_id = u.user_id AND gm.gym_id = ?)
+                )) OR
+                (u.role = "member" AND (
+                    EXISTS (SELECT 1 FROM gym_members gm WHERE gm.user_id = u.user_id AND gm.gym_id = ?) OR
+                    EXISTS (SELECT 1 FROM memberships m JOIN membership_plans mp ON mp.plan_id = m.plan_id WHERE m.user_id = u.user_id AND mp.gym_id = ?)
+                ))
+             )
+             ORDER BY last_time DESC, u.first_name ASC',
+            [
+                $user['user_id'], $user['user_id'], $user['user_id'], $user['user_id'],
+                $user['user_id'], $user['user_id'],
+                $currentGymId, $currentGymId,
+                $currentGymId, $currentGymId, $currentGymId, $currentGymId
+            ]
+        );
+    } elseif ($role === 'trainer') {
+        $conversations = query_all(
+            'SELECT u.user_id, u.first_name, u.last_name, u.profile_picture, u.role,
+                    (SELECT message_text FROM trainer_messages WHERE (sender_id = u.user_id AND recipient_id = ?) OR (sender_id = ? AND recipient_id = u.user_id) ORDER BY sent_at DESC LIMIT 1) as last_message,
+                    (SELECT sent_at FROM trainer_messages WHERE (sender_id = u.user_id AND recipient_id = ?) OR (sender_id = ? AND recipient_id = u.user_id) ORDER BY sent_at DESC LIMIT 1) as last_time
+             FROM users u
+             WHERE (
+                u.user_id IN (
+                   SELECT sender_id FROM trainer_messages WHERE recipient_id = ?
+                   UNION
+                   SELECT recipient_id FROM trainer_messages WHERE sender_id = ?
+                )
+                OR (u.role IN ("admin", "gym_owner") AND u.status = "active" AND EXISTS (SELECT 1 FROM gyms g WHERE g.owner_user_id = u.user_id AND g.gym_id = ?))
+                OR u.user_id IN (SELECT ta.member_user_id FROM trainer_assignments ta JOIN trainer_profiles tp ON tp.trainer_id = ta.trainer_id WHERE tp.user_id = ? AND ta.status = "active")
+             )
+             ORDER BY last_time DESC, u.first_name ASC',
+            [
+                $user['user_id'], $user['user_id'], $user['user_id'], $user['user_id'],
+                $user['user_id'], $user['user_id'],
+                $currentGymId,
+                $user['user_id']
+            ]
+        );
+    } else {
+        $conversations = query_all(
+            'SELECT u.user_id, u.first_name, u.last_name, u.profile_picture, u.role,
+                    (SELECT message_text FROM trainer_messages WHERE (sender_id = u.user_id AND recipient_id = ?) OR (sender_id = ? AND recipient_id = u.user_id) ORDER BY sent_at DESC LIMIT 1) as last_message,
+                    (SELECT sent_at FROM trainer_messages WHERE (sender_id = u.user_id AND recipient_id = ?) OR (sender_id = ? AND recipient_id = u.user_id) ORDER BY sent_at DESC LIMIT 1) as last_time
+             FROM users u
+             WHERE u.user_id IN (
+                SELECT sender_id FROM trainer_messages WHERE recipient_id = ?
+                UNION
+                SELECT recipient_id FROM trainer_messages WHERE sender_id = ?
+             )
+             ORDER BY last_time DESC, u.first_name ASC',
+            [
+                $user['user_id'], $user['user_id'], $user['user_id'], $user['user_id'],
+                $user['user_id'], $user['user_id']
+            ]
+        );
+    }
 
     $activeChatId = isset($_GET['chat']) ? (int) $_GET['chat'] : null;
     $activeUser = null;
 
     if ($activeChatId) {
-        $found = false;
-        foreach ($conversations as $c) {
-            if ((int)$c['user_id'] === $activeChatId) {
-                $found = true;
-                $activeUser = $c;
-                break;
+        if (!$canMessageUser($activeChatId)) {
+            $activeChatId = null;
+            flash('You can only message members and trainers within your gym.', 'danger');
+        } else {
+            $found = false;
+            foreach ($conversations as $c) {
+                if ((int)$c['user_id'] === $activeChatId) {
+                    $found = true;
+                    $activeUser = $c;
+                    break;
+                }
             }
-        }
-        if (!$found) {
-            $stmt = db()->prepare('SELECT user_id, first_name, last_name, profile_picture, role FROM users WHERE user_id = ?');
-            $stmt->execute([$activeChatId]);
-            $activeUser = $stmt->fetch();
-            if ($activeUser) {
-                array_unshift($conversations, $activeUser);
+            if (!$found) {
+                $stmt = db()->prepare('SELECT user_id, first_name, last_name, profile_picture, role FROM users WHERE user_id = ? AND status = "active"');
+                $stmt->execute([$activeChatId]);
+                $activeUser = $stmt->fetch();
+                if ($activeUser) {
+                    array_unshift($conversations, $activeUser);
+                }
             }
         }
     }
@@ -146,30 +421,67 @@ function messages_page(): void
     }
 
     // Get list of users this person can message for the New Message modal
-    if ($user['role'] === 'trainer') {
+    if ($isGymOwner) {
+        $contacts = query_all(
+            'SELECT u.user_id, u.first_name, u.last_name, u.profile_picture, u.role 
+             FROM users u
+             WHERE u.user_id != ?
+               AND u.status = "active"
+               AND (
+                   (u.role = "trainer" AND (
+                       EXISTS (SELECT 1 FROM trainer_profiles tp WHERE tp.user_id = u.user_id AND tp.gym_id = ?) OR
+                       EXISTS (SELECT 1 FROM gym_members gm WHERE gm.user_id = u.user_id AND gm.gym_id = ?)
+                   )) OR
+                   (u.role = "member" AND (
+                       EXISTS (SELECT 1 FROM gym_members gm WHERE gm.user_id = u.user_id AND gm.gym_id = ?) OR
+                       EXISTS (SELECT 1 FROM memberships m JOIN membership_plans mp ON mp.plan_id = m.plan_id WHERE m.user_id = u.user_id AND mp.gym_id = ?)
+                   ))
+               )
+             ORDER BY u.first_name ASC',
+            [$user['user_id'], $currentGymId, $currentGymId, $currentGymId, $currentGymId]
+        );
+    } elseif ($role === 'trainer') {
         $contacts = query_all(
             'SELECT u.user_id, u.first_name, u.last_name, u.profile_picture, u.role FROM users u
              WHERE u.user_id != ?
                AND u.status = "active"
-               AND (u.role = "admin" OR u.user_id IN (
-                   SELECT ta.member_user_id FROM trainer_assignments ta 
-                   JOIN trainer_profiles tp ON tp.trainer_id = ta.trainer_id 
-                   WHERE tp.user_id = ? AND ta.status = "active"
-               ))
-             ORDER BY u.first_name',
-            [$user['user_id'], $user['user_id']]
+               AND (
+                   (u.role IN ("admin", "gym_owner") AND EXISTS (SELECT 1 FROM gyms g WHERE g.owner_user_id = u.user_id AND g.gym_id = ?))
+                   OR u.user_id IN (
+                       SELECT ta.member_user_id FROM trainer_assignments ta 
+                       JOIN trainer_profiles tp ON tp.trainer_id = ta.trainer_id 
+                       WHERE tp.user_id = ? AND ta.status = "active"
+                   )
+               )
+             ORDER BY u.first_name ASC',
+            [$user['user_id'], $currentGymId, $user['user_id']]
+        );
+    } elseif ($role === 'member') {
+        $contacts = query_all(
+            'SELECT u.user_id, u.first_name, u.last_name, u.profile_picture, u.role FROM users u
+             WHERE u.user_id != ?
+               AND u.status = "active"
+               AND (
+                   (u.role = "trainer" AND (
+                       EXISTS (SELECT 1 FROM trainer_profiles tp WHERE tp.user_id = u.user_id AND tp.gym_id = ?)
+                       OR u.user_id IN (
+                           SELECT tp.user_id FROM trainer_assignments ta 
+                           JOIN trainer_profiles tp ON tp.trainer_id = ta.trainer_id 
+                           WHERE ta.member_user_id = ? AND ta.status = "active"
+                       )
+                   ))
+                   OR (u.role IN ("admin", "gym_owner") AND EXISTS (SELECT 1 FROM gyms g WHERE g.owner_user_id = u.user_id AND g.gym_id = ?))
+               )
+             ORDER BY u.first_name ASC',
+            [$user['user_id'], $currentGymId, $user['user_id'], $currentGymId]
         );
     } else {
-        $roleFilter = match($user['role']) {
-            'member'  => '"trainer"',
-            default   => '"trainer","member","admin"',
-        };
         $contacts = query_all(
             'SELECT user_id, first_name, last_name, profile_picture, role FROM users
              WHERE user_id != ?
                AND status = "active"
-               AND role IN (' . $roleFilter . ')
-             ORDER BY first_name',
+               AND role IN ("gym_owner", "trainer", "member", "admin")
+             ORDER BY first_name ASC',
             [$user['user_id']]
         );
     }
@@ -183,7 +495,7 @@ function messages_page(): void
         <div class="msg-sidebar">
             <div style="padding: 20px; border-bottom: 1px solid var(--line); display: flex; justify-content: space-between; align-items: center;">
                 <h2 style="margin: 0; font-size: 1.2rem;">Messages</h2>
-                <button onclick="document.getElementById('composeModal').showModal()" style="background: none; border: none; color: var(--lime); cursor: pointer; padding: 5px;" title="New Message">
+                <button onclick="openComposeModal()" style="background: none; border: none; color: var(--lime); cursor: pointer; padding: 5px;" title="New Message">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20">
                         <path d="M12 5v14M5 12h14"></path>
                     </svg>
@@ -446,39 +758,265 @@ function messages_page(): void
                     </svg>
                     <h2>Your Messages</h2>
                     <p>Select a conversation or start a new one.</p>
+                    <button type="button" class="btn btn-outline" style="margin-top: 15px;" onclick="openComposeModal()">Start a conversation</button>
                 </div>
             <?php endif; ?>
         </div>
     </section>
 
     <!-- Compose modal -->
-    <dialog id="composeModal" class="modal">
-        <div class="modal-header">
-            <h3>New message</h3>
-            <button class="modal-close" onclick="this.closest('dialog').close()" aria-label="Close">
-                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24"
+    <dialog id="composeModal" class="modal" style="width: 100%; max-width: 480px; overflow: hidden; padding: 0;">
+        <div class="modal-header" style="padding: 16px 20px; border-bottom: 1px solid var(--line);">
+            <h3 style="margin: 0; font-size: 1.1rem; display: flex; align-items: center; gap: 8px;">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18" style="color: var(--lime);">
+                    <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/>
+                </svg>
+                New Message
+            </h3>
+            <button class="modal-close" onclick="closeComposeModal()" aria-label="Close">
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24"
                      fill="none" stroke="currentColor" stroke-width="2">
                     <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
                 </svg>
             </button>
         </div>
+
+        <!-- Sticky Live Search Bar -->
+        <div style="padding: 12px 16px; border-bottom: 1px solid var(--line); background: var(--surface);">
+            <div style="position: relative; display: flex; align-items: center;">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"
+                     style="position: absolute; left: 12px; color: var(--muted); pointer-events: none;">
+                    <circle cx="11" cy="11" r="8"></circle>
+                    <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                </svg>
+                <input type="text"
+                       id="contactSearchInput"
+                       placeholder="Search members or trainers..."
+                       autocomplete="off"
+                       style="width: 100%; padding: 9px 36px 9px 36px; border-radius: 8px; border: 1px solid var(--line); background: var(--panel); color: var(--ink); font-size: 0.9rem; outline: none; transition: border-color 0.2s, box-shadow 0.2s;"
+                       onfocus="this.style.borderColor='var(--lime)';"
+                       onblur="this.style.borderColor='var(--line)';"
+                >
+                <button type="button"
+                        id="contactSearchClear"
+                        onclick="clearContactSearch()"
+                        title="Clear search"
+                        style="display: none; position: absolute; right: 10px; background: none; border: none; color: var(--muted); cursor: pointer; padding: 2px 6px; border-radius: 50%; font-size: 14px; line-height: 1;">
+                    ✕
+                </button>
+            </div>
+        </div>
+
         <div class="modal-body" style="padding: 0;">
-            <div style="max-height: 400px; overflow-y: auto;">
+            <div id="composeContactsList" style="max-height: 380px; overflow-y: auto;">
                 <?php foreach ($contacts as $c): ?>
-                    <a href="index.php?page=messages&chat=<?= (int) $c['user_id'] ?>" style="display: flex; align-items: center; gap: 12px; padding: 12px 20px; border-bottom: 1px solid var(--line); text-decoration: none; color: inherit; transition: background 0.2s;" onmouseover="this.style.background='var(--panel-hover)'" onmouseout="this.style.background='transparent'">
+                    <a href="index.php?page=messages&chat=<?= (int) $c['user_id'] ?>"
+                       class="compose-contact-item"
+                       data-user-id="<?= (int) $c['user_id'] ?>"
+                       data-name="<?= strtolower(h($c['first_name'] . ' ' . $c['last_name'])) ?>"
+                       data-role="<?= strtolower(h($c['role'])) ?>"
+                       style="display: flex; align-items: center; gap: 12px; padding: 12px 18px; border-bottom: 1px solid var(--line); text-decoration: none; color: inherit; transition: background 0.2s;"
+                       onmouseover="this.style.background='var(--panel-hover)'"
+                       onmouseout="this.style.background='transparent'">
                         <?= render_avatar($c) ?>
-                        <div>
-                            <strong style="display: block; color: var(--ink);"><?= h($c['first_name'] . ' ' . $c['last_name']) ?></strong>
+                        <div style="flex: 1; min-width: 0;">
+                            <strong style="display: block; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"><?= h($c['first_name'] . ' ' . $c['last_name']) ?></strong>
                             <small style="color: var(--muted); text-transform: capitalize;"><?= h($c['role']) ?></small>
                         </div>
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16" style="color: var(--muted); flex-shrink: 0; opacity: 0.6;">
+                            <path d="M9 18l6-6-6-6"/>
+                        </svg>
                     </a>
                 <?php endforeach; ?>
-                <?php if (!$contacts): ?>
-                    <div style="padding: 20px; text-align: center; color: var(--muted);">No contacts available.</div>
-                <?php endif; ?>
+                
+                <!-- Empty State -->
+                <div id="contactNoResults" style="<?= empty($contacts) ? 'display: block;' : 'display: none;' ?> padding: 32px 20px; text-align: center; color: var(--muted);">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="40" height="40" style="margin-bottom: 8px; opacity: 0.4;">
+                        <circle cx="11" cy="11" r="8"></circle>
+                        <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                    </svg>
+                    <div id="contactNoResultsTitle" style="font-weight: 500; color: var(--ink); margin-bottom: 4px;">
+                        <?= empty($contacts) ? 'No contacts available' : 'No matches found' ?>
+                    </div>
+                    <p id="contactNoResultsSub" style="margin: 0; font-size: 0.85rem;">
+                        <?= empty($contacts) ? 'There are no active members or trainers you can message.' : 'Try a different name or role keyword.' ?>
+                    </p>
+                </div>
             </div>
         </div>
     </dialog>
+
+    <script>
+    function openComposeModal() {
+        const modal = document.getElementById('composeModal');
+        if (!modal) return;
+        if (typeof modal.showModal === 'function') {
+            modal.showModal();
+        } else {
+            modal.setAttribute('open', '');
+        }
+        const input = document.getElementById('contactSearchInput');
+        if (input) {
+            input.value = '';
+            clearContactSearch(false);
+            setTimeout(() => input.focus(), 60);
+        }
+    }
+
+    function closeComposeModal() {
+        const modal = document.getElementById('composeModal');
+        if (modal) {
+            if (typeof modal.close === 'function') modal.close();
+            else modal.removeAttribute('open');
+        }
+    }
+
+    let contactSearchTimer = null;
+    const contactSearchInput = document.getElementById('contactSearchInput');
+    const contactSearchClear = document.getElementById('contactSearchClear');
+    const contactsContainer = document.getElementById('composeContactsList');
+    const contactNoResults = document.getElementById('contactNoResults');
+    const contactNoResultsTitle = document.getElementById('contactNoResultsTitle');
+    const contactNoResultsSub = document.getElementById('contactNoResultsSub');
+
+    function clearContactSearch(focusInput = true) {
+        if (contactSearchInput) contactSearchInput.value = '';
+        if (contactSearchClear) contactSearchClear.style.display = 'none';
+
+        const items = contactsContainer ? contactsContainer.querySelectorAll('.compose-contact-item') : [];
+        items.forEach(el => el.style.display = 'flex');
+
+        if (contactNoResults) {
+            contactNoResults.style.display = items.length === 0 ? 'block' : 'none';
+            if (contactNoResultsTitle) contactNoResultsTitle.textContent = 'No contacts available';
+            if (contactNoResultsSub) contactNoResultsSub.textContent = 'There are no active members or trainers you can message.';
+        }
+
+        if (focusInput && contactSearchInput) {
+            contactSearchInput.focus();
+        }
+    }
+
+    function escapeContactHtml(str) {
+        if (!str) return '';
+        return String(str).replace(/[&<>"']/g, function(m) {
+            return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' })[m];
+        });
+    }
+
+    if (contactSearchInput) {
+        contactSearchInput.addEventListener('input', function() {
+            const query = this.value.trim().toLowerCase();
+
+            // Toggle clear button
+            if (contactSearchClear) {
+                contactSearchClear.style.display = query ? 'flex' : 'none';
+            }
+
+            // STEP 1: Instant Local Filter (0ms)
+            const items = contactsContainer ? contactsContainer.querySelectorAll('.compose-contact-item') : [];
+            let localMatches = 0;
+
+            items.forEach(el => {
+                const name = el.getAttribute('data-name') || '';
+                const role = el.getAttribute('data-role') || '';
+                if (!query || name.includes(query) || role.includes(query)) {
+                    el.style.display = 'flex';
+                    localMatches++;
+                } else {
+                    el.style.display = 'none';
+                }
+            });
+
+            if (localMatches > 0) {
+                if (contactNoResults) contactNoResults.style.display = 'none';
+            } else if (query) {
+                if (contactNoResults) {
+                    contactNoResults.style.display = 'block';
+                    if (contactNoResultsTitle) contactNoResultsTitle.textContent = 'Searching...';
+                    if (contactNoResultsSub) contactNoResultsSub.textContent = 'Checking members and trainers in your gym...';
+                }
+            }
+
+            // STEP 2: Debounced Server Search (250ms)
+            if (contactSearchTimer) clearTimeout(contactSearchTimer);
+
+            if (!query) {
+                if (items.length > 0 && contactNoResults) contactNoResults.style.display = 'none';
+                return;
+            }
+
+            contactSearchTimer = setTimeout(() => {
+                fetch('index.php?page=messages&action=search_contacts&q=' + encodeURIComponent(query), {
+                    headers: { 'X-Requested-With': 'XMLHttpRequest' }
+                })
+                .then(res => res.json())
+                .then(data => {
+                    // Check if input value changed while request was in flight
+                    if (contactSearchInput.value.trim().toLowerCase() !== query) return;
+
+                    const remoteContacts = data.contacts || [];
+                    const existingMap = new Map();
+                    contactsContainer.querySelectorAll('.compose-contact-item').forEach(el => {
+                        const uid = el.getAttribute('data-user-id');
+                        if (uid) existingMap.set(uid, el);
+                    });
+
+                    remoteContacts.forEach(rc => {
+                        const uidStr = String(rc.user_id);
+                        if (existingMap.has(uidStr)) {
+                            const existingEl = existingMap.get(uidStr);
+                            existingEl.style.display = 'flex';
+                        } else {
+                            const a = document.createElement('a');
+                            a.href = rc.chat_url;
+                            a.className = 'compose-contact-item';
+                            a.setAttribute('data-user-id', rc.user_id);
+                            a.setAttribute('data-name', (rc.full_name || '').toLowerCase());
+                            a.setAttribute('data-role', (rc.role || '').toLowerCase());
+                            a.style.cssText = 'display: flex; align-items: center; gap: 12px; padding: 12px 18px; border-bottom: 1px solid var(--line); text-decoration: none; color: inherit; transition: background 0.2s;';
+                            a.onmouseover = () => a.style.background = 'var(--panel-hover)';
+                            a.onmouseout = () => a.style.background = 'transparent';
+                            a.innerHTML = `
+                                ${rc.avatar_html}
+                                <div style="flex: 1; min-width: 0;">
+                                    <strong style="display: block; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${escapeContactHtml(rc.full_name)}</strong>
+                                    <small style="color: var(--muted); text-transform: capitalize;">${escapeContactHtml(rc.role)}</small>
+                                </div>
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16" style="color: var(--muted); flex-shrink: 0; opacity: 0.6;">
+                                    <path d="M9 18l6-6-6-6"/>
+                                </svg>
+                            `;
+                            if (contactNoResults) {
+                                contactsContainer.insertBefore(a, contactNoResults);
+                            } else {
+                                contactsContainer.appendChild(a);
+                            }
+                        }
+                    });
+
+                    let totalVisible = 0;
+                    contactsContainer.querySelectorAll('.compose-contact-item').forEach(el => {
+                        if (el.style.display === 'flex') totalVisible++;
+                    });
+
+                    if (totalVisible === 0) {
+                        if (contactNoResults) {
+                            contactNoResults.style.display = 'block';
+                            if (contactNoResultsTitle) contactNoResultsTitle.textContent = 'No matches found';
+                            if (contactNoResultsSub) contactNoResultsSub.textContent = `No members or trainers found matching "${query}".`;
+                        }
+                    } else {
+                        if (contactNoResults) contactNoResults.style.display = 'none';
+                    }
+                })
+                .catch(err => {
+                    console.error('Contact search error:', err);
+                });
+            }, 250);
+        });
+    }
+    </script>
     <?php
     render_footer();
 }

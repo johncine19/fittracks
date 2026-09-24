@@ -271,8 +271,10 @@ function walk_ins_page(): void
                                     $guestFirst = $nameParts[0] ?? '';
                                     $guestLast = $nameParts[1] ?? '';
                                 ?>
-                                <button class="btn-sm btn-ghost"
-                                    onclick="openConvertModal(<?= (int)$row['transaction_id'] ?>, <?= h(json_encode($guestFirst)) ?>, <?= h(json_encode($guestLast)) ?>)">
+                                <button type="button" class="btn-sm btn-ghost btn-convert-member"
+                                    data-id="<?= (int)$row['transaction_id'] ?>"
+                                    data-first="<?= h($guestFirst) ?>"
+                                    data-last="<?= h($guestLast) ?>">
                                     Convert to Member
                                 </button>
                             <?php else: ?>
@@ -288,6 +290,17 @@ function walk_ins_page(): void
     </section>
 
     <script>
+    document.addEventListener('click', function(e) {
+        const btn = e.target.closest('.btn-convert-member');
+        if (btn) {
+            openConvertModal(
+                parseInt(btn.getAttribute('data-id'), 10),
+                btn.getAttribute('data-first') || '',
+                btn.getAttribute('data-last') || ''
+            );
+        }
+    });
+
     function openConvertModal(transactionId, firstName, lastName) {
         document.getElementById('convert_transaction_id').value = transactionId;
         document.getElementById('convert_first_name').value = firstName;

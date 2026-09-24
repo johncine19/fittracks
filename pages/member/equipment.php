@@ -1132,7 +1132,7 @@ function member_equipment_page(): void
                                     <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg>
                                     Claim & Start Session
                                 </button>
-                                <button type="button" onclick="window.leaveEquipmentQueue(${q.queue_id}, '${escapeHtml(q.name)}')" class="btn" style="background: transparent; color: var(--muted); border: 1px solid var(--line); font-size: 13px; padding: 9px 14px; border-radius: 8px; cursor: pointer;">
+                                <button type="button" onclick="window.leaveEquipmentQueue(${q.queue_id})" class="btn" style="background: transparent; color: var(--muted); border: 1px solid var(--line); font-size: 13px; padding: 9px 14px; border-radius: 8px; cursor: pointer;">
                                     Pass / Leave
                                 </button>
                             </div>
@@ -1161,7 +1161,7 @@ function member_equipment_page(): void
                                 <span style="font-size: 12px; background: rgba(245,158,11,0.12); color: #d97706; border: 1px solid rgba(245,158,11,0.25); padding: 4px 10px; border-radius: 12px; font-weight: 700;">
                                     Waiting in Queue
                                 </span>
-                                <button type="button" onclick="window.leaveEquipmentQueue(${q.queue_id}, '${escapeHtml(q.name)}')" class="btn" style="background: transparent; color: #ef4444; border: 1px solid rgba(239,68,68,0.3); font-size: 12px; padding: 6px 12px; border-radius: 6px; cursor: pointer; transition: all 0.2s;"
+                                <button type="button" onclick="window.leaveEquipmentQueue(${q.queue_id})" class="btn" style="background: transparent; color: #ef4444; border: 1px solid rgba(239,68,68,0.3); font-size: 12px; padding: 6px 12px; border-radius: 6px; cursor: pointer; transition: all 0.2s;"
                                         onmouseover="this.style.background='rgba(239,68,68,0.1)'" onmouseout="this.style.background='transparent'">
                                     Leave Queue
                                 </button>
@@ -1259,7 +1259,7 @@ function member_equipment_page(): void
                     let actionBtnHtml = '';
                     if (isUserUsing) {
                         actionBtnHtml = `
-                        <button type="button" onclick="confirmFinishSession(${activeSession.session_id}, '${escapeHtml(eq.name)} ${escapeHtml(eq.unit_number)}')" class="btn" style="width: 100%; background: #ef4444; color: #fff; font-weight: 700; padding: 10px; border-radius: 8px; border: none; cursor: pointer;">
+                        <button type="button" onclick="confirmFinishSession(${activeSession.session_id})" class="btn" style="width: 100%; background: #ef4444; color: #fff; font-weight: 700; padding: 10px; border-radius: 8px; border: none; cursor: pointer;">
                             Finish My Session
                         </button>
                     `;
@@ -1272,7 +1272,7 @@ function member_equipment_page(): void
                         `;
                         } else {
                             actionBtnHtml = `
-                            <button type="button" onclick="window.leaveEquipmentQueue(${userQueue.queue_id}, '${escapeHtml(eq.name)}')" class="btn" style="width: 100%; background: rgba(245,158,11,0.12); color: #d97706; border: 1px solid rgba(245,158,11,0.3); font-weight: 700; padding: 10px; border-radius: 8px; cursor: pointer;">
+                            <button type="button" onclick="window.leaveEquipmentQueue(${userQueue.queue_id})" class="btn" style="width: 100%; background: rgba(245,158,11,0.12); color: #d97706; border: 1px solid rgba(245,158,11,0.3); font-weight: 700; padding: 10px; border-radius: 8px; cursor: pointer;">
                                 In Queue (#${userQueue.queue_position}) • Leave
                             </button>
                         `;
@@ -1282,7 +1282,7 @@ function member_equipment_page(): void
                             const queueCount = parseInt(eq.waiting_queue_count || 0);
                             const queueText = queueCount > 0 ? `Join Queue (${queueCount} in line)` : 'Join Queue';
                             actionBtnHtml = `
-                            <button type="button" onclick="confirmJoinQueue(${eq.equipment_id}, '${escapeHtml(eq.name)}', '${escapeHtml(eq.unit_number)}', ${queueCount})" class="btn" style="width: 100%; background: var(--panel-soft); color: #d97706; border: 1px solid rgba(217,119,6,0.3); font-weight: 600; padding: 10px; border-radius: 8px; cursor: pointer; transition: all 0.2s;"
+                            <button type="button" onclick="confirmJoinQueue(${eq.equipment_id})" class="btn" style="width: 100%; background: var(--panel-soft); color: #d97706; border: 1px solid rgba(217,119,6,0.3); font-weight: 600; padding: 10px; border-radius: 8px; cursor: pointer; transition: all 0.2s;"
                                     title="Currently reserved for the next queued member (2m claim window). You can join the queue behind them.">
                                 <span style="display: flex; align-items: center; justify-content: center; gap: 6px;">
                                     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
@@ -1292,7 +1292,7 @@ function member_equipment_page(): void
                         `;
                         } else {
                             actionBtnHtml = `
-                            <button type="button" onclick="confirmStartSession(${eq.equipment_id}, '${escapeHtml(eq.name)}', '${escapeHtml(eq.unit_number)}')" class="btn btn-lime" style="width: 100%; background: var(--lime); color: var(--lime-btn-text, #090b10); font-weight: 800; padding: 10px; border-radius: 8px; border: none; cursor: pointer; transition: opacity 0.2s; box-shadow: 0 2px 8px rgba(0,0,0,0.1);"
+                            <button type="button" onclick="confirmStartSession(${eq.equipment_id})" class="btn btn-lime" style="width: 100%; background: var(--lime); color: var(--lime-btn-text, #090b10); font-weight: 800; padding: 10px; border-radius: 8px; border: none; cursor: pointer; transition: opacity 0.2s; box-shadow: 0 2px 8px rgba(0,0,0,0.1);"
                                     onmouseover="this.style.opacity='0.9'" onmouseout="this.style.opacity='1'">
                                 Use Equipment
                             </button>
@@ -1302,7 +1302,7 @@ function member_equipment_page(): void
                         const queueCount = parseInt(eq.waiting_queue_count || 0);
                         const queueText = queueCount > 0 ? `Join Queue (${queueCount} waiting)` : 'Join Queue';
                         actionBtnHtml = `
-                        <button type="button" onclick="confirmJoinQueue(${eq.equipment_id}, '${escapeHtml(eq.name)}', '${escapeHtml(eq.unit_number)}', ${queueCount})" class="btn" style="width: 100%; background: var(--panel-soft); color: var(--ink); border: 1px solid var(--line); font-weight: 600; padding: 10px; border-radius: 8px; cursor: pointer; transition: all 0.2s;"
+                        <button type="button" onclick="confirmJoinQueue(${eq.equipment_id})" class="btn" style="width: 100%; background: var(--panel-soft); color: var(--ink); border: 1px solid var(--line); font-weight: 600; padding: 10px; border-radius: 8px; cursor: pointer; transition: all 0.2s;"
                                 onmouseover="this.style.borderColor='var(--lime)'; this.style.color='var(--lime)'" onmouseout="this.style.borderColor='var(--line)'; this.style.color='var(--ink)'">
                             ${queueText}
                         </button>
@@ -1561,6 +1561,16 @@ function member_equipment_page(): void
 
             // CONFIRM START SESSION
             window.confirmStartSession = function(equipmentId, equipName, unitNumber) {
+                if (!equipName && Array.isArray(allEquipment)) {
+                    const eq = allEquipment.find(e => parseInt(e.equipment_id, 10) === parseInt(equipmentId, 10));
+                    if (eq) {
+                        equipName = eq.name;
+                        unitNumber = eq.unit_number;
+                    }
+                }
+                equipName = equipName || 'Equipment';
+                unitNumber = unitNumber || '';
+
                 if (activeSession) {
                     Swal.fire({
                         icon: 'warning',
@@ -1650,6 +1660,10 @@ function member_equipment_page(): void
 
             // CONFIRM FINISH SESSION
             window.confirmFinishSession = function(sessionId, fullName) {
+                if (!fullName && activeSession) {
+                    fullName = activeSession.name + ' ' + (activeSession.unit_number || '');
+                }
+                fullName = fullName || 'this equipment';
                 Swal.fire({
                     title: 'Finish Equipment Session?',
                     text: `Are you finished using ${fullName}?`,
@@ -1933,6 +1947,20 @@ function member_equipment_page(): void
 
             // CONFIRM JOIN QUEUE
             window.confirmJoinQueue = function(equipmentId, equipName, unitNumber, currentQueueCount) {
+                if (!equipName && Array.isArray(allEquipment)) {
+                    const eq = allEquipment.find(e => parseInt(e.equipment_id, 10) === parseInt(equipmentId, 10));
+                    if (eq) {
+                        equipName = eq.name;
+                        unitNumber = eq.unit_number;
+                        if (currentQueueCount === undefined || currentQueueCount === null) {
+                            currentQueueCount = parseInt(eq.waiting_queue_count || 0, 10);
+                        }
+                    }
+                }
+                equipName = equipName || 'Equipment';
+                unitNumber = unitNumber || '';
+                currentQueueCount = parseInt(currentQueueCount || 0, 10);
+
                 const nextPos = currentQueueCount + 1;
                 const minWait = Math.max(5, (nextPos - 1) * 15);
                 const maxWait = Math.max(10, nextPos * 20);
@@ -2004,6 +2032,13 @@ function member_equipment_page(): void
 
             // LEAVE QUEUE
             window.leaveEquipmentQueue = function(queueId, equipName) {
+                if (!equipName && Array.isArray(myQueues)) {
+                    const q = myQueues.find(item => parseInt(item.queue_id, 10) === parseInt(queueId, 10));
+                    if (q) {
+                        equipName = q.name;
+                    }
+                }
+                equipName = equipName || 'this equipment';
                 Swal.fire({
                     title: 'Leave Queue?',
                     text: `Are you sure you want to give up your spot in the queue for ${equipName}?`,

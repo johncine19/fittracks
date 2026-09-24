@@ -8,6 +8,9 @@ $dotenv->safeLoad();
 date_default_timezone_set('Asia/Manila');
 
 header('Content-Type: text/html; charset=UTF-8');
+header('X-Content-Type-Options: nosniff');
+header('X-Frame-Options: SAMEORIGIN');
+header('Referrer-Policy: strict-origin-when-cross-origin');
 
 require __DIR__ . '/helpers.php';
 require __DIR__ . '/../config/config.php';

@@ -1446,7 +1446,7 @@ function gym_equipment_page(): void
                         Restore
                     </button>`;
                 } else {
-                    maintActionBtn = `<button type="button" onclick="openMaintModal(${eq.equipment_id}, '${escapeHtml(eq.name)} ${escapeHtml(eq.unit_number)}')" class="btn-act btn-act-service" title="Schedule maintenance">
+                    maintActionBtn = `<button type="button" onclick="openMaintModal(${eq.equipment_id})" class="btn-act btn-act-service" title="Schedule maintenance">
                         <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>
                         Service
                     </button>`;
@@ -1491,16 +1491,16 @@ function gym_equipment_page(): void
                         </td>
                         <td style="text-align: right;">
                             <div style="display: inline-flex; gap: 6px; align-items: center; justify-content: flex-end;">
-                                <button type="button" onclick="openQueueModal(${eq.equipment_id}, '${escapeHtml(eq.name)} ${escapeHtml(eq.unit_number)}')" class="btn-act btn-act-default" title="View session & queue">
+                                <button type="button" onclick="openQueueModal(${eq.equipment_id})" class="btn-act btn-act-default" title="View session & queue">
                                     <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
                                     Queue
                                 </button>
-                                <button type="button" onclick='openEditModal(${JSON.stringify(eq)})' class="btn-act btn-act-default" title="Edit details">
+                                <button type="button" onclick="openEditModal(${eq.equipment_id})" class="btn-act btn-act-default" title="Edit details">
                                     <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
                                     Edit
                                 </button>
                                 ${maintActionBtn}
-                                <button type="button" onclick="confirmDeleteEquipment(${eq.equipment_id}, '${escapeHtml(eq.name)} ${escapeHtml(eq.unit_number)}')" class="btn-act btn-act-delete" title="Delete unit">
+                                <button type="button" onclick="confirmDeleteEquipment(${eq.equipment_id})" class="btn-act btn-act-delete" title="Delete unit">
                                     <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
                                 </button>
                             </div>
@@ -1553,16 +1553,16 @@ function gym_equipment_page(): void
                         </div>
 
                         <div class="equip-mcard-actions">
-                            <button type="button" onclick="openQueueModal(${eq.equipment_id}, '${escapeHtml(eq.name)} ${escapeHtml(eq.unit_number)}')" class="btn-act btn-act-default">
+                            <button type="button" onclick="openQueueModal(${eq.equipment_id})" class="btn-act btn-act-default">
                                 <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
                                 Queue
                             </button>
-                            <button type="button" onclick='openEditModal(${JSON.stringify(eq)})' class="btn-act btn-act-default">
+                            <button type="button" onclick="openEditModal(${eq.equipment_id})" class="btn-act btn-act-default">
                                 <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
                                 Edit
                             </button>
                             ${maintActionBtn}
-                            <button type="button" onclick="confirmDeleteEquipment(${eq.equipment_id}, '${escapeHtml(eq.name)} ${escapeHtml(eq.unit_number)}')" class="btn-act btn-act-delete" title="Delete unit">
+                            <button type="button" onclick="confirmDeleteEquipment(${eq.equipment_id})" class="btn-act btn-act-delete" title="Delete unit">
                                 <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
                             </button>
                         </div>
@@ -1666,6 +1666,12 @@ function gym_equipment_page(): void
 
         // EDIT MODAL
         window.openEditModal = function(eq) {
+            if (typeof eq === 'number' || (typeof eq === 'string' && /^\d+$/.test(eq))) {
+                const id = parseInt(eq, 10);
+                eq = (equipmentData || []).find(e => parseInt(e.equipment_id, 10) === id) || null;
+            }
+            if (!eq) return;
+
             document.getElementById('modal-title').textContent = 'Edit Equipment Details';
             document.getElementById('form-equip-id').value = eq.equipment_id;
             document.getElementById('form-name').value = eq.name;
@@ -1776,6 +1782,11 @@ function gym_equipment_page(): void
 
         // MAINTENANCE MODAL
         window.openMaintModal = function(equipmentId, fullName) {
+            if (!fullName && Array.isArray(equipmentData)) {
+                const found = equipmentData.find(e => parseInt(e.equipment_id, 10) === parseInt(equipmentId, 10));
+                if (found) fullName = `${found.name} ${found.unit_number}`;
+            }
+            fullName = fullName || 'Equipment';
             document.getElementById('maint-modal-title').textContent = `Maintenance: ${fullName}`;
             document.getElementById('maint-equip-id').value = equipmentId;
             document.getElementById('maint-status').value = 'maintenance';
@@ -1857,6 +1868,11 @@ function gym_equipment_page(): void
 
         // DELETE EQUIPMENT
         window.confirmDeleteEquipment = function(equipmentId, fullName) {
+            if (!fullName && Array.isArray(equipmentData)) {
+                const found = equipmentData.find(e => parseInt(e.equipment_id, 10) === parseInt(equipmentId, 10));
+                if (found) fullName = `${found.name} ${found.unit_number}`;
+            }
+            fullName = fullName || 'this equipment';
             Swal.fire({
                 title: 'Delete Equipment?',
                 text: `Are you sure you want to remove ${fullName} from your gym's inventory?`,
@@ -1904,6 +1920,11 @@ function gym_equipment_page(): void
 
         // QUEUE DETAILS MODAL
         window.openQueueModal = async function(equipmentId, fullName) {
+            if (!fullName && Array.isArray(equipmentData)) {
+                const found = equipmentData.find(e => parseInt(e.equipment_id, 10) === parseInt(equipmentId, 10));
+                if (found) fullName = `${found.name} ${found.unit_number}`;
+            }
+            fullName = fullName || 'Equipment';
             document.getElementById('queue-modal-title').textContent = fullName;
             document.getElementById('queue-modal').style.display = 'flex';
             document.getElementById('qmodal-session-content').innerHTML = 'Loading session info...';

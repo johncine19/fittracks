@@ -25,7 +25,7 @@ function users_page(): void
         return false;
     };
 
-    if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         if (post('action') === 'create') {
             $roleToCreate = post('role');
             if (!$isAdmin && !in_array($roleToCreate, ['trainer', 'member'])) {
@@ -205,12 +205,116 @@ function users_page(): void
         redirect('users');
     }
 
+    // ── AJAX: Live Search Users ──────────────────────────────────────────
+    if (($_GET['action'] ?? post('action')) === 'search_users') {
+        if (ob_get_level()) ob_clean();
+        header('Content-Type: application/json');
+
+        $tab = (string) ($_GET['tab'] ?? 'all');
+        $gymFilter = (int) ($_GET['gym_id'] ?? 0);
+        $searchQuery = trim((string) ($_GET['q'] ?? post('q') ?? ''));
+
+        $where = 'u.role != "platform_admin"';
+        $params = [];
+
+        if (!$isAdmin) {
+            $where .= ' AND (
+                (u.role = "trainer" AND EXISTS (SELECT 1 FROM trainer_profiles WHERE user_id = u.user_id AND gym_id = ?)) OR
+                (u.role = "member" AND EXISTS (SELECT 1 FROM gym_members gm WHERE gm.user_id = u.user_id AND gm.gym_id = ?))
+            )';
+            $params[] = $gymId;
+            $params[] = $gymId;
+        }
+
+        if (in_array($tab, ['gym_owner', 'trainer', 'member'], true)) {
+            $where .= ' AND u.role = ?';
+            $params[] = $tab;
+        }
+
+        if ($isAdmin && $gymFilter) {
+            $where .= ' AND (
+                (u.role = "gym_owner" AND EXISTS (SELECT 1 FROM gyms WHERE owner_user_id = u.user_id AND gym_id = ?)) OR
+                (u.role = "trainer" AND EXISTS (SELECT 1 FROM trainer_profiles WHERE user_id = u.user_id AND gym_id = ?)) OR
+                (u.role = "member" AND EXISTS (SELECT 1 FROM gym_members gm WHERE gm.user_id = u.user_id AND gm.gym_id = ?))
+            )';
+            $params[] = $gymFilter;
+            $params[] = $gymFilter;
+            $params[] = $gymFilter;
+        }
+
+        if ($searchQuery !== '') {
+            $where .= ' AND (u.first_name LIKE ? OR u.last_name LIKE ? OR CONCAT(u.first_name, " ", u.last_name) LIKE ? OR u.email LIKE ? OR u.phone LIKE ? OR u.user_id = ?)';
+            $pattern = '%' . $searchQuery . '%';
+            $numId = is_numeric($searchQuery) ? (int)$searchQuery : 0;
+            $params[] = $pattern;
+            $params[] = $pattern;
+            $params[] = $pattern;
+            $params[] = $pattern;
+            $params[] = $pattern;
+            $params[] = $numId;
+        }
+
+        $totalFound = (int) scalar('SELECT COUNT(*) FROM users u WHERE ' . $where, $params);
+
+        $sql = 'SELECT u.*, tp.specialization, tp.bio, 
+                (SELECT g1.name FROM gyms g1 WHERE g1.owner_user_id = u.user_id LIMIT 1) AS owner_gym_name,
+                (SELECT g2.name FROM trainer_profiles tp2 JOIN gyms g2 ON tp2.gym_id = g2.gym_id WHERE tp2.user_id = u.user_id LIMIT 1) AS trainer_gym_name,
+                (SELECT g3.name FROM gym_members gm JOIN gyms g3 ON gm.gym_id = g3.gym_id WHERE gm.user_id = u.user_id LIMIT 1) AS member_gym_name
+                FROM users u 
+                LEFT JOIN trainer_profiles tp ON u.user_id = tp.user_id 
+                WHERE ' . $where . ' 
+                ORDER BY CASE u.role WHEN "gym_owner" THEN 1 WHEN "trainer" THEN 2 WHEN "member" THEN 3 ELSE 4 END ASC, u.first_name ASC, u.last_name ASC 
+                LIMIT 50';
+
+        $stmt = db()->prepare($sql);
+        $stmt->execute($params);
+        $searchRows = $stmt->fetchAll();
+
+        $outputUsers = [];
+        foreach ($searchRows as $row) {
+            $associatedGym = null;
+            if ($row['role'] === 'gym_owner') $associatedGym = $row['owner_gym_name'];
+            elseif ($row['role'] === 'trainer') $associatedGym = $row['trainer_gym_name'];
+            elseif ($row['role'] === 'member') $associatedGym = $row['member_gym_name'];
+
+            $outputUsers[] = [
+                'user_id'          => (int) $row['user_id'],
+                'first_name'       => $row['first_name'],
+                'last_name'        => $row['last_name'],
+                'full_name'        => trim($row['first_name'] . ' ' . $row['last_name']),
+                'email'            => $row['email'],
+                'phone'            => $row['phone'] ?? '',
+                'role'             => $row['role'],
+                'role_display'     => ucwords(str_replace('_', ' ', $row['role'])),
+                'status'           => $row['status'],
+                'avatar_html'      => render_avatar($row),
+                'associated_gym'   => $associatedGym,
+                'specialization'   => $row['specialization'] ?? 'General Trainer',
+                'engagement_score' => (int) ($row['engagement_score'] ?? 0),
+                'joined_formatted' => date('M j, Y', strtotime($row['created_at'])),
+                'can_delete'       => (int) $row['user_id'] !== (int) $user['user_id'],
+                'is_member'        => $row['role'] === 'member',
+                'is_trainer'       => $row['role'] === 'trainer',
+                'raw_user'         => $row
+            ];
+        }
+
+        echo json_encode([
+            'users' => $outputUsers,
+            'total' => $totalFound,
+            'csrf_token' => csrf_token(),
+            'current_user_id' => (int) $user['user_id']
+        ]);
+        exit;
+    }
+
     $page = max(1, (int)($_GET['p'] ?? 1));
     $limit = 10;
     $offset = ($page - 1) * $limit;
 
     $tab = $_GET['tab'] ?? 'all';
     $gymFilter = (int)($_GET['gym_id'] ?? 0);
+    $searchQuery = trim((string)($_GET['q'] ?? ''));
     
     $where = 'u.role != "platform_admin"';
     $params = [];
@@ -233,11 +337,23 @@ function users_page(): void
         $where .= ' AND (
             (u.role = "gym_owner" AND EXISTS (SELECT 1 FROM gyms WHERE owner_user_id = u.user_id AND gym_id = ?)) OR
             (u.role = "trainer" AND EXISTS (SELECT 1 FROM trainer_profiles WHERE user_id = u.user_id AND gym_id = ?)) OR
-            (u.role = "member" AND EXISTS (SELECT 1 FROM gym_members gm WHERE gm.user_id = u.user_id AND gm.gym_id = ?))
+            (u.role = "member" AND EXISTS (SELECT 1 FROM gym_members gm WHERE gm.user_id = u.user_id AND gym_id = ?))
         )';
         $params[] = $gymFilter;
         $params[] = $gymFilter;
         $params[] = $gymFilter;
+    }
+
+    if ($searchQuery !== '') {
+        $where .= ' AND (u.first_name LIKE ? OR u.last_name LIKE ? OR CONCAT(u.first_name, " ", u.last_name) LIKE ? OR u.email LIKE ? OR u.phone LIKE ? OR u.user_id = ?)';
+        $pattern = '%' . $searchQuery . '%';
+        $numId = is_numeric($searchQuery) ? (int)$searchQuery : 0;
+        $params[] = $pattern;
+        $params[] = $pattern;
+        $params[] = $pattern;
+        $params[] = $pattern;
+        $params[] = $pattern;
+        $params[] = $numId;
     }
 
     $total = (int) scalar('SELECT COUNT(*) FROM users u WHERE ' . $where, $params);
@@ -586,18 +702,46 @@ function users_page(): void
             </div>
             <?php endif; ?>
             <div style="display:flex; align-items:center;">
-                <p class="section-label" style="margin:0; border:none; padding:0;"><?= $total ?> found</p>
+                <p class="section-label" id="userCountLabel" style="margin:0; border:none; padding:0;"><?= $total ?> found</p>
             </div>
         </div>
-        
-        <?php if (!$rows): ?>
-            <div class="empty-state">
-                <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
-                <p>No users found.</p>
+
+        <!-- Live Search Toolbar -->
+        <div class="user-search-toolbar" style="margin-bottom: 16px; display: flex; gap: 12px; align-items: center; justify-content: space-between; flex-wrap: wrap;">
+            <div style="position: relative; flex: 1; min-width: 260px; max-width: 460px;">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"
+                     style="position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: var(--muted); pointer-events: none;">
+                    <circle cx="11" cy="11" r="8"></circle>
+                    <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                </svg>
+                <input type="text"
+                       id="userSearchInput"
+                       value="<?= h($searchQuery) ?>"
+                       placeholder="Search by name, email, phone, or ID..."
+                       autocomplete="off"
+                       style="width: 100%; box-sizing: border-box; padding: 9px 36px 9px 36px; border-radius: 8px; border: 1px solid var(--line); background: var(--panel); color: var(--ink); font-size: 0.9rem; outline: none; transition: border-color 0.2s, box-shadow 0.2s;"
+                       onfocus="this.style.borderColor='var(--lime)';"
+                       onblur="this.style.borderColor='var(--line)';"
+                >
+                <button type="button"
+                        id="userSearchClear"
+                        onclick="clearUserSearch()"
+                        title="Clear search"
+                        style="display: <?= $searchQuery !== '' ? 'flex' : 'none' ?>; position: absolute; right: 10px; top: 50%; transform: translateY(-50%); background: none; border: none; color: var(--muted); cursor: pointer; padding: 2px 6px; border-radius: 50%; font-size: 14px; line-height: 1;">
+                    ✕
+                </button>
             </div>
-        <?php else: ?>
+            <div id="userSearchStatus" style="font-size: 13px; color: var(--muted); display: none;"></div>
+        </div>
+        
+        <!-- Empty State Container -->
+        <div id="userEmptyState" class="empty-state" style="<?= empty($rows) ? 'display: block;' : 'display: none;' ?>">
+            <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+            <p id="userEmptyStateText">No users found.</p>
+        </div>
+
         <!-- Desktop / Tablet Table View (>= 769px) -->
-        <div class="users-desktop-table table-wrap">
+        <div class="users-desktop-table table-wrap" style="<?= empty($rows) ? 'display: none;' : '' ?>">
             <table>
                 <thead>
                     <tr>
@@ -618,13 +762,13 @@ function users_page(): void
                         <th>Actions</th>
                     </tr>
                 </thead>
-                <tbody>
+                <tbody id="userTableBody">
                 <?php foreach ($rows as $row):
                     $roleClass = 'badge badge-' . $row['role'];
                     $statusClass = 'badge badge-' . $row['status'];
                     $roleDisplayName = ucwords(str_replace('_', ' ', $row['role']));
                 ?>
-                    <tr>
+                    <tr class="user-table-row" data-name="<?= strtolower(h($row['first_name'] . ' ' . $row['last_name'])) ?>" data-email="<?= strtolower(h($row['email'])) ?>" data-phone="<?= strtolower(h($row['phone'] ?? '')) ?>" data-role="<?= strtolower(h($row['role'])) ?>" data-id="<?= (int)$row['user_id'] ?>">
                         <td>
                             <div class="user-cell">
                                 <?= render_avatar($row) ?>
@@ -683,7 +827,7 @@ function users_page(): void
                                     </select>
                                     <button type="submit" class="btn-sm btn-ghost">Update</button>
                                 </form>
-                                <button onclick="editUser(<?= htmlspecialchars(json_encode($row)) ?>)" class="btn btn-secondary" style="padding:4px 8px;font-size:12px;margin-left:8px;">Edit</button>
+                                <button type="button" class="btn btn-secondary btn-edit-user" data-user="<?= htmlspecialchars(json_encode($row), ENT_QUOTES, 'UTF-8') ?>" style="padding:4px 8px;font-size:12px;margin-left:8px;">Edit</button>
                                 <?php if ($row['role'] === 'member'): ?>
                                     <a href="index.php?page=diet_builder&member_user_id=<?= (int)$row['user_id'] ?>&ref=users" class="btn btn-secondary" style="padding:4px 8px;font-size:12px;text-decoration:none;display:inline-flex;align-items:center;gap:4px;" title="Manage Diet Plan">
                                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
@@ -707,7 +851,7 @@ function users_page(): void
         </div>
 
         <!-- Mobile Card-List View (< 768px: Zero Horizontal Scroll) -->
-        <div class="users-mobile-cards">
+        <div id="userMobileCards" class="users-mobile-cards" style="<?= empty($rows) ? 'display: none;' : '' ?>">
             <?php foreach ($rows as $row):
                 $roleClass = 'badge badge-' . $row['role'];
                 $statusClass = 'badge badge-' . $row['status'];
@@ -718,7 +862,7 @@ function users_page(): void
                 elseif ($row['role'] === 'trainer') $associatedGym = $row['trainer_gym_name'];
                 elseif ($row['role'] === 'member') $associatedGym = $row['member_gym_name'];
             ?>
-                <div class="user-card-item">
+                <div class="user-card-item" data-name="<?= strtolower(h($row['first_name'] . ' ' . $row['last_name'])) ?>" data-email="<?= strtolower(h($row['email'])) ?>" data-phone="<?= strtolower(h($row['phone'] ?? '')) ?>" data-role="<?= strtolower(h($row['role'])) ?>" data-id="<?= (int)$row['user_id'] ?>">
                     <div class="user-card-header">
                         <div class="user-card-identity">
                             <?= render_avatar($row) ?>
@@ -795,7 +939,7 @@ function users_page(): void
                         </form>
                         
                         <div class="user-card-btn-group">
-                            <button type="button" onclick="editUser(<?= htmlspecialchars(json_encode($row)) ?>)" class="btn btn-secondary btn-sm">
+                            <button type="button" class="btn btn-secondary btn-sm btn-edit-user" data-user="<?= htmlspecialchars(json_encode($row), ENT_QUOTES, 'UTF-8') ?>">
                                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
                                 Edit
                             </button>
@@ -821,8 +965,9 @@ function users_page(): void
                 </div>
             <?php endforeach; ?>
         </div>
-        <?php render_pagination($page, $totalPages, '?page=users&tab=' . urlencode($tab)); ?>
-        <?php endif; ?>
+        <div id="userPagination" style="<?= empty($rows) ? 'display: none;' : '' ?>">
+            <?php render_pagination($page, $totalPages, '?page=users&tab=' . urlencode($tab) . ($gymFilter ? '&gym_id=' . $gymFilter : '') . ($searchQuery !== '' ? '&q=' . urlencode($searchQuery) : '')); ?>
+        </div>
     </section>
 
     <script>
@@ -838,6 +983,18 @@ function users_page(): void
             spec.required = false;
         }
     }
+
+    document.addEventListener('click', function(e) {
+        const btn = e.target.closest('.btn-edit-user');
+        if (btn) {
+            try {
+                const userData = JSON.parse(btn.getAttribute('data-user') || '{}');
+                editUser(userData);
+            } catch (err) {
+                console.error('Invalid user data', err);
+            }
+        }
+    });
 
     function editUser(u) {
         Swal.fire({
@@ -946,6 +1103,362 @@ function users_page(): void
                     });
                 });
             }
+        });
+    }
+
+    // ── Live Search for Users Page ───────────────────────────────────────
+    const CURRENT_TAB = <?= json_encode($tab) ?>;
+    const GYM_FILTER = <?= json_encode($gymFilter) ?>;
+    const IS_ADMIN = <?= $isAdmin ? 'true' : 'false' ?>;
+    let CURRENT_CSRF_TOKEN = <?= json_encode(csrf_token()) ?>;
+
+    const userSearchInput = document.getElementById('userSearchInput');
+    const userSearchClear = document.getElementById('userSearchClear');
+    const userSearchStatus = document.getElementById('userSearchStatus');
+    const userCountLabel = document.getElementById('userCountLabel');
+    const userTableBody = document.getElementById('userTableBody');
+    const userMobileCards = document.getElementById('userMobileCards');
+    const userEmptyState = document.getElementById('userEmptyState');
+    const userEmptyStateText = document.getElementById('userEmptyStateText');
+    const userDesktopTableWrap = document.querySelector('.users-desktop-table');
+    const userPagination = document.getElementById('userPagination');
+
+    // Cache initial server-rendered content so clearing search is instantaneous
+    const initialTableHtml = userTableBody ? userTableBody.innerHTML : '';
+    const initialCardsHtml = userMobileCards ? userMobileCards.innerHTML : '';
+    const initialCountText = userCountLabel ? userCountLabel.textContent : '';
+    const initialEmptyStateDisplay = userEmptyState ? userEmptyState.style.display : 'none';
+
+    let userSearchDebounceTimer = null;
+
+    function escapeUserHtml(str) {
+        if (!str && str !== 0) return '';
+        return String(str).replace(/[&<>"']/g, function(m) {
+            return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' })[m];
+        });
+    }
+
+    function clearUserSearch(focusInput = true) {
+        if (userSearchInput) userSearchInput.value = '';
+        if (userSearchClear) userSearchClear.style.display = 'none';
+        if (userSearchStatus) userSearchStatus.style.display = 'none';
+
+        // Restore initial server rendered HTML
+        if (userTableBody) userTableBody.innerHTML = initialTableHtml;
+        if (userMobileCards) userMobileCards.innerHTML = initialCardsHtml;
+        if (userCountLabel) userCountLabel.textContent = initialCountText;
+        if (userEmptyState) userEmptyState.style.display = initialEmptyStateDisplay;
+        if (userDesktopTableWrap) userDesktopTableWrap.style.display = initialEmptyStateDisplay === 'block' ? 'none' : '';
+        if (userMobileCards) userMobileCards.style.display = initialEmptyStateDisplay === 'block' ? 'none' : '';
+        if (userPagination) userPagination.style.display = initialEmptyStateDisplay === 'block' ? 'none' : '';
+
+        if (focusInput && userSearchInput) {
+            userSearchInput.focus();
+        }
+    }
+
+    function renderDesktopRow(u, csrfToken) {
+        const roleClass = 'badge badge-' + u.role;
+        const statusClass = 'badge badge-' + u.status;
+        const roleDisplayName = escapeUserHtml(u.role_display);
+        const associatedGymHtml = u.associated_gym 
+            ? `<span style="font-weight: 500; color: var(--ink);">${escapeUserHtml(u.associated_gym)}</span>`
+            : `<span class="muted">—</span>`;
+        const specHtml = u.is_trainer
+            ? `<span style="color:var(--ink);">${escapeUserHtml(u.specialization)}</span>`
+            : `<span class="muted">—</span>`;
+        const scoreHtml = u.is_member
+            ? `<strong style="color:var(--lime);">${u.engagement_score}</strong>`
+            : `<span class="muted">—</span>`;
+        const rawUserJson = escapeUserHtml(JSON.stringify(u.raw_user));
+
+        return `
+        <tr class="user-table-row" data-name="${escapeUserHtml(u.full_name.toLowerCase())}" data-email="${escapeUserHtml(u.email.toLowerCase())}" data-phone="${escapeUserHtml(u.phone)}" data-role="${escapeUserHtml(u.role)}" data-id="${u.user_id}">
+            <td>
+                <div class="user-cell">
+                    ${u.avatar_html}
+                    <div class="user-cell-info">
+                        ${escapeUserHtml(u.full_name)}
+                        <small>#${u.user_id}</small>
+                    </div>
+                </div>
+            </td>
+            <td style="color:var(--muted)">${escapeUserHtml(u.email)}</td>
+            <td><span class="${roleClass}">${roleDisplayName}</span></td>
+            ${IS_ADMIN ? `<td>${associatedGymHtml}</td>` : ''}
+            ${CURRENT_TAB === 'trainer' ? `<td>${specHtml}</td>` : ''}
+            ${CURRENT_TAB === 'member' ? `<td>${scoreHtml}</td>` : ''}
+            <td><span class="${statusClass}">${escapeUserHtml(u.status)}</span></td>
+            <td style="color:var(--muted);font-size:12px">${escapeUserHtml(u.joined_formatted)}</td>
+            <td>
+                <div style="display:flex;gap:4px;align-items:center;">
+                    <form method="post" class="row-actions" style="margin:0;">
+                        <input type="hidden" name="csrf_token" value="${csrfToken}">
+                        <input type="hidden" name="action" value="status">
+                        <input type="hidden" name="user_id" value="${u.user_id}">
+                        <select name="status" style="width:auto;padding:6px 10px;font-size:12px;margin:0">
+                            <option value="active" ${u.status === 'active' ? 'selected' : ''}>active</option>
+                            <option value="suspended" ${u.status === 'suspended' ? 'selected' : ''}>suspended</option>
+                        </select>
+                        <button type="submit" class="btn-sm btn-ghost">Update</button>
+                    </form>
+                    <button type="button" class="btn btn-secondary btn-edit-user" data-user="${rawUserJson}" style="padding:4px 8px;font-size:12px;margin-left:8px;">Edit</button>
+                    ${u.is_member ? `
+                        <a href="index.php?page=diet_builder&member_user_id=${u.user_id}&ref=users" class="btn btn-secondary" style="padding:4px 8px;font-size:12px;text-decoration:none;display:inline-flex;align-items:center;gap:4px;" title="Manage Diet Plan">
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+                            Diet Plan
+                        </a>
+                    ` : ''}
+                    ${u.can_delete ? `
+                        <form method="post" style="margin:0;" onsubmit="return confirm('Delete this user? This cannot be undone.');">
+                            <input type="hidden" name="csrf_token" value="${csrfToken}">
+                            <input type="hidden" name="action" value="delete_user">
+                            <input type="hidden" name="user_id" value="${u.user_id}">
+                            <button type="submit" class="btn btn-danger" style="padding:4px 8px;font-size:12px;">Delete</button>
+                        </form>
+                    ` : ''}
+                </div>
+            </td>
+        </tr>
+        `;
+    }
+
+    function renderMobileCard(u, csrfToken) {
+        const roleClass = 'badge badge-' + u.role;
+        const statusClass = 'badge badge-' + u.status;
+        const roleDisplayName = escapeUserHtml(u.role_display);
+        const rawUserJson = escapeUserHtml(JSON.stringify(u.raw_user));
+
+        return `
+        <div class="user-card-item" data-name="${escapeUserHtml(u.full_name.toLowerCase())}" data-email="${escapeUserHtml(u.email.toLowerCase())}" data-phone="${escapeUserHtml(u.phone)}" data-role="${escapeUserHtml(u.role)}" data-id="${u.user_id}">
+            <div class="user-card-header">
+                <div class="user-card-identity">
+                    ${u.avatar_html}
+                    <div class="user-card-names">
+                        <div class="user-card-fullname">${escapeUserHtml(u.full_name)}</div>
+                        <div class="user-card-id">#${u.user_id}</div>
+                    </div>
+                </div>
+                <div class="user-card-badges">
+                    <span class="${roleClass}">${roleDisplayName}</span>
+                    <span class="${statusClass}">${escapeUserHtml(u.status)}</span>
+                </div>
+            </div>
+
+            <div class="user-card-details">
+                <div class="user-card-detail-item">
+                    <span class="user-card-detail-label">
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+                        Email
+                    </span>
+                    <span class="user-card-detail-value email-value" title="${escapeUserHtml(u.email)}">${escapeUserHtml(u.email)}</span>
+                </div>
+
+                ${IS_ADMIN && u.associated_gym ? `
+                <div class="user-card-detail-item">
+                    <span class="user-card-detail-label">
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 21h18M3 7v14M21 7v14M6 11h4M6 15h4M14 11h4M14 15h4M9 21v-4h6v4M3 7l9-4 9 4"/></svg>
+                        Gym / Branch
+                    </span>
+                    <span class="user-card-detail-value">${escapeUserHtml(u.associated_gym)}</span>
+                </div>
+                ` : ''}
+
+                ${u.role === 'trainer' && u.specialization ? `
+                <div class="user-card-detail-item">
+                    <span class="user-card-detail-label">
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6M18 9h1.5a2.5 2.5 0 0 0 0-5H18M4 22h16M10 14.66V17c0 .55-.45 1-1 1H7c-.55 0-1-.45-1-1v-2.34M18 14.66V17c0 .55-.45 1-1 1h-2c-.55 0-1-.45-1-1v-2.34M8 2h8a2 2 0 0 1 2 2v7a6 6 0 0 1-12 0V4a2 2 0 0 1 2-2z"/></svg>
+                        Specialization
+                    </span>
+                    <span class="user-card-detail-value">${escapeUserHtml(u.specialization)}</span>
+                </div>
+                ` : ''}
+
+                ${u.role === 'member' ? `
+                <div class="user-card-detail-item">
+                    <span class="user-card-detail-label">
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                        Score
+                    </span>
+                    <span class="user-card-detail-value"><strong style="color:var(--lime);">${u.engagement_score}</strong> / 100</span>
+                </div>
+                ` : ''}
+
+                <div class="user-card-detail-item">
+                    <span class="user-card-detail-label">
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+                        Joined
+                    </span>
+                    <span class="user-card-detail-value">${escapeUserHtml(u.joined_formatted)}</span>
+                </div>
+            </div>
+
+            <div class="user-card-actions">
+                <form method="post" class="user-card-status-form">
+                    <input type="hidden" name="csrf_token" value="${csrfToken}">
+                    <input type="hidden" name="action" value="status">
+                    <input type="hidden" name="user_id" value="${u.user_id}">
+                    <span class="user-card-status-label">Status:</span>
+                    <select name="status">
+                        <option value="active" ${u.status === 'active' ? 'selected' : ''}>Active</option>
+                        <option value="suspended" ${u.status === 'suspended' ? 'selected' : ''}>Suspended</option>
+                    </select>
+                    <button type="submit" class="btn-sm btn-ghost">Update</button>
+                </form>
+                
+                <div class="user-card-btn-group">
+                    <button type="button" class="btn btn-secondary btn-sm btn-edit-user" data-user="${rawUserJson}">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+                        Edit
+                    </button>
+                    ${u.is_member ? `
+                        <a href="index.php?page=diet_builder&member_user_id=${u.user_id}&ref=users" class="btn btn-secondary btn-sm" title="Manage Diet Plan">
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+                            Diet
+                        </a>
+                    ` : ''}
+                    ${u.can_delete ? `
+                    <form method="post" onsubmit="return confirm('Delete this user? This cannot be undone.');">
+                        <input type="hidden" name="csrf_token" value="${csrfToken}">
+                        <input type="hidden" name="action" value="delete_user">
+                        <input type="hidden" name="user_id" value="${u.user_id}">
+                        <button type="submit" class="btn btn-danger btn-sm">
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                            Delete
+                        </button>
+                    </form>
+                    ` : ''}
+                </div>
+            </div>
+        </div>
+        `;
+    }
+
+    if (userSearchInput) {
+        userSearchInput.addEventListener('input', function() {
+            const query = this.value.trim().toLowerCase();
+
+            // Toggle clear button
+            if (userSearchClear) {
+                userSearchClear.style.display = query ? 'flex' : 'none';
+            }
+
+            // STEP 1: Instant Local Filter (0ms)
+            const tableRows = userTableBody ? userTableBody.querySelectorAll('.user-table-row') : [];
+            const cardItems = userMobileCards ? userMobileCards.querySelectorAll('.user-card-item') : [];
+            let localMatches = 0;
+
+            tableRows.forEach(row => {
+                const name = row.getAttribute('data-name') || '';
+                const email = row.getAttribute('data-email') || '';
+                const phone = row.getAttribute('data-phone') || '';
+                const role = row.getAttribute('data-role') || '';
+                const id = row.getAttribute('data-id') || '';
+
+                if (!query || name.includes(query) || email.includes(query) || phone.includes(query) || role.includes(query) || id.includes(query)) {
+                    row.style.display = '';
+                    localMatches++;
+                } else {
+                    row.style.display = 'none';
+                }
+            });
+
+            cardItems.forEach(card => {
+                const name = card.getAttribute('data-name') || '';
+                const email = card.getAttribute('data-email') || '';
+                const phone = card.getAttribute('data-phone') || '';
+                const role = card.getAttribute('data-role') || '';
+                const id = card.getAttribute('data-id') || '';
+
+                if (!query || name.includes(query) || email.includes(query) || phone.includes(query) || role.includes(query) || id.includes(query)) {
+                    card.style.display = '';
+                } else {
+                    card.style.display = 'none';
+                }
+            });
+
+            if (query) {
+                if (userPagination) userPagination.style.display = 'none';
+                if (localMatches > 0) {
+                    if (userCountLabel) userCountLabel.textContent = localMatches + ' found';
+                    if (userEmptyState) userEmptyState.style.display = 'none';
+                    if (userDesktopTableWrap) userDesktopTableWrap.style.display = '';
+                    if (userMobileCards) userMobileCards.style.display = '';
+                } else {
+                    if (userSearchStatus) {
+                        userSearchStatus.style.display = 'block';
+                        userSearchStatus.textContent = 'Searching database...';
+                    }
+                }
+            } else {
+                clearUserSearch(false);
+                return;
+            }
+
+            // STEP 2: Debounced Server Search (250ms)
+            if (userSearchDebounceTimer) clearTimeout(userSearchDebounceTimer);
+
+            userSearchDebounceTimer = setTimeout(() => {
+                if (userSearchStatus) {
+                    userSearchStatus.style.display = 'block';
+                    userSearchStatus.textContent = 'Searching database...';
+                }
+
+                const url = `index.php?page=users&action=search_users&q=${encodeURIComponent(query)}&tab=${encodeURIComponent(CURRENT_TAB)}&gym_id=${encodeURIComponent(GYM_FILTER)}`;
+
+                fetch(url, {
+                    headers: { 'X-Requested-With': 'XMLHttpRequest' }
+                })
+                .then(res => res.json())
+                .then(data => {
+                    // Ensure query hasn't changed in the meantime
+                    if (userSearchInput.value.trim().toLowerCase() !== query) return;
+
+                    if (userSearchStatus) userSearchStatus.style.display = 'none';
+                    if (data.csrf_token) CURRENT_CSRF_TOKEN = data.csrf_token;
+
+                    const users = data.users || [];
+                    const total = data.total || 0;
+
+                    if (userCountLabel) {
+                        userCountLabel.textContent = total + ' found';
+                    }
+
+                    if (users.length === 0) {
+                        if (userTableBody) userTableBody.innerHTML = '';
+                        if (userMobileCards) userMobileCards.innerHTML = '';
+                        if (userDesktopTableWrap) userDesktopTableWrap.style.display = 'none';
+                        if (userMobileCards) userMobileCards.style.display = 'none';
+                        if (userEmptyState) {
+                            userEmptyState.style.display = 'block';
+                            if (userEmptyStateText) {
+                                userEmptyStateText.textContent = `No users found matching "${query}". Try a different name, email, phone number, or ID.`;
+                            }
+                        }
+                    } else {
+                        if (userEmptyState) userEmptyState.style.display = 'none';
+                        if (userDesktopTableWrap) userDesktopTableWrap.style.display = '';
+                        if (userMobileCards) userMobileCards.style.display = '';
+
+                        // Render Desktop Rows
+                        if (userTableBody) {
+                            userTableBody.innerHTML = users.map(u => renderDesktopRow(u, CURRENT_CSRF_TOKEN)).join('');
+                        }
+
+                        // Render Mobile Cards
+                        if (userMobileCards) {
+                            userMobileCards.innerHTML = users.map(u => renderMobileCard(u, CURRENT_CSRF_TOKEN)).join('');
+                        }
+                    }
+                })
+                .catch(err => {
+                    console.error('User search error:', err);
+                    if (userSearchStatus) {
+                        userSearchStatus.style.display = 'block';
+                        userSearchStatus.textContent = 'Search failed. Please try again.';
+                    }
+                });
+            }, 250);
         });
     }
     </script>

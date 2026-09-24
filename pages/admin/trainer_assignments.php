@@ -12,7 +12,105 @@ function trainer_assignments_page(): void
         $gymId = (int) scalar('SELECT gym_id FROM gyms WHERE owner_user_id = ?', [$user['user_id']]);
     }
 
-    if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    // ── AJAX: Live Search for Members / Trainers ─────────────────────────
+    if (($_GET['action'] ?? post('action')) === 'search_assign_data') {
+        if (ob_get_level()) ob_clean();
+        header('Content-Type: application/json');
+
+        $type = (string)($_GET['type'] ?? 'member');
+        $q = trim((string)($_GET['q'] ?? post('q') ?? ''));
+        $pattern = '%' . $q . '%';
+
+        if ($type === 'trainer') {
+            if ($user['role'] === 'platform_admin') {
+                $sql = 'SELECT cp.trainer_id, CONCAT(u.first_name, " ", u.last_name, " - ", COALESCE(cp.specialization, "trainer")) AS name, u.first_name, u.last_name, cp.specialization
+                        FROM trainer_profiles cp
+                        JOIN users u ON u.user_id = cp.user_id
+                        WHERE u.status = "active"';
+                $params = [];
+                if ($q !== '') {
+                    $sql .= ' AND (u.first_name LIKE ? OR u.last_name LIKE ? OR cp.specialization LIKE ?)';
+                    $params = [$pattern, $pattern, $pattern];
+                }
+                $sql .= ' ORDER BY u.first_name LIMIT 30';
+                $res = query_all($sql, $params);
+            } else {
+                $sql = 'SELECT cp.trainer_id, CONCAT(u.first_name, " ", u.last_name, " - ", COALESCE(cp.specialization, "trainer")) AS name, u.first_name, u.last_name, cp.specialization
+                        FROM trainer_profiles cp
+                        JOIN users u ON u.user_id = cp.user_id
+                        WHERE u.status = "active" AND cp.gym_id = ?';
+                $params = [$gymId];
+                if ($q !== '') {
+                    $sql .= ' AND (u.first_name LIKE ? OR u.last_name LIKE ? OR cp.specialization LIKE ?)';
+                    $params[] = $pattern;
+                    $params[] = $pattern;
+                    $params[] = $pattern;
+                }
+                $sql .= ' ORDER BY u.first_name LIMIT 30';
+                $res = query_all($sql, $params);
+            }
+            $items = array_map(function($c) {
+                $parts = preg_split('/\s+/', trim($c['first_name'] . ' ' . $c['last_name']));
+                $ini = (!empty($parts[0]) ? strtoupper(substr($parts[0], 0, 1)) : '') . (!empty($parts[1]) ? strtoupper(substr($parts[1], 0, 1)) : '');
+                return [
+                    'id' => (int)$c['trainer_id'],
+                    'name' => $c['name'],
+                    'initials' => $ini ?: 'T',
+                    'specialization' => $c['specialization'] ?? 'Trainer'
+                ];
+            }, $res);
+            echo json_encode(['results' => $items]);
+            exit;
+        } else {
+            // Member search
+            if ($user['role'] === 'platform_admin') {
+                $sql = 'SELECT u.user_id, u.first_name, u.last_name,
+                               IF(EXISTS(SELECT 1 FROM memberships m WHERE m.user_id = u.user_id AND m.status = "active" AND m.end_date >= CURDATE()), 1, 0) as has_plan
+                        FROM users u
+                        WHERE u.role = "member" AND u.status = "active"';
+                $params = [];
+                if ($q !== '') {
+                    $sql .= ' AND (u.first_name LIKE ? OR u.last_name LIKE ? OR CONCAT(u.first_name, " ", u.last_name) LIKE ?)';
+                    $params = [$pattern, $pattern, $pattern];
+                }
+                $sql .= ' ORDER BY u.first_name LIMIT 30';
+                $res = query_all($sql, $params);
+            } else {
+                $sql = 'SELECT DISTINCT u.user_id, u.first_name, u.last_name,
+                               IF(EXISTS(SELECT 1 FROM memberships m JOIN membership_plans mp ON mp.plan_id = m.plan_id WHERE m.user_id = u.user_id AND m.status = "active" AND m.end_date >= CURDATE() AND mp.gym_id = ?), 1, 0) as has_plan
+                        FROM users u
+                        WHERE u.role = "member" AND u.status = "active" AND (
+                            EXISTS (SELECT 1 FROM gym_members gm WHERE gm.user_id = u.user_id AND gm.gym_id = ?) OR
+                            EXISTS (SELECT 1 FROM memberships m2 JOIN membership_plans mp2 ON mp2.plan_id = m2.plan_id WHERE m2.user_id = u.user_id AND mp2.gym_id = ?)
+                        )';
+                $params = [$gymId, $gymId, $gymId];
+                if ($q !== '') {
+                    $sql .= ' AND (u.first_name LIKE ? OR u.last_name LIKE ? OR CONCAT(u.first_name, " ", u.last_name) LIKE ?)';
+                    $params[] = $pattern;
+                    $params[] = $pattern;
+                    $params[] = $pattern;
+                }
+                $sql .= ' ORDER BY u.first_name LIMIT 30';
+                $res = query_all($sql, $params);
+            }
+            $items = array_map(function($m) {
+                $parts = preg_split('/\s+/', trim($m['first_name'] . ' ' . $m['last_name']));
+                $ini = (!empty($parts[0]) ? strtoupper(substr($parts[0], 0, 1)) : '') . (!empty($parts[1]) ? strtoupper(substr($parts[1], 0, 1)) : '');
+                $fullName = trim($m['first_name'] . ' ' . $m['last_name']);
+                return [
+                    'id' => (int)$m['user_id'],
+                    'name' => $fullName . ($m['has_plan'] ? ' (Has Plan)' : ' (No Plan)'),
+                    'full_name' => $fullName,
+                    'initials' => $ini ?: 'M',
+                    'has_plan' => (bool)$m['has_plan']
+                ];
+            }, $res);
+            echo json_encode(['results' => $items]);
+            exit;
+        }
+    }
+
+    if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         if (post('action') === 'create_trainer') {
             $email = trim((string) post('email'));
             if (scalar('SELECT user_id FROM users WHERE email = ?', [$email])) {
@@ -278,7 +376,41 @@ function trainer_assignments_page(): void
             </div>
         </div>
 
-        <p class="section-label">All assignments</p>
+        <!-- Live Search Toolbar for Assignments -->
+        <div style="margin-bottom: 16px; display: flex; gap: 12px; align-items: center; justify-content: space-between; flex-wrap: wrap;">
+            <div style="position: relative; flex: 1; min-width: 240px; max-width: 440px;">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"
+                     style="position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: var(--muted); pointer-events: none;">
+                    <circle cx="11" cy="11" r="8"></circle>
+                    <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                </svg>
+                <input type="text"
+                       id="assignmentSearchInput"
+                       placeholder="Search assignments by trainer, member, or status..."
+                       autocomplete="off"
+                       style="width: 100%; box-sizing: border-box; padding: 9px 36px 9px 36px; border-radius: 8px; border: 1px solid var(--line); background: var(--panel); color: var(--ink); font-size: 0.9rem; outline: none; transition: border-color 0.2s;"
+                       onfocus="this.style.borderColor='var(--lime)';"
+                       onblur="this.style.borderColor='var(--line)';"
+                >
+                <button type="button"
+                        id="assignmentSearchClear"
+                        onclick="clearAssignmentSearch()"
+                        title="Clear search"
+                        style="display: none; position: absolute; right: 10px; top: 50%; transform: translateY(-50%); background: none; border: none; color: var(--muted); cursor: pointer; padding: 2px 6px; border-radius: 50%; font-size: 14px; line-height: 1;">
+                    ✕
+                </button>
+            </div>
+            <div>
+                <p class="section-label" id="assignmentCountLabel" style="margin: 0; border: none; padding: 0;"><?= count($rows) ?> assignments</p>
+            </div>
+        </div>
+
+        <!-- Empty Search State -->
+        <div id="assignmentEmptyState" class="empty-state" style="display: none; padding: 32px 20px;">
+            <svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="opacity: 0.5; margin-bottom: 8px;"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+            <p id="assignmentEmptyStateText" style="margin: 0;">No assignments found matching your search.</p>
+        </div>
+
         <?php if (!$rows): ?>
             <div class="empty-state" style="padding: 40px 20px;">
                 <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
@@ -297,13 +429,13 @@ function trainer_assignments_page(): void
                         <th></th>
                     </tr>
                 </thead>
-                <tbody>
+                <tbody id="assignmentTableBody">
                 <?php foreach ($rows as $row):
                     $statusClass = 'badge badge-' . str_replace(' ', '_', $row['status']);
                     $coachData = ['first_name' => $row['coach_fn'], 'last_name' => $row['coach_ln'], 'profile_picture' => $row['coach_picture']];
                     $memberData = ['first_name' => $row['member_fn'], 'last_name' => $row['member_ln'], 'profile_picture' => $row['member_picture']];
                 ?>
-                    <tr>
+                    <tr class="assignment-row" data-coach="<?= strtolower(h($row['trainer'])) ?>" data-member="<?= strtolower(h($row['member'])) ?>" data-status="<?= strtolower(h($row['status'])) ?>">
                         <td>
                             <div class="user-cell">
                                 <?= render_avatar($coachData) ?>
@@ -378,13 +510,13 @@ function trainer_assignments_page(): void
             </table>
         </div>
 
-        <div class="assignments-mobile-cards">
+        <div id="assignmentMobileCards" class="assignments-mobile-cards">
         <?php foreach ($rows as $row):
             $statusClass = 'badge badge-' . str_replace(' ', '_', $row['status']);
             $coachData = ['first_name' => $row['coach_fn'], 'last_name' => $row['coach_ln'], 'profile_picture' => $row['coach_picture']];
             $memberData = ['first_name' => $row['member_fn'], 'last_name' => $row['member_ln'], 'profile_picture' => $row['member_picture']];
         ?>
-            <div class="assignment-card-item">
+            <div class="assignment-card-item" data-coach="<?= strtolower(h($row['trainer'])) ?>" data-member="<?= strtolower(h($row['member'])) ?>" data-status="<?= strtolower(h($row['status'])) ?>">
                 <div class="assignment-card-pairing">
                     <div class="assignment-person">
                         <?= render_avatar($coachData) ?>
@@ -564,6 +696,32 @@ function trainer_assignments_page(): void
     }
 
     <?php
+    $coachesList = array_values(array_map(function($c) {
+        $parts = preg_split('/\s+/', trim($c['name']));
+        $initials = '';
+        if (!empty($parts[0])) $initials .= strtoupper(substr($parts[0], 0, 1));
+        if (count($parts) > 1 && !empty($parts[1])) $initials .= strtoupper(substr($parts[1], 0, 1));
+        return [
+            'id' => (int) $c['trainer_id'],
+            'name' => $c['name'],
+            'initials' => $initials ?: 'T'
+        ];
+    }, $coaches));
+
+    $assignMembersList = array_values(array_map(function($m) {
+        $parts = preg_split('/\s+/', trim($m['name']));
+        $initials = '';
+        if (!empty($parts[0])) $initials .= strtoupper(substr($parts[0], 0, 1));
+        if (count($parts) > 1 && !empty($parts[1])) $initials .= strtoupper(substr($parts[1], 0, 1));
+        $hasPlan = str_contains($m['name'], '(Has Plan)');
+        return [
+            'id' => (int) $m['user_id'],
+            'name' => $m['name'],
+            'initials' => $initials ?: 'M',
+            'has_plan' => $hasPlan
+        ];
+    }, $members));
+
     $dietMembersList = array_values(array_map(function($m) {
         $parts = preg_split('/\s+/', trim($m['name']));
         $initials = '';
@@ -579,11 +737,269 @@ function trainer_assignments_page(): void
     }, $allGymMembers));
     ?>
 
-    const ftDietMembers = <?= json_encode($dietMembersList) ?>;
+    const ftCoachesData = <?= json_encode($coachesList) ?>;
+    const ftMembersData = <?= json_encode($assignMembersList) ?>;
+    let ftDietMembers = <?= json_encode($dietMembersList) ?>;
+
+    function addAssignment() {
+        let selectedTrainerId = null;
+        let selectedMemberId = null;
+
+        Swal.fire({
+            title: 'New Assignment',
+            width: '460px',
+            html: `
+                <form id="addAssignmentForm" method="post" style="text-align: left; display: flex; flex-direction: column; gap: 14px; margin-top: 15px;">
+                    <?= csrf_field() ?>
+                    <input type="hidden" name="action" value="create">
+                    <input type="hidden" name="trainer_id" id="na_trainer_id" value="">
+                    <input type="hidden" name="member_user_id" id="na_member_id" value="">
+                    
+                    <!-- Trainer Searchable Combobox -->
+                    <div>
+                        <label style="display:block; color: var(--muted); font-size: 13.5px; margin-bottom: 6px; font-weight: 500;">Trainer *</label>
+                        <div style="position: relative; width: 100%;">
+                            <div id="naTrainerTrigger" style="width: 100%; box-sizing: border-box; padding: 10px 14px; border-radius: 8px; font-size: 14px; background: #1a2230; color: #ffffff; border: 1px solid #334155; display: flex; justify-content: space-between; align-items: center; cursor: pointer; user-select: none;">
+                                <span id="naTrainerText" style="color: #94a3b8; display: flex; align-items: center; gap: 8px;">Select Trainer...</span>
+                                <svg id="naTrainerChevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="2" style="transition: transform 0.2s;"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                            </div>
+                            <div id="naTrainerMenu" style="display: none; position: absolute; left: 0; right: 0; margin-top: 6px; background: #161f30; border: 1px solid #334155; border-radius: 8px; max-height: 220px; overflow-y: auto; box-shadow: 0 10px 25px rgba(0,0,0,0.6); z-index: 1050;">
+                                <div style="padding: 8px; border-bottom: 1px solid #283548; background: #131b28; position: sticky; top: 0; z-index: 2;">
+                                    <input type="text" id="naTrainerSearch" placeholder="Search trainer..." autocomplete="off" style="width: 100%; box-sizing: border-box; padding: 7px 10px; background: #1a2230; border: 1px solid #334155; border-radius: 6px; color: #ffffff; font-size: 13px; outline: none;">
+                                </div>
+                                <div id="naTrainerList" style="padding: 4px;"></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Member Searchable Combobox -->
+                    <div>
+                        <label style="display:block; color: var(--muted); font-size: 13.5px; margin-bottom: 6px; font-weight: 500;">Member *</label>
+                        <div style="position: relative; width: 100%;">
+                            <div id="naMemberTrigger" style="width: 100%; box-sizing: border-box; padding: 10px 14px; border-radius: 8px; font-size: 14px; background: #1a2230; color: #ffffff; border: 1px solid #334155; display: flex; justify-content: space-between; align-items: center; cursor: pointer; user-select: none;">
+                                <span id="naMemberText" style="color: #94a3b8; display: flex; align-items: center; gap: 8px;">Select Member...</span>
+                                <svg id="naMemberChevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="2" style="transition: transform 0.2s;"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                            </div>
+                            <div id="naMemberMenu" style="display: none; position: absolute; left: 0; right: 0; margin-top: 6px; background: #161f30; border: 1px solid #334155; border-radius: 8px; max-height: 220px; overflow-y: auto; box-shadow: 0 10px 25px rgba(0,0,0,0.6); z-index: 1050;">
+                                <div style="padding: 8px; border-bottom: 1px solid #283548; background: #131b28; position: sticky; top: 0; z-index: 2;">
+                                    <input type="text" id="naMemberSearch" placeholder="Search member..." autocomplete="off" style="width: 100%; box-sizing: border-box; padding: 7px 10px; background: #1a2230; border: 1px solid #334155; border-radius: 6px; color: #ffffff; font-size: 13px; outline: none;">
+                                </div>
+                                <div id="naMemberList" style="padding: 4px;"></div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div>
+                        <label style="display:block; color: var(--muted); font-size: 13.5px; margin-bottom: 6px; font-weight: 500;">Assigned date *</label>
+                        <input type="date" name="assigned_date" class="form-control" value="<?= h(date('Y-m-d')) ?>" style="width: 100%; box-sizing: border-box; background-color: #1a2230; color: #ffffff; border: 1px solid #334155; padding: 10px 12px; border-radius: 8px; font-size: 13.5px;" required>
+                    </div>
+                </form>
+            `,
+            showCancelButton: true,
+            confirmButtonText: 'Assign',
+            confirmButtonColor: 'var(--lime-dark)',
+            cancelButtonColor: 'var(--line)',
+            background: 'var(--bg)',
+            color: 'var(--ink)',
+            didOpen: () => {
+                // Trainer Combobox Logic
+                const tTrigger = document.getElementById('naTrainerTrigger');
+                const tMenu = document.getElementById('naTrainerMenu');
+                const tChevron = document.getElementById('naTrainerChevron');
+                const tSearch = document.getElementById('naTrainerSearch');
+                const tList = document.getElementById('naTrainerList');
+                const tHidden = document.getElementById('na_trainer_id');
+                const tText = document.getElementById('naTrainerText');
+
+                function renderTrainers(query = '') {
+                    const q = query.trim().toLowerCase();
+                    const filtered = ftCoachesData.filter(c => c.name.toLowerCase().includes(q));
+                    if (filtered.length === 0) {
+                        tList.innerHTML = '<div style="padding: 12px; text-align: center; color: var(--muted); font-size: 13px;">No trainers found</div>';
+                        return;
+                    }
+                    tList.innerHTML = filtered.map(c => `
+                        <div class="na-trainer-item" data-id="${c.id}" data-name="${encodeURIComponent(c.name)}" data-ini="${c.initials}"
+                             style="padding: 8px 12px; display: flex; align-items: center; justify-content: space-between; border-radius: 6px; cursor: pointer; margin-bottom: 2px; transition: background 0.15s; background: ${selectedTrainerId === c.id ? 'rgba(132, 204, 22, 0.15)' : 'transparent'};">
+                            <div style="display: flex; align-items: center; gap: 10px;">
+                                <div style="width: 28px; height: 28px; border-radius: 50%; background: #223049; color: var(--lime); display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; border: 1px solid rgba(132, 204, 22, 0.3);">
+                                    ${c.initials}
+                                </div>
+                                <span style="color: #f1f5f9; font-size: 13px; font-weight: 500;">${c.name}</span>
+                            </div>
+                            ${selectedTrainerId === c.id ? '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--lime)" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>' : ''}
+                        </div>
+                    `).join('');
+
+                    tList.querySelectorAll('.na-trainer-item').forEach(el => {
+                        el.addEventListener('mouseenter', () => { if (parseInt(el.getAttribute('data-id'), 10) !== selectedTrainerId) el.style.background = '#253349'; });
+                        el.addEventListener('mouseleave', () => { if (parseInt(el.getAttribute('data-id'), 10) !== selectedTrainerId) el.style.background = 'transparent'; });
+                        el.addEventListener('click', () => {
+                            selectedTrainerId = parseInt(el.getAttribute('data-id'), 10);
+                            tHidden.value = selectedTrainerId;
+                            const name = decodeURIComponent(el.getAttribute('data-name'));
+                            const ini = el.getAttribute('data-ini');
+                            tText.innerHTML = `
+                                <span style="width: 22px; height: 22px; border-radius: 50%; background: #223049; color: var(--lime); display: inline-flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 700;">${ini}</span>
+                                <span style="color: #ffffff; font-weight: 600;">${name}</span>
+                            `;
+                            tMenu.style.display = 'none';
+                            tChevron.style.transform = 'rotate(0deg)';
+                            tTrigger.style.borderColor = 'var(--lime)';
+                        });
+                    });
+                }
+
+                renderTrainers();
+
+                tTrigger.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    const isOpen = tMenu.style.display === 'block';
+                    tMenu.style.display = isOpen ? 'none' : 'block';
+                    tChevron.style.transform = isOpen ? 'rotate(0deg)' : 'rotate(180deg)';
+                    if (!isOpen && tSearch) setTimeout(() => tSearch.focus(), 50);
+                });
+
+                if (tSearch) {
+                    tSearch.addEventListener('input', (e) => renderTrainers(e.target.value));
+                    tSearch.addEventListener('click', (e) => e.stopPropagation());
+                }
+
+                // Member Combobox Logic (Hybrid Search: 0ms local + 250ms AJAX)
+                const mTrigger = document.getElementById('naMemberTrigger');
+                const mMenu = document.getElementById('naMemberMenu');
+                const mChevron = document.getElementById('naMemberChevron');
+                const mSearch = document.getElementById('naMemberSearch');
+                const mList = document.getElementById('naMemberList');
+                const mHidden = document.getElementById('na_member_id');
+                const mText = document.getElementById('naMemberText');
+                let memberDebounceTimer = null;
+
+                function renderMembers(query = '') {
+                    const q = query.trim().toLowerCase();
+                    const filtered = ftMembersData.filter(m => m.name.toLowerCase().includes(q));
+
+                    if (filtered.length === 0) {
+                        mList.innerHTML = '<div style="padding: 12px; text-align: center; color: var(--muted); font-size: 13px;">No members found locally...</div>';
+                    } else {
+                        mList.innerHTML = filtered.map(m => `
+                            <div class="na-member-item" data-id="${m.id}" data-name="${encodeURIComponent(m.name)}" data-ini="${m.initials}"
+                                 style="padding: 8px 12px; display: flex; align-items: center; justify-content: space-between; border-radius: 6px; cursor: pointer; margin-bottom: 2px; transition: background 0.15s; background: ${selectedMemberId === m.id ? 'rgba(132, 204, 22, 0.15)' : 'transparent'};">
+                                <div style="display: flex; align-items: center; gap: 10px;">
+                                    <div style="width: 28px; height: 28px; border-radius: 50%; background: #223049; color: var(--lime); display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; border: 1px solid rgba(132, 204, 22, 0.3);">
+                                        ${m.initials}
+                                    </div>
+                                    <span style="color: #f1f5f9; font-size: 13px; font-weight: 500;">${m.name}</span>
+                                </div>
+                                ${selectedMemberId === m.id ? '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--lime)" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>' : ''}
+                            </div>
+                        `).join('');
+
+                        bindMemberClicks();
+                    }
+
+                    // Debounced server search fallback
+                    if (q) {
+                        if (memberDebounceTimer) clearTimeout(memberDebounceTimer);
+                        memberDebounceTimer = setTimeout(() => {
+                            fetch('index.php?page=trainer_assignments&action=search_assign_data&type=member&q=' + encodeURIComponent(q), {
+                                headers: { 'X-Requested-With': 'XMLHttpRequest' }
+                            })
+                            .then(res => res.json())
+                            .then(data => {
+                                if (mSearch.value.trim().toLowerCase() !== q) return;
+                                const results = data.results || [];
+                                results.forEach(rm => {
+                                    if (!ftMembersData.some(m => m.id === rm.id)) {
+                                        ftMembersData.push(rm);
+                                    }
+                                });
+                                // Re-render with newly discovered members
+                                const updatedFiltered = ftMembersData.filter(m => m.name.toLowerCase().includes(q));
+                                if (updatedFiltered.length === 0) {
+                                    mList.innerHTML = `<div style="padding: 12px; text-align: center; color: var(--muted); font-size: 13px;">No members found matching "${q}"</div>`;
+                                } else {
+                                    mList.innerHTML = updatedFiltered.map(m => `
+                                        <div class="na-member-item" data-id="${m.id}" data-name="${encodeURIComponent(m.name)}" data-ini="${m.initials}"
+                                             style="padding: 8px 12px; display: flex; align-items: center; justify-content: space-between; border-radius: 6px; cursor: pointer; margin-bottom: 2px; transition: background 0.15s; background: ${selectedMemberId === m.id ? 'rgba(132, 204, 22, 0.15)' : 'transparent'};">
+                                            <div style="display: flex; align-items: center; gap: 10px;">
+                                                <div style="width: 28px; height: 28px; border-radius: 50%; background: #223049; color: var(--lime); display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; border: 1px solid rgba(132, 204, 22, 0.3);">
+                                                    ${m.initials}
+                                                </div>
+                                                <span style="color: #f1f5f9; font-size: 13px; font-weight: 500;">${m.name}</span>
+                                            </div>
+                                            ${selectedMemberId === m.id ? '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--lime)" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>' : ''}
+                                        </div>
+                                    `).join('');
+                                    bindMemberClicks();
+                                }
+                            })
+                            .catch(err => console.error('Member search error', err));
+                        }, 250);
+                    }
+                }
+
+                function bindMemberClicks() {
+                    mList.querySelectorAll('.na-member-item').forEach(el => {
+                        el.addEventListener('mouseenter', () => { if (parseInt(el.getAttribute('data-id'), 10) !== selectedMemberId) el.style.background = '#253349'; });
+                        el.addEventListener('mouseleave', () => { if (parseInt(el.getAttribute('data-id'), 10) !== selectedMemberId) el.style.background = 'transparent'; });
+                        el.addEventListener('click', () => {
+                            selectedMemberId = parseInt(el.getAttribute('data-id'), 10);
+                            mHidden.value = selectedMemberId;
+                            const name = decodeURIComponent(el.getAttribute('data-name'));
+                            const ini = el.getAttribute('data-ini');
+                            mText.innerHTML = `
+                                <span style="width: 22px; height: 22px; border-radius: 50%; background: #223049; color: var(--lime); display: inline-flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 700;">${ini}</span>
+                                <span style="color: #ffffff; font-weight: 600;">${name}</span>
+                            `;
+                            mMenu.style.display = 'none';
+                            mChevron.style.transform = 'rotate(0deg)';
+                            mTrigger.style.borderColor = 'var(--lime)';
+                        });
+                    });
+                }
+
+                renderMembers();
+
+                mTrigger.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    const isOpen = mMenu.style.display === 'block';
+                    mMenu.style.display = isOpen ? 'none' : 'block';
+                    mChevron.style.transform = isOpen ? 'rotate(0deg)' : 'rotate(180deg)';
+                    if (!isOpen && mSearch) setTimeout(() => mSearch.focus(), 50);
+                });
+
+                if (mSearch) {
+                    mSearch.addEventListener('input', (e) => renderMembers(e.target.value));
+                    mSearch.addEventListener('click', (e) => e.stopPropagation());
+                }
+
+                document.addEventListener('click', function closeMenus(e) {
+                    if (tTrigger && tMenu && !tTrigger.contains(e.target) && !tMenu.contains(e.target)) {
+                        tMenu.style.display = 'none';
+                        tChevron.style.transform = 'rotate(0deg)';
+                    }
+                    if (mTrigger && mMenu && !mTrigger.contains(e.target) && !mMenu.contains(e.target)) {
+                        mMenu.style.display = 'none';
+                        mChevron.style.transform = 'rotate(0deg)';
+                    }
+                });
+            },
+            preConfirm: () => {
+                const form = document.getElementById('addAssignmentForm');
+                if (!form.trainer_id.value || !form.member_user_id.value || !form.assigned_date.value) {
+                    Swal.showValidationMessage('Please select both a trainer and a member');
+                    return false;
+                }
+                form.submit();
+            }
+        });
+    }
 
     function openDietPlanSelector() {
         let selectedId = null;
         let selectedName = '';
+        let dietDebounceTimer = null;
 
         Swal.fire({
             title: 'Member Diet Plan',
@@ -598,14 +1014,11 @@ function trainer_assignments_page(): void
                             <span id="ftSelectedMemberText" style="color: #94a3b8; display: flex; align-items: center; gap: 8px;">Select Member...</span>
                             <svg id="ftSelectChevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="2" style="transition: transform 0.2s;"><polyline points="6 9 12 15 18 9"></polyline></svg>
                         </div>
-                        <div id="ftCustomDropdownMenu" style="display: none; width: 100%; box-sizing: border-box; margin-top: 6px; background: #161f30; border: 1px solid #334155; border-radius: 8px; max-height: 230px; overflow-y: auto; box-shadow: 0 10px 25px rgba(0,0,0,0.6); z-index: 1000;">
-                            ${ftDietMembers.length > 5 ? `
+                        <div id="ftCustomDropdownMenu" style="display: none; width: 100%; box-sizing: border-box; margin-top: 6px; background: #161f30; border: 1px solid #334155; border-radius: 8px; max-height: 230px; overflow-y: auto; box-shadow: 0 10px 25px rgba(0,0,0,0.6); z-index: 1050;">
                             <div style="padding: 8px; border-bottom: 1px solid #283548; background: #131b28; position: sticky; top: 0; z-index: 2;">
-                                <input type="text" id="ftMemberSearch" placeholder="Search member..." style="width: 100%; box-sizing: border-box; padding: 8px 12px; background: #1a2230; border: 1px solid #334155; border-radius: 6px; color: #ffffff; font-size: 13px; outline: none;">
+                                <input type="text" id="ftMemberSearch" placeholder="Search member..." autocomplete="off" style="width: 100%; box-sizing: border-box; padding: 8px 12px; background: #1a2230; border: 1px solid #334155; border-radius: 6px; color: #ffffff; font-size: 13px; outline: none;">
                             </div>
-                            ` : ''}
-                            <div id="ftMemberListContainer" style="padding: 4px;">
-                            </div>
+                            <div id="ftMemberListContainer" style="padding: 4px;"></div>
                         </div>
                     </div>
                 </div>
@@ -623,31 +1036,7 @@ function trainer_assignments_page(): void
                 const listContainer = document.getElementById('ftMemberListContainer');
                 const searchInput = document.getElementById('ftMemberSearch');
 
-                function renderMembers(query = '') {
-                    const q = query.trim().toLowerCase();
-                    const filtered = ftDietMembers.filter(m => m.name.toLowerCase().includes(q));
-                    
-                    if (filtered.length === 0) {
-                        listContainer.innerHTML = '<div style="padding: 14px; text-align: center; color: var(--muted); font-size: 13px;">No members found</div>';
-                        return;
-                    }
-
-                    listContainer.innerHTML = filtered.map(m => {
-                        const isSelected = selectedId === m.id;
-                        return `
-                            <div class="ft-member-item" data-id="${m.id}" data-name="${encodeURIComponent(m.name)}" data-initials="${m.initials}"
-                                 style="padding: 8px 12px; display: flex; align-items: center; justify-content: space-between; border-radius: 6px; cursor: pointer; margin-bottom: 2px; transition: background 0.15s; background: ${isSelected ? 'rgba(132, 204, 22, 0.15)' : 'transparent'};">
-                                <div style="display: flex; align-items: center; gap: 10px;">
-                                    <div style="width: 30px; height: 30px; border-radius: 50%; background: #223049; color: var(--lime); display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; border: 1px solid rgba(132, 204, 22, 0.3);">
-                                        ${m.initials}
-                                    </div>
-                                    <span style="color: #f1f5f9; font-size: 13.5px; font-weight: 600;">${m.name}</span>
-                                </div>
-                                ${isSelected ? '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--lime)" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>' : ''}
-                            </div>
-                        `;
-                    }).join('');
-
+                function bindDietClicks() {
                     listContainer.querySelectorAll('.ft-member-item').forEach(el => {
                         el.addEventListener('mouseenter', () => {
                             if (parseInt(el.getAttribute('data-id'), 10) !== selectedId) el.style.background = '#253349';
@@ -672,6 +1061,75 @@ function trainer_assignments_page(): void
                             trigger.style.borderColor = 'var(--lime)';
                         });
                     });
+                }
+
+                function renderMembers(query = '') {
+                    const q = query.trim().toLowerCase();
+                    const filtered = ftDietMembers.filter(m => m.name.toLowerCase().includes(q));
+                    
+                    if (filtered.length === 0) {
+                        listContainer.innerHTML = '<div style="padding: 14px; text-align: center; color: var(--muted); font-size: 13px;">Searching members...</div>';
+                    } else {
+                        listContainer.innerHTML = filtered.map(m => {
+                            const isSelected = selectedId === m.id;
+                            return `
+                                <div class="ft-member-item" data-id="${m.id}" data-name="${encodeURIComponent(m.name)}" data-initials="${m.initials}"
+                                     style="padding: 8px 12px; display: flex; align-items: center; justify-content: space-between; border-radius: 6px; cursor: pointer; margin-bottom: 2px; transition: background 0.15s; background: ${isSelected ? 'rgba(132, 204, 22, 0.15)' : 'transparent'};">
+                                    <div style="display: flex; align-items: center; gap: 10px;">
+                                        <div style="width: 30px; height: 30px; border-radius: 50%; background: #223049; color: var(--lime); display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; border: 1px solid rgba(132, 204, 22, 0.3);">
+                                            ${m.initials}
+                                        </div>
+                                        <span style="color: #f1f5f9; font-size: 13.5px; font-weight: 600;">${m.name}</span>
+                                    </div>
+                                    ${isSelected ? '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--lime)" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>' : ''}
+                                </div>
+                            `;
+                        }).join('');
+
+                        bindDietClicks();
+                    }
+
+                    // Hybrid debounced server search
+                    if (q) {
+                        if (dietDebounceTimer) clearTimeout(dietDebounceTimer);
+                        dietDebounceTimer = setTimeout(() => {
+                            fetch('index.php?page=trainer_assignments&action=search_assign_data&type=member&q=' + encodeURIComponent(q), {
+                                headers: { 'X-Requested-With': 'XMLHttpRequest' }
+                            })
+                            .then(res => res.json())
+                            .then(data => {
+                                if (searchInput.value.trim().toLowerCase() !== q) return;
+                                const results = data.results || [];
+                                results.forEach(rm => {
+                                    if (!ftDietMembers.some(m => m.id === rm.id)) {
+                                        ftDietMembers.push({ id: rm.id, name: rm.full_name, initials: rm.initials });
+                                    }
+                                });
+                                const updatedFiltered = ftDietMembers.filter(m => m.name.toLowerCase().includes(q));
+                                if (updatedFiltered.length === 0) {
+                                    listContainer.innerHTML = `<div style="padding: 14px; text-align: center; color: var(--muted); font-size: 13px;">No members found matching "${q}"</div>`;
+                                } else {
+                                    listContainer.innerHTML = updatedFiltered.map(m => {
+                                        const isSelected = selectedId === m.id;
+                                        return `
+                                            <div class="ft-member-item" data-id="${m.id}" data-name="${encodeURIComponent(m.name)}" data-initials="${m.initials}"
+                                                 style="padding: 8px 12px; display: flex; align-items: center; justify-content: space-between; border-radius: 6px; cursor: pointer; margin-bottom: 2px; transition: background 0.15s; background: ${isSelected ? 'rgba(132, 204, 22, 0.15)' : 'transparent'};">
+                                                <div style="display: flex; align-items: center; gap: 10px;">
+                                                    <div style="width: 30px; height: 30px; border-radius: 50%; background: #223049; color: var(--lime); display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; border: 1px solid rgba(132, 204, 22, 0.3);">
+                                                        ${m.initials}
+                                                    </div>
+                                                    <span style="color: #f1f5f9; font-size: 13.5px; font-weight: 600;">${m.name}</span>
+                                                </div>
+                                                ${isSelected ? '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--lime)" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>' : ''}
+                                            </div>
+                                        `;
+                                    }).join('');
+                                    bindDietClicks();
+                                }
+                            })
+                            .catch(err => console.error('Diet member search error', err));
+                        }, 250);
+                    }
                 }
 
                 renderMembers();
@@ -706,6 +1164,89 @@ function trainer_assignments_page(): void
                     return false;
                 }
                 window.location.href = 'index.php?page=diet_builder&member_user_id=' + selectedId + '&ref=trainer_assignments';
+            }
+        });
+    }
+
+    // ── Live Search for Assignments Table & Mobile Cards ─────────────────
+    const assignSearchInput = document.getElementById('assignmentSearchInput');
+    const assignSearchClear = document.getElementById('assignmentSearchClear');
+    const assignCountLabel = document.getElementById('assignmentCountLabel');
+    const assignEmptyState = document.getElementById('assignmentEmptyState');
+    const assignEmptyStateText = document.getElementById('assignmentEmptyStateText');
+    const assignTableWrap = document.querySelector('.assignments-desktop-table');
+    const assignCardsWrap = document.getElementById('assignmentMobileCards');
+
+    function clearAssignmentSearch() {
+        if (assignSearchInput) assignSearchInput.value = '';
+        if (assignSearchClear) assignSearchClear.style.display = 'none';
+        
+        const rows = document.querySelectorAll('.assignment-row');
+        const cards = document.querySelectorAll('.assignment-card-item');
+        
+        rows.forEach(r => r.style.display = '');
+        cards.forEach(c => c.style.display = '');
+
+        if (assignCountLabel) assignCountLabel.textContent = rows.length + ' assignments';
+        if (assignEmptyState) assignEmptyState.style.display = 'none';
+        if (assignTableWrap) assignTableWrap.style.display = '';
+        if (assignCardsWrap) assignCardsWrap.style.display = '';
+
+        if (assignSearchInput) assignSearchInput.focus();
+    }
+
+    if (assignSearchInput) {
+        assignSearchInput.addEventListener('input', function() {
+            const query = this.value.trim().toLowerCase();
+
+            if (assignSearchClear) {
+                assignSearchClear.style.display = query ? 'flex' : 'none';
+            }
+
+            const rows = document.querySelectorAll('.assignment-row');
+            const cards = document.querySelectorAll('.assignment-card-item');
+            let matches = 0;
+
+            rows.forEach(r => {
+                const coach = r.getAttribute('data-coach') || '';
+                const member = r.getAttribute('data-member') || '';
+                const status = r.getAttribute('data-status') || '';
+                if (!query || coach.includes(query) || member.includes(query) || status.includes(query)) {
+                    r.style.display = '';
+                    matches++;
+                } else {
+                    r.style.display = 'none';
+                }
+            });
+
+            cards.forEach(c => {
+                const coach = c.getAttribute('data-coach') || '';
+                const member = c.getAttribute('data-member') || '';
+                const status = c.getAttribute('data-status') || '';
+                if (!query || coach.includes(query) || member.includes(query) || status.includes(query)) {
+                    c.style.display = '';
+                } else {
+                    c.style.display = 'none';
+                }
+            });
+
+            if (assignCountLabel) {
+                assignCountLabel.textContent = (query ? matches : rows.length) + ' assignments' + (query ? ' found' : '');
+            }
+
+            if (query && matches === 0) {
+                if (assignEmptyState) {
+                    assignEmptyState.style.display = 'block';
+                    if (assignEmptyStateText) {
+                        assignEmptyStateText.textContent = `No assignments found matching "${query}".`;
+                    }
+                }
+                if (assignTableWrap) assignTableWrap.style.display = 'none';
+                if (assignCardsWrap) assignCardsWrap.style.display = 'none';
+            } else {
+                if (assignEmptyState) assignEmptyState.style.display = 'none';
+                if (assignTableWrap) assignTableWrap.style.display = '';
+                if (assignCardsWrap) assignCardsWrap.style.display = '';
             }
         });
     }

@@ -2490,16 +2490,21 @@ function scanner_page(): void
             row.setAttribute('data-status', item.is_checkout ? 'out' : 'in');
             row.style.animation = 'fadeIn 0.3s ease';
 
-            let subText = `<span>${item.time_formatted}</span><span>•</span><span>${item.method}</span>`;
-            if (item.duration) {
-                subText += `<span>• ${item.duration}</span>`;
+            const safeName = typeof escapeHtml === 'function' ? escapeHtml(item.name) : item.name;
+            const safeTime = typeof escapeHtml === 'function' ? escapeHtml(item.time_formatted) : item.time_formatted;
+            const safeMethod = typeof escapeHtml === 'function' ? escapeHtml(item.method) : item.method;
+            const safeDuration = item.duration && typeof escapeHtml === 'function' ? escapeHtml(item.duration) : item.duration;
+
+            let subText = `<span>${safeTime}</span><span>•</span><span>${safeMethod}</span>`;
+            if (safeDuration) {
+                subText += `<span>• ${safeDuration}</span>`;
             }
 
             row.innerHTML = `
                 <div class="activity-left">
                     ${item.avatar_html}
                     <div class="activity-name-meta">
-                        <p class="activity-name">${item.name}</p>
+                        <p class="activity-name">${safeName}</p>
                         <div class="activity-sub">${subText}</div>
                     </div>
                 </div>
@@ -2731,17 +2736,23 @@ function scanner_page(): void
                     data.members.forEach(m => {
                         const row = document.createElement('div');
                         row.className = 'manual-item';
+                        const safeName = typeof escapeHtml === 'function' ? escapeHtml(m.name) : m.name;
+                        const safeRole = typeof escapeHtml === 'function' ? escapeHtml(m.role) : m.role;
+                        const safePhone = typeof escapeHtml === 'function' ? escapeHtml(m.phone) : m.phone;
+                        const safeDuration = m.duration && typeof escapeHtml === 'function' ? escapeHtml(m.duration) : m.duration;
+                        const insideBadge = m.is_inside ? `<span style="display:inline-block; margin-top:2px; font-size:0.7rem; font-weight:700; color:#38bdf8;">Currently Inside (${safeDuration || 'Active'})</span>` : '';
+
                         row.innerHTML = `
                             <div style="display:flex; align-items:center; gap:12px; min-width:0;">
                                 ${m.avatar_html}
                                 <div style="min-width:0;">
-                                    <p style="margin:0; font-weight:700; color:var(--ink); font-size:0.9rem;">${m.name}</p>
-                                    <div style="font-size:0.75rem; color:var(--muted);">${m.role} • ${m.phone}</div>
-                                    ${m.is_inside ? `<span style="display:inline-block; margin-top:2px; font-size:0.7rem; font-weight:700; color:#38bdf8;">Currently Inside (${m.duration || 'Active'})</span>` : ''}
+                                    <p style="margin:0; font-weight:700; color:var(--ink); font-size:0.9rem;">${safeName}</p>
+                                    <div style="font-size:0.75rem; color:var(--muted);">${safeRole} • ${safePhone}</div>
+                                    ${insideBadge}
                                 </div>
                             </div>
                             <div>
-                                <button type="button" class="btn-manual-action ${m.is_inside ? 'checkout' : 'checkin'}" onclick="submitManualAttendance(${m.user_id})">
+                                <button type="button" class="btn-manual-action ${m.is_inside ? 'checkout' : 'checkin'}" onclick="submitManualAttendance(${parseInt(m.user_id, 10)})">
                                     ${m.is_inside ? 'Check-Out' : 'Check-In'}
                                 </button>
                             </div>

@@ -76,6 +76,7 @@ function attendance_page(): void
     if ($user['role'] === 'gym_owner' && $currentGymId) {
         $members = db()->query('
             SELECT DISTINCT u.user_id, 
+                   u.first_name,
                    CONCAT(u.first_name, " ", u.last_name, " (", u.role, ")", IF(gm.gym_id IS NOT NULL, " ★", "")) AS name,
                    IF(gm.gym_id = ' . (int)$currentGymId . ' OR tp.gym_id = ' . (int)$currentGymId . ', 0, 1) as sort_prio
             FROM users u 
