@@ -70,7 +70,16 @@ function payments_page(): void
         $gym = db()->query('SELECT gym_id FROM gyms WHERE owner_user_id = ' . (int) $user['user_id'])->fetch();
         $gymId = $gym ? (int) $gym['gym_id'] : 0;
 
-        // If no pre-existing membership_id, but plan_id and user_id are supplied, create the membership!
+        // If no pre-existing membership_id, but plan_id and user_id are supplied:
+        // First check if the member already has a pending membership for this plan!
+        if (!$membershipId && $planId && $memberUserId) {
+            $existingPending = db()->query("SELECT membership_id FROM memberships WHERE user_id = $memberUserId AND plan_id = $planId AND status = 'pending' ORDER BY membership_id DESC LIMIT 1")->fetch();
+            if ($existingPending) {
+                $membershipId = (int) $existingPending['membership_id'];
+            }
+        }
+
+        // If still no membership_id, create the membership!
         if (!$membershipId && $planId && $memberUserId) {
             $plan = db()->query('SELECT plan_id, plan_name, price, duration_days FROM membership_plans WHERE plan_id = ' . $planId)->fetch();
             if ($plan) {
@@ -112,14 +121,39 @@ function payments_page(): void
             redirect('payments');
         }
 
-        db()->prepare('INSERT INTO payments (membership_id, amount, payment_date, payment_method, status, receipt_number, processed_by) VALUES (?, ?, ?, ?, ?, ?, ?)')
-            ->execute([$membershipId, $amount, $paymentDate, $paymentMethod, $status, $receipt, $user['user_id']]);
+        // Check if there is an existing pending payment for this membership
+        $existingPendingPayment = db()->query("SELECT payment_id, receipt_number FROM payments WHERE membership_id = $membershipId AND status = 'pending' ORDER BY payment_id DESC LIMIT 1")->fetch();
 
-        $paymentId = (int) db()->lastInsertId();
+        if ($existingPendingPayment) {
+            $paymentId = (int) $existingPendingPayment['payment_id'];
+            $finalReceipt = post('receipt_number') ? $receipt : ($existingPendingPayment['receipt_number'] ?: $receipt);
+            db()->prepare('UPDATE payments SET amount = ?, payment_date = ?, payment_method = ?, status = ?, receipt_number = ?, processed_by = ? WHERE payment_id = ?')
+                ->execute([$amount, $paymentDate, $paymentMethod, $status, $finalReceipt, $user['user_id'], $paymentId]);
+        } else {
+            db()->prepare('INSERT INTO payments (membership_id, amount, payment_date, payment_method, status, receipt_number, processed_by) VALUES (?, ?, ?, ?, ?, ?, ?)')
+                ->execute([$membershipId, $amount, $paymentDate, $paymentMethod, $status, $receipt, $user['user_id']]);
+            $paymentId = (int) db()->lastInsertId();
+        }
 
-        // If the payment is marked as paid, automatically activate the membership
+        // If the payment is marked as paid, automatically activate the membership and set proper dates
         if ($status === 'paid') {
-            db()->prepare('UPDATE memberships SET status = "active" WHERE membership_id = ? AND status = "pending"')->execute([$membershipId]);
+            $mRow = db()->query("SELECT m.*, p.duration_days FROM memberships m JOIN membership_plans p ON p.plan_id = m.plan_id WHERE m.membership_id = $membershipId")->fetch();
+            if ($mRow && $mRow['status'] === 'pending') {
+                $dur = (int)($mRow['duration_days'] ?? 30);
+                $mStart = new DateTime($paymentDate);
+                $mEnd = (clone $mStart)->modify('+' . $dur . ' days')->format('Y-m-d');
+
+                db()->prepare("UPDATE memberships SET status = 'cancelled' WHERE user_id = ? AND membership_id != ? AND status = 'active'")->execute([$mRow['user_id'], $membershipId]);
+
+                db()->prepare('UPDATE memberships SET status = "active", start_date = ?, end_date = ? WHERE membership_id = ?')
+                    ->execute([$mStart->format('Y-m-d'), $mEnd, $membershipId]);
+            } else {
+                db()->prepare('UPDATE memberships SET status = "active" WHERE membership_id = ? AND status = "pending"')->execute([$membershipId]);
+            }
+
+            // Clear any other duplicate pending payments for this membership
+            db()->prepare('UPDATE payments SET status = "paid" WHERE membership_id = ? AND status = "pending"')->execute([$membershipId]);
+
             process_trainer_commission($paymentId, $amount);
         }
 

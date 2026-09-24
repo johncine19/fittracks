@@ -76,7 +76,11 @@ function memberships_page(): void
 
             // Also update payment status if it exists and status is active
             if ($status === 'active') {
+                $pendingPayRows = db()->query('SELECT payment_id, amount FROM payments WHERE membership_id = ' . $membershipId . ' AND status = "pending"')->fetchAll();
                 db()->prepare('UPDATE payments SET status = "paid" WHERE membership_id = ? AND status = "pending"')->execute([$membershipId]);
+                foreach ($pendingPayRows as $ppRow) {
+                    process_trainer_commission((int)$ppRow['payment_id'], (float)$ppRow['amount']);
+                }
 
                 $mInfo = db()->query('SELECT m.user_id, p.plan_name, u.email, u.first_name, u.last_name FROM memberships m JOIN membership_plans p ON p.plan_id = m.plan_id JOIN users u ON u.user_id = m.user_id WHERE m.membership_id = ' . $membershipId)->fetch();
                 if ($mInfo) {
@@ -96,6 +100,80 @@ function memberships_page(): void
             audit_log($user['user_id'], 'update_status', 'membership', (string) $membershipId, json_encode(['new_status' => $status]));
             flash('Membership status updated.');
             redirect('memberships');
+        } elseif (post('action') === 'confirm_payment') {
+            $paymentId = (int) post('payment_id');
+            $paymentMethod = post('payment_method') ?: 'cash';
+            $receiptNumber = trim((string) post('receipt_number'));
+            $paymentDate = post('payment_date') ?: date('Y-m-d');
+
+            $gym = db()->query('SELECT gym_id FROM gyms WHERE owner_user_id = ' . (int) $user['user_id'])->fetch();
+            $gymId = $gym ? (int) $gym['gym_id'] : 0;
+
+            $payment = db()->query("
+                SELECT pay.*, m.user_id, m.plan_id, m.membership_id, p.gym_id, p.plan_name, p.duration_days, p.price, u.email, u.first_name, u.last_name
+                FROM payments pay
+                JOIN memberships m ON m.membership_id = pay.membership_id
+                JOIN membership_plans p ON p.plan_id = m.plan_id
+                JOIN users u ON u.user_id = m.user_id
+                WHERE pay.payment_id = $paymentId AND p.gym_id = $gymId
+            ")->fetch();
+
+            if (!$payment) {
+                flash('Payment record not found or access denied.', 'danger');
+                redirect('memberships&view=payments');
+            }
+
+            $finalReceipt = $receiptNumber ?: ($payment['receipt_number'] ?: ('RCPT-' . date('Ymd') . '-' . random_int(1000, 9999)));
+            $amount = (float) $payment['amount'];
+            $membershipId = (int) $payment['membership_id'];
+            $memberUserId = (int) $payment['user_id'];
+            $duration = (int) ($payment['duration_days'] ?? 30);
+
+            // 1. Update payment to paid
+            db()->prepare('UPDATE payments SET status = "paid", payment_method = ?, payment_date = ?, receipt_number = ?, processed_by = ? WHERE payment_id = ?')
+                ->execute([$paymentMethod, $paymentDate, $finalReceipt, $user['user_id'], $paymentId]);
+
+            // Clear any duplicate pending payments for this membership
+            db()->prepare('UPDATE payments SET status = "paid" WHERE membership_id = ? AND status = "pending"')->execute([$membershipId]);
+
+            // 2. Activate membership starting from payment date
+            $start = new DateTime($paymentDate);
+            $end = (clone $start)->modify('+' . $duration . ' days')->format('Y-m-d');
+
+            // Cancel other active memberships for this member
+            db()->prepare("UPDATE memberships SET status = 'cancelled' WHERE user_id = ? AND membership_id != ? AND status = 'active'")->execute([$memberUserId, $membershipId]);
+
+            db()->prepare('UPDATE memberships SET status = "active", start_date = ?, end_date = ? WHERE membership_id = ?')
+                ->execute([$start->format('Y-m-d'), $end, $membershipId]);
+
+            if ($gymId) {
+                db()->prepare('INSERT IGNORE INTO gym_members (gym_id, user_id) VALUES (?, ?)')->execute([$gymId, $memberUserId]);
+            }
+
+            // 3. Process trainer commission
+            process_trainer_commission($paymentId, $amount);
+
+            // 4. Notifications & Email
+            notify_user(
+                $memberUserId,
+                'system',
+                'Payment Confirmed',
+                money($amount) . ' received for ' . $payment['plan_name'] . '. Your membership is now active! Receipt: ' . $finalReceipt . '.'
+            );
+
+            if (class_exists('Emails')) {
+                try {
+                    Emails::sendPaymentConfirmation(
+                        $payment['email'],
+                        $payment['first_name'] . ' ' . $payment['last_name'],
+                        $payment['plan_name']
+                    );
+                } catch (\Throwable $e) {}
+            }
+
+            audit_log($user['user_id'], 'update', 'payment', (string) $paymentId, json_encode(['action' => 'confirm_payment', 'status' => 'paid', 'receipt' => $finalReceipt]));
+            flash('Payment confirmed and membership activated successfully!', 'success');
+            redirect('memberships&view=payments');
         } elseif (post('action') === 'record_payment') {
             $receipt = post('receipt_number') ?: 'RCPT-' . date('Ymd') . '-' . random_int(1000, 9999);
             $membershipId = (int) post('membership_id');
@@ -109,7 +187,16 @@ function memberships_page(): void
             $gym = db()->query('SELECT gym_id FROM gyms WHERE owner_user_id = ' . (int) $user['user_id'])->fetch();
             $gymId = $gym ? (int) $gym['gym_id'] : 0;
 
-            // If no pre-existing membership_id, but plan_id and user_id are supplied, create the membership!
+            // If no pre-existing membership_id, but plan_id and user_id are supplied:
+            // First check if the member already has a pending membership for this plan!
+            if (!$membershipId && $planId && $memberUserId) {
+                $existingPending = db()->query("SELECT membership_id FROM memberships WHERE user_id = $memberUserId AND plan_id = $planId AND status = 'pending' ORDER BY membership_id DESC LIMIT 1")->fetch();
+                if ($existingPending) {
+                    $membershipId = (int) $existingPending['membership_id'];
+                }
+            }
+
+            // If still no membership_id, create the membership!
             if (!$membershipId && $planId && $memberUserId) {
                 $plan = db()->query('SELECT plan_id, plan_name, price, duration_days FROM membership_plans WHERE plan_id = ' . $planId)->fetch();
                 if ($plan) {
@@ -151,14 +238,39 @@ function memberships_page(): void
                 redirect('memberships&view=payments');
             }
 
-            db()->prepare('INSERT INTO payments (membership_id, amount, payment_date, payment_method, status, receipt_number, processed_by) VALUES (?, ?, ?, ?, ?, ?, ?)')
-                ->execute([$membershipId, $amount, $paymentDate, $paymentMethod, $status, $receipt, $user['user_id']]);
+            // Check if there is an existing pending payment for this membership
+            $existingPendingPayment = db()->query("SELECT payment_id, receipt_number FROM payments WHERE membership_id = $membershipId AND status = 'pending' ORDER BY payment_id DESC LIMIT 1")->fetch();
 
-            $paymentId = (int) db()->lastInsertId();
+            if ($existingPendingPayment) {
+                $paymentId = (int) $existingPendingPayment['payment_id'];
+                $finalReceipt = post('receipt_number') ? $receipt : ($existingPendingPayment['receipt_number'] ?: $receipt);
+                db()->prepare('UPDATE payments SET amount = ?, payment_date = ?, payment_method = ?, status = ?, receipt_number = ?, processed_by = ? WHERE payment_id = ?')
+                    ->execute([$amount, $paymentDate, $paymentMethod, $status, $finalReceipt, $user['user_id'], $paymentId]);
+            } else {
+                db()->prepare('INSERT INTO payments (membership_id, amount, payment_date, payment_method, status, receipt_number, processed_by) VALUES (?, ?, ?, ?, ?, ?, ?)')
+                    ->execute([$membershipId, $amount, $paymentDate, $paymentMethod, $status, $receipt, $user['user_id']]);
+                $paymentId = (int) db()->lastInsertId();
+            }
 
-            // If the payment is marked as paid, automatically activate the membership
+            // If the payment is marked as paid, automatically activate the membership and set proper valid dates
             if ($status === 'paid') {
-                db()->prepare('UPDATE memberships SET status = "active" WHERE membership_id = ? AND status = "pending"')->execute([$membershipId]);
+                $mRow = db()->query("SELECT m.*, p.duration_days FROM memberships m JOIN membership_plans p ON p.plan_id = m.plan_id WHERE m.membership_id = $membershipId")->fetch();
+                if ($mRow && $mRow['status'] === 'pending') {
+                    $dur = (int)($mRow['duration_days'] ?? 30);
+                    $mStart = new DateTime($paymentDate);
+                    $mEnd = (clone $mStart)->modify('+' . $dur . ' days')->format('Y-m-d');
+
+                    db()->prepare("UPDATE memberships SET status = 'cancelled' WHERE user_id = ? AND membership_id != ? AND status = 'active'")->execute([$mRow['user_id'], $membershipId]);
+
+                    db()->prepare('UPDATE memberships SET status = "active", start_date = ?, end_date = ? WHERE membership_id = ?')
+                        ->execute([$mStart->format('Y-m-d'), $mEnd, $membershipId]);
+                } else {
+                    db()->prepare('UPDATE memberships SET status = "active" WHERE membership_id = ? AND status = "pending"')->execute([$membershipId]);
+                }
+
+                // Clear any other duplicate pending payments for this membership
+                db()->prepare('UPDATE payments SET status = "paid" WHERE membership_id = ? AND status = "pending"')->execute([$membershipId]);
+
                 process_trainer_commission($paymentId, $amount);
             }
 
@@ -228,14 +340,30 @@ function memberships_page(): void
             }
         }
 
-        db()->prepare('INSERT INTO memberships (user_id, plan_id, start_date, end_date, status) VALUES (?, ?, ?, ?, ?)')->execute([$memberUserId, $planId, $start->format('Y-m-d'), $end, $status]);
-        $membershipId = db()->lastInsertId();
+        // Check if there is already a pending membership for this member and plan to update
+        $existingPending = db()->query("SELECT membership_id FROM memberships WHERE user_id = $memberUserId AND plan_id = $planId AND status = 'pending' ORDER BY membership_id DESC LIMIT 1")->fetch();
+        if ($existingPending) {
+            $membershipId = (int) $existingPending['membership_id'];
+            db()->prepare('UPDATE memberships SET start_date = ?, end_date = ?, status = ? WHERE membership_id = ?')
+                ->execute([$start->format('Y-m-d'), $end, $status, $membershipId]);
+        } else {
+            db()->prepare('INSERT INTO memberships (user_id, plan_id, start_date, end_date, status) VALUES (?, ?, ?, ?, ?)')->execute([$memberUserId, $planId, $start->format('Y-m-d'), $end, $status]);
+            $membershipId = (int) db()->lastInsertId();
+        }
 
         $receipt = 'RCPT-' . date('Ymd') . '-' . random_int(1000, 9999);
         $paymentStatus = $status === 'active' ? 'paid' : 'pending';
-        db()->prepare('INSERT INTO payments (membership_id, amount, payment_date, payment_method, status, receipt_number) VALUES (?, ?, ?, ?, ?, ?)')
-            ->execute([$membershipId, $finalPrice, $start->format('Y-m-d'), 'cash', $paymentStatus, $receipt]);
-        $paymentId = (int) db()->lastInsertId();
+
+        $pendingPay = db()->query("SELECT payment_id FROM payments WHERE membership_id = $membershipId AND status = 'pending' ORDER BY payment_id DESC LIMIT 1")->fetch();
+        if ($pendingPay) {
+            $paymentId = (int) $pendingPay['payment_id'];
+            db()->prepare('UPDATE payments SET amount = ?, payment_date = ?, payment_method = "cash", status = ?, processed_by = ? WHERE payment_id = ?')
+                ->execute([$finalPrice, $start->format('Y-m-d'), $paymentStatus, $user['user_id'], $paymentId]);
+        } else {
+            db()->prepare('INSERT INTO payments (membership_id, amount, payment_date, payment_method, status, receipt_number, processed_by) VALUES (?, ?, ?, ?, ?, ?, ?)')
+                ->execute([$membershipId, $finalPrice, $start->format('Y-m-d'), 'cash', $paymentStatus, $receipt, $user['user_id']]);
+            $paymentId = (int) db()->lastInsertId();
+        }
 
         notify_user(
             $memberUserId,
@@ -529,6 +657,7 @@ function memberships_page(): void
         return [
             'id' => (int) $m['membership_id'],
             'user_id' => (int) $m['user_id'],
+            'plan_id' => (int) ($m['plan_id'] ?? 0),
             'name' => $name,
             'plan_name' => (string) ($m['plan_name'] ?? ''),
             'status' => (string) ($m['status'] ?? 'active'),
@@ -1161,6 +1290,7 @@ function memberships_page(): void
                                         <th>Method</th>
                                         <th>Status</th>
                                         <th>Receipt</th>
+                                        <th>Action</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -1189,6 +1319,25 @@ function memberships_page(): void
                                             <td><span style="color:var(--muted);font-size:12px"><?= ($methodIcons[$prow['payment_method']] ?? '') . ' ' . h(ucfirst($prow['payment_method'])) ?></span></td>
                                             <td><span class="<?= $statusClass ?>"><?= h(ucfirst($prow['status'])) ?></span></td>
                                             <td><span style="color:var(--muted);font-size:12px;font-family:monospace"><?= h($prow['receipt_number']) ?></span></td>
+                                            <td>
+                                                <?php if ($prow['status'] === 'pending'): ?>
+                                                    <button type="button" 
+                                                            onclick="confirmPayment(<?= (int)$prow['payment_id'] ?>, '<?= h(addslashes($prow['member'])) ?>', '<?= h(addslashes($prow['plan_name'])) ?>', <?= (float)$prow['amount'] ?>, '<?= h($prow['payment_method']) ?>', '<?= h(addslashes($prow['receipt_number'])) ?>')" 
+                                                            class="btn" 
+                                                            style="background: var(--lime); color: var(--bg); font-weight: 700; font-size: 11.5px; padding: 5px 12px; border-radius: 6px; display: inline-flex; align-items: center; gap: 5px; cursor: pointer; transition: transform 0.15s, opacity 0.15s; border: none;"
+                                                            onmouseover="this.style.opacity='0.9'; this.style.transform='translateY(-1px)';"
+                                                            onmouseout="this.style.opacity='1'; this.style.transform='translateY(0)';"
+                                                            title="Confirm payment and activate subscription">
+                                                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                                                        <span>Confirm</span>
+                                                    </button>
+                                                <?php else: ?>
+                                                    <span style="color:var(--muted); font-size:12px; display:inline-flex; align-items:center; gap:4px;">
+                                                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--lime)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
+                                                        Paid
+                                                    </span>
+                                                <?php endif; ?>
+                                            </td>
                                         </tr>
                                     <?php endforeach; ?>
                                 </tbody>
@@ -1235,6 +1384,17 @@ function memberships_page(): void
                                             <span class="detail-val receipt-pill"><?= h($prow['receipt_number']) ?></span>
                                         </div>
                                     </div>
+                                    <?php if ($prow['status'] === 'pending'): ?>
+                                        <div class="payment-card-actions" style="margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--line);">
+                                            <button type="button" 
+                                                    onclick="confirmPayment(<?= (int)$prow['payment_id'] ?>, '<?= h(addslashes($prow['member'])) ?>', '<?= h(addslashes($prow['plan_name'])) ?>', <?= (float)$prow['amount'] ?>, '<?= h($prow['payment_method']) ?>', '<?= h(addslashes($prow['receipt_number'])) ?>')" 
+                                                    class="btn" 
+                                                    style="width: 100%; background: var(--lime); color: var(--bg); font-weight: 700; font-size: 13px; padding: 8px 12px; display: flex; align-items: center; justify-content: center; gap: 6px; border-radius: 8px; border: none; cursor: pointer;">
+                                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                                                Confirm Payment
+                                            </button>
+                                        </div>
+                                    <?php endif; ?>
                                 </div>
                             <?php endforeach; ?>
                         </div>
@@ -1612,16 +1772,26 @@ function memberships_page(): void
                             const items = [];
                             // 1. Existing memberships for this user
                             const userMemberships = memberships.filter(m => String(m.user_id) === String(userId));
+                            // Sort so pending memberships appear at the very top
+                            userMemberships.sort((a, b) => {
+                                if (a.status === 'pending' && b.status !== 'pending') return -1;
+                                if (a.status !== 'pending' && b.status === 'pending') return 1;
+                                return 0;
+                            });
+
                             userMemberships.forEach(m => {
+                                const isPending = (m.status === 'pending');
                                 items.push({
                                     id: 'm_' + m.id,
                                     membershipId: m.id,
-                                    planId: null,
-                                    label: `${m.plan_name} (Existing Membership)`,
-                                    subtitle: `Status: ${m.status}${m.end_date ? ' • Exp: ' + m.end_date : ''}`,
+                                    planId: m.plan_id || null,
+                                    label: isPending ? `⚡ ${m.plan_name} (Pending Request - Awaiting Payment)` : `${m.plan_name} (Existing Membership)`,
+                                    subtitle: isPending ? `Status: PENDING • Action: Confirm & Activate` : `Status: ${m.status}${m.end_date ? ' • Exp: ' + m.end_date : ''}`,
                                     price: m.formatted_price,
                                     rawPrice: m.price,
-                                    icon: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="8.5" cy="7" r="4"></circle><polyline points="17 11 19 13 23 9"></polyline></svg>'
+                                    icon: isPending 
+                                        ? '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>'
+                                        : '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="8.5" cy="7" r="4"></circle><polyline points="17 11 19 13 23 9"></polyline></svg>'
                                 });
                             });
 
@@ -1752,6 +1922,92 @@ function memberships_page(): void
                 });
             }
             window.recordPayment = recordPayment;
+
+            function confirmPayment(paymentId, memberName, planName, amount, currentMethod, receiptNumber) {
+                const formattedAmount = '₱' + Number(amount).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+                const methodOptions = [
+                    { id: 'cash', label: 'Cash', icon: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="2"/><path d="M6 12h.01M18 12h.01"/></svg>' },
+                    { id: 'gcash', label: 'GCash', icon: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>' },
+                    { id: 'card', label: 'Card', icon: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>' },
+                    { id: 'bank_transfer', label: 'Bank Transfer', icon: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 21h18M3 10h18M5 10v11M19 10v11M9 10v11M15 10v11M12 2L2 7h20L12 2z"/></svg>' },
+                    { id: 'online', label: 'Online', icon: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="5" y="2" width="14" height="20" rx="2" ry="2"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg>' },
+                    { id: 'other', label: 'Other', icon: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg>' }
+                ];
+
+                const safeMember = typeof escapeHtml === 'function' ? escapeHtml(memberName) : memberName;
+                const safePlan = typeof escapeHtml === 'function' ? escapeHtml(planName) : planName;
+                const safeReceipt = typeof escapeHtml === 'function' ? escapeHtml(receiptNumber || '') : (receiptNumber || '');
+
+                Swal.fire({
+                    title: 'Confirm Payment',
+                    width: '450px',
+                    html: `
+                        <form id="confirmPaymentForm" method="post" action="index.php?page=memberships&view=payments" style="text-align: left; display: flex; flex-direction: column; gap: 14px; margin-top: 15px; position: relative;">
+                            <?= csrf_field() ?>
+                            <input type="hidden" name="action" value="confirm_payment">
+                            <input type="hidden" name="payment_id" value="${paymentId}">
+
+                            <div style="background: rgba(128,128,128,0.07); border: 1px solid var(--line); border-radius: 10px; padding: 14px;">
+                                <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+                                    <span style="color: var(--muted); font-size: 13px;">Member:</span>
+                                    <strong style="color: var(--ink); font-size: 13.5px;">${safeMember}</strong>
+                                </div>
+                                <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+                                    <span style="color: var(--muted); font-size: 13px;">Plan:</span>
+                                    <strong style="color: var(--ink); font-size: 13.5px;">${safePlan}</strong>
+                                </div>
+                                <div style="display: flex; justify-content: space-between; align-items: baseline; border-top: 1px dashed var(--line); padding-top: 8px; margin-top: 4px;">
+                                    <span style="color: var(--muted); font-size: 13px; font-weight: 600;">Amount Due:</span>
+                                    <strong style="color: var(--lime); font-size: 19px;">${formattedAmount}</strong>
+                                </div>
+                            </div>
+
+                            <div>
+                                <label style="display:block; color: var(--muted); font-size: 13px; margin-bottom: 6px; font-weight: 500;">Payment Method *</label>
+                                <div id="confirmMethodWrap"></div>
+                            </div>
+
+                            <div style="display:flex; gap:12px;">
+                                <div style="flex:1;">
+                                    <label style="display:block; color: var(--muted); font-size: 13px; margin-bottom: 6px; font-weight: 500;">Payment Date *</label>
+                                    <input name="payment_date" type="date" class="wb-modal-date-input" value="<?= h(date('Y-m-d')) ?>" required>
+                                </div>
+                                <div style="flex:1;">
+                                    <label style="display:block; color: var(--muted); font-size: 13px; margin-bottom: 6px; font-weight: 500;">Receipt Number</label>
+                                    <input name="receipt_number" class="wb-modal-input" value="${safeReceipt}" placeholder="Auto if blank">
+                                </div>
+                            </div>
+
+                            <div style="font-size: 12px; color: var(--muted); line-height: 1.4; padding: 10px 12px; background: rgba(34,197,94,0.08); border-radius: 8px; border: 1px solid rgba(34,197,94,0.25);">
+                                <span style="color: var(--lime); font-weight: 700;">✓ Instant Activation:</span> Confirming will mark this payment as <strong>PAID</strong> and immediately activate the member's subscription without creating any duplicate records.
+                            </div>
+                        </form>
+                    `,
+                    showCancelButton: true,
+                    confirmButtonText: 'Confirm & Activate',
+                    confirmButtonColor: 'var(--lime-dark)',
+                    cancelButtonColor: 'var(--line)',
+                    background: 'var(--bg)',
+                    color: 'var(--ink)',
+                    didOpen: () => {
+                        new FitDropdown({
+                            container: '#confirmMethodWrap',
+                            name: 'payment_method',
+                            value: currentMethod || 'cash',
+                            zIndex: 60,
+                            items: methodOptions
+                        });
+                    },
+                    preConfirm: () => {
+                        const form = document.getElementById('confirmPaymentForm');
+                        if (form) {
+                            form.submit();
+                        }
+                    }
+                });
+            }
+            window.confirmPayment = confirmPayment;
         </script>
     <?php endif; ?>
 
