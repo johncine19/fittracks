@@ -30,8 +30,7 @@ function gym_rejected_page(): void
         $targetRedirect = null;
         
         if ($currentStatus === 'approved') {
-            $isActiveSub = ($gym['subscription_status'] === 'active' && !empty($gym['subscription_plan']));
-            $targetRedirect = $isActiveSub ? 'index.php?page=dashboard' : 'index.php?page=gym_subscription';
+            $targetRedirect = 'index.php?page=dashboard';
         } elseif ($currentStatus === 'pending') {
             $targetRedirect = 'index.php?page=gym_pending';
         } elseif ($currentStatus !== 'rejected') {
@@ -47,8 +46,7 @@ function gym_rejected_page(): void
 
     if (!$gym || $gym['status'] !== 'rejected') {
         if ($gym && $gym['status'] === 'approved') {
-            $isActiveSub = ($gym['subscription_status'] === 'active' && !empty($gym['subscription_plan']));
-            redirect($isActiveSub ? 'dashboard' : 'gym_subscription');
+            redirect('dashboard');
         } elseif ($gym && $gym['status'] === 'pending') {
             redirect('gym_pending');
         } else {

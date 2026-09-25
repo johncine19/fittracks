@@ -19,14 +19,21 @@ function gym_applications_page(): void
             $ownerName = $gym['first_name'] . ' ' . $gym['last_name'];
             
             if ($action === 'approve') {
-                $pdo->prepare('UPDATE gyms SET status = "approved" WHERE gym_id = ?')->execute([$gymId]);
+                $pdo->prepare('
+                    UPDATE gyms 
+                    SET status = "approved", 
+                        subscription_plan = "Free Trial", 
+                        subscription_status = "trialing", 
+                        subscription_renewal_date = DATE_ADD(CURDATE(), INTERVAL 14 DAY) 
+                    WHERE gym_id = ?
+                ')->execute([$gymId]);
                 require_once __DIR__ . '/../../core/seeds.php';
                 seed_reference_exercises();
                 
-                notify_user((int)$gym['owner_user_id'], 'system', 'Application Approved', "Your gym application for {$gym['gym_name']} has been approved.");
+                notify_user((int)$gym['owner_user_id'], 'system', 'Application Approved - 14-Day Free Trial Activated', "Your gym application for {$gym['gym_name']} has been approved! A 14-day Free Trial has been activated with full platform access.");
                 Emails::sendGymApplicationApproved($gym['email'], $ownerName, $gym['gym_name']);
                 
-                flash('Gym application approved successfully. Default exercises have been seeded.', 'success');
+                flash('Gym application approved successfully. 14-day Free Trial activated and default exercises seeded.', 'success');
             } elseif ($action === 'reject') {
                 $pdo->prepare('UPDATE gyms SET status = "rejected" WHERE gym_id = ?')->execute([$gymId]);
                 

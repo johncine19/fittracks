@@ -146,7 +146,7 @@ function landing_page(): void
         'price_label' => '₱599',
         'desc' => 'Ideal for boutique fitness studios and single-location facilities.',
         'popular' => false,
-        'features' => ['Up to 100 Active Members', 'Walk-in Management & Daily Pass', 'Dynamic QR Check-in & Scanner', 'Membership Plans & GCash / Online Pay', 'Basic Expiration Reminders (7-Day Notice)', 'Basic Financial Reports & CSV Export', 'Basic Activity History']
+        'features' => ['Up to 100 Active Members', 'Solo Gym Owner Model (0 Trainers)', 'Walk-in Management & Daily Pass', 'Dynamic QR Check-in & Scanner', 'Membership Plans & GCash / Online Pay', 'Basic Expiration Reminders (7-Day Notice)', 'Basic Financial Reports & CSV Export', 'Basic Activity History']
     ];
     $proPlan = $platformPlans['professional'] ?? [
         'name' => 'Professional',
@@ -154,7 +154,7 @@ function landing_page(): void
         'price_label' => '₱999',
         'desc' => 'Designed for growing commercial gyms with full coaching staff.',
         'popular' => true,
-        'features' => ['Up to 500 Active Members', 'Personal Trainers & Client Assignments', 'Trainer Commission Tracking & Payouts', 'Workout Plans & Exercise Library', 'Class Scheduling & Online Booking with Waitlists', 'Automated Multi-Stage Renewal Reminders (30d/14d/7d/1d)', 'Member Engagement Scoring & Churn Risk Alerts', 'Advanced Analytics & Financial Growth Trends', 'Staff Activity Logs']
+        'features' => ['Up to 500 Active Members', 'Personal Trainers & Client Assignments (Unlimited)', 'Trainer Commission Tracking & Payouts', 'Workout Plans & Exercise Library', 'Class Scheduling & Online Booking with Waitlists', 'Automated Multi-Stage Renewal Reminders (30d/14d/7d/1d)', 'Member Engagement Scoring & Churn Risk Alerts', 'Advanced Analytics & Financial Growth Trends', 'Staff Activity Logs']
     ];
     $businessPlan = $platformPlans['business'] ?? [
         'name' => 'Business',
@@ -211,7 +211,7 @@ function landing_page(): void
                 <div class="nav-actions">
                     <a href="index.php?page=login" class="nav-auth-link">Log In</a>
                     <a href="javascript:void(0)" onclick="openDemoModal()" class="nav-demo-link">Request Demo</a>
-                    <a href="index.php?page=gym_onboarding" class="btn btn-lime btn-sm">Register Gym</a>
+                    <a href="index.php?page=register&role=gym_owner" class="btn btn-lime btn-sm">Register Gym</a>
                 </div>
 
                 <button class="mobile-toggle" id="mobileMenuBtn" aria-label="Toggle Navigation">
@@ -229,7 +229,7 @@ function landing_page(): void
             <a href="#faq" class="mobile-drawer-link" onclick="closeMobileMenu()">FAQ</a>
             <a href="index.php?page=login" class="mobile-drawer-link" onclick="closeMobileMenu()">Log In</a>
             <a href="javascript:void(0)" class="mobile-drawer-link" onclick="closeMobileMenu(); openDemoModal();">Request Demo Walkthrough</a>
-            <a href="index.php?page=gym_onboarding" class="btn btn-lime mobile-drawer-cta" onclick="closeMobileMenu()">Register Your Gym</a>
+            <a href="index.php?page=register&role=gym_owner" class="btn btn-lime mobile-drawer-cta" onclick="closeMobileMenu()">Register Your Gym</a>
         </div>
 
         <!-- Ambient Lighting Glow Orbs -->
@@ -275,7 +275,7 @@ function landing_page(): void
 
                         <div class="hero-cta-block">
                             <div class="hero-ctas">
-                                <a href="index.php?page=gym_onboarding" class="btn btn-lime btn-lg">
+                                <a href="index.php?page=register&role=gym_owner" class="btn btn-lime btn-lg">
                                     <span>Register Your Gym</span>
                                     <?= landing_icon('arrow-right', 'btn-svg') ?>
                                 </a>
@@ -287,7 +287,7 @@ function landing_page(): void
                             <div class="hero-cta-cues">
                                 <span class="cta-cue-item">
                                     <span class="cue-check"><?= landing_icon('check', 'check-svg') ?></span>
-                                    Instant 2-min setup
+                                    14-Day Free Trial Included
                                 </span>
                                 <span class="cta-cue-bullet">·</span>
                                 <span class="cta-cue-item">
@@ -297,7 +297,7 @@ function landing_page(): void
                                 <span class="cta-cue-bullet">·</span>
                                 <span class="cta-cue-item">
                                     <span class="cue-check"><?= landing_icon('check', 'check-svg') ?></span>
-                                    Cancel anytime
+                                    Free Tier fallback anytime
                                 </span>
                             </div>
                         </div>
@@ -951,9 +951,8 @@ function landing_page(): void
                 <div class="steps-grid">
                     <div class="step-card">
                         <div class="step-num">01</div>
-                        <h3 class="step-title">Register Your Gym</h3>
-                        <p class="step-desc">Submit your facility details, select your operational plan, and set up your
-                            workspace.</p>
+                        <h3 class="step-title">Register & Start Free Trial</h3>
+                        <p class="step-desc">Submit your facility details and start your 14-day evaluation trial immediately upon approval. No upfront payment required.</p>
                     </div>
 
                     <div class="step-card">
@@ -1368,7 +1367,7 @@ function landing_page(): void
                             <span class="faq-icon">+</span>
                         </button>
                         <div class="faq-answer">
-                            <p>None at all. All FitTrack commercial plans run on a transparent month-to-month subscription. You can upgrade, downgrade, cancel, or request a live 1-on-1 demo walkthrough anytime without cancellation penalties.</p>
+                            <p>None at all! Every approved facility begins with an automatic <strong>14-Day Free Trial (up to 50 active members & 2 trainers)</strong> with zero payment or credit card required. If you choose not to subscribe after 14 days, your facility gracefully transitions to our <strong>Limited Free Account (up to 25 members)</strong> so your daily turnstile check-ins and member operations never stop.</p>
                         </div>
                     </div>
 
@@ -1391,9 +1390,37 @@ function landing_page(): void
         <section class="pricing-section reveal-on-scroll" id="pricing">
             <div class="container">
                 <div class="section-header">
-                    <span class="section-label">Transparent Commercial Plans</span>
+                    <span class="section-label">Risk-Free Commercial Onboarding</span>
                     <h2 class="section-title">Plans Built to Scale With Your Gym</h2>
-                    <p class="section-desc">Select the right operational tier for your facility.</p>
+                    <p class="section-desc">Every commercial tier begins with an all-inclusive 14-day free trial. No upfront payment required. Upgrade anytime, or continue seamlessly on our Free Tier.</p>
+                </div>
+
+                <!-- 14-Day Free Trial & Free Tier Announcement Banner -->
+                <div class="pricing-trial-highlight">
+                    <div class="trial-highlight-left">
+                        <div class="trial-highlight-badge">
+                            <span class="pulse-dot"></span>
+                            14-Day Free Trial Included
+                        </div>
+                        <h3 class="trial-highlight-heading">Evaluation Trial &bull; Zero Upfront Payment</h3>
+                        <div class="trial-highlight-perks">
+                            <div class="trial-perk-item">
+                                <span class="trial-perk-check"><?= landing_icon('check', 'check-svg') ?></span>
+                                <span><strong>14-Day Evaluation:</strong> Up to 50 active members &amp; 2 trainers included.</span>
+                            </div>
+                            <div class="trial-perk-item">
+                                <span class="trial-perk-check"><?= landing_icon('check', 'check-svg') ?></span>
+                                <span><strong>Zero Lockout:</strong> Fallback to our Limited Free Tier (25 members) anytime.</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="trial-highlight-right">
+                        <a href="index.php?page=register&role=gym_owner" class="btn btn-lime btn-lg">
+                            <span>Start 14-Day Free Trial</span>
+                            <?= landing_icon('arrow-right', 'btn-svg') ?>
+                        </a>
+                        <span class="trial-note">No credit card required • Instant access</span>
+                    </div>
                 </div>
 
                 <div class="pricing-grid" id="pricingGrid">
@@ -1420,9 +1447,10 @@ function landing_page(): void
                                 </li>
                             <?php endforeach; ?>
                         </ul>
-                        <a href="index.php?page=gym_onboarding" class="btn <?= $isPop ? 'btn-lime' : 'btn-outline' ?> btn-lg" style="width: 100%;">
-                            Register Gym
+                        <a href="index.php?page=register&role=gym_owner" class="btn <?= $isPop ? 'btn-lime' : 'btn-outline' ?> btn-lg" style="width: 100%;">
+                            Start 14-Day Free Trial
                         </a>
+                        <div class="plan-card-subnote">14-Day Trial Included &bull; Upgrade Anytime</div>
                     </div>
                     <?php endforeach; ?>
                 </div>
@@ -1469,7 +1497,7 @@ function landing_page(): void
                         Manage your gym, members, trainers, payments, and engagement with FitTrack.
                     </p>
                     <div class="cta-btn-group">
-                        <a href="index.php?page=gym_onboarding" class="btn btn-lime btn-lg">
+                        <a href="index.php?page=register&role=gym_owner" class="btn btn-lime btn-lg">
                             <span>Register Your Gym</span>
                             <?= landing_icon('arrow-right', 'btn-svg') ?>
                         </a>
@@ -1481,7 +1509,7 @@ function landing_page(): void
                     <div class="cta-micro-cues">
                         <span class="cta-cue-item">
                             <span class="cue-check"><?= landing_icon('check', 'check-svg') ?></span>
-                            Free setup in under 2 minutes
+                            14-Day Free Trial Included
                         </span>
                         <span class="cta-cue-bullet">·</span>
                         <span class="cta-cue-item">
@@ -1491,7 +1519,7 @@ function landing_page(): void
                         <span class="cta-cue-bullet">·</span>
                         <span class="cta-cue-item">
                             <span class="cue-check"><?= landing_icon('check', 'check-svg') ?></span>
-                            Cancel anytime
+                            Free Tier fallback anytime
                         </span>
                     </div>
                 </div>
@@ -1541,7 +1569,7 @@ function landing_page(): void
                         <h4 class="footer-col-title">Account</h4>
                         <ul class="footer-links">
                             <li><a href="index.php?page=login" class="footer-link">Log In</a></li>
-                            <li><a href="index.php?page=gym_onboarding" class="footer-link">Register Gym</a></li>
+                            <li><a href="index.php?page=register&role=gym_owner" class="footer-link">Register Gym</a></li>
                             <li><a href="javascript:void(0)" onclick="openDemoModal()" class="footer-link">Request Demo</a>
                             </li>
                         </ul>
@@ -1584,7 +1612,7 @@ function landing_page(): void
 
                 <div class="modal-body distribution-modal-body">
                     <p class="distribution-intro">
-                        Review the exact capability distribution across our commercial gym tiers. Choose the plan that aligns with your facility scale and operations.
+                        Review the exact capability distribution across our commercial gym tiers. Every approved facility starts with a complimentary <strong>14-day evaluation trial (50 members & 2 trainers)</strong> with zero payment required, and graceful fallback to our <strong>Limited Free Account (25 members)</strong>.
                     </p>
 
                     <div class="distribution-table-wrap">
@@ -1626,7 +1654,7 @@ function landing_page(): void
                                 </tr>
                                 <tr>
                                     <td><strong>Active Member Capacity</strong></td>
-                                    <td><span class="dist-text-highlight">Up to 150 Members</span></td>
+                                    <td><span class="dist-text-highlight">Up to 100 Members</span></td>
                                     <td class="col-popular"><span class="dist-text-lime">Up to 500 Members</span></td>
                                     <td><span class="dist-text-purple">Unlimited Members</span></td>
                                 </tr>
@@ -1660,9 +1688,9 @@ function landing_page(): void
                                 </tr>
                                 <tr>
                                     <td>Trainers & Client Assignments</td>
-                                    <td><span class="status-locked">🔒 Locked</span></td>
-                                    <td class="col-popular"><span class="status-access">✓ Full Access</span></td>
-                                    <td><span class="status-access">✓ Full Access</span></td>
+                                    <td><span class="dist-pill muted">0 Trainers (Solo Owner)</span></td>
+                                    <td class="col-popular"><span class="status-access">✓ Full Access (Unlimited)</span></td>
+                                    <td><span class="status-access">✓ Full Access (Unlimited)</span></td>
                                 </tr>
                                 <tr>
                                     <td>Trainer Commission Tracking & Payouts</td>
@@ -1746,9 +1774,9 @@ function landing_page(): void
 
                 <div class="distribution-modal-footer">
                     <div class="dist-footer-ctas">
-                        <a href="index.php?page=gym_onboarding" class="btn btn-outline btn-sm">Get <?= h($starterPlan['name']) ?> (<?= h($starterPlan['price_label']) ?>)</a>
-                        <a href="index.php?page=gym_onboarding" class="btn btn-lime btn-sm">Get <?= h($proPlan['name']) ?> (<?= h($proPlan['price_label']) ?>)</a>
-                        <a href="index.php?page=gym_onboarding" class="btn btn-outline btn-sm">Get <?= h($businessPlan['name']) ?> (<?= h($businessPlan['price_label']) ?>)</a>
+                        <a href="index.php?page=register&role=gym_owner" class="btn btn-outline btn-sm">Get <?= h($starterPlan['name']) ?> (<?= h($starterPlan['price_label']) ?>)</a>
+                        <a href="index.php?page=register&role=gym_owner" class="btn btn-lime btn-sm">Get <?= h($proPlan['name']) ?> (<?= h($proPlan['price_label']) ?>)</a>
+                        <a href="index.php?page=register&role=gym_owner" class="btn btn-outline btn-sm">Get <?= h($businessPlan['name']) ?> (<?= h($businessPlan['price_label']) ?>)</a>
                     </div>
                 </div>
             </div>

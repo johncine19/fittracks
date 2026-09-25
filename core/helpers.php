@@ -195,6 +195,7 @@ function get_platform_subscription_plans(): array
                 'popular' => false,
                 'features' => [
                     'Up to 100 Active Members',
+                    'Solo Gym Owner Model (0 Trainers)',
                     'Walk-in Management & Daily Pass',
                     'Dynamic QR Check-in & Scanner',
                     'Membership Plans & GCash / Online Pay',
@@ -211,7 +212,7 @@ function get_platform_subscription_plans(): array
                 'popular' => true,
                 'features' => [
                     'Up to 500 Active Members',
-                    'Personal Trainers & Client Assignments',
+                    'Personal Trainers & Coaching (Unlimited)',
                     'Trainer Commission Tracking & Payouts',
                     'Workout Plans & Exercise Library',
                     'Class Scheduling & Online Booking with Waitlists',
@@ -317,39 +318,146 @@ function gym_subscription_tier(?array $gym = null): string
         return 'none';
     }
     
-    $status = (string)($gym['subscription_status'] ?? '');
-    if ($status !== 'active') {
+    // Gym must be approved by platform admin
+    if (($gym['status'] ?? '') !== 'approved') {
         return 'none';
     }
 
+    $status = (string)($gym['subscription_status'] ?? '');
     $renewalDate = $gym['subscription_renewal_date'] ?? null;
-    if (!empty($renewalDate) && strtotime((string)$renewalDate) < strtotime('today')) {
-        return 'none'; // expired
-    }
-
     $rawPlan = strtolower(trim((string)($gym['subscription_plan'] ?? '')));
-    if (str_contains($rawPlan, 'business')) {
-        return 'business';
-    }
-    if (str_contains($rawPlan, 'pro')) {
-        return 'professional';
-    }
-    if (str_contains($rawPlan, 'starter')) {
-        return 'starter';
+
+    // 1. Free Trial Evaluation (50 members & 2 trainers limit with Pro features)
+    if ($status === 'trialing' || str_contains($rawPlan, 'trial')) {
+        if (!empty($renewalDate) && strtotime((string)$renewalDate) < strtotime('today')) {
+            // Trial has expired -> gracefully fallback to limited free tier
+            return 'free';
+        }
+        return 'trial';
     }
 
-    return !empty($rawPlan) ? 'starter' : 'none';
+    // 2. Paid Active Subscription
+    if ($status === 'active') {
+        if (!empty($renewalDate) && strtotime((string)$renewalDate) < strtotime('today')) {
+            // Subscription lapsed -> gracefully fallback to limited free tier
+            return 'free';
+        }
+
+        if (str_contains($rawPlan, 'business')) {
+            return 'business';
+        }
+        if (str_contains($rawPlan, 'pro')) {
+            return 'professional';
+        }
+        if (str_contains($rawPlan, 'starter')) {
+            return 'starter';
+        }
+
+        return !empty($rawPlan) ? 'starter' : 'free';
+    }
+
+    // 3. Fallback for approved gyms (Free community tier)
+    return 'free';
+}
+
+function gym_trial_info(?array $gym = null): array
+{
+    if (!$gym) {
+        $user = current_user();
+        if ($user) {
+            $gym = get_user_gym($user);
+        }
+    }
+    if (!$gym) {
+        return [
+            'is_trial' => false,
+            'is_trial_active' => false,
+            'is_trial_expired' => false,
+            'is_free' => false,
+            'days_left' => 0,
+            'renewal_date' => null,
+            'plan_name' => 'None',
+        ];
+    }
+
+    $status = (string)($gym['subscription_status'] ?? '');
+    $renewalDate = $gym['subscription_renewal_date'] ?? null;
+    $rawPlan = strtolower(trim((string)($gym['subscription_plan'] ?? '')));
+    $isTrial = ($status === 'trialing' || str_contains($rawPlan, 'trial'));
+
+    $today = strtotime('today');
+    $renewalTimestamp = !empty($renewalDate) ? strtotime((string)$renewalDate) : null;
+    $daysLeft = $renewalTimestamp ? (int) ceil(($renewalTimestamp - $today) / 86400) : 0;
+    if ($daysLeft < 0) {
+        $daysLeft = 0;
+    }
+
+    $isTrialActive = ($isTrial && $renewalTimestamp !== null && $renewalTimestamp >= $today);
+    $isTrialExpired = ($isTrial && $renewalTimestamp !== null && $renewalTimestamp < $today);
+    $isFree = ($status === 'free' || $isTrialExpired || ($status === 'inactive' && ($gym['status'] ?? '') === 'approved'));
+
+    return [
+        'is_trial' => $isTrial,
+        'is_trial_active' => $isTrialActive,
+        'is_trial_expired' => $isTrialExpired,
+        'is_free' => $isFree,
+        'days_left' => $daysLeft,
+        'renewal_date' => $renewalDate,
+        'plan_name' => $isTrialActive ? 'Free Trial' : ($isFree ? 'Free Tier' : ($gym['subscription_plan'] ?? 'Free Tier')),
+    ];
 }
 
 function gym_member_limit(?array $gym = null): int
 {
     $tier = gym_subscription_tier($gym);
     return match ($tier) {
+        'free' => 25,
+        'trial' => 50,
         'starter' => 100,
         'professional' => 500,
         'business' => PHP_INT_MAX,
         default => 0,
     };
+}
+
+function gym_trainer_limit(?array $gym = null): int
+{
+    $tier = gym_subscription_tier($gym);
+    return match ($tier) {
+        'free' => 0,
+        'starter' => 0,
+        'trial' => 2,
+        'professional' => PHP_INT_MAX,
+        'business' => PHP_INT_MAX,
+        default => 0,
+    };
+}
+
+function gym_active_trainer_count(int $gymId): int
+{
+    if ($gymId <= 0) return 0;
+    return (int) scalar(
+        'SELECT COUNT(*) FROM trainer_profiles tp
+         JOIN users u ON u.user_id = tp.user_id
+         WHERE tp.gym_id = ? AND u.status = "active"',
+        [$gymId]
+    );
+}
+
+function gym_can_add_trainer(int $gymId, ?array $gym = null): bool
+{
+    if (!$gym) {
+        $gym = db()->query("SELECT * FROM gyms WHERE gym_id = " . (int)$gymId)->fetch(PDO::FETCH_ASSOC);
+    }
+    if (!$gym || !gym_has_feature('trainers', $gym)) {
+        return false;
+    }
+    $limit = gym_trainer_limit($gym);
+    if ($limit === PHP_INT_MAX) {
+        return true;
+    }
+    $current = gym_active_trainer_count($gymId);
+    return $current < $limit;
 }
 
 function gym_active_member_count(int $gymId): int
@@ -394,22 +502,26 @@ function gym_has_feature(string $feature, ?array $gym = null): bool
     }
 
     $tierWeights = [
+        'free' => 0,
         'starter' => 1,
+        'trial' => 2,
         'professional' => 2,
         'business' => 3,
     ];
 
     $featureRequirements = [
-        // Starter & above (Core Operations)
-        'scanner' => 'starter',
-        'attendance' => 'starter',
-        'walk_ins' => 'starter',
-        'memberships' => 'starter',
-        'payments' => 'starter',
-        'basic_dashboard' => 'starter',
+        // Free & Above (Core Essential Operations - Trial & Free Gyms can use these)
+        'scanner' => 'free',
+        'attendance' => 'free',
+        'walk_ins' => 'free',
+        'memberships' => 'free',
+        'payments' => 'free',
+        'basic_dashboard' => 'free',
+        'gym_profile' => 'free',
+        'plans' => 'free',
+
+        // Starter & Above (Staff & Basic Reporting)
         'users' => 'starter',
-        'gym_profile' => 'starter',
-        'plans' => 'starter',
         'reports' => 'starter',
         'basic_reports' => 'starter',
         'export_csv' => 'starter',
@@ -418,7 +530,7 @@ function gym_has_feature(string $feature, ?array $gym = null): bool
         'basic_activity' => 'starter',
         'basic_classes' => 'starter',
 
-        // Professional & above (Staff, Coaching, Growth, Advanced Automation)
+        // Professional & Above (Staff, Coaching, Growth, Advanced Automation)
         'trainers' => 'professional',
         'trainer_assignments' => 'professional',
         'commissions' => 'professional',
@@ -470,14 +582,15 @@ function require_gym_feature(string $feature): void
             'custom_branding' => 'Custom App Brand Theme',
             'audit_logs' => 'Security Audit Logs',
             'workouts' => 'Workout Builder & Plans',
+            'users' => 'Staff & User Management',
         ];
         $featureName = $featureTitles[$feature] ?? ucwords(str_replace('_', ' ', $feature));
         $tier = gym_subscription_tier($gym);
-        $planName = $tier !== 'none' ? ucfirst($tier) : 'Inactive';
+        $planName = $tier === 'free' ? 'Free Tier' : ($tier !== 'none' ? ucfirst($tier) : 'Inactive');
         
-        $neededTier = in_array($feature, ['custom_branding', 'audit_logs'], true)
+        $neededTier = in_array($feature, ['custom_branding', 'audit_logs', 'multi_branch', 'full_audit_logs'], true)
             ? 'Business'
-            : (in_array($feature, ['trainers', 'trainer_assignments', 'commissions', 'classes', 'renewal_reminders', 'engagement_tracking'], true)
+            : (in_array($feature, ['trainers', 'trainer_assignments', 'commissions', 'classes', 'renewal_reminders', 'engagement_tracking', 'workouts', 'exercises', 'training', 'admin_workouts', 'advanced_reports'], true)
                 ? 'Professional'
                 : 'Starter');
 
@@ -497,7 +610,7 @@ function require_gym_feature(string $feature): void
                 <?= h($featureName) ?>
             </h1>
             <p style="color: #94a3b8; font-size: 15px; line-height: 1.6; margin: 0 auto 28px; max-width: 480px;">
-                This module is not included in your current <strong style="color: #fff;"><?= h($planName) ?></strong> subscription. Upgrade to the <strong style="color: #84cc16;"><?= h($neededTier) ?></strong> tier to unlock full access.
+                This module is not included in your current <strong style="color: #fff;"><?= h($planName) ?></strong> plan. Upgrade to the <strong style="color: #84cc16;"><?= h($neededTier) ?></strong> tier to unlock full access.
             </p>
             <div style="display: flex; gap: 14px; justify-content: center; flex-wrap: wrap;">
                 <a href="index.php?page=dashboard" class="btn" style="background: rgba(255,255,255,0.06); color: #fff; border: 1px solid rgba(255,255,255,0.12); padding: 12px 24px; border-radius: 12px; font-weight: 600; text-decoration: none;">

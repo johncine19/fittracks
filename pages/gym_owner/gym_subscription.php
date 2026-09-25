@@ -112,6 +112,7 @@ function gym_subscription_page(): void
     render_header('Choose Subscription', $user);
     $currentPlan = strtolower((string)($gym['subscription_plan'] ?? ''));
     $hasActiveSub = ($gym['subscription_status'] === 'active' && !empty($gym['subscription_plan']));
+    $trialInfo = gym_trial_info($gym);
     ?>
     <div class="subscription-viewport">
         <section class="subscription-container">
@@ -127,6 +128,48 @@ function gym_subscription_page(): void
                     Select the plan that fits your gym operations. You can upgrade, downgrade, or renew at any time.
                 </p>
             </div>
+
+            <?php if ($trialInfo['is_trial_active']): ?>
+                <div style="background: linear-gradient(135deg, rgba(132, 204, 22, 0.15), rgba(16, 185, 129, 0.08)); border: 1px solid rgba(132, 204, 22, 0.4); border-radius: 16px; padding: 20px 24px; margin-bottom: 32px; display: flex; align-items: center; justify-content: space-between; gap: 20px; flex-wrap: wrap;">
+                    <div style="display: flex; align-items: center; gap: 16px;">
+                        <div style="width: 48px; height: 48px; background: rgba(132, 204, 22, 0.2); border-radius: 12px; display: flex; align-items: center; justify-content: center; color: var(--lime, #84cc16); font-size: 24px; flex-shrink: 0;">⏱️</div>
+                        <div>
+                            <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+                                <h3 style="margin: 0; color: #fff; font-size: 1.15rem; font-weight: 700;">Free Trial Active</h3>
+                                <span style="background: rgba(132, 204, 22, 0.25); color: var(--lime, #84cc16); font-size: 11px; font-weight: 800; padding: 3px 10px; border-radius: 20px; letter-spacing: 0.5px;">
+                                    <?= $trialInfo['days_left'] ?> DAY<?= $trialInfo['days_left'] === 1 ? '' : 'S' ?> REMAINING
+                                </span>
+                            </div>
+                            <p style="margin: 4px 0 0; color: rgba(226, 232, 240, 0.75); font-size: 0.92rem; line-height: 1.4;">
+                                You are exploring FitTrack with <strong>50 member capacity & 2 trainer slots</strong> until <?= !empty($trialInfo['renewal_date']) ? date('M j, Y', strtotime($trialInfo['renewal_date'])) : 'trial concludes' ?>. Choose a paid plan anytime to unlock unlimited capacity and features.
+                            </p>
+                        </div>
+                    </div>
+                    <a href="index.php?page=dashboard" class="btn" style="background: rgba(255,255,255,0.08); color: #fff; border: 1px solid rgba(255,255,255,0.15); padding: 10px 20px; border-radius: 10px; font-weight: 600; text-decoration: none; white-space: nowrap;">
+                        ← Back to Dashboard
+                    </a>
+                </div>
+            <?php elseif ($trialInfo['is_free']): ?>
+                <div style="background: rgba(255, 255, 255, 0.03); border: 1px solid var(--line); border-radius: 16px; padding: 20px 24px; margin-bottom: 32px; display: flex; align-items: center; justify-content: space-between; gap: 20px; flex-wrap: wrap;">
+                    <div style="display: flex; align-items: center; gap: 16px;">
+                        <div style="width: 48px; height: 48px; background: rgba(255, 255, 255, 0.06); border-radius: 12px; display: flex; align-items: center; justify-content: center; color: var(--ink); font-size: 24px; flex-shrink: 0;">⚡</div>
+                        <div>
+                            <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+                                <h3 style="margin: 0; color: #fff; font-size: 1.15rem; font-weight: 700;">Free Community Tier (Active)</h3>
+                                <span style="background: rgba(255, 255, 255, 0.08); color: var(--muted); font-size: 11px; font-weight: 800; padding: 3px 10px; border-radius: 20px; letter-spacing: 0.5px;">
+                                    LIMITED CAPACITY (25 MEMBERS)
+                                </span>
+                            </div>
+                            <p style="margin: 4px 0 0; color: rgba(226, 232, 240, 0.75); font-size: 0.92rem; line-height: 1.4;">
+                                You currently have access to basic check-ins, attendance, and member registration. Upgrade below to add trainers, schedule classes, access advanced analytics, and increase member capacity.
+                            </p>
+                        </div>
+                    </div>
+                    <a href="index.php?page=dashboard" class="btn" style="background: rgba(255,255,255,0.08); color: #fff; border: 1px solid rgba(255,255,255,0.15); padding: 10px 20px; border-radius: 10px; font-weight: 600; text-decoration: none; white-space: nowrap;">
+                        ← Back to Dashboard
+                    </a>
+                </div>
+            <?php endif; ?>
 
             <div class="pricing-grid">
                 <?php foreach ($plans as $key => $plan): 
@@ -187,7 +230,7 @@ function gym_subscription_page(): void
             </div>
 
             <div style="text-align: center; margin-top: 40px; padding-bottom: 20px;">
-                <?php if ($hasActiveSub): ?>
+                <?php if (($gym['status'] ?? '') === 'approved'): ?>
                     <a href="index.php?page=dashboard" style="color: #94a3b8; text-decoration: none; font-size: 14px; margin-right: 20px; transition: color 0.2s;" onmouseover="this.style.color='#fff'" onmouseout="this.style.color='#94a3b8'">
                         ← Back to Dashboard
                     </a>

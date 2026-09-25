@@ -42,13 +42,11 @@ function require_login(): array
             redirect('gym_pending');
         } elseif ($gym['status'] === 'rejected') {
             redirect('gym_rejected');
-        } elseif ($gym['status'] === 'approved') {
-            // Require gym owner to have an active subscription
-            $isActiveSub = ($gym['subscription_status'] === 'active' && !empty($gym['subscription_plan']));
-            if (!$isActiveSub) {
-                redirect('gym_subscription');
-            }
+        } elseif ($gym['status'] === 'suspended') {
+            flash('Your gym account has been suspended by platform administration. Please contact support.', 'danger');
+            redirect('logout');
         }
+        // Approved gym owners have immediate access to dashboard (Free Trial or Limited Free Account)
     }
 
     return $user;

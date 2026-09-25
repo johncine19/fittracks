@@ -566,7 +566,9 @@ function gyms_page(): void
                     <div style="display: flex; gap: 12px;">
                         <label style="flex: 1; display:block; font-size: 13px; color: var(--muted);">Subscription Status *
                             <select id="swal-sub-status" class="form-control" style="width: 100%; box-sizing: border-box; margin-top: 4px;">
-                                <option value="active" ${currentStatus === 'active' ? 'selected' : ''}>Active</option>
+                                <option value="trialing" ${currentStatus === 'trialing' ? 'selected' : ''}>Trialing (Free Trial)</option>
+                                <option value="free" ${currentStatus === 'free' ? 'selected' : ''}>Free Tier (Limited)</option>
+                                <option value="active" ${currentStatus === 'active' ? 'selected' : ''}>Active (Paid)</option>
                                 <option value="inactive" ${currentStatus === 'inactive' ? 'selected' : ''}>Inactive</option>
                                 <option value="expired" ${currentStatus === 'expired' ? 'selected' : ''}>Expired</option>
                             </select>

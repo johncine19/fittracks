@@ -267,6 +267,7 @@ input[type="radio"] {
 
 .side-nav a.active,
 .side-nav a:hover,
+.sidebar-bottom a.active,
 .sidebar-bottom a:hover {
     background: var(--lime);
     color: #080b0d;
@@ -279,6 +280,60 @@ input[type="radio"] {
     margin-top: auto;
     border-top: 1px solid var(--line);
     padding-top: 14px;
+}
+
+.nav-sub-pill {
+    margin-left: auto;
+    font-size: 9.5px;
+    font-weight: 800;
+    line-height: 1;
+    padding: 3px 8px;
+    border-radius: 9999px;
+    letter-spacing: 0.4px;
+    text-transform: uppercase;
+    white-space: nowrap;
+    transition: all 0.2s ease;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.nav-sub-pill-trial {
+    background: rgba(132, 204, 22, 0.18);
+    color: #84cc16;
+    border: 1.5px solid #84cc16;
+    box-shadow: 0 0 10px rgba(132, 204, 22, 0.15);
+}
+
+.nav-sub-pill-free {
+    background: rgba(255, 255, 255, 0.08);
+    color: var(--muted);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.nav-sub-pill-active {
+    background: color-mix(in srgb, var(--teal) 18%, transparent);
+    color: var(--teal);
+    border: 1.5px solid var(--teal);
+    box-shadow: 0 0 10px color-mix(in srgb, var(--teal) 15%, transparent);
+}
+
+.nav-sub-pill-expired {
+    background: rgba(239, 68, 68, 0.18);
+    color: var(--danger, #ef4444);
+    border: 1.5px solid var(--danger, #ef4444);
+}
+
+.sidebar-bottom a:hover .nav-sub-pill,
+.sidebar-bottom a.active .nav-sub-pill {
+    background: rgba(0, 0, 0, 0.3) !important;
+    color: #080b0d !important;
+    border-color: rgba(0, 0, 0, 0.45) !important;
+    box-shadow: none !important;
+}
+
+.app-frame.collapsed .nav-sub-pill {
+    display: none !important;
 }
 
 .main-area {

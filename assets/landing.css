@@ -1579,6 +1579,234 @@ video {
     padding: 100px 0;
 }
 
+/* ── Pricing Trial Highlight Banner ── */
+.pricing-trial-highlight {
+    background: linear-gradient(135deg, rgba(132, 204, 22, 0.12) 0%, rgba(21, 25, 34, 0.95) 60%);
+    border: 1px solid var(--border-accent);
+    border-radius: var(--radius-xl);
+    padding: 2rem 2.5rem;
+    margin-bottom: 3rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 2rem;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4), 0 0 20px rgba(132, 204, 22, 0.1);
+    position: relative;
+    overflow: hidden;
+}
+
+.pricing-trial-highlight::before {
+    content: '';
+    position: absolute;
+    top: -50px;
+    right: -50px;
+    width: 180px;
+    height: 180px;
+    background: radial-gradient(circle, rgba(132, 204, 22, 0.25) 0%, transparent 70%);
+    pointer-events: none;
+}
+
+.trial-highlight-left {
+    flex: 1;
+    min-width: 0;
+}
+
+.trial-highlight-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.72rem;
+    font-weight: 900;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    background: rgba(132, 204, 22, 0.2);
+    color: var(--accent-bright);
+    border: 1px solid var(--border-accent);
+    padding: 0.35rem 0.9rem;
+    border-radius: var(--radius-pill);
+    margin-bottom: 0.75rem;
+}
+
+.trial-highlight-badge .pulse-dot {
+    width: 7px;
+    height: 7px;
+    background: var(--accent);
+    border-radius: 50%;
+    box-shadow: 0 0 8px var(--accent);
+    animation: trialPulse 2s infinite;
+}
+
+@keyframes trialPulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.4; transform: scale(1.3); }
+}
+
+.trial-highlight-heading {
+    font-size: 1.4rem;
+    font-weight: 800;
+    color: var(--text-bright);
+    margin-bottom: 0.4rem;
+    line-height: 1.25;
+}
+
+.trial-highlight-sub {
+    font-size: 0.925rem;
+    color: var(--text-muted);
+    line-height: 1.55;
+    margin: 0;
+}
+
+.trial-highlight-sub strong {
+    color: var(--text-bright);
+}
+
+/* ── Trial Highlight Perks List (Breathes naturally) ── */
+.trial-highlight-perks {
+    display: flex;
+    flex-direction: column;
+    gap: 0.55rem;
+    margin-top: 0.5rem;
+}
+
+.trial-perk-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.6rem;
+    font-size: 0.88rem;
+    color: var(--text-muted);
+    line-height: 1.5;
+}
+
+.trial-perk-item strong {
+    color: var(--text-bright);
+}
+
+.trial-perk-check {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: rgba(132, 204, 22, 0.16);
+    color: var(--accent);
+    flex-shrink: 0;
+    margin-top: 2px;
+}
+
+.trial-perk-check svg {
+    width: 11px;
+    height: 11px;
+}
+
+.trial-highlight-right {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    flex-shrink: 0;
+}
+
+.trial-highlight-right .btn {
+    white-space: nowrap;
+    padding: 0.9rem 1.8rem;
+    font-size: 1rem;
+    font-weight: 800;
+}
+
+.trial-note {
+    font-size: 0.75rem;
+    color: var(--text-dim);
+    letter-spacing: 0.02em;
+    white-space: nowrap;
+}
+
+.plan-card-subnote {
+    text-align: center;
+    font-size: 0.75rem;
+    color: var(--text-dim);
+    margin-top: 0.6rem;
+    letter-spacing: 0.02em;
+}
+
+@media (max-width: 900px) {
+    .pricing-trial-highlight {
+        flex-direction: column;
+        align-items: stretch;
+        padding: 1.6rem 1.4rem;
+        gap: 1.25rem;
+        margin-bottom: 2rem;
+        border-radius: var(--radius-lg);
+    }
+    .trial-highlight-heading {
+        font-size: 1.25rem;
+        margin-bottom: 0.4rem;
+    }
+    .trial-highlight-right {
+        width: 100%;
+        align-items: stretch;
+    }
+    .trial-highlight-right .btn {
+        width: 100%;
+        text-align: center;
+        justify-content: center;
+        padding: 0.8rem 1.2rem;
+        font-size: 0.925rem;
+    }
+    .trial-note {
+        text-align: center;
+    }
+}
+
+@media (max-width: 600px) {
+    .pricing-trial-highlight {
+        padding: 1.35rem 1.15rem;
+        gap: 1.1rem;
+        margin-bottom: 1.75rem;
+        border-radius: 16px;
+    }
+    .trial-highlight-badge {
+        font-size: 0.65rem;
+        padding: 0.25rem 0.7rem;
+        margin-bottom: 0.5rem;
+        letter-spacing: 0.06em;
+    }
+    .trial-highlight-heading {
+        font-size: 1.12rem;
+        margin-bottom: 0.5rem;
+        line-height: 1.35;
+    }
+    .trial-highlight-perks {
+        gap: 0.5rem;
+        margin-top: 0.25rem;
+    }
+    .trial-perk-item {
+        font-size: 0.815rem;
+        line-height: 1.48;
+        gap: 0.5rem;
+    }
+    .trial-perk-check {
+        width: 16px;
+        height: 16px;
+        margin-top: 2px;
+    }
+    .trial-perk-check svg {
+        width: 10px;
+        height: 10px;
+    }
+    .trial-highlight-right {
+        margin-top: 0.25rem;
+    }
+    .trial-highlight-right .btn {
+        padding: 0.72rem 1.1rem;
+        font-size: 0.875rem;
+    }
+    .trial-note {
+        font-size: 0.7rem;
+        margin-top: 4px;
+    }
+}
+
 .pricing-grid {
     display: grid;
     grid-template-columns: repeat(3, 1fr);

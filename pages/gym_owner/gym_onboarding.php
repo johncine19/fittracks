@@ -6,8 +6,10 @@ function gym_onboarding_page(): void
     if (!defined('AUTH_PAGE')) define('AUTH_PAGE', true);
     
     $user = current_user();
-    if (!$user || $user['role'] !== 'gym_owner') {
-        redirect('login');
+    if (!$user) {
+        redirect('register?role=gym_owner');
+    } elseif ($user['role'] !== 'gym_owner') {
+        redirect('dashboard');
     }
 
     $pdo = db();

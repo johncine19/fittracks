@@ -167,15 +167,15 @@ HTML;
         $dashboardUrl = app_base_url() . '?page=dashboard';
         $content = <<<HTML
         <p>Hi <strong>{$ownerName}</strong>,</p>
-        <p>Congratulations! Your application for <strong>{$gymName}</strong> has been approved by the platform administration.</p>
-        <p>Your Gym Owner account is now fully active. You can now log in to the platform to customize your gym profile, add memberships, and manage trainers.</p>
+        <p>Congratulations! Your gym application for <strong>{$gymName}</strong> has been approved by the platform administration.</p>
+        <p>Your Gym Owner account is now active with a <strong>14-Day Free Trial</strong> (up to 50 members and 2 trainers with full platform access). You can log in immediately to customize your gym profile, set up membership plans, and test attendance check-ins without any upfront payment.</p>
         <p style="text-align: center; margin: 30px 0;">
             <a href="{$dashboardUrl}" class="btn">Go to Dashboard</a>
         </p>
         <p>Welcome aboard!</p>
 HTML;
 
-        queue_email($email, $ownerName, 'Gym Application Approved! - FITTRACKS', self::layout($content));
+        queue_email($email, $ownerName, 'Gym Application Approved! 14-Day Free Trial Active - FITTRACKS', self::layout($content));
     }
 
     public static function sendGymApplicationRejected(string $email, string $ownerName, string $gymName): void

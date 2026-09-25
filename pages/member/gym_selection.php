@@ -30,12 +30,10 @@ function gym_selection_page(): void
         }
     }
 
-    // Only display gyms that are approved AND have an active, unexpired SaaS subscription
+    // Display gyms that are approved and accessible (active subscription, free trial, or free tier)
     $gyms = db()->query("
         SELECT * FROM gyms 
-        WHERE status = 'approved' 
-          AND subscription_status = 'active' 
-          AND (subscription_renewal_date IS NULL OR subscription_renewal_date >= CURDATE())
+        WHERE status = 'approved'
     ")->fetchAll();
 
     $gymData = [];

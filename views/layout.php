@@ -546,6 +546,227 @@ function render_header(string $title, ?array $user = null): void
                 height: 32px !important;
             }
         }
+
+        /* Trial / Free Tier Compact Banner */
+        .trial-compact-banner {
+            margin-bottom: 16px;
+            padding: 10px 16px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            border-radius: 10px;
+            box-shadow: 0 2px 12px rgba(0,0,0,0.12);
+            transition: all 0.2s ease;
+        }
+        .trial-compact-banner.is-trial {
+            background: linear-gradient(90deg, rgba(132, 204, 22, 0.12), rgba(16, 185, 129, 0.05));
+            border: 1px solid rgba(132, 204, 22, 0.35);
+        }
+        .trial-compact-banner.is-free {
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid var(--line);
+        }
+        .trial-banner-left {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            min-width: 0;
+            flex: 1 1 auto;
+        }
+        .trial-banner-icon {
+            width: 30px;
+            height: 30px;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+        }
+        .is-trial .trial-banner-icon {
+            background: rgba(132, 204, 22, 0.2);
+            color: var(--lime, #84cc16);
+        }
+        .is-free .trial-banner-icon {
+            background: rgba(255, 255, 255, 0.07);
+            color: var(--ink);
+        }
+        .trial-banner-content {
+            min-width: 0;
+            display: flex;
+            flex-direction: column;
+        }
+        .trial-banner-title-row {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            flex-wrap: nowrap;
+        }
+        .trial-banner-title {
+            font-size: 13.5px;
+            font-weight: 700;
+            white-space: nowrap;
+        }
+        .is-trial .trial-banner-title {
+            color: var(--lime, #84cc16);
+        }
+        .is-free .trial-banner-title {
+            color: var(--ink);
+        }
+        .trial-banner-pill {
+            font-size: 10px;
+            font-weight: 800;
+            padding: 1px 7px;
+            border-radius: 10px;
+            letter-spacing: 0.4px;
+            text-transform: uppercase;
+            white-space: nowrap;
+        }
+        .is-trial .trial-banner-pill {
+            background: rgba(132, 204, 22, 0.2);
+            color: #84cc16;
+            border: 1px solid rgba(132, 204, 22, 0.3);
+        }
+        .is-free .trial-banner-pill {
+            background: rgba(255, 255, 255, 0.08);
+            color: var(--muted);
+            border: 1px solid var(--line);
+        }
+        .trial-banner-subtext {
+            font-size: 12px;
+            color: var(--muted);
+            margin-top: 1px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .trial-banner-btn {
+            flex-shrink: 0;
+            padding: 6px 14px;
+            font-size: 12.5px;
+            font-weight: 700;
+            text-decoration: none;
+            border-radius: 7px;
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            white-space: nowrap;
+            transition: opacity 0.2s ease, transform 0.15s ease;
+        }
+        .trial-banner-btn:hover {
+            opacity: 0.92;
+            transform: translateY(-1px);
+        }
+        .trial-banner-btn.btn-trial {
+            background: var(--lime, #84cc16);
+            color: #0b110e;
+        }
+        .trial-banner-btn.btn-free {
+            background: rgba(255, 255, 255, 0.08);
+            color: #fff;
+            border: 1px solid rgba(255, 255, 255, 0.15);
+        }
+        .trial-banner-btn .btn-text-short {
+            display: none;
+        }
+        .trial-banner-btn .btn-text-full {
+            display: inline;
+        }
+
+        /* Mobile Responsive Optimization for Trial & Free Banner */
+        @media (max-width: 640px) {
+            .trial-compact-banner {
+                padding: 7px 10px !important;
+                margin-bottom: 12px !important;
+                gap: 8px !important;
+                border-radius: 8px !important;
+            }
+            .trial-banner-subtext {
+                display: none !important;
+            }
+            .trial-banner-icon {
+                width: 26px !important;
+                height: 26px !important;
+                border-radius: 6px !important;
+            }
+            .trial-banner-icon svg {
+                width: 14px !important;
+                height: 14px !important;
+            }
+            .trial-banner-title {
+                font-size: 12.5px !important;
+            }
+            .trial-banner-pill {
+                font-size: 9.5px !important;
+                padding: 1px 5px !important;
+            }
+            .trial-banner-btn {
+                padding: 5px 9px !important;
+                font-size: 11.5px !important;
+                border-radius: 6px !important;
+            }
+            .trial-banner-btn .btn-text-full {
+                display: none !important;
+            }
+            .trial-banner-btn .btn-text-short {
+                display: inline !important;
+            }
+        }
+        @media (max-width: 380px) {
+            .trial-compact-banner {
+                padding: 6px 8px !important;
+            }
+            .trial-banner-icon {
+                display: none !important;
+            }
+        }
+        .nav-sub-pill {
+            margin-left: auto;
+            font-size: 9.5px;
+            font-weight: 800;
+            line-height: 1;
+            padding: 3px 8px;
+            border-radius: 9999px;
+            letter-spacing: 0.4px;
+            text-transform: uppercase;
+            white-space: nowrap;
+            transition: all 0.2s ease;
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+        }
+        .nav-sub-pill-trial {
+            background: rgba(132, 204, 22, 0.18);
+            color: #84cc16;
+            border: 1px solid rgba(132, 204, 22, 0.6);
+            box-shadow: 0 0 10px rgba(132, 204, 22, 0.15);
+        }
+        .nav-sub-pill-free {
+            background: rgba(255, 255, 255, 0.08);
+            color: var(--muted);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+        .nav-sub-pill-active {
+            background: color-mix(in srgb, var(--teal) 18%, transparent);
+            color: var(--teal);
+            border: 1px solid color-mix(in srgb, var(--teal) 55%, transparent);
+            box-shadow: 0 0 10px color-mix(in srgb, var(--teal) 15%, transparent);
+        }
+        .nav-sub-pill-expired {
+            background: rgba(239, 68, 68, 0.18);
+            color: var(--danger, #ef4444);
+            border: 1px solid rgba(239, 68, 68, 0.55);
+        }
+        .sidebar-bottom a:hover .nav-sub-pill,
+        .sidebar-bottom a.active .nav-sub-pill {
+            background: rgba(0, 0, 0, 0.3) !important;
+            color: #080b0d !important;
+            border-color: rgba(0, 0, 0, 0.45) !important;
+            box-shadow: none !important;
+        }
+        .app-frame.collapsed .nav-sub-pill {
+            display: none !important;
+        }
     </style>
 
     <?php if ($flash): ?>
@@ -626,10 +847,11 @@ function render_header(string $title, ?array $user = null): void
                                 'commissions' => 'commissions',
                                 'classes' => 'classes',
                                 'audit_logs' => 'audit_logs',
+                                'reports' => 'reports',
                                 default => null,
                             };
                             if ($mappedFeature !== null && !gym_has_feature($mappedFeature, $gym)) {
-                                $tierBadge = in_array($mappedFeature, ['audit_logs'], true) ? 'BIZ' : 'PRO';
+                                $tierBadge = in_array($mappedFeature, ['audit_logs'], true) ? 'BIZ' : (in_array($mappedFeature, ['reports'], true) ? 'STARTER' : 'PRO');
                             }
                         }
                         $isActive = ($page === $key 
@@ -649,7 +871,66 @@ function render_header(string $title, ?array $user = null): void
                     <?php endforeach; ?>
                 </nav>
                 <div class="sidebar-bottom">
-                    <a href="index.php?page=profile"><span class="nav-icon"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></span> <span class="nav-label">Profile</span></a>
+                    <?php
+                        $profileSubPill = null;
+                        if ($role === 'gym_owner' && $gym) {
+                            $trialInfo = gym_trial_info($gym);
+                            $memberLimit = gym_member_limit($gym);
+                            $capLabel = ($memberLimit === PHP_INT_MAX) ? '∞ CAP' : ($memberLimit . ' CAP');
+                            if ($trialInfo['is_trial_active']) {
+                                $profileSubPill = [
+                                    'text'  => $trialInfo['days_left'] . 'D LEFT • 50 CAP',
+                                    'title' => 'Free Trial (' . $trialInfo['days_left'] . ' days left • 50 Member Cap)',
+                                    'type'  => 'trial',
+                                ];
+                            } elseif ($trialInfo['is_free']) {
+                                $profileSubPill = [
+                                    'text'  => 'FREE • 25 CAP',
+                                    'title' => 'Limited Free Account (25 Member Cap)',
+                                    'type'  => 'free',
+                                ];
+                            } elseif (($gym['subscription_status'] ?? '') === 'active') {
+                                $planRaw = strtolower(trim($gym['subscription_plan'] ?? ''));
+                                $planName = match (true) {
+                                    str_contains($planRaw, 'starter')      => 'Starter',
+                                    str_contains($planRaw, 'business')     => 'Biz',
+                                    str_contains($planRaw, 'professional') => 'Pro',
+                                    default                                => ucfirst($gym['subscription_plan'] ?? 'Pro')
+                                };
+                                $profileSubPill = [
+                                    'text'  => strtoupper($planName) . ' • ' . $capLabel,
+                                    'title' => 'Active Subscription: ' . ($gym['subscription_plan'] ?? 'Active'),
+                                    'type'  => 'active',
+                                ];
+                            } elseif (!empty($gym['subscription_status']) && in_array($gym['subscription_status'], ['cancelled', 'expired'], true)) {
+                                $profileSubPill = [
+                                    'text'  => 'EXPIRED',
+                                    'title' => 'Subscription Expired',
+                                    'type'  => 'expired',
+                                ];
+                            }
+                        } elseif ($role === 'member' && $user) {
+                            $activeMembership = db()->prepare('SELECT mp.name FROM memberships m JOIN membership_plans mp ON mp.plan_id = m.plan_id WHERE m.user_id = ? AND m.status = "active" LIMIT 1');
+                            $activeMembership->execute([$user['user_id']]);
+                            $planName = $activeMembership->fetchColumn();
+                            if ($planName) {
+                                $profileSubPill = [
+                                    'text'  => 'Member',
+                                    'title' => 'Active Membership: ' . $planName,
+                                    'type'  => 'active',
+                                ];
+                            }
+                        }
+                    ?>
+                    <a class="<?= $page === 'profile' ? 'active' : '' ?>" href="index.php?page=profile">
+                        <span class="nav-icon"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></span>
+                        <span class="nav-label">Profile</span>
+                        <?php if ($profileSubPill): ?>
+                            <span class="nav-sub-pill nav-sub-pill-<?= $profileSubPill['type'] ?>" title="<?= h($profileSubPill['title']) ?>">
+                                <?= h($profileSubPill['text']) ?>
+                            </span>
+                        <?php endif; ?>
+                    </a>
                     <?php if ($role !== 'platform_admin'): ?>
                         <a href="https://mail.google.com/mail/?view=cm&fs=1&to=johncinemartil596@gmail.com" target="_blank"><span class="nav-icon"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path><polyline points="22,6 12,13 2,6"></polyline></svg></span> <span class="nav-label">Contact Support</span></a>
                     <?php endif; ?>
@@ -766,6 +1047,54 @@ function render_header(string $title, ?array $user = null): void
                                 <button type="submit" class="btn-secondary" style="white-space:nowrap;">Resend verification email</button>
                             </form>
                         </div>
+                    <?php endif; ?>
+                    <?php if ($user && $user['role'] === 'gym_owner'): 
+                        $gymInfo = get_user_gym($user);
+                        $trialInfo = gym_trial_info($gymInfo);
+                    ?>
+                        <?php if ($trialInfo['is_trial_active']): ?>
+                            <div class="panel trial-compact-banner is-trial">
+                                <div class="trial-banner-left">
+                                    <div class="trial-banner-icon">
+                                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+                                    </div>
+                                    <div class="trial-banner-content">
+                                        <div class="trial-banner-title-row">
+                                            <span class="trial-banner-title">Free Trial</span>
+                                            <span class="trial-banner-pill">
+                                                <?= $trialInfo['days_left'] ?>d left &bull; 50 cap
+                                            </span>
+                                        </div>
+                                        <span class="trial-banner-subtext">Free Trial active (up to 50 members & 2 trainers). Upgrade for unlimited capacity.</span>
+                                    </div>
+                                </div>
+                                <a href="index.php?page=gym_subscription" class="trial-banner-btn btn-trial">
+                                    <span class="btn-text-full">View Plans & Upgrade</span>
+                                    <span class="btn-text-short">Upgrade</span>
+                                    <span class="btn-arrow">&rarr;</span>
+                                </a>
+                            </div>
+                        <?php elseif ($trialInfo['is_free']): ?>
+                            <div class="panel trial-compact-banner is-free">
+                                <div class="trial-banner-left">
+                                    <div class="trial-banner-icon">
+                                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg>
+                                    </div>
+                                    <div class="trial-banner-content">
+                                        <div class="trial-banner-title-row">
+                                            <span class="trial-banner-title">Free Tier</span>
+                                            <span class="trial-banner-pill">25 member cap</span>
+                                        </div>
+                                        <span class="trial-banner-subtext">Basic check-ins and tracking active. Upgrade for trainers, classes, and unlimited capacity.</span>
+                                    </div>
+                                </div>
+                                <a href="index.php?page=gym_subscription" class="trial-banner-btn btn-free">
+                                    <span class="btn-text-full">Upgrade Subscription</span>
+                                    <span class="btn-text-short">Upgrade</span>
+                                    <span class="btn-arrow">&rarr;</span>
+                                </a>
+                            </div>
+                        <?php endif; ?>
                     <?php endif; ?>
     <?php else: ?>
         <main class="shell auth-shell">

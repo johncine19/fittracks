@@ -84,9 +84,17 @@ function users_page(): void
                 $sendCreateResponse(false, "Active member capacity reached ({$activeCount}/{$limit} members). Please upgrade your subscription plan to add more members.", 'warning');
                 return;
             }
-            if ($roleToCreate === 'trainer' && !$isAdmin && !gym_has_feature('trainers')) {
-                $sendCreateResponse(false, "Trainer management is a Professional & Business plan feature. Please upgrade your subscription.", 'warning');
-                return;
+            if ($roleToCreate === 'trainer' && !$isAdmin) {
+                if (!gym_has_feature('trainers')) {
+                    $sendCreateResponse(false, "Trainer management is a Professional & Business plan feature. Please upgrade your subscription.", 'warning');
+                    return;
+                }
+                if (!gym_can_add_trainer($gymId)) {
+                    $tLimit = gym_trainer_limit();
+                    $activeTCount = gym_active_trainer_count($gymId);
+                    $sendCreateResponse(false, "Trainer capacity reached ({$activeTCount}/{$tLimit} trainers). Please upgrade your subscription plan to add more trainers.", 'warning');
+                    return;
+                }
             }
 
             $plainPassword = (string) post('password');

@@ -221,6 +221,29 @@ function profile_page(): void
     
     $allGyms = query_all('SELECT gym_id, name FROM gyms WHERE status = "approved" ORDER BY name ASC');
 
+    // Gym owner subscription and billing metrics
+    $ownerGym = null;
+    $gymRevenue = 0.0;
+    $platformFee = 0.0;
+    $netRevenue = 0.0;
+    $ownerTrialInfo = null;
+    if ($user['role'] === 'gym_owner') {
+        $ownerGym = db()->query('SELECT * FROM gyms WHERE owner_user_id = ' . (int)$user['user_id'])->fetch(PDO::FETCH_ASSOC);
+        if ($ownerGym) {
+            $ownerGymId = (int)$ownerGym['gym_id'];
+            $ownerTrialInfo = gym_trial_info($ownerGym);
+            $gymRevenue = (float) db()->query(
+                'SELECT SUM(revenue) FROM (
+                    SELECT p.amount AS revenue FROM payments p JOIN memberships m ON m.membership_id = p.membership_id JOIN membership_plans mp ON mp.plan_id = m.plan_id WHERE mp.gym_id = ' . $ownerGymId . ' AND p.status = "paid" AND p.payment_date >= DATE_FORMAT(CURDATE(), "%Y-%m-01")
+                    UNION ALL
+                    SELECT amount_paid AS revenue FROM walk_in_transactions WHERE gym_id = ' . $ownerGymId . ' AND visit_date >= DATE_FORMAT(CURDATE(), "%Y-%m-01")
+                ) AS combined'
+            )->fetchColumn();
+            $platformFee = $gymRevenue * 0.01;
+            $netRevenue = $gymRevenue - $platformFee;
+        }
+    }
+
     render_header('Settings', $user);
 
     // Fetch membership info for gym affiliation display
@@ -292,6 +315,12 @@ function profile_page(): void
         <button class="settings-tab" data-tab="platform_settings">
             <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
             Platform Settings
+        </button>
+        <?php endif; ?>
+        <?php if ($user['role'] === 'gym_owner'): ?>
+        <button class="settings-tab" data-tab="subscription">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="14" x="2" y="5" rx="2"/><line x1="2" x2="22" y1="10" y2="10"/></svg>
+            Subscription & Billing
         </button>
         <?php endif; ?>
         <button class="settings-tab" data-tab="preferences">
@@ -796,6 +825,170 @@ function profile_page(): void
     </div>
     <?php endif; ?>
 
+    <?php if ($user['role'] === 'gym_owner' && $ownerGym): 
+        $ownerGymId = (int)$ownerGym['gym_id'];
+        $subPlan = $ownerGym['subscription_plan'] ?: 'No Active Plan';
+        $subStatus = $ownerGym['subscription_status'] ?: 'inactive';
+        $subRenewal = !empty($ownerGym['subscription_renewal_date']) ? date('M j, Y', strtotime($ownerGym['subscription_renewal_date'])) : 'N/A';
+        
+        $allPlatformPlans = get_platform_subscription_plans();
+        $matchedPlan = null;
+        foreach ($allPlatformPlans as $p) {
+            if (strtolower($p['name']) === strtolower((string)$subPlan) || strtolower($p['key']) === strtolower((string)$subPlan)) {
+                $matchedPlan = $p;
+                break;
+            }
+        }
+
+        $badgeBg = 'rgba(255, 255, 255, 0.08)';
+        $badgeColor = 'var(--ink)';
+        $badgeText = ucfirst((string)$subStatus);
+        $subCta = 'Choose Subscription';
+
+        if ($ownerTrialInfo['is_trial_active']) {
+            $badgeBg = 'rgba(132, 204, 22, 0.15)';
+            $badgeColor = 'var(--lime, #84cc16)';
+            $badgeText = 'Free Trial (' . $ownerTrialInfo['days_left'] . 'd left)';
+            $subCta = 'Upgrade Plan';
+        } elseif ($subStatus === 'active') {
+            $badgeBg = 'color-mix(in srgb, var(--teal) 15%, transparent)';
+            $badgeColor = 'var(--teal)';
+            $badgeText = 'Active Paid';
+            $subCta = 'Manage Subscription';
+        } elseif ($ownerTrialInfo['is_free']) {
+            $badgeBg = 'rgba(255, 255, 255, 0.08)';
+            $badgeColor = 'var(--muted)';
+            $badgeText = 'Free Tier (Limited)';
+            $subCta = 'Upgrade to Unlock Full Features';
+        }
+
+        $memberLimit = gym_member_limit($ownerGym);
+        $activeMemberCount = $ownerGymId ? gym_active_member_count($ownerGymId) : 0;
+        $usagePercent = ($memberLimit > 0 && $memberLimit !== PHP_INT_MAX) 
+            ? min(100, round(($activeMemberCount / $memberLimit) * 100)) 
+            : null;
+        $trainerLimit = gym_trainer_limit($ownerGym);
+        $activeTrainerCount = $ownerGymId ? gym_active_trainer_count($ownerGymId) : 0;
+    ?>
+    <!-- Tab: Subscription & Billing -->
+    <div class="settings-panel" data-panel="subscription">
+        <div class="settings-section">
+            <div class="settings-section-header">
+                <div>
+                    <h2 class="settings-section-title">Subscription & Platform Fees</h2>
+                    <p class="settings-section-desc">Manage your commercial subscription, member/trainer limits, and platform fee breakdown.</p>
+                </div>
+                <a href="index.php?page=gym_subscription" class="btn btn-primary" style="padding: 8px 18px; border-radius: 10px; font-weight: 700; text-decoration: none; font-size: 13px; display: inline-flex; align-items: center; gap: 6px;">
+                    <span><?= h($subCta) ?></span>
+                    <span>&rarr;</span>
+                </a>
+            </div>
+
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 20px; margin-top: 10px;">
+                <!-- Card 1: Subscription & Plan -->
+                <div style="border-radius: 14px; border: 1px solid var(--line); background: color-mix(in srgb, var(--panel-soft) 60%, transparent); padding: 22px; display: flex; flex-direction: column;">
+                    <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px; gap: 10px;">
+                        <div>
+                            <span style="font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); font-weight: 700;">Current Plan</span>
+                            <h3 style="margin: 4px 0 0; font-size: 1.25rem; font-weight: 800; color: var(--ink);">
+                                <?php if ($ownerTrialInfo['is_trial_active']): ?>
+                                    Free Trial (50 Members &bull; 2 Trainers)
+                                <?php elseif ($ownerTrialInfo['is_free']): ?>
+                                    Free Tier
+                                <?php else: ?>
+                                    <?= h($subPlan) ?><?= $subPlan !== 'No Active Plan' ? ' Plan' : '' ?>
+                                <?php endif; ?>
+                            </h3>
+                        </div>
+                        <span class="badge" style="background: <?= $badgeBg ?>; color: <?= $badgeColor ?>; font-weight: 700; font-size: 11px; padding: 4px 10px; border-radius: 20px; white-space: nowrap;">
+                            <?= h($badgeText) ?>
+                        </span>
+                    </div>
+
+                    <p style="color: var(--muted); font-size: 13px; line-height: 1.5; margin: 0 0 16px;">
+                        <?php if ($ownerTrialInfo['is_trial_active']): ?>
+                            Evaluation trial active &bull; Uninterrupted access to classes, workouts, and reporting.
+                        <?php elseif ($ownerTrialInfo['is_free']): ?>
+                            Basic operations only (QR scanner, check-in, memberships, up to 25 members).
+                        <?php elseif ($matchedPlan): ?>
+                            <?= h($matchedPlan['price_label']) ?> / month &bull; <?= h($matchedPlan['desc']) ?>
+                        <?php else: ?>
+                            <?= h($subPlan) ?>
+                        <?php endif; ?>
+                    </p>
+
+                    <div style="display: flex; gap: 8px; align-items: center; margin-bottom: 18px; font-size: 12.5px;">
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color: var(--muted); flex-shrink: 0;"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+                        <?php if ($ownerTrialInfo['is_trial_active']): ?>
+                            <span style="color: var(--lime); font-weight: 600;">Trial ends on <?= h($subRenewal) ?></span>
+                        <?php elseif ($subRenewal !== 'N/A' && $subStatus === 'active'): ?>
+                            <span style="color: var(--muted);">Renews on <?= h($subRenewal) ?></span>
+                        <?php else: ?>
+                            <span style="color: var(--muted);">No active expiration date</span>
+                        <?php endif; ?>
+                    </div>
+
+                    <!-- Member & Trainer Capacity Progress -->
+                    <div style="margin-top: auto; padding: 14px; border-radius: 10px; background: rgba(255,255,255,0.03); border: 1px solid var(--line);">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; font-size: 13px;">
+                            <span style="color: var(--muted);">Member Capacity</span>
+                            <strong style="color: var(--ink);">
+                                <?= $activeMemberCount ?> / <?= $memberLimit === PHP_INT_MAX ? '∞ Unlimited' : $memberLimit ?>
+                                <?= $usagePercent !== null ? "({$usagePercent}%)" : '' ?>
+                            </strong>
+                        </div>
+                        <?php if ($usagePercent !== null): ?>
+                            <div style="width: 100%; height: 6px; background: rgba(255,255,255,0.08); border-radius: 3px; overflow: hidden; margin-bottom: 10px;">
+                                <div style="width: <?= $usagePercent ?>%; height: 100%; background: <?= $usagePercent >= 90 ? 'var(--danger, #ef4444)' : 'var(--lime, #84cc16)' ?>; transition: width 0.3s ease;"></div>
+                            </div>
+                        <?php endif; ?>
+
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 8px; padding-top: 8px; border-top: 1px solid rgba(255,255,255,0.06); font-size: 12.5px;">
+                            <span style="color: var(--muted);">Trainer Capacity</span>
+                            <strong style="color: var(--ink);">
+                                <?php if ($trainerLimit === PHP_INT_MAX): ?>
+                                    <?= $activeTrainerCount ?> / ∞ Unlimited
+                                <?php elseif ($trainerLimit > 0): ?>
+                                    <?= $activeTrainerCount ?> / <?= $trainerLimit ?>
+                                <?php else: ?>
+                                    0 (Locked &bull; Pro only)
+                                <?php endif; ?>
+                            </strong>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Card 2: Platform Earnings / Fees -->
+                <div style="border-radius: 14px; border: 1px solid var(--line); background: color-mix(in srgb, var(--panel-soft) 60%, transparent); padding: 22px; display: flex; flex-direction: column;">
+                    <span style="font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); font-weight: 700; margin-bottom: 4px;">Billing & Revenue</span>
+                    <h3 style="margin: 0 0 16px; font-size: 1.25rem; font-weight: 800; color: var(--ink);">Platform Earnings / Fees</h3>
+
+                    <div style="display: flex; flex-direction: column; gap: 12px; margin-bottom: 16px;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; padding-bottom: 10px; border-bottom: 1px solid var(--line); font-size: 13.5px;">
+                            <span style="color: var(--muted);">Total Revenue This Month:</span>
+                            <strong style="color: var(--ink);"><?= money($gymRevenue) ?></strong>
+                        </div>
+                        <div style="display: flex; justify-content: space-between; align-items: center; padding-bottom: 10px; border-bottom: 1px solid var(--line); font-size: 13.5px;">
+                            <span style="color: var(--danger, #ef4444);">Transaction Fees (1%):</span>
+                            <strong style="color: var(--danger, #ef4444);">-<?= money($platformFee) ?></strong>
+                        </div>
+                        <div style="display: flex; justify-content: space-between; align-items: center; font-size: 16px; padding-top: 4px;">
+                            <span style="font-weight: 700; color: var(--ink);">Gym Net Amount:</span>
+                            <strong style="color: var(--teal); font-size: 1.2rem;"><?= money($netRevenue) ?></strong>
+                        </div>
+                    </div>
+
+                    <div style="margin-top: auto; padding: 12px; border-radius: 10px; background: rgba(255,255,255,0.03); border: 1px solid var(--line);">
+                        <p style="font-size: 12px; color: var(--muted); margin: 0; line-height: 1.45;">
+                            FitTrack platform fees are calculated as 1% of your recorded revenue (both online GCash and cash walk-ins).
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <?php endif; ?>
+
     <!-- Tab: Preferences -->
     <div class="settings-panel" data-panel="preferences">
         <div class="settings-section">
@@ -902,6 +1095,16 @@ function profile_page(): void
         });
         // Show first panel
         panels.forEach((p, i) => { if (i > 0) p.style.display = 'none'; });
+
+        // URL hash or tab query parameter activation
+        const urlParams = new URLSearchParams(window.location.search);
+        const initialTab = (window.location.hash.replace('#', '') || urlParams.get('tab') || '').toLowerCase();
+        if (initialTab) {
+            const matchedTab = document.querySelector(`.settings-tab[data-tab="${initialTab}"]`);
+            if (matchedTab) {
+                matchedTab.click();
+            }
+        }
 
         // ── Video BG Toggle ──
         const toggleVideoBg = document.getElementById('toggleVideoBg');
