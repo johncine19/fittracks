@@ -189,8 +189,10 @@ function get_platform_subscription_plans(): array
         return [
             'starter' => [
                 'name' => 'Starter',
-                'price' => 499,
-                'price_label' => '₱499',
+                'price' => 599,
+                'price_label' => '₱599',
+                'annual_price' => 5990,
+                'annual_price_label' => '₱5,990',
                 'desc' => 'Best for small, solo, or boutique gyms.',
                 'popular' => false,
                 'features' => [
@@ -208,6 +210,8 @@ function get_platform_subscription_plans(): array
                 'name' => 'Professional',
                 'price' => 999,
                 'price_label' => '₱999',
+                'annual_price' => 9990,
+                'annual_price_label' => '₱9,990',
                 'desc' => 'Best for growing commercial gyms with staff.',
                 'popular' => true,
                 'features' => [
@@ -226,6 +230,8 @@ function get_platform_subscription_plans(): array
                 'name' => 'Business',
                 'price' => 1999,
                 'price_label' => '₱1,999',
+                'annual_price' => 19990,
+                'annual_price_label' => '₱19,990',
                 'desc' => 'For multi-branch & large-scale fitness centers.',
                 'popular' => false,
                 'features' => [
@@ -243,12 +249,20 @@ function get_platform_subscription_plans(): array
     $plans = [];
     foreach ($rows as $row) {
         $features = array_values(array_filter(array_map('trim', explode("\n", (string)$row['features']))));
+        $monthlyPrice = (float)$row['price'];
+        $annualPrice = !empty($row['annual_price']) ? (float)$row['annual_price'] : round($monthlyPrice * 10, 2);
+        $annualSavings = max(0, ($monthlyPrice * 12) - $annualPrice);
+
         $plans[$row['plan_key']] = [
             'id' => (int)$row['id'],
             'key' => $row['plan_key'],
             'name' => $row['name'],
-            'price' => (float)$row['price'],
-            'price_label' => '₱' . number_format((float)$row['price']),
+            'price' => $monthlyPrice,
+            'price_label' => '₱' . number_format($monthlyPrice),
+            'annual_price' => $annualPrice,
+            'annual_price_label' => '₱' . number_format($annualPrice),
+            'annual_savings' => $annualSavings,
+            'annual_savings_label' => '₱' . number_format($annualSavings),
             'desc' => $row['description'],
             'popular' => (bool)$row['is_popular'],
             'features' => $features,

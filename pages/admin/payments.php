@@ -291,7 +291,10 @@ function payments_page(): void
                                     <span><?= h($row['first_name'] . ' ' . $row['last_name']) ?></span>
                                 </div>
                             </td>
-                            <td><span class="badge" style="background: rgba(34,197,94,0.1); color: var(--lime);"><?= h($row['plan_name']) ?></span></td>
+                            <td>
+                                <span class="badge" style="background: rgba(34,197,94,0.1); color: var(--lime);"><?= h($row['plan_name']) ?></span>
+                                <span class="badge" style="background: rgba(255,255,255,0.06); color: var(--muted); font-size: 10px; margin-left: 4px;"><?= ($row['billing_cycle'] ?? '') === 'yearly' ? 'Annual' : 'Monthly' ?></span>
+                            </td>
                             <td><strong><?= h(money((float)$row['amount'])) ?></strong></td>
                             <td><?= h(date('M j, Y', strtotime($row['payment_date']))) ?></td>
                             <td><span style="color:var(--muted);font-size:12px"><?= strtoupper(h($row['payment_method'])) ?></span></td>
@@ -325,6 +328,7 @@ function payments_page(): void
                         <div>
                             <span class="payment-card-amount"><?= h(money((float)$row['amount'])) ?></span>
                             <span class="badge" style="background: rgba(34,197,94,0.1); color: var(--lime); margin-left: 6px; font-size: 11px;"><?= h($row['plan_name']) ?></span>
+                            <span class="badge" style="background: rgba(255,255,255,0.06); color: var(--muted); font-size: 10px; margin-left: 4px;"><?= ($row['billing_cycle'] ?? '') === 'yearly' ? 'Annual' : 'Monthly' ?></span>
                         </div>
                         <span class="payment-card-method">
                             <?= strtoupper(h($row['payment_method'])) ?>

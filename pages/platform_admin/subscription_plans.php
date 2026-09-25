@@ -11,6 +11,7 @@ function platform_subscription_plans_page(): void
         $planKey = trim((string) post('plan_key'));
         $name = trim((string) post('name'));
         $price = (float) post('price');
+        $annualPrice = post('annual_price') !== null && post('annual_price') !== '' ? (float) post('annual_price') : round($price * 10, 2);
         $desc = trim((string) post('description'));
         $features = trim((string) post('features'));
         $isPopular = post('is_popular') ? 1 : 0;
@@ -27,14 +28,15 @@ function platform_subscription_plans_page(): void
 
         $stmt = $pdo->prepare('
             UPDATE platform_subscription_plans 
-            SET name = ?, price = ?, description = ?, features = ?, is_popular = ? 
+            SET name = ?, price = ?, annual_price = ?, description = ?, features = ?, is_popular = ? 
             WHERE plan_key = ?
         ');
-        $stmt->execute([$name, $price, $desc, $features, $isPopular, $planKey]);
+        $stmt->execute([$name, $price, $annualPrice, $desc, $features, $isPopular, $planKey]);
 
         audit_log($user['user_id'], 'update_plan_pricing', 'platform_subscription_plans', $planKey, json_encode([
             'name' => $name,
             'price' => $price,
+            'annual_price' => $annualPrice,
             'description' => $desc,
             'is_popular' => $isPopular
         ]));
@@ -51,7 +53,7 @@ function platform_subscription_plans_page(): void
         <div class="page-header">
             <div>
                 <h1>Subscription Plans & Pricing</h1>
-                <p>Edit pricing, descriptions, and feature bullet points offered to gym owners.</p>
+                <p>Edit monthly and annual pricing, descriptions, and feature bullet points offered to gym owners.</p>
             </div>
             <a href="index.php?page=gym_subscription" target="_blank" class="btn btn-secondary plan-preview-link">
                 <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
@@ -62,6 +64,7 @@ function platform_subscription_plans_page(): void
         <div class="plans-editor-grid">
             <?php foreach ($plans as $plan): 
                 $isPop = (bool)$plan['is_popular'];
+                $annPrice = !empty($plan['annual_price']) ? (float)$plan['annual_price'] : round((float)$plan['price'] * 10, 2);
             ?>
                 <div class="plan-edit-card <?= $isPop ? 'popular-card' : '' ?>">
                     <div class="card-header">
@@ -83,13 +86,23 @@ function platform_subscription_plans_page(): void
                             <input type="text" name="name" class="form-control plan-input" value="<?= h($plan['name']) ?>" required>
                         </label>
 
-                        <label class="plan-label">
-                            Monthly Price (₱) *
-                            <div class="price-input-wrap">
-                                <span class="currency-symbol">₱</span>
-                                <input type="number" step="0.01" name="price" class="form-control plan-input price-input" value="<?= h((string)$plan['price']) ?>" required>
-                            </div>
-                        </label>
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+                            <label class="plan-label">
+                                Monthly Price (₱) *
+                                <div class="price-input-wrap">
+                                    <span class="currency-symbol">₱</span>
+                                    <input type="number" step="0.01" name="price" class="form-control plan-input price-input" value="<?= h((string)$plan['price']) ?>" required>
+                                </div>
+                            </label>
+
+                            <label class="plan-label">
+                                Annual / Yearly Price (₱) *
+                                <div class="price-input-wrap">
+                                    <span class="currency-symbol">₱</span>
+                                    <input type="number" step="0.01" name="annual_price" class="form-control plan-input price-input" value="<?= h((string)$annPrice) ?>" required>
+                                </div>
+                            </label>
+                        </div>
 
                         <label class="plan-label">
                             Short Description / Subtitle *

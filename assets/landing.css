@@ -1818,7 +1818,7 @@ video {
     background-color: var(--bg-card);
     border: 1px solid var(--border-subtle);
     border-radius: var(--radius-xl);
-    padding: 2.5rem 2rem;
+    padding: 2.25rem 1.85rem;
     display: flex;
     flex-direction: column;
     position: relative;
@@ -1834,7 +1834,7 @@ video {
     background: linear-gradient(180deg, var(--bg-card-hover) 0%, var(--bg-card) 100%);
     border: 2px solid var(--accent);
     box-shadow: var(--shadow-glow);
-    padding-top: 2.85rem;
+    padding: 2.25rem 1.85rem;
 }
 
 .popular-badge {
@@ -1860,60 +1860,236 @@ video {
     pointer-events: none;
 }
 
+.plan-header-top {
+    min-height: 84px;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-start;
+}
+
 .plan-name {
     font-size: 1.35rem;
     font-weight: 800;
     color: var(--text-bright);
-    margin-bottom: 0.5rem;
+    margin-bottom: 0.35rem;
+    line-height: 1.2;
 }
 
 .plan-desc {
-    font-size: 0.875rem;
+    font-size: 0.86rem;
     color: var(--text-muted);
-    margin-bottom: 1.5rem;
-    min-height: 40px;
+    line-height: 1.45;
+    margin: 0;
+    min-height: 42px;
+}
+
+.pricing-billing-switch-wrap {
+    display: flex;
+    justify-content: center;
+    margin-bottom: 2.5rem;
+    margin-top: -0.5rem;
+}
+
+.pricing-billing-switch {
+    display: inline-flex;
+    align-items: center;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid var(--border-medium);
+    border-radius: var(--radius-pill);
+    padding: 5px;
+    gap: 6px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.35);
+}
+
+.billing-switch-btn {
+    background: transparent;
+    border: none;
+    color: var(--text-dim);
+    font-size: 0.9rem;
+    font-weight: 600;
+    padding: 0.6rem 1.35rem;
+    border-radius: var(--radius-pill);
+    cursor: pointer;
+    transition: all var(--transition-fast);
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-family: inherit;
+}
+
+.billing-switch-btn:hover {
+    color: var(--text-bright);
+}
+
+.billing-switch-btn.active {
+    background: var(--accent);
+    color: #081202;
+    font-weight: 800;
+    box-shadow: 0 0 16px rgba(132, 204, 22, 0.35);
+}
+
+.billing-discount-badge {
+    background: rgba(0, 0, 0, 0.25);
+    color: #ffffff;
+    font-size: 0.65rem;
+    font-weight: 900;
+    letter-spacing: 0.04em;
+    padding: 2px 7px;
+    border-radius: var(--radius-pill);
+}
+
+.billing-switch-btn.active .billing-discount-badge {
+    background: rgba(8, 18, 2, 0.85);
+    color: var(--accent-bright);
+}
+
+.plan-annual-savings {
+    font-size: 0.82rem;
+    color: var(--accent);
+    font-weight: 700;
+    margin-top: -1.25rem;
+    margin-bottom: 1.25rem;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.plan-card-skip-trial {
+    margin-top: 10px;
+    text-align: center;
+}
+
+.skip-trial-link {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    color: var(--text-muted);
+    font-size: 0.84rem;
+    font-weight: 600;
+    text-decoration: none;
+    padding: 6px 12px;
+    border-radius: var(--radius-sm);
+    transition: all var(--transition-fast);
+}
+
+.skip-trial-link:hover {
+    color: var(--accent);
+    background: rgba(132, 204, 22, 0.08);
+}
+
+.skip-trial-link .skip-trial-arrow {
+    transition: transform var(--transition-fast);
+    display: inline-block;
+}
+
+.skip-trial-link:hover .skip-trial-arrow {
+    transform: translateX(3px);
 }
 
 .plan-price-box {
-    margin-bottom: 2rem;
-    padding-bottom: 1.5rem;
+    margin-top: 0.75rem;
+    margin-bottom: 1.25rem;
+    padding-bottom: 1rem;
     border-bottom: 1px solid var(--border-subtle);
+    display: flex;
+    align-items: baseline;
+    gap: 4px;
+    min-height: 56px;
 }
 
 .price-currency {
     font-size: 1.25rem;
     font-weight: 800;
     color: var(--text-bright);
-    vertical-align: top;
+    line-height: 1;
 }
 
 .price-val {
-    font-size: 2.75rem;
+    font-size: 2.5rem;
     font-weight: 900;
     color: var(--text-bright);
     letter-spacing: -0.03em;
+    line-height: 1;
 }
 
 .price-period {
-    font-size: 0.875rem;
+    font-size: 0.85rem;
     color: var(--text-dim);
+    margin-left: 2px;
+}
+
+.plan-features-container {
+    flex-grow: 1;
+    display: flex;
+    flex-direction: column;
 }
 
 .plan-features-list {
     list-style: none;
     display: flex;
     flex-direction: column;
-    gap: 0.85rem;
-    margin-bottom: 2rem;
-    flex-grow: 1;
+    gap: 0.62rem;
+    margin: 0;
+    padding: 0;
+}
+
+.plan-features-extra {
+    margin-top: 0.62rem;
 }
 
 .plan-feature-item {
     display: flex;
-    align-items: center;
-    gap: 0.75rem;
-    font-size: 0.9375rem;
+    align-items: flex-start;
+    gap: 0.65rem;
+    font-size: 0.88rem;
     color: var(--text-main);
+    line-height: 1.35;
+}
+
+.plan-feature-item .bullet-check {
+    flex-shrink: 0;
+    margin-top: 1px;
+}
+
+.plan-features-toggle-btn {
+    background: transparent;
+    border: none;
+    color: var(--accent);
+    font-size: 0.82rem;
+    font-weight: 700;
+    padding: 6px 0;
+    margin-top: 8px;
+    margin-bottom: 6px;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    transition: color var(--transition-fast);
+    font-family: inherit;
+    text-align: left;
+}
+
+.plan-features-toggle-btn:hover {
+    color: var(--accent-bright);
+}
+
+.plan-features-toggle-btn .toggle-icon {
+    transition: transform 0.25s ease;
+}
+
+.plan-features-toggle-btn.is-expanded .toggle-icon {
+    transform: rotate(180deg);
+}
+
+.plan-features-toggle-placeholder {
+    height: 31px;
+    margin-bottom: 6px;
+}
+
+.plan-card-actions {
+    margin-top: auto;
+    padding-top: 1.25rem;
 }
 
 .pricing-dots {
@@ -5003,14 +5179,54 @@ video {
     border-radius: 12px;
     border: 1px solid rgba(255, 255, 255, 0.08);
     background: rgba(14, 19, 16, 0.6);
+    position: relative;
 }
 
 .distribution-table {
     width: 100%;
-    min-width: 700px;
-    border-collapse: collapse;
+    min-width: 680px;
+    border-collapse: separate;
+    border-spacing: 0;
     font-size: 0.88rem;
     text-align: left;
+}
+
+.distribution-table thead th {
+    position: sticky;
+    top: 0;
+    z-index: 4;
+}
+
+.distribution-table th.col-cap,
+.distribution-table td:first-child {
+    position: sticky;
+    left: 0;
+    z-index: 3;
+    background: #0d1310;
+    border-right: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.distribution-table thead th.col-cap {
+    z-index: 6;
+    background: #141c17;
+}
+
+.dist-cat-row td {
+    position: sticky;
+    left: 0;
+    z-index: 2;
+}
+
+.dist-mobile-controls {
+    display: none;
+}
+
+.btn-text-mobile {
+    display: none;
+}
+
+.btn-text-full {
+    display: inline;
 }
 
 .distribution-table th {
@@ -5172,17 +5388,166 @@ video {
 }
 
 @media (max-width: 768px) {
+    .modal-card.distribution-modal-card {
+        width: 95% !important;
+        max-width: 95% !important;
+        max-height: 92vh !important;
+        border-radius: 16px !important;
+        margin: auto;
+    }
+
     .distribution-modal-header {
-        padding: 1rem 1.25rem;
+        padding: 0.85rem 1.15rem;
     }
+
+    .distribution-modal-header .modal-title {
+        font-size: 1.15rem !important;
+    }
+
     .distribution-modal-body {
-        padding: 1rem 1.25rem;
+        padding: 0.85rem 1rem;
     }
-    .dist-footer-ctas {
-        justify-content: stretch;
+
+    .distribution-intro {
+        font-size: 0.78rem;
+        margin-bottom: 0.75rem;
+        line-height: 1.4;
     }
-    .dist-footer-ctas .btn {
-        flex: 1 1 100%;
+
+    .dist-mobile-controls {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        margin-bottom: 10px;
+    }
+
+    .dist-swipe-hint {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 0.72rem;
+        font-weight: 700;
+        color: var(--lime);
+        background: rgba(132, 204, 22, 0.1);
+        border: 1px solid rgba(132, 204, 22, 0.25);
+        padding: 4px 10px;
+        border-radius: 999px;
+        width: fit-content;
+    }
+
+    .dist-mobile-tabs {
+        display: flex;
+        gap: 4px;
+        background: rgba(255, 255, 255, 0.04);
+        padding: 3px;
+        border-radius: 8px;
+        border: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
+    .dist-mobile-tab-btn {
+        flex: 1;
+        background: transparent;
+        border: none;
+        color: var(--text-dim);
+        font-size: 0.72rem;
+        font-weight: 700;
+        padding: 6px 4px;
+        border-radius: 6px;
+        cursor: pointer;
+        transition: all 0.15s ease;
         text-align: center;
+        font-family: inherit;
+        white-space: nowrap;
+    }
+
+    .dist-mobile-tab-btn.active {
+        background: var(--lime);
+        color: #0b110e;
+        box-shadow: 0 0 10px rgba(132, 204, 22, 0.35);
+    }
+
+    .distribution-table-wrap {
+        border-radius: 10px;
+        max-height: 52vh;
+    }
+
+    .distribution-table {
+        min-width: 520px;
+        font-size: 0.78rem;
+    }
+
+    .distribution-table th.col-cap,
+    .distribution-table td:first-child {
+        min-width: 140px;
+        max-width: 140px;
+        padding: 9px 10px !important;
+        font-size: 0.76rem !important;
+        line-height: 1.3;
+        box-shadow: 3px 0 8px rgba(0, 0, 0, 0.6);
+    }
+
+    .distribution-table th.col-tier,
+    .distribution-table td:not(:first-child) {
+        min-width: 120px;
+        padding: 9px 8px !important;
+        text-align: center;
+    }
+
+    .distribution-table .tier-name {
+        font-size: 0.88rem;
+    }
+
+    .distribution-table .tier-price {
+        font-size: 0.75rem;
+    }
+
+    .distribution-table .popular-tag {
+        font-size: 0.6rem;
+        padding: 2px 6px;
+    }
+
+    .dist-pill {
+        font-size: 0.7rem;
+        padding: 2px 6px;
+        line-height: 1.2;
+    }
+
+    .status-access, .status-locked {
+        font-size: 0.75rem;
+    }
+
+    .dist-cat-row td {
+        font-size: 0.65rem;
+        padding: 6px 10px !important;
+    }
+
+    .distribution-modal-footer {
+        padding: 0.75rem 1rem;
+    }
+
+    .dist-footer-ctas {
+        display: grid;
+        grid-template-columns: 1fr 1.25fr 1fr;
+        gap: 6px;
+        width: 100%;
+    }
+
+    .dist-footer-ctas .btn {
+        padding: 8px 4px !important;
+        font-size: 0.72rem !important;
+        font-weight: 700;
+        text-align: center;
+        border-radius: 8px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .btn-text-full {
+        display: none !important;
+    }
+
+    .btn-text-mobile {
+        display: inline !important;
     }
 }

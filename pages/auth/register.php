@@ -257,10 +257,39 @@ function handle_register(): void
 
                         <!-- STEP 1: Basic Information -->
                         <div class="split-step-pane <?= $startOnStep2 ? 'step-hidden' : '' ?>" id="step-pane-1">
+                            <?php 
+                            $requestedPlan = trim((string)($_GET['plan'] ?? ''));
+                            $isSubscribeIntent = (isset($_GET['intent']) && $_GET['intent'] === 'subscribe');
+                            $plansList = get_platform_subscription_plans();
+                            $selectedPlanObj = $plansList[$requestedPlan] ?? null;
+                            if ($selectedPlanObj) {
+                                $_SESSION['intended_platform_plan'] = $requestedPlan;
+                                $_SESSION['intended_platform_action'] = $isSubscribeIntent ? 'subscribe' : 'trial';
+                            }
+                            ?>
+                            <?php if ($selectedPlanObj): ?>
+                                <div style="background: rgba(132, 204, 22, 0.12); border: 1px solid rgba(132, 204, 22, 0.35); border-radius: 12px; padding: 12px 16px; margin-bottom: 20px; display: flex; align-items: center; justify-content: space-between; gap: 12px;">
+                                    <div style="display: flex; align-items: center; gap: 10px;">
+                                        <span style="color: var(--lime, #84cc16); font-size: 18px;">⚡</span>
+                                        <div>
+                                            <div style="font-size: 13px; font-weight: 700; color: #fff;">
+                                                Targeting <?= h($selectedPlanObj['name']) ?> Plan (<?= h($selectedPlanObj['price_label']) ?>/mo)
+                                            </div>
+                                            <div style="font-size: 11.5px; color: rgba(255,255,255,0.7);">
+                                                <?= $isSubscribeIntent ? 'Direct subscription & immediate payment.' : 'Includes 14-day free trial on signup.' ?>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <span style="font-size: 10.5px; background: rgba(132,204,22,0.25); color: var(--lime, #84cc16); font-weight: 800; padding: 3px 8px; border-radius: 6px; letter-spacing: 0.5px; white-space: nowrap;">
+                                        <?= $isSubscribeIntent ? 'DIRECT PAY' : '14-DAY TRIAL' ?>
+                                    </span>
+                                </div>
+                            <?php endif; ?>
+
                             <!-- Account Type Selection -->
                             <div class="split-form-group">
                                 <label>I AM A:</label>
-                                <?php $isGymOwner = (isset($_GET['role']) && $_GET['role'] === 'gym_owner'); ?>
+                                <?php $isGymOwner = (isset($_GET['role']) && $_GET['role'] === 'gym_owner') || !empty($selectedPlanObj); ?>
                                 <div class="split-account-type-grid">
                                     <label class="split-account-type-btn">
                                         <input type="radio" name="account_type" value="member" <?= !$isGymOwner ? 'checked' : '' ?>>

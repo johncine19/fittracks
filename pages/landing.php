@@ -1423,34 +1423,91 @@ function landing_page(): void
                     </div>
                 </div>
 
+                <!-- Billing Cycle Toggle (Monthly vs Annual / Yearly) -->
+                <div class="pricing-billing-switch-wrap">
+                    <div class="pricing-billing-switch" id="landingBillingSwitch">
+                        <button type="button" class="billing-switch-btn active" id="landingBillingMonthly" onclick="setLandingBillingCycle('monthly')">
+                            Monthly Billing
+                        </button>
+                        <button type="button" class="billing-switch-btn" id="landingBillingYearly" onclick="setLandingBillingCycle('yearly')">
+                            Annual / Yearly
+                            <span class="billing-discount-badge">SAVE ~2 MONTHS</span>
+                        </button>
+                    </div>
+                </div>
+
                 <div class="pricing-grid" id="pricingGrid">
                     <?php foreach ($platformPlans as $pKey => $p): 
                         $isPop = !empty($p['popular']);
+                        $annPrice = (float)($p['annual_price'] ?? round((float)$p['price'] * 10, 2));
+                        $annSavings = max(0, ((float)$p['price'] * 12) - $annPrice);
+                        $initialCount = 4;
+                        $hasMore = count($p['features']) > $initialCount;
+                        $initialFeatures = array_slice($p['features'], 0, $initialCount);
+                        $extraFeatures = array_slice($p['features'], $initialCount);
                     ?>
                     <!-- <?= h($p['name']) ?> -->
                     <div class="pricing-card <?= $isPop ? 'popular' : '' ?>">
                         <?php if ($isPop): ?>
                             <span class="popular-badge">★ Most Popular</span>
                         <?php endif; ?>
-                        <h3 class="plan-name"><?= h($p['name']) ?></h3>
-                        <p class="plan-desc"><?= h($p['desc']) ?></p>
+
+                        <div class="plan-header-top">
+                            <h3 class="plan-name"><?= h($p['name']) ?></h3>
+                            <p class="plan-desc"><?= h($p['desc']) ?></p>
+                        </div>
+
                         <div class="plan-price-box">
                             <span class="price-currency">₱</span>
-                            <span class="price-val"><?= number_format((float)$p['price']) ?></span>
-                            <span class="price-period">/ month</span>
+                            <span class="price-val" id="landing-price-<?= h($pKey) ?>"><?= number_format((float)$p['price']) ?></span>
+                            <span class="price-period" id="landing-period-<?= h($pKey) ?>">/ month</span>
                         </div>
-                        <ul class="plan-features-list">
-                            <?php foreach ($p['features'] as $feat): ?>
-                                <li class="plan-feature-item">
-                                    <span class="bullet-check"><?= landing_icon('check', 'check-svg') ?></span>
-                                    <?= h($feat) ?>
-                                </li>
-                            <?php endforeach; ?>
-                        </ul>
-                        <a href="index.php?page=register&role=gym_owner" class="btn <?= $isPop ? 'btn-lime' : 'btn-outline' ?> btn-lg" style="width: 100%;">
-                            Start 14-Day Free Trial
-                        </a>
-                        <div class="plan-card-subnote">14-Day Trial Included &bull; Upgrade Anytime</div>
+                        <div class="plan-annual-savings" id="landing-savings-<?= h($pKey) ?>" style="display: none;">
+                            Save ₱<?= number_format($annSavings) ?> with annual billing
+                        </div>
+
+                        <div class="plan-features-container">
+                            <ul class="plan-features-list">
+                                <?php foreach ($initialFeatures as $feat): ?>
+                                    <li class="plan-feature-item">
+                                        <span class="bullet-check"><?= landing_icon('check', 'check-svg') ?></span>
+                                        <span><?= h($feat) ?></span>
+                                    </li>
+                                <?php endforeach; ?>
+                            </ul>
+
+                            <?php if ($hasMore): ?>
+                                <div class="plan-features-collapsible" id="extra-features-<?= h($pKey) ?>" style="display: none;">
+                                    <ul class="plan-features-list plan-features-extra">
+                                        <?php foreach ($extraFeatures as $feat): ?>
+                                            <li class="plan-feature-item">
+                                                <span class="bullet-check"><?= landing_icon('check', 'check-svg') ?></span>
+                                                <span><?= h($feat) ?></span>
+                                            </li>
+                                        <?php endforeach; ?>
+                                    </ul>
+                                </div>
+                                <button type="button" class="plan-features-toggle-btn" onclick="togglePlanFeatures('<?= h($pKey) ?>', this)">
+                                    <span class="toggle-text">+ <?= count($extraFeatures) ?> more features</span>
+                                    <svg class="toggle-icon" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                                </button>
+                            <?php else: ?>
+                                <div class="plan-features-toggle-placeholder"></div>
+                            <?php endif; ?>
+                        </div>
+
+                        <div class="plan-card-actions">
+                            <a href="index.php?page=register&role=gym_owner&plan=<?= h($pKey) ?>" class="btn <?= $isPop ? 'btn-lime' : 'btn-outline' ?> btn-lg plan-card-trial-btn" style="width: 100%;">
+                                Start 14-Day Free Trial
+                            </a>
+                            <div class="plan-card-subnote">14-Day Trial Included &bull; Upgrade Anytime</div>
+                            <div class="plan-card-skip-trial">
+                                <a href="index.php?page=register&role=gym_owner&plan=<?= h($pKey) ?>&intent=subscribe" class="skip-trial-link" title="Skip trial and subscribe directly">
+                                    <span>Skip trial &amp; subscribe now</span>
+                                    <span class="skip-trial-arrow">&rarr;</span>
+                                </a>
+                            </div>
+                        </div>
                     </div>
                     <?php endforeach; ?>
                 </div>
@@ -1614,8 +1671,21 @@ function landing_page(): void
                     <p class="distribution-intro">
                         Review the exact capability distribution across our commercial gym tiers. Every approved facility starts with a complimentary <strong>14-day evaluation trial (50 members & 2 trainers)</strong> with zero payment required, and graceful fallback to our <strong>Limited Free Account (25 members)</strong>.
                     </p>
+                    <!-- Mobile Comparison Controls -->
+                    <div class="dist-mobile-controls">
+                        <div class="dist-swipe-hint">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8L22 12L18 16"/><path d="M6 8L2 12L6 16"/><path d="M2 12H22"/></svg>
+                            <span>Swipe horizontally to compare tiers</span>
+                        </div>
+                        <div class="dist-mobile-tabs">
+                            <button type="button" class="dist-mobile-tab-btn active" onclick="jumpToDistTier(0, this)">All Plans</button>
+                            <button type="button" class="dist-mobile-tab-btn" onclick="jumpToDistTier(1, this)">Starter</button>
+                            <button type="button" class="dist-mobile-tab-btn" onclick="jumpToDistTier(2, this)">★ Pro</button>
+                            <button type="button" class="dist-mobile-tab-btn" onclick="jumpToDistTier(3, this)">Business</button>
+                        </div>
+                    </div>
 
-                    <div class="distribution-table-wrap">
+                    <div class="distribution-table-wrap" id="distTableWrap">
                         <table class="distribution-table">
                             <thead>
                                 <tr>
@@ -1774,9 +1844,18 @@ function landing_page(): void
 
                 <div class="distribution-modal-footer">
                     <div class="dist-footer-ctas">
-                        <a href="index.php?page=register&role=gym_owner" class="btn btn-outline btn-sm">Get <?= h($starterPlan['name']) ?> (<?= h($starterPlan['price_label']) ?>)</a>
-                        <a href="index.php?page=register&role=gym_owner" class="btn btn-lime btn-sm">Get <?= h($proPlan['name']) ?> (<?= h($proPlan['price_label']) ?>)</a>
-                        <a href="index.php?page=register&role=gym_owner" class="btn btn-outline btn-sm">Get <?= h($businessPlan['name']) ?> (<?= h($businessPlan['price_label']) ?>)</a>
+                        <a href="index.php?page=register&role=gym_owner&plan=starter" class="btn btn-outline btn-sm">
+                            <span class="btn-text-full">Get <?= h($starterPlan['name']) ?> (<?= h($starterPlan['price_label']) ?>)</span>
+                            <span class="btn-text-mobile">Starter (<?= h($starterPlan['price_label']) ?>)</span>
+                        </a>
+                        <a href="index.php?page=register&role=gym_owner&plan=professional" class="btn btn-lime btn-sm">
+                            <span class="btn-text-full">Get <?= h($proPlan['name']) ?> (<?= h($proPlan['price_label']) ?>)</span>
+                            <span class="btn-text-mobile">★ Pro (<?= h($proPlan['price_label']) ?>)</span>
+                        </a>
+                        <a href="index.php?page=register&role=gym_owner&plan=business" class="btn btn-outline btn-sm">
+                            <span class="btn-text-full">Get <?= h($businessPlan['name']) ?> (<?= h($businessPlan['price_label']) ?>)</span>
+                            <span class="btn-text-mobile">Business (<?= h($businessPlan['price_label']) ?>)</span>
+                        </a>
                     </div>
                 </div>
             </div>
@@ -2430,6 +2509,100 @@ function landing_page(): void
             } else {
                 initScrollReveal();
             }
+
+            // Landing Page Pricing Billing Switch (Monthly / Annual)
+            const landingPlansData = <?= json_encode($platformPlans, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP) ?>;
+            let currentLandingCycle = 'monthly';
+
+            function setLandingBillingCycle(cycle) {
+                currentLandingCycle = (cycle === 'yearly') ? 'yearly' : 'monthly';
+                const monthlyBtn = document.getElementById('landingBillingMonthly');
+                const yearlyBtn = document.getElementById('landingBillingYearly');
+                if (monthlyBtn && yearlyBtn) {
+                    monthlyBtn.classList.toggle('active', currentLandingCycle === 'monthly');
+                    yearlyBtn.classList.toggle('active', currentLandingCycle === 'yearly');
+                }
+
+                for (const [key, plan] of Object.entries(landingPlansData)) {
+                    const priceEl = document.getElementById('landing-price-' + key);
+                    const periodEl = document.getElementById('landing-period-' + key);
+                    const savingsEl = document.getElementById('landing-savings-' + key);
+                    if (priceEl && periodEl) {
+                        if (currentLandingCycle === 'yearly') {
+                            const annPrice = plan.annual_price || (plan.price * 10);
+                            priceEl.textContent = Number(annPrice).toLocaleString();
+                            periodEl.textContent = '/ year';
+                            if (savingsEl) savingsEl.style.display = 'flex';
+                        } else {
+                            priceEl.textContent = Number(plan.price).toLocaleString();
+                            periodEl.textContent = '/ month';
+                            if (savingsEl) savingsEl.style.display = 'none';
+                        }
+                    }
+                }
+            }
+
+            // Expand / Collapse Extra Features per card
+            function togglePlanFeatures(key, btn) {
+                const el = document.getElementById('extra-features-' + key);
+                if (!el) return;
+                const isHidden = (el.style.display === 'none' || el.style.display === '');
+                const plan = landingPlansData[key];
+                const extraCount = plan && plan.features ? Math.max(0, plan.features.length - 4) : '';
+
+                if (isHidden) {
+                    el.style.display = 'block';
+                    btn.classList.add('is-expanded');
+                    const textEl = btn.querySelector('.toggle-text');
+                    if (textEl) textEl.textContent = 'Show fewer features';
+                } else {
+                    el.style.display = 'none';
+                    btn.classList.remove('is-expanded');
+                    const textEl = btn.querySelector('.toggle-text');
+                    if (textEl) textEl.textContent = '+ ' + extraCount + ' more features';
+                }
+            }
+
+            // Mobile Plan Distribution Jump Tab Handler
+            function jumpToDistTier(tierIndex, btn) {
+                const wrap = document.getElementById('distTableWrap');
+                if (!wrap) return;
+                const btns = document.querySelectorAll('.dist-mobile-tab-btn');
+                btns.forEach(b => b.classList.remove('active'));
+                if (btn) btn.classList.add('active');
+
+                if (tierIndex === 0) {
+                    wrap.scrollTo({ left: 0, behavior: 'smooth' });
+                } else {
+                    const tiers = wrap.querySelectorAll('th.col-tier');
+                    if (tiers[tierIndex - 1]) {
+                        const targetLeft = Math.max(0, tiers[tierIndex - 1].offsetLeft - 130);
+                        wrap.scrollTo({ left: targetLeft, behavior: 'smooth' });
+                    }
+                }
+            }
+
+            // Auto-update active tab on horizontal scroll
+            document.addEventListener('DOMContentLoaded', () => {
+                const distWrap = document.getElementById('distTableWrap');
+                if (distWrap) {
+                    distWrap.addEventListener('scroll', () => {
+                        const scrollLeft = distWrap.scrollLeft;
+                        const btns = document.querySelectorAll('.dist-mobile-tab-btn');
+                        if (btns.length >= 4) {
+                            if (scrollLeft < 30) {
+                                btns.forEach((b, i) => b.classList.toggle('active', i === 0));
+                            } else if (scrollLeft < 140) {
+                                btns.forEach((b, i) => b.classList.toggle('active', i === 1));
+                            } else if (scrollLeft < 260) {
+                                btns.forEach((b, i) => b.classList.toggle('active', i === 2));
+                            } else {
+                                btns.forEach((b, i) => b.classList.toggle('active', i === 3));
+                            }
+                        }
+                    }, { passive: true });
+                }
+            });
         </script>
 
     </body>

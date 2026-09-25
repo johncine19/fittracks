@@ -28,6 +28,10 @@ function gym_subscription_page(): void
     if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         verify_csrf();
         $selectedKey = strtolower(trim((string) post('plan_key')));
+        $billingCycle = strtolower(trim((string) post('billing_cycle')));
+        if ($billingCycle !== 'yearly') {
+            $billingCycle = 'monthly';
+        }
         $paymentMethod = trim((string) post('payment_method')) ?: 'gcash';
 
         if (!isset($plans[$selectedKey])) {
@@ -37,9 +41,15 @@ function gym_subscription_page(): void
 
         $plan = $plans[$selectedKey];
         $planName = $plan['name'];
-        $amount = (float) $plan['price'];
-        $startDate = date('Y-m-d');
-        $endDate = date('Y-m-d', strtotime('+1 month'));
+        if ($billingCycle === 'yearly') {
+            $amount = (float)($plan['annual_price'] ?? round($plan['price'] * 10, 2));
+            $startDate = date('Y-m-d');
+            $endDate = date('Y-m-d', strtotime('+1 year'));
+        } else {
+            $amount = (float) $plan['price'];
+            $startDate = date('Y-m-d');
+            $endDate = date('Y-m-d', strtotime('+1 month'));
+        }
         $receiptNumber = 'SUB-' . date('Ymd') . '-' . strtoupper(substr(bin2hex(random_bytes(4)), 0, 6));
 
         try {
@@ -49,13 +59,14 @@ function gym_subscription_page(): void
             $stmt = $pdo->prepare('
                 INSERT INTO gym_subscription_payments 
                 (gym_id, owner_user_id, plan_name, amount, billing_cycle, payment_method, status, receipt_number, payment_date, start_date, end_date)
-                VALUES (?, ?, ?, ?, "monthly", ?, "paid", ?, NOW(), ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, "paid", ?, NOW(), ?, ?)
             ');
             $stmt->execute([
                 $gym['gym_id'],
                 $user['user_id'],
                 $planName,
                 $amount,
+                $billingCycle,
                 $paymentMethod,
                 $receiptNumber,
                 $startDate,
@@ -84,23 +95,23 @@ function gym_subscription_page(): void
                 'subscribe_plan',
                 'gym_subscription',
                 (string)$gym['gym_id'],
-                json_encode(['plan' => $planName, 'amount' => $amount, 'receipt' => $receiptNumber])
+                json_encode(['plan' => $planName, 'billing_cycle' => $billingCycle, 'amount' => $amount, 'receipt' => $receiptNumber])
             );
 
             notify_admins(
                 'system',
                 'New Subscription Payment',
-                "{$gym['name']} subscribed to the {$planName} Plan (" . money($amount) . ") via " . strtoupper($paymentMethod) . "."
+                "{$gym['name']} subscribed to the {$planName} Plan (" . money($amount) . " / " . ($billingCycle === 'yearly' ? 'Yearly' : 'Monthly') . ") via " . strtoupper($paymentMethod) . "."
             );
 
             notify_user(
                 (int)$user['user_id'],
                 'system',
                 'Subscription Activated',
-                "Your {$planName} plan is now active until " . date('M j, Y', strtotime($endDate)) . ". Receipt: {$receiptNumber}."
+                "Your {$planName} plan (" . ($billingCycle === 'yearly' ? 'Annual' : 'Monthly') . ") is now active until " . date('M j, Y', strtotime($endDate)) . ". Receipt: {$receiptNumber}."
             );
 
-            flash("Your {$planName} subscription has been activated! Welcome to your gym dashboard.", 'success');
+            flash("Your {$planName} (" . ($billingCycle === 'yearly' ? 'Annual' : 'Monthly') . ") subscription has been activated! Welcome to your gym dashboard.", 'success');
             redirect('dashboard');
             return;
         } catch (Throwable $e) {
@@ -116,60 +127,73 @@ function gym_subscription_page(): void
     ?>
     <div class="subscription-viewport">
         <section class="subscription-container">
-            <div style="text-align: center; margin-bottom: 40px;">
-                <a class="brand" href="index.php" style="margin-bottom: 20px; display: inline-flex; align-items: center; gap: 10px; text-decoration: none;">
-                    <div style="width:36px;height:36px;background:var(--lime, #84cc16);border-radius:6px;display:flex;align-items:center;justify-content:center;color:#0b110e;font-weight:900;font-size:18px;">FT</div>
-                    <span style="font-weight:700;font-size:1.4rem;line-height:1;letter-spacing:-0.2px;color:#ffffff;">FitTrack</span>
+            <div class="subscription-header-block" style="text-align: center; margin-bottom: 22px;">
+                <a class="brand" href="index.php" style="margin-bottom: 8px; display: inline-flex; align-items: center; gap: 8px; text-decoration: none;">
+                    <div style="width:32px;height:32px;background:var(--lime, #84cc16);border-radius:6px;display:flex;align-items:center;justify-content:center;color:#0b110e;font-weight:900;font-size:16px;">FT</div>
+                    <span style="font-weight:700;font-size:1.25rem;line-height:1;letter-spacing:-0.2px;color:#ffffff;">FitTrack</span>
                 </a>
-                <h1 style="font-size: 2.4rem; font-weight: 800; margin: 10px 0; color: #ffffff; letter-spacing: -0.5px;">
+                <h1 style="font-size: 1.85rem; font-weight: 800; margin: 4px 0 6px; color: #ffffff; letter-spacing: -0.5px;">
                     Choose Your Subscription Plan
                 </h1>
-                <p style="color: rgba(226, 232, 240, 0.75); font-size: 1.1rem; max-width: 600px; margin: 0 auto; line-height: 1.5;">
+                <p style="color: rgba(226, 232, 240, 0.75); font-size: 0.95rem; max-width: 560px; margin: 0 auto; line-height: 1.45;">
                     Select the plan that fits your gym operations. You can upgrade, downgrade, or renew at any time.
                 </p>
             </div>
 
             <?php if ($trialInfo['is_trial_active']): ?>
-                <div style="background: linear-gradient(135deg, rgba(132, 204, 22, 0.15), rgba(16, 185, 129, 0.08)); border: 1px solid rgba(132, 204, 22, 0.4); border-radius: 16px; padding: 20px 24px; margin-bottom: 32px; display: flex; align-items: center; justify-content: space-between; gap: 20px; flex-wrap: wrap;">
-                    <div style="display: flex; align-items: center; gap: 16px;">
-                        <div style="width: 48px; height: 48px; background: rgba(132, 204, 22, 0.2); border-radius: 12px; display: flex; align-items: center; justify-content: center; color: var(--lime, #84cc16); font-size: 24px; flex-shrink: 0;">⏱️</div>
+                <div style="background: linear-gradient(135deg, rgba(132, 204, 22, 0.15), rgba(16, 185, 129, 0.08)); border: 1px solid rgba(132, 204, 22, 0.4); border-radius: 12px; padding: 14px 20px; margin-bottom: 20px; display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap;">
+                    <div style="display: flex; align-items: center; gap: 14px;">
+                        <div style="width: 40px; height: 40px; background: rgba(132, 204, 22, 0.2); border-radius: 10px; display: flex; align-items: center; justify-content: center; color: var(--lime, #84cc16); font-size: 20px; flex-shrink: 0;">⏱️</div>
                         <div>
                             <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
-                                <h3 style="margin: 0; color: #fff; font-size: 1.15rem; font-weight: 700;">Free Trial Active</h3>
-                                <span style="background: rgba(132, 204, 22, 0.25); color: var(--lime, #84cc16); font-size: 11px; font-weight: 800; padding: 3px 10px; border-radius: 20px; letter-spacing: 0.5px;">
+                                <h3 style="margin: 0; color: #fff; font-size: 1.05rem; font-weight: 700;">Free Trial Active</h3>
+                                <span style="background: rgba(132, 204, 22, 0.25); color: var(--lime, #84cc16); font-size: 10.5px; font-weight: 800; padding: 2px 8px; border-radius: 20px; letter-spacing: 0.5px;">
                                     <?= $trialInfo['days_left'] ?> DAY<?= $trialInfo['days_left'] === 1 ? '' : 'S' ?> REMAINING
                                 </span>
                             </div>
-                            <p style="margin: 4px 0 0; color: rgba(226, 232, 240, 0.75); font-size: 0.92rem; line-height: 1.4;">
-                                You are exploring FitTrack with <strong>50 member capacity & 2 trainer slots</strong> until <?= !empty($trialInfo['renewal_date']) ? date('M j, Y', strtotime($trialInfo['renewal_date'])) : 'trial concludes' ?>. Choose a paid plan anytime to unlock unlimited capacity and features.
+                            <p style="margin: 3px 0 0; color: rgba(226, 232, 240, 0.75); font-size: 0.88rem; line-height: 1.35;">
+                                You are exploring FitTrack with <strong>50 member capacity & 2 trainer slots</strong> until <?= !empty($trialInfo['renewal_date']) ? date('M j, Y', strtotime($trialInfo['renewal_date'])) : 'trial concludes' ?>.
                             </p>
                         </div>
                     </div>
-                    <a href="index.php?page=dashboard" class="btn" style="background: rgba(255,255,255,0.08); color: #fff; border: 1px solid rgba(255,255,255,0.15); padding: 10px 20px; border-radius: 10px; font-weight: 600; text-decoration: none; white-space: nowrap;">
+                    <a href="index.php?page=dashboard" class="btn" style="background: rgba(255,255,255,0.08); color: #fff; border: 1px solid rgba(255,255,255,0.15); padding: 7px 16px; border-radius: 8px; font-size: 0.85rem; font-weight: 600; text-decoration: none; white-space: nowrap;">
                         ← Back to Dashboard
                     </a>
                 </div>
             <?php elseif ($trialInfo['is_free']): ?>
-                <div style="background: rgba(255, 255, 255, 0.03); border: 1px solid var(--line); border-radius: 16px; padding: 20px 24px; margin-bottom: 32px; display: flex; align-items: center; justify-content: space-between; gap: 20px; flex-wrap: wrap;">
-                    <div style="display: flex; align-items: center; gap: 16px;">
-                        <div style="width: 48px; height: 48px; background: rgba(255, 255, 255, 0.06); border-radius: 12px; display: flex; align-items: center; justify-content: center; color: var(--ink); font-size: 24px; flex-shrink: 0;">⚡</div>
+                <div style="background: rgba(255, 255, 255, 0.03); border: 1px solid var(--line); border-radius: 12px; padding: 14px 20px; margin-bottom: 20px; display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap;">
+                    <div style="display: flex; align-items: center; gap: 14px;">
+                        <div style="width: 40px; height: 40px; background: rgba(255, 255, 255, 0.06); border-radius: 10px; display: flex; align-items: center; justify-content: center; color: var(--ink); font-size: 20px; flex-shrink: 0;">⚡</div>
                         <div>
                             <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
-                                <h3 style="margin: 0; color: #fff; font-size: 1.15rem; font-weight: 700;">Free Community Tier (Active)</h3>
-                                <span style="background: rgba(255, 255, 255, 0.08); color: var(--muted); font-size: 11px; font-weight: 800; padding: 3px 10px; border-radius: 20px; letter-spacing: 0.5px;">
+                                <h3 style="margin: 0; color: #fff; font-size: 1.05rem; font-weight: 700;">Free Community Tier (Active)</h3>
+                                <span style="background: rgba(255, 255, 255, 0.08); color: var(--muted); font-size: 10.5px; font-weight: 800; padding: 2px 8px; border-radius: 20px; letter-spacing: 0.5px;">
                                     LIMITED CAPACITY (25 MEMBERS)
                                 </span>
                             </div>
-                            <p style="margin: 4px 0 0; color: rgba(226, 232, 240, 0.75); font-size: 0.92rem; line-height: 1.4;">
-                                You currently have access to basic check-ins, attendance, and member registration. Upgrade below to add trainers, schedule classes, access advanced analytics, and increase member capacity.
+                            <p style="margin: 3px 0 0; color: rgba(226, 232, 240, 0.75); font-size: 0.88rem; line-height: 1.35;">
+                                Upgrade below to add trainers, schedule classes, access advanced analytics, and increase capacity.
                             </p>
                         </div>
                     </div>
-                    <a href="index.php?page=dashboard" class="btn" style="background: rgba(255,255,255,0.08); color: #fff; border: 1px solid rgba(255,255,255,0.15); padding: 10px 20px; border-radius: 10px; font-weight: 600; text-decoration: none; white-space: nowrap;">
+                    <a href="index.php?page=dashboard" class="btn" style="background: rgba(255,255,255,0.08); color: #fff; border: 1px solid rgba(255,255,255,0.15); padding: 7px 16px; border-radius: 8px; font-size: 0.85rem; font-weight: 600; text-decoration: none; white-space: nowrap;">
                         ← Back to Dashboard
                     </a>
                 </div>
             <?php endif; ?>
+
+            <!-- Billing Cycle Toggle (Monthly vs Annual / Yearly) -->
+            <div class="billing-cycle-toggle-wrapper">
+                <div class="billing-cycle-toggle" id="billingCycleToggle">
+                    <button type="button" class="billing-toggle-btn active" id="btn-cycle-monthly" onclick="setBillingCycle('monthly')">
+                        Monthly Billing
+                    </button>
+                    <button type="button" class="billing-toggle-btn" id="btn-cycle-yearly" onclick="setBillingCycle('yearly')">
+                        Annual / Yearly
+                        <span class="billing-badge-save">SAVE ~2 MONTHS</span>
+                    </button>
+                </div>
+            </div>
 
             <div class="pricing-grid">
                 <?php foreach ($plans as $key => $plan): 
@@ -190,23 +214,53 @@ function gym_subscription_page(): void
                         <p class="pricing-desc"><?= h($plan['desc']) ?></p>
 
                         <div class="pricing-price">
-                            <span class="amount"><?= h($plan['price_label']) ?></span>
-                            <span class="period">/mo</span>
+                            <span class="amount" id="price-<?= h($key) ?>"><?= h($plan['price_label']) ?></span>
+                            <span class="period" id="period-<?= h($key) ?>">/mo</span>
+                        </div>
+                        <div class="annual-savings-note" id="savings-<?= h($key) ?>" style="display: none;">
+                            Save <?= h($plan['annual_savings_label'] ?? '₱0') ?> billed annually
                         </div>
 
-                        <ul class="pricing-features">
-                            <?php foreach ($plan['features'] as $feat): ?>
-                                <li>
-                                    <span class="checkmark">✓</span>
-                                    <span><?= h($feat) ?></span>
-                                </li>
-                            <?php endforeach; ?>
-                        </ul>
+                        <?php
+                            $allFeatures = $plan['features'] ?? [];
+                            $initialFeatures = array_slice($allFeatures, 0, 5);
+                            $extraFeatures = array_slice($allFeatures, 5);
+                            $hasMore = !empty($extraFeatures);
+                        ?>
+                        <div class="pricing-features-container">
+                            <ul class="pricing-features">
+                                <?php foreach ($initialFeatures as $feat): ?>
+                                    <li>
+                                        <span class="checkmark">✓</span>
+                                        <span><?= h($feat) ?></span>
+                                    </li>
+                                <?php endforeach; ?>
+                            </ul>
+
+                            <?php if ($hasMore): ?>
+                                <div class="pricing-features-collapsible" id="extra-features-<?= h($key) ?>" style="display: none;">
+                                    <ul class="pricing-features pricing-features-extra" style="margin-top: 10px;">
+                                        <?php foreach ($extraFeatures as $feat): ?>
+                                            <li>
+                                                <span class="checkmark">✓</span>
+                                                <span><?= h($feat) ?></span>
+                                            </li>
+                                        <?php endforeach; ?>
+                                    </ul>
+                                </div>
+                                <button type="button" class="pricing-features-toggle-btn" onclick="togglePlanFeatures('<?= h($key) ?>', this)">
+                                    <span class="toggle-text">+ <?= count($extraFeatures) ?> more features</span>
+                                    <svg class="toggle-icon" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                                </button>
+                            <?php else: ?>
+                                <div class="pricing-features-toggle-placeholder"></div>
+                            <?php endif; ?>
+                        </div>
 
                         <div style="margin-top: auto; padding-top: 24px;">
                             <button type="button" 
                                     class="pricing-btn <?= $isPopular ? 'popular-btn' : 'standard-btn' ?>"
-                                    onclick="openPaymentModal('<?= h($key) ?>', '<?= h($plan['name']) ?>', '<?= h($plan['price_label']) ?>')">
+                                    onclick="openPaymentModal('<?= h($key) ?>', '<?= h($plan['name']) ?>')">
                                 <?= $isCurrent ? 'Renew Plan' : 'Get Started' ?>
                             </button>
                         </div>
@@ -265,7 +319,21 @@ function gym_subscription_page(): void
                     Review the exact capability distribution across our commercial gym tiers. Choose the plan that aligns with your facility scale and operations.
                 </p>
 
-                <div class="distribution-table-wrap">
+                <!-- Mobile Comparison Controls -->
+                <div class="dist-mobile-controls">
+                    <div class="dist-swipe-hint">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8L22 12L18 16"/><path d="M6 8L2 12L6 16"/><path d="M2 12H22"/></svg>
+                        <span>Swipe horizontally to compare tiers</span>
+                    </div>
+                    <div class="dist-mobile-tabs">
+                        <button type="button" class="dist-mobile-tab-btn active" onclick="jumpToDistTier(0, this)">All Plans</button>
+                        <button type="button" class="dist-mobile-tab-btn" onclick="jumpToDistTier(1, this)">Starter</button>
+                        <button type="button" class="dist-mobile-tab-btn" onclick="jumpToDistTier(2, this)">★ Pro</button>
+                        <button type="button" class="dist-mobile-tab-btn" onclick="jumpToDistTier(3, this)">Business</button>
+                    </div>
+                </div>
+
+                <div class="distribution-table-wrap" id="distTableWrap">
                     <table class="distribution-table">
                         <thead>
                             <tr>
@@ -425,13 +493,16 @@ function gym_subscription_page(): void
             <div class="distribution-modal-footer">
                 <div class="dist-footer-ctas">
                     <button type="button" class="btn btn-outline btn-sm" onclick="closePlanDistributionModal(); openPaymentModal('starter', '<?= h($plans['starter']['name'] ?? 'Starter') ?>', '<?= h($plans['starter']['price_label'] ?? '₱599') ?>')">
-                        Get <?= h($plans['starter']['name'] ?? 'Starter') ?> (<?= h($plans['starter']['price_label'] ?? '₱599') ?>)
+                        <span class="btn-text-full">Get <?= h($plans['starter']['name'] ?? 'Starter') ?> (<?= h($plans['starter']['price_label'] ?? '₱599') ?>)</span>
+                        <span class="btn-text-mobile">Starter (<?= h($plans['starter']['price_label'] ?? '₱599') ?>)</span>
                     </button>
                     <button type="button" class="btn btn-lime btn-sm" onclick="closePlanDistributionModal(); openPaymentModal('professional', '<?= h($plans['professional']['name'] ?? 'Professional') ?>', '<?= h($plans['professional']['price_label'] ?? '₱999') ?>')">
-                        Get <?= h($plans['professional']['name'] ?? 'Professional') ?> (<?= h($plans['professional']['price_label'] ?? '₱999') ?>)
+                        <span class="btn-text-full">Get <?= h($plans['professional']['name'] ?? 'Professional') ?> (<?= h($plans['professional']['price_label'] ?? '₱999') ?>)</span>
+                        <span class="btn-text-mobile">★ Pro (<?= h($plans['professional']['price_label'] ?? '₱999') ?>)</span>
                     </button>
                     <button type="button" class="btn btn-outline btn-sm" onclick="closePlanDistributionModal(); openPaymentModal('business', '<?= h($plans['business']['name'] ?? 'Business') ?>', '<?= h($plans['business']['price_label'] ?? '₱1,999') ?>')">
-                        Get <?= h($plans['business']['name'] ?? 'Business') ?> (<?= h($plans['business']['price_label'] ?? '₱1,999') ?>)
+                        <span class="btn-text-full">Get <?= h($plans['business']['name'] ?? 'Business') ?> (<?= h($plans['business']['price_label'] ?? '₱1,999') ?>)</span>
+                        <span class="btn-text-mobile">Business (<?= h($plans['business']['price_label'] ?? '₱1,999') ?>)</span>
                     </button>
                 </div>
             </div>
@@ -447,12 +518,13 @@ function gym_subscription_page(): void
             </div>
 
             <p style="color:var(--muted, #94a3b8); font-size:14px; margin-bottom:20px;">
-                You are subscribing to the <strong id="modal-plan-name" style="color:#fff;"></strong> plan at <strong id="modal-plan-price" style="color:var(--lime, #22c55e);"></strong> per month.
+                You are subscribing to the <strong id="modal-plan-name" style="color:#fff;"></strong> plan at <strong id="modal-plan-price" style="color:var(--lime, #22c55e);"></strong> <span id="modal-plan-period" style="color:var(--muted, #94a3b8);">per month</span>.
             </p>
 
             <form method="post" id="sub-form">
                 <?= csrf_field() ?>
                 <input type="hidden" name="plan_key" id="form-plan-key" value="">
+                <input type="hidden" name="billing_cycle" id="form-billing-cycle" value="monthly">
 
                 <label style="display:block; font-size:12px; font-weight:700; letter-spacing:0.5px; color:var(--muted, #94a3b8); margin-bottom:10px;">
                     SELECT PAYMENT METHOD
@@ -511,21 +583,31 @@ function gym_subscription_page(): void
             min-height: 100vh !important;
             min-height: 100dvh !important;
             display: flex !important;
+            flex-direction: column !important;
             align-items: center !important;
-            justify-content: center !important;
+            justify-content: flex-start !important;
         }
 
         .subscription-viewport {
             min-height: 100vh;
             min-height: 100dvh;
             display: flex;
+            flex-direction: column;
             align-items: center;
-            justify-content: center;
-            padding: 48px 16px;
+            justify-content: flex-start;
+            padding: 36px 16px 60px;
             width: 100%;
             position: relative;
             overflow-x: hidden;
             box-sizing: border-box;
+        }
+
+        .subscription-container {
+            max-width: 1160px;
+            width: 100%;
+            margin: 0 auto;
+            position: relative;
+            z-index: 1;
         }
 
         .subscription-viewport::before {
@@ -546,28 +628,89 @@ function gym_subscription_page(): void
             pointer-events: none;
         }
 
-        .subscription-container {
-            width: 100%;
-            max-width: 1200px;
-            margin: 0 auto;
-            position: relative;
-            z-index: 1;
+        .billing-cycle-toggle-wrapper {
+            display: flex;
+            justify-content: center;
+            margin-bottom: 24px;
+        }
+
+        .billing-cycle-toggle {
+            display: inline-flex;
+            align-items: center;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            border-radius: 9999px;
+            padding: 4px;
+            gap: 6px;
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+        }
+
+        .billing-toggle-btn {
+            background: transparent;
+            border: none;
+            color: rgba(255, 255, 255, 0.72);
+            font-size: 13px;
+            font-weight: 600;
+            padding: 7px 18px;
+            border-radius: 9999px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .billing-toggle-btn:hover {
+            color: #ffffff;
+        }
+
+        .billing-toggle-btn.active {
+            background: var(--lime, #84cc16);
+            color: #0b110e;
+            font-weight: 800;
+            box-shadow: 0 0 16px rgba(132, 204, 22, 0.4);
+        }
+
+        .billing-badge-save {
+            background: rgba(0, 0, 0, 0.25);
+            color: #fff;
+            font-size: 9.5px;
+            font-weight: 800;
+            letter-spacing: 0.5px;
+            padding: 2px 7px;
+            border-radius: 999px;
+        }
+
+        .billing-toggle-btn.active .billing-badge-save {
+            background: rgba(11, 17, 14, 0.85);
+            color: var(--lime-bright, #a3e635);
+        }
+
+        .annual-savings-note {
+            font-size: 11.5px;
+            color: var(--lime, #84cc16);
+            font-weight: 700;
+            margin-top: -4px;
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            gap: 4px;
         }
 
         .pricing-grid {
             display: grid;
             grid-template-columns: repeat(3, 1fr);
-            gap: 28px;
+            gap: 20px;
             align-items: stretch;
         }
 
         .pricing-card {
-            background: rgba(15, 21, 18, 0.88);
+            background: rgba(15, 21, 18, 0.90);
             backdrop-filter: blur(16px);
             -webkit-backdrop-filter: blur(16px);
             border: 1px solid rgba(255, 255, 255, 0.08);
-            border-radius: 24px;
-            padding: 38px 30px;
+            border-radius: 20px;
+            padding: 26px 22px;
             display: flex;
             flex-direction: column;
             position: relative;
@@ -576,14 +719,14 @@ function gym_subscription_page(): void
         }
 
         .pricing-card:hover {
-            transform: translateY(-5px);
+            transform: translateY(-4px);
             box-shadow: 0 25px 55px -10px rgba(0, 0, 0, 0.85);
             border-color: rgba(255, 255, 255, 0.2);
         }
 
         .pricing-card.popular {
             border: 2px solid var(--lime, #84cc16);
-            background: rgba(16, 25, 20, 0.92);
+            background: rgba(16, 25, 20, 0.94);
             box-shadow: 0 0 35px rgba(132, 204, 22, 0.18), 0 25px 55px -10px rgba(0, 0, 0, 0.85);
         }
 
@@ -598,15 +741,15 @@ function gym_subscription_page(): void
 
         .popular-badge {
             position: absolute;
-            top: -14px;
+            top: -13px;
             left: 50%;
             transform: translateX(-50%);
             background: #84cc16;
             color: #081202 !important;
-            font-size: 11px;
+            font-size: 10.5px;
             font-weight: 900;
             letter-spacing: 0.08em;
-            padding: 5px 16px;
+            padding: 4px 14px;
             border-radius: 999px;
             text-transform: uppercase;
             box-shadow: 0 2px 10px rgba(0, 0, 0, 0.4), 0 0 14px rgba(132, 204, 22, 0.5);
@@ -640,19 +783,19 @@ function gym_subscription_page(): void
             display: inline-block;
             background: rgba(132, 204, 22, 0.15);
             color: var(--lime-bright, #a3e635);
-            font-size: 10px;
+            font-size: 9.5px;
             font-weight: 800;
-            padding: 3px 8px;
+            padding: 2px 7px;
             border-radius: 4px;
-            margin-left: 8px;
+            margin-left: 6px;
             vertical-align: middle;
         }
 
         .pricing-title {
-            font-size: 1.6rem;
+            font-size: 1.45rem;
             font-weight: 800;
             color: #ffffff;
-            margin: 0 0 10px 0;
+            margin: 0 0 6px 0;
             letter-spacing: -0.3px;
         }
 
@@ -662,33 +805,38 @@ function gym_subscription_page(): void
 
         .pricing-desc {
             color: var(--muted, #94a3b8);
-            font-size: 14px;
-            line-height: 1.4;
-            margin: 0 0 24px 0;
-            min-height: 40px;
+            font-size: 13px;
+            line-height: 1.35;
+            margin: 0 0 14px 0;
+            min-height: 36px;
         }
 
         .pricing-price {
             display: flex;
             align-items: baseline;
-            margin-bottom: 28px;
-            padding-bottom: 24px;
+            margin-bottom: 16px;
+            padding-bottom: 14px;
             border-bottom: 1px solid rgba(255, 255, 255, 0.06);
         }
 
         .pricing-price .amount {
-            font-size: 2.8rem;
+            font-size: 2.4rem;
             font-weight: 900;
             color: #ffffff;
-            letter-spacing: -1px;
+            letter-spacing: -0.5px;
             line-height: 1;
         }
 
         .pricing-price .period {
-            font-size: 1rem;
+            font-size: 0.95rem;
             color: var(--muted, #94a3b8);
             margin-left: 4px;
             font-weight: 500;
+        }
+
+        .pricing-features-container {
+            display: flex;
+            flex-direction: column;
         }
 
         .pricing-features {
@@ -697,30 +845,64 @@ function gym_subscription_page(): void
             margin: 0;
             display: flex;
             flex-direction: column;
-            gap: 14px;
+            gap: 9px;
         }
 
         .pricing-features li {
             display: flex;
-            align-items: center;
-            gap: 12px;
-            font-size: 14.5px;
+            align-items: flex-start;
+            gap: 10px;
+            font-size: 13.5px;
             color: #e2e8f0;
-            line-height: 1.4;
+            line-height: 1.35;
         }
 
         .pricing-features .checkmark {
-            color: var(--lime, #22c55e);
+            color: var(--lime, #84cc16);
             font-weight: 900;
-            font-size: 15px;
+            font-size: 14px;
             flex-shrink: 0;
+            margin-top: 1px;
+        }
+
+        .pricing-features-toggle-btn {
+            background: transparent;
+            border: none;
+            color: var(--lime, #84cc16);
+            font-size: 0.8rem;
+            font-weight: 700;
+            padding: 6px 0;
+            margin-top: 8px;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            transition: color 0.15s ease;
+            font-family: inherit;
+            text-align: left;
+        }
+
+        .pricing-features-toggle-btn:hover {
+            color: var(--lime-bright, #a3e635);
+        }
+
+        .pricing-features-toggle-btn .toggle-icon {
+            transition: transform 0.25s ease;
+        }
+
+        .pricing-features-toggle-btn.is-expanded .toggle-icon {
+            transform: rotate(180deg);
+        }
+
+        .pricing-features-toggle-placeholder {
+            height: 26px;
         }
 
         .pricing-btn {
             width: 100%;
-            padding: 14px 20px;
+            padding: 12px 18px;
             border-radius: 30px;
-            font-size: 15px;
+            font-size: 14.5px;
             font-weight: 700;
             cursor: pointer;
             text-align: center;
@@ -912,14 +1094,54 @@ function gym_subscription_page(): void
             border-radius: 12px;
             border: 1px solid rgba(255, 255, 255, 0.08);
             background: rgba(14, 19, 16, 0.6);
+            position: relative;
         }
 
         .distribution-table {
             width: 100%;
-            min-width: 700px;
-            border-collapse: collapse;
+            min-width: 680px;
+            border-collapse: separate;
+            border-spacing: 0;
             font-size: 0.88rem;
             text-align: left;
+        }
+
+        .distribution-table thead th {
+            position: sticky;
+            top: 0;
+            z-index: 4;
+        }
+
+        .distribution-table th.col-cap,
+        .distribution-table td:first-child {
+            position: sticky;
+            left: 0;
+            z-index: 3;
+            background: #0d1310;
+            border-right: 1px solid rgba(255, 255, 255, 0.12);
+        }
+
+        .distribution-table thead th.col-cap {
+            z-index: 6;
+            background: #141c17;
+        }
+
+        .dist-cat-row td {
+            position: sticky;
+            left: 0;
+            z-index: 2;
+        }
+
+        .dist-mobile-controls {
+            display: none;
+        }
+
+        .btn-text-mobile {
+            display: none;
+        }
+
+        .btn-text-full {
+            display: inline;
         }
 
         .distribution-table th {
@@ -1098,16 +1320,241 @@ function gym_subscription_page(): void
             border-color: var(--lime-bright, #a3e635);
             box-shadow: 0 0 20px rgba(132, 204, 22, 0.45);
         }
+
+        @media (max-width: 768px) {
+            .modal-card.distribution-modal-card {
+                width: 95% !important;
+                max-width: 95% !important;
+                max-height: 92vh !important;
+                border-radius: 16px !important;
+                margin: auto;
+            }
+
+            .distribution-modal-header {
+                padding: 0.85rem 1.15rem;
+            }
+
+            .distribution-modal-header .modal-title {
+                font-size: 1.15rem !important;
+            }
+
+            .distribution-modal-body {
+                padding: 0.85rem 1rem;
+            }
+
+            .distribution-intro {
+                font-size: 0.78rem;
+                margin-bottom: 0.75rem;
+                line-height: 1.4;
+            }
+
+            .dist-mobile-controls {
+                display: flex;
+                flex-direction: column;
+                gap: 8px;
+                margin-bottom: 10px;
+            }
+
+            .dist-swipe-hint {
+                display: inline-flex;
+                align-items: center;
+                gap: 6px;
+                font-size: 0.72rem;
+                font-weight: 700;
+                color: var(--lime, #84cc16);
+                background: rgba(132, 204, 22, 0.1);
+                border: 1px solid rgba(132, 204, 22, 0.25);
+                padding: 4px 10px;
+                border-radius: 999px;
+                width: fit-content;
+            }
+
+            .dist-mobile-tabs {
+                display: flex;
+                gap: 4px;
+                background: rgba(255, 255, 255, 0.04);
+                padding: 3px;
+                border-radius: 8px;
+                border: 1px solid rgba(255, 255, 255, 0.08);
+            }
+
+            .dist-mobile-tab-btn {
+                flex: 1;
+                background: transparent;
+                border: none;
+                color: var(--text-dim, #94a3b8);
+                font-size: 0.72rem;
+                font-weight: 700;
+                padding: 6px 4px;
+                border-radius: 6px;
+                cursor: pointer;
+                transition: all 0.15s ease;
+                text-align: center;
+                font-family: inherit;
+                white-space: nowrap;
+            }
+
+            .dist-mobile-tab-btn.active {
+                background: var(--lime, #84cc16);
+                color: #0b110e;
+                box-shadow: 0 0 10px rgba(132, 204, 22, 0.35);
+            }
+
+            .distribution-table-wrap {
+                border-radius: 10px;
+                max-height: 52vh;
+            }
+
+            .distribution-table {
+                min-width: 520px;
+                font-size: 0.78rem;
+            }
+
+            .distribution-table th.col-cap,
+            .distribution-table td:first-child {
+                min-width: 140px;
+                max-width: 140px;
+                padding: 9px 10px !important;
+                font-size: 0.76rem !important;
+                line-height: 1.3;
+                box-shadow: 3px 0 8px rgba(0, 0, 0, 0.6);
+            }
+
+            .distribution-table th.col-tier,
+            .distribution-table td:not(:first-child) {
+                min-width: 120px;
+                padding: 9px 8px !important;
+                text-align: center;
+            }
+
+            .distribution-table .tier-name {
+                font-size: 0.88rem;
+            }
+
+            .distribution-table .tier-price {
+                font-size: 0.75rem;
+            }
+
+            .distribution-table .popular-tag {
+                font-size: 0.6rem;
+                padding: 2px 6px;
+            }
+
+            .dist-pill {
+                font-size: 0.7rem;
+                padding: 2px 6px;
+                line-height: 1.2;
+            }
+
+            .status-access, .status-locked {
+                font-size: 0.75rem;
+            }
+
+            .dist-cat-row td {
+                font-size: 0.65rem;
+                padding: 6px 10px !important;
+            }
+
+            .distribution-modal-footer {
+                padding: 0.75rem 1rem;
+            }
+
+            .dist-footer-ctas {
+                display: grid;
+                grid-template-columns: 1fr 1.25fr 1fr;
+                gap: 6px;
+                width: 100%;
+            }
+
+            .dist-footer-ctas .btn {
+                padding: 8px 4px !important;
+                font-size: 0.72rem !important;
+                font-weight: 700;
+                text-align: center;
+                border-radius: 8px;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+            }
+
+            .btn-text-full {
+                display: none !important;
+            }
+
+            .btn-text-mobile {
+                display: inline !important;
+            }
+        }
     </style>
 
     <script>
-        function openPaymentModal(key, name, price) {
+        const subscriptionPlansData = <?= json_encode($plans, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP) ?>;
+        let activeCycle = 'monthly';
+
+        function setBillingCycle(cycle) {
+            activeCycle = (cycle === 'yearly') ? 'yearly' : 'monthly';
+            const monthlyBtn = document.getElementById('btn-cycle-monthly');
+            const yearlyBtn = document.getElementById('btn-cycle-yearly');
+            if (monthlyBtn && yearlyBtn) {
+                monthlyBtn.classList.toggle('active', activeCycle === 'monthly');
+                yearlyBtn.classList.toggle('active', activeCycle === 'yearly');
+            }
+
+            for (const [key, plan] of Object.entries(subscriptionPlansData)) {
+                const priceEl = document.getElementById('price-' + key);
+                const periodEl = document.getElementById('period-' + key);
+                const savingsEl = document.getElementById('savings-' + key);
+                if (priceEl && periodEl) {
+                    if (activeCycle === 'yearly') {
+                        priceEl.textContent = plan.annual_price_label || ('₱' + Math.round(plan.annual_price).toLocaleString());
+                        periodEl.textContent = '/yr';
+                        if (savingsEl) savingsEl.style.display = 'block';
+                    } else {
+                        priceEl.textContent = plan.price_label;
+                        periodEl.textContent = '/mo';
+                        if (savingsEl) savingsEl.style.display = 'none';
+                    }
+                }
+            }
+        }
+
+        function togglePlanFeatures(key, btn) {
+            const el = document.getElementById('extra-features-' + key);
+            if (!el) return;
+            const isHidden = el.style.display === 'none' || el.style.display === '';
+            const plan = subscriptionPlansData[key];
+            const extraCount = plan && plan.features ? Math.max(0, plan.features.length - 5) : '';
+
+            if (isHidden) {
+                el.style.display = 'block';
+                btn.classList.add('is-expanded');
+                const textEl = btn.querySelector('.toggle-text');
+                if (textEl) textEl.textContent = 'Show fewer features';
+            } else {
+                el.style.display = 'none';
+                btn.classList.remove('is-expanded');
+                const textEl = btn.querySelector('.toggle-text');
+                if (textEl) textEl.textContent = '+ ' + extraCount + ' more features';
+            }
+        }
+
+        function openPaymentModal(key, name) {
+            const plan = subscriptionPlansData[key];
+            if (!plan) return;
+            const price = (activeCycle === 'yearly') 
+                ? (plan.annual_price_label || ('₱' + Math.round(plan.annual_price).toLocaleString())) 
+                : plan.price_label;
+            const periodText = (activeCycle === 'yearly') ? 'per year (Annual)' : 'per month (Monthly)';
+
             document.getElementById('form-plan-key').value = key;
+            document.getElementById('form-billing-cycle').value = activeCycle;
             document.getElementById('modal-plan-title').textContent = 'Subscribe to ' + name;
             document.getElementById('modal-plan-name').textContent = name;
             document.getElementById('modal-plan-price').textContent = price;
+            const periodEl = document.getElementById('modal-plan-period');
+            if (periodEl) periodEl.textContent = periodText;
             const modal = document.getElementById('payment-modal');
-            modal.style.display = 'flex';
+            if (modal) modal.style.display = 'flex';
         }
 
         function closePaymentModal() {
@@ -1129,6 +1576,50 @@ function gym_subscription_page(): void
                 document.body.style.overflow = '';
             }
         }
+
+        function jumpToDistTier(tierIndex, btn) {
+            const wrap = document.getElementById('distTableWrap');
+            if (!wrap) return;
+
+            document.querySelectorAll('.dist-mobile-tab-btn').forEach(b => b.classList.remove('active'));
+            if (btn) btn.classList.add('active');
+
+            if (tierIndex === 0) {
+                wrap.scrollTo({ left: 0, behavior: 'smooth' });
+                return;
+            }
+
+            const headerCells = wrap.querySelectorAll('.distribution-table thead th');
+            if (headerCells && headerCells[tierIndex]) {
+                const targetTh = headerCells[tierIndex];
+                const capColWidth = headerCells[0].offsetWidth || 140;
+                const scrollTarget = targetTh.offsetLeft - capColWidth;
+                wrap.scrollTo({ left: Math.max(0, scrollTarget), behavior: 'smooth' });
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', function() {
+            const wrap = document.getElementById('distTableWrap');
+            if (!wrap) return;
+
+            let isScrolling = false;
+            wrap.addEventListener('scroll', function() {
+                if (window.innerWidth > 768 || isScrolling) return;
+                const sl = wrap.scrollLeft;
+                const tabs = document.querySelectorAll('.dist-mobile-tab-btn');
+                if (!tabs || tabs.length < 4) return;
+
+                if (sl < 40) {
+                    tabs.forEach((t, i) => t.classList.toggle('active', i === 0));
+                } else if (sl < 160) {
+                    tabs.forEach((t, i) => t.classList.toggle('active', i === 1));
+                } else if (sl < 280) {
+                    tabs.forEach((t, i) => t.classList.toggle('active', i === 2));
+                } else {
+                    tabs.forEach((t, i) => t.classList.toggle('active', i === 3));
+                }
+            }, { passive: true });
+        });
 
         function handleDistributionBackdropClick(event) {
             if (event.target === document.getElementById('planDistributionModalBackdrop')) {

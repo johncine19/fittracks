@@ -395,6 +395,7 @@ CREATE TABLE `platform_subscription_plans` (
   `plan_key` varchar(50) NOT NULL UNIQUE,
   `name` varchar(50) NOT NULL,
   `price` decimal(10,2) NOT NULL,
+  `annual_price` decimal(10,2) DEFAULT NULL,
   `description` varchar(255) NOT NULL,
   `features` text NOT NULL,
   `is_popular` tinyint(1) NOT NULL DEFAULT 0,
@@ -402,10 +403,10 @@ CREATE TABLE `platform_subscription_plans` (
   `updated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
-INSERT INTO `platform_subscription_plans` (`id`, `plan_key`, `name`, `price`, `description`, `features`, `is_popular`, `is_active`) VALUES
-(1, 'starter', 'Starter', 499.00, 'Best for small, independent gyms.', 'Up to 100 Active Members\nBasic Analytics & Reports\nWalk-in Management\nOnline Member Registration', 0, 1),
-(2, 'professional', 'Professional', 999.00, 'Best for growing, high-traffic gyms.', 'Up to 500 Active Members\nAdvanced Dashboard & Charts\nAutomated Renewal Reminders\nClass Scheduling & Booking\nMember Engagement Tracking', 1, 1),
-(3, 'business', 'Business', 1999.00, 'Best for large or multi-branch facilities.', 'Unlimited Members\nMulti-Branch Support\nDedicated Account Manager\nCustom Branded App Theme\nPriority 24/7 Support', 0, 1);
+INSERT INTO `platform_subscription_plans` (`id`, `plan_key`, `name`, `price`, `annual_price`, `description`, `features`, `is_popular`, `is_active`) VALUES
+(1, 'starter', 'Starter', 599.00, 5990.00, 'Best for small, solo, or boutique gyms.', 'Up to 100 Active Members\nSolo Gym Owner Model (0 Trainers)\nWalk-in Management & Daily Pass\nDynamic QR Check-in & Scanner\nMembership Plans & GCash / Online Pay\nBasic Expiration Reminders (7-Day Notice)\nBasic Financial Reports & CSV Export\nBasic Activity History', 0, 1),
+(2, 'professional', 'Professional', 999.00, 9990.00, 'Best for growing commercial gyms with staff.', 'Up to 500 Active Members\nPersonal Trainers & Client Assignments\nTrainer Commission Tracking & Payouts\nWorkout Plans & Exercise Library\nClass Scheduling & Online Booking with Waitlists\nAutomated Multi-Stage Renewal Reminders (30d/14d/7d/1d)\nMember Engagement Scoring & Churn Risk Alerts\nAdvanced Analytics & Financial Growth Trends\nStaff Activity Logs', 1, 1),
+(3, 'business', 'Business', 1999.00, 19990.00, 'For multi-branch & large-scale fitness centers.', 'Unlimited Active Members\nMulti-Branch Management & Centralized Dashboard\nConsolidated Cross-Branch Financial Reporting\nFull Compliance Security Audit Trail (IPs, Diffs)\nCustom App Brand Color & White-Label Theme\nDedicated Account Manager & Priority Support', 0, 1);
 
 -- --------------------------------------------------------
 
@@ -435,6 +436,7 @@ CREATE TABLE `membership_plans` (
   `plan_type` enum('monthly','quarterly','annual','custom') NOT NULL,
   `duration_days` int UNSIGNED NOT NULL,
   `price` decimal(10,2) NOT NULL,
+  `annual_price` decimal(10,2) DEFAULT NULL,
   `description` varchar(255) DEFAULT NULL,
   `is_active` tinyint(1) NOT NULL DEFAULT '1',
   `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
