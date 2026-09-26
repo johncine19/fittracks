@@ -720,20 +720,28 @@ function render_header(string $title, ?array $user = null): void
                 display: none !important;
             }
         }
+        .sidebar-bottom a {
+            padding: 9px 8px !important;
+            gap: 8px !important;
+        }
         .nav-sub-pill {
             margin-left: auto;
-            font-size: 9.5px;
+            font-size: 8.5px;
             font-weight: 800;
-            line-height: 1;
-            padding: 3px 8px;
+            line-height: 1.1;
+            padding: 2.5px 6.5px;
             border-radius: 9999px;
-            letter-spacing: 0.4px;
+            letter-spacing: 0.2px;
             text-transform: uppercase;
             white-space: nowrap;
             transition: all 0.2s ease;
-            display: inline-flex;
-            align-items: center;
-            gap: 4px;
+            display: inline-block;
+            vertical-align: middle;
+            text-align: center;
+            max-width: 105px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            flex-shrink: 0;
         }
         .nav-sub-pill-trial {
             background: rgba(132, 204, 22, 0.18);
@@ -910,15 +918,23 @@ function render_header(string $title, ?array $user = null): void
                                 ];
                             }
                         } elseif ($role === 'member' && $user) {
-                            $activeMembership = db()->prepare('SELECT mp.name FROM memberships m JOIN membership_plans mp ON mp.plan_id = m.plan_id WHERE m.user_id = ? AND m.status = "active" LIMIT 1');
-                            $activeMembership->execute([$user['user_id']]);
-                            $planName = $activeMembership->fetchColumn();
-                            if ($planName) {
-                                $profileSubPill = [
-                                    'text'  => 'Member',
-                                    'title' => 'Active Membership: ' . $planName,
-                                    'type'  => 'active',
-                                ];
+                            $membershipStmt = db()->prepare('SELECT mp.plan_name, m.status FROM memberships m JOIN membership_plans mp ON mp.plan_id = m.plan_id WHERE m.user_id = ? ORDER BY (m.status = "active") DESC, m.end_date DESC LIMIT 1');
+                            $membershipStmt->execute([$user['user_id']]);
+                            $membership = $membershipStmt->fetch();
+                            if ($membership) {
+                                if ($membership['status'] === 'active') {
+                                    $profileSubPill = [
+                                        'text'  => strtoupper($membership['plan_name']),
+                                        'title' => 'Active Membership: ' . $membership['plan_name'],
+                                        'type'  => 'active',
+                                    ];
+                                } elseif (in_array($membership['status'], ['cancelled', 'expired'], true)) {
+                                    $profileSubPill = [
+                                        'text'  => 'EXPIRED',
+                                        'title' => 'Membership Expired',
+                                        'type'  => 'expired',
+                                    ];
+                                }
                             }
                         }
                     ?>

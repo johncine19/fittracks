@@ -708,10 +708,10 @@ select {
     display: flex;
     gap: 8px;
     margin: 8px 0 16px;
-    background: rgba(15, 23, 42, 0.6);
+    background: var(--panel-soft, rgba(15, 23, 42, 0.6));
     padding: 4px;
     border-radius: 10px;
-    border: 1px solid rgba(255, 255, 255, 0.08);
+    border: 1px solid var(--line, rgba(255, 255, 255, 0.08));
 }
 .swal-tab-btn {
     flex: 1;
@@ -735,11 +735,11 @@ select {
 }
 .swal-tab-btn:hover {
     color: var(--ink);
-    background: rgba(255, 255, 255, 0.04);
+    background: color-mix(in srgb, var(--ink) 6%, transparent);
 }
 .swal-tab-btn.active {
     color: var(--lime);
-    background: color-mix(in srgb, var(--lime) 14%, #121721);
+    background: #1a2230;
     border-color: color-mix(in srgb, var(--lime) 40%, transparent);
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
 }
@@ -756,6 +756,152 @@ select {
 @keyframes swalTabFade {
     from { opacity: 0; transform: translateY(4px); }
     to { opacity: 1; transform: translateY(0); }
+}
+
+/* Modal Form Controls & Macro Cards */
+.swal-field-label {
+    display: block;
+    font-size: 13px;
+    color: var(--muted);
+    font-weight: 600;
+}
+.swal-form-control {
+    width: 100% !important;
+    box-sizing: border-box !important;
+    padding: 9px 12px !important;
+    border-radius: 6px !important;
+    border: 1px solid #334155 !important;
+    background: #1a2230 !important;
+    color: #ffffff !important;
+    font-size: 13px !important;
+    font-family: inherit !important;
+    transition: border-color 0.2s, box-shadow 0.2s, background-color 0.2s;
+}
+.swal-form-control:focus {
+    border-color: var(--lime) !important;
+    outline: none !important;
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--lime) 25%, transparent) !important;
+}
+.swal-card-box {
+    background: #141b28;
+    border: 1px solid #283548;
+    border-radius: 8px;
+    padding: 12px;
+    transition: background 0.2s, border-color 0.2s;
+}
+.swal-macro-input {
+    width: 100% !important;
+    box-sizing: border-box !important;
+    padding: 7px 8px !important;
+    border-radius: 6px !important;
+    border: 1px solid #334155 !important;
+    background: #1a2230 !important;
+    color: #ffffff !important;
+    font-weight: 700 !important;
+    font-size: 13.5px !important;
+    text-align: center;
+    transition: border-color 0.2s, box-shadow 0.2s;
+}
+.swal-macro-input:focus {
+    border-color: var(--lime) !important;
+    outline: none !important;
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--lime) 25%, transparent) !important;
+}
+.swal-tab-next-btn {
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    color: var(--ink);
+    border-radius: 7px;
+    padding: 8px 14px;
+    font-size: 12.5px;
+    font-weight: 600;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-top: 4px;
+    transition: all 0.2s;
+}
+.swal-tab-next-btn:hover {
+    border-color: var(--lime);
+    background: color-mix(in srgb, var(--lime) 12%, rgba(255, 255, 255, 0.06));
+}
+
+/* Light Mode Overrides for Food Modal */
+[data-theme="light"] .swal-tabs-bar {
+    background: #f1f5f9 !important;
+    border: 1px solid #e2e8f0 !important;
+}
+[data-theme="light"] .swal-tab-btn {
+    color: #64748b !important;
+}
+[data-theme="light"] .swal-tab-btn:hover {
+    color: #0f172a !important;
+    background: rgba(0, 0, 0, 0.04) !important;
+}
+[data-theme="light"] .swal-tab-btn.active {
+    background: #ffffff !important;
+    color: var(--lime-dark, #4d7c0f) !important;
+    border: 1px solid #cbd5e1 !important;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.07) !important;
+}
+[data-theme="light"] .swal-tab-btn.active svg {
+    stroke: var(--lime-dark, #4d7c0f) !important;
+}
+[data-theme="light"] .swal-field-label {
+    color: #475569 !important;
+}
+[data-theme="light"] .swal-form-control {
+    background: #ffffff !important;
+    border: 1px solid #cbd5e1 !important;
+    color: #0f172a !important;
+}
+[data-theme="light"] .swal-form-control::placeholder {
+    color: #94a3b8 !important;
+}
+[data-theme="light"] .swal-card-box {
+    background: #f8fafc !important;
+    border: 1px solid #e2e8f0 !important;
+}
+[data-theme="light"] .swal-macro-input {
+    background: #ffffff !important;
+    border: 1px solid #cbd5e1 !important;
+    color: #0f172a !important;
+}
+[data-theme="light"] .swal-tab-next-btn {
+    background: #f8fafc !important;
+    border: 1px solid #cbd5e1 !important;
+    color: #0f172a !important;
+}
+[data-theme="light"] .swal-tab-next-btn:hover {
+    background: color-mix(in srgb, var(--lime) 10%, #ffffff) !important;
+    border-color: var(--lime) !important;
+}
+[data-theme="light"] .ft-modal-box {
+    background: #ffffff !important;
+    border: 1px solid #cbd5e1 !important;
+    box-shadow: 0 20px 50px rgba(0, 0, 0, 0.15) !important;
+}
+[data-theme="light"] .ft-modal-footer {
+    background: #f8fafc !important;
+    border-top: 1px solid #e2e8f0 !important;
+}
+[data-theme="light"] .photo-upload-dropzone {
+    border: 2px dashed #cbd5e1 !important;
+    background: #f8fafc !important;
+}
+[data-theme="light"] .photo-upload-dropzone:hover {
+    border-color: var(--lime) !important;
+    background: color-mix(in srgb, var(--lime) 8%, #ffffff) !important;
+}
+[data-theme="light"] .photo-modal-tab-btn {
+    border-color: #cbd5e1 !important;
+    color: #64748b !important;
+}
+[data-theme="light"] .photo-modal-tab-btn.active {
+    background: color-mix(in srgb, var(--lime) 12%, #ffffff) !important;
+    color: var(--lime-dark, #4d7c0f) !important;
+    border-color: var(--lime) !important;
 }
 .ft-modal-header {
     padding: 18px 22px;
@@ -1320,7 +1466,7 @@ select {
 
             <!-- Tab 3: Reset to Auto -->
             <div id="panel-tab-reset" style="display: none;">
-                <div style="background: rgba(0,0,0,0.25); border: 1px dashed var(--line); border-radius: 10px; padding: 18px; text-align: center;">
+                <div style="background: var(--panel-soft); border: 1px dashed var(--line); border-radius: 10px; padding: 18px; text-align: center;">
                     <div style="font-size: 14px; font-weight: 700; color: var(--ink); margin-bottom: 6px;">Restore Default Auto-Matching Photo</div>
                     <p style="margin: 0; font-size: 12.5px; color: var(--muted); line-height: 1.5;">
                         Clears your custom photo override. FitTracks will automatically match high-resolution photos based on the dish name and meal category.
@@ -1645,21 +1791,21 @@ function openAddFoodModal() {
                 
                 <!-- TAB 1: General Info & Macros -->
                 <div id="swal-tab-panel-1" class="swal-tab-panel" style="display: flex;">
-                    <label style="display:block; font-size: 13px; color: var(--muted); font-weight: 600;">Dish / Product Name *
-                        <input type="text" name="name" class="form-control" placeholder="e.g. High Protein Chicken Teriyaki Bowl" required style="width: 100%; box-sizing: border-box; margin-top: 4px; padding: 9px 12px; border-radius: 6px; border: 1px solid #334155; background: #1a2230; color: #fff;">
+                    <label class="swal-field-label">Dish / Product Name *
+                        <input type="text" name="name" class="swal-form-control" placeholder="e.g. High Protein Chicken Teriyaki Bowl" required style="margin-top: 4px;">
                     </label>
 
                     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
-                        <label style="display:block; font-size: 13px; color: var(--muted); font-weight: 600;">Meal Type *
-                            <select name="meal_type" required style="width: 100%; box-sizing: border-box; margin-top: 4px; padding: 9px 12px; border-radius: 6px; border: 1px solid #334155; background: #1a2230; color: #fff;">
+                        <label class="swal-field-label">Meal Type *
+                            <select name="meal_type" class="swal-form-control" required style="margin-top: 4px;">
                                 <option value="Breakfast">Breakfast</option>
                                 <option value="Lunch" selected>Lunch</option>
                                 <option value="Dinner">Dinner</option>
                                 <option value="Snack">Snack</option>
                             </select>
                         </label>
-                        <label style="display:block; font-size: 13px; color: var(--muted); font-weight: 600;">Dietary Type
-                            <select name="dietary_restriction" style="width: 100%; box-sizing: border-box; margin-top: 4px; padding: 9px 12px; border-radius: 6px; border: 1px solid #334155; background: #1a2230; color: #fff;">
+                        <label class="swal-field-label">Dietary Type
+                            <select name="dietary_restriction" class="swal-form-control" style="margin-top: 4px;">
                                 <option value="none">None</option>
                                 <option value="vegetarian">Vegetarian</option>
                                 <option value="vegan">Vegan</option>
@@ -1674,31 +1820,31 @@ function openAddFoodModal() {
                         </label>
                     </div>
 
-                    <label style="display:block; font-size: 13px; color: var(--muted); font-weight: 600;">Serving Portion
-                        <input type="text" name="serving_size" value="1 serving" placeholder="e.g. 1 plate (200g chicken)" style="width: 100%; box-sizing: border-box; margin-top: 4px; padding: 9px 12px; border-radius: 6px; border: 1px solid #334155; background: #1a2230; color: #fff;">
+                    <label class="swal-field-label">Serving Portion
+                        <input type="text" name="serving_size" class="swal-form-control" value="1 serving" placeholder="e.g. 1 plate (200g chicken)" style="margin-top: 4px;">
                     </label>
 
-                    <div style="background: #141b28; border: 1px solid #283548; border-radius: 8px; padding: 12px;">
+                    <div class="swal-card-box">
                         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
                             <span style="font-size: 12px; font-weight: 700; color: var(--lime);">Nutrition per Serving</span>
                             <span style="font-size: 11px; color: var(--muted);">Auto-calculates kcal</span>
                         </div>
                         <div style="display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 8px;">
                             <div>
-                                <span style="font-size: 10px; color: var(--muted); display: block; margin-bottom: 2px;">Calories</span>
-                                <input type="number" name="calories" id="swal_cals" value="450" required style="width: 100%; box-sizing: border-box; padding: 7px; border-radius: 6px; border: 1px solid #334155; background: #1a2230; color: #fff; font-weight: 700;">
+                                <span style="font-size: 10px; color: var(--muted); display: block; margin-bottom: 3px; font-weight: 600;">Calories</span>
+                                <input type="number" name="calories" id="swal_cals" value="450" required class="swal-macro-input">
                             </div>
                             <div>
-                                <span style="font-size: 10px; color: var(--muted); display: block; margin-bottom: 2px;">Protein (g)</span>
-                                <input type="number" step="0.1" name="protein_g" id="swal_p" value="35" oninput="calculateSwalCals()" required style="width: 100%; box-sizing: border-box; padding: 7px; border-radius: 6px; border: 1px solid #334155; background: #1a2230; color: #fff;">
+                                <span style="font-size: 10px; color: var(--muted); display: block; margin-bottom: 3px; font-weight: 600;">Protein (g)</span>
+                                <input type="number" step="0.1" name="protein_g" id="swal_p" value="35" oninput="calculateSwalCals()" required class="swal-macro-input">
                             </div>
                             <div>
-                                <span style="font-size: 10px; color: var(--muted); display: block; margin-bottom: 2px;">Carbs (g)</span>
-                                <input type="number" step="0.1" name="carbs_g" id="swal_c" value="45" oninput="calculateSwalCals()" required style="width: 100%; box-sizing: border-box; padding: 7px; border-radius: 6px; border: 1px solid #334155; background: #1a2230; color: #fff;">
+                                <span style="font-size: 10px; color: var(--muted); display: block; margin-bottom: 3px; font-weight: 600;">Carbs (g)</span>
+                                <input type="number" step="0.1" name="carbs_g" id="swal_c" value="45" oninput="calculateSwalCals()" required class="swal-macro-input">
                             </div>
                             <div>
-                                <span style="font-size: 10px; color: var(--muted); display: block; margin-bottom: 2px;">Fat (g)</span>
-                                <input type="number" step="0.1" name="fat_g" id="swal_f" value="12" oninput="calculateSwalCals()" required style="width: 100%; box-sizing: border-box; padding: 7px; border-radius: 6px; border: 1px solid #334155; background: #1a2230; color: #fff;">
+                                <span style="font-size: 10px; color: var(--muted); display: block; margin-bottom: 3px; font-weight: 600;">Fat (g)</span>
+                                <input type="number" step="0.1" name="fat_g" id="swal_f" value="12" oninput="calculateSwalCals()" required class="swal-macro-input">
                             </div>
                         </div>
                     </div>
@@ -1710,7 +1856,7 @@ function openAddFoodModal() {
                         </label>
                     <?php endif; ?>
 
-                    <button type="button" onclick="switchSwalFoodTab(2)" style="background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.15); color: var(--ink); border-radius: 7px; padding: 8px 14px; font-size: 12.5px; font-weight: 600; cursor: pointer; display: flex; align-items: center; justify-content: space-between; margin-top: 4px; transition: all 0.2s;">
+                    <button type="button" onclick="switchSwalFoodTab(2)" class="swal-tab-next-btn">
                         <span>Continue to Photo & Description</span>
                         <span style="color: var(--lime); display: inline-flex; align-items: center; gap: 4px;">Next <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></span>
                     </button>
@@ -1718,20 +1864,20 @@ function openAddFoodModal() {
 
                 <!-- TAB 2: Photo & Details -->
                 <div id="swal-tab-panel-2" class="swal-tab-panel" style="display: none;">
-                    <div style="background: #141b28; border: 1px solid #283548; border-radius: 8px; padding: 12px;">
+                    <div class="swal-card-box">
                         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
                             <span style="font-size: 12px; font-weight: 700; color: var(--lime);">Meal Image (Optional)</span>
-                            <span style="font-size: 10.5px; color: var(--muted); background: rgba(255,255,255,0.06); padding: 2px 6px; border-radius: 4px;">ImageKit CDN</span>
+                            <span style="font-size: 10.5px; color: var(--muted); background: color-mix(in srgb, var(--ink) 8%, transparent); padding: 2px 6px; border-radius: 4px;">ImageKit CDN</span>
                         </div>
                         <label style="display: block; font-size: 11.5px; color: var(--muted); margin-bottom: 4px; font-weight: 600;">Upload Photo File (PNG, JPG, WebP):</label>
-                        <input type="file" name="food_image" accept="image/png,image/jpeg,image/webp,image/jpg" style="width: 100%; box-sizing: border-box; padding: 7px 8px; border-radius: 6px; border: 1px solid #334155; background: #0f172a; color: #fff; font-size: 12px;">
+                        <input type="file" name="food_image" accept="image/png,image/jpeg,image/webp,image/jpg" class="swal-form-control" style="padding: 7px 8px !important; font-size: 12px !important;">
                         
                         <div style="text-align: center; margin: 8px 0; font-size: 11px; color: var(--muted);">— OR paste web image URL —</div>
-                        <input type="url" name="image_url" placeholder="https://images.unsplash.com/..." style="width: 100%; box-sizing: border-box; padding: 8px 12px; border-radius: 6px; border: 1px solid #334155; background: #1a2230; color: #fff; font-size: 12px;">
+                        <input type="url" name="image_url" placeholder="https://images.unsplash.com/..." class="swal-form-control" style="font-size: 12px !important;">
                     </div>
 
-                    <label style="display:block; font-size: 13px; color: var(--muted); font-weight: 600;">Description & Ingredients
-                        <textarea name="recipe_desc" rows="3" placeholder="Brief notes on ingredients or preparation..." style="width: 100%; box-sizing: border-box; margin-top: 4px; padding: 9px 12px; border-radius: 6px; border: 1px solid #334155; background: #1a2230; color: #fff; min-height: 80px; resize: vertical;"></textarea>
+                    <label class="swal-field-label">Description & Ingredients
+                        <textarea name="recipe_desc" rows="3" placeholder="Brief notes on ingredients or preparation..." class="swal-form-control" style="margin-top: 4px; min-height: 80px; resize: vertical;"></textarea>
                     </label>
 
                     <button type="button" onclick="switchSwalFoodTab(1)" style="background: transparent; border: none; color: var(--muted); font-size: 12px; cursor: pointer; display: inline-flex; align-items: center; gap: 5px; align-self: flex-start; padding: 4px 0;">
@@ -1782,21 +1928,21 @@ function openEditFoodModal(food) {
                 
                 <!-- TAB 1: General Info & Macros -->
                 <div id="swal-tab-panel-1" class="swal-tab-panel" style="display: flex;">
-                    <label style="display:block; font-size: 13px; color: var(--muted); font-weight: 600;">Dish / Product Name *
-                        <input type="text" name="name" value="${escapeHtml(food.name)}" required style="width: 100%; box-sizing: border-box; margin-top: 4px; padding: 9px 12px; border-radius: 6px; border: 1px solid #334155; background: #1a2230; color: #fff;">
+                    <label class="swal-field-label">Dish / Product Name *
+                        <input type="text" name="name" class="swal-form-control" value="${escapeHtml(food.name)}" required style="margin-top: 4px;">
                     </label>
 
                     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
-                        <label style="display:block; font-size: 13px; color: var(--muted); font-weight: 600;">Meal Type *
-                            <select name="meal_type" required style="width: 100%; box-sizing: border-box; margin-top: 4px; padding: 9px 12px; border-radius: 6px; border: 1px solid #334155; background: #1a2230; color: #fff;">
+                        <label class="swal-field-label">Meal Type *
+                            <select name="meal_type" class="swal-form-control" required style="margin-top: 4px;">
                                 <option value="Breakfast" ${food.meal_type === 'Breakfast' ? 'selected' : ''}>Breakfast</option>
                                 <option value="Lunch" ${food.meal_type === 'Lunch' ? 'selected' : ''}>Lunch</option>
                                 <option value="Dinner" ${food.meal_type === 'Dinner' ? 'selected' : ''}>Dinner</option>
                                 <option value="Snack" ${food.meal_type === 'Snack' ? 'selected' : ''}>Snack</option>
                             </select>
                         </label>
-                        <label style="display:block; font-size: 13px; color: var(--muted); font-weight: 600;">Dietary Type
-                            <select name="dietary_restriction" style="width: 100%; box-sizing: border-box; margin-top: 4px; padding: 9px 12px; border-radius: 6px; border: 1px solid #334155; background: #1a2230; color: #fff;">
+                        <label class="swal-field-label">Dietary Type
+                            <select name="dietary_restriction" class="swal-form-control" style="margin-top: 4px;">
                                 <option value="none" ${(!food.dietary_restriction || food.dietary_restriction === 'none') ? 'selected' : ''}>None</option>
                                 <option value="vegetarian" ${food.dietary_restriction === 'vegetarian' ? 'selected' : ''}>Vegetarian</option>
                                 <option value="vegan" ${food.dietary_restriction === 'vegan' ? 'selected' : ''}>Vegan</option>
@@ -1811,36 +1957,36 @@ function openEditFoodModal(food) {
                         </label>
                     </div>
 
-                    <label style="display:block; font-size: 13px; color: var(--muted); font-weight: 600;">Serving Portion
-                        <input type="text" name="serving_size" value="${escapeHtml(food.serving_size || '')}" style="width: 100%; box-sizing: border-box; margin-top: 4px; padding: 9px 12px; border-radius: 6px; border: 1px solid #334155; background: #1a2230; color: #fff;">
+                    <label class="swal-field-label">Serving Portion
+                        <input type="text" name="serving_size" class="swal-form-control" value="${escapeHtml(food.serving_size || '')}" style="margin-top: 4px;">
                     </label>
 
-                    <div style="background: #141b28; border: 1px solid #283548; border-radius: 8px; padding: 12px;">
+                    <div class="swal-card-box">
                         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
                             <span style="font-size: 12px; font-weight: 700; color: var(--lime);">Nutrition per Serving</span>
                             <span style="font-size: 11px; color: var(--muted);">Auto-calculates kcal</span>
                         </div>
                         <div style="display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 8px;">
                             <div>
-                                <span style="font-size: 10px; color: var(--muted); display: block; margin-bottom: 2px;">Calories</span>
-                                <input type="number" name="calories" id="swal_cals" value="${food.calories}" required style="width: 100%; box-sizing: border-box; padding: 7px; border-radius: 6px; border: 1px solid #334155; background: #1a2230; color: #fff; font-weight: 700;">
+                                <span style="font-size: 10px; color: var(--muted); display: block; margin-bottom: 3px; font-weight: 600;">Calories</span>
+                                <input type="number" name="calories" id="swal_cals" value="${food.calories}" required class="swal-macro-input">
                             </div>
                             <div>
-                                <span style="font-size: 10px; color: var(--muted); display: block; margin-bottom: 2px;">Protein (g)</span>
-                                <input type="number" step="0.1" name="protein_g" id="swal_p" value="${food.protein_g}" oninput="calculateSwalCals()" required style="width: 100%; box-sizing: border-box; padding: 7px; border-radius: 6px; border: 1px solid #334155; background: #1a2230; color: #fff;">
+                                <span style="font-size: 10px; color: var(--muted); display: block; margin-bottom: 3px; font-weight: 600;">Protein (g)</span>
+                                <input type="number" step="0.1" name="protein_g" id="swal_p" value="${food.protein_g}" oninput="calculateSwalCals()" required class="swal-macro-input">
                             </div>
                             <div>
-                                <span style="font-size: 10px; color: var(--muted); display: block; margin-bottom: 2px;">Carbs (g)</span>
-                                <input type="number" step="0.1" name="carbs_g" id="swal_c" value="${food.carbs_g}" oninput="calculateSwalCals()" required style="width: 100%; box-sizing: border-box; padding: 7px; border-radius: 6px; border: 1px solid #334155; background: #1a2230; color: #fff;">
+                                <span style="font-size: 10px; color: var(--muted); display: block; margin-bottom: 3px; font-weight: 600;">Carbs (g)</span>
+                                <input type="number" step="0.1" name="carbs_g" id="swal_c" value="${food.carbs_g}" oninput="calculateSwalCals()" required class="swal-macro-input">
                             </div>
                             <div>
-                                <span style="font-size: 10px; color: var(--muted); display: block; margin-bottom: 2px;">Fat (g)</span>
-                                <input type="number" step="0.1" name="fat_g" id="swal_f" value="${food.fat_g}" oninput="calculateSwalCals()" required style="width: 100%; box-sizing: border-box; padding: 7px; border-radius: 6px; border: 1px solid #334155; background: #1a2230; color: #fff;">
+                                <span style="font-size: 10px; color: var(--muted); display: block; margin-bottom: 3px; font-weight: 600;">Fat (g)</span>
+                                <input type="number" step="0.1" name="fat_g" id="swal_f" value="${food.fat_g}" oninput="calculateSwalCals()" required class="swal-macro-input">
                             </div>
                         </div>
                     </div>
 
-                    <button type="button" onclick="switchSwalFoodTab(2)" style="background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.15); color: var(--ink); border-radius: 7px; padding: 8px 14px; font-size: 12.5px; font-weight: 600; cursor: pointer; display: flex; align-items: center; justify-content: space-between; margin-top: 4px; transition: all 0.2s;">
+                    <button type="button" onclick="switchSwalFoodTab(2)" class="swal-tab-next-btn">
                         <span>Continue to Photo & Description</span>
                         <span style="color: var(--lime); display: inline-flex; align-items: center; gap: 4px;">Next <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></span>
                     </button>
@@ -1848,7 +1994,7 @@ function openEditFoodModal(food) {
 
                 <!-- TAB 2: Photo & Details -->
                 <div id="swal-tab-panel-2" class="swal-tab-panel" style="display: none;">
-                    <div style="background: #141b28; border: 1px solid #283548; border-radius: 8px; padding: 12px;">
+                    <div class="swal-card-box">
                         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
                             <span style="font-size: 12px; font-weight: 700; color: var(--lime);">Meal Image</span>
                             <button type="button" onclick="Swal.close(); openFoodPhotoModal(${food.food_id}, ${JSON.stringify(food.name)}, ${JSON.stringify(food.meal_type)}, ${JSON.stringify(food.image_url || '')}, ${JSON.stringify(food.image_url || '')});" style="background: rgba(132, 204, 22, 0.15); border: 1px solid rgba(132, 204, 22, 0.3); color: var(--lime); font-size: 11px; font-weight: 700; border-radius: 4px; padding: 4px 9px; cursor: pointer; display: inline-flex; align-items: center; gap: 5px;">
@@ -1857,14 +2003,14 @@ function openEditFoodModal(food) {
                             </button>
                         </div>
                         <label style="display: block; font-size: 11.5px; color: var(--muted); margin-bottom: 4px; font-weight: 600;">Upload New Photo (ImageKit):</label>
-                        <input type="file" name="food_image" accept="image/png,image/jpeg,image/webp,image/jpg" style="width: 100%; box-sizing: border-box; padding: 7px 8px; border-radius: 6px; border: 1px solid #334155; background: #0f172a; color: #fff; font-size: 12px;">
+                        <input type="file" name="food_image" accept="image/png,image/jpeg,image/webp,image/jpg" class="swal-form-control" style="padding: 7px 8px !important; font-size: 12px !important;">
                         
                         <div style="text-align: center; margin: 8px 0; font-size: 11px; color: var(--muted);">— OR web image link —</div>
-                        <input type="url" name="image_url" value="${escapeHtml(food.image_url || '')}" placeholder="https://..." style="width: 100%; box-sizing: border-box; padding: 8px 12px; border-radius: 6px; border: 1px solid #334155; background: #1a2230; color: #fff; font-size: 12px;">
+                        <input type="url" name="image_url" value="${escapeHtml(food.image_url || '')}" placeholder="https://..." class="swal-form-control" style="font-size: 12px !important;">
                     </div>
 
-                    <label style="display:block; font-size: 13px; color: var(--muted); font-weight: 600;">Description & Ingredients
-                        <textarea name="recipe_desc" rows="3" placeholder="Brief notes on ingredients or preparation..." style="width: 100%; box-sizing: border-box; margin-top: 4px; padding: 9px 12px; border-radius: 6px; border: 1px solid #334155; background: #1a2230; color: #fff; min-height: 80px; resize: vertical;">${escapeHtml(food.recipe_desc || '')}</textarea>
+                    <label class="swal-field-label">Description & Ingredients
+                        <textarea name="recipe_desc" rows="3" placeholder="Brief notes on ingredients or preparation..." class="swal-form-control" style="margin-top: 4px; min-height: 80px; resize: vertical;">${escapeHtml(food.recipe_desc || '')}</textarea>
                     </label>
 
                     <button type="button" onclick="switchSwalFoodTab(1)" style="background: transparent; border: none; color: var(--muted); font-size: 12px; cursor: pointer; display: inline-flex; align-items: center; gap: 5px; align-self: flex-start; padding: 4px 0;">
@@ -1989,7 +2135,7 @@ function importProductToGym(product) {
                 <label style="display:block; font-size: 13px; color: var(--muted); font-weight: 600; margin-bottom: 6px;">
                     Select Default Meal Type:
                 </label>
-                <select id="importMealType" style="width: 100%; box-sizing: border-box; padding: 10px 12px; border-radius: 8px; border: 1px solid #334155; background: #1a2230; color: #fff; font-size: 13.5px;">
+                <select id="importMealType" class="swal-form-control" style="padding: 10px 12px !important; font-size: 13.5px !important;">
                     <option value="Snack">Snack</option>
                     <option value="Breakfast">Breakfast</option>
                     <option value="Lunch">Lunch</option>

@@ -236,8 +236,7 @@ input[type="radio"] {
     border-radius: 4px;
 }
 
-.side-nav a,
-.sidebar-bottom a {
+.side-nav a {
     display: flex;
     align-items: center;
     gap: 12px;
@@ -245,6 +244,17 @@ input[type="radio"] {
     border-radius: 8px;
     color: var(--muted);
     padding: 9px 10px;
+    text-decoration: none;
+}
+
+.sidebar-bottom a {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 40px;
+    border-radius: 8px;
+    color: var(--muted);
+    padding: 9px 8px;
     text-decoration: none;
 }
 
@@ -284,18 +294,22 @@ input[type="radio"] {
 
 .nav-sub-pill {
     margin-left: auto;
-    font-size: 9.5px;
+    font-size: 8.5px;
     font-weight: 800;
-    line-height: 1;
-    padding: 3px 8px;
+    line-height: 1.1;
+    padding: 2.5px 6.5px;
     border-radius: 9999px;
-    letter-spacing: 0.4px;
+    letter-spacing: 0.2px;
     text-transform: uppercase;
     white-space: nowrap;
     transition: all 0.2s ease;
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
+    display: inline-block;
+    vertical-align: middle;
+    text-align: center;
+    max-width: 105px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    flex-shrink: 0;
 }
 
 .nav-sub-pill-trial {
