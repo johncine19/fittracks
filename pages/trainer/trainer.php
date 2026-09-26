@@ -149,6 +149,13 @@ function trainer_members_page(): void
                 <div style="font-size: 1.3rem; font-weight: bold; color: var(--lime); margin-top: 0.5rem;">
                     <?= $goal ?>
                 </div>
+
+                <?php if (!empty($member['activity_title'])): ?>
+                    <div style="display: inline-flex; align-items: center; gap: 5px; background: rgba(132, 204, 22, 0.12); color: var(--lime); border: 1px solid rgba(132, 204, 22, 0.25); padding: 4px 9px; border-radius: 6px; font-size: 11.5px; font-weight: 600; width: fit-content;">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+                        <span><?= h($member['activity_title']) ?></span>
+                    </div>
+                <?php endif; ?>
                 
                 <p style="font-size: 0.9rem; color: var(--muted); margin-bottom: 0;">
                     Current recorded weight: <?= $weight ?> kg

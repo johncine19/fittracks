@@ -446,6 +446,84 @@ function render_header(string $title, ?array $user = null): void
             color: #475569 !important;
         }
 
+        /* SweetAlert Action Buttons Theming */
+        .swal2-popup:not(.swal2-toast) .swal2-actions {
+            gap: 10px;
+            margin-top: 1.25rem !important;
+        }
+        .swal2-popup:not(.swal2-toast) .swal2-confirm {
+            border-radius: 8px !important;
+            font-weight: 600 !important;
+            font-size: 13.5px !important;
+            padding: 9px 20px !important;
+            box-shadow: none !important;
+        }
+        .swal2-popup:not(.swal2-toast) .swal2-styled.swal2-cancel,
+        .swal2-styled.swal2-cancel {
+            background-color: rgba(255, 255, 255, 0.08) !important;
+            color: #f8fafc !important;
+            border: 1px solid rgba(255, 255, 255, 0.16) !important;
+            border-radius: 8px !important;
+            font-weight: 600 !important;
+            font-size: 13.5px !important;
+            padding: 9px 20px !important;
+            box-shadow: none !important;
+            transition: all 0.15s ease !important;
+        }
+        .swal2-popup:not(.swal2-toast) .swal2-styled.swal2-cancel:hover,
+        .swal2-styled.swal2-cancel:hover {
+            background-color: rgba(255, 255, 255, 0.14) !important;
+            color: #ffffff !important;
+            border-color: rgba(255, 255, 255, 0.28) !important;
+        }
+        [data-theme="light"] .swal2-popup:not(.swal2-toast) .swal2-styled.swal2-cancel,
+        [data-theme="light"] .swal2-styled.swal2-cancel {
+            background-color: #f1f5f9 !important;
+            color: #334155 !important;
+            border: 1px solid #cbd5e1 !important;
+        }
+        [data-theme="light"] .swal2-popup:not(.swal2-toast) .swal2-styled.swal2-cancel:hover,
+        [data-theme="light"] .swal2-styled.swal2-cancel:hover {
+            background-color: #e2e8f0 !important;
+            color: #0f172a !important;
+            border-color: #94a3b8 !important;
+        }
+
+        /* SweetAlert Form Controls & Inputs Theming */
+        .swal2-popup:not(.swal2-toast) .form-control,
+        .swal2-popup:not(.swal2-toast) input:not([type="checkbox"]):not([type="radio"]):not([type="submit"]):not([type="button"]),
+        .swal2-popup:not(.swal2-toast) select,
+        .swal2-popup:not(.swal2-toast) textarea {
+            background-color: #141824 !important;
+            color: #f8fafc !important;
+            border: 1px solid rgba(255, 255, 255, 0.14) !important;
+            color-scheme: dark;
+        }
+        .swal2-popup:not(.swal2-toast) select option {
+            background-color: #141824;
+            color: #f8fafc;
+        }
+        [data-theme="light"] .swal2-popup:not(.swal2-toast) .form-control,
+        [data-theme="light"] .swal2-popup:not(.swal2-toast) input:not([type="checkbox"]):not([type="radio"]):not([type="submit"]):not([type="button"]),
+        [data-theme="light"] .swal2-popup:not(.swal2-toast) select,
+        [data-theme="light"] .swal2-popup:not(.swal2-toast) textarea {
+            background-color: #ffffff !important;
+            color: #0f172a !important;
+            border: 1px solid #cbd5e1 !important;
+            color-scheme: light;
+        }
+        [data-theme="light"] .swal2-popup:not(.swal2-toast) input::placeholder,
+        [data-theme="light"] .swal2-popup:not(.swal2-toast) textarea::placeholder {
+            color: #94a3b8 !important;
+        }
+        [data-theme="light"] .swal2-popup:not(.swal2-toast) select option {
+            background-color: #ffffff;
+            color: #0f172a;
+        }
+        [data-theme="light"] .swal2-popup:not(.swal2-toast) label {
+            color: #475569 !important;
+        }
+
         /* Light Mode User Avatar */
         [data-theme="light"] .avatar {
             background: #ecfccb !important;

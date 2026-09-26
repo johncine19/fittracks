@@ -160,9 +160,15 @@ function diet_builder_page(): void
             if ($goal === 'muscle_gain') $targetCals += 300;
             $targetCals = max(1200, round($targetCals));
             
-            // 4. Macro Split
-            $rule = $pdo->query("SELECT macro_split FROM diet_rules WHERE primary_goal = '{$goal}' AND experience_level = {$expLevel}")->fetch();
-            if (!$rule) $rule = $pdo->query("SELECT macro_split FROM diet_rules WHERE primary_goal = 'general_health'")->fetch();
+            // 4. Macro Split (use prepared statements to prevent SQL injection)
+            $stmtRule = $pdo->prepare('SELECT macro_split FROM diet_rules WHERE primary_goal = ? AND experience_level = ?');
+            $stmtRule->execute([$goal, $expLevel]);
+            $rule = $stmtRule->fetch();
+            if (!$rule) {
+                $stmtRule = $pdo->prepare('SELECT macro_split FROM diet_rules WHERE primary_goal = ?');
+                $stmtRule->execute(['general_health']);
+                $rule = $stmtRule->fetch();
+            }
             $splitStr = $rule['macro_split'] ?? '35% Protein / 35% Carbs / 30% Fat';
             preg_match('/(\d+)%\s+Protein\s*\/\s*(\d+)%\s+Carbs\s*\/\s*(\d+)%\s+Fat/i', $splitStr, $matches);
             $p_pct = (isset($matches[1]) ? (int)$matches[1] : 35) / 100;

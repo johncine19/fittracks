@@ -54,9 +54,24 @@ function trainers_page(): void
     
     $trainers = query_all('SELECT tp.trainer_id, u.user_id, u.first_name, u.last_name, u.profile_picture, tp.specialization, tp.bio, (SELECT COUNT(*) FROM attendance WHERE user_id = u.user_id AND check_out_time IS NULL AND DATE(check_in_time) = CURDATE()) as is_present FROM trainer_profiles tp JOIN users u ON u.user_id = tp.user_id WHERE u.status = "active" AND tp.gym_id = ?', [$gymId]);
     
-    $stmt = db()->prepare("SELECT status, trainer_id FROM trainer_assignments WHERE member_user_id = ? AND status IN ('active', 'pending_admin', 'pending_trainer')");
+    $stmt = db()->prepare("
+        SELECT ca.*, 
+               u.first_name AS coach_fn, 
+               u.last_name AS coach_ln, 
+               u.profile_picture AS coach_picture,
+               tp.specialization,
+               (CASE WHEN ca.group_id IS NOT NULL AND ca.group_id != '' 
+                     THEN (SELECT COUNT(*) FROM trainer_assignments WHERE group_id = ca.group_id AND status = 'active') 
+                     ELSE 1 END) AS group_members_count
+        FROM trainer_assignments ca
+        JOIN trainer_profiles tp ON tp.trainer_id = ca.trainer_id
+        JOIN users u ON u.user_id = tp.user_id
+        WHERE ca.member_user_id = ? AND ca.status IN ('active', 'pending_admin', 'pending_trainer')
+        ORDER BY ca.assigned_date DESC
+    ");
     $stmt->execute([$user['user_id']]);
-    $existingAssignment = $stmt->fetch();
+    $activeAssignments = $stmt->fetchAll();
+    $existingAssignment = $activeAssignments[0] ?? null;
     
     render_header('Trainers', $user);
     ?>
@@ -67,6 +82,46 @@ function trainers_page(): void
                 <p>Browse our list of professional trainers and request an appointment.</p>
             </div>
         </div>
+
+        <?php if ($activeAssignments): ?>
+            <div style="margin-top: 15px; margin-bottom: 24px; display: flex; flex-direction: column; gap: 12px;">
+                <?php foreach ($activeAssignments as $assign): 
+                    $cData = ['first_name' => $assign['coach_fn'], 'last_name' => $assign['coach_ln'], 'profile_picture' => $assign['coach_picture']];
+                    $isGroup = !empty($assign['group_id']) && (int)$assign['group_members_count'] > 1;
+                ?>
+                    <div style="background: var(--surface); border: 1px solid var(--lime); border-radius: 12px; padding: 18px 20px; display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 16px; box-shadow: 0 4px 20px rgba(132, 204, 22, 0.08);">
+                        <div style="display: flex; align-items: center; gap: 14px;">
+                            <?= render_avatar($cData, 'medium') ?>
+                            <div>
+                                <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+                                    <h3 style="margin: 0; font-size: 16px; font-weight: 700; color: var(--ink);">
+                                        <?= h($assign['activity_title'] ?: 'Trainer Assignment') ?>
+                                    </h3>
+                                    <span class="badge badge-<?= str_replace(' ', '_', $assign['status']) ?>">
+                                        <?= $assign['status'] === 'active' ? 'Active Assignment' : h(ucwords(str_replace('_', ' ', $assign['status']))) ?>
+                                    </span>
+                                    <?php if ($isGroup): ?>
+                                        <span class="badge" style="background: rgba(132, 204, 22, 0.12); color: var(--lime); border: 1px solid rgba(132, 204, 22, 0.25); font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 12px; display: inline-flex; align-items: center; gap: 4px;">
+                                            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+                                            Group Activity (<?= (int)$assign['group_members_count'] ?> Members)
+                                        </span>
+                                    <?php endif; ?>
+                                </div>
+                                <p style="margin: 4px 0 0; font-size: 13px; color: var(--muted);">
+                                    Coach <strong style="color: var(--ink);"><?= h($assign['coach_fn'] . ' ' . $assign['coach_ln']) ?></strong> &bull; <?= h($assign['specialization'] ?: 'General Fitness') ?> &bull; Assigned <?= date('M j, Y', strtotime($assign['assigned_date'])) ?>
+                                </p>
+                            </div>
+                        </div>
+                        <div style="display: flex; gap: 8px; align-items: center;">
+                            <a href="index.php?page=messages" class="btn-sm btn-ghost" style="text-decoration: none; padding: 8px 14px; font-weight: 600; border: 1px solid var(--line); border-radius: 6px; display: inline-flex; align-items: center; gap: 6px; color: var(--ink);">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
+                                Message Trainer
+                            </a>
+                        </div>
+                    </div>
+                <?php endforeach; ?>
+            </div>
+        <?php endif; ?>
 
         <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 280px), 1fr)); gap: 20px; margin-top: 20px;">
             <?php foreach ($trainers as $trainer): ?>

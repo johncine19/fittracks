@@ -22,8 +22,8 @@ try {
             }
             flash('You have successfully checked out.', 'success');
         }
-        $redirectUrl = $_SERVER['HTTP_REFERER'] ?? 'index.php?page=dashboard';
-        header('Location: ' . $redirectUrl);
+        // Safe redirect: never trust HTTP_REFERER as a redirect target
+        header('Location: index.php?page=dashboard');
         exit;
     }
 

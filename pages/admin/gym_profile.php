@@ -39,13 +39,10 @@ function gym_profile_page(): void
 
         $permitUrl = $gym['business_permit_url'];
         if (isset($_FILES['business_permit']) && $_FILES['business_permit']['error'] === UPLOAD_ERR_OK) {
-            $tmp = $_FILES['business_permit']['tmp_name'];
-            $ext = pathinfo($_FILES['business_permit']['name'], PATHINFO_EXTENSION);
-            $filename = uniqid('permit_') . '.' . $ext;
-            if (move_uploaded_file($tmp, __DIR__ . '/../../assets/permits/' . $filename)) {
-                $permitUrl = $filename;
-            } else {
-                flash('Failed to upload business permit.', 'danger');
+            try {
+                $permitUrl = FileUpload::storeBusinessPermit($_FILES['business_permit'], (int)$gym['gym_id']);
+            } catch (RuntimeException $e) {
+                flash('Permit upload failed: ' . $e->getMessage(), 'danger');
             }
         }
 

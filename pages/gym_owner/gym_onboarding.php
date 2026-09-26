@@ -61,6 +61,13 @@ function gym_onboarding_page(): void
                 if (!filter_var($fbPageUrl, FILTER_VALIDATE_URL)) {
                     flash('Please enter a valid Facebook Page URL (e.g. https://facebook.com/yourgym) or leave it empty.', 'danger');
                     $fbPageUrl = null;
+                } else {
+                    // Block non-http(s) protocols like javascript:, data:, vbscript:
+                    $parsedScheme = strtolower(parse_url($fbPageUrl, PHP_URL_SCHEME) ?? '');
+                    if (!in_array($parsedScheme, ['http', 'https'], true)) {
+                        flash('Only http:// and https:// URLs are allowed for the Facebook Page URL.', 'danger');
+                        $fbPageUrl = null;
+                    }
                 }
             } else {
                 $fbPageUrl = null;
