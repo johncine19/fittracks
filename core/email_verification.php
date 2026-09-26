@@ -38,9 +38,10 @@ function send_verification_email(string $email, string $firstName, string $token
 
 function app_base_url(): string
 {
-    $configured = app_env('APP_URL') ?: app_env('RENDER_EXTERNAL_URL');
-    if (!empty($configured)) {
-        $clean = rtrim((string) $configured, '/');
+    // 1. Explicitly configured APP_URL (e.g., https://fitworks.tech)
+    $appUrl = app_env('APP_URL');
+    if (!empty($appUrl)) {
+        $clean = rtrim((string) $appUrl, '/');
         if (!str_ends_with($clean, '.php')) {
             $clean .= '/index.php';
         }
@@ -49,7 +50,7 @@ function app_base_url(): string
 
     $scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
 
-    // In web request
+    // 2. Active Web Request Host (e.g., fitworks.tech or localhost)
     if (php_sapi_name() !== 'cli' && !empty($_SERVER['HTTP_HOST'])) {
         $host = $_SERVER['HTTP_HOST'];
         $scriptPath = str_replace('\\', '/', $_SERVER['SCRIPT_NAME'] ?? '');
@@ -58,7 +59,17 @@ function app_base_url(): string
         return $scheme . '://' . $host . $base . '/index.php';
     }
 
-    // CLI fallback
+    // 3. Fallback to Render external URL if running without HTTP_HOST (e.g. background worker)
+    $renderUrl = app_env('RENDER_EXTERNAL_URL');
+    if (!empty($renderUrl)) {
+        $clean = rtrim((string) $renderUrl, '/');
+        if (!str_ends_with($clean, '.php')) {
+            $clean .= '/index.php';
+        }
+        return $clean;
+    }
+
+    // 4. Localhost CLI fallback
     $projectFolder = basename(dirname(__DIR__));
     return 'http://localhost/' . $projectFolder . '/index.php';
 }
