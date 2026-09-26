@@ -245,6 +245,7 @@ CREATE TABLE `food_items` (
   `fat_g` decimal(6,1) NOT NULL,
   `image_url` varchar(255) DEFAULT NULL,
   `recipe_desc` text DEFAULT NULL,
+  `ingredients` text DEFAULT NULL,
   `source` varchar(50) DEFAULT 'system',
   `is_active` tinyint(1) DEFAULT '1',
   `created_at` timestamp DEFAULT CURRENT_TIMESTAMP,

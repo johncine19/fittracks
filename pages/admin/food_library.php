@@ -16,6 +16,51 @@ function food_library_page(): void
         }
     }
 
+    // Auto-migration & seed check for ingredients
+    try {
+        $hasCol = (bool) $pdo->query("SHOW COLUMNS FROM food_items LIKE 'ingredients'")->fetch();
+        if (!$hasCol) {
+            $pdo->exec("ALTER TABLE food_items ADD COLUMN ingredients TEXT NULL AFTER recipe_desc");
+        }
+        $unseeded = $pdo->query("SELECT food_id, name FROM food_items WHERE (ingredients IS NULL OR ingredients = '') AND source = 'system'")->fetchAll(PDO::FETCH_ASSOC);
+        if (!empty($unseeded)) {
+            $staples = get_staple_recipes_ingredients();
+            $upd = $pdo->prepare("UPDATE food_items SET ingredients = ? WHERE food_id = ?");
+            foreach ($unseeded as $uItem) {
+                $uName = trim((string)$uItem['name']);
+                foreach ($staples as $sName => $sList) {
+                    if (strcasecmp($uName, $sName) === 0 || stripos($uName, $sName) !== false || stripos($sName, $uName) !== false) {
+                        $upd->execute([json_encode($sList), (int)$uItem['food_id']]);
+                        break;
+                    }
+                }
+            }
+        }
+    } catch (Throwable $e) {}
+
+    // Handle AJAX request to view / fetch ingredients
+    if ((isset($_GET['action']) && $_GET['action'] === 'get_ingredients') || (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && post('action') === 'get_ingredients')) {
+        $foodId = (int) ($_GET['food_id'] ?? post('food_id'));
+        $stmt = $pdo->prepare("SELECT * FROM food_items WHERE food_id = ? AND is_active = 1");
+        $stmt->execute([$foodId]);
+        $food = $stmt->fetch(PDO::FETCH_ASSOC);
+        if (!$food) {
+            header('Content-Type: application/json; charset=utf-8');
+            echo json_encode(['success' => false, 'error' => 'Food item not found']);
+            exit;
+        }
+
+        $ingredientsStruct = get_food_ingredients($food);
+        $photoUrl = get_meal_photo_url($food['image_url'], $food['name'], $food['meal_type']);
+        $food['photo_url'] = $photoUrl;
+        $food['ingredients_data'] = $ingredientsStruct;
+        $food['ingredients_text'] = format_ingredients_for_textarea($food['ingredients'], $food['name']);
+
+        header('Content-Type: application/json; charset=utf-8');
+        echo json_encode(['success' => true, 'food' => $food]);
+        exit;
+    }
+
     $activeTab = (string) ($_GET['tab'] ?? 'library');
     $mealTypeFilter = trim((string) ($_GET['meal_type'] ?? ''));
     $restrictionFilter = trim((string) ($_GET['restriction'] ?? ''));
@@ -38,6 +83,13 @@ function food_library_page(): void
             $desc = trim((string) post('recipe_desc')) ?: null;
             $imageUrl = trim((string) post('image_url')) ?: null;
 
+            $ingredientsRaw = trim((string) post('ingredients')) ?: null;
+            $ingredientsToSave = null;
+            if (!empty($ingredientsRaw)) {
+                $parsed = parse_ingredients_data($ingredientsRaw);
+                $ingredientsToSave = !empty($parsed['all']) ? json_encode($parsed['all']) : $ingredientsRaw;
+            }
+
             // Optional image file upload via ImageKit CDN
             if (isset($_FILES['food_image']) && !empty($_FILES['food_image']['tmp_name'])) {
                 try {
@@ -54,8 +106,8 @@ function food_library_page(): void
                 $targetGymId = ($user['role'] === 'platform_admin' && post('is_global') === '1') ? null : $gymId;
                 $stmt = $pdo->prepare("
                     INSERT INTO food_items 
-                    (gym_id, name, meal_type, dietary_restriction, serving_size, calories, protein_g, carbs_g, fat_g, image_url, recipe_desc, source)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'custom')
+                    (gym_id, name, meal_type, dietary_restriction, serving_size, calories, protein_g, carbs_g, fat_g, image_url, recipe_desc, ingredients, source)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'custom')
                 ");
                 $stmt->execute([
                     $targetGymId,
@@ -68,7 +120,8 @@ function food_library_page(): void
                     $carbs,
                     $fat,
                     $imageUrl,
-                    $desc
+                    $desc,
+                    $ingredientsToSave
                 ]);
                 flash('New food item added to library!', 'success');
                 redirect('food_library');
@@ -87,6 +140,13 @@ function food_library_page(): void
             $fat = max(0.0, (float) post('fat_g'));
             $desc = trim((string) post('recipe_desc')) ?: null;
             $imageUrl = trim((string) post('image_url')) ?: null;
+
+            $ingredientsRaw = trim((string) post('ingredients')) ?: null;
+            $ingredientsToSave = null;
+            if (!empty($ingredientsRaw)) {
+                $parsed = parse_ingredients_data($ingredientsRaw);
+                $ingredientsToSave = !empty($parsed['all']) ? json_encode($parsed['all']) : $ingredientsRaw;
+            }
 
             // Check permissions
             $existing = $pdo->query("SELECT * FROM food_items WHERE food_id = {$foodId}")->fetch();
@@ -111,7 +171,7 @@ function food_library_page(): void
 
             $stmt = $pdo->prepare("
                 UPDATE food_items 
-                SET name = ?, meal_type = ?, dietary_restriction = ?, serving_size = ?, calories = ?, protein_g = ?, carbs_g = ?, fat_g = ?, recipe_desc = ?, image_url = COALESCE(?, image_url)
+                SET name = ?, meal_type = ?, dietary_restriction = ?, serving_size = ?, calories = ?, protein_g = ?, carbs_g = ?, fat_g = ?, recipe_desc = ?, ingredients = ?, image_url = COALESCE(?, image_url)
                 WHERE food_id = ?
             ");
             $stmt->execute([
@@ -124,6 +184,7 @@ function food_library_page(): void
                 $carbs,
                 $fat,
                 $desc,
+                $ingredientsToSave,
                 $imageUrl,
                 $foodId
             ]);
@@ -259,7 +320,8 @@ function food_library_page(): void
     }
 
     if ($searchQuery) {
-        $where[] = '(name LIKE ? OR recipe_desc LIKE ?)';
+        $where[] = '(name LIKE ? OR recipe_desc LIKE ? OR ingredients LIKE ?)';
+        $params[] = '%' . $searchQuery . '%';
         $params[] = '%' . $searchQuery . '%';
         $params[] = '%' . $searchQuery . '%';
     }
@@ -279,7 +341,11 @@ function food_library_page(): void
 
     $stmt = $pdo->prepare("SELECT * FROM food_items WHERE {$whereSql} ORDER BY (gym_id IS NOT NULL) DESC, name ASC LIMIT {$perPage} OFFSET {$offset}");
     $stmt->execute($params);
-    $foods = $stmt->fetchAll();
+    $foods = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    foreach ($foods as $idx => $f) {
+        $foods[$idx]['ingredients_data'] = get_food_ingredients($f);
+        $foods[$idx]['ingredients_text'] = format_ingredients_for_textarea($f['ingredients'] ?? null, $f['name']);
+    }
 
     $fromCount = $totalFoods > 0 ? $offset + 1 : 0;
     $toCount = min($offset + $perPage, $totalFoods);
@@ -657,27 +723,656 @@ select {
     to { opacity: 1; transform: translateY(0) scale(1); }
 }
 
+/* ========================================================
+   Fresh & Clean Organic Design System (Food & Nutrition)
+   ======================================================== */
+.food-card-organic {
+    background: #ffffff;
+    border: 1px solid #e5e7eb;
+    border-radius: 12px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.04);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
+}
+.food-card-organic:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 22px rgba(0, 0, 0, 0.07);
+    border-color: #cbd5e1;
+}
+[data-theme="dark"] .food-card-organic,
+.dark .food-card-organic {
+    background: var(--surface);
+    border-color: var(--line);
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25);
+}
+
+.food-card-title {
+    margin: 0 0 6px;
+    font-size: 14.5px;
+    font-weight: 700;
+    color: #111827;
+    line-height: 1.35;
+    cursor: pointer;
+    transition: color 0.15s ease;
+}
+.food-card-title:hover {
+    color: #15803d !important;
+}
+[data-theme="dark"] .food-card-title {
+    color: #f9fafb;
+}
+[data-theme="dark"] .food-card-title:hover {
+    color: #4ade80 !important;
+}
+
+.food-card-desc {
+    margin: 0 0 12px;
+    font-size: 12px;
+    color: #6b7280;
+    line-height: 1.4;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+[data-theme="dark"] .food-card-desc {
+    color: #94a3b8;
+}
+
+.food-card-serving-row {
+    font-size: 11.5px;
+    color: #6b7280;
+}
+.food-card-serving-row strong {
+    color: #111827;
+}
+[data-theme="dark"] .food-card-serving-row {
+    color: #94a3b8;
+}
+[data-theme="dark"] .food-card-serving-row strong {
+    color: #f1f5f9;
+}
+
+.food-macro-cell {
+    background: #f9fafb;
+    border: 1px solid #e5e7eb;
+    padding: 5px 4px;
+    border-radius: 6px;
+    text-align: center;
+    font-size: 11.5px;
+    font-weight: 600;
+    color: #111827;
+}
+.food-macro-cell .macro-lbl {
+    display: block;
+    font-size: 9.5px;
+    color: #6b7280;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.2px;
+}
+[data-theme="dark"] .food-macro-cell {
+    background: rgba(255, 255, 255, 0.04);
+    border-color: var(--line);
+    color: #f1f5f9;
+}
+[data-theme="dark"] .food-macro-cell .macro-lbl {
+    color: #94a3b8;
+}
+
+/* Semi-translucent frosted glass badge for dish photography */
+.food-tag-frosted {
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    background: rgba(17, 24, 39, 0.65);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    color: #f9fafb;
+    padding: 2.5px 7.5px;
+    border-radius: 5px;
+    letter-spacing: 0.3px;
+    display: inline-flex;
+    align-items: center;
+}
+
+.food-calories-pill {
+    position: absolute;
+    bottom: 8px;
+    right: 10px;
+    background: rgba(17, 24, 39, 0.68);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    color: #fef08a;
+    font-size: 11.5px;
+    font-weight: 700;
+    padding: 3px 8px;
+    border-radius: 6px;
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    display: inline-flex;
+    align-items: center;
+    gap: 4.5px;
+    z-index: 2;
+}
+
+.btn-view-ingredients {
+    background: #f0fdf4;
+    border: 1px solid #bbf7d0;
+    color: #15803d;
+    font-weight: 600;
+    font-size: 12px;
+    padding: 4.5px 11px;
+    border-radius: 6px;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    text-decoration: none;
+}
+.btn-view-ingredients:hover {
+    background: #16a34a;
+    border-color: #16a34a;
+    color: #ffffff;
+    box-shadow: 0 2px 8px rgba(22, 163, 74, 0.25);
+}
+.btn-view-ingredients:active {
+    transform: scale(0.97);
+}
+[data-theme="dark"] .btn-view-ingredients {
+    background: rgba(22, 163, 74, 0.14);
+    border-color: rgba(34, 197, 94, 0.32);
+    color: #4ade80;
+}
+[data-theme="dark"] .btn-view-ingredients:hover {
+    background: #16a34a;
+    border-color: #16a34a;
+    color: #ffffff;
+}
+
+.food-card-footer {
+    padding: 10px 14px;
+    background: #f9fafb;
+    border-top: 1px solid #e5e7eb;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 8px;
+}
+[data-theme="dark"] .food-card-footer {
+    background: rgba(0, 0, 0, 0.18);
+    border-color: var(--line);
+}
+
+/* Ingredients Modal System */
+.ing-modal-box {
+    background: #ffffff !important;
+    border: 1px solid #e5e7eb !important;
+    box-shadow: 0 20px 45px rgba(0, 0, 0, 0.16) !important;
+}
+[data-theme="dark"] .ing-modal-box {
+    background: var(--panel-bg, #121721) !important;
+    border-color: var(--line) !important;
+}
+.ing-modal-hero {
+    position: relative;
+    height: 125px;
+    background: #000;
+    overflow: hidden;
+    flex-shrink: 0;
+}
+.ing-modal-close-btn {
+    position: absolute;
+    top: 10px;
+    right: 12px;
+    z-index: 10;
+    background: rgba(0, 0, 0, 0.65);
+    color: #fff;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    font-size: 20px;
+    line-height: 1;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: background 0.15s;
+}
+.ing-modal-close-btn:hover {
+    background: rgba(0, 0, 0, 0.85);
+}
+.ing-modal-hero-badge {
+    font-size: 10.5px;
+    font-weight: 700;
+    text-transform: uppercase;
+    padding: 2.5px 8px;
+    border-radius: 5px;
+    background: rgba(17, 24, 39, 0.65) !important;
+    backdrop-filter: blur(8px) !important;
+    -webkit-backdrop-filter: blur(8px) !important;
+    border: 1px solid rgba(255, 255, 255, 0.2) !important;
+    color: #f9fafb !important;
+    letter-spacing: 0.3px;
+}
+.ing-modal-hero-subtitle {
+    font-size: 10.5px;
+    color: #4ade80;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+    margin-bottom: 2px;
+}
+.ing-modal-hero-title {
+    margin: 0;
+    font-size: 18.5px;
+    font-weight: 800;
+    color: #ffffff;
+    line-height: 1.25;
+    text-shadow: 0 2px 6px rgba(0, 0, 0, 0.8);
+}
+.ing-modal-nutrition {
+    background: #f9fafb;
+    border: 1px solid #e5e7eb;
+    border-radius: 10px;
+    padding: 12px 14px;
+    margin-bottom: 14px;
+}
+[data-theme="dark"] .ing-modal-nutrition {
+    background: var(--bg);
+    border-color: var(--line);
+}
+.ing-modal-portion-text {
+    font-size: 12px;
+    color: #6b7280;
+    font-weight: 600;
+}
+.ing-modal-portion-text strong {
+    color: #111827;
+}
+[data-theme="dark"] .ing-modal-portion-text {
+    color: var(--muted);
+}
+[data-theme="dark"] .ing-modal-portion-text strong {
+    color: var(--ink);
+}
+.ing-modal-verified-badge {
+    font-size: 10.5px;
+    color: #15803d;
+    font-weight: 700;
+    background: #f0fdf4;
+    padding: 2px 7px;
+    border-radius: 4px;
+    border: 1px solid #bbf7d0;
+}
+[data-theme="dark"] .ing-modal-verified-badge {
+    background: rgba(22, 163, 74, 0.14);
+    border-color: rgba(34, 197, 94, 0.3);
+    color: #4ade80;
+}
+.ing-modal-macros-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 8px;
+    text-align: center;
+}
+.ing-modal-macro-cell {
+    background: #ffffff;
+    padding: 7px 4px;
+    border-radius: 8px;
+    border: 1px solid #e5e7eb;
+}
+[data-theme="dark"] .ing-modal-macro-cell {
+    background: color-mix(in srgb, var(--surface) 90%, transparent);
+    border-color: var(--line);
+}
+.ing-modal-macro-lbl {
+    display: block;
+    font-size: 9.5px;
+    color: #6b7280;
+    font-weight: 600;
+    text-transform: uppercase;
+}
+[data-theme="dark"] .ing-modal-macro-lbl {
+    color: var(--muted);
+}
+.ing-modal-macro-val {
+    font-size: 14px;
+    font-weight: 800;
+}
+.ing-modal-nutrition-note {
+    margin-top: 8px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+    color: #6b7280;
+    line-height: 1.35;
+}
+[data-theme="dark"] .ing-modal-nutrition-note {
+    color: var(--muted);
+}
+.ing-modal-section-title {
+    font-size: 12.5px;
+    font-weight: 800;
+    color: #111827;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+[data-theme="dark"] .ing-modal-section-title {
+    color: var(--ink);
+}
+.ing-modal-items-count-badge {
+    font-size: 11px;
+    font-weight: 700;
+    color: #6b7280;
+    background: #f3f4f6;
+    padding: 2px 7px;
+    border-radius: 4px;
+}
+[data-theme="dark"] .ing-modal-items-count-badge {
+    color: var(--muted);
+    background: color-mix(in srgb, var(--ink) 8%, transparent);
+}
+.ing-modal-list-container {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 8px;
+    padding-bottom: 4px;
+}
+.ing-modal-list-container > .ing-modal-item:only-child {
+    grid-column: 1 / -1;
+}
+.ing-modal-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 7px 10px;
+    background: #ffffff;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    transition: border-color 0.15s ease, background 0.15s ease;
+    min-width: 0;
+    gap: 6px;
+}
+[data-theme="dark"] .ing-modal-item {
+    background: color-mix(in srgb, var(--surface) 80%, transparent);
+    border-color: var(--line);
+}
+.ing-modal-item-name {
+    font-size: 12px;
+    font-weight: 600;
+    color: #111827;
+    line-height: 1.25;
+    word-break: break-word;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+[data-theme="dark"] .ing-modal-item-name {
+    color: var(--ink);
+}
+.ing-modal-item-measure {
+    font-size: 11px;
+    font-weight: 700;
+    color: #111827;
+    background: #f3f4f6;
+    padding: 2.5px 7px;
+    border-radius: 5px;
+    border: 1px solid #e5e7eb;
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+[data-theme="dark"] .ing-modal-item-measure {
+    color: var(--ink);
+    background: color-mix(in srgb, var(--ink) 9%, transparent);
+    border-color: var(--line);
+}
+.ing-modal-item-opt-badge {
+    font-size: 8.5px;
+    font-weight: 700;
+    color: #6b7280;
+    background: #f3f4f6;
+    padding: 1.5px 4px;
+    border-radius: 4px;
+    text-transform: uppercase;
+    border: 1px dashed #d1d5db;
+    letter-spacing: 0.2px;
+}
+[data-theme="dark"] .ing-modal-item-opt-badge {
+    color: var(--muted);
+    background: color-mix(in srgb, var(--ink) 6%, transparent);
+    border-color: var(--line);
+}
+.ing-modal-toggle-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    background: #f0fdf4;
+    border: 1px solid #bbf7d0;
+    color: #15803d;
+    font-size: 10.5px;
+    font-weight: 700;
+    padding: 3.5px 11px;
+    border-radius: 16px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    letter-spacing: 0.2px;
+}
+.ing-modal-toggle-btn:hover {
+    background: #16a34a;
+    border-color: #16a34a;
+    color: #ffffff;
+}
+[data-theme="dark"] .ing-modal-toggle-btn {
+    background: rgba(22, 163, 74, 0.12);
+    border-color: rgba(34, 197, 94, 0.3);
+    color: #4ade80;
+}
+[data-theme="dark"] .ing-modal-toggle-btn:hover {
+    background: #16a34a;
+    border-color: #16a34a;
+    color: #ffffff;
+}
+.ing-modal-desc-box {
+    background: #f9fafb;
+    border-left: 3px solid #16a34a;
+    padding: 8px 12px;
+}
+.ing-modal-desc-lbl {
+    font-size: 10px;
+    font-weight: 800;
+    color: #15803d;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 2px;
+}
+[data-theme="dark"] .ing-modal-desc-box {
+    background: color-mix(in srgb, var(--surface) 60%, transparent);
+    border-left-color: #4ade80;
+}
+[data-theme="dark"] .ing-modal-desc-lbl {
+    color: #4ade80;
+}
+.ing-modal-body {
+    padding: 14px 18px 24px;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    flex: 1 1 auto;
+    min-height: 0;
+}
+.ing-modal-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 18px;
+    flex-shrink: 0;
+    border-top: 1px solid #e5e7eb;
+    background: #f9fafb;
+}
+[data-theme="dark"] .ing-modal-footer {
+    border-top-color: var(--line);
+    background: color-mix(in srgb, var(--bg) 40%, var(--panel-bg, #121721));
+}
+
 /* SweetAlert and Modal Mobile Responsiveness & Centering */
 @media (max-width: 640px) {
     .ft-modal-overlay {
-        padding: 10px !important;
+        padding: 8px !important;
         align-items: center !important;
         justify-content: center !important;
     }
     .ft-modal-box {
-        max-width: calc(100vw - 20px) !important;
-        max-height: 92vh !important;
+        max-width: calc(100vw - 16px) !important;
+        max-height: 94vh !important;
+        height: auto !important;
         margin: auto !important;
+        border-radius: 14px !important;
     }
     .ft-modal-header {
-        padding: 14px 16px !important;
+        padding: 12px 14px !important;
     }
     .ft-modal-body {
-        padding: 14px 16px !important;
+        padding: 12px 14px !important;
+        -webkit-overflow-scrolling: touch !important;
     }
     .ft-modal-footer {
-        padding: 12px 16px !important;
+        padding: 10px 14px !important;
     }
+
+    /* Ingredients Modal Mobile Optimizations */
+    #modal-food-ingredients.ft-modal-overlay {
+        padding: 6px !important;
+        align-items: center !important;
+        justify-content: center !important;
+    }
+    #modal-food-ingredients .ft-modal-box {
+        width: 100% !important;
+        max-width: calc(100vw - 12px) !important;
+        max-height: 92vh !important;
+        height: auto !important;
+        display: flex !important;
+        flex-direction: column !important;
+        margin: auto !important;
+        border-radius: 12px !important;
+    }
+    #modal-food-ingredients .ing-modal-hero {
+        height: 82px !important;
+        flex-shrink: 0 !important;
+    }
+    #modal-food-ingredients .ing-modal-close-btn {
+        top: 6px !important;
+        right: 6px !important;
+        width: 26px !important;
+        height: 26px !important;
+        font-size: 16px !important;
+    }
+    #modal-food-ingredients .ing-modal-hero-badge {
+        font-size: 9px !important;
+        padding: 1.5px 5px !important;
+    }
+    #modal-food-ingredients .ing-modal-hero-subtitle {
+        font-size: 8.5px !important;
+        margin-bottom: 1px !important;
+    }
+    #modal-food-ingredients .ing-modal-hero-title {
+        font-size: 14px !important;
+        line-height: 1.2 !important;
+    }
+    #modal-food-ingredients .ing-modal-body {
+        padding: 8px 10px 24px 10px !important;
+        overflow-y: auto !important;
+        -webkit-overflow-scrolling: touch !important;
+        overscroll-behavior: contain !important;
+        flex: 1 1 auto !important;
+        min-height: 0 !important;
+    }
+    #modal-food-ingredients .ing-modal-nutrition {
+        padding: 7px 9px !important;
+        margin-bottom: 8px !important;
+        border-radius: 7px !important;
+    }
+    #modal-food-ingredients .ing-modal-portion-text {
+        font-size: 10.5px !important;
+    }
+    #modal-food-ingredients .ing-modal-verified-badge {
+        font-size: 8px !important;
+        padding: 1px 4px !important;
+    }
+    #modal-food-ingredients .ing-modal-macros-grid {
+        gap: 4px !important;
+    }
+    #modal-food-ingredients .ing-modal-macro-cell {
+        padding: 4px 2px !important;
+        border-radius: 5px !important;
+    }
+    #modal-food-ingredients .ing-modal-macro-lbl {
+        font-size: 8px !important;
+    }
+    #modal-food-ingredients .ing-modal-macro-val {
+        font-size: 12px !important;
+    }
+    #modal-food-ingredients .ing-modal-nutrition-note {
+        font-size: 9px !important;
+        margin-top: 4px !important;
+        line-height: 1.25 !important;
+    }
+    #modal-food-ingredients .ing-modal-section-title {
+        font-size: 10.5px !important;
+    }
+    #modal-food-ingredients .ing-modal-items-count-badge {
+        font-size: 9px !important;
+        padding: 1px 4px !important;
+    }
+    #modal-food-ingredients .ing-modal-list-container {
+        grid-template-columns: repeat(2, 1fr) !important;
+        gap: 5px !important;
+        padding-bottom: 4px !important;
+    }
+    #modal-food-ingredients .ing-modal-item {
+        padding: 5px 6.5px !important;
+        gap: 4px !important;
+        border-radius: 6px !important;
+    }
+    #modal-food-ingredients .ing-modal-item-name {
+        font-size: 11px !important;
+        line-height: 1.2 !important;
+    }
+    #modal-food-ingredients .ing-modal-item-measure {
+        font-size: 10px !important;
+        padding: 2px 5px !important;
+        border-radius: 4px !important;
+    }
+    #modal-food-ingredients .ing-modal-item-opt-badge {
+        font-size: 8px !important;
+        padding: 1px 3.5px !important;
+    }
+    #modal-food-ingredients .ing-modal-toggle-btn {
+        font-size: 10px !important;
+        padding: 3px 9px !important;
+        gap: 3.5px !important;
+    }
+    #modal-food-ingredients .ing-modal-footer {
+        padding: 6px 10px !important;
+        flex-shrink: 0 !important;
+    }
+    #modal-food-ingredients .btn-modal-cancel {
+        padding: 5px 12px !important;
+        font-size: 11.5px !important;
+        border-radius: 6px !important;
+    }
+    #modal-food-ingredients #ing-modal-footer-edit-container button {
+        padding: 5px 8px !important;
+        font-size: 11px !important;
+        border-radius: 6px !important;
+    }
+
     .swal2-container {
         padding: 10px !important;
         display: flex !important;
@@ -765,6 +1460,20 @@ select {
     color: var(--muted);
     font-weight: 600;
 }
+.swal-hint-code,
+.swal-field-label code,
+.swal2-popup code {
+    background: #1e293b !important;
+    color: #f1f5f9 !important;
+    border: 1px solid #334155 !important;
+    padding: 2px 7px !important;
+    border-radius: 5px !important;
+    font-family: inherit !important;
+    font-size: 11px !important;
+    font-weight: 600 !important;
+    display: inline-block !important;
+    line-height: 1.3 !important;
+}
 .swal-form-control {
     width: 100% !important;
     box-sizing: border-box !important;
@@ -850,6 +1559,13 @@ select {
 }
 [data-theme="light"] .swal-field-label {
     color: #475569 !important;
+}
+[data-theme="light"] .swal-hint-code,
+[data-theme="light"] .swal-field-label code,
+[data-theme="light"] .swal2-popup code {
+    background: #e2e8f0 !important;
+    color: #0f172a !important;
+    border: 1px solid #cbd5e1 !important;
 }
 [data-theme="light"] .swal-form-control {
     background: #ffffff !important;
@@ -1283,41 +1999,42 @@ select {
                     $isCustom = !empty($food['gym_id']);
                     $canEditPhoto = in_array($user['role'], ['platform_admin', 'gym_owner'], true);
                 ?>
-                    <div style="background: var(--surface); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; display: flex; flex-direction: column; transition: transform 0.15s, border-color 0.15s;">
+                    <div class="food-card-organic">
                         <!-- Food Card Header / Image -->
                         <div style="position: relative; height: 130px; background: #000; overflow: hidden;">
-                            <img id="food-card-img-<?= $food['food_id'] ?>" src="<?= h($photoUrl) ?>" alt="<?= h($food['name']) ?>" style="width: 100%; height: 100%; object-fit: cover; opacity: 0.85;" onerror="this.onerror=null; this.src='https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&w=600&q=80';">
-                            <div style="position: absolute; top: 10px; left: 10px; display: flex; gap: 6px; flex-wrap: wrap;">
-                                <span style="font-size: 10.5px; font-weight: 800; text-transform: uppercase; background: rgba(0,0,0,0.75); color: #60a5fa; border: 1px solid rgba(96, 165, 250, 0.4); padding: 2px 7px; border-radius: 4px; backdrop-filter: blur(4px);">
+                            <img id="food-card-img-<?= $food['food_id'] ?>" src="<?= h($photoUrl) ?>" alt="<?= h($food['name']) ?>" style="width: 100%; height: 100%; object-fit: cover; opacity: 0.88;" onerror="this.onerror=null; this.src='https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&w=600&q=80';">
+                            <div style="position: absolute; top: 10px; left: 10px; display: flex; gap: 6px; flex-wrap: wrap; z-index: 2;">
+                                <span class="food-tag-frosted">
                                     <?= h($food['meal_type']) ?>
                                 </span>
                                 <?php if ($food['dietary_restriction'] !== 'none'): ?>
-                                    <span style="font-size: 10.5px; font-weight: 700; text-transform: capitalize; background: rgba(0,0,0,0.75); color: #34d399; border: 1px solid rgba(52, 211, 153, 0.4); padding: 2px 7px; border-radius: 4px; backdrop-filter: blur(4px);">
+                                    <span class="food-tag-frosted" style="color: #6ee7b7;">
                                         <?= h($food['dietary_restriction']) ?>
                                     </span>
                                 <?php endif; ?>
                             </div>
-                            <div style="position: absolute; top: 10px; right: 10px; display: flex; align-items: center; gap: 6px;">
+                            <div style="position: absolute; top: 10px; right: 10px; display: flex; align-items: center; gap: 6px; z-index: 2;">
                                 <?php if ($isCustom): ?>
-                                    <span style="font-size: 10px; font-weight: 800; background: rgba(168, 85, 247, 0.9); color: #fff; padding: 2px 7px; border-radius: 4px; text-transform: uppercase; letter-spacing: 0.5px;">
+                                    <span class="food-tag-frosted" style="color: #c084fc; border-color: rgba(192, 132, 252, 0.4);">
                                         Gym Custom
                                     </span>
                                 <?php else: ?>
-                                    <span style="font-size: 10px; font-weight: 700; background: rgba(0,0,0,0.75); color: #94a3b8; padding: 2px 6px; border-radius: 4px;">
+                                    <span class="food-tag-frosted" style="color: #94a3b8;">
                                         Staple
                                     </span>
                                 <?php endif; ?>
                             </div>
-                            <div style="position: absolute; bottom: 8px; right: 10px; background: rgba(0,0,0,0.8); color: var(--lime); font-size: 12px; font-weight: 800; padding: 3px 8px; border-radius: 6px; border: 1px solid rgba(132, 204, 22, 0.3);">
-                                🔥 <?= $food['calories'] ?> kcal
+                            <div class="food-calories-pill">
+                                <svg width="12" height="12" viewBox="0 0 24 24" fill="#f59e0b" stroke="#f59e0b" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0;"><path d="M8.5 14.5A2.5 2.5 0 0 0 11 17c1.38 0 2.5-1.12 2.5-2.5 0-1.63-1.04-2.88-1.78-3.77a6.8 6.8 0 0 1-1.42-2.43c-.04-.05-.1-.08-.16-.08s-.12.03-.16.08a8.87 8.87 0 0 0-1.48 2.43C8.16 11.68 8.5 13.3 8.5 14.5z"/><path d="M12 2c-.15 0-.3.06-.41.17-.11.11-.17.26-.17.41 0 1.25-.43 2.45-1.22 3.39A9.9 9.9 0 0 1 8 8.13C6.73 9.77 6 11.8 6 14c0 3.31 2.69 6 6 6s6-2.69 6-6c0-2.8-1.22-5.4-3.32-7.14C13.56 5.92 12.8 4.2 12.8 2.58c0-.15-.06-.3-.17-.41A.58.58 0 0 0 12 2z"/></svg>
+                                <span><?= $food['calories'] ?> kcal</span>
                             </div>
                         </div>
 
                         <!-- Card Body -->
                         <div style="padding: 14px 16px; flex: 1; display: flex; flex-direction: column;">
-                            <h4 style="margin: 0 0 6px; font-size: 14.5px; font-weight: 700; color: var(--ink); line-height: 1.35;"><?= h($food['name']) ?></h4>
+                            <h4 class="food-card-title" onclick="openViewIngredientsModal(<?= (int)$food['food_id'] ?>)" title="Click to view ingredients & recipe breakdown"><?= h($food['name']) ?></h4>
                             <?php if ($food['recipe_desc']): ?>
-                                <p style="margin: 0 0 12px; font-size: 12px; color: var(--muted); line-height: 1.4; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;">
+                                <p class="food-card-desc">
                                     <?= h($food['recipe_desc']) ?>
                                 </p>
                             <?php else: ?>
@@ -1325,46 +2042,55 @@ select {
                             <?php endif; ?>
 
                             <!-- Serving Size & Macros Pill -->
-                            <div style="margin-top: auto; padding-top: 10px; border-top: 1px solid rgba(255,255,255,0.06);">
+                            <div style="margin-top: auto; padding-top: 10px; border-top: 1px solid #f1f5f9;">
                                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
-                                    <span style="font-size: 11.5px; color: var(--muted);">Serving: <strong style="color: var(--ink);"><?= h($food['serving_size']) ?></strong></span>
+                                    <span class="food-card-serving-row">Serving: <strong><?= h($food['serving_size']) ?></strong></span>
                                 </div>
-                                <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 6px; text-align: center; font-size: 11.5px; font-weight: 600;">
-                                    <div style="background: var(--bg); padding: 5px 4px; border-radius: 6px; border: 1px solid var(--line);">
-                                        <span style="display: block; font-size: 9.5px; color: var(--muted); font-weight: 500;">Protein</span>
-                                        <span style="color: var(--ink);"><?= $food['protein_g'] ?>g</span>
+                                <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 6px; text-align: center;">
+                                    <div class="food-macro-cell">
+                                        <span class="macro-lbl">Protein</span>
+                                        <span><?= $food['protein_g'] ?>g</span>
                                     </div>
-                                    <div style="background: var(--bg); padding: 5px 4px; border-radius: 6px; border: 1px solid var(--line);">
-                                        <span style="display: block; font-size: 9.5px; color: var(--muted); font-weight: 500;">Carbs</span>
-                                        <span style="color: var(--ink);"><?= $food['carbs_g'] ?>g</span>
+                                    <div class="food-macro-cell">
+                                        <span class="macro-lbl">Carbs</span>
+                                        <span><?= $food['carbs_g'] ?>g</span>
                                     </div>
-                                    <div style="background: var(--bg); padding: 5px 4px; border-radius: 6px; border: 1px solid var(--line);">
-                                        <span style="display: block; font-size: 9.5px; color: var(--muted); font-weight: 500;">Fat</span>
-                                        <span style="color: var(--ink);"><?= $food['fat_g'] ?>g</span>
+                                    <div class="food-macro-cell">
+                                        <span class="macro-lbl">Fat</span>
+                                        <span><?= $food['fat_g'] ?>g</span>
                                     </div>
                                 </div>
                             </div>
                         </div>
 
                         <!-- Card Actions Footer -->
-                        <div style="padding: 10px 14px; background: rgba(0,0,0,0.15); border-top: 1px solid var(--line); display: flex; justify-content: flex-end; align-items: center; gap: 8px;">
+                        <div class="food-card-footer">
                             <button type="button" 
-                                    onclick='openFoodPhotoModal(<?= (int)$food['food_id'] ?>, <?= json_encode($food['name'], JSON_HEX_TAG|JSON_HEX_APOS|JSON_HEX_QUOT|JSON_HEX_AMP) ?>, <?= json_encode($food['meal_type'], JSON_HEX_TAG|JSON_HEX_APOS|JSON_HEX_QUOT|JSON_HEX_AMP) ?>, <?= json_encode($food['image_url'] ?? '', JSON_HEX_TAG|JSON_HEX_APOS|JSON_HEX_QUOT|JSON_HEX_AMP) ?>, <?= json_encode($photoUrl, JSON_HEX_TAG|JSON_HEX_APOS|JSON_HEX_QUOT|JSON_HEX_AMP) ?>)' 
-                                    class="btn-sm btn-ghost" 
-                                    style="padding: 4px 10px; font-size: 12px; border-radius: 6px; display: inline-flex; align-items: center; gap: 4px;"
-                                    title="Customize Meal Photo">
-                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path><circle cx="12" cy="13" r="4"></circle></svg>
-                                Photo
+                                    onclick="openViewIngredientsModal(<?= (int)$food['food_id'] ?>)" 
+                                    class="btn-view-ingredients" 
+                                    title="View ingredients and measurements">
+                                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a10 10 0 1 0 10 10H12V2z"></path><path d="M12 12 2.1 10.5"></path><path d="M12 12V2"></path></svg>
+                                <span>View Ingredients</span>
                             </button>
-                            <?php if ($user['role'] === 'platform_admin' || $isCustom): ?>
-                                <button type="button" onclick="openEditFoodModal(<?= htmlspecialchars(json_encode($food), ENT_QUOTES, 'UTF-8') ?>)" class="btn-sm btn-ghost" style="padding: 4px 10px; font-size: 12px; border-radius: 6px;">Edit</button>
-                                <form method="post" style="margin:0;" onsubmit="return confirm('Delete this food item?');">
-                                    <?= csrf_field() ?>
-                                    <input type="hidden" name="action" value="delete">
-                                    <input type="hidden" name="food_id" value="<?= (int)$food['food_id'] ?>">
-                                    <button class="btn-sm btn-danger" style="padding: 4px 10px; font-size: 12px; border-radius: 6px;">Delete</button>
-                                </form>
-                            <?php endif; ?>
+                            <div style="display: flex; align-items: center; gap: 6px;">
+                                <button type="button" 
+                                        onclick='openFoodPhotoModal(<?= (int)$food['food_id'] ?>, <?= json_encode($food['name'], JSON_HEX_TAG|JSON_HEX_APOS|JSON_HEX_QUOT|JSON_HEX_AMP) ?>, <?= json_encode($food['meal_type'], JSON_HEX_TAG|JSON_HEX_APOS|JSON_HEX_QUOT|JSON_HEX_AMP) ?>, <?= json_encode($food['image_url'] ?? '', JSON_HEX_TAG|JSON_HEX_APOS|JSON_HEX_QUOT|JSON_HEX_AMP) ?>, <?= json_encode($photoUrl, JSON_HEX_TAG|JSON_HEX_APOS|JSON_HEX_QUOT|JSON_HEX_AMP) ?>)' 
+                                        class="btn-sm btn-ghost" 
+                                        style="padding: 4px 10px; font-size: 12px; border-radius: 6px; display: inline-flex; align-items: center; gap: 4px;"
+                                        title="Customize Meal Photo">
+                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path><circle cx="12" cy="13" r="4"></circle></svg>
+                                    Photo
+                                </button>
+                                <?php if ($user['role'] === 'platform_admin' || $isCustom): ?>
+                                    <button type="button" onclick="openEditFoodModal(<?= htmlspecialchars(json_encode($food), ENT_QUOTES, 'UTF-8') ?>)" class="btn-sm btn-ghost" style="padding: 4px 10px; font-size: 12px; border-radius: 6px;">Edit</button>
+                                    <form method="post" style="margin:0;" onsubmit="return confirm('Delete this food item?');">
+                                        <?= csrf_field() ?>
+                                        <input type="hidden" name="action" value="delete">
+                                        <input type="hidden" name="food_id" value="<?= (int)$food['food_id'] ?>">
+                                        <button class="btn-sm btn-danger" style="padding: 4px 10px; font-size: 12px; border-radius: 6px;">Delete</button>
+                                    </form>
+                                <?php endif; ?>
+                            </div>
                         </div>
                     </div>
                 <?php endforeach; ?>
@@ -1408,6 +2134,100 @@ select {
         </div>
     <?php endif; ?>
 </section>
+
+<!-- View Food Ingredients & Recipe Breakdown Modal -->
+<div class="ft-modal-overlay" id="modal-food-ingredients" style="display: none;" onclick="if(event.target===this) closeViewIngredientsModal()">
+    <div class="ft-modal-box ing-modal-box" style="max-width: 540px;">
+        <!-- Hero Header with Image -->
+        <div class="ing-modal-hero">
+            <img id="ing-modal-hero-img" src="" alt="Food Preview" style="width: 100%; height: 100%; object-fit: cover; opacity: 0.75;" onerror="this.onerror=null; this.src='https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&w=600&q=80';">
+            <div style="position: absolute; inset: 0; background: linear-gradient(180deg, rgba(0,0,0,0.2) 0%, rgba(18,23,33,0.92) 100%);"></div>
+            
+            <button type="button" class="ft-modal-close ing-modal-close-btn" onclick="closeViewIngredientsModal()" title="Close">&times;</button>
+
+            <div style="position: absolute; top: 10px; left: 14px; display: flex; gap: 5px; z-index: 5;">
+                <span id="ing-modal-meal-type" class="ing-modal-hero-badge"></span>
+                <span id="ing-modal-diet-type" class="ing-modal-hero-badge" style="color: #6ee7b7;"></span>
+            </div>
+
+            <div style="position: absolute; bottom: 10px; left: 14px; right: 14px; z-index: 5;">
+                <div class="ing-modal-hero-subtitle">Recipe & Ingredients Breakdown</div>
+                <h3 id="ing-modal-title" class="ing-modal-hero-title"></h3>
+            </div>
+        </div>
+
+        <div class="ft-modal-body ing-modal-body">
+            <!-- Serving & Nutrition Derivation Grid -->
+            <div class="ing-modal-nutrition">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; flex-wrap: wrap; gap: 6px;">
+                    <span class="ing-modal-portion-text">
+                        Portion / Serving Size: <strong style="color: var(--ink);" id="ing-modal-serving"></strong>
+                    </span>
+                    <span class="ing-modal-verified-badge">
+                        Verified Nutrition
+                    </span>
+                </div>
+
+                <div class="ing-modal-macros-grid">
+                    <div class="ing-modal-macro-cell">
+                        <span class="ing-modal-macro-lbl">Calories</span>
+                        <span class="ing-modal-macro-val" style="color: #15803d;" id="ing-modal-cals"></span>
+                    </div>
+                    <div class="ing-modal-macro-cell">
+                        <span class="ing-modal-macro-lbl">Protein</span>
+                        <span class="ing-modal-macro-val" style="color: #2563eb;" id="ing-modal-protein"></span>
+                    </div>
+                    <div class="ing-modal-macro-cell">
+                        <span class="ing-modal-macro-lbl">Carbs</span>
+                        <span class="ing-modal-macro-val" style="color: #d97706;" id="ing-modal-carbs"></span>
+                    </div>
+                    <div class="ing-modal-macro-cell">
+                        <span class="ing-modal-macro-lbl">Fat</span>
+                        <span class="ing-modal-macro-val" style="color: #dc2626;" id="ing-modal-fat"></span>
+                    </div>
+                </div>
+
+                <div class="ing-modal-nutrition-note">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#16a34a" stroke-width="2.2" style="flex-shrink: 0;"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
+                    <span>Nutritional values are calculated directly from measured portion weights of ingredients below.</span>
+                </div>
+            </div>
+
+            <!-- Unified Ingredients List -->
+            <div style="margin-bottom: 12px;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 7px;">
+                    <div style="display: flex; align-items: center; gap: 7px;">
+                        <span style="display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: #16a34a;"></span>
+                        <span class="ing-modal-section-title">Ingredients</span>
+                    </div>
+                    <span id="ing-modal-items-count" class="ing-modal-items-count-badge"></span>
+                </div>
+                <div id="ing-modal-items-list" class="ing-modal-list-container"></div>
+                <div id="ing-modal-show-all-container" style="display: none; margin-top: 6px; text-align: center;">
+                    <button type="button" id="ing-modal-show-all-btn" class="ing-modal-toggle-btn" onclick="toggleIngredientsShowAll()">
+                        <span id="ing-modal-show-all-text">Show all</span>
+                        <svg id="ing-modal-show-all-icon" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="transition: transform 0.2s;"><path d="M6 9l6 6 6-9"/></svg>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Recipe Notes & Preparation (if any) -->
+            <div id="ing-modal-desc-box" class="ing-modal-desc-box" style="display: none; border-radius: 0 8px 8px 0; margin-top: 10px;">
+                <div class="ing-modal-desc-lbl">
+                    Preparation & Notes
+                </div>
+                <div id="ing-modal-desc" style="font-size: 11.5px; color: var(--ink); line-height: 1.4;"></div>
+            </div>
+        </div>
+
+        <div class="ft-modal-footer ing-modal-footer">
+            <div id="ing-modal-footer-edit-container">
+                <!-- Injected dynamically if user has edit permission -->
+            </div>
+            <button type="button" class="btn-modal-cancel" onclick="closeViewIngredientsModal()" style="padding: 7px 18px;">Close</button>
+        </div>
+    </div>
+</div>
 
 <!-- Customize Meal Photo Modal (ImageKit / URL / Auto) -->
 <div class="ft-modal-overlay" id="modal-food-photo" style="display: none;" onclick="if(event.target===this) closeFoodPhotoModal()">
@@ -1487,6 +2307,198 @@ select {
 <!-- Add / Edit Food Modal Script -->
 <script>
 const FT_CSRF_TOKEN = <?= json_encode(csrf_token()) ?>;
+const FT_CURRENT_USER_ROLE = <?= json_encode($user['role']) ?>;
+const FT_CURRENT_GYM_ID = <?= json_encode($gymId) ?>;
+const FT_FOODS_MAP = <?= json_encode(array_combine(
+    array_column($foods, 'food_id'),
+    array_map(function($f) {
+        $f['photo_url'] = get_meal_photo_url($f['image_url'], $f['name'], $f['meal_type']);
+        return $f;
+    }, $foods)
+), JSON_HEX_TAG|JSON_HEX_APOS|JSON_HEX_QUOT|JSON_HEX_AMP) ?: '{}' ?>;
+
+let currentViewIngredientsFood = null;
+
+async function openViewIngredientsModal(foodId) {
+    let food = FT_FOODS_MAP[foodId];
+    if (!food || !food.ingredients_data) {
+        try {
+            const res = await fetch('index.php?page=food_library&tab=library&action=get_ingredients&food_id=' + encodeURIComponent(foodId));
+            const data = await res.json();
+            if (data.success && data.food) {
+                food = data.food;
+                FT_FOODS_MAP[foodId] = food;
+            }
+        } catch (e) {
+            console.error('Failed to fetch ingredients', e);
+        }
+    }
+
+    if (!food) {
+        Swal.fire({
+            icon: 'error',
+            title: 'Error',
+            text: 'Could not load ingredients for this dish.',
+            background: 'var(--bg)',
+            color: 'var(--ink)'
+        });
+        return;
+    }
+
+    currentViewIngredientsFood = food;
+
+    // Populate Hero Header
+    const heroImg = document.getElementById('ing-modal-hero-img');
+    const mealBadge = document.getElementById('ing-modal-meal-type');
+    const dietBadge = document.getElementById('ing-modal-diet-type');
+    const titleEl = document.getElementById('ing-modal-title');
+    const servingEl = document.getElementById('ing-modal-serving');
+    const calEl = document.getElementById('ing-modal-cals');
+    const proteinEl = document.getElementById('ing-modal-protein');
+    const carbsEl = document.getElementById('ing-modal-carbs');
+    const fatEl = document.getElementById('ing-modal-fat');
+
+    if (heroImg) heroImg.src = food.photo_url || 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&w=600&q=80';
+    if (mealBadge) mealBadge.textContent = food.meal_type || 'Meal';
+    if (dietBadge) {
+        if (food.dietary_restriction && food.dietary_restriction !== 'none') {
+            dietBadge.textContent = food.dietary_restriction;
+            dietBadge.style.display = 'inline-block';
+        } else {
+            dietBadge.style.display = 'none';
+        }
+    }
+    if (titleEl) titleEl.textContent = food.name;
+    if (servingEl) servingEl.textContent = food.serving_size || '1 serving';
+    if (calEl) calEl.textContent = (food.calories || 0) + ' kcal';
+    if (proteinEl) proteinEl.textContent = (food.protein_g || 0) + 'g';
+    if (carbsEl) carbsEl.textContent = (food.carbs_g || 0) + 'g';
+    if (fatEl) fatEl.textContent = (food.fat_g || 0) + 'g';
+
+    // Populate Single Unified Ingredients List (2x2 Grid with Show All)
+    const listEl = document.getElementById('ing-modal-items-list');
+    const countEl = document.getElementById('ing-modal-items-count');
+    const items = food.ingredients_data?.all || [];
+    const INITIAL_LIMIT = 4;
+    const hasMore = items.length > INITIAL_LIMIT;
+    isIngredientsExpanded = false;
+
+    if (countEl) countEl.textContent = items.length + (items.length === 1 ? ' item' : ' items');
+    if (listEl) {
+        if (items.length === 0) {
+            listEl.innerHTML = '<div style="grid-column: 1 / -1; font-size: 12.5px; color: var(--muted); font-style: italic; padding: 6px 0;">No ingredients listed for this food item.</div>';
+        } else {
+            listEl.innerHTML = items.map((item, idx) => {
+                const isExtra = idx >= INITIAL_LIMIT;
+                const hideStyle = isExtra ? 'display: none;' : '';
+                return `
+                    <div class="ing-modal-item ${isExtra ? 'ing-modal-item-extra' : ''}" style="${hideStyle}">
+                        <div style="display: flex; align-items: center; gap: 6px; min-width: 0; flex: 1;">
+                            <span style="width: 5px; height: 5px; border-radius: 50%; background: #16a34a; flex-shrink: 0;"></span>
+                            <span class="ing-modal-item-name" title="${escapeHtml(item.name)}">${escapeHtml(item.name)}</span>
+                        </div>
+                        <div style="display: flex; align-items: center; gap: 4px; flex-shrink: 0;">
+                            <span class="ing-modal-item-measure">
+                                ${escapeHtml(item.measure || (item.amount ? item.amount + ' ' + (item.unit || '') : '1 portion'))}
+                            </span>
+                            ${item.is_optional ? `<span class="ing-modal-item-opt-badge">Opt</span>` : ''}
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+    }
+
+    const toggleContainer = document.getElementById('ing-modal-show-all-container');
+    const toggleText = document.getElementById('ing-modal-show-all-text');
+    const toggleIcon = document.getElementById('ing-modal-show-all-icon');
+    if (toggleContainer) {
+        if (hasMore) {
+            toggleContainer.style.display = 'block';
+            if (toggleText) toggleText.textContent = `Show all (${items.length})`;
+            if (toggleIcon) toggleIcon.style.transform = 'rotate(0deg)';
+        } else {
+            toggleContainer.style.display = 'none';
+        }
+    }
+
+    // Populate Preparation Notes
+    const descBox = document.getElementById('ing-modal-desc-box');
+    const descEl = document.getElementById('ing-modal-desc');
+    if (food.recipe_desc && food.recipe_desc.trim()) {
+        if (descBox) descBox.style.display = 'block';
+        if (descEl) descEl.textContent = food.recipe_desc.trim();
+    } else {
+        if (descBox) descBox.style.display = 'none';
+    }
+
+    // Setup Edit Button in Footer if permitted
+    const editContainer = document.getElementById('ing-modal-footer-edit-container');
+    const isCustom = !food.is_global && (food.gym_id !== null && food.gym_id !== undefined && food.gym_id !== '');
+    const canEdit = (FT_CURRENT_USER_ROLE === 'platform_admin' || (FT_CURRENT_USER_ROLE === 'gym_owner' && isCustom));
+    if (editContainer) {
+        if (canEdit) {
+            editContainer.innerHTML = `
+                <button type="button" onclick="editFromIngredientsModal()" class="btn-sm btn-ghost" style="padding: 6px 12px; font-size: 12.5px; border-radius: 7px; color: var(--lime); border-color: rgba(132,204,22,0.35); display: inline-flex; align-items: center; gap: 5px; font-weight: 600;">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+                    <span>Edit Food & Ingredients</span>
+                </button>
+            `;
+        } else {
+            editContainer.innerHTML = '';
+        }
+    }
+
+    // Show modal
+    const modal = document.getElementById('modal-food-ingredients');
+    if (modal) {
+        if (modal.parentElement !== document.body) {
+            document.body.appendChild(modal);
+        }
+        modal.style.display = 'flex';
+        modal.classList.add('active');
+    }
+    document.body.style.overflow = 'hidden';
+}
+
+let isIngredientsExpanded = false;
+
+function toggleIngredientsShowAll() {
+    isIngredientsExpanded = !isIngredientsExpanded;
+    const extraItems = document.querySelectorAll('.ing-modal-item-extra');
+    const textEl = document.getElementById('ing-modal-show-all-text');
+    const iconEl = document.getElementById('ing-modal-show-all-icon');
+    const totalCount = currentViewIngredientsFood?.ingredients_data?.all?.length || 0;
+
+    extraItems.forEach(el => {
+        el.style.display = isIngredientsExpanded ? 'flex' : 'none';
+    });
+
+    if (textEl) {
+        textEl.textContent = isIngredientsExpanded ? 'Show less' : `Show all (${totalCount})`;
+    }
+    if (iconEl) {
+        iconEl.style.transform = isIngredientsExpanded ? 'rotate(180deg)' : 'rotate(0deg)';
+    }
+}
+
+function closeViewIngredientsModal() {
+    isIngredientsExpanded = false;
+    const modal = document.getElementById('modal-food-ingredients');
+    if (modal) {
+        modal.style.display = 'none';
+        modal.classList.remove('active');
+    }
+    document.body.style.overflow = '';
+}
+
+function editFromIngredientsModal() {
+    if (currentViewIngredientsFood) {
+        const foodToEdit = currentViewIngredientsFood;
+        closeViewIngredientsModal();
+        openEditFoodModal(foodToEdit);
+    }
+}
 
 let currentFoodPhotoData = {
     foodId: null,
@@ -1559,6 +2571,7 @@ function closeFoodPhotoModal() {
 document.addEventListener('keydown', function(e) {
     if (e.key === 'Escape') {
         closeFoodPhotoModal();
+        closeViewIngredientsModal();
     }
 });
 
@@ -1876,8 +2889,15 @@ function openAddFoodModal() {
                         <input type="url" name="image_url" placeholder="https://images.unsplash.com/..." class="swal-form-control" style="font-size: 12px !important;">
                     </div>
 
-                    <label class="swal-field-label">Description & Ingredients
-                        <textarea name="recipe_desc" rows="3" placeholder="Brief notes on ingredients or preparation..." class="swal-form-control" style="margin-top: 4px; min-height: 80px; resize: vertical;"></textarea>
+                    <label class="swal-field-label">Ingredients & Portions (One per line)
+                        <span style="display:block; font-size: 11px; color: var(--muted); font-weight: normal; margin-top: 2px;">
+                            e.g. <span class="swal-hint-code">Sitaw — 150 g</span> or <span class="swal-hint-code">Garlic — 2 cloves (optional)</span>
+                        </span>
+                        <textarea name="ingredients" rows="4" placeholder="Sitaw / Yard-long beans — 150 g&#10;Firm tofu — 100 g&#10;Quinoa — 1/2 cup&#10;Garlic — 2 cloves&#10;Soy sauce — 1 tbsp&#10;Vinegar — 1 tbsp&#10;Cooking oil — 1 tsp" class="swal-form-control" style="margin-top: 4px; min-height: 90px; font-family: monospace, sans-serif; font-size: 12px; resize: vertical;"></textarea>
+                    </label>
+
+                    <label class="swal-field-label" style="margin-top: 4px;">Description & Preparation Notes
+                        <textarea name="recipe_desc" rows="2" placeholder="Brief notes on preparation or cooking instructions..." class="swal-form-control" style="margin-top: 4px; min-height: 60px; resize: vertical;"></textarea>
                     </label>
 
                     <button type="button" onclick="switchSwalFoodTab(1)" style="background: transparent; border: none; color: var(--muted); font-size: 12px; cursor: pointer; display: inline-flex; align-items: center; gap: 5px; align-self: flex-start; padding: 4px 0;">
@@ -2009,8 +3029,15 @@ function openEditFoodModal(food) {
                         <input type="url" name="image_url" value="${escapeHtml(food.image_url || '')}" placeholder="https://..." class="swal-form-control" style="font-size: 12px !important;">
                     </div>
 
-                    <label class="swal-field-label">Description & Ingredients
-                        <textarea name="recipe_desc" rows="3" placeholder="Brief notes on ingredients or preparation..." class="swal-form-control" style="margin-top: 4px; min-height: 80px; resize: vertical;">${escapeHtml(food.recipe_desc || '')}</textarea>
+                    <label class="swal-field-label">Ingredients & Portions (One per line)
+                        <span style="display:block; font-size: 11px; color: var(--muted); font-weight: normal; margin-top: 2px;">
+                            e.g. <span class="swal-hint-code">Sitaw — 150 g</span> or <span class="swal-hint-code">Garlic — 2 cloves (optional)</span>
+                        </span>
+                        <textarea name="ingredients" rows="4" placeholder="Sitaw / Yard-long beans — 150 g&#10;Firm tofu — 100 g&#10;Quinoa — 1/2 cup&#10;Garlic — 2 cloves" class="swal-form-control" style="margin-top: 4px; min-height: 90px; font-family: monospace, sans-serif; font-size: 12px; resize: vertical;">${escapeHtml(food.ingredients_text || '')}</textarea>
+                    </label>
+
+                    <label class="swal-field-label" style="margin-top: 4px;">Description & Preparation Notes
+                        <textarea name="recipe_desc" rows="2" placeholder="Brief notes on preparation or cooking instructions..." class="swal-form-control" style="margin-top: 4px; min-height: 60px; resize: vertical;">${escapeHtml(food.recipe_desc || '')}</textarea>
                     </label>
 
                     <button type="button" onclick="switchSwalFoodTab(1)" style="background: transparent; border: none; color: var(--muted); font-size: 12px; cursor: pointer; display: inline-flex; align-items: center; gap: 5px; align-self: flex-start; padding: 4px 0;">

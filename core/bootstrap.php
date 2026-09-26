@@ -57,6 +57,7 @@ require __DIR__ . '/rate_limiter.php';
 require __DIR__ . '/file_handler.php';
 require __DIR__ . '/email_verification.php';
 require __DIR__ . '/engagement_engine.php';
+require __DIR__ . '/food_ingredients.php';
 require __DIR__ . '/notifications.php';
 require __DIR__ . '/../views/layout.php';
 require __DIR__ . '/auth.php';
