@@ -232,8 +232,12 @@ function qr_attendance_page(): void
 
     function promptRating(attendanceId) {
         let selectedRating = 0;
-        let starHtml = '<div style="display:flex;justify-content:center;gap:10px;margin:12px 0 16px;" id="swal-star-row">'
-            + [1,2,3,4,5].map(v => '<span class="co-star" data-val="' + v + '" style="font-size:2rem;cursor:pointer;color:rgba(255,255,255,0.15);transition:color .15s;line-height:1;">★</span>').join('')
+        const isLight = document.documentElement.getAttribute('data-theme') === 'light' || document.body.getAttribute('data-theme') === 'light';
+        const emptyColor = isLight ? '#cbd5e1' : '#475569';
+        const activeColor = '#f59e0b';
+
+        let starHtml = '<div style="display:flex;justify-content:center;gap:12px;margin:14px 0 18px;" id="swal-star-row">'
+            + [1,2,3,4,5].map(v => '<span class="co-star" data-val="' + v + '" style="font-size:2.25rem;cursor:pointer;color:' + emptyColor + ';transition:all .15s ease;line-height:1;user-select:none;padding:0 3px;">★</span>').join('')
             + '</div>';
 
         Swal.fire({
@@ -250,17 +254,25 @@ function qr_attendance_page(): void
             cancelButtonColor: 'transparent',
             didOpen: () => {
                 const stars = document.querySelectorAll('.co-star');
+                const updateStars = (val) => {
+                    stars.forEach((s, i) => {
+                        const isFilled = i < val;
+                        s.style.color = isFilled ? activeColor : emptyColor;
+                        s.style.transform = isFilled ? 'scale(1.15)' : 'scale(1)';
+                        s.style.textShadow = isFilled ? '0 0 12px rgba(245, 158, 11, 0.45)' : 'none';
+                    });
+                };
                 stars.forEach(star => {
                     star.addEventListener('mouseover', () => {
-                        let val = parseInt(star.dataset.val);
-                        stars.forEach((s,i) => s.style.color = i < val ? '#c7ff22' : 'rgba(255,255,255,0.15)');
+                        let val = parseInt(star.dataset.val, 10);
+                        updateStars(val);
                     });
                     star.addEventListener('mouseout', () => {
-                        stars.forEach((s,i) => s.style.color = i < selectedRating ? '#c7ff22' : 'rgba(255,255,255,0.15)');
+                        updateStars(selectedRating);
                     });
                     star.addEventListener('click', () => {
-                        selectedRating = parseInt(star.dataset.val);
-                        stars.forEach((s,i) => s.style.color = i < selectedRating ? '#c7ff22' : 'rgba(255,255,255,0.15)');
+                        selectedRating = parseInt(star.dataset.val, 10);
+                        updateStars(selectedRating);
                     });
                 });
             },

@@ -524,6 +524,27 @@ function render_header(string $title, ?array $user = null): void
             color: #475569 !important;
         }
 
+        /* Star Rating in SweetAlert Modals */
+        .co-star {
+            font-size: 2.25rem !important;
+            cursor: pointer;
+            color: #475569;
+            transition: color 0.15s ease, transform 0.15s ease, text-shadow 0.15s ease;
+            line-height: 1;
+            user-select: none;
+            display: inline-block;
+            padding: 0 3px;
+        }
+        .co-star:hover {
+            transform: scale(1.18);
+        }
+        [data-theme="light"] .co-star {
+            color: #cbd5e1;
+        }
+        [data-theme="light"] .co-star:hover {
+            color: #f59e0b;
+        }
+
         /* Light Mode User Avatar */
         [data-theme="light"] .avatar {
             background: #ecfccb !important;
@@ -1061,10 +1082,13 @@ function render_header(string $title, ?array $user = null): void
                                     if (!btn) return;
                                     btn.addEventListener('click', function() {
                                         var selectedRating = 0;
+                                        var isLight = document.documentElement.getAttribute('data-theme') === 'light' || document.body.getAttribute('data-theme') === 'light';
+                                        var emptyColor = isLight ? '#cbd5e1' : '#475569';
+                                        var activeColor = '#f59e0b';
 
-                                        var starHtml = '<div style="display:flex;justify-content:center;gap:10px;margin:12px 0 16px;" id="swal-star-row">'
+                                        var starHtml = '<div style="display:flex;justify-content:center;gap:12px;margin:14px 0 18px;" id="swal-star-row">'
                                             + [1,2,3,4,5].map(function(v){
-                                                return '<span class="co-star" data-val="' + v + '" style="font-size:2rem;cursor:pointer;color:rgba(255,255,255,0.15);transition:color .15s;line-height:1;">★</span>';
+                                                return '<span class="co-star" data-val="' + v + '" style="font-size:2.25rem;cursor:pointer;color:' + emptyColor + ';transition:all .15s ease;line-height:1;user-select:none;padding:0 3px;">★</span>';
                                               }).join('')
                                             + '</div>';
 
@@ -1083,17 +1107,25 @@ function render_header(string $title, ?array $user = null): void
                                             customClass: { cancelButton: 'swal-skip-btn' },
                                             didOpen: function() {
                                                 var stars = document.querySelectorAll('.co-star');
+                                                var updateStars = function(val) {
+                                                    stars.forEach(function(s, i) {
+                                                        var isFilled = i < val;
+                                                        s.style.color = isFilled ? activeColor : emptyColor;
+                                                        s.style.transform = isFilled ? 'scale(1.15)' : 'scale(1)';
+                                                        s.style.textShadow = isFilled ? '0 0 12px rgba(245, 158, 11, 0.45)' : 'none';
+                                                    });
+                                                };
                                                 stars.forEach(function(star) {
                                                     star.addEventListener('mouseover', function() {
-                                                        var val = parseInt(star.dataset.val);
-                                                        stars.forEach(function(s,i){ s.style.color = i < val ? '#c7ff22' : 'rgba(255,255,255,0.15)'; });
+                                                        var val = parseInt(star.dataset.val, 10);
+                                                        updateStars(val);
                                                     });
                                                     star.addEventListener('mouseout', function() {
-                                                        stars.forEach(function(s,i){ s.style.color = i < selectedRating ? '#c7ff22' : 'rgba(255,255,255,0.15)'; });
+                                                        updateStars(selectedRating);
                                                     });
                                                     star.addEventListener('click', function() {
-                                                        selectedRating = parseInt(star.dataset.val);
-                                                        stars.forEach(function(s,i){ s.style.color = i < selectedRating ? '#c7ff22' : 'rgba(255,255,255,0.15)'; });
+                                                        selectedRating = parseInt(star.dataset.val, 10);
+                                                        updateStars(selectedRating);
                                                     });
                                                 });
                                             },

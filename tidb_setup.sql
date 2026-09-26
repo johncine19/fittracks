@@ -640,13 +640,16 @@ INSERT INTO `system_settings` (`setting_key`, `setting_value`, `description`, `u
 
 CREATE TABLE `trainer_assignments` (
   `assignment_id` int UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  `group_id` varchar(36) DEFAULT NULL,
   `trainer_id` int UNSIGNED NOT NULL,
   `member_user_id` int UNSIGNED NOT NULL,
   `assigned_date` datetime NOT NULL,
   `ended_date` datetime DEFAULT NULL,
+  `activity_title` varchar(255) DEFAULT NULL,
   `status` enum('pending_admin','pending_trainer','active','rejected','ended') NOT NULL DEFAULT 'pending_admin',
   `assigned_by` int UNSIGNED DEFAULT NULL,
-  `rejection_reason` text
+  `rejection_reason` text,
+  KEY `idx_group_id` (`group_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 -- --------------------------------------------------------

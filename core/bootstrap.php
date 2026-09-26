@@ -11,7 +11,7 @@ header('Content-Type: text/html; charset=UTF-8');
 header('X-Content-Type-Options: nosniff');
 header('X-Frame-Options: SAMEORIGIN');
 header('Referrer-Policy: strict-origin-when-cross-origin');
-header("Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline' cdn.jsdelivr.net unpkg.com; style-src 'self' 'unsafe-inline' fonts.googleapis.com cdn.jsdelivr.net unpkg.com; img-src 'self' data: blob: *.imagekit.io res.cloudinary.com; font-src 'self' fonts.gstatic.com; connect-src 'self'; frame-src 'none'; object-src 'none';");
+header("Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline' cdn.jsdelivr.net unpkg.com; style-src 'self' 'unsafe-inline' fonts.googleapis.com cdn.jsdelivr.net unpkg.com; img-src 'self' data: blob: *.imagekit.io res.cloudinary.com images.unsplash.com *.unsplash.com *.openfoodfacts.org *.openfoodfacts.net *.wikimedia.org; font-src 'self' fonts.gstatic.com; connect-src 'self' *.openfoodfacts.net *.openfoodfacts.org; frame-src 'none'; object-src 'none';");
 
 require __DIR__ . '/helpers.php';
 require __DIR__ . '/../config/config.php';
