@@ -248,11 +248,16 @@ function get_inactive_members(int $limit = 5, ?int $gymId = null): array
 function send_at_risk_notification_job(array $payload): void
 {
     $userId = (int) ($payload['user_id'] ?? 0);
+    $customMsg = trim((string) ($payload['custom_message'] ?? ''));
     if ($userId <= 0) {
         return;
     }
 
-    notify_user($userId, 'system', 'We miss you at the gym!', 'It\'s been a few days since your last activity. Check out this week\'s classes or your new workout plan to get back on track!');
+    $inAppMessage = !empty($customMsg)
+        ? $customMsg
+        : 'It\'s been a few days since your last activity. Check out this week\'s classes or your new workout plan to get back on track!';
+
+    notify_user($userId, 'system', 'We miss you at the gym! 👋', $inAppMessage);
 
     // Send email reminder if user has a valid active email
     try {
@@ -262,7 +267,7 @@ function send_at_risk_notification_job(array $payload): void
 
         if ($user && !empty($user['email']) && filter_var($user['email'], FILTER_VALIDATE_EMAIL)) {
             $firstName = !empty($user['first_name']) ? (string) $user['first_name'] : 'Member';
-            Emails::sendInactiveReminder((string) $user['email'], $firstName);
+            Emails::sendInactiveReminder((string) $user['email'], $firstName, !empty($customMsg) ? $customMsg : null);
         }
     } catch (Throwable $e) {
         error_log("Failed to queue inactive reminder email for user #{$userId}: " . $e->getMessage());

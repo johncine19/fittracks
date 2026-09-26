@@ -870,11 +870,11 @@ function member_dashboard(PDO $pdo, array $user): void
         color: #f59e0b;
         border: 1px solid rgba(245, 158, 11, 0.3);
     }
-    .score-theme-at_risk .hero-ring-fg { stroke: #ef4444; }
+    .score-theme-at_risk .hero-ring-fg { stroke: #fb923c; }
     .score-theme-at_risk .hero-score-badge {
-        background: rgba(239, 68, 68, 0.15);
-        color: #ef4444;
-        border: 1px solid rgba(239, 68, 68, 0.3);
+        background: rgba(251, 146, 60, 0.15);
+        color: #fb923c;
+        border: 1px solid rgba(251, 146, 60, 0.35);
     }
 
     /* Light Theme Styling */
@@ -951,12 +951,12 @@ function member_dashboard(PDO $pdo, array $user): void
         border: 1px solid #fde68a !important;
     }
     html[data-theme="light"] .score-theme-at_risk .hero-ring-fg,
-    [data-theme="light"] .score-theme-at_risk .hero-ring-fg { stroke: #dc2626 !important; }
+    [data-theme="light"] .score-theme-at_risk .hero-ring-fg { stroke: #ea580c !important; }
     html[data-theme="light"] .score-theme-at_risk .hero-score-badge,
     [data-theme="light"] .score-theme-at_risk .hero-score-badge {
-        background: #fee2e2 !important;
-        color: #b91c1c !important;
-        border: 1px solid #fecaca !important;
+        background: #ffedd5 !important;
+        color: #c2410c !important;
+        border: 1px solid #fed7aa !important;
     }
 
     @media (max-width: 720px) {
@@ -1008,7 +1008,8 @@ function member_dashboard(PDO $pdo, array $user): void
     echo '<span class="hero-score-ring-val">' . $score . '</span>';
     echo '</div>';
     echo '<div class="hero-score-meta">';
-    echo '<span class="hero-score-badge">' . h(ucfirst(str_replace('_', ' ', $category))) . '</span>';
+    $displayCat = ($category === 'At-Risk') ? 'Needs a Boost' : ucfirst(str_replace('_', ' ', $category));
+    echo '<span class="hero-score-badge">' . h($displayCat) . '</span>';
     echo '<div class="hero-score-action">';
     echo '<span>Missions & Rank</span>';
     echo '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>';
@@ -1522,7 +1523,7 @@ function member_dashboard(PDO $pdo, array $user): void
             <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(min(100%, 150px), 1fr)); gap:12px; font-size:13px; margin-bottom: 24px;">
                 <div style="background:rgba(255,255,255,0.03); padding:10px; border-radius:8px; border-left: 3px solid var(--lime);"><strong>{$high} - 100:</strong> Highly Engaged</div>
                 <div style="background:rgba(255,255,255,0.03); padding:10px; border-radius:8px; border-left: 3px solid #f59e0b;"><strong>{$mod} - {$mod_end}:</strong> Moderately Engaged</div>
-                <div style="background:rgba(255,255,255,0.03); padding:10px; border-radius:8px; border-left: 3px solid #ef4444;"><strong>0 - {$risk_end}:</strong> At-Risk</div>
+                <div style="background:rgba(255,255,255,0.03); padding:10px; border-radius:8px; border-left: 3px solid #fb923c;"><strong>0 - {$risk_end}:</strong> Needs a Boost</div>
             </div>
             
             <h3 style="color:var(--ink); margin:0 0 12px; display:flex; align-items:center; gap:8px;">

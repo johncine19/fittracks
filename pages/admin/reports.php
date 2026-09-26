@@ -314,6 +314,45 @@ function reports_page(): void
         ['category' => 'At-Risk', 'count' => $categories['At-Risk']],
     ];
 
+    // Handle AJAX / Form Nudge Action for Inactive / At-Risk Members
+    if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && post('action') === 'send_nudge') {
+        verify_csrf();
+        $targetUserId = (int) post('user_id');
+        $isAll = post('all_at_risk') === '1';
+        $customMsg = trim((string) post('custom_message'));
+
+        require_once __DIR__ . '/../../core/engagement_engine.php';
+
+        $sentCount = 0;
+        if ($isAll) {
+            foreach ($memberLists['At-Risk'] as $m) {
+                $uid = (int) $m['user_id'];
+                if ($uid > 0) {
+                    send_at_risk_notification_job([
+                        'user_id' => $uid,
+                        'custom_message' => $customMsg,
+                    ]);
+                    $sentCount++;
+                }
+            }
+            $msg = "Friendly check-in nudges (in-app & email) sent to {$sentCount} members!";
+        } elseif ($targetUserId > 0) {
+            send_at_risk_notification_job([
+                'user_id' => $targetUserId,
+                'custom_message' => $customMsg,
+            ]);
+            $userName = scalar('SELECT first_name FROM users WHERE user_id = ?', [$targetUserId]) ?: 'Member';
+            $msg = "Friendly check-in nudge (in-app & email) sent to {$userName}!";
+        }
+
+        if (!empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest') {
+            echo json_encode(['success' => true, 'message' => $msg ?? 'Nudge sent successfully!']);
+            exit;
+        }
+        flash($msg ?? 'Nudge sent successfully.', 'success');
+        redirect('reports');
+    }
+
     // Pad time series data helper
     $pad_time_series = function(array $data, string $key, string $valKey, string $tf): array {
         $padded = [];
@@ -2480,9 +2519,17 @@ function reports_page(): void
                                     <span style="width: 10px; height: 10px; border-radius: 50%; background: <?= $catColor ?>; flex-shrink: 0;"></span>
                                     <?= h($catName) ?>
                                 </h3>
-                                <span style="background: rgba(255,255,255,0.05); padding: 3px 10px; border-radius: 999px; font-size: 12px; color: var(--muted); font-weight: bold; flex-shrink: 0;">
-                                    <?= $count ?> Members
-                                </span>
+                                <div style="display: flex; align-items: center; gap: 8px;">
+                                    <?php if ($catName === 'At-Risk' && $count > 0): ?>
+                                        <button type="button" onclick="sendNudgeAll(<?= $count ?>)" class="btn-sm" style="font-size: 11.5px; padding: 3px 9px; background: rgba(245, 158, 11, 0.12); color: #f59e0b; border: 1px solid rgba(245, 158, 11, 0.28); border-radius: 6px; font-weight: 600; cursor: pointer; display: inline-flex; align-items: center; gap: 4px;" title="Send an encouraging check-in reminder to all at-risk members">
+                                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+                                            Nudge All
+                                        </button>
+                                    <?php endif; ?>
+                                    <span style="background: rgba(255,255,255,0.05); padding: 3px 10px; border-radius: 999px; font-size: 12px; color: var(--muted); font-weight: bold; flex-shrink: 0;">
+                                        <?= $count ?> Members
+                                    </span>
+                                </div>
                             </div>
                             
                             <?php if ($count > 0): ?>
@@ -2500,6 +2547,12 @@ function reports_page(): void
                                                 <span class="pill-badge <?= $catName === 'Highly Engaged' ? 'green' : ($catName === 'Moderately Engaged' ? 'blue' : 'red') ?>" style="font-size: 11px; padding: 3px 9px; font-weight: 700;">
                                                     Score: <?= (int)($m['score'] ?? 0) ?>
                                                 </span>
+                                                <?php if ($catName === 'At-Risk'): ?>
+                                                    <button type="button" onclick="sendMemberNudge(<?= (int)$m['user_id'] ?>, '<?= h(addslashes($m['first_name'] . ' ' . $m['last_name'])) ?>')" class="btn-sm" style="font-size: 11.5px; padding: 4px 9px; background: rgba(245, 158, 11, 0.12); color: #f59e0b; border: 1px solid rgba(245, 158, 11, 0.25); border-radius: 6px; font-weight: 600; cursor: pointer; display: inline-flex; align-items: center; gap: 4px;" title="Send an encouraging check-in reminder">
+                                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+                                                        Nudge
+                                                    </button>
+                                                <?php endif; ?>
                                                 <a href="index.php?page=users&tab=member" class="btn-engagement-manage">
                                                     Manage
                                                 </a>
@@ -3295,6 +3348,172 @@ function reports_page(): void
             }
         }
     });
+
+    function sendMemberNudge(userId, memberName) {
+        Swal.fire({
+            title: 'Send Check-In Reminder',
+            width: 'min(94vw, 470px)',
+            html: `
+                <div style="text-align: left; margin-top: 6px;">
+                    <!-- Recipient & Channel Card -->
+                    <div style="display: flex; align-items: center; justify-content: space-between; padding: 10px 14px; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; margin-bottom: 14px;">
+                        <div style="display: flex; align-items: center; gap: 10px;">
+                            <div style="width: 36px; height: 36px; border-radius: 50%; background: rgba(245, 158, 11, 0.12); color: #f59e0b; display: flex; align-items: center; justify-content: center; font-weight: 700; flex-shrink: 0;">
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                            </div>
+                            <div>
+                                <div style="font-weight: 700; font-size: 13.5px; color: var(--ink);">${memberName}</div>
+                                <div style="font-size: 11.5px; color: var(--muted);">Needs a Boost Tier</div>
+                            </div>
+                        </div>
+                        <div style="display: flex; gap: 5px;">
+                            <span style="font-size: 11px; font-weight: 600; padding: 2px 7px; border-radius: 6px; background: rgba(132,204,22,0.12); color: var(--lime); border: 1px solid rgba(132,204,22,0.25);">In-App</span>
+                            <span style="font-size: 11px; font-weight: 600; padding: 2px 7px; border-radius: 6px; background: rgba(14,165,233,0.12); color: #38bdf8; border: 1px solid rgba(14,165,233,0.25);">Email</span>
+                        </div>
+                    </div>
+
+                    <p style="font-size: 13px; color: var(--muted); margin: 0 0 12px; line-height: 1.5;">
+                        Send an encouraging motivational nudge to help this member resume their workouts and gym activities.
+                    </p>
+
+                    <!-- Custom Message Field -->
+                    <div>
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                            <label for="swalNudgeMsg" style="font-size: 12px; font-weight: 600; color: var(--ink); margin: 0;">
+                                Custom Note <span style="font-weight: 400; color: var(--muted);">(Optional)</span>
+                            </label>
+                            <span style="font-size: 11px; color: var(--muted);">Leave blank for default email template</span>
+                        </div>
+                        <textarea id="swalNudgeMsg" rows="3" style="width: 100%; box-sizing: border-box; padding: 10px 12px; border-radius: 8px; border: 1px solid var(--line); background: var(--bg); color: var(--ink); font-size: 13px; line-height: 1.45; resize: vertical; outline: none; transition: border-color 0.2s;" onfocus="this.style.borderColor='#f59e0b'" onblur="this.style.borderColor='var(--line)'" placeholder="We miss you at the gym! Check out this week's classes or your workout plan to get back on track!"></textarea>
+                    </div>
+                </div>
+            `,
+            showCancelButton: true,
+            confirmButtonText: 'Send Nudge',
+            confirmButtonColor: '#f59e0b',
+            cancelButtonText: 'Cancel',
+            cancelButtonColor: '#64748b',
+            showLoaderOnConfirm: true,
+            preConfirm: () => {
+                const msg = document.getElementById('swalNudgeMsg').value;
+                const formData = new FormData();
+                formData.append('action', 'send_nudge');
+                formData.append('user_id', userId);
+                formData.append('custom_message', msg);
+                formData.append('csrf_token', '<?= csrf_token() ?>');
+
+                return fetch('index.php?page=reports', {
+                    method: 'POST',
+                    headers: { 'X-Requested-With': 'XMLHttpRequest' },
+                    body: formData
+                })
+                .then(res => res.json())
+                .then(data => {
+                    if (!data.success) {
+                        throw new Error(data.error || 'Failed to send notification.');
+                    }
+                    return data;
+                })
+                .catch(err => {
+                    Swal.showValidationMessage(err.message);
+                });
+            },
+            allowOutsideClick: () => !Swal.isLoading()
+        }).then(result => {
+            if (result.isConfirmed) {
+                Swal.fire({
+                    icon: 'success',
+                    title: 'Check-In Sent',
+                    text: result.value.message || `Check-in sent to ${memberName}.`,
+                    timer: 2000,
+                    showConfirmButton: false
+                });
+            }
+        });
+    }
+
+    function sendNudgeAll(count) {
+        Swal.fire({
+            title: 'Send Bulk Check-In',
+            width: 'min(94vw, 470px)',
+            html: `
+                <div style="text-align: left; margin-top: 6px;">
+                    <!-- Recipient & Channel Card -->
+                    <div style="display: flex; align-items: center; justify-content: space-between; padding: 10px 14px; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; margin-bottom: 14px;">
+                        <div style="display: flex; align-items: center; gap: 10px;">
+                            <div style="width: 36px; height: 36px; border-radius: 50%; background: rgba(245, 158, 11, 0.12); color: #f59e0b; display: flex; align-items: center; justify-content: center; font-weight: 700; flex-shrink: 0;">
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+                            </div>
+                            <div>
+                                <div style="font-weight: 700; font-size: 13.5px; color: var(--ink);">${count} Inactive Members</div>
+                                <div style="font-size: 11.5px; color: var(--muted);">Needs a Boost Tier</div>
+                            </div>
+                        </div>
+                        <div style="display: flex; gap: 5px;">
+                            <span style="font-size: 11px; font-weight: 600; padding: 2px 7px; border-radius: 6px; background: rgba(132,204,22,0.12); color: var(--lime); border: 1px solid rgba(132,204,22,0.25);">In-App</span>
+                            <span style="font-size: 11px; font-weight: 600; padding: 2px 7px; border-radius: 6px; background: rgba(14,165,233,0.12); color: #38bdf8; border: 1px solid rgba(14,165,233,0.25);">Email</span>
+                        </div>
+                    </div>
+
+                    <p style="font-size: 13px; color: var(--muted); margin: 0 0 12px; line-height: 1.5;">
+                        This will dispatch an encouraging check-in reminder (in-app notification and email) to all <strong>${count}</strong> members in this tier.
+                    </p>
+
+                    <!-- Custom Message Field -->
+                    <div>
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                            <label for="swalNudgeAllMsg" style="font-size: 12px; font-weight: 600; color: var(--ink); margin: 0;">
+                                Custom Note <span style="font-weight: 400; color: var(--muted);">(Optional)</span>
+                            </label>
+                            <span style="font-size: 11px; color: var(--muted);">Leave blank for default email template</span>
+                        </div>
+                        <textarea id="swalNudgeAllMsg" rows="3" style="width: 100%; box-sizing: border-box; padding: 10px 12px; border-radius: 8px; border: 1px solid var(--line); background: var(--bg); color: var(--ink); font-size: 13px; line-height: 1.45; resize: vertical; outline: none; transition: border-color 0.2s;" onfocus="this.style.borderColor='#f59e0b'" onblur="this.style.borderColor='var(--line)'" placeholder="We miss you at the gym! Check out this week's classes or your workout plan to get back on track!"></textarea>
+                    </div>
+                </div>
+            `,
+            showCancelButton: true,
+            confirmButtonText: `Send to All (${count})`,
+            confirmButtonColor: '#f59e0b',
+            cancelButtonText: 'Cancel',
+            cancelButtonColor: '#64748b',
+            showLoaderOnConfirm: true,
+            preConfirm: () => {
+                const msg = document.getElementById('swalNudgeAllMsg').value;
+                const formData = new FormData();
+                formData.append('action', 'send_nudge');
+                formData.append('all_at_risk', '1');
+                formData.append('custom_message', msg);
+                formData.append('csrf_token', '<?= csrf_token() ?>');
+
+                return fetch('index.php?page=reports', {
+                    method: 'POST',
+                    headers: { 'X-Requested-With': 'XMLHttpRequest' },
+                    body: formData
+                })
+                .then(res => res.json())
+                .then(data => {
+                    if (!data.success) {
+                        throw new Error(data.error || 'Failed to send notifications.');
+                    }
+                    return data;
+                })
+                .catch(err => {
+                    Swal.showValidationMessage(err.message);
+                });
+            },
+            allowOutsideClick: () => !Swal.isLoading()
+        }).then(result => {
+            if (result.isConfirmed) {
+                Swal.fire({
+                    icon: 'success',
+                    title: 'Check-Ins Dispatched',
+                    text: result.value.message || 'All check-ins sent successfully.',
+                    timer: 2000,
+                    showConfirmButton: false
+                });
+            }
+        });
+    }
     </script>
     <?php
     render_footer();
