@@ -18,6 +18,11 @@ echo "Checking for unclosed attendance records from past days...\n";
 $autoCheckedOutCount = auto_checkout_past_attendance(null, true);
 echo "Auto check-out completed: {$autoCheckedOutCount} session(s) closed at 23:59:59.\n";
 
+// 2. Smart Tiered Notification Cleanup (Read > 30 days, Unread/System > 60 days)
+echo "Purging old notifications (Smart Tiered: 30d read, 60d unread)...\n";
+$cleanupResults = cleanup_old_notifications(30, 60);
+echo "Notification cleanup completed: {$cleanupResults['read_deleted']} read and {$cleanupResults['unread_deleted']} unread ({$cleanupResults['total']} total purged).\n";
+
 // Schedule jobs instead of running them synchronously
 echo "Scheduling engagement score computation...\n";
 Queue::push('recompute_all_engagement_scores_batch');

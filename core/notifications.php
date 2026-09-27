@@ -425,3 +425,45 @@ function handle_notification_click(): void
         redirect('notifications');
     }
 }
+
+/**
+ * Smart Tiered Notification Cleanup:
+ * - Read notifications (is_read = 1) older than $readDays (default 30 days) are purged.
+ * - Unread notifications or system alerts older than $unreadDays (default 60 days) are purged.
+ *
+ * @param int $readDays Days to retain read notifications (default 30).
+ * @param int $unreadDays Days to retain unread/system notifications (default 60).
+ * @return array Array containing counts: ['read_deleted' => int, 'unread_deleted' => int, 'total' => int].
+ */
+function cleanup_old_notifications(int $readDays = 30, int $unreadDays = 60): array
+{
+    $pdo = db();
+    $result = ['read_deleted' => 0, 'unread_deleted' => 0, 'total' => 0];
+
+    try {
+        // 1. Purge read notifications older than $readDays (30 days)
+        $stmtRead = $pdo->prepare("
+            DELETE FROM notifications 
+            WHERE is_read = 1 
+              AND created_at < DATE_SUB(NOW(), INTERVAL ? DAY)
+            LIMIT 5000
+        ");
+        $stmtRead->execute([$readDays]);
+        $result['read_deleted'] = $stmtRead->rowCount();
+
+        // 2. Purge all remaining (including unread/system) notifications older than $unreadDays (60 days)
+        $stmtUnread = $pdo->prepare("
+            DELETE FROM notifications 
+            WHERE created_at < DATE_SUB(NOW(), INTERVAL ? DAY)
+            LIMIT 5000
+        ");
+        $stmtUnread->execute([$unreadDays]);
+        $result['unread_deleted'] = $stmtUnread->rowCount();
+
+        $result['total'] = $result['read_deleted'] + $result['unread_deleted'];
+    } catch (Throwable $e) {
+        error_log('cleanup_old_notifications error: ' . $e->getMessage());
+    }
+
+    return $result;
+}

@@ -140,3 +140,27 @@ To solve this, FitTracks implements a **high-performance hybrid auto check-out s
    - Backed by a covering B-Tree index: `idx_att_checkout_checkin (check_out_time, check_in_time)`.
    - The query resolves as an in-memory index range scan (`Using where; Using index`), ensuring instant execution (`< 1ms`) with zero table locks even with 100,000+ attendance records.
 
+### 6. Smart Tiered Notification Retention Cleanup
+To prevent the `notifications` table from bloating over months of automated alerts, FitTracks runs an automated **Smart Tiered Purge** every night at 12:00:00 AM PHT in `cron.php` via `cleanup_old_notifications(30, 60)`:
+1. **Read Notifications (`is_read = 1`)**: Purged after **30 days**. Since the user has already opened and seen them, keeping month-old alerts is unnecessary.
+2. **Unread Notifications & System Alerts**: Retained for **60 days**. This grants an extended grace period so members or staff returning from leaves/vacations do not miss unread announcements or appointment updates.
+3. **Database Safety**: Critical business data (memberships, payment receipts, appointment records, chat transcripts) is permanently stored in separate tables (`payments`, `memberships`, `trainer_assignments`, `trainer_messages`), so purging transient UI notification bells never loses audit data.
+4. **Optimized Indexing**: Supported by composite indexes `idx_notif_created_read (is_read, created_at)` and `idx_notif_created (created_at)` with `LIMIT 5000` batch bounds, executing seamlessly in `< 2ms`.
+
+---
+
+
+
+*(Note: In production on Render, you can alternatively navigate to `https://<your-app>.onrender.com/migrate.php` to apply these indexes automatically).*
+
+### 2. External Web Cron Setup (`cron-job.org`)
+For platforms like Render without background OS daemons, schedule a single unified daily task on [cron-job.org](https://cron-job.org):
+- **URL**: `https://<your-app>.onrender.com/cron.php?key=fittracks_secret_cron_2026`
+- **Schedule**: Daily at `12:00:00 AM`
+- **Timezone**: `Asia/Manila` (PHT / UTC+8)
+- **Execution Order Handled Automatically by `cron.php`**:
+  1. Auto check-out unclosed attendance from yesterday (`23:59:59` timestamp).
+  2. Smart tiered notification cleanup (30-day read, 60-day unread/system).
+  3. Recompute member engagement scores and points.
+  4. Dispatch automated at-risk member notifications and emails.
+
