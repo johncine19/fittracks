@@ -821,6 +821,7 @@ ALTER TABLE `attendance`
   ADD KEY `fk_attendance_schedule` (`schedule_id`),
   ADD KEY `fk_attendance_staff` (`recorded_by`),
   ADD KEY `idx_attendance_checkin` (`check_in_time`),
+  ADD KEY `idx_att_checkout_checkin` (`check_out_time`, `check_in_time`),
   ADD KEY `fk_attend_gym` (`gym_id`);
 
 --

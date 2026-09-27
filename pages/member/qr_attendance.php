@@ -4,6 +4,7 @@ declare(strict_types=1);
 function qr_attendance_page(): void
 {
     $user = require_roles(['member', 'trainer']);
+    auto_checkout_past_attendance((int) $user['user_id']);
     $initialToken = null;
     $initialSecondsRemaining = 0;
 

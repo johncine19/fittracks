@@ -13,6 +13,11 @@ if (php_sapi_name() !== 'cli') {
 
 echo "Starting Fittracks Background Tasks...\n";
 
+// 1. Auto check-out unclosed sessions from previous days (PH Time midnight task)
+echo "Checking for unclosed attendance records from past days...\n";
+$autoCheckedOutCount = auto_checkout_past_attendance(null, true);
+echo "Auto check-out completed: {$autoCheckedOutCount} session(s) closed at 23:59:59.\n";
+
 // Schedule jobs instead of running them synchronously
 echo "Scheduling engagement score computation...\n";
 Queue::push('recompute_all_engagement_scores_batch');

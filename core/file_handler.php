@@ -549,32 +549,93 @@ final class FileUpload
     }
 
     /**
-     * Stores a gym gallery photo under assets/uploads, compressed to WebP (max 1600x1200).
+     * Deletes an asset from Cloudinary by its full URL or public_id.
+     */
+    public static function deleteFromCloudinary(string $url): bool
+    {
+        $cloudName = preg_replace('/[^a-zA-Z0-9_-]/', '', trim((string)app_env('CLOUDINARY_CLOUD_NAME')));
+        $apiKey = trim((string)app_env('CLOUDINARY_API_KEY'));
+        $apiSecret = trim((string)app_env('CLOUDINARY_API_SECRET'));
+
+        if (!$cloudName || !$apiKey || !$apiSecret) {
+            return false;
+        }
+
+        // Extract public_id from Cloudinary URL: .../upload/(?:v\d+/)?(.+?)(?:\.[a-zA-Z0-9]+)?$
+        $publicId = $url;
+        if (preg_match('#/upload/(?:v\d+/)?(.+?)(?:\.[a-zA-Z0-9]+)?$#', $url, $matches)) {
+            $publicId = $matches[1];
+        }
+
+        $timestamp = time();
+        $signatureStr = "public_id={$publicId}&timestamp={$timestamp}{$apiSecret}";
+        $signature = sha1($signatureStr);
+
+        $ch = curl_init("https://api.cloudinary.com/v1_1/{$cloudName}/image/destroy");
+        curl_setopt($ch, CURLOPT_POST, true);
+        curl_setopt($ch, CURLOPT_POSTFIELDS, [
+            'public_id' => $publicId,
+            'api_key' => $apiKey,
+            'timestamp' => $timestamp,
+            'signature' => $signature,
+        ]);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_TIMEOUT, 15);
+        curl_setopt($ch, CURLOPT_IPRESOLVE, CURL_IPRESOLVE_V4);
+        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+        curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, 0);
+
+        $response = curl_exec($ch);
+        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        curl_close($ch);
+
+        return ($httpCode >= 200 && $httpCode < 300);
+    }
+
+    /**
+     * Stores a gym gallery photo under Cloudinary (fittracks_gallery) with fallback to assets/uploads, compressed to WebP (max 1600x1200).
      */
     public static function storeGymGalleryImage(array $file, int $gymId): string
     {
         self::validate($file);
+
+        $tempDir = sys_get_temp_dir() . '/';
+        $filename = 'gym_' . $gymId . '_gallery_' . bin2hex(random_bytes(8)) . '.webp';
+        $destPath = $tempDir . $filename;
+
+        if (!self::processAndStoreImage($file['tmp_name'], $destPath, 1600, 1200, 80)) {
+            throw new RuntimeException('Could not save the gallery image.');
+        }
+
+        $cloudinaryUrl = self::uploadToCloudinary($destPath, 'image/webp', 'fittracks_gallery');
+        if ($cloudinaryUrl) {
+            @unlink($destPath);
+            return $cloudinaryUrl;
+        }
 
         $uploadDir = __DIR__ . '/../assets/uploads/';
         if (!is_dir($uploadDir)) {
             mkdir($uploadDir, 0775, true);
         }
 
-        $filename = 'gym_' . $gymId . '_gallery_' . bin2hex(random_bytes(8)) . '.webp';
-        $destPath = $uploadDir . $filename;
-
-        if (!self::processAndStoreImage($file['tmp_name'], $destPath, 1600, 1200, 80)) {
-            throw new RuntimeException('Could not save the gallery image.');
-        }
+        $finalLocalPath = $uploadDir . $filename;
+        rename($destPath, $finalLocalPath);
 
         return $filename;
     }
 
     /**
-     * Deletes a gym gallery image from the filesystem.
+     * Deletes a gym gallery image from Cloudinary or the local filesystem.
      */
     public static function deleteGymGalleryImage(string $filename): void
     {
+        if (str_starts_with($filename, 'http://') || str_starts_with($filename, 'https://')) {
+            if (str_contains($filename, 'cloudinary.com')) {
+                self::deleteFromCloudinary($filename);
+            }
+            return;
+        }
+
         $filePath = __DIR__ . '/../assets/uploads/' . basename($filename);
         if (file_exists($filePath) && is_file($filePath)) {
             @unlink($filePath);

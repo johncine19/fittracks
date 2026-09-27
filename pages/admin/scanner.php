@@ -18,6 +18,7 @@ function scanner_page(): void
     }
 
     $pdo = db();
+    auto_checkout_past_attendance();
 
     // Helper: format duration in human readable string
     $formatDuration = function (?string $checkInTime, ?string $checkOutTime): string {
@@ -121,8 +122,8 @@ function scanner_page(): void
 
         $searchSql = '
             SELECT u.user_id, u.first_name, u.last_name, u.role, u.email, u.phone, u.profile_picture,
-                   (SELECT attendance_id FROM attendance WHERE user_id = u.user_id AND check_out_time IS NULL ORDER BY check_in_time DESC LIMIT 1) as active_attendance_id,
-                   (SELECT check_in_time FROM attendance WHERE user_id = u.user_id AND check_out_time IS NULL ORDER BY check_in_time DESC LIMIT 1) as active_check_in_time
+                   (SELECT attendance_id FROM attendance WHERE user_id = u.user_id AND check_out_time IS NULL AND DATE(check_in_time) = CURDATE() ORDER BY check_in_time DESC LIMIT 1) as active_attendance_id,
+                   (SELECT check_in_time FROM attendance WHERE user_id = u.user_id AND check_out_time IS NULL AND DATE(check_in_time) = CURDATE() ORDER BY check_in_time DESC LIMIT 1) as active_check_in_time
             FROM users u
             WHERE u.status = "active" AND u.role IN ("member", "trainer")
               AND (u.first_name LIKE ? OR u.last_name LIKE ? OR CONCAT(u.first_name, " ", u.last_name) LIKE ? OR u.email LIKE ? OR u.phone LIKE ?)
@@ -169,8 +170,11 @@ function scanner_page(): void
             exit;
         }
 
-        // Check for open attendance record
-        $stmt = $pdo->prepare('SELECT attendance_id, check_in_time FROM attendance WHERE user_id = ? AND check_out_time IS NULL ORDER BY check_in_time DESC LIMIT 1');
+        // Auto-checkout lingering attendance from past days for this user first
+        auto_checkout_past_attendance($targetUserId);
+
+        // Check for open attendance record for today
+        $stmt = $pdo->prepare('SELECT attendance_id, check_in_time FROM attendance WHERE user_id = ? AND check_out_time IS NULL AND DATE(check_in_time) = CURDATE() ORDER BY check_in_time DESC LIMIT 1');
         $stmt->execute([$targetUserId]);
         $openRecord = $stmt->fetch();
 
@@ -277,8 +281,11 @@ function scanner_page(): void
             exit;
         }
         
-        // Check for open attendance record
-        $stmt = $pdo->prepare('SELECT attendance_id, check_in_time FROM attendance WHERE user_id = ? AND check_out_time IS NULL ORDER BY check_in_time DESC LIMIT 1');
+        // Auto-checkout lingering attendance from past days for this user first
+        auto_checkout_past_attendance($userId);
+
+        // Check for open attendance record for today
+        $stmt = $pdo->prepare('SELECT attendance_id, check_in_time FROM attendance WHERE user_id = ? AND check_out_time IS NULL AND DATE(check_in_time) = CURDATE() ORDER BY check_in_time DESC LIMIT 1');
         $stmt->execute([$userId]);
         $openRecord = $stmt->fetch();
 

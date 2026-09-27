@@ -4,6 +4,7 @@ declare(strict_types=1);
 function attendance_page(): void
 {
     $user = require_roles(['platform_admin', 'gym_owner']);
+    auto_checkout_past_attendance();
     
     $currentGymId = null;
     if ($user['role'] === 'gym_owner') {
@@ -38,8 +39,9 @@ function attendance_page(): void
                 $gymId = (int) post('gym_id');
             }
 
-            // Prevent duplicate check-ins
-            $dupSql = 'SELECT attendance_id FROM attendance WHERE user_id = ? AND check_out_time IS NULL';
+            // Prevent duplicate check-ins (auto-close past days first)
+            auto_checkout_past_attendance($userId);
+            $dupSql = 'SELECT attendance_id FROM attendance WHERE user_id = ? AND check_out_time IS NULL AND DATE(check_in_time) = CURDATE()';
             $dupParams = [$userId];
             if ($gymId) {
                 $dupSql .= ' AND (gym_id = ? OR gym_id IS NULL)';

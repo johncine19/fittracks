@@ -982,30 +982,30 @@ function render_header(string $title, ?array $user = null): void
                         $profileSubPill = null;
                         if ($role === 'gym_owner' && $gym) {
                             $trialInfo = gym_trial_info($gym);
-                            $memberLimit = gym_member_limit($gym);
-                            $capLabel = ($memberLimit === PHP_INT_MAX) ? '∞ CAP' : ($memberLimit . ' CAP');
                             if ($trialInfo['is_trial_active']) {
                                 $profileSubPill = [
-                                    'text'  => $trialInfo['days_left'] . 'D LEFT • 50 CAP',
-                                    'title' => 'Free Trial (' . $trialInfo['days_left'] . ' days left • 50 Member Cap)',
+                                    'text'  => 'FREE TRIAL',
+                                    'title' => 'Free Trial (' . $trialInfo['days_left'] . ' days left)',
                                     'type'  => 'trial',
                                 ];
                             } elseif ($trialInfo['is_free']) {
                                 $profileSubPill = [
-                                    'text'  => 'FREE • 25 CAP',
-                                    'title' => 'Limited Free Account (25 Member Cap)',
+                                    'text'  => 'FREE',
+                                    'title' => 'Limited Free Account',
                                     'type'  => 'free',
                                 ];
                             } elseif (($gym['subscription_status'] ?? '') === 'active') {
                                 $planRaw = strtolower(trim($gym['subscription_plan'] ?? ''));
                                 $planName = match (true) {
                                     str_contains($planRaw, 'starter')      => 'Starter',
-                                    str_contains($planRaw, 'business')     => 'Biz',
+                                    str_contains($planRaw, 'business')     => 'Business',
+                                    str_contains($planRaw, 'enterprise')   => 'Enterprise',
                                     str_contains($planRaw, 'professional') => 'Pro',
+                                    str_contains($planRaw, 'pro')          => 'Pro',
                                     default                                => ucfirst($gym['subscription_plan'] ?? 'Pro')
                                 };
                                 $profileSubPill = [
-                                    'text'  => strtoupper($planName) . ' • ' . $capLabel,
+                                    'text'  => strtoupper($planName),
                                     'title' => 'Active Subscription: ' . ($gym['subscription_plan'] ?? 'Active'),
                                     'type'  => 'active',
                                 ];
@@ -1065,7 +1065,10 @@ function render_header(string $title, ?array $user = null): void
                     </div>
                     <div class="user-chip">
                         <?php if ($user && in_array($user['role'] ?? '', ['member', 'trainer'])): ?>
-                            <?php $activeCheckinId = scalar('SELECT attendance_id FROM attendance WHERE user_id = ? AND check_out_time IS NULL ORDER BY check_in_time DESC LIMIT 1', [$user['user_id']]); ?>
+                            <?php 
+                            auto_checkout_past_attendance((int) $user['user_id']);
+                            $activeCheckinId = scalar('SELECT attendance_id FROM attendance WHERE user_id = ? AND check_out_time IS NULL AND DATE(check_in_time) = CURDATE() ORDER BY check_in_time DESC LIMIT 1', [$user['user_id']]); 
+                            ?>
                             <?php if ($activeCheckinId): ?>
                                 <!-- Hidden checkout form — submitted via JS after optional rating -->
                                 <form id="checkout-form" method="post" action="" style="display:none;">

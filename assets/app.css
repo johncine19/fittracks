@@ -1498,18 +1498,18 @@ dialog.modal .modal-body {
     .app-frame.collapsed {
         grid-template-columns: 80px minmax(0, 1fr);
     }
-    .app-frame.collapsed .nav-label,
-    .app-frame.collapsed .brand > span:not(.brand-mark),
-    .app-frame.collapsed .role-switch,
-    .app-frame.collapsed .role-badge {
+    .app-frame.collapsed #main-sidebar .nav-label,
+    .app-frame.collapsed #main-sidebar .brand > span:not(.brand-mark),
+    .app-frame.collapsed #main-sidebar .role-switch,
+    .app-frame.collapsed #main-sidebar .role-badge {
         display: none;
     }
-    .app-frame.collapsed .brand {
+    .app-frame.collapsed #main-sidebar .brand {
         justify-content: center;
         padding: 0;
     }
-    .app-frame.collapsed .side-nav a,
-    .app-frame.collapsed .sidebar-bottom a {
+    .app-frame.collapsed #main-sidebar .side-nav a,
+    .app-frame.collapsed #main-sidebar .sidebar-bottom a {
         justify-content: center;
         padding: 9px 0;
     }

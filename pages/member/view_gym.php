@@ -1196,7 +1196,7 @@ function view_gym_page(): void
                 <div class="gym-gallery-grid">
                     <?php foreach ($images as $img): ?>
                         <div class="gym-gallery-item">
-                            <img src="<?= h($img) ?>" alt="<?= h($gym['name']) ?>" loading="lazy">
+                            <img src="<?= h(upload_url($img)) ?>" alt="<?= h($gym['name']) ?>" loading="lazy">
                         </div>
                     <?php endforeach; ?>
                 </div>
