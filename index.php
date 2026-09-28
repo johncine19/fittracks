@@ -14,17 +14,131 @@ try {
             db()->prepare('UPDATE attendance SET check_out_time = NOW() WHERE attendance_id = ? AND user_id = ?')->execute([$attendanceId, $user['user_id']]);
             
             $rating = isset($_POST['rating']) ? (int) $_POST['rating'] : 0;
+            $comment = isset($_POST['comment']) ? mb_substr(trim((string)$_POST['comment']), 0, 1000) : null;
+
             if ($rating >= 1 && $rating <= 5) {
                 try {
                     db()->exec("CREATE TABLE IF NOT EXISTS checkout_ratings (rating_id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY, attendance_id INT UNSIGNED NOT NULL, user_id INT UNSIGNED NOT NULL, rating TINYINT UNSIGNED NOT NULL, comment TEXT DEFAULT NULL, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, UNIQUE KEY uq_attendance (attendance_id))");
-                    db()->prepare('INSERT IGNORE INTO checkout_ratings (attendance_id, user_id, rating, comment) VALUES (?, ?, ?, ?)')->execute([$attendanceId, $user['user_id'], $rating, mb_substr(trim((string) ($_POST['comment'] ?? '')), 0, 1000) ?: null]);
+                    db()->prepare('INSERT INTO checkout_ratings (attendance_id, user_id, rating, comment) VALUES (?, ?, ?, ?) ON DUPLICATE KEY UPDATE rating = VALUES(rating), comment = VALUES(comment)')->execute([$attendanceId, $user['user_id'], $rating, $comment ?: null]);
                 } catch (Throwable) {}
+
+                // Save to gym_ratings so checkout ratings contribute to the gym's overall rating
+                $gymId = (int) scalar('SELECT gym_id FROM attendance WHERE attendance_id = ?', [$attendanceId]);
+                if (!$gymId) {
+                    $gymId = (int) ($user['gym_id'] ?? 0);
+                }
+                if (!$gymId) {
+                    $gymId = (int) scalar('SELECT gym_id FROM gym_members WHERE user_id = ? LIMIT 1', [$user['user_id']]);
+                }
+                if (!$gymId) {
+                    $gymId = (int) scalar('SELECT mp.gym_id FROM memberships m JOIN membership_plans mp ON mp.plan_id = m.plan_id WHERE m.user_id = ? AND m.status = "active" LIMIT 1', [$user['user_id']]);
+                }
+                if ($gymId > 0) {
+                    save_gym_rating((int)$user['user_id'], $gymId, $rating, $comment ?: null);
+                }
             }
-            flash('You have successfully checked out.', 'success');
+            flash('You have successfully checked out' . ($rating >= 1 ? ' and your gym review has been published!' : '.'), 'success');
         }
         // Safe redirect: never trust HTTP_REFERER as a redirect target
         header('Location: index.php?page=dashboard');
         exit;
+    }
+
+    // --- Member Rating for Gym Action ---
+    if (isset($_POST['submit_gym_rating'])) {
+        $user = current_user();
+        $isAjax = (!empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest') || (isset($_SERVER['HTTP_ACCEPT']) && str_contains($_SERVER['HTTP_ACCEPT'], 'application/json'));
+        
+        if (!$user || $user['role'] !== 'member') {
+            if ($isAjax) {
+                header('Content-Type: application/json');
+                http_response_code(403);
+                echo json_encode(['success' => false, 'message' => 'Only active gym members can submit gym ratings.']);
+                exit;
+            }
+            flash('Only active gym members can submit gym ratings.', 'danger');
+            redirect('dashboard');
+        }
+
+        $gymId = (int) ($_POST['gym_id'] ?? 0);
+        $rating = (int) ($_POST['rating'] ?? 0);
+        $review = isset($_POST['review']) ? trim((string)$_POST['review']) : null;
+
+        if ($gymId <= 0 || $rating < 1 || $rating > 5) {
+            if ($isAjax) {
+                header('Content-Type: application/json');
+                http_response_code(422);
+                echo json_encode(['success' => false, 'message' => 'Please provide a valid rating between 1 and 5 stars.']);
+                exit;
+            }
+            flash('Please select a star rating between 1 and 5.', 'warning');
+            redirect("index.php?page=view_gym&gym_id={$gymId}");
+        }
+
+        if (!can_user_review_gym((int) $user['user_id'], $gymId)) {
+            if ($isAjax) {
+                header('Content-Type: application/json');
+                http_response_code(403);
+                echo json_encode(['success' => false, 'message' => 'You must be enrolled in or have visited this gym to submit a rating.']);
+                exit;
+            }
+            flash('You must be enrolled in or have visited this gym to submit a review.', 'warning');
+            redirect("index.php?page=view_gym&gym_id={$gymId}");
+        }
+
+        $res = save_gym_rating((int) $user['user_id'], $gymId, $rating, $review);
+        if ($isAjax) {
+            header('Content-Type: application/json');
+            echo json_encode($res);
+            exit;
+        }
+        flash($res['message'], $res['success'] ? 'success' : 'danger');
+        redirect("index.php?page=view_gym&gym_id={$gymId}");
+    }
+
+    // --- Gym Owner Rating for FitTrack Platform Action ---
+    if (isset($_POST['submit_platform_review'])) {
+        $user = current_user();
+        $isAjax = (!empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest') || (isset($_SERVER['HTTP_ACCEPT']) && str_contains($_SERVER['HTTP_ACCEPT'], 'application/json'));
+        
+        if (!$user || !in_array($user['role'] ?? '', ['gym_owner', 'admin'], true)) {
+            if ($isAjax) {
+                header('Content-Type: application/json');
+                http_response_code(403);
+                echo json_encode(['success' => false, 'message' => 'Only verified gym owners can review the FitTrack platform.']);
+                exit;
+            }
+            flash('Only verified gym owners can review the FitTrack platform.', 'danger');
+            redirect('index.php?page=profile&tab=ratings_feedback');
+        }
+
+        $rating = (int) ($_POST['rating'] ?? 0);
+        $review = isset($_POST['review']) ? trim((string)$_POST['review']) : null;
+        $systemExp = isset($_POST['system_experience']) && (int)$_POST['system_experience'] >= 1 ? (int)$_POST['system_experience'] : null;
+        $features = isset($_POST['features_rating']) && (int)$_POST['features_rating'] >= 1 ? (int)$_POST['features_rating'] : null;
+        $service = isset($_POST['service_rating']) && (int)$_POST['service_rating'] >= 1 ? (int)$_POST['service_rating'] : null;
+
+        $targetRedirect = !empty($_POST['redirect_to']) ? (string)$_POST['redirect_to'] : 'index.php?page=profile&tab=ratings_feedback#platform-feedback-card';
+
+        if ($rating < 1 || $rating > 5) {
+            if ($isAjax) {
+                header('Content-Type: application/json');
+                http_response_code(422);
+                echo json_encode(['success' => false, 'message' => 'Please provide a valid platform rating between 1 and 5 stars.']);
+                exit;
+            }
+            flash('Please select an overall platform rating between 1 and 5 stars.', 'warning');
+            redirect($targetRedirect);
+        }
+
+        $res = save_platform_review((int) $user['user_id'], null, $rating, $review, $systemExp, $features, $service);
+        if ($isAjax) {
+            header('Content-Type: application/json');
+            echo json_encode($res);
+            exit;
+        }
+        flash($res['message'], $res['success'] ? 'success' : 'danger');
+        redirect($targetRedirect);
     }
 
     $page = $_GET['page'] ?? (current_user() ? 'dashboard' : 'landing');

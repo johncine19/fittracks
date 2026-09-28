@@ -361,8 +361,8 @@ input[type="radio"] {
 
 .side-nav a.active .sidebar-notif-badge,
 .side-nav a:hover .sidebar-notif-badge,
-.side-nav a.active .sidebar-nav-badge:not(.sidebar-badge-active):not(.sidebar-badge-pending),
-.side-nav a:hover .sidebar-nav-badge:not(.sidebar-badge-active):not(.sidebar-badge-pending) {
+.side-nav a.active .sidebar-nav-badge:not(.sidebar-badge-active):not(.sidebar-badge-pending):not(.sidebar-badge-alert),
+.side-nav a:hover .sidebar-nav-badge:not(.sidebar-badge-active):not(.sidebar-badge-pending):not(.sidebar-badge-alert) {
     background: #080b0d;
     color: var(--lime);
     box-shadow: 0 2px 6px rgba(0, 0, 0, 0.35);
@@ -438,8 +438,8 @@ input[type="radio"] {
 
 .side-nav a.active .sidebar-notif-dot,
 .side-nav a:hover .sidebar-notif-dot,
-.side-nav a.active .sidebar-nav-dot,
-.side-nav a:hover .sidebar-nav-dot {
+.side-nav a.active .sidebar-nav-dot:not(.sidebar-badge-alert):not(.sidebar-badge-pending),
+.side-nav a:hover .sidebar-nav-dot:not(.sidebar-badge-alert):not(.sidebar-badge-pending) {
     background: #080b0d;
     border-color: var(--lime);
     box-shadow: 0 0 6px rgba(0, 0, 0, 0.4);

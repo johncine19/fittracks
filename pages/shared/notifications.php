@@ -99,7 +99,8 @@ function notifications_page(): void
                         </div>
                         <?php
                             $isAppointmentRequest = $row['type'] === 'system' && str_starts_with($row['title'], 'Trainer Appointment Request');
-                            $hasLink = in_array($row['type'], ['coach_message', 'class_reminder', 'renewal_reminder', 'milestone'], true) || $isAppointmentRequest;
+                            $isMemberReview = $row['type'] === 'system' && str_starts_with($row['title'], 'New Member Review');
+                            $hasLink = in_array($row['type'], ['coach_message', 'class_reminder', 'renewal_reminder', 'milestone'], true) || $isAppointmentRequest || $isMemberReview;
                             $clickUrl = $hasLink ? 'index.php?page=notification_click&nid=' . (int) $row['notification_id'] : null;
                         ?>
                         <?php if ($clickUrl): ?>

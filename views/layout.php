@@ -560,6 +560,188 @@ function render_header(string $title, ?array $user = null): void
             color: #f59e0b;
         }
 
+        /* Workout Checkout Rating Modal Optimizations */
+        .swal2-popup.swal-checkout-modal {
+            max-width: 420px !important;
+            width: calc(100vw - 32px) !important;
+            padding: 22px 20px 18px !important;
+            border-radius: 16px !important;
+            box-sizing: border-box !important;
+            background: #111827 !important;
+            border: 1px solid rgba(255, 255, 255, 0.12) !important;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.6) !important;
+        }
+        [data-theme="light"] .swal2-popup.swal-checkout-modal {
+            background: #ffffff !important;
+            border-color: #cbd5e1 !important;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.15) !important;
+        }
+        .swal-checkout-modal .swal2-title {
+            font-size: 1.35rem !important;
+            font-weight: 700 !important;
+            line-height: 1.3 !important;
+            margin: 0 0 8px 0 !important;
+            padding: 0 !important;
+            color: #f8fafc !important;
+            text-align: center !important;
+        }
+        [data-theme="light"] .swal-checkout-modal .swal2-title {
+            color: #0f172a !important;
+        }
+        .swal-checkout-modal .swal2-html-container {
+            margin: 0 !important;
+            padding: 0 !important;
+        }
+        .swal-checkout-modal .checkout-modal-desc {
+            font-size: 12.5px !important;
+            line-height: 1.45 !important;
+            color: #94a3b8 !important;
+            margin: 0 0 10px 0 !important;
+            text-align: center !important;
+        }
+        [data-theme="light"] .swal-checkout-modal .checkout-modal-desc {
+            color: #64748b !important;
+        }
+        .swal-checkout-modal #swal-star-row {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 10px;
+            margin: 10px 0 14px !important;
+        }
+        .swal-checkout-modal .co-star {
+            font-size: 2.1rem !important;
+            padding: 0 2px !important;
+            touch-action: manipulation;
+        }
+        .swal-checkout-modal #swal-comment {
+            width: 100% !important;
+            min-height: 68px !important;
+            padding: 9px 12px !important;
+            border-radius: 8px !important;
+            border: 1px solid rgba(255, 255, 255, 0.12) !important;
+            background: rgba(255, 255, 255, 0.04) !important;
+            color: #f8fafc !important;
+            font-size: 13px !important;
+            line-height: 1.4 !important;
+            box-sizing: border-box !important;
+            resize: none !important;
+        }
+        [data-theme="light"] .swal-checkout-modal #swal-comment {
+            background: #f8fafc !important;
+            border-color: #cbd5e1 !important;
+            color: #0f172a !important;
+        }
+        .swal-checkout-modal .swal2-actions {
+            display: grid !important;
+            grid-template-columns: 1fr 1fr !important;
+            width: 100% !important;
+            gap: 10px !important;
+            margin-top: 14px !important;
+            box-sizing: border-box !important;
+        }
+        .swal-checkout-modal .swal2-deny {
+            display: none !important;
+        }
+        .swal-checkout-modal .swal2-confirm,
+        .swal-checkout-modal .swal2-cancel {
+            width: 100% !important;
+            margin: 0 !important;
+            height: 40px !important;
+            min-height: 40px !important;
+            max-height: 40px !important;
+            padding: 0 8px !important;
+            font-size: 11.5px !important;
+            font-weight: 600 !important;
+            border-radius: 8px !important;
+            display: flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+            text-align: center !important;
+            white-space: nowrap !important;
+            box-sizing: border-box !important;
+        }
+        .swal-checkout-modal .swal-checkout-confirm-btn {
+            background-color: #ef4444 !important;
+            color: #ffffff !important;
+            border: none !important;
+            box-shadow: 0 2px 8px rgba(239, 68, 68, 0.3) !important;
+            transition: all 0.15s ease !important;
+        }
+        .swal-checkout-modal .swal-checkout-confirm-btn:hover {
+            background-color: #dc2626 !important;
+            transform: translateY(-1px) !important;
+        }
+        .swal-checkout-modal .swal-skip-btn {
+            background-color: rgba(255, 255, 255, 0.07) !important;
+            color: #cbd5e1 !important;
+            border: 1px solid rgba(255, 255, 255, 0.15) !important;
+            transition: all 0.15s ease !important;
+        }
+        .swal-checkout-modal .swal-skip-btn:hover {
+            background-color: rgba(255, 255, 255, 0.12) !important;
+            color: #ffffff !important;
+        }
+        [data-theme="light"] .swal-checkout-modal .swal-skip-btn {
+            background-color: #f1f5f9 !important;
+            color: #475569 !important;
+            border-color: #cbd5e1 !important;
+        }
+        [data-theme="light"] .swal-checkout-modal .swal-skip-btn:hover {
+            background-color: #e2e8f0 !important;
+            color: #0f172a !important;
+        }
+
+        @media (max-width: 480px) {
+            .swal2-popup.swal-checkout-modal {
+                width: calc(100vw - 24px) !important;
+                max-width: 360px !important;
+                padding: 16px 14px 12px !important;
+                border-radius: 14px !important;
+            }
+            .swal-checkout-modal .swal2-title {
+                font-size: 1.15rem !important;
+                margin-bottom: 5px !important;
+            }
+            .swal-checkout-modal .checkout-modal-desc {
+                font-size: 11.5px !important;
+                line-height: 1.35 !important;
+                margin-bottom: 6px !important;
+            }
+            .swal-checkout-modal #swal-star-row {
+                gap: 7px !important;
+                margin: 6px 0 10px !important;
+            }
+            .swal-checkout-modal .co-star {
+                font-size: 1.7rem !important;
+                padding: 0 1px !important;
+            }
+            .swal-checkout-modal #swal-comment {
+                min-height: 56px !important;
+                font-size: 12px !important;
+                padding: 7px 9px !important;
+            }
+            .swal-checkout-modal .swal2-actions {
+                display: grid !important;
+                grid-template-columns: 1fr 1fr !important;
+                gap: 8px !important;
+                margin-top: 10px !important;
+            }
+            .swal-checkout-modal .swal2-actions .swal2-deny {
+                display: none !important;
+            }
+            .swal-checkout-modal .swal2-confirm,
+            .swal-checkout-modal .swal2-cancel {
+                height: 38px !important;
+                min-height: 38px !important;
+                max-height: 38px !important;
+                padding: 0 4px !important;
+                font-size: 10.5px !important;
+                white-space: nowrap !important;
+                letter-spacing: -0.2px !important;
+            }
+        }
+
         /* Light Mode User Avatar */
         [data-theme="light"] .avatar {
             background: #ecfccb !important;
@@ -1023,7 +1205,7 @@ function render_header(string $title, ?array $user = null): void
                                 }
                             }
                         } elseif ($role === 'trainer') {
-                            $coachId = (int) scalar('SELECT trainer_id FROM trainer_profiles WHERE user_id = ? LIMIT 1', [$uid]);
+                            $coachId = ensure_coach_profile($uid);
                             if ($coachId) {
                                 $pendingClients = (int) scalar('SELECT COUNT(*) FROM trainer_assignments WHERE trainer_id = ? AND status = "pending_trainer"', [$coachId]);
                                 if ($pendingClients > 0) {
@@ -1032,6 +1214,15 @@ function render_header(string $title, ?array $user = null): void
                                         'class' => 'sidebar-nav-badge sidebar-badge-alert',
                                         'title' => $pendingClients . ' pending client request' . ($pendingClients > 1 ? 's' : '')
                                     ];
+                                } else {
+                                    $activeClients = (int) scalar('SELECT COUNT(*) FROM trainer_assignments WHERE trainer_id = ? AND status = "active"', [$coachId]);
+                                    if ($activeClients > 0) {
+                                        $sidebarBadges['trainer_members'] = [
+                                            'text' => $activeClients > 99 ? '99+' : (string) $activeClients,
+                                            'class' => 'sidebar-nav-badge',
+                                            'title' => $activeClients . ' active client' . ($activeClients > 1 ? 's' : '')
+                                        ];
+                                    }
                                 }
                             }
                         } elseif ($role === 'gym_owner' && $gym) {
@@ -1075,7 +1266,7 @@ function render_header(string $title, ?array $user = null): void
                             || ($key === 'memberships' && in_array($page, ['memberships', 'payments'], true))
                             || ($key === 'training' && in_array($page, ['training', 'admin_workouts', 'workout_builder'], true))
                             || ($key === 'trainer_assignments' && $page === 'diet_builder' && in_array($role, ['gym_owner', 'platform_admin'], true))
-                            || ($key === 'trainer_members' && $page === 'diet_builder' && $role === 'trainer')
+                            || ($key === 'trainer_members' && in_array($page, ['diet_builder', 'trainer_assessment'], true) && $role === 'trainer')
                         );
                     ?>
                         <a class="<?= $isActive ? 'active' : '' ?>" href="index.php?page=<?= h($key) ?>"<?= $key === 'notifications' ? ' id="sidebar-nav-notifications"' : ($key === 'messages' ? ' id="sidebar-nav-messages"' : '') ?>>
@@ -1197,7 +1388,10 @@ function render_header(string $title, ?array $user = null): void
                             auto_checkout_past_attendance((int) $user['user_id']);
                             $activeCheckinId = scalar('SELECT attendance_id FROM attendance WHERE user_id = ? AND check_out_time IS NULL AND DATE(check_in_time) = CURDATE() ORDER BY check_in_time DESC LIMIT 1', [$user['user_id']]); 
                             ?>
-                            <?php if ($activeCheckinId): ?>
+                            <?php if ($activeCheckinId): 
+                                $activeCheckinRow = query_one('SELECT a.gym_id, g.name AS gym_name FROM attendance a LEFT JOIN gyms g ON g.gym_id = a.gym_id WHERE a.attendance_id = ?', [$activeCheckinId]);
+                                $activeGymName = $activeCheckinRow['gym_name'] ?? 'your gym';
+                            ?>
                                 <!-- Hidden checkout form — submitted via JS after optional rating -->
                                 <form id="checkout-form" method="post" action="" style="display:none;">
                                     <?= csrf_field() ?>
@@ -1216,26 +1410,28 @@ function render_header(string $title, ?array $user = null): void
                                         var isLight = document.documentElement.getAttribute('data-theme') === 'light' || document.body.getAttribute('data-theme') === 'light';
                                         var emptyColor = isLight ? '#cbd5e1' : '#475569';
                                         var activeColor = '#f59e0b';
+                                        var targetGymName = <?= json_encode($activeGymName) ?>;
 
-                                        var starHtml = '<div style="display:flex;justify-content:center;gap:12px;margin:14px 0 18px;" id="swal-star-row">'
+                                        var starHtml = '<div id="swal-star-row">'
                                             + [1,2,3,4,5].map(function(v){
-                                                return '<span class="co-star" data-val="' + v + '" style="font-size:2.25rem;cursor:pointer;color:' + emptyColor + ';transition:all .15s ease;line-height:1;user-select:none;padding:0 3px;">★</span>';
+                                                return '<span class="co-star" data-val="' + v + '">★</span>';
                                               }).join('')
                                             + '</div>';
 
                                         Swal.fire({
-                                            title: ' How was your session?',
-                                            html: '<p style="color:var(--muted,#8792ad);font-size:13px;margin:0 0 4px;">Rate your experience (optional)</p>'
+                                            title: 'Rate Your Workout at ' + (targetGymName ? targetGymName : 'Your Gym'),
+                                            html: '<p class="checkout-modal-desc">How was your workout session? Leave a 1–5 star rating and optional review for <strong>' + (targetGymName ? targetGymName : 'your gym') + '</strong>.</p>'
                                                 + starHtml
-                                                + '<textarea id="swal-comment" placeholder="Any comments? (optional)" rows="3" style="width:100%;padding:10px 12px;border-radius:8px;border:1px solid rgba(255,255,255,0.1);background:rgba(255,255,255,0.05);color:var(--ink,#f8fafc);font-size:14px;resize:vertical;box-sizing:border-box;"></textarea>',
-                                            background: 'var(--surface-color, #18251eff)',
-                                            color: 'var(--ink, #46ab5dff)',
+                                                + '<textarea id="swal-comment" placeholder="Write an optional review (equipment, cleanliness, coaching, overall experience)..." rows="2"></textarea>',
                                             showCancelButton: true,
+                                            showDenyButton: false,
                                             confirmButtonText: 'Submit & Check Out',
                                             cancelButtonText: 'Skip & Check Out',
-                                            confirmButtonColor: 'var(--lime, #c7ff22)',
-                                            cancelButtonColor: 'transparent',
-                                            customClass: { cancelButton: 'swal-skip-btn' },
+                                            customClass: {
+                                                popup: 'swal-checkout-modal',
+                                                confirmButton: 'swal-checkout-confirm-btn',
+                                                cancelButton: 'swal-skip-btn'
+                                            },
                                             didOpen: function() {
                                                 var stars = document.querySelectorAll('.co-star');
                                                 var updateStars = function(val) {
@@ -1740,6 +1936,12 @@ HTML;
 HTML;
 
     if (!$isAuthPage && current_user()) {
+        $u = current_user();
+        if (($u['role'] ?? '') === 'member' && function_exists('render_member_floating_rating_modal')) {
+            render_member_floating_rating_modal($u);
+        } elseif (in_array(($u['role'] ?? ''), ['gym_owner', 'admin'], true) && function_exists('render_owner_floating_rating_modal')) {
+            render_owner_floating_rating_modal($u);
+        }
         echo '</main></section></div>';
         echo $navScript;
         echo $themeScript;

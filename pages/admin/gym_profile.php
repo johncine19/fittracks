@@ -160,6 +160,9 @@ function gym_profile_page(): void
     $currentGalleryCount = count($galleryImages);
     $remainingSlots = max(0, 10 - $currentGalleryCount);
 
+    $gymRatingStats = get_gym_rating_stats((int)$gym['gym_id']);
+    $gymMemberReviews = get_gym_reviews((int)$gym['gym_id'], 100);
+
     render_header('Gym Profile & Settings', $user);
 ?>
     <style>
@@ -1380,6 +1383,10 @@ function gym_profile_page(): void
                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
                         Active Members: <?= $memberCount ?>
                     </span>
+                    <span class="capacity-pill" style="color: #fbbf24; border-color: rgba(251, 191, 36, 0.3); background: rgba(251, 191, 36, 0.08);">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="#fbbf24" stroke="none"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+                        Rating: <?= number_format((float)$gymRatingStats['avg_rating'], 1) ?> (<?= (int)$gymRatingStats['total_reviews'] ?>)
+                    </span>
                     <?php if ($gymTier !== 'business'): ?>
                         <a href="index.php?page=gym_subscription" style="font-size: 11.5px; font-weight: 700; color: var(--lime, #84cc16); text-decoration: none; display: inline-flex; align-items: center; gap: 3px;">
                             Upgrade Plan →
@@ -1441,6 +1448,11 @@ function gym_profile_page(): void
                                 <span class="settings-tab-label nav-label">Photo Gallery</span>
                                 <span class="menu-item-check">✓</span>
                             </button>
+                            <button type="button" class="mobile-menu-item" data-tab="ratings" onclick="selectMobileTab('ratings')">
+                                <span class="nav-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="#fbbf24" stroke="none"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg></span>
+                                <span class="settings-tab-label nav-label">Member Reviews (<?= (int)$gymRatingStats['total_reviews'] ?>)</span>
+                                <span class="menu-item-check">✓</span>
+                            </button>
                             <div class="settings-nav-divider"></div>
                             <button type="button" class="mobile-menu-item" data-tab="all" onclick="selectMobileTab('all')">
                                 <span class="nav-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg></span>
@@ -1483,6 +1495,12 @@ function gym_profile_page(): void
                                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
                                 </span>
                                 <span class="settings-tab-label nav-label">Photo Gallery</span>
+                            </button>
+                            <button type="button" class="settings-nav-link" data-tab="ratings" onclick="switchSettingsTab('ratings', this)">
+                                <span class="nav-icon">
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="#fbbf24" stroke="none"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+                                </span>
+                                <span class="settings-tab-label nav-label">Member Reviews (<?= (int)$gymRatingStats['total_reviews'] ?>)</span>
                             </button>
                             <div class="settings-nav-divider"></div>
                             <button type="button" class="settings-nav-link" data-tab="all" onclick="switchSettingsTab('all', this)" title="Show all sections together in a 2-column view">
@@ -1891,6 +1909,101 @@ function gym_profile_page(): void
                     <?php endif; ?>
                 </section>
 
+                <!-- 6. MEMBER REVIEWS & RATINGS TAB -->
+                <section class="profile-card settings-tab-pane" id="sec-ratings" style="display: none;">
+                    <div class="card-header">
+                        <div class="card-header-icon" style="background: rgba(245, 158, 11, 0.12); color: #fbbf24; border: 1px solid rgba(245, 158, 11, 0.25);">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="#fbbf24" stroke="none"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+                        </div>
+                        <div class="card-header-title-wrap">
+                            <h2 class="card-title">Member Ratings & Reviews</h2>
+                            <p class="card-desc">Authentic ratings and feedback submitted by your gym members.</p>
+                        </div>
+                        <a href="index.php?page=view_gym&gym_id=<?= (int)$gym['gym_id'] ?>#gym-ratings-section" target="_blank" class="btn btn-secondary" style="font-size: 12px; padding: 6px 12px; gap: 5px; margin-left: auto;">
+                            <span>View Public Page</span>
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+                        </a>
+                    </div>
+
+                    <!-- Summary Stats Card -->
+                    <div style="display: grid; grid-template-columns: minmax(200px, 260px) 1fr; gap: 20px; background: var(--panel-soft); border: 1px solid var(--line); border-radius: 14px; padding: 20px; margin-bottom: 20px;">
+                        <div style="display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center; border-right: 1px solid var(--line); padding-right: 20px;">
+                            <div style="font-size: 46px; font-weight: 900; color: #fbbf24; line-height: 1; letter-spacing: -1px; margin-bottom: 6px;">
+                                <?= number_format((float)$gymRatingStats['avg_rating'], 1) ?>
+                            </div>
+                            <?= render_star_rating($gymRatingStats['avg_rating'], 'md') ?>
+                            <div style="font-size: 12px; color: var(--muted); margin-top: 6px; font-weight: 600;">
+                                <?= (int)$gymRatingStats['total_reviews'] ?> total member <?= (int)$gymRatingStats['total_reviews'] === 1 ? 'review' : 'reviews' ?>
+                            </div>
+                        </div>
+
+                        <!-- Star breakdown -->
+                        <div style="display: flex; flex-direction: column; justify-content: center; gap: 8px;">
+                            <?php for ($s = 5; $s >= 1; $s--): 
+                                $bCount = $gymRatingStats['breakdown'][$s] ?? 0;
+                                $bPct = $gymRatingStats['breakdown_pct'][$s] ?? 0;
+                            ?>
+                                <div style="display: flex; align-items: center; gap: 10px; font-size: 12px;">
+                                    <span style="width: 32px; color: var(--muted); font-weight: 600;"><?= $s ?> ★</span>
+                                    <div style="flex: 1; height: 8px; border-radius: 999px; background: var(--line); overflow: hidden;">
+                                        <div style="height: 100%; width: <?= $bPct ?>%; background: #fbbf24; border-radius: 999px; transition: width 0.3s ease;"></div>
+                                    </div>
+                                    <span style="width: 70px; text-align: right; color: var(--muted); font-size: 11.5px;"><?= $bCount ?> (<?= $bPct ?>%)</span>
+                                </div>
+                            <?php endfor; ?>
+                        </div>
+                    </div>
+
+                    <!-- Reviews List -->
+                    <div style="display: flex; flex-direction: column; gap: 12px;">
+                        <h3 style="margin: 0; font-size: 14px; font-weight: 700; color: var(--ink);">Recent Member Feedback</h3>
+                        <?php if (!empty($gymMemberReviews)): ?>
+                            <?php foreach ($gymMemberReviews as $rev): ?>
+                                <div style="background: var(--panel-soft); border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px;">
+                                    <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; margin-bottom: 8px;">
+                                        <div style="display: flex; align-items: center; gap: 10px;">
+                                            <div style="width: 36px; height: 36px; border-radius: 10px; background: color-mix(in srgb, var(--lime) 15%, transparent); color: var(--lime); font-weight: 800; font-size: 13px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; overflow: hidden;">
+                                                <?php if (!empty($rev['profile_picture'])): ?>
+                                                    <img src="<?= h($rev['profile_picture']) ?>" alt="<?= h($rev['first_name']) ?>" style="width:100%;height:100%;object-fit:cover;">
+                                                <?php else: ?>
+                                                    <?= h(strtoupper(substr($rev['first_name'], 0, 1) . substr($rev['last_name'], 0, 1))) ?>
+                                                <?php endif; ?>
+                                            </div>
+                                            <div>
+                                                <div style="font-size: 13.5px; font-weight: 700; color: var(--ink); display: flex; align-items: center; gap: 6px;">
+                                                    <?= h($rev['first_name'] . ' ' . $rev['last_name']) ?>
+                                                    <span style="font-size: 10.5px; font-weight: 600; color: var(--muted); background: var(--panel); border: 1px solid var(--line); padding: 1px 6px; border-radius: 4px;">
+                                                        <?= $rev['is_enrolled'] ? 'Enrolled Member' : 'Visitor' ?>
+                                                    </span>
+                                                </div>
+                                                <div style="font-size: 11px; color: var(--muted);"><?= date('M j, Y • g:i A', strtotime($rev['updated_at'] ?: $rev['created_at'])) ?></div>
+                                            </div>
+                                        </div>
+                                        <div>
+                                            <?= render_star_rating((float) $rev['rating'], 'sm') ?>
+                                        </div>
+                                    </div>
+                                    <?php if (!empty($rev['review'])): ?>
+                                        <div style="font-size: 13px; color: var(--ink); line-height: 1.5; padding: 10px 14px; background: var(--panel); border-radius: 8px; border: 1px solid var(--line);">
+                                            <?= nl2br(h($rev['review'])) ?>
+                                        </div>
+                                    <?php else: ?>
+                                        <div style="font-size: 12px; font-style: italic; color: var(--muted);">
+                                            Rated <?= (int) $rev['rating'] ?> out of 5 stars (no written comment provided)
+                                        </div>
+                                    <?php endif; ?>
+                                </div>
+                            <?php endforeach; ?>
+                        <?php else: ?>
+                            <div style="text-align: center; padding: 32px 16px; background: var(--panel-soft); border: 1px dashed var(--line); border-radius: 12px;">
+                                <div style="font-size: 26px; color: #fbbf24; margin-bottom: 6px;">★</div>
+                                <h4 style="margin: 0 0 4px; font-size: 14px; color: var(--ink);">No reviews received yet</h4>
+                                <p style="margin: 0; font-size: 12.5px; color: var(--muted);">Encourage your members to rate their workouts and facility experience.</p>
+                            </div>
+                        <?php endif; ?>
+                    </div>
+                </section>
+
             </div>
         </div>
 
@@ -2171,6 +2284,10 @@ function gym_profile_page(): void
             gallery: {
                 label: 'Photo Gallery',
                 svg: '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>'
+            },
+            ratings: {
+                label: 'Member Reviews',
+                svg: '<svg width="17" height="17" viewBox="0 0 24 24" fill="#fbbf24" stroke="none"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>'
             },
             all: {
                 label: 'Show All Sections',

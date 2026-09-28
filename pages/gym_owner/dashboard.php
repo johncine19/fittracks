@@ -329,4 +329,5 @@ function admin_dashboard(PDO $pdo, array $user): void
         </article>
     </section>
 <?php
+
 }

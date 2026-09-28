@@ -1284,6 +1284,42 @@ if (!function_exists('get_meal_photo_url')) {
 }
 
 /**
+ * Returns an array of compatible dietary restrictions for a given target restriction.
+ * E.g. 'vegetarian' -> ['vegetarian', 'vegan']
+ *      'pescatarian' -> ['pescatarian', 'vegetarian', 'vegan']
+ *      'halal' -> ['halal', 'pescatarian', 'vegetarian', 'vegan']
+ *      'vegan' -> ['vegan']
+ *      'none' -> [] (meaning unrestricted / any)
+ */
+function get_compatible_dietary_restrictions(string $restriction): array
+{
+    $target = strtolower(trim($restriction));
+    switch ($target) {
+        case 'vegan':
+            return ['vegan'];
+        case 'vegetarian':
+            return ['vegetarian', 'vegan'];
+        case 'pescatarian':
+            return ['pescatarian', 'vegetarian', 'vegan'];
+        case 'halal':
+            return ['halal', 'pescatarian', 'vegetarian', 'vegan'];
+        case 'keto':
+            return ['keto'];
+        case 'gluten-free':
+            return ['gluten-free'];
+        case 'dairy-free':
+            return ['dairy-free', 'vegan'];
+        case 'nut-allergy':
+            return ['nut-allergy'];
+        case 'none':
+        case '':
+        case 'all':
+        default:
+            return [];
+    }
+}
+
+/**
  * Automatically generates a tailored 7-day dietary plan adhering to the member's dietary restriction,
  * biometric targets (BMR/TDEE), primary goal, and gym food items library.
  */
@@ -1381,16 +1417,32 @@ function generate_dietary_plan(int $memberUserId, ?int $trainerId = null, bool $
 
     // 9. Fetch foods filtered by gym scope and dietary restriction
     $memberGymId = (int) scalar('SELECT gym_id FROM gym_members WHERE user_id = ? LIMIT 1', [$memberUserId]);
-    $foodQuery = "
-        SELECT food_id, name, meal_type, serving_size, calories, protein_g, carbs_g, fat_g, image_url, recipe_desc 
-        FROM food_items 
-        WHERE is_active = 1 
-          AND (gym_id = ? OR gym_id IS NULL)
-          AND (dietary_restriction = ? OR dietary_restriction = 'none')
-        ORDER BY (gym_id IS NOT NULL) DESC, RAND()
-    ";
+    $compatibleDiets = get_compatible_dietary_restrictions($restriction);
+
+    if (!empty($compatibleDiets)) {
+        $inClause = implode(',', array_fill(0, count($compatibleDiets), '?'));
+        $foodQuery = "
+            SELECT food_id, name, meal_type, serving_size, calories, protein_g, carbs_g, fat_g, image_url, recipe_desc 
+            FROM food_items 
+            WHERE is_active = 1 
+              AND (gym_id = ? OR gym_id IS NULL OR gym_id = 0)
+              AND dietary_restriction IN ({$inClause})
+            ORDER BY (gym_id IS NOT NULL AND gym_id > 0) DESC, RAND()
+        ";
+        $foodParams = array_merge([$memberGymId ?: null], $compatibleDiets);
+    } else {
+        $foodQuery = "
+            SELECT food_id, name, meal_type, serving_size, calories, protein_g, carbs_g, fat_g, image_url, recipe_desc 
+            FROM food_items 
+            WHERE is_active = 1 
+              AND (gym_id = ? OR gym_id IS NULL OR gym_id = 0)
+            ORDER BY (gym_id IS NOT NULL AND gym_id > 0) DESC, (dietary_restriction = 'none') DESC, RAND()
+        ";
+        $foodParams = [$memberGymId ?: null];
+    }
+
     $foodStmt = $pdo->prepare($foodQuery);
-    $foodStmt->execute([$memberGymId ?: null, $restriction]);
+    $foodStmt->execute($foodParams);
     $dbFoods = $foodStmt->fetchAll(PDO::FETCH_ASSOC);
 
     $foodsByType = ['Breakfast' => [], 'Lunch' => [], 'Dinner' => [], 'Snack' => []];
@@ -1404,9 +1456,30 @@ function generate_dietary_plan(int $memberUserId, ?int $trainerId = null, bool $
     // Fallback for meal types with 0 matches
     foreach (['Breakfast', 'Lunch', 'Dinner', 'Snack'] as $mt) {
         if (empty($foodsByType[$mt])) {
-            $fallbackStmt = $pdo->prepare("SELECT food_id, name, meal_type, serving_size, calories, protein_g, carbs_g, fat_g, image_url, recipe_desc FROM food_items WHERE is_active = 1 AND meal_type = ? ORDER BY RAND()");
-            $fallbackStmt->execute([$mt]);
-            $foodsByType[$mt] = $fallbackStmt->fetchAll(PDO::FETCH_ASSOC);
+            if (!empty($compatibleDiets)) {
+                $inClause = implode(',', array_fill(0, count($compatibleDiets), '?'));
+                $fallbackStmt = $pdo->prepare("
+                    SELECT food_id, name, meal_type, serving_size, calories, protein_g, carbs_g, fat_g, image_url, recipe_desc 
+                    FROM food_items 
+                    WHERE is_active = 1 
+                      AND meal_type = ? 
+                      AND dietary_restriction IN ({$inClause}) 
+                    ORDER BY RAND()
+                ");
+                $fallbackStmt->execute(array_merge([$mt], $compatibleDiets));
+                $foodsByType[$mt] = $fallbackStmt->fetchAll(PDO::FETCH_ASSOC);
+            }
+            if (empty($foodsByType[$mt])) {
+                if (!in_array($restriction, ['vegetarian', 'vegan', 'halal'])) {
+                    $fallbackStmt = $pdo->prepare("SELECT food_id, name, meal_type, serving_size, calories, protein_g, carbs_g, fat_g, image_url, recipe_desc FROM food_items WHERE is_active = 1 AND meal_type = ? ORDER BY RAND()");
+                    $fallbackStmt->execute([$mt]);
+                    $foodsByType[$mt] = $fallbackStmt->fetchAll(PDO::FETCH_ASSOC);
+                } else {
+                    $fallbackStmt = $pdo->prepare("SELECT food_id, name, meal_type, serving_size, calories, protein_g, carbs_g, fat_g, image_url, recipe_desc FROM food_items WHERE is_active = 1 AND dietary_restriction IN ('vegetarian', 'vegan') ORDER BY RAND()");
+                    $fallbackStmt->execute();
+                    $foodsByType[$mt] = $fallbackStmt->fetchAll(PDO::FETCH_ASSOC);
+                }
+            }
         }
     }
 
@@ -1500,3 +1573,1051 @@ function auto_checkout_past_attendance(mixed $userId = null, bool $force = false
         return 0;
     }
 }
+
+/**
+ * ============================================================================
+ * TWO-WAY RATING SYSTEM HELPERS
+ * 1. Members -> Gym Rating & Reviews
+ * 2. Gym Owners -> FitTrack Platform Rating & Reviews
+ * ============================================================================
+ */
+
+/**
+ * Render visual star rating SVG icons with optional numeric score and count badge.
+ */
+function render_star_rating(float|int $rating, string|int $size = 'md', bool $showNumber = false, ?int $reviewCount = null, string $class = ''): string
+{
+    $rounded = round((float) $rating, 1);
+    $fullStars = (int) floor($rounded);
+    $fraction = $rounded - $fullStars;
+    $hasHalf = ($fraction >= 0.25 && $fraction <= 0.75);
+    if ($fraction > 0.75) {
+        $fullStars++;
+        $hasHalf = false;
+    }
+    $emptyStars = max(0, 5 - $fullStars - ($hasHalf ? 1 : 0));
+
+    if (is_int($size)) {
+        $sizePx = $size;
+    } elseif (is_numeric($size)) {
+        $sizePx = (int) $size;
+    } else {
+        $sizePx = match ($size) {
+            'xs' => 12,
+            'sm' => 15,
+            'md' => 18,
+            'lg' => 24,
+            'xl' => 32,
+            default => 18,
+        };
+    }
+
+    $gold = '#fbbf24';
+    $emptyColor = 'rgba(255, 255, 255, 0.22)';
+    $uid = substr(md5((string) mt_rand()), 0, 6);
+
+    $starSvg = '<svg width="' . $sizePx . '" height="' . $sizePx . '" viewBox="0 0 24 24" fill="' . $gold . '" style="display:inline-block;vertical-align:middle;flex-shrink:0;"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>';
+    $halfStarSvg = '<svg width="' . $sizePx . '" height="' . $sizePx . '" viewBox="0 0 24 24" style="display:inline-block;vertical-align:middle;flex-shrink:0;"><defs><linearGradient id="halfGrad_' . $uid . '"><stop offset="50%" stop-color="' . $gold . '"/><stop offset="50%" stop-color="' . $emptyColor . '"/></linearGradient></defs><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" fill="url(#halfGrad_' . $uid . ')"/></svg>';
+    $emptySvg = '<svg width="' . $sizePx . '" height="' . $sizePx . '" viewBox="0 0 24 24" fill="' . $emptyColor . '" style="display:inline-block;vertical-align:middle;flex-shrink:0;"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>';
+
+    $out = '<div class="star-rating-display ' . h($class) . '" style="display:inline-flex;align-items:center;gap:3px;" title="' . number_format($rounded, 1) . ' out of 5 stars">';
+    $out .= str_repeat($starSvg, $fullStars);
+    if ($hasHalf) {
+        $out .= $halfStarSvg;
+    }
+    $out .= str_repeat($emptySvg, $emptyStars);
+
+    if ($showNumber) {
+        $out .= '<strong style="margin-left:6px;font-size:' . ($sizePx >= 20 ? '1.1rem' : '0.9rem') . ';color:#fbbf24;font-weight:700;">' . number_format($rounded, 1) . '</strong>';
+    }
+    if ($reviewCount !== null) {
+        $out .= '<span style="margin-left:4px;font-size:0.82rem;color:var(--muted);font-weight:500;">(' . $reviewCount . ')</span>';
+    }
+    $out .= '</div>';
+    return $out;
+}
+
+/**
+ * ----------------------------------------------------------------------------
+ * 1. MEMBERS -> GYM RATINGS
+ * ----------------------------------------------------------------------------
+ */
+
+function get_gym_rating_stats(int $gymId): array
+{
+    $pdo = db();
+    try {
+        $row = $pdo->prepare('
+            SELECT 
+                COUNT(*) as total_reviews,
+                COALESCE(AVG(rating), 0) as avg_rating,
+                SUM(CASE WHEN rating = 5 THEN 1 ELSE 0 END) as star_5,
+                SUM(CASE WHEN rating = 4 THEN 1 ELSE 0 END) as star_4,
+                SUM(CASE WHEN rating = 3 THEN 1 ELSE 0 END) as star_3,
+                SUM(CASE WHEN rating = 2 THEN 1 ELSE 0 END) as star_2,
+                SUM(CASE WHEN rating = 1 THEN 1 ELSE 0 END) as star_1
+            FROM gym_ratings 
+            WHERE gym_id = ?
+        ');
+        $row->execute([$gymId]);
+        $stats = $row->fetch(PDO::FETCH_ASSOC) ?: [];
+        $total = (int) ($stats['total_reviews'] ?? 0);
+        $avg = round((float) ($stats['avg_rating'] ?? 0), 1);
+        
+        $breakdown = [
+            5 => (int) ($stats['star_5'] ?? 0),
+            4 => (int) ($stats['star_4'] ?? 0),
+            3 => (int) ($stats['star_3'] ?? 0),
+            2 => (int) ($stats['star_2'] ?? 0),
+            1 => (int) ($stats['star_1'] ?? 0),
+        ];
+
+        $breakdownPct = [];
+        foreach ($breakdown as $stars => $cnt) {
+            $breakdownPct[$stars] = $total > 0 ? (int) round(($cnt / $total) * 100) : 0;
+        }
+
+        return [
+            'total_reviews' => $total,
+            'avg_rating' => $avg,
+            'breakdown' => $breakdown,
+            'breakdown_pct' => $breakdownPct,
+        ];
+    } catch (Throwable $e) {
+        error_log('get_gym_rating_stats error: ' . $e->getMessage());
+        return [
+            'total_reviews' => 0,
+            'avg_rating' => 0.0,
+            'breakdown' => [5 => 0, 4 => 0, 3 => 0, 2 => 0, 1 => 0],
+            'breakdown_pct' => [5 => 0, 4 => 0, 3 => 0, 2 => 0, 1 => 0],
+        ];
+    }
+}
+
+function get_gym_reviews(int $gymId, int $limit = 50, ?int $filterStar = null): array
+{
+    $pdo = db();
+    try {
+        $sql = '
+            SELECT r.*, 
+                   u.first_name, u.last_name, u.profile_picture, u.email,
+                   EXISTS(SELECT 1 FROM gym_members gm WHERE gm.user_id = r.user_id AND gm.gym_id = r.gym_id) as is_enrolled
+            FROM gym_ratings r
+            JOIN users u ON u.user_id = r.user_id
+            WHERE r.gym_id = ?
+        ';
+        $params = [$gymId];
+        if ($filterStar !== null && $filterStar >= 1 && $filterStar <= 5) {
+            $sql .= ' AND r.rating = ? ';
+            $params[] = $filterStar;
+        }
+        $sql .= ' ORDER BY r.updated_at DESC, r.created_at DESC LIMIT ' . (int) $limit;
+        
+        $stmt = $pdo->prepare($sql);
+        $stmt->execute($params);
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    } catch (Throwable $e) {
+        error_log('get_gym_reviews error: ' . $e->getMessage());
+        return [];
+    }
+}
+
+function get_user_gym_review(int $userId, int $gymId): ?array
+{
+    try {
+        $stmt = db()->prepare('SELECT * FROM gym_ratings WHERE user_id = ? AND gym_id = ? LIMIT 1');
+        $stmt->execute([$userId, $gymId]);
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+        return $row ?: null;
+    } catch (Throwable) {
+        return null;
+    }
+}
+
+function can_user_review_gym(int $userId, int $gymId): bool
+{
+    $pdo = db();
+    try {
+        // Enrolled member
+        $enrolled = (bool) scalar('SELECT 1 FROM gym_members WHERE user_id = ? AND gym_id = ? LIMIT 1', [$userId, $gymId]);
+        if ($enrolled) return true;
+
+        // Active or past membership plan
+        $hasMembership = (bool) scalar('
+            SELECT 1 FROM memberships m 
+            JOIN membership_plans p ON p.plan_id = m.plan_id 
+            WHERE m.user_id = ? AND p.gym_id = ? LIMIT 1
+        ', [$userId, $gymId]);
+        if ($hasMembership) return true;
+
+        // Checked-in / attendance records
+        $hasAttended = (bool) scalar('SELECT 1 FROM attendance WHERE user_id = ? AND gym_id = ? LIMIT 1', [$userId, $gymId]);
+        if ($hasAttended) return true;
+
+        // Walk-in transactions
+        $hasWalkIn = (bool) scalar('SELECT 1 FROM walk_in_transactions WHERE user_id = ? AND gym_id = ? LIMIT 1', [$userId, $gymId]);
+        if ($hasWalkIn) return true;
+
+        return false;
+    } catch (Throwable) {
+        return false;
+    }
+}
+
+function save_gym_rating(int $userId, int $gymId, int $rating, ?string $review): array
+{
+    $rating = max(1, min(5, $rating));
+    $cleanReview = $review !== null ? mb_substr(trim($review), 0, 3000) : null;
+    if ($cleanReview === '') $cleanReview = null;
+
+    $pdo = db();
+    try {
+        $pdo->exec("CREATE TABLE IF NOT EXISTS gym_ratings (
+            rating_id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+            gym_id INT UNSIGNED NOT NULL,
+            user_id INT UNSIGNED NOT NULL,
+            rating TINYINT UNSIGNED NOT NULL,
+            review TEXT DEFAULT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            UNIQUE KEY uq_member_gym_rating (user_id, gym_id),
+            INDEX idx_gym_ratings_gym (gym_id),
+            INDEX idx_gym_ratings_user (user_id)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+
+        $stmt = $pdo->prepare('
+            INSERT INTO gym_ratings (gym_id, user_id, rating, review, updated_at)
+            VALUES (?, ?, ?, ?, NOW())
+            ON DUPLICATE KEY UPDATE 
+                rating = VALUES(rating),
+                review = VALUES(review),
+                updated_at = NOW()
+        ');
+        $stmt->execute([$gymId, $userId, $rating, $cleanReview]);
+
+        // Notify Gym Owner
+        try {
+            $ownerId = (int) scalar('SELECT owner_user_id FROM gyms WHERE gym_id = ?', [$gymId]);
+            if ($ownerId > 0 && function_exists('notify_user')) {
+                $reviewer = scalar('SELECT CONCAT(first_name, " ", last_name) FROM users WHERE user_id = ?', [$userId]) ?: 'A gym member';
+                $starStr = str_repeat('★', $rating);
+                notify_user(
+                    $ownerId,
+                    'system',
+                    'New Member Review',
+                    "{$reviewer} submitted a {$rating}-star review ({$starStr}) for your gym." . ($cleanReview ? " \"{$cleanReview}\"" : ""),
+                    $gymId
+                );
+            }
+        } catch (Throwable) {}
+
+        return ['success' => true, 'message' => 'Your review for this gym has been recorded.'];
+    } catch (Throwable $e) {
+        error_log('save_gym_rating error: ' . $e->getMessage());
+        return ['success' => false, 'message' => 'Failed to save review: ' . $e->getMessage()];
+    }
+}
+
+/**
+ * ----------------------------------------------------------------------------
+ * 2. GYM OWNERS -> FITTRACK PLATFORM RATINGS & FEEDBACK
+ * ----------------------------------------------------------------------------
+ */
+
+function get_platform_rating_stats(): array
+{
+    $pdo = db();
+    try {
+        $row = $pdo->query('
+            SELECT 
+                COUNT(*) as total_reviews,
+                COALESCE(AVG(rating), 0) as avg_rating,
+                COALESCE(AVG(system_experience), 0) as avg_system,
+                COALESCE(AVG(features_rating), 0) as avg_features,
+                COALESCE(AVG(service_rating), 0) as avg_service,
+                SUM(CASE WHEN rating = 5 THEN 1 ELSE 0 END) as star_5,
+                SUM(CASE WHEN rating = 4 THEN 1 ELSE 0 END) as star_4,
+                SUM(CASE WHEN rating = 3 THEN 1 ELSE 0 END) as star_3,
+                SUM(CASE WHEN rating = 2 THEN 1 ELSE 0 END) as star_2,
+                SUM(CASE WHEN rating = 1 THEN 1 ELSE 0 END) as star_1
+            FROM platform_reviews
+        ')->fetch(PDO::FETCH_ASSOC) ?: [];
+
+        $total = (int) ($row['total_reviews'] ?? 0);
+        $avg = round((float) ($row['avg_rating'] ?? 0), 1);
+
+        $breakdown = [
+            5 => (int) ($row['star_5'] ?? 0),
+            4 => (int) ($row['star_4'] ?? 0),
+            3 => (int) ($row['star_3'] ?? 0),
+            2 => (int) ($row['star_2'] ?? 0),
+            1 => (int) ($row['star_1'] ?? 0),
+        ];
+
+        return [
+            'total_reviews' => $total,
+            'avg_rating' => $avg > 0 ? $avg : 4.9,
+            'avg_system' => round((float) ($row['avg_system'] ?? 0), 1),
+            'avg_features' => round((float) ($row['avg_features'] ?? 0), 1),
+            'avg_service' => round((float) ($row['avg_service'] ?? 0), 1),
+            'breakdown' => $breakdown,
+        ];
+    } catch (Throwable $e) {
+        return [
+            'total_reviews' => 0,
+            'avg_rating' => 4.9,
+            'avg_system' => 5.0,
+            'avg_features' => 4.9,
+            'avg_service' => 5.0,
+            'breakdown' => [5 => 0, 4 => 0, 3 => 0, 2 => 0, 1 => 0],
+        ];
+    }
+}
+
+function get_platform_reviews(int $limit = 20): array
+{
+    $pdo = db();
+    try {
+        $stmt = $pdo->prepare('
+            SELECT pr.*,
+                   u.first_name, u.last_name, u.profile_picture, u.email,
+                   COALESCE(g.name, (SELECT g2.name FROM gyms g2 WHERE g2.owner_user_id = u.user_id LIMIT 1), "Commercial Gym Partner") as gym_name,
+                   COALESCE(g.logo_url, (SELECT g2.logo_url FROM gyms g2 WHERE g2.owner_user_id = u.user_id LIMIT 1)) as gym_logo,
+                   COALESCE(g.brand_color, (SELECT g2.brand_color FROM gyms g2 WHERE g2.owner_user_id = u.user_id LIMIT 1)) as gym_color
+            FROM platform_reviews pr
+            JOIN users u ON u.user_id = pr.user_id
+            LEFT JOIN gyms g ON g.gym_id = pr.gym_id
+            ORDER BY pr.updated_at DESC, pr.created_at DESC
+            LIMIT ?
+        ');
+        $stmt->bindValue(1, $limit, PDO::PARAM_INT);
+        $stmt->execute();
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    } catch (Throwable $e) {
+        error_log('get_platform_reviews error: ' . $e->getMessage());
+        return [];
+    }
+}
+
+function get_owner_platform_review(int $userId): ?array
+{
+    try {
+        $stmt = db()->prepare('SELECT * FROM platform_reviews WHERE user_id = ? LIMIT 1');
+        $stmt->execute([$userId]);
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+        return $row ?: null;
+    } catch (Throwable) {
+        return null;
+    }
+}
+
+function save_platform_review(int $userId, ?int $gymId, int $rating, ?string $review, ?int $systemExp = null, ?int $features = null, ?int $service = null): array
+{
+    $rating = max(1, min(5, $rating));
+    $cleanReview = $review !== null ? mb_substr(trim($review), 0, 3000) : null;
+    if ($cleanReview === '') $cleanReview = null;
+
+    if ($systemExp !== null) $systemExp = max(1, min(5, $systemExp));
+    if ($features !== null) $features = max(1, min(5, $features));
+    if ($service !== null) $service = max(1, min(5, $service));
+
+    if (!$gymId) {
+        $gymId = (int) (scalar('SELECT gym_id FROM gyms WHERE owner_user_id = ? LIMIT 1', [$userId]) ?? 0) ?: null;
+    }
+
+    $pdo = db();
+    try {
+        $stmt = $pdo->prepare('
+            INSERT INTO platform_reviews (user_id, gym_id, rating, review, system_experience, features_rating, service_rating, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, NOW())
+            ON DUPLICATE KEY UPDATE 
+                gym_id = VALUES(gym_id),
+                rating = VALUES(rating),
+                review = VALUES(review),
+                system_experience = VALUES(system_experience),
+                features_rating = VALUES(features_rating),
+                service_rating = VALUES(service_rating),
+                updated_at = NOW()
+        ');
+        $stmt->execute([$userId, $gymId, $rating, $cleanReview, $systemExp, $features, $service]);
+
+        if (function_exists('audit_log')) {
+            audit_log($userId, 'platform_rating', 'platform', (string) $rating, json_encode([
+                'rating' => $rating,
+                'system_experience' => $systemExp,
+                'features' => $features,
+                'service' => $service,
+                'review_preview' => mb_substr((string)$cleanReview, 0, 100)
+            ]));
+        }
+
+        return ['success' => true, 'message' => 'Thank you for your feedback! Your review for FitTrack platform has been saved and will appear on the landing page.'];
+    } catch (Throwable $e) {
+        error_log('save_platform_review error: ' . $e->getMessage());
+        return ['success' => false, 'message' => 'Failed to save platform review: ' . $e->getMessage()];
+    }
+}
+
+/**
+ * Renders the Floating Rating Modal in the lower right for logged-in gym members.
+ * Includes close (✕) button, "Don't show this again today" option, and direct rating/review action.
+ */
+function render_member_floating_rating_modal(array $user): void
+{
+    if (($user['role'] ?? '') !== 'member') {
+        return;
+    }
+
+    $currentPage = $_GET['page'] ?? 'dashboard';
+    // Do not show on the full view_gym page where the review form is already prominent
+    if ($currentPage === 'view_gym') {
+        return;
+    }
+
+    $userId = (int) ($user['user_id'] ?? 0);
+    if ($userId <= 0) {
+        return;
+    }
+
+    // Resolve member's primary gym
+    $gymId = (int) ($user['gym_id'] ?? 0);
+    if (!$gymId) {
+        $gymId = (int) scalar('SELECT gym_id FROM gym_members WHERE user_id = ? LIMIT 1', [$userId]);
+    }
+    if (!$gymId) {
+        $gymId = (int) scalar('SELECT mp.gym_id FROM memberships m JOIN membership_plans mp ON mp.plan_id = m.plan_id WHERE m.user_id = ? AND m.status = "active" LIMIT 1', [$userId]);
+    }
+    if (!$gymId) {
+        $gymId = (int) scalar('SELECT gym_id FROM attendance WHERE user_id = ? ORDER BY attendance_id DESC LIMIT 1', [$userId]);
+    }
+    if (!$gymId) {
+        return; // No gym associated yet
+    }
+
+    $gym = query_one('SELECT gym_id, name, logo_url FROM gyms WHERE gym_id = ?', [$gymId]);
+    if (!$gym) {
+        return;
+    }
+
+    $myRating = get_user_gym_review($userId, $gymId);
+    $gymName = h($gym['name'] ?? 'Your Gym');
+    $starScore = $myRating ? (float)$myRating['rating'] : 0.0;
+    ?>
+    <!-- FitTracks Floating Lower-Right Rating Modal for Members -->
+    <style>
+        #ft-floating-rating-modal {
+            position: fixed;
+            bottom: 24px;
+            right: 24px;
+            z-index: 999999;
+            width: 380px;
+            max-width: calc(100vw - 32px);
+            background: rgba(15, 23, 42, 0.96) !important;
+            border: 1px solid rgba(255, 255, 255, 0.15) !important;
+            border-radius: 16px;
+            padding: 16px 18px 14px;
+            box-shadow: 0 20px 45px rgba(0, 0, 0, 0.6), 0 0 25px rgba(199, 255, 34, 0.18);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            transform: translateY(30px) scale(0.97);
+            opacity: 0;
+            pointer-events: none;
+            transition: transform 0.35s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.35s ease, box-shadow 0.3s ease;
+            box-sizing: border-box;
+            font-family: inherit;
+        }
+        #ft-floating-rating-modal.is-unrated {
+            border-color: rgba(199, 255, 34, 0.45) !important;
+            box-shadow: 0 20px 45px rgba(0, 0, 0, 0.6), 0 0 25px rgba(199, 255, 34, 0.18);
+        }
+        #ft-floating-rating-modal.is-rated {
+            border-color: rgba(255, 255, 255, 0.15) !important;
+            box-shadow: 0 20px 45px rgba(0, 0, 0, 0.6), 0 0 25px rgba(245, 158, 11, 0.12);
+        }
+        #ft-floating-rating-modal.is-active {
+            transform: translateY(0) scale(1);
+            opacity: 1;
+            pointer-events: auto;
+        }
+        #ft-close-rating-modal {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            width: 28px;
+            height: 28px;
+            border-radius: 8px;
+            background: rgba(255, 255, 255, 0.08);
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            color: #94a3b8;
+            cursor: pointer;
+            padding: 0;
+            line-height: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s ease;
+        }
+        #ft-close-rating-modal:hover {
+            color: #ffffff !important;
+            background: rgba(255, 255, 255, 0.2) !important;
+            transform: scale(1.06);
+        }
+        .ft-modal-quick-star {
+            background: none;
+            border: none;
+            cursor: pointer;
+            padding: 2px;
+            line-height: 1;
+            color: rgba(255, 255, 255, 0.25);
+            transition: transform 0.15s ease, color 0.15s ease;
+        }
+        .ft-modal-quick-star.active,
+        .ft-modal-quick-star:hover {
+            color: #fbbf24 !important;
+            transform: scale(1.18);
+        }
+        @media (max-width: 640px) {
+            #ft-floating-rating-modal {
+                bottom: 84px;
+                right: 16px;
+                left: 16px;
+                width: auto;
+                max-width: none;
+            }
+        }
+        /* Base typography */
+        #ft-floating-rating-modal .ft-modal-title {
+            font-size: 14px;
+            font-weight: 700;
+            color: #ffffff;
+            line-height: 1.3;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        #ft-floating-rating-modal .ft-modal-subtext {
+            font-size: 12px;
+            color: #94a3b8;
+            margin-top: 3px;
+            line-height: 1.4;
+        }
+        #ft-floating-rating-modal .ft-modal-footer {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-top: 12px;
+            padding-top: 10px;
+            border-top: 1px solid rgba(255, 255, 255, 0.08);
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+        #ft-floating-rating-modal .ft-modal-label {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 11.5px;
+            color: #94a3b8;
+            cursor: pointer;
+            user-select: none;
+        }
+        /* Light mode support */
+        html[data-theme="light"] #ft-floating-rating-modal,
+        [data-theme="light"] #ft-floating-rating-modal {
+            background: rgba(255, 255, 255, 0.98) !important;
+            border-color: #cbd5e1 !important;
+            box-shadow: 0 20px 45px rgba(0, 0, 0, 0.15), 0 0 20px rgba(101, 163, 13, 0.1) !important;
+        }
+        html[data-theme="light"] #ft-floating-rating-modal .ft-modal-title,
+        [data-theme="light"] #ft-floating-rating-modal .ft-modal-title {
+            color: #0f172a !important;
+        }
+        html[data-theme="light"] #ft-floating-rating-modal .ft-modal-subtext,
+        [data-theme="light"] #ft-floating-rating-modal .ft-modal-subtext {
+            color: #475569 !important;
+        }
+        html[data-theme="light"] #ft-floating-rating-modal .ft-modal-footer,
+        [data-theme="light"] #ft-floating-rating-modal .ft-modal-footer {
+            border-top-color: #e2e8f0 !important;
+        }
+        html[data-theme="light"] #ft-floating-rating-modal .ft-modal-label,
+        [data-theme="light"] #ft-floating-rating-modal .ft-modal-label {
+            color: #64748b !important;
+        }
+        html[data-theme="light"] #ft-floating-rating-modal .ft-modal-quick-box,
+        [data-theme="light"] #ft-floating-rating-modal .ft-modal-quick-box {
+            background: rgba(0, 0, 0, 0.04) !important;
+            border: 1px solid rgba(0, 0, 0, 0.06);
+        }
+        html[data-theme="light"] #ft-floating-rating-modal .ft-modal-quick-label,
+        [data-theme="light"] #ft-floating-rating-modal .ft-modal-quick-label {
+            color: #64748b !important;
+        }
+        html[data-theme="light"] #ft-close-rating-modal,
+        [data-theme="light"] #ft-close-rating-modal {
+            background: #f1f5f9 !important;
+            border-color: #e2e8f0 !important;
+            color: #64748b !important;
+        }
+        html[data-theme="light"] #ft-close-rating-modal:hover,
+        [data-theme="light"] #ft-close-rating-modal:hover {
+            background: #e2e8f0 !important;
+            color: #0f172a !important;
+        }
+        html[data-theme="light"] .ft-modal-quick-star {
+            color: rgba(0, 0, 0, 0.2);
+        }
+    </style>
+
+    <div id="ft-floating-rating-modal" class="<?= $myRating ? 'is-rated' : 'is-unrated' ?>" role="dialog" aria-labelledby="ft-floating-rating-title">
+        <!-- Close (✕) button -->
+        <button type="button" id="ft-close-rating-modal" aria-label="Close rating modal" title="Close">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+
+        <div style="display:flex; align-items:flex-start; gap:12px; padding-right:26px;">
+            <!-- Badge Icon -->
+            <div style="width:40px; height:40px; border-radius:12px; background:<?= $myRating ? 'rgba(245,158,11,0.15)' : 'rgba(199,255,34,0.15)' ?>; border:1px solid <?= $myRating ? 'rgba(245,158,11,0.35)' : 'rgba(199,255,34,0.35)' ?>; display:flex; align-items:center; justify-content:center; flex-shrink:0;">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="<?= $myRating ? '#fbbf24' : '#c7ff22' ?>"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+            </div>
+            
+            <div style="flex:1; min-width:0;">
+                <div class="ft-modal-title" id="ft-floating-rating-title">
+                    <?= $myRating ? 'Your Rating for ' . $gymName : 'Rate ' . $gymName ?>
+                </div>
+
+                <div class="ft-modal-subtext">
+                    <?php if ($myRating): ?>
+                        <div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap; margin-top:2px;">
+                            <span>You rated</span>
+                            <span style="color:#fbbf24; font-weight:700;"><?= render_star_rating($starScore, 13, true) ?></span>
+                        </div>
+                        <span style="display:block; font-size:11px; opacity:0.85; margin-top:2px;">Contributes to your gym's score</span>
+                    <?php else: ?>
+                        <span>How is your experience? Help your gym grow with a quick rating!</span>
+                    <?php endif; ?>
+                </div>
+            </div>
+        </div>
+
+        <?php if (!$myRating): ?>
+        <!-- Quick 1-5 Star Selector for unrated members -->
+        <div class="ft-modal-quick-box" style="margin-top:10px; padding:8px 12px; background:rgba(255,255,255,0.04); border-radius:10px; display:flex; align-items:center; justify-content:space-between;">
+            <span class="ft-modal-quick-label" style="font-size:11px; color:#94a3b8; font-weight:600;">Tap to Rate:</span>
+            <div style="display:flex; align-items:center; gap:3px;" id="ft-quick-stars-picker">
+                <?php for ($s = 1; $s <= 5; $s++): ?>
+                    <button type="button" class="ft-modal-quick-star" data-rating="<?= $s ?>" title="<?= $s ?> Stars" aria-label="<?= $s ?> Stars">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+                    </button>
+                <?php endfor; ?>
+            </div>
+        </div>
+        <?php endif; ?>
+
+        <!-- Bottom Row: "Don't show again today" & Action Button -->
+        <div class="ft-modal-footer">
+            <label class="ft-modal-label">
+                <input type="checkbox" id="ft-dont-show-rating-today" style="cursor:pointer; accent-color:var(--lime); width:13.5px; height:13.5px; margin:0;">
+                <span>Don't show this again today</span>
+            </label>
+
+            <a href="index.php?page=view_gym&gym_id=<?= $gymId ?>#gym-ratings-section" id="ft-btn-open-gym-review" class="btn <?= $myRating ? 'btn-secondary' : 'btn-lime' ?>" style="font-size:11.5px; padding:5px 13px; text-decoration:none; display:inline-flex; align-items:center; gap:5px; font-weight:700; border-radius:8px;">
+                <span><?= $myRating ? 'Edit Review' : 'Rate Gym ★' ?></span>
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg>
+            </a>
+        </div>
+    </div>
+
+    <script>
+    (function() {
+        const modal = document.getElementById('ft-floating-rating-modal');
+        if (!modal) return;
+
+        const userId = <?= $userId ?>;
+        const gymId = <?= $gymId ?>;
+        const storageKey = 'ft_hide_rating_modal_' + userId;
+        const sessionKey = 'ft_dismissed_rating_session_' + userId;
+        const today = new Date().toISOString().slice(0, 10);
+
+        // If member chose "Don't show again today", do not show today
+        if (localStorage.getItem(storageKey) === today) {
+            return;
+        }
+
+        // If dismissed in this current session, don't show on intra-session reloads
+        if (sessionStorage.getItem(sessionKey) === '1') {
+            return;
+        }
+
+        // Show floating modal smoothly after small entrance delay
+        setTimeout(() => {
+            modal.classList.add('is-active');
+        }, 750);
+
+        const closeBtn = document.getElementById('ft-close-rating-modal');
+        const dontShowCheckbox = document.getElementById('ft-dont-show-rating-today');
+        const actionBtn = document.getElementById('ft-btn-open-gym-review');
+
+        function dismissModal(rememberForToday) {
+            modal.classList.remove('is-active');
+            sessionStorage.setItem(sessionKey, '1');
+            if (rememberForToday || (dontShowCheckbox && dontShowCheckbox.checked)) {
+                localStorage.setItem(storageKey, today);
+            }
+        }
+
+        if (closeBtn) {
+            closeBtn.addEventListener('click', function(e) {
+                e.preventDefault();
+                dismissModal(dontShowCheckbox && dontShowCheckbox.checked);
+            });
+        }
+
+        if (dontShowCheckbox) {
+            dontShowCheckbox.addEventListener('change', function() {
+                if (this.checked) {
+                    localStorage.setItem(storageKey, today);
+                } else {
+                    localStorage.removeItem(storageKey);
+                }
+            });
+        }
+
+        if (actionBtn) {
+            actionBtn.addEventListener('click', function() {
+                localStorage.setItem(storageKey, today);
+            });
+        }
+
+        // Quick 1-click star rating
+        const quickStars = document.querySelectorAll('.ft-modal-quick-star');
+        quickStars.forEach(btn => {
+            btn.addEventListener('click', function() {
+                const rating = parseInt(this.getAttribute('data-rating'), 10);
+                if (!rating) return;
+                localStorage.setItem(storageKey, today);
+                window.location.href = 'index.php?page=view_gym&gym_id=' + gymId + '&rating=' + rating + '#gym-ratings-section';
+            });
+        });
+    })();
+    </script>
+    <?php
+}
+
+/**
+ * Renders the Floating Platform Rating Modal in the lower right for Gym Owners.
+ * Includes close (✕) button, "Don't show this again today" option, and direct feedback actions.
+ */
+function render_owner_floating_rating_modal(array $user): void
+{
+    if (!in_array(($user['role'] ?? ''), ['gym_owner', 'admin'], true)) {
+        return;
+    }
+
+    $userId = (int) ($user['user_id'] ?? 0);
+    if ($userId <= 0) {
+        return;
+    }
+
+    $myReview = get_owner_platform_review($userId);
+    $starScore = $myReview ? (float)$myReview['rating'] : 0.0;
+    ?>
+    <!-- FitTracks Floating Lower-Right Rating Modal for Gym Owners -->
+    <style>
+        #ft-owner-floating-rating-modal {
+            position: fixed;
+            bottom: 24px;
+            right: 24px;
+            z-index: 999999;
+            width: 385px;
+            max-width: calc(100vw - 32px);
+            background: rgba(15, 23, 42, 0.96) !important;
+            border: 1px solid rgba(255, 255, 255, 0.15) !important;
+            border-radius: 16px;
+            padding: 16px 18px 14px;
+            box-shadow: 0 20px 45px rgba(0, 0, 0, 0.6), 0 0 25px rgba(56, 189, 248, 0.15);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            transform: translateY(30px) scale(0.97);
+            opacity: 0;
+            pointer-events: none;
+            transition: transform 0.35s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.35s ease, box-shadow 0.3s ease;
+            box-sizing: border-box;
+            font-family: inherit;
+        }
+        #ft-owner-floating-rating-modal.is-unrated {
+            border-color: rgba(56, 189, 248, 0.45) !important;
+            box-shadow: 0 20px 45px rgba(0, 0, 0, 0.6), 0 0 25px rgba(56, 189, 248, 0.2);
+        }
+        #ft-owner-floating-rating-modal.is-rated {
+            border-color: rgba(255, 255, 255, 0.15) !important;
+            box-shadow: 0 20px 45px rgba(0, 0, 0, 0.6), 0 0 25px rgba(245, 158, 11, 0.12);
+        }
+        #ft-owner-floating-rating-modal.is-active {
+            transform: translateY(0) scale(1);
+            opacity: 1;
+            pointer-events: auto;
+        }
+        #ft-close-owner-rating-modal {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            width: 28px;
+            height: 28px;
+            border-radius: 8px;
+            background: rgba(255, 255, 255, 0.08);
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            color: #94a3b8;
+            cursor: pointer;
+            padding: 0;
+            line-height: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s ease;
+        }
+        #ft-close-owner-rating-modal:hover {
+            color: #ffffff !important;
+            background: rgba(255, 255, 255, 0.2) !important;
+            transform: scale(1.06);
+        }
+        .ft-owner-modal-quick-star {
+            background: none;
+            border: none;
+            cursor: pointer;
+            padding: 2px;
+            line-height: 1;
+            color: rgba(255, 255, 255, 0.25);
+            transition: transform 0.15s ease, color 0.15s ease;
+        }
+        .ft-owner-modal-quick-star.active,
+        .ft-owner-modal-quick-star:hover {
+            color: #fbbf24 !important;
+            transform: scale(1.18);
+        }
+        @media (max-width: 640px) {
+            #ft-owner-floating-rating-modal {
+                bottom: 84px;
+                right: 16px;
+                left: 16px;
+                width: auto;
+                max-width: none;
+            }
+        }
+        /* Base typography */
+        #ft-owner-floating-rating-modal .ft-owner-modal-title {
+            font-size: 14px;
+            font-weight: 700;
+            color: #ffffff;
+            line-height: 1.3;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        #ft-owner-floating-rating-modal .ft-owner-modal-subtext {
+            font-size: 12px;
+            color: #94a3b8;
+            margin-top: 3px;
+            line-height: 1.4;
+        }
+        #ft-owner-floating-rating-modal .ft-owner-modal-footer {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-top: 12px;
+            padding-top: 10px;
+            border-top: 1px solid rgba(255, 255, 255, 0.08);
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+        #ft-owner-floating-rating-modal .ft-owner-modal-label {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 11.5px;
+            color: #94a3b8;
+            cursor: pointer;
+            user-select: none;
+        }
+        /* Light mode support */
+        html[data-theme="light"] #ft-owner-floating-rating-modal,
+        [data-theme="light"] #ft-owner-floating-rating-modal {
+            background: rgba(255, 255, 255, 0.98) !important;
+            border-color: #cbd5e1 !important;
+            box-shadow: 0 20px 45px rgba(0, 0, 0, 0.15), 0 0 20px rgba(56, 189, 248, 0.12) !important;
+        }
+        html[data-theme="light"] #ft-owner-floating-rating-modal .ft-owner-modal-title,
+        [data-theme="light"] #ft-owner-floating-rating-modal .ft-owner-modal-title {
+            color: #0f172a !important;
+        }
+        html[data-theme="light"] #ft-owner-floating-rating-modal .ft-owner-modal-subtext,
+        [data-theme="light"] #ft-owner-floating-rating-modal .ft-owner-modal-subtext {
+            color: #475569 !important;
+        }
+        html[data-theme="light"] #ft-owner-floating-rating-modal .ft-owner-modal-footer,
+        [data-theme="light"] #ft-owner-floating-rating-modal .ft-owner-modal-footer {
+            border-top-color: #e2e8f0 !important;
+        }
+        html[data-theme="light"] #ft-owner-floating-rating-modal .ft-owner-modal-label,
+        [data-theme="light"] #ft-owner-floating-rating-modal .ft-owner-modal-label {
+            color: #64748b !important;
+        }
+        html[data-theme="light"] #ft-owner-floating-rating-modal .ft-owner-modal-quick-box,
+        [data-theme="light"] #ft-owner-floating-rating-modal .ft-owner-modal-quick-box {
+            background: rgba(0, 0, 0, 0.04) !important;
+            border: 1px solid rgba(0, 0, 0, 0.06);
+        }
+        html[data-theme="light"] #ft-owner-floating-rating-modal .ft-owner-modal-quick-label,
+        [data-theme="light"] #ft-owner-floating-rating-modal .ft-owner-modal-quick-label {
+            color: #64748b !important;
+        }
+        html[data-theme="light"] #ft-close-owner-rating-modal,
+        [data-theme="light"] #ft-close-owner-rating-modal {
+            background: #f1f5f9 !important;
+            border-color: #e2e8f0 !important;
+            color: #64748b !important;
+        }
+        html[data-theme="light"] #ft-close-owner-rating-modal:hover,
+        [data-theme="light"] #ft-close-owner-rating-modal:hover {
+            background: #e2e8f0 !important;
+            color: #0f172a !important;
+        }
+        html[data-theme="light"] .ft-owner-modal-quick-star {
+            color: rgba(0, 0, 0, 0.2);
+        }
+    </style>
+
+    <div id="ft-owner-floating-rating-modal" class="<?= $myReview ? 'is-rated' : 'is-unrated' ?>" role="dialog" aria-labelledby="ft-owner-floating-rating-title">
+        <!-- Close (✕) button -->
+        <button type="button" id="ft-close-owner-rating-modal" aria-label="Close rating modal" title="Close">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+
+        <div style="display:flex; align-items:flex-start; gap:12px; padding-right:26px;">
+            <!-- Badge Icon -->
+            <div style="width:40px; height:40px; border-radius:12px; background:<?= $myReview ? 'rgba(245,158,11,0.15)' : 'rgba(56,189,248,0.15)' ?>; border:1px solid <?= $myReview ? 'rgba(245,158,11,0.35)' : 'rgba(56,189,248,0.35)' ?>; display:flex; align-items:center; justify-content:center; flex-shrink:0;">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="<?= $myReview ? '#fbbf24' : '#38bdf8' ?>"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+            </div>
+            <div style="flex:1; min-width:0;">
+                <div class="ft-owner-modal-title" id="ft-owner-floating-rating-title">
+                    <?= $myReview ? 'FitTrack Platform Review' : 'Rate FitTrack Platform' ?>
+                </div>
+
+                <div class="ft-owner-modal-subtext">
+                    <?php if ($myReview): ?>
+                        <div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap; margin-top:2px;">
+                            <span>You rated</span>
+                            <span style="color:#fbbf24; font-weight:700;"><?= render_star_rating($starScore, 13, true) ?></span>
+                        </div>
+                        <span style="display:block; font-size:11px; opacity:0.85; margin-top:2px;">Featured on the public landing page</span>
+                    <?php else: ?>
+                        <span>How is your gym software experience? Share feedback to feature on our landing page!</span>
+                    <?php endif; ?>
+                </div>
+            </div>
+        </div>
+
+        <?php if (!$myReview): ?>
+        <!-- Quick 1-5 Star Selector for unrated gym owners -->
+        <div class="ft-owner-modal-quick-box" style="margin-top:10px; padding:8px 12px; background:rgba(255,255,255,0.04); border-radius:10px; display:flex; align-items:center; justify-content:space-between;">
+            <span class="ft-owner-modal-quick-label" style="font-size:11px; color:#94a3b8; font-weight:600;">Tap to Rate:</span>
+            <div style="display:flex; align-items:center; gap:3px;" id="ft-owner-quick-stars-picker">
+                <?php for ($s = 1; $s <= 5; $s++): ?>
+                    <button type="button" class="ft-owner-modal-quick-star" data-rating="<?= $s ?>" title="<?= $s ?> Stars" aria-label="<?= $s ?> Stars">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+                    </button>
+                <?php endfor; ?>
+            </div>
+        </div>
+        <?php endif; ?>
+
+        <!-- Bottom Row: "Don't show again today" & Action Button -->
+        <div class="ft-owner-modal-footer">
+            <label class="ft-owner-modal-label">
+                <input type="checkbox" id="ft-owner-dont-show-rating-today" style="cursor:pointer; accent-color:var(--lime); width:13.5px; height:13.5px; margin:0;">
+                <span>Don't show this again today</span>
+            </label>
+
+            <a href="index.php?page=profile&tab=ratings_feedback#platform-feedback-card" id="ft-btn-open-owner-review" class="btn <?= $myReview ? 'btn-secondary' : 'btn-lime' ?>" style="font-size:11.5px; padding:5px 13px; text-decoration:none; display:inline-flex; align-items:center; gap:5px; font-weight:700; border-radius:8px;">
+                <span><?= $myReview ? 'Edit Feedback' : 'Rate FitTrack ★' ?></span>
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg>
+            </a>
+        </div>
+    </div>
+
+    <script>
+    (function() {
+        const modal = document.getElementById('ft-owner-floating-rating-modal');
+        if (!modal) return;
+
+        const userId = <?= $userId ?>;
+        const storageKey = 'ft_hide_owner_rating_modal_' + userId;
+        const sessionKey = 'ft_dismissed_owner_rating_session_' + userId;
+        const today = new Date().toISOString().slice(0, 10);
+
+        // If gym owner chose "Don't show again today", do not show today
+        if (localStorage.getItem(storageKey) === today) {
+            return;
+        }
+
+        // If dismissed in this current session, don't show on intra-session reloads
+        if (sessionStorage.getItem(sessionKey) === '1') {
+            return;
+        }
+
+        // Show floating modal smoothly after small entrance delay
+        setTimeout(() => {
+            modal.classList.add('is-active');
+        }, 750);
+
+        const closeBtn = document.getElementById('ft-close-owner-rating-modal');
+        const dontShowCheckbox = document.getElementById('ft-owner-dont-show-rating-today');
+        const actionBtn = document.getElementById('ft-btn-open-owner-review');
+
+        function dismissModal(rememberForToday) {
+            modal.classList.remove('is-active');
+            sessionStorage.setItem(sessionKey, '1');
+            if (rememberForToday || (dontShowCheckbox && dontShowCheckbox.checked)) {
+                localStorage.setItem(storageKey, today);
+            }
+        }
+
+        if (closeBtn) {
+            closeBtn.addEventListener('click', function(e) {
+                e.preventDefault();
+                dismissModal(dontShowCheckbox && dontShowCheckbox.checked);
+            });
+        }
+
+        if (dontShowCheckbox) {
+            dontShowCheckbox.addEventListener('change', function() {
+                if (this.checked) {
+                    localStorage.setItem(storageKey, today);
+                } else {
+                    localStorage.removeItem(storageKey);
+                }
+            });
+        }
+
+        if (actionBtn) {
+            actionBtn.addEventListener('click', function() {
+                localStorage.setItem(storageKey, today);
+            });
+        }
+
+        // Quick 1-click star rating
+        const quickStars = document.querySelectorAll('.ft-owner-modal-quick-star');
+        quickStars.forEach(btn => {
+            btn.addEventListener('click', function() {
+                const rating = parseInt(this.getAttribute('data-rating'), 10);
+                if (!rating) return;
+                localStorage.setItem(storageKey, today);
+                window.location.href = 'index.php?page=profile&tab=ratings_feedback&rating=' + rating + '#platform-feedback-card';
+            });
+        });
+    })();
+    </script>
+    <?php
+}
+
+
+

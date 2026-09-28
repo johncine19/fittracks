@@ -421,6 +421,8 @@ function handle_notification_click(): void
         redirect('member_progress');
     } elseif ($notif['type'] === 'system' && str_starts_with($notif['title'], 'Trainer Appointment Request')) {
         redirect('trainer_assignments');
+    } elseif ($notif['type'] === 'system' && str_starts_with($notif['title'], 'New Member Review')) {
+        redirect('gym_profile');
     } else {
         redirect('notifications');
     }

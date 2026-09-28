@@ -57,9 +57,24 @@ function qr_attendance_page(): void
             $comment = mb_substr(trim((string) post('comment')), 0, 1000) ?: null;
             if ($rating >= 1 && $rating <= 5) {
                 try {
-                    db()->prepare('INSERT IGNORE INTO checkout_ratings (attendance_id, user_id, rating, comment) VALUES (?, ?, ?, ?)')
+                    db()->prepare('INSERT INTO checkout_ratings (attendance_id, user_id, rating, comment) VALUES (?, ?, ?, ?) ON DUPLICATE KEY UPDATE rating = VALUES(rating), comment = VALUES(comment)')
                        ->execute([$attendanceId, $user['user_id'], $rating, $comment]);
                 } catch (Throwable) {}
+
+                // Save to gym_ratings so QR checkout ratings contribute to the gym's overall score
+                $gymId = (int) scalar('SELECT gym_id FROM attendance WHERE attendance_id = ?', [$attendanceId]);
+                if (!$gymId) {
+                    $gymId = (int) ($user['gym_id'] ?? 0);
+                }
+                if (!$gymId) {
+                    $gymId = (int) scalar('SELECT gym_id FROM gym_members WHERE user_id = ? LIMIT 1', [$user['user_id']]);
+                }
+                if (!$gymId) {
+                    $gymId = (int) scalar('SELECT mp.gym_id FROM memberships m JOIN membership_plans mp ON mp.plan_id = m.plan_id WHERE m.user_id = ? AND m.status = "active" LIMIT 1', [$user['user_id']]);
+                }
+                if ($gymId > 0) {
+                    save_gym_rating((int)$user['user_id'], $gymId, $rating, $comment);
+                }
             }
             header('Content-Type: application/json');
             echo json_encode(['success' => true]);
@@ -237,22 +252,24 @@ function qr_attendance_page(): void
         const emptyColor = isLight ? '#cbd5e1' : '#475569';
         const activeColor = '#f59e0b';
 
-        let starHtml = '<div style="display:flex;justify-content:center;gap:12px;margin:14px 0 18px;" id="swal-star-row">'
-            + [1,2,3,4,5].map(v => '<span class="co-star" data-val="' + v + '" style="font-size:2.25rem;cursor:pointer;color:' + emptyColor + ';transition:all .15s ease;line-height:1;user-select:none;padding:0 3px;">★</span>').join('')
+        let starHtml = '<div id="swal-star-row">'
+            + [1,2,3,4,5].map(v => '<span class="co-star" data-val="' + v + '">★</span>').join('')
             + '</div>';
 
         Swal.fire({
-            title: '💪 How was your session?',
-            html: '<p style="color:var(--muted,#8792ad);font-size:13px;margin:0 0 4px;">Rate your experience (optional)</p>'
+            title: 'Rate Your Gym Experience',
+            html: '<p class="checkout-modal-desc">How was your workout session? Leave a 1–5 star rating and optional review for your gym on check-out.</p>'
                 + starHtml
-                + '<textarea id="swal-comment" placeholder="Any comments? (optional)" rows="3" style="width:100%;padding:10px 12px;border-radius:8px;border:1px solid rgba(255,255,255,0.1);background:rgba(255,255,255,0.05);color:var(--ink,#f8fafc);font-size:14px;resize:vertical;box-sizing:border-box;"></textarea>',
-            background: 'var(--surface-color, #090b10)',
-            color: 'var(--ink, #ffffff)',
+                + '<textarea id="swal-comment" placeholder="Write an optional review (equipment, cleanliness, trainers, overall experience)..." rows="2"></textarea>',
             showCancelButton: true,
-            confirmButtonText: 'Submit',
+            showDenyButton: false,
+            confirmButtonText: 'Submit Review',
             cancelButtonText: 'Skip',
-            confirmButtonColor: 'var(--lime, #c7ff22)',
-            cancelButtonColor: 'transparent',
+            customClass: {
+                popup: 'swal-checkout-modal',
+                confirmButton: 'swal-checkout-confirm-btn',
+                cancelButton: 'swal-skip-btn'
+            },
             didOpen: () => {
                 const stars = document.querySelectorAll('.co-star');
                 const updateStars = (val) => {
@@ -280,7 +297,7 @@ function qr_attendance_page(): void
             preConfirm: () => {
                 if (selectedRating > 0) {
                     let comment = document.getElementById('swal-comment').value || '';
-                    fetch('index.php?page=qr_attendance', {
+                    return fetch('index.php?page=qr_attendance', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
                         body: `action=submit_rating&attendance_id=${attendanceId}&rating=${selectedRating}&comment=${encodeURIComponent(comment)}&csrf_token=${encodeURIComponent(csrfToken)}`
@@ -290,8 +307,8 @@ function qr_attendance_page(): void
         }).then(() => {
             Swal.fire({
                 icon: 'success',
-                title: 'Checked Out!',
-                text: 'See you next time.',
+                title: selectedRating > 0 ? 'Review Submitted & Checked Out!' : 'Checked Out!',
+                text: selectedRating > 0 ? 'Thank you for rating your gym. See you next time!' : 'See you next time.',
                 background: 'var(--surface-color, #090b10)',
                 color: 'var(--ink, #ffffff)',
                 confirmButtonColor: 'var(--lime, #c7ff22)'

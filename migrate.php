@@ -41,7 +41,9 @@ try {
         "CREATE TABLE IF NOT EXISTS equipment_maintenance_logs (log_id INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY, equipment_id INT UNSIGNED NOT NULL, gym_id INT UNSIGNED NOT NULL, logged_by_user_id INT UNSIGNED NOT NULL, action VARCHAR(50) NOT NULL, reason VARCHAR(255) DEFAULT NULL, expected_return_date DATE DEFAULT NULL, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, INDEX idx_equip_logs (equipment_id)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
         "CREATE INDEX idx_att_checkout_checkin ON attendance (check_out_time, check_in_time)",
         "CREATE INDEX idx_notif_created_read ON notifications (is_read, created_at)",
-        "CREATE INDEX idx_notif_created ON notifications (created_at)"
+        "CREATE INDEX idx_notif_created ON notifications (created_at)",
+        "CREATE TABLE IF NOT EXISTS gym_ratings (rating_id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY, gym_id INT UNSIGNED NOT NULL, user_id INT UNSIGNED NOT NULL, rating TINYINT UNSIGNED NOT NULL, review TEXT DEFAULT NULL, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, UNIQUE KEY uq_member_gym_rating (user_id, gym_id), INDEX idx_gym_ratings_gym (gym_id), INDEX idx_gym_ratings_user (user_id)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
+        "CREATE TABLE IF NOT EXISTS platform_reviews (review_id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY, user_id INT UNSIGNED NOT NULL, gym_id INT UNSIGNED DEFAULT NULL, rating TINYINT UNSIGNED NOT NULL, review TEXT DEFAULT NULL, system_experience TINYINT UNSIGNED DEFAULT NULL, features_rating TINYINT UNSIGNED DEFAULT NULL, service_rating TINYINT UNSIGNED DEFAULT NULL, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, UNIQUE KEY uq_owner_platform_review (user_id), INDEX idx_platform_rating (rating)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
     ];
 
     foreach ($migrations as $sql) {

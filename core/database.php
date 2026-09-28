@@ -45,3 +45,12 @@ function query_all(string $sql, array $params = []): array
     return $stmt->fetchAll();
 }
 
+function query_one(string $sql, array $params = []): ?array
+{
+    $stmt = db()->prepare($sql);
+    $stmt->execute($params);
+    $row = $stmt->fetch();
+    return $row ? (array) $row : null;
+}
+
+

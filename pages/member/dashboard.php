@@ -1,6 +1,246 @@
 <?php
 declare(strict_types=1);
 
+function get_dashboard_attendance_activity_data(array $user, array $params = []): array
+{
+    $pdo = db();
+    $date = !empty($params['date']) && preg_match('/^\d{4}-\d{2}-\d{2}$/', $params['date']) ? $params['date'] : date('Y-m-d');
+    $range = in_array($params['range'] ?? '', ['day', 'week', 'month'], true) ? $params['range'] : 'day';
+
+    $gymId = isset($params['gym_id']) ? (int)$params['gym_id'] : (int)(get_user_gym_id($user) ?? 0);
+    if ($gymId <= 0) {
+        $gymId = (int) scalar('SELECT gym_id FROM attendance WHERE user_id = ? ORDER BY attendance_id DESC LIMIT 1', [$user['user_id']]);
+    }
+
+    $gymName = 'All Gyms';
+    if ($gymId > 0) {
+        $gName = scalar('SELECT name FROM gyms WHERE gym_id = ?', [$gymId]);
+        if ($gName) $gymName = (string)$gName;
+    }
+
+    // Attendance Roster Query for the selected date
+    $rosterStmt = $pdo->prepare("
+        SELECT 
+            a.attendance_id,
+            a.user_id,
+            a.gym_id,
+            a.check_in_time,
+            a.check_out_time,
+            a.check_in_method,
+            u.first_name,
+            u.last_name,
+            u.email,
+            u.profile_picture,
+            u.role,
+            g.name AS gym_name
+        FROM attendance a
+        JOIN users u ON u.user_id = a.user_id
+        LEFT JOIN gyms g ON g.gym_id = a.gym_id
+        WHERE (DATE(a.check_in_time) = :date OR DATE(a.check_out_time) = :date)
+          AND (:gym_id = 0 OR a.gym_id = :gym_id)
+        ORDER BY a.check_in_time DESC
+    ");
+    $rosterStmt->execute(['date' => $date, 'gym_id' => $gymId]);
+    $rawRoster = $rosterStmt->fetchAll(PDO::FETCH_ASSOC);
+
+    $nowTs = time();
+    $roster = [];
+    $totalCheckins = 0;
+    $totalCheckouts = 0;
+    $currentlyInside = 0;
+
+    foreach ($rawRoster as $row) {
+        $inTs = !empty($row['check_in_time']) ? strtotime($row['check_in_time']) : null;
+        $outTs = !empty($row['check_out_time']) ? strtotime($row['check_out_time']) : null;
+        
+        $isCheckedIn = empty($outTs);
+        if ($inTs && date('Y-m-d', $inTs) === $date) {
+            $totalCheckins++;
+        }
+        if ($outTs && date('Y-m-d', $outTs) === $date) {
+            $totalCheckouts++;
+        }
+        if ($isCheckedIn) {
+            $currentlyInside++;
+        }
+
+        // Duration string calculation
+        $durationStr = '—';
+        if ($inTs) {
+            if ($outTs) {
+                $diffSec = max(0, $outTs - $inTs);
+                $hrs = (int) floor($diffSec / 3600);
+                $mins = (int) round(($diffSec % 3600) / 60);
+                if ($hrs > 0) {
+                    $durationStr = $hrs . 'h ' . ($mins > 0 ? $mins . 'm' : '');
+                } else {
+                    $durationStr = max(1, $mins) . 'm';
+                }
+            } else {
+                $diffSec = max(0, $nowTs - $inTs);
+                $hrs = (int) floor($diffSec / 3600);
+                $mins = (int) round(($diffSec % 3600) / 60);
+                $durationStr = 'Active (' . ($hrs > 0 ? $hrs . 'h ' : '') . max(1, $mins) . 'm)';
+            }
+        }
+
+        $memberIdStr = '#MEM-' . str_pad((string)$row['user_id'], 4, '0', STR_PAD_LEFT);
+        $fullName = trim($row['first_name'] . ' ' . $row['last_name']);
+
+        $roster[] = [
+            'attendance_id'       => (int) $row['attendance_id'],
+            'user_id'             => (int) $row['user_id'],
+            'member_id'           => $memberIdStr,
+            'name'                => $fullName,
+            'email'               => $row['email'],
+            'profile_picture'     => $row['profile_picture'] ?? null,
+            'check_in_time'       => $row['check_in_time'],
+            'check_in_formatted'  => $inTs ? date('h:i A', $inTs) : '—',
+            'check_out_time'      => $row['check_out_time'],
+            'check_out_formatted' => $outTs ? date('h:i A', $outTs) : 'Still Inside',
+            'is_checked_in'       => $isCheckedIn,
+            'status'              => $isCheckedIn ? 'checked_in' : 'checked_out',
+            'status_label'        => $isCheckedIn ? 'Checked In' : 'Checked Out',
+            'duration'            => $durationStr,
+            'gym_name'            => $row['gym_name'] ?: $gymName
+        ];
+    }
+
+    // Peak Hours Analysis
+    $chartLabels = [];
+    $chartData = [];
+    $peakHourLabel = 'No Activity';
+    $peakMaxCount = 0;
+    $peakIndices = [];
+
+    if ($range === 'day') {
+        $hourCounts = array_fill(5, 19, 0); // 5 AM to 11 PM
+        $hrStmt = $pdo->prepare("
+            SELECT HOUR(check_in_time) AS hr, COUNT(*) AS cnt
+            FROM attendance
+            WHERE DATE(check_in_time) = :date
+              AND (:gym_id = 0 OR gym_id = :gym_id)
+            GROUP BY HOUR(check_in_time)
+        ");
+        $hrStmt->execute(['date' => $date, 'gym_id' => $gymId]);
+        foreach ($hrStmt->fetchAll(PDO::FETCH_ASSOC) as $hRow) {
+            $h = (int) $hRow['hr'];
+            if ($h >= 5 && $h <= 23) {
+                $hourCounts[$h] = (int) $hRow['cnt'];
+            }
+        }
+
+        foreach ($hourCounts as $hour => $cnt) {
+            $chartLabels[] = date('g A', strtotime("$hour:00"));
+            $chartData[] = $cnt;
+            if ($cnt > $peakMaxCount) {
+                $peakMaxCount = $cnt;
+            }
+        }
+
+        if ($peakMaxCount > 0) {
+            $peakHoursList = [];
+            foreach ($chartData as $k => $c) {
+                if ($c === $peakMaxCount) {
+                    $peakIndices[] = $k;
+                    $peakHoursList[] = $chartLabels[$k];
+                }
+            }
+            $peakHourLabel = implode(', ', $peakHoursList) . " ($peakMaxCount " . ($peakMaxCount === 1 ? 'check-in' : 'check-ins') . ')';
+        }
+    } elseif ($range === 'week') {
+        $targetDt = new DateTime($date);
+        $dates = [];
+        for ($i = 6; $i >= 0; $i--) {
+            $d = (clone $targetDt)->modify("-$i days");
+            $dates[] = $d->format('Y-m-d');
+        }
+
+        $wkStmt = $pdo->prepare("
+            SELECT DATE(check_in_time) AS d, COUNT(*) AS cnt
+            FROM attendance
+            WHERE DATE(check_in_time) BETWEEN :d_start AND :d_end
+              AND (:gym_id = 0 OR gym_id = :gym_id)
+            GROUP BY DATE(check_in_time)
+        ");
+        $wkStmt->execute(['d_start' => $dates[0], 'd_end' => $dates[6], 'gym_id' => $gymId]);
+        $wkMap = $wkStmt->fetchAll(PDO::FETCH_KEY_PAIR);
+
+        foreach ($dates as $dStr) {
+            $cnt = (int) ($wkMap[$dStr] ?? 0);
+            $chartLabels[] = date('D, M j', strtotime($dStr));
+            $chartData[] = $cnt;
+            if ($cnt > $peakMaxCount) {
+                $peakMaxCount = $cnt;
+            }
+        }
+        if ($peakMaxCount > 0) {
+            $peakDaysList = [];
+            foreach ($chartData as $k => $c) {
+                if ($c === $peakMaxCount) {
+                    $peakIndices[] = $k;
+                    $peakDaysList[] = $chartLabels[$k];
+                }
+            }
+            $peakHourLabel = implode(', ', $peakDaysList) . " ($peakMaxCount visits)";
+        }
+    } elseif ($range === 'month') {
+        $yearMonth = date('Y-m', strtotime($date));
+        $daysInMonth = (int) date('t', strtotime($date));
+
+        $moStmt = $pdo->prepare("
+            SELECT DAY(check_in_time) AS d, COUNT(*) AS cnt
+            FROM attendance
+            WHERE DATE_FORMAT(check_in_time, '%Y-%m') = :ym
+              AND (:gym_id = 0 OR gym_id = :gym_id)
+            GROUP BY DAY(check_in_time)
+        ");
+        $moStmt->execute(['ym' => $yearMonth, 'gym_id' => $gymId]);
+        $moMap = $moStmt->fetchAll(PDO::FETCH_KEY_PAIR);
+
+        for ($d = 1; $d <= $daysInMonth; $d++) {
+            $cnt = (int) ($moMap[$d] ?? 0);
+            $chartLabels[] = date('M', strtotime($date)) . ' ' . $d;
+            $chartData[] = $cnt;
+            if ($cnt > $peakMaxCount) {
+                $peakMaxCount = $cnt;
+            }
+        }
+        if ($peakMaxCount > 0) {
+            $peakDaysList = [];
+            foreach ($chartData as $k => $c) {
+                if ($c === $peakMaxCount) {
+                    $peakIndices[] = $k;
+                    $peakDaysList[] = $chartLabels[$k];
+                }
+            }
+            $peakHourLabel = implode(', ', $peakDaysList) . " ($peakMaxCount visits)";
+        }
+    }
+
+    return [
+        'date'               => $date,
+        'date_formatted'     => date('F j, Y', strtotime($date)),
+        'range'              => $range,
+        'gym_id'             => $gymId,
+        'gym_name'           => $gymName,
+        'total_checkins'     => $totalCheckins,
+        'total_checkouts'    => $totalCheckouts,
+        'currently_inside'   => $currentlyInside,
+        'peak_hour_label'    => $peakHourLabel,
+        'peak_max_count'     => $peakMaxCount,
+        'peak_indices'       => $peakIndices,
+        'chart'              => [
+            'labels'       => $chartLabels,
+            'data'         => $chartData,
+            'peak_indices' => $peakIndices
+        ],
+        'roster'             => $roster,
+        'roster_count'       => count($roster),
+        'last_updated'       => date('h:i:s A')
+    ];
+}
+
 function member_dashboard(PDO $pdo, array $user): void
 {
     $score    = calculate_engagement_score((int) $user['user_id']);
@@ -13,6 +253,8 @@ function member_dashboard(PDO $pdo, array $user): void
     $stmt->execute([$user['user_id']]);
     $tier = (int) ($stmt->fetchColumn() ?: 1);
     $tierName = get_fitness_tier_name($tier);
+
+    $actInitialData = get_dashboard_attendance_activity_data($user, ['date' => date('Y-m-d'), 'range' => 'day']);
 
     // Skeleton for member dashboard
     render_skeleton_banner();
@@ -964,13 +1206,1360 @@ function member_dashboard(PDO $pdo, array $user): void
         .member-welcome-banner {
             flex-direction: column !important;
             align-items: stretch !important;
-            gap: 16px;
-            padding: 18px 20px;
+            gap: 12px !important;
+            padding: 14px 16px !important;
+            margin-bottom: 16px !important;
+            border-radius: 14px !important;
+        }
+        .member-welcome-title {
+            font-size: 18px !important;
+        }
+        .member-welcome-title-row {
+            gap: 8px !important;
+            margin-bottom: 4px !important;
+        }
+        .member-tier-pill {
+            padding: 2px 8px !important;
+            font-size: 11px !important;
+        }
+        .member-welcome-desc {
+            font-size: 12px !important;
+            line-height: 1.4 !important;
         }
         .member-hero-score {
-            width: 100%;
-            max-width: 100%;
+            width: 100% !important;
+            max-width: 100% !important;
+            padding: 8px 12px !important;
+            border-radius: 10px !important;
+            display: flex !important;
+            align-items: center !important;
+            justify-content: space-between !important;
+            gap: 10px !important;
+            text-align: left !important;
         }
+        .hero-score-header {
+            display: none !important;
+        }
+        .hero-score-body {
+            width: 100% !important;
+            justify-content: space-between !important;
+            gap: 10px !important;
+        }
+        .hero-score-ring {
+            width: 38px !important;
+            height: 38px !important;
+        }
+        .hero-score-ring-val {
+            font-size: 13.5px !important;
+        }
+        .hero-score-meta {
+            display: flex !important;
+            align-items: center !important;
+            justify-content: space-between !important;
+            flex: 1 1 auto !important;
+            gap: 8px !important;
+        }
+        .hero-score-badge {
+            font-size: 10.5px !important;
+            padding: 2px 8px !important;
+        }
+        .hero-score-action {
+            font-size: 10.5px !important;
+            margin-top: 0 !important;
+            flex-shrink: 0 !important;
+        }
+    }
+
+    /* Activity Tab Toolbar & Components */
+    .act-toolbar-wrap {
+        display: flex;
+        justify-content: flex-end;
+        align-items: center;
+        margin-bottom: 20px;
+    }
+    .act-toolbar {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        background: color-mix(in srgb, var(--surface) 90%, transparent);
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        padding: 6px 8px;
+        box-sizing: border-box;
+    }
+    .act-calendar-btn {
+        position: relative;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 36px;
+        height: 36px;
+        min-width: 36px;
+        border-radius: 8px;
+        background: transparent;
+        border: 1px solid var(--line);
+        color: var(--muted);
+        cursor: pointer;
+        flex: 0 0 auto !important;
+        box-sizing: border-box !important;
+        transition: all 0.2s ease;
+        overflow: hidden;
+    }
+    .act-calendar-btn svg {
+        display: block;
+        flex-shrink: 0;
+        pointer-events: none;
+    }
+    .act-calendar-btn:hover {
+        background: color-mix(in srgb, var(--ink) 8%, transparent);
+        color: var(--ink);
+        border-color: color-mix(in srgb, var(--lime) 50%, var(--line));
+    }
+    .act-calendar-btn:focus-within {
+        border-color: var(--lime);
+        box-shadow: 0 0 0 2px color-mix(in srgb, var(--lime) 20%, transparent);
+    }
+    .act-date-picker-native {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        opacity: 0;
+        cursor: pointer;
+        border: none;
+        padding: 0;
+        margin: 0;
+        z-index: 2;
+    }
+    .act-refresh-btn {
+        height: 36px !important;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        background: transparent;
+        border: 1px solid var(--line);
+        color: var(--muted);
+        padding: 0 14px !important;
+        border-radius: 8px;
+        font-size: 12px;
+        font-weight: 600;
+        cursor: pointer;
+        flex: 0 0 auto !important;
+        box-sizing: border-box !important;
+        transition: all 0.2s ease;
+        white-space: nowrap;
+    }
+    .act-refresh-btn:hover {
+        background: color-mix(in srgb, var(--ink) 8%, transparent);
+        color: var(--ink);
+        border-color: color-mix(in srgb, var(--lime) 50%, var(--line));
+    }
+    .act-refresh-btn.loading svg {
+        animation: actSpin 0.75s linear infinite;
+    }
+    @keyframes actSpin {
+        from { transform: rotate(0deg); }
+        to { transform: rotate(360deg); }
+    }
+    .act-gym-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 0 12px;
+        height: 36px;
+        border-radius: 8px;
+        background: color-mix(in srgb, var(--panel-soft) 80%, transparent);
+        border: 1px solid var(--line);
+        font-size: 12px;
+        font-weight: 600;
+        color: var(--ink);
+        box-sizing: border-box;
+        white-space: nowrap;
+    }
+
+    /* Activity Subnav Switcher (Daily Attendance vs Peak Hours) */
+    .act-subnav-wrap {
+        display: flex;
+        justify-content: flex-start;
+        margin-bottom: 20px;
+    }
+    .act-subnav {
+        display: inline-flex;
+        background: rgba(16, 20, 30, 0.85);
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        padding: 4px;
+        gap: 6px;
+        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+    }
+    .act-subnav-btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 9px 18px;
+        border-radius: 9px;
+        border: 1px solid transparent;
+        background: transparent;
+        color: var(--muted);
+        font-size: 13px;
+        font-weight: 700;
+        cursor: pointer;
+        transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+        white-space: nowrap;
+    }
+    .act-subnav-btn:hover {
+        color: var(--ink);
+        background: rgba(255, 255, 255, 0.05);
+    }
+    .act-subnav-btn.active {
+        background: color-mix(in srgb, var(--lime) 18%, var(--surface));
+        border-color: color-mix(in srgb, var(--lime) 40%, transparent);
+        color: var(--lime);
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
+    }
+    .act-subnav-count {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        padding: 2px 7px;
+        border-radius: 10px;
+        font-size: 11px;
+        font-weight: 800;
+        background: rgba(255, 255, 255, 0.08);
+        color: var(--muted);
+        transition: all 0.2s ease;
+    }
+    .act-subnav-btn.active .act-subnav-count {
+        background: var(--lime);
+        color: #080b0d;
+    }
+    .act-subpanel {
+        display: none;
+    }
+    .act-subpanel.active {
+        display: block;
+    }
+
+    /* Tablet & Mobile Responsive Optimizations for Toolbar and Controls */
+    @media (max-width: 768px) {
+        .act-roster-controls {
+            flex-direction: column;
+            align-items: stretch;
+            gap: 10px;
+        }
+        .act-search-box {
+            flex: none !important;
+            min-width: 0 !important;
+            width: 100% !important;
+            height: 38px !important;
+        }
+        .act-status-pills {
+            width: 100%;
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 4px;
+            box-sizing: border-box;
+        }
+        .act-status-pill {
+            padding: 7px 6px;
+            justify-content: center;
+            font-size: 11.5px;
+            gap: 5px;
+            text-align: center;
+            width: 100%;
+            box-sizing: border-box;
+        }
+        .act-pill-text-extra {
+            display: none;
+        }
+        .act-pill-badge {
+            padding: 1px 5px;
+            font-size: 10.5px;
+        }
+        .act-peak-controls {
+            width: 100%;
+        }
+        .act-range-group {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            width: 100%;
+            box-sizing: border-box;
+        }
+        .act-range-btn {
+            text-align: center;
+            padding: 7px 4px;
+            font-size: 11.5px;
+            width: 100%;
+        }
+    }
+
+    @media (max-width: 640px) {
+        .act-toolbar-wrap {
+            display: flex;
+            justify-content: flex-end;
+            margin-bottom: 14px;
+        }
+        .act-toolbar {
+            padding: 4px 6px;
+            gap: 6px;
+        }
+        .act-calendar-btn {
+            height: 32px !important;
+            width: 32px !important;
+            min-width: 32px !important;
+        }
+        .act-refresh-btn {
+            height: 32px !important;
+            padding: 0 10px !important;
+            font-size: 11.5px;
+        }
+        .act-panel {
+            padding: 16px 14px;
+        }
+        .act-panel-header {
+            gap: 8px;
+        }
+        .act-panel-title {
+            font-size: 15px;
+        }
+        .act-panel-sub {
+            font-size: 11.5px;
+        }
+
+        /* Subnav Mobile View */
+        .act-subnav-wrap {
+            width: 100%;
+            margin-bottom: 16px;
+        }
+        .act-subnav {
+            width: 100%;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            padding: 3px;
+            gap: 4px;
+        }
+        .act-subnav-btn {
+            padding: 9px 6px;
+            font-size: 11.5px;
+            gap: 5px;
+            justify-content: center;
+        }
+        .act-subnav-btn span:first-of-type {
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        /* Card-like transformation for Attendance Roster on Mobile */
+        .act-table-container {
+            border: none !important;
+            background: transparent !important;
+            overflow: visible !important;
+            box-shadow: none !important;
+            margin-top: 8px;
+        }
+        #act-roster-table {
+            display: block !important;
+            width: 100% !important;
+            border: none !important;
+            background: transparent !important;
+        }
+        #act-roster-table thead {
+            display: none !important;
+        }
+        #act-roster-tbody {
+            display: flex !important;
+            flex-direction: column !important;
+            gap: 12px !important;
+            width: 100% !important;
+        }
+        #act-roster-tbody tr[data-name] {
+            display: grid;
+            grid-template-columns: 1fr auto !important;
+            gap: 12px 14px !important;
+            background: linear-gradient(145deg, rgba(22, 27, 39, 0.95) 0%, rgba(15, 19, 28, 0.98) 100%) !important;
+            border: 1px solid rgba(255, 255, 255, 0.08) !important;
+            border-radius: 14px !important;
+            padding: 16px !important;
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.18) !important;
+            transition: transform 0.2s ease, box-shadow 0.2s ease !important;
+        }
+        #act-roster-tbody tr[data-name].act-row-hidden {
+            display: none !important;
+        }
+        #act-roster-tbody tr[data-name]:hover {
+            transform: translateY(-2px) !important;
+            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.28) !important;
+        }
+        #act-roster-tbody tr[data-name] > td[data-label="Member"] {
+            grid-column: 1 / 2 !important;
+            grid-row: 1 !important;
+            padding: 0 0 10px 0 !important;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.07) !important;
+            display: flex !important;
+            align-items: center !important;
+            justify-content: flex-start !important;
+        }
+        #act-roster-tbody tr[data-name] > td[data-label="Status"] {
+            grid-column: 2 / 3 !important;
+            grid-row: 1 !important;
+            padding: 0 0 10px 0 !important;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.07) !important;
+            display: flex !important;
+            align-items: center !important;
+            justify-content: flex-end !important;
+        }
+        #act-roster-tbody tr[data-name] > td[data-label="Status"]::before {
+            display: none !important;
+        }
+        #act-roster-tbody tr[data-name] > td[data-label="Check-In"],
+        #act-roster-tbody tr[data-name] > td[data-label="Check-Out"],
+        #act-roster-tbody tr[data-name] > td[data-label="Duration"] {
+            display: flex !important;
+            flex-direction: column !important;
+            align-items: flex-start !important;
+            gap: 4px !important;
+            padding: 0 !important;
+            border: none !important;
+        }
+        #act-roster-tbody tr[data-name] > td[data-label="Check-In"]::before,
+        #act-roster-tbody tr[data-name] > td[data-label="Check-Out"]::before,
+        #act-roster-tbody tr[data-name] > td[data-label="Duration"]::before {
+            content: attr(data-label) !important;
+            font-size: 10px !important;
+            font-weight: 700 !important;
+            text-transform: uppercase !important;
+            letter-spacing: 0.06em !important;
+            color: var(--muted) !important;
+        }
+        #act-roster-tbody tr[data-name] > td[data-label="Check-In"] {
+            grid-column: 1 / 2 !important;
+            grid-row: 2 !important;
+        }
+        #act-roster-tbody tr[data-name] > td[data-label="Check-Out"] {
+            grid-column: 2 / 3 !important;
+            grid-row: 2 !important;
+        }
+        #act-roster-tbody tr[data-name] > td[data-label="Duration"] {
+            grid-column: 1 / -1 !important;
+            grid-row: 3 !important;
+        }
+        #act-no-match-row {
+            background: var(--surface) !important;
+            border: 1px dashed var(--line) !important;
+            border-radius: 12px !important;
+            padding: 20px !important;
+            text-align: center !important;
+        }
+        #act-no-match-row[style*="display: none"] {
+            display: none !important;
+        }
+        #act-no-match-row td {
+            display: block !important;
+            padding: 0 !important;
+            border: none !important;
+        }
+
+        /* 2x2 Metric Cards Grid on Mobile to Save Vertical Space */
+        .act-stats-grid {
+            grid-template-columns: repeat(2, 1fr) !important;
+            gap: 10px !important;
+            margin-bottom: 16px !important;
+        }
+        .act-stat-card {
+            padding: 12px 14px !important;
+            border-radius: 12px !important;
+            display: flex !important;
+            flex-direction: column !important;
+            justify-content: space-between !important;
+        }
+        .act-stat-header {
+            margin-bottom: 8px !important;
+        }
+        .act-stat-label {
+            font-size: 9.5px !important;
+            letter-spacing: 0.05em !important;
+        }
+        .act-stat-icon-wrap {
+            width: 28px !important;
+            height: 28px !important;
+            border-radius: 8px !important;
+        }
+        .act-stat-icon-wrap svg {
+            width: 14px !important;
+            height: 14px !important;
+        }
+        .act-stat-val {
+            font-size: 24px !important;
+            margin-bottom: 2px !important;
+            letter-spacing: -0.02em !important;
+        }
+        .act-stat-val-text {
+            font-size: 13.5px !important;
+            line-height: 1.25 !important;
+            margin-bottom: 2px !important;
+        }
+        .act-stat-sub {
+            font-size: 10.5px !important;
+            line-height: 1.25 !important;
+            white-space: nowrap !important;
+            overflow: hidden !important;
+            text-overflow: ellipsis !important;
+        }
+        .act-pulse-dot {
+            width: 6px !important;
+            height: 6px !important;
+            margin-right: 4px !important;
+        }
+
+        /* Mobile Pagination Styling */
+        .act-pagination-bar {
+            flex-direction: column !important;
+            align-items: stretch !important;
+            gap: 10px !important;
+            padding: 12px !important;
+        }
+        .act-pagination-info {
+            justify-content: space-between !important;
+            width: 100% !important;
+            font-size: 11.5px !important;
+        }
+        .act-pagination-nav {
+            justify-content: center !important;
+            width: 100% !important;
+            gap: 6px !important;
+        }
+        .act-page-btn {
+            min-width: 34px !important;
+            height: 34px !important;
+            font-size: 12px !important;
+        }
+    }
+
+    @media (max-width: 440px) {
+        .act-status-pill {
+            font-size: 10px;
+            padding: 6px 2px;
+            gap: 3px;
+        }
+        .act-status-pill .act-pill-badge {
+            padding: 0 4px;
+            font-size: 9.5px;
+        }
+        .act-range-btn {
+            font-size: 10.5px;
+            padding: 6px 2px;
+        }
+    }
+
+    /* 4-Stat Metric Cards */
+    .act-stats-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(min(100%, 210px), 1fr));
+        gap: 16px;
+        margin-bottom: 24px;
+    }
+    .act-stat-card {
+        background: linear-gradient(135deg, rgba(22, 27, 39, 0.85) 0%, rgba(15, 19, 28, 0.95) 100%);
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        border-radius: 14px;
+        padding: 18px 20px;
+        position: relative;
+        overflow: hidden;
+        transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+    }
+    .act-stat-card:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+    }
+    .act-stat-card::before {
+        content: '';
+        position: absolute;
+        top: 0; left: 0; right: 0;
+        height: 2px;
+    }
+    .act-stat-in::before { background: var(--lime); }
+    .act-stat-out::before { background: var(--teal); }
+    .act-stat-inside::before { background: #22c55e; }
+    .act-stat-peak::before { background: #f97316; }
+
+    .act-stat-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 12px;
+    }
+    .act-stat-label {
+        font-size: 11px;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        color: var(--muted);
+    }
+    .act-stat-icon-wrap {
+        width: 36px;
+        height: 36px;
+        border-radius: 10px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+    }
+    .act-icon-in { background: color-mix(in srgb, var(--lime) 15%, transparent); color: var(--lime); border: 1px solid color-mix(in srgb, var(--lime) 30%, transparent); }
+    .act-icon-out { background: color-mix(in srgb, var(--teal) 15%, transparent); color: var(--teal); border: 1px solid color-mix(in srgb, var(--teal) 30%, transparent); }
+    .act-icon-inside { background: rgba(34, 197, 94, 0.15); color: #22c55e; border: 1px solid rgba(34, 197, 94, 0.3); }
+    .act-icon-peak { background: rgba(249, 115, 22, 0.15); color: #f97316; border: 1px solid rgba(249, 115, 22, 0.3); }
+
+    .act-stat-val {
+        font-size: 30px;
+        font-weight: 800;
+        color: var(--ink);
+        line-height: 1.1;
+        margin-bottom: 4px;
+        letter-spacing: -0.02em;
+    }
+    .act-stat-val-text {
+        font-size: 18px;
+        font-weight: 700;
+        color: var(--ink);
+        line-height: 1.2;
+        margin-bottom: 4px;
+    }
+    .act-stat-sub {
+        font-size: 11.5px;
+        color: var(--muted);
+        font-weight: 500;
+    }
+    .act-pulse-dot {
+        display: inline-block;
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: #22c55e;
+        margin-right: 6px;
+        box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.7);
+        animation: actPulse 1.8s infinite cubic-bezier(0.66, 0, 0, 1);
+    }
+    @keyframes actPulse {
+        to {
+            box-shadow: 0 0 0 10px rgba(34, 197, 94, 0);
+        }
+    }
+
+    /* Peak Hours Section */
+    .act-panel {
+        background: var(--surface);
+        border: 1px solid var(--line);
+        border-radius: 14px;
+        padding: 22px;
+        margin-bottom: 24px;
+        box-shadow: 0 4px 18px rgba(0, 0, 0, 0.1);
+    }
+    .act-panel-top {
+        display: flex;
+        flex-direction: column;
+        gap: 14px;
+        margin-bottom: 18px;
+    }
+    .act-panel-header {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 12px;
+        width: 100%;
+    }
+    .act-heading {
+        flex: 1 1 auto;
+        min-width: 0;
+    }
+    .act-panel-title {
+        font-size: 17px;
+        font-weight: 800;
+        color: var(--ink);
+        margin: 0;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+    .act-panel-sub {
+        font-size: 12.5px;
+        color: var(--muted);
+        margin: 3px 0 0 0;
+    }
+    .act-panel-header .act-toolbar {
+        flex-shrink: 0;
+        margin: 0;
+    }
+    .act-peak-controls {
+        display: flex;
+        align-items: center;
+        justify-content: flex-start;
+        width: 100%;
+    }
+    .act-range-group {
+        display: inline-flex;
+        background: rgba(0,0,0,0.25);
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        padding: 3px;
+        gap: 2px;
+    }
+    .act-range-btn {
+        background: transparent;
+        border: none;
+        color: var(--muted);
+        font-size: 12px;
+        font-weight: 700;
+        padding: 6px 14px;
+        border-radius: 7px;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        white-space: nowrap;
+    }
+    .act-range-btn:hover {
+        color: var(--ink);
+    }
+    .act-range-btn.active {
+        background: color-mix(in srgb, var(--lime) 18%, var(--surface));
+        color: var(--lime);
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+    }
+    .act-peak-banner {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        background: color-mix(in srgb, #f97316 12%, var(--panel-soft));
+        border: 1px solid color-mix(in srgb, #f97316 35%, transparent);
+        border-left: 4px solid #f97316;
+        border-radius: 10px;
+        padding: 12px 16px;
+        margin-bottom: 18px;
+        font-size: 13px;
+        color: var(--ink);
+    }
+    .act-peak-banner svg {
+        color: #f97316;
+        flex-shrink: 0;
+    }
+    .act-chart-wrap {
+        position: relative;
+        height: 250px;
+        width: 100%;
+    }
+
+    /* Roster Table & Search */
+    .act-roster-controls {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        width: 100%;
+    }
+    .act-search-box {
+        position: relative;
+        display: flex;
+        align-items: center;
+        flex: 1 1 240px;
+        min-width: 200px;
+        height: 38px;
+    }
+    .act-search-box svg {
+        position: absolute;
+        left: 12px;
+        top: 50%;
+        transform: translateY(-50%);
+        color: var(--muted);
+        pointer-events: none;
+        z-index: 2;
+    }
+    .act-search-input {
+        width: 100%;
+        height: 38px;
+        box-sizing: border-box;
+        background: rgba(16, 20, 30, 0.7);
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        padding: 0 12px 0 36px;
+        color: var(--ink);
+        font-size: 13px;
+        outline: none;
+        transition: border-color 0.2s ease;
+    }
+    .act-search-input:focus {
+        border-color: var(--lime);
+    }
+    .act-status-pills {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        background: rgba(16, 20, 30, 0.7);
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        padding: 3px;
+        flex-wrap: nowrap;
+        flex-shrink: 0;
+    }
+    .act-status-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 7px;
+        padding: 6px 12px;
+        border-radius: 7px;
+        border: 1px solid transparent;
+        background: transparent;
+        color: var(--muted);
+        font-size: 12px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+        white-space: nowrap;
+    }
+    .act-status-pill:hover {
+        color: var(--ink);
+        background: rgba(255, 255, 255, 0.05);
+    }
+    .act-status-pill.active {
+        background: color-mix(in srgb, var(--lime) 15%, var(--surface));
+        border-color: color-mix(in srgb, var(--lime) 35%, transparent);
+        color: var(--lime);
+        box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+    }
+    .act-pill-badge {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        padding: 1px 7px;
+        border-radius: 8px;
+        font-size: 11px;
+        font-weight: 800;
+        background: rgba(255, 255, 255, 0.08);
+        color: var(--muted);
+        transition: all 0.2s ease;
+    }
+    .act-status-pill.active .act-pill-badge {
+        background: var(--lime);
+        color: #080b0d;
+    }
+    .act-pill-badge-in {
+        color: #22c55e;
+    }
+    .act-pill-badge-out {
+        color: #2dd4bf;
+    }
+    .act-table-container {
+        overflow-x: auto;
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        margin-top: 14px;
+        background: var(--surface);
+    }
+    .act-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 13px;
+        text-align: left;
+    }
+    .act-table th {
+        background: color-mix(in srgb, var(--panel-soft) 80%, transparent);
+        color: var(--muted);
+        font-weight: 700;
+        font-size: 11px;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        padding: 12px 16px;
+        border-bottom: 1px solid var(--line);
+        white-space: nowrap;
+    }
+    .act-table td {
+        padding: 13px 16px;
+        border-bottom: 1px solid color-mix(in srgb, var(--line) 50%, transparent);
+        color: var(--ink);
+        vertical-align: middle;
+    }
+    .act-table tr:last-child td {
+        border-bottom: none;
+    }
+    .act-table tr:hover td {
+        background: color-mix(in srgb, var(--ink) 3%, transparent);
+    }
+    .act-member-info {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }
+    .act-avatar {
+        width: 34px;
+        height: 34px;
+        border-radius: 50%;
+        object-fit: cover;
+        background: var(--panel-soft);
+        border: 1px solid var(--line);
+        flex-shrink: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: 700;
+        font-size: 12px;
+        color: var(--lime);
+    }
+    .act-member-name {
+        font-weight: 700;
+        color: var(--ink);
+        line-height: 1.2;
+    }
+    .act-member-sub {
+        font-size: 11px;
+        color: var(--muted);
+    }
+    .act-id-pill {
+        display: inline-block;
+        font-family: monospace;
+        font-size: 11.5px;
+        font-weight: 700;
+        padding: 3px 7px;
+        border-radius: 6px;
+        background: rgba(255, 255, 255, 0.05);
+        border: 1px solid var(--line);
+        color: var(--muted);
+    }
+    .act-time-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        font-weight: 600;
+        color: var(--ink);
+    }
+    .act-time-pill svg {
+        color: var(--muted);
+    }
+    .act-duration-pill {
+        display: inline-block;
+        font-size: 11.5px;
+        font-weight: 700;
+        padding: 3px 8px;
+        border-radius: 6px;
+        background: color-mix(in srgb, var(--panel-soft) 80%, transparent);
+        color: var(--ink);
+        border: 1px solid var(--line);
+    }
+    .act-status-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 4px 10px;
+        border-radius: 20px;
+        font-size: 11.5px;
+        font-weight: 700;
+        white-space: nowrap;
+    }
+    .act-status-in {
+        background: rgba(34, 197, 94, 0.12);
+        color: #4ade80;
+        border: 1px solid rgba(34, 197, 94, 0.3);
+    }
+    .act-status-in .act-badge-dot {
+        width: 6px;
+        height: 6px;
+        border-radius: 50%;
+        background: #22c55e;
+        box-shadow: 0 0 6px rgba(34, 197, 94, 0.8);
+    }
+    .act-status-out {
+        background: rgba(148, 163, 184, 0.1);
+        color: #94a3b8;
+        border: 1px solid rgba(148, 163, 184, 0.25);
+    }
+
+    /* Empty state */
+    .act-empty-state {
+        text-align: center;
+        padding: 48px 24px;
+        border: 1px dashed var(--line);
+        border-radius: 14px;
+        background: color-mix(in srgb, var(--panel-soft) 30%, transparent);
+        margin-top: 14px;
+    }
+    .act-empty-icon {
+        width: 54px;
+        height: 54px;
+        border-radius: 16px;
+        background: rgba(255, 255, 255, 0.04);
+        border: 1px solid var(--line);
+        color: var(--muted);
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        margin-bottom: 14px;
+    }
+    .act-empty-title {
+        font-size: 16px;
+        font-weight: 700;
+        color: var(--ink);
+        margin: 0 0 6px 0;
+    }
+    .act-empty-desc {
+        font-size: 13px;
+        color: var(--muted);
+        max-width: 400px;
+        margin: 0 auto 16px auto;
+        line-height: 1.5;
+    }
+    .act-empty-btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 8px 16px;
+        border-radius: 8px;
+        background: var(--lime);
+        color: #080b0d !important;
+        font-size: 12.5px;
+        font-weight: 700;
+        cursor: pointer;
+        border: none;
+        transition: all 0.2s ease;
+    }
+    .act-empty-btn:hover {
+        filter: brightness(1.08);
+        transform: translateY(-1px);
+    }
+
+    /* Activity Pagination Bar */
+    .act-pagination-bar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        flex-wrap: wrap;
+        gap: 12px;
+        padding: 12px 16px;
+        margin-top: 14px;
+        background: color-mix(in srgb, var(--panel-soft) 40%, transparent);
+        border: 1px solid var(--line);
+        border-radius: 12px;
+    }
+    .act-pagination-info {
+        font-size: 12.5px;
+        color: var(--muted);
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+    }
+    .act-pagination-info strong {
+        color: var(--ink);
+        font-weight: 700;
+    }
+    .act-page-size-wrap {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 12px;
+        color: var(--muted);
+        margin-left: 8px;
+    }
+    .act-page-size-select {
+        background: rgba(16, 20, 30, 0.7);
+        border: 1px solid var(--line);
+        border-radius: 6px;
+        color: var(--ink);
+        font-size: 12px;
+        font-weight: 600;
+        padding: 2px 6px;
+        outline: none;
+        cursor: pointer;
+    }
+    .act-pagination-nav {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+    }
+    .act-page-btn {
+        min-width: 32px;
+        height: 32px;
+        padding: 0 8px;
+        border-radius: 8px;
+        border: 1px solid var(--line);
+        background: transparent;
+        color: var(--muted);
+        font-size: 12px;
+        font-weight: 700;
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        transition: all 0.2s ease;
+    }
+    .act-page-btn:hover:not(:disabled) {
+        background: color-mix(in srgb, var(--ink) 8%, transparent);
+        color: var(--ink);
+        border-color: var(--muted);
+    }
+    .act-page-btn.active {
+        background: color-mix(in srgb, var(--lime) 18%, var(--surface));
+        border-color: var(--lime);
+        color: var(--lime);
+        box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+    }
+    .act-page-btn:disabled {
+        opacity: 0.35;
+        cursor: not-allowed;
+    }
+    .act-page-dots {
+        color: var(--muted);
+        padding: 0 4px;
+        font-weight: 700;
+        font-size: 12px;
+    }
+
+    /* Light Theme Styling for Activity Tab */
+    html[data-theme="light"] .act-toolbar,
+    [data-theme="light"] .act-toolbar {
+        background: #ffffff !important;
+        border-color: #cbd5e1 !important;
+        box-shadow: 0 2px 6px rgba(0, 0, 0, 0.04) !important;
+    }
+    html[data-theme="light"] .act-calendar-btn,
+    [data-theme="light"] .act-calendar-btn {
+        border-color: #cbd5e1 !important;
+        color: #475569 !important;
+        background: transparent !important;
+    }
+    html[data-theme="light"] .act-calendar-btn:hover,
+    [data-theme="light"] .act-calendar-btn:hover {
+        background: #f1f5f9 !important;
+        color: #0f172a !important;
+        border-color: #94a3b8 !important;
+    }
+    html[data-theme="light"] .act-refresh-btn,
+    [data-theme="light"] .act-refresh-btn {
+        border-color: #cbd5e1 !important;
+        color: #475569 !important;
+        background: transparent !important;
+    }
+    html[data-theme="light"] .act-refresh-btn:hover,
+    [data-theme="light"] .act-refresh-btn:hover {
+        background: #f1f5f9 !important;
+        color: #0f172a !important;
+        border-color: #94a3b8 !important;
+    }
+    html[data-theme="light"] .act-gym-badge,
+    [data-theme="light"] .act-gym-badge {
+        background: #f1f5f9 !important;
+        border-color: #cbd5e1 !important;
+        color: #0f172a !important;
+    }
+    html[data-theme="light"] .act-stat-card,
+    [data-theme="light"] .act-stat-card {
+        background: #ffffff !important;
+        border-color: #cbd5e1 !important;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04) !important;
+    }
+    html[data-theme="light"] .act-stat-label,
+    [data-theme="light"] .act-stat-label {
+        color: #64748b !important;
+    }
+    html[data-theme="light"] .act-stat-val,
+    html[data-theme="light"] .act-stat-val-text,
+    [data-theme="light"] .act-stat-val,
+    [data-theme="light"] .act-stat-val-text {
+        color: #0f172a !important;
+    }
+    html[data-theme="light"] .act-stat-sub,
+    [data-theme="light"] .act-stat-sub {
+        color: #64748b !important;
+    }
+    html[data-theme="light"] .act-panel,
+    [data-theme="light"] .act-panel {
+        background: #ffffff !important;
+        border-color: #cbd5e1 !important;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.04) !important;
+    }
+    html[data-theme="light"] .act-range-group,
+    [data-theme="light"] .act-range-group {
+        background: #f1f5f9 !important;
+        border-color: #e2e8f0 !important;
+    }
+    html[data-theme="light"] .act-range-btn,
+    [data-theme="light"] .act-range-btn {
+        color: #64748b !important;
+    }
+    html[data-theme="light"] .act-range-btn:hover,
+    [data-theme="light"] .act-range-btn:hover {
+        color: #0f172a !important;
+    }
+    html[data-theme="light"] .act-range-btn.active,
+    [data-theme="light"] .act-range-btn.active {
+        background: #dcfce7 !important;
+        color: #166534 !important;
+        box-shadow: 0 2px 6px rgba(22, 101, 52, 0.15) !important;
+    }
+    html[data-theme="light"] .act-peak-banner,
+    [data-theme="light"] .act-peak-banner {
+        background: #fff7ed !important;
+        border-color: #fed7aa !important;
+        border-left-color: #ea580c !important;
+        color: #9a3412 !important;
+    }
+    html[data-theme="light"] .act-search-input,
+    [data-theme="light"] .act-search-input {
+        background: #ffffff !important;
+        border-color: #cbd5e1 !important;
+        color: #0f172a !important;
+    }
+    html[data-theme="light"] .act-status-pills,
+    [data-theme="light"] .act-status-pills {
+        background: #f8fafc !important;
+        border-color: #cbd5e1 !important;
+    }
+    html[data-theme="light"] .act-status-pill,
+    [data-theme="light"] .act-status-pill {
+        color: #475569 !important;
+    }
+    html[data-theme="light"] .act-status-pill:hover,
+    [data-theme="light"] .act-status-pill:hover {
+        background: #f1f5f9 !important;
+        color: #0f172a !important;
+    }
+    html[data-theme="light"] .act-status-pill.active,
+    [data-theme="light"] .act-status-pill.active {
+        background: #dcfce7 !important;
+        border-color: #86efac !important;
+        color: #166534 !important;
+    }
+    html[data-theme="light"] .act-pill-badge,
+    [data-theme="light"] .act-pill-badge {
+        background: #e2e8f0 !important;
+        color: #475569 !important;
+    }
+    html[data-theme="light"] .act-status-pill.active .act-pill-badge,
+    [data-theme="light"] .act-status-pill.active .act-pill-badge {
+        background: #16a34a !important;
+        color: #ffffff !important;
+    }
+    html[data-theme="light"] .act-table-container,
+    [data-theme="light"] .act-table-container {
+        border-color: #e2e8f0 !important;
+        background: #ffffff !important;
+    }
+    html[data-theme="light"] .act-table th,
+    [data-theme="light"] .act-table th {
+        background: #f8fafc !important;
+        color: #475569 !important;
+        border-bottom-color: #e2e8f0 !important;
+    }
+    html[data-theme="light"] .act-table td,
+    [data-theme="light"] .act-table td {
+        border-bottom-color: #f1f5f9 !important;
+        color: #1e293b !important;
+    }
+    html[data-theme="light"] .act-member-name,
+    [data-theme="light"] .act-member-name {
+        color: #0f172a !important;
+    }
+    html[data-theme="light"] .act-id-pill,
+    [data-theme="light"] .act-id-pill {
+        background: #f1f5f9 !important;
+        border-color: #e2e8f0 !important;
+        color: #475569 !important;
+    }
+    html[data-theme="light"] .act-duration-pill,
+    [data-theme="light"] .act-duration-pill {
+        background: #f1f5f9 !important;
+        border-color: #e2e8f0 !important;
+        color: #334155 !important;
+    }
+    html[data-theme="light"] .act-status-in,
+    [data-theme="light"] .act-status-in {
+        background: #dcfce7 !important;
+        color: #166534 !important;
+        border-color: #86efac !important;
+    }
+    html[data-theme="light"] .act-status-out,
+    [data-theme="light"] .act-status-out {
+        background: #f1f5f9 !important;
+        color: #475569 !important;
+        border-color: #cbd5e1 !important;
+    }
+    html[data-theme="light"] .act-empty-state,
+    [data-theme="light"] .act-empty-state {
+        background: #f8fafc !important;
+        border-color: #cbd5e1 !important;
+    }
+    html[data-theme="light"] .act-subnav,
+    [data-theme="light"] .act-subnav {
+        background: #f1f5f9 !important;
+        border-color: #cbd5e1 !important;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04) !important;
+    }
+    html[data-theme="light"] .act-subnav-btn,
+    [data-theme="light"] .act-subnav-btn {
+        color: #64748b !important;
+    }
+    html[data-theme="light"] .act-subnav-btn:hover,
+    [data-theme="light"] .act-subnav-btn:hover {
+        color: #0f172a !important;
+        background: rgba(0, 0, 0, 0.04) !important;
+    }
+    html[data-theme="light"] .act-subnav-btn.active,
+    [data-theme="light"] .act-subnav-btn.active {
+        background: #ffffff !important;
+        color: #166534 !important;
+        border-color: #86efac !important;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08) !important;
+    }
+    html[data-theme="light"] .act-subnav-count,
+    [data-theme="light"] .act-subnav-count {
+        background: #e2e8f0 !important;
+        color: #475569 !important;
+    }
+    html[data-theme="light"] .act-subnav-btn.active .act-subnav-count,
+    [data-theme="light"] .act-subnav-btn.active .act-subnav-count {
+        background: #dcfce7 !important;
+        color: #166534 !important;
+    }
+    html[data-theme="light"] #act-roster-tbody tr[data-name],
+    [data-theme="light"] #act-roster-tbody tr[data-name] {
+        background: #ffffff !important;
+        border-color: #e2e8f0 !important;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.04) !important;
+    }
+    html[data-theme="light"] #act-roster-tbody tr[data-name] > td[data-label="Member"],
+    html[data-theme="light"] #act-roster-tbody tr[data-name] > td[data-label="Status"],
+    [data-theme="light"] #act-roster-tbody tr[data-name] > td[data-label="Member"],
+    [data-theme="light"] #act-roster-tbody tr[data-name] > td[data-label="Status"] {
+        border-bottom-color: #f1f5f9 !important;
+    }
+    html[data-theme="light"] #act-no-match-row,
+    [data-theme="light"] #act-no-match-row {
+        background: #f8fafc !important;
+        border-color: #cbd5e1 !important;
+    }
+    html[data-theme="light"] .act-pagination-bar,
+    [data-theme="light"] .act-pagination-bar {
+        background: #f8fafc !important;
+        border-color: #cbd5e1 !important;
+    }
+    html[data-theme="light"] .act-page-size-select,
+    [data-theme="light"] .act-page-size-select {
+        background: #ffffff !important;
+        border-color: #cbd5e1 !important;
+        color: #0f172a !important;
+    }
+    html[data-theme="light"] .act-page-btn,
+    [data-theme="light"] .act-page-btn {
+        border-color: #cbd5e1 !important;
+        color: #475569 !important;
+    }
+    html[data-theme="light"] .act-page-btn:hover:not(:disabled),
+    [data-theme="light"] .act-page-btn:hover:not(:disabled) {
+        background: #f1f5f9 !important;
+        color: #0f172a !important;
+    }
+    html[data-theme="light"] .act-page-btn.active,
+    [data-theme="light"] .act-page-btn.active {
+        background: #dcfce7 !important;
+        border-color: #86efac !important;
+        color: #166534 !important;
     }
     </style>
 
@@ -1025,6 +2614,13 @@ function member_dashboard(PDO $pdo, array $user): void
             <span>
                 <span class="tab-label-full">Today & Workout</span>
                 <span class="tab-label-compact">Workout</span>
+            </span>
+        </button>
+        <button type="button" class="member-dash-tab" id="tab-btn-activity" onclick="switchMemberDashboardTab('activity')" title="Check-in Overview & Peak Hours">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><polyline points="16 11 18 13 22 9"/></svg>
+            <span>
+                <span class="tab-label-full">Daily Check-ins & Activity</span>
+                <span class="tab-label-compact">Check-ins</span>
             </span>
         </button>
         <button type="button" class="member-dash-tab" id="tab-btn-missions" onclick="switchMemberDashboardTab('missions')" title="Rank & Missions">
@@ -1151,6 +2747,243 @@ function member_dashboard(PDO $pdo, array $user): void
         <!-- Exercise Recommendations -->
         <div class="skeleton-content animate-fade-in delay-3" style="margin-bottom: 24px;">
             <?php render_exercise_recommendations((int) $user['user_id'], true); ?>
+        </div>
+    </div>
+
+    <!-- ========================================== -->
+    <!-- TAB: DAILY CHECK-INS & PEAK HOURS          -->
+    <!-- ========================================== -->
+    <div id="panel-activity" class="member-tab-panel">
+
+
+
+
+        <!-- Sub-View Navigation Switcher (Daily Attendance Overview vs Peak Hours Analysis) -->
+        <div class="act-subnav-wrap animate-fade-in delay-2">
+            <nav class="act-subnav" role="tablist" aria-label="Activity View Mode">
+                <button type="button" class="act-subnav-btn active" id="act-subtab-roster" onclick="actSwitchSubTab('roster')" role="tab" aria-selected="true">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+                    <span>Daily Attendance</span>
+                    <span id="act-subtab-badge" class="act-subnav-count"><?= count($actInitialData['roster']) ?></span>
+                </button>
+                <button type="button" class="act-subnav-btn" id="act-subtab-peak" onclick="actSwitchSubTab('peak')" role="tab" aria-selected="false">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                    <span>Peak Hours Analysis</span>
+                </button>
+            </nav>
+        </div>
+
+        <!-- SUBPANEL 1: Daily Attendance Overview (Active by default) -->
+        <div id="act-subpanel-roster" class="act-subpanel active">
+            <div class="act-panel animate-fade-in delay-2">
+                <div class="act-panel-top">
+                    <div class="act-panel-header">
+                        <div class="act-heading">
+                            <h3 class="act-panel-title">
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" style="color: var(--lime);"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+                                Daily Attendance Overview
+                            </h3>
+                            <p class="act-panel-sub">All members who checked in and/or checked out on <span id="act-roster-date-sub" class="act-date-formatted-label"><?= h($actInitialData['date_formatted']) ?></span></p>
+                        </div>
+                        <span id="act-roster-count" style="display: none;"><?= count($actInitialData['roster']) ?> Records</span>
+                        <div class="act-toolbar" style="margin: 0;">
+                            <label class="act-calendar-btn" title="Select Date (<?= h($actInitialData['date']) ?>)">
+                                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                                    <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
+                                    <line x1="16" y1="2" x2="16" y2="6"/>
+                                    <line x1="8" y1="2" x2="8" y2="6"/>
+                                    <line x1="3" y1="10" x2="21" y2="10"/>
+                                </svg>
+                                <input type="date" class="act-date-picker-native" value="<?= h($actInitialData['date']) ?>" max="<?= date('Y-m-d') ?>" aria-label="Select Date" onchange="actOnDateChange(this)">
+                            </label>
+                            <button type="button" class="act-refresh-btn" onclick="actReloadData(this)" title="Refresh attendance data">
+                                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2"/></svg>
+                                <span>Refresh</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="act-roster-controls">
+                        <!-- Live Search Box -->
+                        <div class="act-search-box">
+                            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                            <input type="text" id="act-search-input" class="act-search-input" placeholder="Search by member name..." oninput="actApplyFilter()">
+                        </div>
+
+                        <!-- Hidden Status Filter State -->
+                        <input type="hidden" id="act-status-filter" value="all">
+
+                        <!-- Status Filter Pills with Number Badges -->
+                        <div class="act-status-pills" role="tablist" aria-label="Attendance Status Filter">
+                            <button type="button" class="act-status-pill active" id="act-pill-all" data-filter="all" onclick="actSetFilterStatus('all')" role="tab" aria-selected="true" title="Total check-ins on this date">
+                                <span>All<span class="act-pill-text-extra"> Check-ins</span></span>
+                                <span class="act-pill-badge" id="act-badge-total-checkins"><?= (int)$actInitialData['total_checkins'] ?></span>
+                            </button>
+                            <button type="button" class="act-status-pill" id="act-pill-checked_in" data-filter="checked_in" onclick="actSetFilterStatus('checked_in')" role="tab" aria-selected="false" title="Currently inside gym">
+                                <span class="act-pulse-dot"></span>
+                                <span><span class="act-pill-text-extra">Checked </span>In</span>
+                                <span class="act-pill-badge act-pill-badge-in" id="act-badge-inside"><?= (int)$actInitialData['currently_inside'] ?></span>
+                            </button>
+                            <button type="button" class="act-status-pill" id="act-pill-checked_out" data-filter="checked_out" onclick="actSetFilterStatus('checked_out')" role="tab" aria-selected="false" title="Completed gym sessions">
+                                <span><span class="act-pill-text-extra">Checked </span>Out</span>
+                                <span class="act-pill-badge act-pill-badge-out" id="act-badge-checkouts"><?= (int)$actInitialData['total_checkouts'] ?></span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Attendance Table Container (Transforms to Cards on Mobile) -->
+                <div id="act-roster-container" class="act-table-container" style="<?= empty($actInitialData['roster']) ? 'display: none;' : '' ?>">
+                    <table class="act-table" id="act-roster-table">
+                        <thead>
+                            <tr>
+                                <th>Member</th>
+                                <th>Check-in Time</th>
+                                <th>Check-out Time</th>
+                                <th>Duration</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody id="act-roster-tbody">
+                            <?php foreach ($actInitialData['roster'] as $m): ?>
+                                <tr data-name="<?= h(strtolower($m['name'])) ?>" data-status="<?= h($m['status']) ?>">
+                                    <td data-label="Member">
+                                        <div class="act-member-info">
+                                            <?php if (!empty($m['profile_picture'])): ?>
+                                                <img src="<?= h($m['profile_picture']) ?>" alt="<?= h($m['name']) ?>" class="act-avatar">
+                                            <?php else: ?>
+                                                <div class="act-avatar"><?= h(mb_substr($m['name'], 0, 1)) ?></div>
+                                            <?php endif; ?>
+                                            <div>
+                                                <div class="act-member-name"><?= h($m['name']) ?></div>
+                                                <div class="act-member-sub"><?= h($m['email']) ?></div>
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td data-label="Check-In">
+                                        <div class="act-time-pill">
+                                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                                            <span><?= h($m['check_in_formatted']) ?></span>
+                                        </div>
+                                    </td>
+                                    <td data-label="Check-Out">
+                                        <div class="act-time-pill">
+                                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                                            <span style="<?= !$m['is_checked_in'] ? '' : 'color: var(--muted); font-style: italic;' ?>"><?= h($m['check_out_formatted']) ?></span>
+                                        </div>
+                                    </td>
+                                    <td data-label="Duration">
+                                        <span class="act-duration-pill"><?= h($m['duration']) ?></span>
+                                    </td>
+                                    <td data-label="Status">
+                                        <?php if ($m['is_checked_in']): ?>
+                                            <span class="act-status-badge act-status-in">
+                                                <span class="act-badge-dot"></span>
+                                                Checked In
+                                            </span>
+                                        <?php else: ?>
+                                            <span class="act-status-badge act-status-out">
+                                                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+                                                Checked Out
+                                            </span>
+                                        <?php endif; ?>
+                                    </td>
+                                </tr>
+                            <?php endforeach; ?>
+                            <tr id="act-no-match-row" style="display: none;">
+                                <td colspan="5" style="text-align: center; padding: 28px; color: var(--muted);">
+                                    No members match your search criteria.
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Pagination Bar -->
+                <div id="act-pagination" class="act-pagination-bar" style="<?= empty($actInitialData['roster']) ? 'display: none;' : '' ?>">
+                    <div class="act-pagination-info">
+                        <span>Showing <strong id="act-page-start">1</strong>–<strong id="act-page-end"><?= min(5, count($actInitialData['roster'])) ?></strong> of <strong id="act-page-total"><?= count($actInitialData['roster']) ?></strong></span>
+                        <span class="act-page-size-wrap">
+                            Per page:
+                            <select id="act-page-size-select" class="act-page-size-select" onchange="actChangePageSize(this.value)">
+                                <option value="5" selected>5</option>
+                                <option value="10">10</option>
+                                <option value="25">25</option>
+                            </select>
+                        </span>
+                    </div>
+                    <div class="act-pagination-nav" id="act-pagination-nav"></div>
+                </div>
+
+                <!-- Empty State when 0 total records for the date -->
+                <div id="act-empty-state" class="act-empty-state" style="<?= !empty($actInitialData['roster']) ? 'display: none;' : '' ?>">
+                    <div class="act-empty-icon">
+                        <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><line x1="9" y1="16" x2="15" y2="16"/></svg>
+                    </div>
+                    <h4 class="act-empty-title">No Check-ins or Check-outs Found</h4>
+                    <p class="act-empty-desc">No members have checked in or checked out on <span class="act-date-formatted-label"><?= h($actInitialData['date_formatted']) ?></span> yet. Select another date or check back later.</p>
+                    <button type="button" class="act-empty-btn" onclick="actSetQuickDate('today')">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>
+                        <span>Jump to Today's Activity</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- SUBPANEL 2: Peak Hours Analysis -->
+        <div id="act-subpanel-peak" class="act-subpanel">
+            <div class="act-panel animate-fade-in delay-2">
+                <div class="act-panel-top">
+                    <div class="act-panel-header">
+                        <div class="act-heading">
+                            <h3 class="act-panel-title">
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" style="color: var(--lime);"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                                Peak Hours Analysis
+                            </h3>
+                            <p class="act-panel-sub">Traffic distribution and gym congestion patterns</p>
+                        </div>
+                        <div class="act-toolbar" style="margin: 0;">
+                            <label class="act-calendar-btn" title="Select Date (<?= h($actInitialData['date']) ?>)">
+                                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                                    <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
+                                    <line x1="16" y1="2" x2="16" y2="6"/>
+                                    <line x1="8" y1="2" x2="8" y2="6"/>
+                                    <line x1="3" y1="10" x2="21" y2="10"/>
+                                </svg>
+                                <input type="date" class="act-date-picker-native" value="<?= h($actInitialData['date']) ?>" max="<?= date('Y-m-d') ?>" aria-label="Select Date" onchange="actOnDateChange(this)">
+                            </label>
+                            <button type="button" class="act-refresh-btn" onclick="actReloadData(this)" title="Refresh attendance data">
+                                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2"/></svg>
+                                <span>Refresh</span>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="act-peak-controls">
+                        <div class="act-range-group" role="group" aria-label="Peak Hours View Mode">
+                            <button type="button" class="act-range-btn active" id="act-range-day" onclick="actSetRange('day')">Day (Hourly)</button>
+                            <button type="button" class="act-range-btn" id="act-range-week" onclick="actSetRange('week')">Week (7 Days)</button>
+                            <button type="button" class="act-range-btn" id="act-range-month" onclick="actSetRange('month')">Month</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Peak Rush Callout Banner -->
+                <div class="act-peak-banner" id="act-peak-banner">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z"/></svg>
+                    <div id="act-peak-banner-text">
+                        <?php if ($actInitialData['peak_max_count'] > 0): ?>
+                            <strong>Peak Traffic Detected:</strong> Peak check-ins occurred at <strong><?= h($actInitialData['peak_hour_label']) ?></strong>. Plan your gym session to avoid busy hours or join the rush!
+                        <?php else: ?>
+                            <strong>No Check-in Activity:</strong> No attendance recorded yet for this time window.
+                        <?php endif; ?>
+                    </div>
+                </div>
+
+                <!-- Peak Rush Chart Canvas -->
+                <div class="act-chart-wrap">
+                    <canvas id="act-peak-chart"></canvas>
+                </div>
+            </div>
         </div>
     </div>
 
@@ -1435,10 +3268,15 @@ function member_dashboard(PDO $pdo, array $user): void
         <?php endif; ?>
     </div>
 
-    <!-- Tab Switching JavaScript -->
+    <!-- Tab Switching & Activity Dashboard Controller JavaScript -->
     <script>
+    let actCurrentData = <?= json_encode($actInitialData, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP) ?>;
+    let actCurrentRange = 'day';
+    window.actPeakChart = null;
+    let actAutoRefreshTimer = null;
+
     function switchMemberDashboardTab(tabId) {
-        const tabs = ['today', 'missions', 'explore'];
+        const tabs = ['today', 'activity', 'missions', 'explore'];
         if (!tabs.includes(tabId)) tabId = 'today';
 
         tabs.forEach(t => {
@@ -1465,6 +3303,589 @@ function member_dashboard(PDO $pdo, array $user): void
             localStorage.setItem('fit_member_dashboard_tab', tabId);
             window.history.replaceState(null, null, '#' + tabId);
         } catch (e) {}
+
+        // When switching to activity, initialize or resize chart & restore subtab
+        if (tabId === 'activity') {
+            const savedSubtab = localStorage.getItem('fit_activity_subtab') || 'roster';
+            actSwitchSubTab(savedSubtab);
+        }
+    }
+
+    // Switch between Daily Attendance Overview and Peak Hours Analysis sub-tabs
+    function actSwitchSubTab(tab) {
+        const validTabs = ['roster', 'peak'];
+        if (!validTabs.includes(tab)) tab = 'roster';
+
+        validTabs.forEach(t => {
+            const btn = document.getElementById('act-subtab-' + t);
+            const panel = document.getElementById('act-subpanel-' + t);
+            if (btn) {
+                if (t === tab) {
+                    btn.classList.add('active');
+                    btn.setAttribute('aria-selected', 'true');
+                } else {
+                    btn.classList.remove('active');
+                    btn.setAttribute('aria-selected', 'false');
+                }
+            }
+            if (panel) {
+                if (t === tab) {
+                    panel.classList.add('active');
+                } else {
+                    panel.classList.remove('active');
+                }
+            }
+        });
+
+        try {
+            localStorage.setItem('fit_activity_subtab', tab);
+        } catch (e) {}
+
+        if (tab === 'peak') {
+            setTimeout(() => {
+                if (!window.actPeakChart && actCurrentData && actCurrentData.chart) {
+                    initOrUpdateActivityChart(actCurrentData.chart);
+                } else if (window.actPeakChart) {
+                    window.actPeakChart.resize();
+                }
+            }, 50);
+        }
+    }
+
+    // Initialize or re-render Peak Hours Chart.js
+    function initOrUpdateActivityChart(chartData) {
+        const canvas = document.getElementById('act-peak-chart');
+        if (!canvas || typeof Chart === 'undefined') return;
+
+        const isLight = document.documentElement.getAttribute('data-theme') === 'light' || 
+                        document.body.getAttribute('data-theme') === 'light';
+
+        const peakBg = isLight ? '#16a34a' : '#c7ff22';
+        const peakBorder = isLight ? '#15803d' : '#e6ff70';
+        const normBg = isLight ? 'rgba(13, 148, 136, 0.45)' : 'rgba(45, 212, 191, 0.35)';
+        const normBorder = isLight ? 'rgba(13, 148, 136, 0.8)' : 'rgba(45, 212, 191, 0.7)';
+        const textColor = isLight ? '#475569' : '#94a3b8';
+        const gridColor = isLight ? 'rgba(0,0,0,0.06)' : 'rgba(255,255,255,0.06)';
+
+        const bgColors = [];
+        const borderColors = [];
+        const peakIndices = chartData.peak_indices || [];
+
+        chartData.data.forEach((val, idx) => {
+            if (peakIndices.includes(idx) && val > 0) {
+                bgColors.push(peakBg);
+                borderColors.push(peakBorder);
+            } else {
+                bgColors.push(normBg);
+                borderColors.push(normBorder);
+            }
+        });
+
+        if (window.actPeakChart) {
+            window.actPeakChart.destroy();
+            window.actPeakChart = null;
+        }
+
+        const maxVal = Math.max(3, ...(chartData.data || [0]));
+
+        window.actPeakChart = new Chart(canvas, {
+            type: 'bar',
+            data: {
+                labels: chartData.labels,
+                datasets: [{
+                    label: 'Check-ins',
+                    data: chartData.data,
+                    backgroundColor: bgColors,
+                    borderColor: borderColors,
+                    borderWidth: 1.5,
+                    borderRadius: 6,
+                    maxBarThickness: 38
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                animation: { duration: 400 },
+                plugins: {
+                    legend: { display: false },
+                    tooltip: {
+                        backgroundColor: isLight ? 'rgba(15, 23, 42, 0.95)' : 'rgba(15, 20, 30, 0.96)',
+                        titleColor: isLight ? '#f8fafc' : '#ffffff',
+                        bodyColor: isLight ? '#e2e8f0' : '#cbd5e1',
+                        borderColor: isLight ? '#334155' : 'rgba(255, 255, 255, 0.12)',
+                        borderWidth: 1,
+                        padding: 10,
+                        displayColors: false,
+                        callbacks: {
+                            label: function(ctx) {
+                                const val = ctx.parsed.y;
+                                const isPeak = peakIndices.includes(ctx.dataIndex) && val > 0;
+                                return ' ' + val + (val === 1 ? ' member checked in' : ' members checked in') + (isPeak ? ' (★ Peak Rush)' : '');
+                            }
+                        }
+                    }
+                },
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        suggestedMax: maxVal + 1,
+                        ticks: {
+                            color: textColor,
+                            font: { family: "'Inter', system-ui, sans-serif", size: 11, weight: '600' },
+                            precision: 0,
+                            stepSize: 1
+                        },
+                        grid: {
+                            color: gridColor,
+                            drawBorder: false
+                        }
+                    },
+                    x: {
+                        ticks: {
+                            color: textColor,
+                            font: { family: "'Inter', system-ui, sans-serif", size: 11, weight: '600' },
+                            maxRotation: 45,
+                            minRotation: 0
+                        },
+                        grid: { display: false }
+                    }
+                }
+            }
+        });
+    }
+
+    // Set peak hours range (day, week, month)
+    function actSetRange(range) {
+        if (!['day', 'week', 'month'].includes(range)) range = 'day';
+        actCurrentRange = range;
+
+        ['day', 'week', 'month'].forEach(r => {
+            const btn = document.getElementById('act-range-' + r);
+            if (btn) {
+                if (r === range) btn.classList.add('active');
+                else btn.classList.remove('active');
+            }
+        });
+
+        const dateInput = document.querySelector('.act-date-picker-native');
+        const selectedDate = dateInput ? dateInput.value : '';
+        actFetchData(selectedDate, actCurrentRange);
+    }
+
+    // Quick Date Pills (Today, Yesterday)
+    function actSetQuickDate(type) {
+        const today = new Date();
+        let targetDate = new Date(today);
+
+        if (type === 'yesterday') {
+            targetDate.setDate(today.getDate() - 1);
+        }
+
+        const yyyy = targetDate.getFullYear();
+        const mm = String(targetDate.getMonth() + 1).padStart(2, '0');
+        const dd = String(targetDate.getDate()).padStart(2, '0');
+        const dateStr = `${yyyy}-${mm}-${dd}`;
+
+        document.querySelectorAll('.act-date-picker-native').forEach(el => el.value = dateStr);
+        document.querySelectorAll('.act-calendar-btn').forEach(btn => btn.title = 'Select Date (' + dateStr + ')');
+
+        actFetchData(dateStr, actCurrentRange);
+    }
+
+    // Prev / Next Day navigation
+    function actStepDate(offset) {
+        const dateInput = document.querySelector('.act-date-picker-native');
+        if (!dateInput || !dateInput.value) return;
+
+        const parts = dateInput.value.split('-');
+        if (parts.length !== 3) return;
+
+        const current = new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10));
+        current.setDate(current.getDate() + offset);
+
+        const today = new Date();
+        today.setHours(23, 59, 59, 999);
+        if (current > today) return; // Prevent picking future date
+
+        const yyyy = current.getFullYear();
+        const mm = String(current.getMonth() + 1).padStart(2, '0');
+        const dd = String(current.getDate()).padStart(2, '0');
+        const dateStr = `${yyyy}-${mm}-${dd}`;
+
+        document.querySelectorAll('.act-date-picker-native').forEach(el => el.value = dateStr);
+        document.querySelectorAll('.act-calendar-btn').forEach(btn => btn.title = 'Select Date (' + dateStr + ')');
+        actFetchData(dateStr, actCurrentRange);
+    }
+
+    // When the user changes date via calendar icon picker
+    function actOnDateChange(changedInput) {
+        const val = changedInput ? changedInput.value : (document.querySelector('.act-date-picker-native') ? document.querySelector('.act-date-picker-native').value : '');
+        if (!val) return;
+        document.querySelectorAll('.act-date-picker-native').forEach(el => el.value = val);
+        document.querySelectorAll('.act-calendar-btn').forEach(btn => btn.title = 'Select Date (' + val + ')');
+        actFetchData(val, actCurrentRange);
+    }
+
+    // Manual Refresh button
+    function actReloadData(btn) {
+        const dateInput = document.querySelector('.act-date-picker-native');
+        const selectedDate = dateInput ? dateInput.value : '';
+        actFetchData(selectedDate, actCurrentRange, btn);
+    }
+
+    // Fetch Activity & Peak Hours data via AJAX
+    function actFetchData(date, range, triggerBtn) {
+        document.querySelectorAll('.act-refresh-btn').forEach(b => b.classList.add('loading'));
+
+        const params = new URLSearchParams({
+            page: 'dashboard',
+            action: 'attendance_activity_api',
+            date: date || '',
+            range: range || 'day'
+        });
+
+        fetch('index.php?' + params.toString(), {
+            headers: { 'X-Requested-With': 'XMLHttpRequest' }
+        })
+        .then(res => {
+            if (!res.ok) throw new Error('Network response was not ok');
+            return res.json();
+        })
+        .then(data => {
+            actCurrentData = data;
+            actUpdateUI(data);
+        })
+        .catch(err => {
+            console.error('Failed to load attendance activity data:', err);
+        })
+        .finally(() => {
+            document.querySelectorAll('.act-refresh-btn').forEach(b => b.classList.remove('loading'));
+        });
+    }
+
+    // Update Dashboard DOM with fetched activity data
+    function actUpdateUI(data) {
+        // 1. Date input & calendar trigger button
+        if (data.date) {
+            document.querySelectorAll('.act-date-picker-native').forEach(el => el.value = data.date);
+            document.querySelectorAll('.act-calendar-btn').forEach(btn => btn.title = 'Select Date (' + data.date + ')');
+        }
+
+        const todayStr = (new Date()).toISOString().split('T')[0];
+        const yesterdayObj = new Date();
+        yesterdayObj.setDate(yesterdayObj.getDate() - 1);
+        const yesterdayStr = yesterdayObj.toISOString().split('T')[0];
+
+        const todayBtn = document.getElementById('act-btn-today');
+        const yesterdayBtn = document.getElementById('act-btn-yesterday');
+        if (todayBtn) {
+            if (data.date === todayStr) todayBtn.classList.add('active');
+            else todayBtn.classList.remove('active');
+        }
+        if (yesterdayBtn) {
+            if (data.date === yesterdayStr) yesterdayBtn.classList.add('active');
+            else yesterdayBtn.classList.remove('active');
+        }
+
+        const nextBtn = document.getElementById('act-next-day-btn');
+        if (nextBtn) {
+            nextBtn.disabled = (data.date >= todayStr);
+        }
+
+        // Date labels
+        document.querySelectorAll('.act-date-formatted-label').forEach(el => {
+            el.textContent = data.date_formatted;
+        });
+        const shortDateLabel = document.getElementById('act-stat-date-label');
+        if (shortDateLabel && data.date) {
+            const dObj = new Date(data.date + 'T00:00:00');
+            shortDateLabel.textContent = dObj.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+        }
+
+        // 2. Status filter pill count badges & Peak stat
+        const badgeCheckins = document.getElementById('act-badge-total-checkins');
+        if (badgeCheckins && data.total_checkins !== undefined) {
+            badgeCheckins.textContent = data.total_checkins;
+        }
+
+        const badgeInside = document.getElementById('act-badge-inside');
+        if (badgeInside && data.currently_inside !== undefined) {
+            badgeInside.textContent = data.currently_inside;
+        }
+
+        const badgeCheckouts = document.getElementById('act-badge-checkouts');
+        if (badgeCheckouts && data.total_checkouts !== undefined) {
+            badgeCheckouts.textContent = data.total_checkouts;
+        }
+
+        const statPeak = document.getElementById('act-stat-peakhour');
+        if (statPeak && data.peak_hour_label) {
+            statPeak.textContent = data.peak_hour_label;
+            statPeak.title = data.peak_hour_label;
+        }
+
+        // 3. Peak Rush banner
+        const peakBannerText = document.getElementById('act-peak-banner-text');
+        if (peakBannerText) {
+            if (data.peak_max_count > 0) {
+                peakBannerText.innerHTML = '<strong>Peak Traffic Detected:</strong> Peak check-ins occurred at <strong>' + escapeHtml(data.peak_hour_label) + '</strong>. Plan your gym session to avoid busy hours or join the rush!';
+            } else {
+                peakBannerText.innerHTML = '<strong>No Check-in Activity:</strong> No attendance recorded yet for this time window.';
+            }
+        }
+
+        // 4. Update Chart
+        if (data.chart) {
+            initOrUpdateActivityChart(data.chart);
+        }
+
+        // 5. Update Roster Table & Empty State
+        const rosterContainer = document.getElementById('act-roster-container');
+        const emptyState = document.getElementById('act-empty-state');
+        const tbody = document.getElementById('act-roster-tbody');
+        const countBadge = document.getElementById('act-roster-count');
+        const subtabBadge = document.getElementById('act-subtab-badge');
+
+        const count = data.roster ? data.roster.length : 0;
+        if (countBadge) {
+            countBadge.textContent = count + (count === 1 ? ' Record' : ' Records');
+        }
+        if (subtabBadge) {
+            subtabBadge.textContent = count;
+        }
+
+        if (data.roster && data.roster.length > 0) {
+            if (emptyState) emptyState.style.display = 'none';
+            if (rosterContainer) rosterContainer.style.display = '';
+
+            if (tbody) {
+                let rowsHtml = '';
+                data.roster.forEach(m => {
+                    const avatarHtml = m.profile_picture ? 
+                        `<img src="${escapeHtml(m.profile_picture)}" alt="${escapeHtml(m.name)}" class="act-avatar">` : 
+                        `<div class="act-avatar">${escapeHtml((m.name || 'M').charAt(0).toUpperCase())}</div>`;
+
+                    const statusBadgeHtml = m.is_checked_in ? 
+                        `<span class="act-status-badge act-status-in"><span class="act-badge-dot"></span>Checked In</span>` : 
+                        `<span class="act-status-badge act-status-out"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>Checked Out</span>`;
+
+                    const outTimeStyle = m.is_checked_in ? 'color: var(--muted); font-style: italic;' : '';
+
+                    rowsHtml += `
+                        <tr data-name="${escapeHtml((m.name || '').toLowerCase())}" data-status="${escapeHtml(m.status)}">
+                            <td data-label="Member">
+                                <div class="act-member-info">
+                                    ${avatarHtml}
+                                    <div>
+                                        <div class="act-member-name">${escapeHtml(m.name)}</div>
+                                        <div class="act-member-sub">${escapeHtml(m.email || '')}</div>
+                                    </div>
+                                </div>
+                            </td>
+                            <td data-label="Check-In">
+                                <div class="act-time-pill">
+                                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                                    <span>${escapeHtml(m.check_in_formatted)}</span>
+                                </div>
+                            </td>
+                            <td data-label="Check-Out">
+                                <div class="act-time-pill">
+                                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                                    <span style="${outTimeStyle}">${escapeHtml(m.check_out_formatted)}</span>
+                                </div>
+                            </td>
+                            <td data-label="Duration">
+                                <span class="act-duration-pill">${escapeHtml(m.duration)}</span>
+                            </td>
+                            <td data-label="Status">
+                                ${statusBadgeHtml}
+                            </td>
+                        </tr>
+                    `;
+                });
+
+                rowsHtml += `
+                    <tr id="act-no-match-row" style="display: none;">
+                        <td colspan="5" style="text-align: center; padding: 28px; color: var(--muted);">
+                            No members match your search criteria.
+                        </td>
+                    </tr>
+                `;
+
+                tbody.innerHTML = rowsHtml;
+            }
+        } else {
+            if (rosterContainer) rosterContainer.style.display = 'none';
+            if (emptyState) emptyState.style.display = '';
+        }
+
+        // Re-apply client filter
+        actApplyFilter();
+    }
+
+    let actCurrentPage = 1;
+    let actPageSize = 5;
+    let actCurrentStatusFilter = 'all';
+
+    function actSetFilterStatus(status) {
+        actCurrentStatusFilter = status;
+        const filterInput = document.getElementById('act-status-filter');
+        if (filterInput) filterInput.value = status;
+
+        ['all', 'checked_in', 'checked_out'].forEach(s => {
+            const btn = document.getElementById('act-pill-' + s);
+            if (btn) {
+                if (s === status) {
+                    btn.classList.add('active');
+                    btn.setAttribute('aria-selected', 'true');
+                } else {
+                    btn.classList.remove('active');
+                    btn.setAttribute('aria-selected', 'false');
+                }
+            }
+        });
+
+        actApplyFilter(true);
+    }
+
+    function actChangePageSize(size) {
+        actPageSize = parseInt(size, 10) || 5;
+        actCurrentPage = 1;
+        actApplyFilter(false);
+    }
+
+    function actGoToPage(page) {
+        actCurrentPage = page;
+        actApplyFilter(false);
+    }
+
+    // Client-side instant filter & pagination for search input & status pills
+    function actApplyFilter(resetPage = true) {
+        if (resetPage) {
+            actCurrentPage = 1;
+        }
+
+        const searchInput = document.getElementById('act-search-input');
+        const statusSelect = document.getElementById('act-status-filter');
+        const q = searchInput ? searchInput.value.trim().toLowerCase() : '';
+        const st = actCurrentStatusFilter || (statusSelect ? statusSelect.value : 'all');
+
+        const allRows = Array.from(document.querySelectorAll('#act-roster-tbody tr[data-name]'));
+        
+        // 1. Identify all matching rows
+        const matchingRows = allRows.filter(tr => {
+            const name = tr.getAttribute('data-name') || '';
+            const status = tr.getAttribute('data-status') || '';
+            const matchQuery = !q || name.includes(q);
+            const matchStatus = (st === 'all') || (status === st);
+            return matchQuery && matchStatus;
+        });
+
+        const totalMatches = matchingRows.length;
+        const totalPages = Math.max(1, Math.ceil(totalMatches / actPageSize));
+
+        // Clamp current page
+        if (actCurrentPage > totalPages) actCurrentPage = totalPages;
+        if (actCurrentPage < 1) actCurrentPage = 1;
+
+        // 2. Hide all non-matching rows and apply pagination to matching rows
+        const startIndex = (actCurrentPage - 1) * actPageSize;
+        const endIndex = Math.min(startIndex + actPageSize, totalMatches);
+
+        allRows.forEach(tr => {
+            tr.classList.add('act-row-hidden');
+            tr.style.setProperty('display', 'none', 'important');
+        });
+
+        for (let i = startIndex; i < endIndex; i++) {
+            if (matchingRows[i]) {
+                matchingRows[i].classList.remove('act-row-hidden');
+                matchingRows[i].style.removeProperty('display');
+                matchingRows[i].style.display = '';
+            }
+        }
+
+        // 3. No match message
+        const noMatchRow = document.getElementById('act-no-match-row');
+        if (noMatchRow) {
+            const shouldShow = (allRows.length > 0 && totalMatches === 0);
+            noMatchRow.style.setProperty('display', shouldShow ? 'block' : 'none', 'important');
+        }
+
+        // 4. Update pagination controls
+        actRenderPagination(totalMatches, totalPages, startIndex, endIndex);
+    }
+
+    function actRenderPagination(totalMatches, totalPages, startIndex, endIndex) {
+        const paginationEl = document.getElementById('act-pagination');
+        if (!paginationEl) return;
+
+        if (totalMatches === 0) {
+            paginationEl.style.display = 'none';
+            return;
+        }
+
+        paginationEl.style.display = 'flex';
+
+        const startEl = document.getElementById('act-page-start');
+        const endEl = document.getElementById('act-page-end');
+        const totalEl = document.getElementById('act-page-total');
+
+        if (startEl) startEl.textContent = totalMatches > 0 ? (startIndex + 1) : 0;
+        if (endEl) endEl.textContent = endIndex;
+        if (totalEl) totalEl.textContent = totalMatches;
+
+        const nav = document.getElementById('act-pagination-nav');
+        if (!nav) return;
+
+        let navHtml = '';
+
+        // Prev Button
+        const prevDisabled = (actCurrentPage <= 1) ? 'disabled' : '';
+        navHtml += `
+            <button type="button" class="act-page-btn" onclick="actGoToPage(${actCurrentPage - 1})" ${prevDisabled} title="Previous Page">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M15 19l-7-7 7-7"/></svg>
+            </button>
+        `;
+
+        // Page Numbers
+        for (let p = 1; p <= totalPages; p++) {
+            if (totalPages > 7) {
+                if (p !== 1 && p !== totalPages && Math.abs(p - actCurrentPage) > 1) {
+                    if (p === 2 || p === totalPages - 1) {
+                        navHtml += `<span class="act-page-dots">...</span>`;
+                    }
+                    continue;
+                }
+            }
+
+            const activeClass = (p === actCurrentPage) ? 'active' : '';
+            navHtml += `
+                <button type="button" class="act-page-btn ${activeClass}" onclick="actGoToPage(${p})">
+                    ${p}
+                </button>
+            `;
+        }
+
+        // Next Button
+        const nextDisabled = (actCurrentPage >= totalPages) ? 'disabled' : '';
+        navHtml += `
+            <button type="button" class="act-page-btn" onclick="actGoToPage(${actCurrentPage + 1})" ${nextDisabled} title="Next Page">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M9 5l7 7-7 7"/></svg>
+            </button>
+        `;
+
+        nav.innerHTML = navHtml;
+    }
+
+    function escapeHtml(str) {
+        if (!str) return '';
+        return String(str)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#039;');
     }
 
     // Restore tab from hash or localStorage on page load
@@ -1473,13 +3894,24 @@ function member_dashboard(PDO $pdo, array $user): void
         const hash = window.location.hash.replace('#', '');
         const savedTab = localStorage.getItem('fit_member_dashboard_tab');
 
-        if (['today', 'missions', 'explore'].includes(hash)) {
+        if (['today', 'activity', 'missions', 'explore'].includes(hash)) {
             initialTab = hash;
-        } else if (['today', 'missions', 'explore'].includes(savedTab)) {
+        } else if (['today', 'activity', 'missions', 'explore'].includes(savedTab)) {
             initialTab = savedTab;
         }
 
         switchMemberDashboardTab(initialTab);
+        actApplyFilter();
+
+        // Auto-refresh timer every 60s when on today's date
+        setInterval(() => {
+            const activeTabBtn = document.querySelector('.member-dash-tab.active');
+            const dateInput = document.getElementById('act-date-input');
+            const todayStr = (new Date()).toISOString().split('T')[0];
+            if (activeTabBtn && activeTabBtn.id === 'tab-btn-activity' && dateInput && dateInput.value === todayStr) {
+                actFetchData(todayStr, actCurrentRange);
+            }
+        }, 60000);
     });
     </script>
 
@@ -1548,3 +3980,4 @@ function member_dashboard(PDO $pdo, array $user): void
     </dialog>
 HTML;
 }
+

@@ -286,6 +286,7 @@ function gyms_page(): void
                 <thead>
                     <tr>
                         <th>Gym Name</th>
+                        <th>Member Rating</th>
                         <th>Owner</th>
                         <th>Email</th>
                         <th>Facility Status</th>
@@ -311,9 +312,16 @@ function gyms_page(): void
                             'expired' => 'badge-inactive',
                             default => 'badge-pending'
                         };
+                        $gStats = get_gym_rating_stats((int)$gym['gym_id']);
                     ?>
                         <tr>
                             <td><strong><?= h($gym['name']) ?></strong></td>
+                            <td>
+                                <a href="index.php?page=gym_profile&gym_id=<?= (int)$gym['gym_id'] ?>#sec-ratings" style="text-decoration:none; display:inline-flex; align-items:center; gap:5px;" title="View member ratings &amp; reviews">
+                                    <span style="color:#f59e0b; font-weight:700; font-size:13px;">★ <?= number_format($gStats['avg_rating'], 1) ?></span>
+                                    <span style="font-size:11px; color:var(--muted);">(<?= $gStats['total_reviews'] ?>)</span>
+                                </a>
+                            </td>
                             <td><?= h($gym['first_name'] . ' ' . $gym['last_name']) ?></td>
                             <td><?= h($gym['email']) ?></td>
                             <td>
@@ -397,6 +405,7 @@ function gyms_page(): void
                     'expired' => 'badge-inactive',
                     default => 'badge-pending'
                 };
+                $gStats = get_gym_rating_stats((int)$gym['gym_id']);
             ?>
                 <div class="gym-card-item">
                     <div class="gym-card-header">
@@ -422,6 +431,18 @@ function gyms_page(): void
                     </div>
 
                     <div class="gym-card-details">
+                        <div class="gym-card-detail-item">
+                            <span class="gym-card-detail-label">
+                                <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" style="color:#f59e0b;"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+                                Member Rating
+                            </span>
+                            <span class="gym-card-detail-value">
+                                <a href="index.php?page=gym_profile&gym_id=<?= (int)$gym['gym_id'] ?>#sec-ratings" style="color:#f59e0b; font-weight:700; text-decoration:none;">
+                                    ★ <?= number_format($gStats['avg_rating'], 1) ?> <small style="color:var(--muted); font-weight:normal;">(<?= $gStats['total_reviews'] ?>)</small>
+                                </a>
+                            </span>
+                        </div>
+
                         <div class="gym-card-detail-item">
                             <span class="gym-card-detail-label">
                                 <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>

@@ -828,9 +828,9 @@ function training_page(): void
             <label style="display:block; color:var(--muted); font-size:13px; font-weight:600">Goal 
                 <input id="planGoalInput" name="goal" class="form-control" placeholder="e.g., muscle_gain, fat_loss" style="width:100%;box-sizing:border-box;margin-top:5px;background:var(--panel);color:var(--ink);border:1.5px solid var(--line);border-radius:8px;padding:9px 12px;">
             </label>
-            <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:14px;padding-top:14px;border-top:1px solid var(--line)">
-                <button type="button" onclick="document.getElementById('planModal').style.display='none'" class="btn btn-secondary" style="background:var(--panel-soft);color:var(--ink);border:1px solid var(--line);padding:8px 16px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;">Cancel</button>
-                <button type="submit" class="btn btn-primary" style="padding:8px 20px;font-size:13px;font-weight:700;">Create & Build Plan</button>
+            <div style="display:flex;justify-content:center;align-items:center;gap:12px;margin-top:14px;padding-top:14px;border-top:1px solid var(--line);flex-wrap:wrap;">
+                <button type="button" onclick="document.getElementById('planModal').style.display='none'" class="btn btn-secondary" style="background:var(--panel-soft);color:var(--ink);border:1px solid var(--line);padding:9px 22px;border-radius:8px;font-size:13px;font-weight:600;min-height:42px;display:inline-flex;align-items:center;justify-content:center;cursor:pointer;">Cancel</button>
+                <button type="submit" class="btn btn-primary" style="padding:9px 24px;border-radius:8px;font-size:13px;font-weight:700;min-height:42px;display:inline-flex;align-items:center;justify-content:center;cursor:pointer;">Create & Build Plan</button>
             </div>
         </form>
     </div>

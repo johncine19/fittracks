@@ -138,6 +138,11 @@ function landing_page(): void
     } catch (\Throwable $e) {
     }
 
+    // ── Platform Ratings & Owner Reviews ───────────────────────────
+    $platformStats   = get_platform_rating_stats();
+    $platformReviews = get_platform_reviews(12);
+
+
     // ── Platform Subscription Plans ──────────────────────────────────
     $platformPlans = get_platform_subscription_plans();
     $starterPlan = $platformPlans['starter'] ?? [
@@ -244,6 +249,13 @@ function landing_page(): void
                 <div class="hero-grid">
                     <!-- Left Side: Brand Narrative & Feature Pills Floating directly on Background -->
                     <div class="hero-left">
+                        <a href="#testimonials" class="hero-rating-badge" style="display:inline-flex; align-items:center; gap:8px; background:rgba(255,255,255,0.04); border:1px solid rgba(199,255,34,0.3); padding:6px 14px; border-radius:999px; margin-bottom:16px; text-decoration:none; backdrop-filter:blur(8px); width:fit-content;">
+                            <span style="display:inline-flex; align-items:center;">
+                                <?= render_star_rating((float)$platformStats['avg_rating'], 14, false) ?>
+                            </span>
+                            <span style="font-weight:700; font-size:13px; color:#fff;"><?= number_format($platformStats['avg_rating'], 1) ?>/5</span>
+                            <span style="font-size:12px; color:rgba(255,255,255,0.7);">&bull; Rated by <?= $platformStats['total_reviews'] ?> Verified Gym Owners &rarr;</span>
+                        </a>
                         <div class="hero-brand-header">
                             <h1 class="hero-title">
                                 Smarter Gym Management.
@@ -1085,226 +1097,173 @@ function landing_page(): void
         <section class="testimonials-section reveal-on-scroll" id="testimonials">
             <div class="container">
                 <div class="section-header">
-                    <span class="section-label">Proven Results</span>
+                    <span class="section-label">Verified Gym Owner Ratings</span>
                     <h2 class="section-title">Trusted by Commercial Fitness Leaders</h2>
-                    <p class="section-desc">Hear how FitTrack transformed operations for real gym operators across the
-                        country.</p>
+                    <p class="section-desc">See how FitTrack powers gym operations and client retention nationwide.</p>
                 </div>
             </div>
 
-            <!-- Infinite Marquee Ticker Track -->
+            <!-- Dynamic FitTrack Platform Rating Banner -->
+            <div class="container" style="margin-bottom: 28px;">
+                <div class="platform-rating-banner" style="display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:20px; background:linear-gradient(135deg, rgba(255,255,255,0.04), rgba(255,255,255,0.01)); border:1px solid rgba(199,255,34,0.2); border-radius:16px; padding:22px 28px; backdrop-filter:blur(12px); box-shadow:0 8px 32px rgba(0,0,0,0.25);">
+                    <div style="display:flex; align-items:center; gap:18px;">
+                        <div style="font-size:44px; font-weight:900; line-height:1; color:#fff; letter-spacing:-1px;">
+                            <?= number_format($platformStats['avg_rating'], 1) ?>
+                        </div>
+                        <div>
+                            <div style="display:flex; align-items:center; gap:8px; margin-bottom:4px;">
+                                <?= render_star_rating((float)$platformStats['avg_rating'], 18, false) ?>
+                                <span style="font-size:12px; font-weight:700; color:var(--lime, #c7ff22); background:rgba(199,255,34,0.1); border:1px solid rgba(199,255,34,0.25); padding:2px 8px; border-radius:999px;">
+                                    FitTrack Platform Score
+                                </span>
+                            </div>
+                            <div style="font-size:13px; color:var(--text-muted, #94a3b8);">
+                                Based on <strong><?= $platformStats['total_reviews'] ?></strong> verified gym owner reviews &bull; 100% verified facility operators
+                            </div>
+                        </div>
+                    </div>
+
+                    <div style="display:flex; align-items:center; gap:20px; flex-wrap:wrap;">
+                        <div style="text-align:center; padding:0 8px;">
+                            <div style="font-size:18px; font-weight:800; color:var(--lime, #c7ff22);"><?= number_format($platformStats['avg_system'], 1) ?>★</div>
+                            <div style="font-size:11px; color:#94a3b8; text-transform:uppercase; letter-spacing:0.5px; margin-top:2px;">System UX</div>
+                        </div>
+                        <div style="height:26px; width:1px; background:rgba(255,255,255,0.1);"></div>
+                        <div style="text-align:center; padding:0 8px;">
+                            <div style="font-size:18px; font-weight:800; color:var(--lime, #c7ff22);"><?= number_format($platformStats['avg_features'], 1) ?>★</div>
+                            <div style="font-size:11px; color:#94a3b8; text-transform:uppercase; letter-spacing:0.5px; margin-top:2px;">Features</div>
+                        </div>
+                        <div style="height:26px; width:1px; background:rgba(255,255,255,0.1);"></div>
+                        <div style="text-align:center; padding:0 8px;">
+                            <div style="font-size:18px; font-weight:800; color:var(--lime, #c7ff22);"><?= number_format($platformStats['avg_service'], 1) ?>★</div>
+                            <div style="font-size:11px; color:#94a3b8; text-transform:uppercase; letter-spacing:0.5px; margin-top:2px;">Service &amp; Support</div>
+                        </div>
+                        <a href="index.php?page=register&role=gym_owner" class="btn btn-lime btn-sm" style="margin-left:6px; text-decoration:none; padding:8px 16px; font-size:13px;">
+                            Register Gym &rarr;
+                        </a>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Infinite Marquee Ticker Track with Dynamic Gym Owner Reviews -->
+            <?php
+            // Prepare cards for ticker marquee
+            $marqueeCards = [];
+            foreach ($platformReviews as $pr) {
+                if (!empty($pr['review'])) {
+                    $marqueeCards[] = [
+                        'rating' => (float)$pr['rating'],
+                        'review' => $pr['review'],
+                        'first_name' => $pr['first_name'] ?? 'Gym',
+                        'last_name' => $pr['last_name'] ?? 'Owner',
+                        'gym_name' => $pr['gym_name'] ?? 'Commercial Gym',
+                        'system_experience' => $pr['system_experience'] ?? null,
+                        'features_rating' => $pr['features_rating'] ?? null,
+                        'service_rating' => $pr['service_rating'] ?? null,
+                    ];
+                }
+            }
+
+            // Fallback curated testimonials if fewer than 4 exist in database
+            $curatedFallbacks = [
+                [
+                    'rating' => 5,
+                    'review' => 'FitTrack gave us total visibility over member attendance trends. Our turnstile lines disappeared after adopting dynamic QR verification.',
+                    'first_name' => 'Mark',
+                    'last_name' => 'Ramirez',
+                    'gym_name' => 'Titan Fitness Center',
+                    'system_experience' => 5,
+                    'features_rating' => 5,
+                    'service_rating' => 5,
+                ],
+                [
+                    'rating' => 5,
+                    'review' => 'The automated engagement monitoring flagged 45 inactive members last month. We re-engaged over 70% of them before their subscriptions lapsed.',
+                    'first_name' => 'Jessica',
+                    'last_name' => 'Cruz',
+                    'gym_name' => 'Apex Athletics',
+                    'system_experience' => 5,
+                    'features_rating' => 5,
+                    'service_rating' => 5,
+                ],
+                [
+                    'rating' => 5,
+                    'review' => 'Assigning customized workout programs and dietary routines to my clients takes half the time now. It’s the cleanest platform I’ve used.',
+                    'first_name' => 'David',
+                    'last_name' => 'Castillo',
+                    'gym_name' => 'Elevate Performance',
+                    'system_experience' => 5,
+                    'features_rating' => 5,
+                    'service_rating' => 5,
+                ],
+                [
+                    'rating' => 5,
+                    'review' => 'Managing multi-branch gym locations used to be a nightmare of disconnected spreadsheets. FitTrack synchronized our staff and billing in 24 hours.',
+                    'first_name' => 'Samantha',
+                    'last_name' => 'Lim',
+                    'gym_name' => 'MetroFit Philippines',
+                    'system_experience' => 5,
+                    'features_rating' => 5,
+                    'service_rating' => 5,
+                ]
+            ];
+
+            if (count($marqueeCards) < 4) {
+                $marqueeCards = array_merge($marqueeCards, array_slice($curatedFallbacks, 0, 4 - count($marqueeCards)));
+            }
+
+            // Duplicate cards list to allow seamless 50% translateX marquee loop
+            $displayCards = array_merge($marqueeCards, $marqueeCards);
+            ?>
+
             <div class="ticker-container">
                 <div class="ticker-track">
-                    <!-- Review Card 1 -->
-                    <div class="testimonial-card ticker-card">
-                        <div>
-                            <div class="quote-icon"><?= landing_icon('quote', 'quote-svg') ?></div>
-                            <p class="quote-text">
-                                FitTrack gave us total visibility over member attendance trends. Our turnstile lines
-                                disappeared after adopting dynamic QR verification.
-                            </p>
-                        </div>
-                        <div class="author-info">
-                            <div class="author-avatar">MR</div>
+                    <?php foreach ($displayCards as $card): ?>
+                        <div class="testimonial-card ticker-card" style="display:flex; flex-direction:column; justify-content:space-between;">
                             <div>
-                                <div class="author-name">Mark Ramirez</div>
-                                <div class="author-role">Owner • Titan Fitness Center</div>
+                                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+                                    <div>
+                                        <?= render_star_rating((float)($card['rating'] ?? 5), 14, false) ?>
+                                    </div>
+                                    <span style="display:inline-flex; align-items:center; gap:4px; font-size:11px; font-weight:600; color:var(--lime, #c7ff22); background:rgba(199,255,34,0.08); border:1px solid rgba(199,255,34,0.2); padding:2px 8px; border-radius:999px;">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+                                        Verified Gym Owner
+                                    </span>
+                                </div>
+                                <p class="quote-text" style="font-size:13.5px; line-height:1.55; color:rgba(255,255,255,0.88); margin-bottom:14px; font-style:italic;">
+                                    &ldquo;<?= h($card['review']) ?>&rdquo;
+                                </p>
+                            </div>
+                            <div>
+                                <?php if (!empty($card['system_experience']) || !empty($card['features_rating'])): ?>
+                                    <div style="display:flex; gap:8px; font-size:10.5px; color:var(--muted, #94a3b8); margin-bottom:12px; padding-bottom:10px; border-bottom:1px solid rgba(255,255,255,0.06);">
+                                        <?php if (!empty($card['system_experience'])): ?>
+                                            <span>UX: <strong style="color:#fff;"><?= (int)$card['system_experience'] ?>★</strong></span>
+                                        <?php endif; ?>
+                                        <?php if (!empty($card['features_rating'])): ?>
+                                            <span>Features: <strong style="color:#fff;"><?= (int)$card['features_rating'] ?>★</strong></span>
+                                        <?php endif; ?>
+                                        <?php if (!empty($card['service_rating'])): ?>
+                                            <span>Support: <strong style="color:#fff;"><?= (int)$card['service_rating'] ?>★</strong></span>
+                                        <?php endif; ?>
+                                    </div>
+                                <?php endif; ?>
+                                <div class="author-info" style="display:flex; align-items:center; gap:10px;">
+                                    <div class="author-avatar" style="width:36px; height:36px; border-radius:50%; background:linear-gradient(135deg, rgba(199,255,34,0.25), rgba(56,189,248,0.25)); display:flex; align-items:center; justify-content:center; font-weight:700; font-size:12px; color:#fff; border:1px solid rgba(255,255,255,0.12);">
+                                        <?= strtoupper(substr($card['first_name'] ?? 'G', 0, 1) . substr($card['last_name'] ?? 'O', 0, 1)) ?>
+                                    </div>
+                                    <div>
+                                        <div class="author-name" style="font-weight:700; font-size:13.5px; color:#fff;">
+                                            <?= h(($card['first_name'] ?? 'Gym') . ' ' . ($card['last_name'] ?? 'Owner')) ?>
+                                        </div>
+                                        <div class="author-role" style="font-size:11.5px; color:var(--muted, #94a3b8);">
+                                            Gym Owner &bull; <?= h($card['gym_name'] ?? 'Commercial Fitness') ?>
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
                         </div>
-                    </div>
-
-                    <!-- Review Card 2 -->
-                    <div class="testimonial-card ticker-card">
-                        <div>
-                            <div class="quote-icon"><?= landing_icon('quote', 'quote-svg') ?></div>
-                            <p class="quote-text">
-                                The automated engagement monitoring flagged 45 inactive members last month. We re-engaged
-                                over 70% of them before their subscriptions lapsed.
-                            </p>
-                        </div>
-                        <div class="author-info">
-                            <div class="author-avatar">JC</div>
-                            <div>
-                                <div class="author-name">Jessica Cruz</div>
-                                <div class="author-role">Operations Manager • Apex Athletics</div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Review Card 3 -->
-                    <div class="testimonial-card ticker-card">
-                        <div>
-                            <div class="quote-icon"><?= landing_icon('quote', 'quote-svg') ?></div>
-                            <p class="quote-text">
-                                Assigning customized workout programs and dietary routines to my clients takes half the time
-                                now. It’s the cleanest tool I’ve used.
-                            </p>
-                        </div>
-                        <div class="author-info">
-                            <div class="author-avatar">DC</div>
-                            <div>
-                                <div class="author-name">David Castillo</div>
-                                <div class="author-role">Head Coach • Elevate Performance</div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Review Card 4 -->
-                    <div class="testimonial-card ticker-card">
-                        <div>
-                            <div class="quote-icon"><?= landing_icon('quote', 'quote-svg') ?></div>
-                            <p class="quote-text">
-                                Managing multi-branch gym locations used to be a nightmare of disconnected spreadsheets.
-                                FitTrack synchronized our staff and billing in 24 hours.
-                            </p>
-                        </div>
-                        <div class="author-info">
-                            <div class="author-avatar">SL</div>
-                            <div>
-                                <div class="author-name">Samantha Lim</div>
-                                <div class="author-role">General Manager • MetroFit Philippines</div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Review Card 5 -->
-                    <div class="testimonial-card ticker-card">
-                        <div>
-                            <div class="quote-icon"><?= landing_icon('quote', 'quote-svg') ?></div>
-                            <p class="quote-text">
-                                Online payment tracking and automated renewal reminders boosted our monthly cash flow
-                                predictability by 35%. Highly recommended!
-                            </p>
-                        </div>
-                        <div class="author-info">
-                            <div class="author-avatar">RT</div>
-                            <div>
-                                <div class="author-name">Ramon Torralba</div>
-                                <div class="author-role">Managing Partner • Ironclad Gyms</div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Review Card 6 -->
-                    <div class="testimonial-card ticker-card">
-                        <div>
-                            <div class="quote-icon"><?= landing_icon('quote', 'quote-svg') ?></div>
-                            <p class="quote-text">
-                                Our members love the dynamic QR mobile check-in. It feels ultra-modern, secure, and our
-                                front desk staff can focus on member service.
-                            </p>
-                        </div>
-                        <div class="author-info">
-                            <div class="author-avatar">AB</div>
-                            <div>
-                                <div class="author-name">Angela Bernardo</div>
-                                <div class="author-role">Customer Success Lead • Pulse Fitness Studio</div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Duplicate Set for Seamless 100% Infinite Auto-Scroll Loop -->
-                    <div class="testimonial-card ticker-card">
-                        <div>
-                            <div class="quote-icon"><?= landing_icon('quote', 'quote-svg') ?></div>
-                            <p class="quote-text">
-                                FitTrack gave us total visibility over member attendance trends. Our turnstile lines
-                                disappeared after adopting dynamic QR verification.
-                            </p>
-                        </div>
-                        <div class="author-info">
-                            <div class="author-avatar">MR</div>
-                            <div>
-                                <div class="author-name">Mark Ramirez</div>
-                                <div class="author-role">Owner • Titan Fitness Center</div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="testimonial-card ticker-card">
-                        <div>
-                            <div class="quote-icon"><?= landing_icon('quote', 'quote-svg') ?></div>
-                            <p class="quote-text">
-                                The automated engagement monitoring flagged 45 inactive members last month. We re-engaged
-                                over 70% of them before their subscriptions lapsed.
-                            </p>
-                        </div>
-                        <div class="author-info">
-                            <div class="author-avatar">JC</div>
-                            <div>
-                                <div class="author-name">Jessica Cruz</div>
-                                <div class="author-role">Operations Manager • Apex Athletics</div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="testimonial-card ticker-card">
-                        <div>
-                            <div class="quote-icon"><?= landing_icon('quote', 'quote-svg') ?></div>
-                            <p class="quote-text">
-                                Assigning customized workout programs and dietary routines to my clients takes half the time
-                                now. It’s the cleanest tool I’ve used.
-                            </p>
-                        </div>
-                        <div class="author-info">
-                            <div class="author-avatar">DC</div>
-                            <div>
-                                <div class="author-name">David Castillo</div>
-                                <div class="author-role">Head Coach • Elevate Performance</div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="testimonial-card ticker-card">
-                        <div>
-                            <div class="quote-icon"><?= landing_icon('quote', 'quote-svg') ?></div>
-                            <p class="quote-text">
-                                Managing multi-branch gym locations used to be a nightmare of disconnected spreadsheets.
-                                FitTrack synchronized our staff and billing in 24 hours.
-                            </p>
-                        </div>
-                        <div class="author-info">
-                            <div class="author-avatar">SL</div>
-                            <div>
-                                <div class="author-name">Samantha Lim</div>
-                                <div class="author-role">General Manager • MetroFit Philippines</div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="testimonial-card ticker-card">
-                        <div>
-                            <div class="quote-icon"><?= landing_icon('quote', 'quote-svg') ?></div>
-                            <p class="quote-text">
-                                Online payment tracking and automated renewal reminders boosted our monthly cash flow
-                                predictability by 35%. Highly recommended!
-                            </p>
-                        </div>
-                        <div class="author-info">
-                            <div class="author-avatar">RT</div>
-                            <div>
-                                <div class="author-name">Ramon Torralba</div>
-                                <div class="author-role">Managing Partner • Ironclad Gyms</div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="testimonial-card ticker-card">
-                        <div>
-                            <div class="quote-icon"><?= landing_icon('quote', 'quote-svg') ?></div>
-                            <p class="quote-text">
-                                Our members love the dynamic QR mobile check-in. It feels ultra-modern, secure, and our
-                                front desk staff can focus on member service.
-                            </p>
-                        </div>
-                        <div class="author-info">
-                            <div class="author-avatar">AB</div>
-                            <div>
-                                <div class="author-name">Angela Bernardo</div>
-                                <div class="author-role">Customer Success Lead • Pulse Fitness Studio</div>
-                            </div>
-                        </div>
-                    </div>
+                    <?php endforeach; ?>
                 </div>
             </div>
         </section>

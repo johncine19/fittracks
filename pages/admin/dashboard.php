@@ -78,6 +78,15 @@ function calc_checkin_trend(PDO $pdo, ?int $gymId = null): string
 function dashboard(): void
 {
     $user = require_login();
+
+    // AJAX API for Dashboard Attendance Activity & Peak Hours
+    if (isset($_GET['action']) && $_GET['action'] === 'attendance_activity_api') {
+        require_once 'pages/member/dashboard.php';
+        header('Content-Type: application/json; charset=utf-8');
+        echo json_encode(get_dashboard_attendance_activity_data($user, $_GET));
+        exit;
+    }
+
     render_header('Dashboard', $user);
 
     $pdo = db();

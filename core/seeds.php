@@ -40,6 +40,7 @@ function seed_reference_data_if_empty(): void
     }
 
     seed_reference_exercises();
+    seed_ratings_if_empty();
 }
 
 function seed_reference_exercises(): void
@@ -79,3 +80,99 @@ function seed_reference_exercises(): void
         ]);
     }
 }
+
+function seed_ratings_if_empty(): void
+{
+    $pdo = db();
+    try {
+        // 1. Seed Platform Reviews from Gym Owners if empty
+        $platformCount = (int) $pdo->query('SELECT COUNT(*) FROM platform_reviews')->fetchColumn();
+        if ($platformCount === 0) {
+            $owners = $pdo->query("SELECT u.user_id, g.gym_id, g.name as gym_name FROM users u JOIN gyms g ON g.owner_user_id = u.user_id WHERE u.role = 'gym_owner'")->fetchAll(PDO::FETCH_ASSOC);
+            
+            $seedPlatformFeedbacks = [
+                [
+                    'rating' => 5,
+                    'system_experience' => 5,
+                    'features_rating' => 5,
+                    'service_rating' => 5,
+                    'review' => "FitTrack transformed our entire facility's check-in flow with dynamic QR codes. Our member retention jumped by 24% after automated expiration notices went live!"
+                ],
+                [
+                    'rating' => 5,
+                    'system_experience' => 5,
+                    'features_rating' => 4,
+                    'service_rating' => 5,
+                    'review' => "The trainer commission tracking and class scheduling tools are unmatched. Managing multiple coaches without spreadsheet headaches has saved us 15+ hours weekly."
+                ],
+                [
+                    'rating' => 5,
+                    'system_experience' => 4,
+                    'features_rating' => 5,
+                    'service_rating' => 5,
+                    'review' => "FitTrack gave us total visibility over attendance trends. The churn risk alerts helped us re-engage 70% of inactive members before their memberships lapsed."
+                ],
+                [
+                    'rating' => 5,
+                    'system_experience' => 5,
+                    'features_rating' => 5,
+                    'service_rating' => 5,
+                    'review' => "Online payment tracking and automated renewal reminders boosted our cash flow predictability significantly. Best gym management platform we have ever used!"
+                ]
+            ];
+
+            $stmt = $pdo->prepare("
+                INSERT IGNORE INTO platform_reviews 
+                (user_id, gym_id, rating, review, system_experience, features_rating, service_rating, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, DATE_SUB(NOW(), INTERVAL ? DAY))
+            ");
+
+            foreach ($owners as $idx => $o) {
+                $fb = $seedPlatformFeedbacks[$idx % count($seedPlatformFeedbacks)];
+                $stmt->execute([
+                    $o['user_id'],
+                    $o['gym_id'],
+                    $fb['rating'],
+                    $fb['review'],
+                    $fb['system_experience'],
+                    $fb['features_rating'],
+                    $fb['service_rating'],
+                    ($idx + 1) * 3
+                ]);
+            }
+        }
+
+        // 2. Seed Gym Ratings from Members if empty
+        $gymRatingCount = (int) $pdo->query('SELECT COUNT(*) FROM gym_ratings')->fetchColumn();
+        if ($gymRatingCount === 0) {
+            $gymMembers = $pdo->query("SELECT gm.user_id, gm.gym_id FROM gym_members gm JOIN users u ON u.user_id = gm.user_id WHERE u.role = 'member'")->fetchAll(PDO::FETCH_ASSOC);
+            
+            $seedMemberReviews = [
+                ['rating' => 5, 'review' => "Awesome gym! Clean equipment, friendly staff, and the dynamic QR scanner at the front desk is super convenient."],
+                ['rating' => 5, 'review' => "Great atmosphere and modern strength machines. The coaches are very supportive and my workout plans are easy to follow."],
+                ['rating' => 4, 'review' => "Very well maintained facility. Peak hours get a bit busy, but equipment availability and cleanliness are always top notch."],
+                ['rating' => 5, 'review' => "Clean facilities, great air-conditioning, and high-quality free weights. 10/10 would recommend to anyone in the area!"]
+            ];
+
+            $stmtGym = $pdo->prepare("
+                INSERT IGNORE INTO gym_ratings 
+                (gym_id, user_id, rating, review, created_at)
+                VALUES (?, ?, ?, ?, DATE_SUB(NOW(), INTERVAL ? DAY))
+            ");
+
+            foreach ($gymMembers as $idx => $gm) {
+                $rev = $seedMemberReviews[$idx % count($seedMemberReviews)];
+                $stmtGym->execute([
+                    $gm['gym_id'],
+                    $gm['user_id'],
+                    $rev['rating'],
+                    $rev['review'],
+                    ($idx + 1) * 4
+                ]);
+            }
+        }
+    } catch (Throwable $e) {
+        error_log('seed_ratings_if_empty error: ' . $e->getMessage());
+    }
+}
+

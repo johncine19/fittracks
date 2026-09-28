@@ -63,6 +63,8 @@ function gym_selection_page(): void
         $images->execute([$gym['gym_id']]);
         $gym['images'] = $images->fetchAll(PDO::FETCH_COLUMN);
 
+        $gym['rating_stats'] = get_gym_rating_stats((int)$gym['gym_id']);
+
         $gymData[] = $gym;
     }
 
@@ -720,6 +722,11 @@ function gym_selection_page(): void
                                 <span><?= h($gym['address']) ?></span>
                             </p>
                             <div class="gym-chip-row">
+                                <?php $gStats = $gym['rating_stats'] ?? ['avg_rating' => 0, 'total_reviews' => 0]; ?>
+                                <span class="gym-chip" style="color: #fbbf24; border-color: rgba(251, 191, 36, 0.3); background: rgba(251, 191, 36, 0.08);">
+                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="#fbbf24" stroke="none"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+                                    <?= number_format((float)$gStats['avg_rating'], 1) ?> (<?= (int)$gStats['total_reviews'] ?>)
+                                </span>
                                 <span class="gym-chip">
                                     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
                                     <?= count($gym['classes']) ?> Classes
@@ -927,7 +934,9 @@ function gym_selection_page(): void
             : `<span style="color: var(--lime); font-size: 1.5rem;">${escapeHtml(gym.name.charAt(0))}</span>`;
 
         const hasGallery = gym.images && gym.images.length > 0;
-        let html = `
+                const ratingScore = gym.rating_stats ? parseFloat(gym.rating_stats.avg_rating) : 0;
+                const reviewCount = gym.rating_stats ? parseInt(gym.rating_stats.total_reviews, 10) : 0;
+                let html = `
             <div class="modal-hero">
                 <div class="modal-hero-top">
                     <div class="modal-gym-icon" style="overflow: hidden; padding: ${gym.logo_url ? '0' : '8px'};">${logoHtml}</div>
@@ -946,9 +955,11 @@ function gym_selection_page(): void
                     </form>
                 </div>
                 <div class="modal-quickstats">
+                    <span style="color:#fbbf24;"><strong style="color:#fbbf24;">★ ${ratingScore.toFixed(1)}</strong> (${reviewCount} ${reviewCount === 1 ? 'review' : 'reviews'})</span>
                     <span><strong>${classCount}</strong> classes</span>
                     <span><strong>${planCount}</strong> plans</span>
                     ${minPrice !== null ? `<span>From <strong>₱${minPrice.toFixed(2)}</strong></span>` : ''}
+                    <a href="index.php?page=view_gym&gym_id=${gym.gym_id}#gym-ratings-section" style="color:var(--lime);font-size:12px;text-decoration:none;font-weight:600;margin-left:auto;">View Full Page & Reviews →</a>
                 </div>
                 <svg class="modal-pulse-line" viewBox="0 0 500 16" preserveAspectRatio="none" aria-hidden="true">
                     <path d="M0,8 L200,8 L212,2 L224,14 L236,8 L500,8" />

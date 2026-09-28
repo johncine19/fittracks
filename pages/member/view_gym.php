@@ -28,6 +28,12 @@ function view_gym_page(): void
         $stmtAff->execute([$user['user_id'], $gymId]);
         $isAffiliatedWithThisGym = (bool) $stmtAff->fetchColumn();
     }
+
+    // Ratings & Reviews for this Gym
+    $ratingStats = get_gym_rating_stats($gymId);
+    $gymReviews = get_gym_reviews($gymId, 50);
+    $canReview = ($user['role'] === 'member') && can_user_review_gym((int)$user['user_id'], $gymId);
+    $myReview = ($user['role'] === 'member') ? get_user_gym_review((int)$user['user_id'], $gymId) : null;
     
     // Classes
     $stmtClasses = $pdo->prepare('
@@ -263,6 +269,11 @@ function view_gym_page(): void
         background: rgba(255, 255, 255, 0.05);
         color: var(--ink);
         border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+    .gym-section-icon-wrap.icon-rating {
+        background: rgba(245, 158, 11, 0.12);
+        color: #fbbf24;
+        border: 1px solid rgba(245, 158, 11, 0.25);
     }
 
     .gym-section-header-link {
@@ -653,6 +664,301 @@ function view_gym_page(): void
         filter: brightness(1.06);
     }
 
+    /* Ratings & Reviews Section */
+    .gym-rating-hero-grid {
+        display: grid;
+        grid-template-columns: 320px 1fr;
+        gap: 20px;
+        margin-bottom: 24px;
+    }
+    .gym-rating-summary-card {
+        background: color-mix(in srgb, var(--panel-soft) 40%, transparent);
+        border: 1px solid rgba(255, 255, 255, 0.06);
+        border-radius: 14px;
+        padding: 20px;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        gap: 16px;
+    }
+    .gym-rating-big-score {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+    }
+    .big-score-val {
+        font-size: 44px;
+        font-weight: 900;
+        color: #fbbf24;
+        line-height: 1;
+        letter-spacing: -1px;
+    }
+    .big-score-stars {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+    }
+    .big-score-count {
+        font-size: 11.5px;
+        color: var(--muted);
+        font-weight: 500;
+    }
+    .gym-rating-bars-list {
+        display: flex;
+        flex-direction: column;
+        gap: 7px;
+    }
+    .rating-bar-row {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 11.5px;
+    }
+    .bar-star-label {
+        width: 28px;
+        color: var(--muted);
+        font-weight: 600;
+        flex-shrink: 0;
+    }
+    .rating-bar-track {
+        flex: 1;
+        height: 6px;
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.08);
+        overflow: hidden;
+    }
+    .rating-bar-fill {
+        height: 100%;
+        background: #fbbf24;
+        border-radius: 999px;
+        transition: width 0.3s ease;
+    }
+    .bar-count-label {
+        width: 22px;
+        text-align: right;
+        color: var(--muted);
+        font-size: 11px;
+        flex-shrink: 0;
+    }
+
+    .gym-rating-action-card {
+        background: color-mix(in srgb, var(--panel-soft) 40%, transparent);
+        border: 1px solid rgba(255, 255, 255, 0.06);
+        border-radius: 14px;
+        padding: 20px;
+    }
+    .form-header-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 8px;
+    }
+    .user-reviewed-badge {
+        font-size: 11px;
+        font-weight: 700;
+        color: #4ade80;
+        background: rgba(34, 197, 94, 0.1);
+        border: 1px solid rgba(34, 197, 94, 0.22);
+        padding: 2px 8px;
+        border-radius: 999px;
+    }
+    .interactive-star-picker {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        margin: 10px 0;
+    }
+    .star-picker-stars {
+        display: inline-flex;
+        gap: 4px;
+    }
+    .star-btn {
+        background: none;
+        border: none;
+        padding: 2px;
+        cursor: pointer;
+        color: rgba(255, 255, 255, 0.22);
+        transition: transform 0.15s ease, color 0.15s ease;
+    }
+    .star-btn:hover,
+    .star-btn.hovered,
+    .star-btn.active {
+        color: #fbbf24;
+        transform: scale(1.15);
+    }
+    .star-picker-text {
+        font-size: 13px;
+        font-weight: 700;
+        color: #fbbf24;
+    }
+    .form-textarea-review {
+        width: 100%;
+        box-sizing: border-box;
+        border-radius: 10px;
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        background: rgba(0, 0, 0, 0.2);
+        color: var(--ink);
+        padding: 10px 12px;
+        font-family: inherit;
+        font-size: 13px;
+        resize: vertical;
+        min-height: 70px;
+        line-height: 1.4;
+    }
+    .form-textarea-review:focus {
+        outline: none;
+        border-color: #fbbf24;
+        box-shadow: 0 0 0 2px rgba(251, 191, 36, 0.2);
+    }
+    .rating-not-eligible-box {
+        text-align: center;
+        padding: 16px 20px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        min-height: 140px;
+    }
+    .not-eligible-icon {
+        width: 44px;
+        height: 44px;
+        border-radius: 12px;
+        background: rgba(245, 158, 11, 0.1);
+        color: #fbbf24;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin-bottom: 10px;
+    }
+    .gym-reviews-filter-bar {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        margin-bottom: 16px;
+        flex-wrap: wrap;
+        border-top: 1px solid rgba(255, 255, 255, 0.06);
+        padding-top: 16px;
+    }
+    .review-filter-btn {
+        background: color-mix(in srgb, var(--panel-soft) 50%, transparent);
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        border-radius: 20px;
+        padding: 4px 12px;
+        font-size: 11.5px;
+        font-weight: 600;
+        color: var(--muted);
+        cursor: pointer;
+        transition: all 0.15s ease;
+    }
+    .review-filter-btn:hover {
+        color: var(--ink);
+        border-color: rgba(255, 255, 255, 0.16);
+    }
+    .review-filter-btn.active {
+        background: #fbbf24;
+        color: #080b0d;
+        border-color: #fbbf24;
+        font-weight: 700;
+    }
+    .gym-reviews-feed {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+    }
+    .gym-review-item {
+        background: color-mix(in srgb, var(--panel-soft) 35%, transparent);
+        border: 1px solid rgba(255, 255, 255, 0.06);
+        border-radius: 12px;
+        padding: 14px 16px;
+        transition: all 0.2s ease;
+    }
+    .gym-review-item:hover {
+        border-color: rgba(255, 255, 255, 0.12);
+        background: color-mix(in srgb, var(--panel-soft) 55%, transparent);
+    }
+    .review-item-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        gap: 12px;
+        margin-bottom: 10px;
+    }
+    .review-user-info {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }
+    .review-user-avatar {
+        width: 36px;
+        height: 36px;
+        border-radius: 10px;
+        background: color-mix(in srgb, var(--lime) 15%, transparent);
+        color: var(--lime);
+        font-weight: 800;
+        font-size: 13px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+        overflow: hidden;
+    }
+    .review-user-avatar img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+    }
+    .review-user-name {
+        font-size: 13.5px;
+        font-weight: 700;
+        color: var(--ink);
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        flex-wrap: wrap;
+    }
+    .review-you-pill {
+        font-size: 10px;
+        padding: 1px 6px;
+        border-radius: 4px;
+        background: rgba(132, 204, 22, 0.15);
+        color: var(--lime);
+        font-weight: 700;
+    }
+    .review-verified-pill {
+        font-size: 10px;
+        padding: 1px 6px;
+        border-radius: 4px;
+        background: rgba(255, 255, 255, 0.06);
+        color: var(--muted);
+        font-weight: 600;
+        display: inline-flex;
+        align-items: center;
+        gap: 3px;
+    }
+    .review-date-str {
+        font-size: 11px;
+        color: var(--muted);
+        margin-top: 1px;
+    }
+    .review-comment-body {
+        font-size: 13px;
+        color: var(--ink);
+        line-height: 1.5;
+        opacity: 0.92;
+    }
+    .review-comment-empty {
+        font-size: 12px;
+        font-style: italic;
+        color: var(--muted);
+    }
+
+    @media (max-width: 768px) {
+        .gym-rating-hero-grid {
+            grid-template-columns: 1fr;
+        }
+    }
+
     /* Light Theme Parity */
     html[data-theme="light"] .gym-hero-card,
     [data-theme="light"] .gym-hero-card,
@@ -775,6 +1081,48 @@ function view_gym_page(): void
         background: #f1f5f9 !important;
         color: #334155 !important;
         border-color: #cbd5e1 !important;
+    }
+    html[data-theme="light"] .gym-section-icon-wrap.icon-rating,
+    [data-theme="light"] .gym-section-icon-wrap.icon-rating {
+        background: #fffbeb !important;
+        color: #b45309 !important;
+        border-color: #fde68a !important;
+    }
+    html[data-theme="light"] .gym-rating-summary-card,
+    [data-theme="light"] .gym-rating-summary-card,
+    html[data-theme="light"] .gym-rating-action-card,
+    [data-theme="light"] .gym-rating-action-card,
+    html[data-theme="light"] .gym-review-item,
+    [data-theme="light"] .gym-review-item {
+        background: #ffffff !important;
+        border: 1px solid #e2e8f0 !important;
+        box-shadow: 0 1px 4px rgba(0, 0, 0, 0.03) !important;
+    }
+    html[data-theme="light"] .form-textarea-review {
+        background: #f8fafc !important;
+        border-color: #cbd5e1 !important;
+        color: #0f172a !important;
+    }
+    html[data-theme="light"] .rating-bar-track {
+        background: #e2e8f0 !important;
+    }
+    html[data-theme="light"] .star-btn {
+        color: #cbd5e1;
+    }
+    html[data-theme="light"] .star-btn:hover,
+    html[data-theme="light"] .star-btn.hovered,
+    html[data-theme="light"] .star-btn.active {
+        color: #f59e0b !important;
+    }
+    html[data-theme="light"] .review-filter-btn {
+        background: #f1f5f9 !important;
+        border-color: #cbd5e1 !important;
+        color: #475569 !important;
+    }
+    html[data-theme="light"] .review-filter-btn.active {
+        background: #f59e0b !important;
+        color: #ffffff !important;
+        border-color: #f59e0b !important;
     }
 
     /* =========================================================
@@ -947,6 +1295,15 @@ function view_gym_page(): void
                                 <span class="gym-current-badge">
                                     ★ Your Current Gym
                                 </span>
+                            <?php endif; ?>
+                        </div>
+
+                        <div class="gym-hero-rating-row" style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px; flex-wrap: wrap;">
+                            <?= render_star_rating($ratingStats['avg_rating'], 'sm', true, $ratingStats['total_reviews']) ?>
+                            <?php if ($ratingStats['total_reviews'] > 0): ?>
+                                <a href="#gym-ratings-section" style="font-size: 12px; color: var(--lime); font-weight: 600; text-decoration: none;">View <?= $ratingStats['total_reviews'] ?> <?= $ratingStats['total_reviews'] === 1 ? 'review' : 'reviews' ?> ↓</a>
+                            <?php else: ?>
+                                <span style="font-size: 12px; color: var(--muted);">No member reviews yet</span>
                             <?php endif; ?>
                         </div>
 
@@ -1202,6 +1559,192 @@ function view_gym_page(): void
                 </div>
             </div>
         <?php endif; ?>
+
+        <!-- Section: Member Ratings & Reviews -->
+        <div class="gym-panel-box" id="gym-ratings-section">
+            <div class="gym-section-title">
+                <div class="gym-section-title-left">
+                    <div class="gym-section-icon-wrap icon-rating">
+                        <svg width="17" height="17" viewBox="0 0 24 24" fill="#fbbf24" stroke="none"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+                    </div>
+                    <span>Ratings & Member Reviews</span>
+                </div>
+                <span style="font-size: 13px; color: var(--muted);"><?= $ratingStats['total_reviews'] ?> <?= $ratingStats['total_reviews'] === 1 ? 'review' : 'reviews' ?></span>
+            </div>
+
+            <!-- Rating Overview & Interactive Review Form Grid -->
+            <div class="gym-rating-hero-grid">
+                <!-- Left: Aggregated Rating Stats & Breakdown -->
+                <div class="gym-rating-summary-card">
+                    <div class="gym-rating-big-score">
+                        <div class="big-score-val"><?= number_format($ratingStats['avg_rating'], 1) ?></div>
+                        <div class="big-score-stars">
+                            <?= render_star_rating($ratingStats['avg_rating'], 'md') ?>
+                            <div class="big-score-count">Based on <?= $ratingStats['total_reviews'] ?> <?= $ratingStats['total_reviews'] === 1 ? 'member review' : 'member reviews' ?></div>
+                        </div>
+                    </div>
+
+                    <div class="gym-rating-bars-list">
+                        <?php for ($s = 5; $s >= 1; $s--): 
+                            $cnt = $ratingStats['breakdown'][$s] ?? 0;
+                            $pct = $ratingStats['breakdown_pct'][$s] ?? 0;
+                        ?>
+                            <div class="rating-bar-row">
+                                <span class="bar-star-label"><?= $s ?> ★</span>
+                                <div class="rating-bar-track">
+                                    <div class="rating-bar-fill" style="width: <?= $pct ?>%;"></div>
+                                </div>
+                                <span class="bar-count-label"><?= $cnt ?></span>
+                            </div>
+                        <?php endfor; ?>
+                    </div>
+                </div>
+
+                <!-- Right: Submit / Edit Review or Status -->
+                <div class="gym-rating-action-card">
+                    <?php if ($canReview): 
+                        $initialRating = isset($_GET['rating']) && (int)$_GET['rating'] >= 1 && (int)$_GET['rating'] <= 5 
+                            ? (int)$_GET['rating'] 
+                            : (int) ($myReview['rating'] ?? 5);
+                    ?>
+                        <form method="POST" action="index.php" id="formGymRating" class="rating-submit-form">
+                            <?= csrf_field() ?>
+                            <input type="hidden" name="submit_gym_rating" value="1">
+                            <input type="hidden" name="gym_id" value="<?= $gymId ?>">
+                            <input type="hidden" name="rating" id="selectedGymRating" value="<?= $initialRating ?>">
+
+                            <div class="form-header-row">
+                                <h4 style="margin: 0; font-size: 16px; font-weight: 700; color: var(--ink);">
+                                    <?= $myReview ? 'Update Your Rating & Review' : 'Rate & Review ' . h($gym['name']) ?>
+                                </h4>
+                                <?php if ($myReview): ?>
+                                    <span class="user-reviewed-badge">Reviewed <?= date('M j', strtotime($myReview['created_at'])) ?></span>
+                                <?php endif; ?>
+                            </div>
+                            <p style="margin: 4px 0 14px; font-size: 12.5px; color: var(--muted);">
+                                Share your personal experience with equipment, coaches, cleanliness, and overall facility.
+                            </p>
+
+                            <!-- Interactive Star Picker -->
+                            <div class="interactive-star-picker" id="starPickerContainer" role="radiogroup" aria-label="Rating from 1 to 5 stars">
+                                <div class="star-picker-stars">
+                                    <?php for ($i = 1; $i <= 5; $i++): ?>
+                                        <button type="button" class="star-btn <?= ($i <= $initialRating) ? 'active' : '' ?>" data-val="<?= $i ?>" aria-label="<?= $i ?> stars" title="<?= $i ?> Stars">
+                                            <svg width="26" height="26" viewBox="0 0 24 24" fill="currentColor"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+                                        </button>
+                                    <?php endfor; ?>
+                                </div>
+                                <span class="star-picker-text" id="starPickerLabel"><?= $initialRating ?> / 5 Stars</span>
+                            </div>
+
+                            <!-- Optional Written Review -->
+                            <div style="margin-top: 14px;">
+                                <label for="gymReviewText" style="display: block; font-size: 12px; font-weight: 600; color: var(--muted); margin-bottom: 6px;">
+                                    Written Review <span style="font-weight: 400; opacity: 0.8;">(optional)</span>
+                                </label>
+                                <textarea name="review" id="gymReviewText" rows="3" class="form-textarea-review" placeholder="How was your workout experience? Equipment availability, trainers, hygiene..."><?= h($myReview['review'] ?? '') ?></textarea>
+                            </div>
+
+                            <div style="margin-top: 14px; display: flex; justify-content: flex-end;">
+                                <button type="submit" class="btn btn-lime btn-sm" id="btnSubmitGymReview">
+                                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+                                    <span><?= $myReview ? 'Update Review' : 'Post Review' ?></span>
+                                </button>
+                            </div>
+                        </form>
+                    <?php elseif ($user['role'] === 'member'): ?>
+                        <div class="rating-not-eligible-box">
+                            <div class="not-eligible-icon">
+                                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                            </div>
+                            <h4 style="margin: 0 0 6px; font-size: 15px; font-weight: 700; color: var(--ink);">Member Review Eligibility</h4>
+                            <p style="margin: 0; font-size: 13px; color: var(--muted); line-height: 1.5;">
+                                Only members enrolled in <strong><?= h($gym['name']) ?></strong> or members who have checked in / visited can leave a rating and review.
+                            </p>
+                            <?php if (!$isAffiliatedWithThisGym): ?>
+                                <div style="margin-top: 14px;">
+                                    <a href="index.php?page=gym_selection" class="btn btn-lime btn-sm">Affiliate With This Gym</a>
+                                </div>
+                            <?php endif; ?>
+                        </div>
+                    <?php else: ?>
+                        <div class="rating-not-eligible-box">
+                            <div class="not-eligible-icon" style="color: var(--lime); background: rgba(132, 204, 22, 0.1);">
+                                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+                            </div>
+                            <h4 style="margin: 0 0 6px; font-size: 15px; font-weight: 700; color: var(--ink);">Verified Community Ratings</h4>
+                            <p style="margin: 0; font-size: 13px; color: var(--muted); line-height: 1.5;">
+                                All member ratings shown here are verified check-ins and enrolled members of <?= h($gym['name']) ?>.
+                            </p>
+                        </div>
+                    <?php endif; ?>
+                </div>
+            </div>
+
+            <!-- Review Filter Pills -->
+            <?php if (!empty($gymReviews)): ?>
+                <div class="gym-reviews-filter-bar">
+                    <span style="font-size: 13px; font-weight: 600; color: var(--muted);">Filter:</span>
+                    <button type="button" class="review-filter-btn active" data-star="all" onclick="filterReviews('all', this)">All (<?= count($gymReviews) ?>)</button>
+                    <?php for ($s = 5; $s >= 1; $s--): 
+                        $sCount = $ratingStats['breakdown'][$s] ?? 0;
+                        if ($sCount > 0): ?>
+                            <button type="button" class="review-filter-btn" data-star="<?= $s ?>" onclick="filterReviews(<?= $s ?>, this)"><?= $s ?> ★ (<?= $sCount ?>)</button>
+                        <?php endif; 
+                    endfor; ?>
+                </div>
+
+                <!-- Reviews Feed List -->
+                <div class="gym-reviews-feed" id="gymReviewsFeed">
+                    <?php foreach ($gymReviews as $rev): ?>
+                        <div class="gym-review-item" data-rating="<?= (int) $rev['rating'] ?>">
+                            <div class="review-item-header">
+                                <div class="review-user-info">
+                                    <div class="review-user-avatar">
+                                        <?php if (!empty($rev['profile_picture'])): ?>
+                                            <img src="<?= h($rev['profile_picture']) ?>" alt="<?= h($rev['first_name']) ?>">
+                                        <?php else: ?>
+                                            <?= h(strtoupper(substr($rev['first_name'], 0, 1) . substr($rev['last_name'], 0, 1))) ?>
+                                        <?php endif; ?>
+                                    </div>
+                                    <div>
+                                        <div class="review-user-name">
+                                            <?= h($rev['first_name'] . ' ' . $rev['last_name']) ?>
+                                            <?php if ((int)$rev['user_id'] === (int)$user['user_id']): ?>
+                                                <span class="review-you-pill">You</span>
+                                            <?php endif; ?>
+                                            <span class="review-verified-pill">
+                                                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>
+                                                <?= $rev['is_enrolled'] ? 'Enrolled Member' : 'Verified Visitor' ?>
+                                            </span>
+                                        </div>
+                                        <div class="review-date-str"><?= date('M j, Y', strtotime($rev['updated_at'] ?: $rev['created_at'])) ?></div>
+                                    </div>
+                                </div>
+                                <div class="review-item-stars">
+                                    <?= render_star_rating((float) $rev['rating'], 'sm') ?>
+                                </div>
+                            </div>
+                            <?php if (!empty($rev['review'])): ?>
+                                <div class="review-comment-body">
+                                    <?= nl2br(h($rev['review'])) ?>
+                                </div>
+                            <?php else: ?>
+                                <div class="review-comment-empty">
+                                    Rated <?= (int) $rev['rating'] ?> out of 5 stars
+                                </div>
+                            <?php endif; ?>
+                        </div>
+                    <?php endforeach; ?>
+                </div>
+            <?php else: ?>
+                <div class="gym-empty-compact" style="margin-top: 20px; text-align: center; padding: 32px 20px;">
+                    <div style="font-size: 28px; margin-bottom: 8px;">★</div>
+                    <h4 style="margin: 0 0 4px; color: var(--ink);">No member reviews yet</h4>
+                    <p style="margin: 0; color: var(--muted); font-size: 13px;">Be the first member to rate and review <?= h($gym['name']) ?>!</p>
+                </div>
+            <?php endif; ?>
+        </div>
     </div>
 
     <script>
@@ -1220,6 +1763,61 @@ function view_gym_page(): void
             btn.setAttribute('data-expanded', 'true');
             btn.innerHTML = '<span>Show less</span> <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="18 15 12 9 6 15"/></svg>';
         }
+    }
+
+    // Star Picker Handler
+    (function initStarPicker() {
+        const starPicker = document.getElementById('starPickerContainer');
+        if (!starPicker) return;
+        const starBtns = starPicker.querySelectorAll('.star-btn');
+        const hiddenInput = document.getElementById('selectedGymRating');
+        const pickerLabel = document.getElementById('starPickerLabel');
+
+        function updateStarDisplay(val) {
+            starBtns.forEach(btn => {
+                const bVal = parseInt(btn.dataset.val, 10);
+                btn.classList.toggle('active', bVal <= val);
+            });
+            if (pickerLabel) {
+                pickerLabel.textContent = val + ' / 5 Stars';
+            }
+        }
+
+        starBtns.forEach(btn => {
+            btn.addEventListener('mouseenter', () => {
+                const hoverVal = parseInt(btn.dataset.val, 10);
+                starBtns.forEach(b => {
+                    const bVal = parseInt(b.dataset.val, 10);
+                    b.classList.toggle('hovered', bVal <= hoverVal);
+                });
+            });
+
+            btn.addEventListener('mouseleave', () => {
+                starBtns.forEach(b => b.classList.remove('hovered'));
+            });
+
+            btn.addEventListener('click', () => {
+                const clickVal = parseInt(btn.dataset.val, 10);
+                if (hiddenInput) hiddenInput.value = clickVal;
+                updateStarDisplay(clickVal);
+            });
+        });
+    })();
+
+    // Filter Reviews
+    function filterReviews(star, btn) {
+        document.querySelectorAll('.review-filter-btn').forEach(b => b.classList.remove('active'));
+        if (btn) btn.classList.add('active');
+
+        const items = document.querySelectorAll('.gym-review-item');
+        items.forEach(item => {
+            const itemRating = parseInt(item.dataset.rating, 10);
+            if (star === 'all' || itemRating === parseInt(star, 10)) {
+                item.style.display = 'block';
+            } else {
+                item.style.display = 'none';
+            }
+        });
     }
     </script>
 

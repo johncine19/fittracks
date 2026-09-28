@@ -192,29 +192,71 @@ function diet_builder_page(): void
 
             // Query active foods matching member dietary restriction and gym scope
             $targetGymId = $gymId ?: get_user_gym_id($user);
-            $foodQuery = "
-                SELECT food_id, name, meal_type, serving_size, calories, protein_g, carbs_g, fat_g, image_url, recipe_desc 
-                FROM food_items 
-                WHERE is_active = 1 
-                  AND (gym_id = ? OR gym_id IS NULL)
-                  AND (dietary_restriction = ? OR dietary_restriction = 'none')
-                ORDER BY (gym_id IS NOT NULL) DESC, RAND()
-            ";
+            $compatibleDiets = function_exists('get_compatible_dietary_restrictions')
+                ? get_compatible_dietary_restrictions($restriction)
+                : ($restriction !== 'none' ? [$restriction] : []);
+
+            if (!empty($compatibleDiets)) {
+                $inClause = implode(',', array_fill(0, count($compatibleDiets), '?'));
+                $foodQuery = "
+                    SELECT food_id, name, meal_type, serving_size, calories, protein_g, carbs_g, fat_g, image_url, recipe_desc 
+                    FROM food_items 
+                    WHERE is_active = 1 
+                      AND (gym_id = ? OR gym_id IS NULL OR gym_id = 0)
+                      AND dietary_restriction IN ({$inClause})
+                    ORDER BY (gym_id IS NOT NULL AND gym_id > 0) DESC, RAND()
+                ";
+                $foodParams = array_merge([$targetGymId], $compatibleDiets);
+            } else {
+                $foodQuery = "
+                    SELECT food_id, name, meal_type, serving_size, calories, protein_g, carbs_g, fat_g, image_url, recipe_desc 
+                    FROM food_items 
+                    WHERE is_active = 1 
+                      AND (gym_id = ? OR gym_id IS NULL OR gym_id = 0)
+                    ORDER BY (gym_id IS NOT NULL AND gym_id > 0) DESC, (dietary_restriction = 'none') DESC, RAND()
+                ";
+                $foodParams = [$targetGymId];
+            }
+
             $foodStmt = $pdo->prepare($foodQuery);
-            $foodStmt->execute([$targetGymId, $restriction]);
-            $dbFoods = $foodStmt->fetchAll();
+            $foodStmt->execute($foodParams);
+            $dbFoods = $foodStmt->fetchAll(PDO::FETCH_ASSOC);
 
             $foodsByType = ['Breakfast' => [], 'Lunch' => [], 'Dinner' => [], 'Snack' => []];
             foreach ($dbFoods as $f) {
-                $foodsByType[$f['meal_type']][] = $f;
+                $mt = ucfirst(strtolower((string)$f['meal_type']));
+                if (isset($foodsByType[$mt])) {
+                    $foodsByType[$mt][] = $f;
+                }
             }
 
             // Fallback for any meal type that has no matches
             foreach (['Breakfast', 'Lunch', 'Dinner', 'Snack'] as $mt) {
                 if (empty($foodsByType[$mt])) {
-                    $fallbackStmt = $pdo->prepare("SELECT food_id, name, meal_type, serving_size, calories, protein_g, carbs_g, fat_g, image_url, recipe_desc FROM food_items WHERE is_active = 1 AND meal_type = ? ORDER BY RAND()");
-                    $fallbackStmt->execute([$mt]);
-                    $foodsByType[$mt] = $fallbackStmt->fetchAll();
+                    if (!empty($compatibleDiets)) {
+                        $inClause = implode(',', array_fill(0, count($compatibleDiets), '?'));
+                        $fallbackStmt = $pdo->prepare("
+                            SELECT food_id, name, meal_type, serving_size, calories, protein_g, carbs_g, fat_g, image_url, recipe_desc 
+                            FROM food_items 
+                            WHERE is_active = 1 
+                              AND meal_type = ? 
+                              AND dietary_restriction IN ({$inClause}) 
+                            ORDER BY RAND()
+                        ");
+                        $fallbackStmt->execute(array_merge([$mt], $compatibleDiets));
+                        $foodsByType[$mt] = $fallbackStmt->fetchAll(PDO::FETCH_ASSOC);
+                    }
+                    if (empty($foodsByType[$mt])) {
+                        if (!in_array($restriction, ['vegetarian', 'vegan', 'halal'])) {
+                            $fallbackStmt = $pdo->prepare("SELECT food_id, name, meal_type, serving_size, calories, protein_g, carbs_g, fat_g, image_url, recipe_desc FROM food_items WHERE is_active = 1 AND meal_type = ? ORDER BY RAND()");
+                            $fallbackStmt->execute([$mt]);
+                            $foodsByType[$mt] = $fallbackStmt->fetchAll(PDO::FETCH_ASSOC);
+                        } else {
+                            $fallbackStmt = $pdo->prepare("SELECT food_id, name, meal_type, serving_size, calories, protein_g, carbs_g, fat_g, image_url, recipe_desc FROM food_items WHERE is_active = 1 AND dietary_restriction IN ('vegetarian', 'vegan') ORDER BY RAND()");
+                            $fallbackStmt->execute();
+                            $foodsByType[$mt] = $fallbackStmt->fetchAll(PDO::FETCH_ASSOC);
+                        }
+                    }
                 }
             }
             

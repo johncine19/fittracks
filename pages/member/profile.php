@@ -221,14 +221,22 @@ function profile_page(): void
     
     $allGyms = query_all('SELECT gym_id, name FROM gyms WHERE status = "approved" ORDER BY name ASC');
 
-    // Gym owner subscription and billing metrics
+    // Gym owner subscription, billing metrics & ratings
     $ownerGym = null;
+    $ownerGymId = null;
     $gymRevenue = 0.0;
     $platformFee = 0.0;
     $netRevenue = 0.0;
     $ownerTrialInfo = null;
-    if ($user['role'] === 'gym_owner') {
+    $gymRatingStats = null;
+    $recentGymReviews = [];
+    $myPlatformReview = null;
+    $platformStats = null;
+    if (in_array(($user['role'] ?? ''), ['gym_owner', 'admin'], true)) {
         $ownerGym = db()->query('SELECT * FROM gyms WHERE owner_user_id = ' . (int)$user['user_id'])->fetch(PDO::FETCH_ASSOC);
+        if (!$ownerGym && !empty($user['gym_id'])) {
+            $ownerGym = db()->query('SELECT * FROM gyms WHERE gym_id = ' . (int)$user['gym_id'])->fetch(PDO::FETCH_ASSOC);
+        }
         if ($ownerGym) {
             $ownerGymId = (int)$ownerGym['gym_id'];
             $ownerTrialInfo = gym_trial_info($ownerGym);
@@ -241,7 +249,12 @@ function profile_page(): void
             )->fetchColumn();
             $platformFee = $gymRevenue * 0.01;
             $netRevenue = $gymRevenue - $platformFee;
+
+            $gymRatingStats   = get_gym_rating_stats($ownerGymId);
+            $recentGymReviews = get_gym_reviews($ownerGymId, 5);
         }
+        $myPlatformReview = get_owner_platform_review((int)$user['user_id']);
+        $platformStats    = get_platform_rating_stats();
     }
 
     render_header('Settings', $user);
@@ -327,6 +340,12 @@ function profile_page(): void
             <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
             Preferences
         </button>
+        <?php if (in_array(($user['role'] ?? ''), ['gym_owner', 'admin'], true)): ?>
+        <button class="settings-tab" data-tab="ratings_feedback">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+            Rating &amp; Feedback
+        </button>
+        <?php endif; ?>
     </nav>
 
     <!-- Tab: Account -->
@@ -1017,6 +1036,270 @@ function profile_page(): void
         </div>
     </div>
 
+    <!-- Tab: Rating & Feedback -->
+    <?php if (in_array(($user['role'] ?? ''), ['gym_owner', 'admin'], true)): ?>
+    <div class="settings-panel" data-panel="ratings_feedback">
+        <div class="settings-section">
+            <div class="settings-section-header" style="flex-wrap:wrap; gap:12px;">
+                <div>
+                    <h2 class="settings-section-title" style="display:flex; align-items:center; gap:8px;">
+                        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color:var(--lime);"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+                        Two-Way Rating &amp; Feedback Hub
+                    </h2>
+                    <p class="settings-section-desc">
+                        Track member ratings for your gym &bull; Share your feedback on the FitTrack platform
+                    </p>
+                </div>
+                <div style="display:flex; align-items:center; gap:8px;">
+                    <span style="font-size:12px; padding:4px 12px; border-radius:999px; background:rgba(199,255,34,0.08); border:1px solid rgba(199,255,34,0.2); color:var(--lime); font-weight:600;">
+                        Two-Way Separation Active
+                    </span>
+                </div>
+            </div>
+
+            <!-- Two-Way Grid -->
+            <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(360px, 1fr)); gap:22px; margin-top:20px;">
+                <!-- Card 1: Members -> Your Gym -->
+                <div style="border-radius:14px; border:1px solid var(--line); background:color-mix(in srgb, var(--panel-soft) 60%, transparent); padding:22px; display:flex; flex-direction:column;">
+                    <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:16px;">
+                        <div>
+                            <div style="display:flex; align-items:center; gap:8px;">
+                                <span style="font-size:11px; text-transform:uppercase; letter-spacing:0.5px; font-weight:700; color:var(--lime); background:rgba(199,255,34,0.1); padding:2px 8px; border-radius:4px;">Members &rarr; Your Gym</span>
+                            </div>
+                            <h3 style="font-size:17px; font-weight:700; margin:6px 0 0 0; color:var(--ink);">Member Ratings &amp; Reviews</h3>
+                            <p style="font-size:12px; color:var(--muted); margin:2px 0 0 0;">Ratings contributed exclusively by your enrolled gym members</p>
+                        </div>
+                        <?php if ($ownerGymId): ?>
+                        <a href="index.php?page=gym_profile#sec-ratings" class="btn btn-secondary" style="font-size:12px; padding:5px 12px; text-decoration:none; white-space:nowrap;">View All &rarr;</a>
+                        <?php endif; ?>
+                    </div>
+
+                    <?php if ($gymRatingStats && $ownerGymId): ?>
+                        <!-- Score Summary Box -->
+                        <div style="background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.06); border-radius:12px; padding:16px; margin-bottom:18px; display:flex; align-items:center; gap:20px;">
+                            <div style="text-align:center; min-width:85px;">
+                                <div style="font-size:36px; font-weight:800; line-height:1; color:#fff;">
+                                    <?= number_format($gymRatingStats['avg_rating'], 1) ?>
+                                </div>
+                                <div style="margin-top:6px; display:flex; justify-content:center;">
+                                    <?= render_star_rating($gymRatingStats['avg_rating'], 14, false) ?>
+                                </div>
+                                <div style="font-size:11px; color:var(--muted); margin-top:4px;">
+                                    <?= $gymRatingStats['total_reviews'] ?> <?= $gymRatingStats['total_reviews'] === 1 ? 'review' : 'reviews' ?>
+                                </div>
+                            </div>
+
+                            <!-- Star Breakdown Progress Bars -->
+                            <div style="flex:1; border-left:1px solid rgba(255,255,255,0.06); padding-left:16px; display:flex; flex-direction:column; gap:4px;">
+                                <?php for ($s = 5; $s >= 1; $s--): 
+                                    $pct = $gymRatingStats['breakdown_pct'][$s] ?? 0;
+                                    $cnt = $gymRatingStats['breakdown'][$s] ?? 0;
+                                ?>
+                                    <div style="display:flex; align-items:center; gap:8px; font-size:11px;">
+                                        <span style="width:20px; color:var(--muted); text-align:right; font-weight:600;"><?= $s ?>★</span>
+                                        <div style="flex:1; height:6px; background:rgba(255,255,255,0.08); border-radius:999px; overflow:hidden;">
+                                            <div style="height:100%; width:<?= $pct ?>%; background:linear-gradient(90deg, #f59e0b, #fbbf24); border-radius:999px;"></div>
+                                        </div>
+                                        <span style="width:22px; color:var(--muted); font-size:10px;"><?= $cnt ?></span>
+                                    </div>
+                                <?php endfor; ?>
+                            </div>
+                        </div>
+
+                        <!-- Recent Member Reviews Feed -->
+                        <div style="flex:1;">
+                            <div style="font-size:12px; font-weight:700; color:var(--muted); text-transform:uppercase; letter-spacing:0.5px; margin-bottom:10px;">
+                                Recent Member Reviews
+                            </div>
+                            <div class="list-stack" style="display:flex; flex-direction:column; gap:10px;">
+                                <?php if (!empty($recentGymReviews)): ?>
+                                    <?php foreach ($recentGymReviews as $rev): ?>
+                                        <div style="padding:12px; background:rgba(255,255,255,0.02); border:1px solid rgba(255,255,255,0.05); border-radius:10px;">
+                                            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+                                                <div style="display:flex; align-items:center; gap:8px;">
+                                                    <?= render_avatar($rev) ?>
+                                                    <div>
+                                                        <strong style="font-size:12.5px; display:block; color:var(--ink);"><?= h(($rev['first_name'] ?? '') . ' ' . ($rev['last_name'] ?? '')) ?></strong>
+                                                        <span style="font-size:10.5px; color:var(--muted);"><?= h(date('M d, Y', strtotime($rev['created_at']))) ?></span>
+                                                    </div>
+                                                </div>
+                                                <div>
+                                                    <?= render_star_rating((float)$rev['rating'], 13, false) ?>
+                                                </div>
+                                            </div>
+                                            <?php if (!empty($rev['review'])): ?>
+                                                <p style="font-size:12.5px; line-height:1.45; color:rgba(255,255,255,0.85); margin:6px 0 0 0; font-style:italic;">
+                                                    &ldquo;<?= h($rev['review']) ?>&rdquo;
+                                                </p>
+                                            <?php endif; ?>
+                                        </div>
+                                    <?php endforeach; ?>
+                                <?php else: ?>
+                                    <div style="text-align:center; padding:28px 16px; background:rgba(255,255,255,0.02); border:1px dashed rgba(255,255,255,0.08); border-radius:10px;">
+                                        <p style="font-size:13px; color:var(--muted); margin:0;">No member reviews yet.</p>
+                                        <span style="font-size:11.5px; color:var(--muted); display:block; margin-top:4px;">When your enrolled members rate your gym in their portal, their feedback will show here.</span>
+                                    </div>
+                                <?php endif; ?>
+                            </div>
+                        </div>
+                    <?php else: ?>
+                        <div style="text-align:center; padding:32px 16px; background:rgba(255,255,255,0.02); border:1px dashed rgba(255,255,255,0.08); border-radius:10px;">
+                            <p style="font-size:13px; color:var(--muted); margin:0;">No gym associated yet.</p>
+                        </div>
+                    <?php endif; ?>
+                </div>
+
+                <!-- Card 2: Gym Owner -> FitTrack Platform -->
+                <div id="platform-feedback-card" style="border-radius:14px; border:1px solid rgba(199,255,34,0.25); background:color-mix(in srgb, var(--panel-soft) 60%, transparent); padding:22px; display:flex; flex-direction:column;">
+                    <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:14px;">
+                        <div>
+                            <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+                                <span style="font-size:11px; text-transform:uppercase; letter-spacing:0.5px; font-weight:700; color:#38bdf8; background:rgba(56,189,248,0.1); padding:2px 8px; border-radius:4px;">Gym Owner &rarr; FitTrack</span>
+                                <span style="font-size:11px; color:var(--lime); background:rgba(199,255,34,0.08); border:1px solid rgba(199,255,34,0.2); padding:2px 8px; border-radius:999px;">
+                                    Featured on Landing Page
+                                </span>
+                            </div>
+                            <h3 style="font-size:17px; font-weight:700; margin:6px 0 0 0; color:var(--ink);">Rate the FitTrack Platform</h3>
+                            <p style="font-size:12px; color:var(--muted); margin:2px 0 0 0;">
+                                Your rating &amp; testimonial appear on the FitTrack landing page to help other gym owners!
+                            </p>
+                        </div>
+                        <?php if ($myPlatformReview): ?>
+                            <span style="display:inline-flex; align-items:center; gap:4px; font-size:11px; color:#22c55e; background:rgba(34,197,94,0.1); padding:3px 8px; border-radius:6px; font-weight:600; white-space:nowrap;">
+                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+                                Feedback Live
+                            </span>
+                        <?php endif; ?>
+                    </div>
+
+                    <!-- Existing Review Summary / Toggle if already reviewed -->
+                    <?php if ($myPlatformReview): ?>
+                        <div id="platform-review-view" style="background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.06); border-radius:10px; padding:14px; margin-bottom:14px;">
+                            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+                                <div style="display:flex; align-items:center; gap:8px;">
+                                    <?= render_star_rating((float)$myPlatformReview['rating'], 16, true) ?>
+                                    <span style="font-size:11px; color:var(--muted);">&bull; Submitted <?= h(date('M d, Y', strtotime($myPlatformReview['updated_at'] ?? $myPlatformReview['created_at']))) ?></span>
+                                </div>
+                                <button type="button" onclick="togglePlatformReviewEdit(true)" class="btn btn-secondary" style="font-size:11px; padding:2px 8px;">
+                                    Edit Feedback &#9998;
+                                </button>
+                            </div>
+                            <?php if (!empty($myPlatformReview['review'])): ?>
+                                <p style="font-size:13px; line-height:1.45; color:rgba(255,255,255,0.9); margin:0 0 8px 0; font-style:italic;">
+                                    &ldquo;<?= h($myPlatformReview['review']) ?>&rdquo;
+                                </p>
+                            <?php endif; ?>
+                            <div style="display:flex; gap:12px; font-size:11px; color:var(--muted); flex-wrap:wrap; border-top:1px solid rgba(255,255,255,0.05); padding-top:8px;">
+                                <?php if (!empty($myPlatformReview['system_experience'])): ?>
+                                    <span>System UX: <strong style="color:var(--lime);"><?= (int)$myPlatformReview['system_experience'] ?>★</strong></span>
+                                <?php endif; ?>
+                                <?php if (!empty($myPlatformReview['features_rating'])): ?>
+                                    <span>Features: <strong style="color:var(--lime);"><?= (int)$myPlatformReview['features_rating'] ?>★</strong></span>
+                                <?php endif; ?>
+                                <?php if (!empty($myPlatformReview['service_rating'])): ?>
+                                    <span>Service: <strong style="color:var(--lime);"><?= (int)$myPlatformReview['service_rating'] ?>★</strong></span>
+                                <?php endif; ?>
+                                <a href="index.php?page=landing#testimonials" target="_blank" style="margin-left:auto; color:var(--lime); text-decoration:none; font-weight:600;">
+                                    View on Landing Page &rarr;
+                                </a>
+                            </div>
+                        </div>
+                    <?php endif; ?>
+
+                    <!-- Platform Review Form -->
+                    <form id="platform-review-form" method="POST" action="index.php" style="<?= $myPlatformReview ? 'display:none;' : '' ?> flex:1; display:<?= $myPlatformReview ? 'none' : 'flex' ?>; flex-direction:column; gap:12px;">
+                        <input type="hidden" name="action" value="submit_platform_review">
+                        <input type="hidden" name="submit_platform_review" value="1">
+                        <input type="hidden" name="csrf_token" value="<?= csrf_token() ?>">
+                        <input type="hidden" name="gym_id" value="<?= (int)($ownerGymId ?? 0) ?>">
+                        <input type="hidden" name="redirect_to" value="index.php?page=profile&tab=ratings_feedback#platform-feedback-card">
+                        <input type="hidden" name="rating" id="owner-overall-rating" value="<?= (int)($myPlatformReview['rating'] ?? 5) ?>">
+                        <input type="hidden" name="system_experience" id="owner-system-rating" value="<?= (int)($myPlatformReview['system_experience'] ?? 5) ?>">
+                        <input type="hidden" name="features_rating" id="owner-features-rating" value="<?= (int)($myPlatformReview['features_rating'] ?? 5) ?>">
+                        <input type="hidden" name="service_rating" id="owner-service-rating" value="<?= (int)($myPlatformReview['service_rating'] ?? 5) ?>">
+
+                        <!-- Overall Platform Rating Selector -->
+                        <div>
+                            <label style="font-size:12px; font-weight:700; color:var(--muted); text-transform:uppercase; letter-spacing:0.5px; display:block; margin-bottom:6px;">
+                                Overall FitTrack Platform Rating <span style="color:var(--danger)">*</span>
+                            </label>
+                            <div style="display:flex; align-items:center; gap:8px;">
+                                <div id="owner-star-picker" style="display:flex; gap:4px; cursor:pointer;">
+                                    <?php 
+                                    $currOverall = (int)($myPlatformReview['rating'] ?? 5);
+                                    for ($i = 1; $i <= 5; $i++): 
+                                        $isFilled = $i <= $currOverall;
+                                    ?>
+                                        <button type="button" class="owner-star-btn" data-val="<?= $i ?>" onclick="setPlatformRating('overall', <?= $i ?>)" style="background:none; border:none; padding:2px; cursor:pointer; color:<?= $isFilled ? '#f59e0b' : '#4b5563' ?>; transition:transform 0.15s ease, color 0.15s ease;" title="<?= $i ?> Star<?= $i > 1 ? 's' : '' ?>">
+                                            <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+                                                <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
+                                            </svg>
+                                        </button>
+                                    <?php endfor; ?>
+                                </div>
+                                <span id="owner-rating-text" style="font-size:13px; font-weight:700; color:var(--lime);">
+                                    <?= $currOverall ?> / 5 Stars
+                                </span>
+                            </div>
+                        </div>
+
+                        <!-- Sub-Ratings Row (System UX, Features, Service) -->
+                        <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(110px, 1fr)); gap:10px; background:rgba(255,255,255,0.02); border:1px solid rgba(255,255,255,0.05); border-radius:8px; padding:10px;">
+                            <div>
+                                <span style="font-size:11px; color:var(--muted); display:block; margin-bottom:4px;">System UX:</span>
+                                <div class="sub-star-group" data-target="owner-system-rating" style="display:flex; gap:2px;">
+                                    <?php $currSys = (int)($myPlatformReview['system_experience'] ?? 5);
+                                    for ($i = 1; $i <= 5; $i++): ?>
+                                        <span class="sub-star" data-val="<?= $i ?>" onclick="setSubRating('owner-system-rating', <?= $i ?>, this)" style="cursor:pointer; font-size:14px; color:<?= $i <= $currSys ? '#f59e0b' : '#4b5563' ?>;">★</span>
+                                    <?php endfor; ?>
+                                </div>
+                            </div>
+                            <div>
+                                <span style="font-size:11px; color:var(--muted); display:block; margin-bottom:4px;">Features:</span>
+                                <div class="sub-star-group" data-target="owner-features-rating" style="display:flex; gap:2px;">
+                                    <?php $currFeat = (int)($myPlatformReview['features_rating'] ?? 5);
+                                    for ($i = 1; $i <= 5; $i++): ?>
+                                        <span class="sub-star" data-val="<?= $i ?>" onclick="setSubRating('owner-features-rating', <?= $i ?>, this)" style="cursor:pointer; font-size:14px; color:<?= $i <= $currFeat ? '#f59e0b' : '#4b5563' ?>;">★</span>
+                                    <?php endfor; ?>
+                                </div>
+                            </div>
+                            <div>
+                                <span style="font-size:11px; color:var(--muted); display:block; margin-bottom:4px;">Service:</span>
+                                <div class="sub-star-group" data-target="owner-service-rating" style="display:flex; gap:2px;">
+                                    <?php $currServ = (int)($myPlatformReview['service_rating'] ?? 5);
+                                    for ($i = 1; $i <= 5; $i++): ?>
+                                        <span class="sub-star" data-val="<?= $i ?>" onclick="setSubRating('owner-service-rating', <?= $i ?>, this)" style="cursor:pointer; font-size:14px; color:<?= $i <= $currServ ? '#f59e0b' : '#4b5563' ?>;">★</span>
+                                    <?php endfor; ?>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Written Review Comment -->
+                        <div>
+                            <label for="platform-review-text" style="font-size:12px; font-weight:700; color:var(--muted); text-transform:uppercase; letter-spacing:0.5px; display:block; margin-bottom:6px;">
+                                Written Platform Review / Testimonial <span style="font-size:11px; font-weight:normal; text-transform:none; color:var(--muted);">(Optional &bull; featured on landing page)</span>
+                            </label>
+                            <textarea id="platform-review-text" name="review" rows="3" class="form-control" style="width:100%; box-sizing:border-box; background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.1); border-radius:8px; color:#fff; padding:10px; font-size:13px; resize:vertical;" placeholder="Share your experience using FitTrack for your gym operations, attendance, billing, or member engagement..."><?= h($myPlatformReview['review'] ?? '') ?></textarea>
+                        </div>
+
+                        <div style="display:flex; align-items:center; justify-content:space-between; margin-top:auto; pt:6px;">
+                            <?php if ($myPlatformReview): ?>
+                                <button type="button" onclick="togglePlatformReviewEdit(false)" class="btn btn-secondary" style="font-size:12px; padding:6px 12px;">Cancel</button>
+                            <?php else: ?>
+                                <span style="font-size:11px; color:var(--muted);">Publicly attributed to your gym name</span>
+                            <?php endif; ?>
+                            <button type="submit" class="btn btn-primary" style="font-size:12px; padding:8px 18px; font-weight:700; display:inline-flex; align-items:center; gap:6px;">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+                                <?= $myPlatformReview ? 'Update Platform Review' : 'Publish Review to Landing Page' ?>
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+    <?php endif; ?>
+
     <!-- ==================== MODALS ==================== -->
 
     <!-- Account Edit Modal -->
@@ -1074,6 +1357,37 @@ function profile_page(): void
 
     <!-- ==================== SCRIPTS ==================== -->
     <script>
+    function togglePlatformReviewEdit(showEdit) {
+        const form = document.getElementById('platform-review-form');
+        const view = document.getElementById('platform-review-view');
+        if (form) form.style.display = showEdit ? 'flex' : 'none';
+        if (view) view.style.display = showEdit ? 'none' : 'block';
+    }
+
+    function setPlatformRating(aspect, val) {
+        const inp = document.getElementById('owner-overall-rating');
+        if (inp) inp.value = val;
+        const btns = document.querySelectorAll('#owner-star-picker .owner-star-btn');
+        btns.forEach((btn, idx) => {
+            const starVal = idx + 1;
+            btn.style.color = starVal <= val ? '#f59e0b' : '#4b5563';
+        });
+        const textEl = document.getElementById('owner-rating-text');
+        if (textEl) textEl.textContent = val + ' / 5 Stars';
+    }
+
+    function setSubRating(targetInputId, val, clickedEl) {
+        const inp = document.getElementById(targetInputId);
+        if (inp) inp.value = val;
+        const parent = clickedEl.parentElement;
+        if (parent) {
+            const stars = parent.querySelectorAll('.sub-star');
+            stars.forEach((s, idx) => {
+                s.style.color = (idx + 1) <= val ? '#f59e0b' : '#4b5563';
+            });
+        }
+    }
+
     document.addEventListener('DOMContentLoaded', function() {
         // ── Tab Navigation ──
         const tabs = document.querySelectorAll('.settings-tab');
@@ -1098,11 +1412,26 @@ function profile_page(): void
 
         // URL hash or tab query parameter activation
         const urlParams = new URLSearchParams(window.location.search);
-        const initialTab = (window.location.hash.replace('#', '') || urlParams.get('tab') || '').toLowerCase();
+        let initialTab = (urlParams.get('tab') || window.location.hash.replace('#', '') || '').toLowerCase();
+        if (window.location.hash === '#platform-feedback-card' || window.location.hash === '#platform-review-form') {
+            initialTab = 'ratings_feedback';
+        }
         if (initialTab) {
             const matchedTab = document.querySelector(`.settings-tab[data-tab="${initialTab}"]`);
             if (matchedTab) {
                 matchedTab.click();
+            }
+        }
+
+        const presetRating = parseInt(urlParams.get('rating'), 10);
+        if (presetRating >= 1 && presetRating <= 5) {
+            setPlatformRating('overall', presetRating);
+        }
+        if (window.location.hash === '#platform-feedback-card' || window.location.hash === '#platform-review-form') {
+            togglePlatformReviewEdit(true);
+            const target = document.getElementById('platform-feedback-card');
+            if (target) {
+                setTimeout(() => target.scrollIntoView({ behavior: 'smooth', block: 'center' }), 200);
             }
         }
 
