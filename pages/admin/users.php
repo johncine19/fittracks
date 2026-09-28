@@ -1053,7 +1053,7 @@ function users_page(): void
                                     </a>
                                 <?php endif; ?>
                                 <?php if ((int) $row['user_id'] !== (int) $user['user_id']): ?>
-                                <form method="post" style="margin:0;" onsubmit="return confirm('Delete this user? This cannot be undone.');">
+                                <form method="post" style="margin:0;" onsubmit="return confirmDeleteUser(this, event, <?= json_encode($row['first_name'] . ' ' . $row['last_name']) ?>);">
                                     <?= csrf_field() ?>
                                     <input type="hidden" name="action" value="delete_user">
                                     <input type="hidden" name="user_id" value="<?= (int) $row['user_id'] ?>">
@@ -1173,7 +1173,7 @@ function users_page(): void
                                 </a>
                             <?php endif; ?>
                             <?php if ((int) $row['user_id'] !== (int) $user['user_id']): ?>
-                            <form method="post" onsubmit="return confirm('Delete this user? This cannot be undone.');">
+                            <form method="post" onsubmit="return confirmDeleteUser(this, event, <?= json_encode($row['first_name'] . ' ' . $row['last_name']) ?>);">
                                 <?= csrf_field() ?>
                                 <input type="hidden" name="action" value="delete_user">
                                 <input type="hidden" name="user_id" value="<?= (int) $row['user_id'] ?>">
@@ -1218,6 +1218,41 @@ function users_page(): void
             }
         }
     });
+
+    function confirmDeleteUser(form, event, userName) {
+        if (event) {
+            event.preventDefault();
+            event.stopPropagation();
+        }
+        if (!form) return false;
+
+        const nameMsg = userName ? `<strong>${userName}</strong>` : 'this user account';
+
+        if (typeof Swal !== 'undefined') {
+            Swal.fire({
+                title: 'Delete User?',
+                html: `<div style="font-size: 13.5px; color: var(--muted); line-height: 1.5; margin-top: 6px;">Are you sure you want to permanently delete ${nameMsg}?<br><br><span style="color: #ef4444; font-weight: 600;">⚠️ This action cannot be undone.</span></div>`,
+                icon: 'warning',
+                iconColor: '#ef4444',
+                showCancelButton: true,
+                confirmButtonText: 'Yes, Delete',
+                cancelButtonText: 'Cancel',
+                confirmButtonColor: '#ef4444',
+                cancelButtonColor: 'var(--line, #334155)',
+                background: 'var(--panel, #121721)',
+                color: 'var(--ink, #ffffff)',
+                reverseButtons: true,
+                focusCancel: true
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    form.submit();
+                }
+            });
+        } else if (confirm(`Delete ${userName || 'this user'}? This cannot be undone.`)) {
+            form.submit();
+        }
+        return false;
+    }
 
     function editUser(u) {
         Swal.fire({
@@ -1454,7 +1489,7 @@ function users_page(): void
                         </a>
                     ` : ''}
                     ${u.can_delete ? `
-                        <form method="post" style="margin:0;" onsubmit="return confirm('Delete this user? This cannot be undone.');">
+                        <form method="post" style="margin:0;" onsubmit="return confirmDeleteUser(this, event, ${JSON.stringify(u.first_name + ' ' + u.last_name)});">
                             <input type="hidden" name="csrf_token" value="${csrfToken}">
                             <input type="hidden" name="action" value="delete_user">
                             <input type="hidden" name="user_id" value="${u.user_id}">
@@ -1578,7 +1613,7 @@ function users_page(): void
                         </a>
                     ` : ''}
                     ${u.can_delete ? `
-                    <form method="post" onsubmit="return confirm('Delete this user? This cannot be undone.');">
+                    <form method="post" onsubmit="return confirmDeleteUser(this, event, ${JSON.stringify(u.first_name + ' ' + u.last_name)});">
                         <input type="hidden" name="csrf_token" value="${csrfToken}">
                         <input type="hidden" name="action" value="delete_user">
                         <input type="hidden" name="user_id" value="${u.user_id}">

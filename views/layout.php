@@ -15,6 +15,7 @@ function render_header(string $title, ?array $user = null): void
         $nav['dashboard'] = 'Dashboard';
         if ($role === 'platform_admin') {
             $nav += [
+                'notifications' => 'Notifications',
                 'gym_applications' => 'Gym Applications',
                 'gyms' => 'All Gyms',
                 'users' => 'Users Accounts',
@@ -27,6 +28,8 @@ function render_header(string $title, ?array $user = null): void
         }
         if ($role === 'gym_owner') {
             $nav += [
+                'messages' => 'Messages',
+                'notifications' => 'Notifications',
                 'gym_profile' => 'Gym Profile',
                 'scanner' => 'Scan QR',
                 'users' => 'Users Accounts',
@@ -42,27 +45,39 @@ function render_header(string $title, ?array $user = null): void
                 'food_library' => 'Food Library',
                 'gym_equipment' => 'Equipment',
                 'reports' => 'Reports',
-                'messages' => 'Messages',
-                'notifications' => 'Notifications'
             ];
         }
         if ($role === 'trainer') {
-            $nav += ['qr_attendance' => 'My QR', 'my_commissions' => 'Commissions', 'trainer_members' => 'Clients', 'training' => 'Workouts', 'classes' => 'My Classes', 'messages' => 'Messages', 'notifications' => 'Notifications'];
+            $nav += [
+                'messages' => 'Messages',
+                'notifications' => 'Notifications',
+                'qr_attendance' => 'My QR',
+                'trainer_members' => 'Clients',
+                'training' => 'Workouts',
+                'classes' => 'My Classes',
+                'my_commissions' => 'Commissions',
+            ];
         }
         if ($role === 'member') {
             $isGymMember = db()->prepare('SELECT 1 FROM gym_members WHERE user_id = ?');
             $isGymMember->execute([$user['user_id']]);
             $hasGym = (bool) $isGymMember->fetchColumn();
 
-            $nav += ['qr_attendance' => 'My QR', 'my_workout' => 'Workouts', 'diet' => 'Diet Plan'];
+            $nav += [
+                'messages' => 'Messages',
+                'notifications' => 'Notifications',
+                'qr_attendance' => 'My QR',
+                'my_workout' => 'Workouts',
+                'diet' => 'Diet Plan',
+            ];
             
             if ($hasGym) {
-                $nav += ['equipment' => 'Equipment', 'trainers' => 'Trainers', 'memberships' => 'Membership', 'book_classes' => 'Classes', 'gym_selection' => 'Browse Gyms'];
+                $nav += ['trainers' => 'Trainers', 'memberships' => 'Membership', 'book_classes' => 'Classes', 'equipment' => 'Equipment', 'gym_selection' => 'Browse Gyms'];
             } else {
                 $nav += ['gym_selection' => 'Select Gym'];
             }
             
-            $nav += ['payments' => 'Payments', 'progress' => 'Progress', 'messages' => 'Messages', 'notifications' => 'Notifications'];
+            $nav += ['payments' => 'Payments', 'progress' => 'Progress'];
         }
     }
     $page = $_GET['page'] ?? 'dashboard';
@@ -945,6 +960,101 @@ function render_header(string $title, ?array $user = null): void
                 </a>
                 <!-- Role badge (replaces non-functional role-switch select) -->
                 <div class="role-badge"><?= h(ucfirst($user['role'])) ?></div>
+                <?php 
+                    $unreadNotifsCount = $user ? unread_notification_count((int) $user['user_id']) : 0;
+                    $unreadMsgsCount   = $user ? (int) scalar('SELECT COUNT(*) FROM trainer_messages WHERE recipient_id = ? AND is_read = 0', [(int)$user['user_id']]) : 0;
+
+                    $sidebarBadges = [];
+                    if ($user) {
+                        $uid = (int) $user['user_id'];
+                        if ($role === 'member') {
+                            $assignmentStatus = scalar('SELECT status FROM trainer_assignments WHERE member_user_id = ? AND status IN ("active", "pending_trainer", "pending_admin") ORDER BY CASE WHEN status = "active" THEN 1 ELSE 2 END LIMIT 1', [$uid]);
+                            if ($assignmentStatus === 'active') {
+                                $sidebarBadges['trainers'] = [
+                                    'text' => 'Active',
+                                    'class' => 'sidebar-nav-badge sidebar-badge-active',
+                                    'title' => 'Assigned Personal Trainer Active'
+                                ];
+                            } elseif ($assignmentStatus === 'pending_trainer' || $assignmentStatus === 'pending_admin') {
+                                $sidebarBadges['trainers'] = [
+                                    'text' => 'Pending',
+                                    'class' => 'sidebar-nav-badge sidebar-badge-pending',
+                                    'title' => 'Trainer Request Pending'
+                                ];
+                            }
+
+                            // Smart Badge for Member Diet Plan:
+                            // "New" when newly published/unopened, transitioning to "Active" once viewed.
+                            $hasActiveDiet = (bool) scalar('SELECT 1 FROM dietary_plans WHERE member_user_id = ? AND status = "active" LIMIT 1', [$uid]);
+                            if ($hasActiveDiet) {
+                                $hasUnreadDietNotif = ($page !== 'diet') && (bool) scalar('SELECT 1 FROM notifications WHERE user_id = ? AND is_read = 0 AND (title LIKE "%Diet Plan%" OR message LIKE "%dietary plan%") LIMIT 1', [$uid]);
+                                if ($hasUnreadDietNotif) {
+                                    $sidebarBadges['diet'] = [
+                                        'text' => 'New',
+                                        'class' => 'sidebar-nav-badge sidebar-badge-new',
+                                        'title' => 'New Diet Plan published for you!'
+                                    ];
+                                } else {
+                                    $sidebarBadges['diet'] = [
+                                        'text' => 'Active',
+                                        'class' => 'sidebar-nav-badge sidebar-badge-active',
+                                        'title' => 'Personalized Diet Plan Active'
+                                    ];
+                                }
+                            }
+
+                            // Smart Badge for Member Workout Plan:
+                            // "New" when newly published/unopened, transitioning to "Active" once viewed.
+                            $hasActiveWorkout = (bool) scalar('SELECT 1 FROM training_plans WHERE member_user_id = ? AND status = "active" LIMIT 1', [$uid]);
+                            if ($hasActiveWorkout) {
+                                $hasUnreadWorkoutNotif = ($page !== 'my_workout') && (bool) scalar('SELECT 1 FROM notifications WHERE user_id = ? AND is_read = 0 AND (title LIKE "%Workout Plan%" OR message LIKE "%training routine%") LIMIT 1', [$uid]);
+                                if ($hasUnreadWorkoutNotif) {
+                                    $sidebarBadges['my_workout'] = [
+                                        'text' => 'New',
+                                        'class' => 'sidebar-nav-badge sidebar-badge-new',
+                                        'title' => 'New Workout Plan published for you!'
+                                    ];
+                                } else {
+                                    $sidebarBadges['my_workout'] = [
+                                        'text' => 'Active',
+                                        'class' => 'sidebar-nav-badge sidebar-badge-active',
+                                        'title' => 'Personalized Workout Plan Active'
+                                    ];
+                                }
+                            }
+                        } elseif ($role === 'trainer') {
+                            $coachId = (int) scalar('SELECT trainer_id FROM trainer_profiles WHERE user_id = ? LIMIT 1', [$uid]);
+                            if ($coachId) {
+                                $pendingClients = (int) scalar('SELECT COUNT(*) FROM trainer_assignments WHERE trainer_id = ? AND status = "pending_trainer"', [$coachId]);
+                                if ($pendingClients > 0) {
+                                    $sidebarBadges['trainer_members'] = [
+                                        'text' => $pendingClients > 99 ? '99+' : (string) $pendingClients,
+                                        'class' => 'sidebar-nav-badge sidebar-badge-alert',
+                                        'title' => $pendingClients . ' pending client request' . ($pendingClients > 1 ? 's' : '')
+                                    ];
+                                }
+                            }
+                        } elseif ($role === 'gym_owner' && $gym) {
+                            $pendingGymTrainers = (int) scalar('SELECT COUNT(*) FROM trainer_assignments ta JOIN trainer_profiles tp ON tp.trainer_id = ta.trainer_id WHERE tp.gym_id = ? AND ta.status = "pending_admin"', [(int)$gym['gym_id']]);
+                            if ($pendingGymTrainers > 0) {
+                                $sidebarBadges['trainer_assignments'] = [
+                                    'text' => (string) $pendingGymTrainers,
+                                    'class' => 'sidebar-nav-badge sidebar-badge-alert',
+                                    'title' => $pendingGymTrainers . ' pending trainer assignment requests'
+                                ];
+                            }
+                        } elseif ($role === 'platform_admin') {
+                            $pendingGyms = (int) scalar('SELECT COUNT(*) FROM gyms WHERE status = "pending"');
+                            if ($pendingGyms > 0) {
+                                $sidebarBadges['gym_applications'] = [
+                                    'text' => (string) $pendingGyms,
+                                    'class' => 'sidebar-nav-badge sidebar-badge-alert',
+                                    'title' => $pendingGyms . ' pending gym applications'
+                                ];
+                            }
+                        }
+                    }
+                ?>
                 <nav class="side-nav">
                     <?php foreach ($nav as $key => $label): 
                         $tierBadge = null;
@@ -968,9 +1078,27 @@ function render_header(string $title, ?array $user = null): void
                             || ($key === 'trainer_members' && $page === 'diet_builder' && $role === 'trainer')
                         );
                     ?>
-                        <a class="<?= $isActive ? 'active' : '' ?>" href="index.php?page=<?= h($key) ?>">
-                            <span class="nav-icon"><?= nav_icon($key) ?></span>
+                        <a class="<?= $isActive ? 'active' : '' ?>" href="index.php?page=<?= h($key) ?>"<?= $key === 'notifications' ? ' id="sidebar-nav-notifications"' : ($key === 'messages' ? ' id="sidebar-nav-messages"' : '') ?>>
+                            <span class="nav-icon" style="position: relative;">
+                                <?= nav_icon($key) ?>
+                                <?php if ($key === 'notifications'): ?>
+                                    <span class="sidebar-notif-dot<?= $unreadNotifsCount > 0 ? ' has-unread' : '' ?>" id="sidebar-notif-dot"></span>
+                                <?php elseif ($key === 'messages'): ?>
+                                    <span class="sidebar-notif-dot<?= $unreadMsgsCount > 0 ? ' has-unread' : '' ?>" id="sidebar-messages-dot"></span>
+                                <?php elseif (!empty($sidebarBadges[$key])): ?>
+                                    <span class="sidebar-nav-dot has-unread <?= h($sidebarBadges[$key]['class'] ?? '') ?>"></span>
+                                <?php endif; ?>
+                            </span>
                             <span class="nav-label"><?= h($label) ?></span>
+                            <?php if ($key === 'notifications'): ?>
+                                <span class="sidebar-notif-badge<?= $unreadNotifsCount > 0 ? ' has-unread' : '' ?>" id="sidebar-notif-badge" style="<?= $unreadNotifsCount > 0 ? '' : 'display:none;' ?>"><?= $unreadNotifsCount > 99 ? '99+' : $unreadNotifsCount ?></span>
+                            <?php elseif ($key === 'messages'): ?>
+                                <span class="sidebar-notif-badge<?= $unreadMsgsCount > 0 ? ' has-unread' : '' ?>" id="sidebar-messages-badge" style="<?= $unreadMsgsCount > 0 ? '' : 'display:none;' ?>"><?= $unreadMsgsCount > 99 ? '99+' : $unreadMsgsCount ?></span>
+                            <?php elseif (!empty($sidebarBadges[$key])): ?>
+                                <span class="<?= h($sidebarBadges[$key]['class']) ?>" <?= !empty($sidebarBadges[$key]['title']) ? 'title="' . h($sidebarBadges[$key]['title']) . '"' : '' ?>>
+                                    <?= h($sidebarBadges[$key]['text']) ?>
+                                </span>
+                            <?php endif; ?>
                             <?php if ($tierBadge): ?>
                                 <span style="margin-left: auto; font-size: 9px; font-weight: 800; padding: 1px 5px; border-radius: 4px; background: rgba(132, 204, 22, 0.12); color: #84cc16; border: 1px solid rgba(132, 204, 22, 0.25); letter-spacing: 0.5px;"><?= $tierBadge ?></span>
                             <?php endif; ?>
@@ -1151,7 +1279,7 @@ function render_header(string $title, ?array $user = null): void
                                 </script>
                             <?php endif; ?>
                         <?php endif; ?>
-                        <?php render_notification_bell($user, $page); ?>
+                        <?php render_notification_bell($user, $page, $unreadNotifsCount); ?>
                         <button class="theme-toggle" id="theme-toggle-btn" title="Toggle Light/Dark Mode" type="button">
                             <!-- icon injected by JS -->
                         </button>

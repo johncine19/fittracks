@@ -159,15 +159,32 @@ function training_page(): void
     // TAB 1 DATA: Eligible Members & Created Plans
     // ----------------------------------------------------
     if ($user['role'] === 'gym_owner' && $gymId) {
-        $members = query_all('SELECT gm.user_id AS member_user_id, CONCAT(u.first_name, " ", u.last_name) AS name, mp.primary_goal, EXISTS (SELECT 1 FROM memberships m WHERE m.user_id = u.user_id AND m.status = "active" AND m.end_date >= CURRENT_DATE) AS has_membership FROM gym_members gm JOIN users u ON u.user_id = gm.user_id LEFT JOIN member_profiles mp ON mp.user_id = u.user_id WHERE gm.gym_id = ? AND u.status = "active" AND NOT EXISTS (SELECT 1 FROM training_plans tp WHERE tp.member_user_id = gm.user_id AND tp.trainer_id = ? AND tp.status IN ("active", "draft"))', [$gymId, $coachId]);
-        $allGymMembers = query_all('SELECT gm.user_id AS member_user_id, CONCAT(u.first_name, " ", u.last_name) AS name FROM gym_members gm JOIN users u ON u.user_id = gm.user_id WHERE gm.gym_id = ? AND u.status = "active" ORDER BY u.first_name ASC', [$gymId]);
+        $members = query_all('SELECT gm.user_id AS member_user_id, u.first_name, u.last_name, u.email, u.profile_picture, CONCAT(u.first_name, " ", u.last_name) AS name, mp.primary_goal, EXISTS (SELECT 1 FROM memberships m WHERE m.user_id = u.user_id AND m.status = "active" AND m.end_date >= CURRENT_DATE) AS has_membership FROM gym_members gm JOIN users u ON u.user_id = gm.user_id LEFT JOIN member_profiles mp ON mp.user_id = u.user_id WHERE gm.gym_id = ? AND u.status = "active" AND NOT EXISTS (SELECT 1 FROM training_plans tp WHERE tp.member_user_id = gm.user_id AND tp.trainer_id = ? AND tp.status IN ("active", "draft"))', [$gymId, $coachId]);
+        $allGymMembers = query_all('SELECT gm.user_id AS member_user_id, u.first_name, u.last_name, u.email, u.profile_picture, CONCAT(u.first_name, " ", u.last_name) AS name FROM gym_members gm JOIN users u ON u.user_id = gm.user_id WHERE gm.gym_id = ? AND u.status = "active" ORDER BY u.first_name ASC', [$gymId]);
     } elseif ($user['role'] === 'trainer') {
-        $members = query_all('SELECT ca.member_user_id, CONCAT(u.first_name, " ", u.last_name) AS name, mp.primary_goal, EXISTS (SELECT 1 FROM memberships m WHERE m.user_id = u.user_id AND m.status = "active" AND m.end_date >= CURRENT_DATE) AS has_membership FROM trainer_assignments ca JOIN users u ON u.user_id = ca.member_user_id LEFT JOIN member_profiles mp ON mp.user_id = u.user_id WHERE ca.trainer_id = ? AND ca.status = "active" AND NOT EXISTS (SELECT 1 FROM training_plans tp WHERE tp.member_user_id = ca.member_user_id AND tp.trainer_id = ca.trainer_id AND tp.status IN ("active", "draft"))', [$coachId]);
-        $allGymMembers = query_all('SELECT ca.member_user_id, CONCAT(u.first_name, " ", u.last_name) AS name FROM trainer_assignments ca JOIN users u ON u.user_id = ca.member_user_id WHERE ca.trainer_id = ? AND ca.status = "active" ORDER BY u.first_name ASC', [$coachId]);
+        $members = query_all('SELECT ca.member_user_id, u.first_name, u.last_name, u.email, u.profile_picture, CONCAT(u.first_name, " ", u.last_name) AS name, mp.primary_goal, EXISTS (SELECT 1 FROM memberships m WHERE m.user_id = u.user_id AND m.status = "active" AND m.end_date >= CURRENT_DATE) AS has_membership FROM trainer_assignments ca JOIN users u ON u.user_id = ca.member_user_id LEFT JOIN member_profiles mp ON mp.user_id = u.user_id WHERE ca.trainer_id = ? AND ca.status = "active" AND NOT EXISTS (SELECT 1 FROM training_plans tp WHERE tp.member_user_id = ca.member_user_id AND tp.trainer_id = ca.trainer_id AND tp.status IN ("active", "draft"))', [$coachId]);
+        $allGymMembers = query_all('SELECT ca.member_user_id, u.first_name, u.last_name, u.email, u.profile_picture, CONCAT(u.first_name, " ", u.last_name) AS name FROM trainer_assignments ca JOIN users u ON u.user_id = ca.member_user_id WHERE ca.trainer_id = ? AND ca.status = "active" ORDER BY u.first_name ASC', [$coachId]);
     } else {
-        $members = query_all('SELECT u.user_id AS member_user_id, CONCAT(u.first_name, " ", u.last_name) AS name, mp.primary_goal, 1 AS has_membership FROM users u LEFT JOIN member_profiles mp ON mp.user_id = u.user_id WHERE u.role = "member" AND u.status = "active" LIMIT 100');
-        $allGymMembers = query_all('SELECT u.user_id AS member_user_id, CONCAT(u.first_name, " ", u.last_name) AS name FROM users u WHERE u.role = "member" AND u.status = "active" ORDER BY u.first_name ASC LIMIT 100');
+        $members = query_all('SELECT u.user_id AS member_user_id, u.first_name, u.last_name, u.email, u.profile_picture, CONCAT(u.first_name, " ", u.last_name) AS name, mp.primary_goal, 1 AS has_membership FROM users u LEFT JOIN member_profiles mp ON mp.user_id = u.user_id WHERE u.role = "member" AND u.status = "active" LIMIT 100');
+        $allGymMembers = query_all('SELECT u.user_id AS member_user_id, u.first_name, u.last_name, u.email, u.profile_picture, CONCAT(u.first_name, " ", u.last_name) AS name FROM users u WHERE u.role = "member" AND u.status = "active" ORDER BY u.first_name ASC LIMIT 100');
     }
+
+    $planMembersData = array_map(function($m) {
+        $first = trim((string)($m['first_name'] ?? ''));
+        $last  = trim((string)($m['last_name'] ?? ''));
+        $name  = trim($first . ' ' . $last) ?: ($m['name'] ?? 'Member');
+        $ini   = (!empty($first) ? strtoupper(substr($first, 0, 1)) : '') . (!empty($last) ? strtoupper(substr($last, 0, 1)) : '');
+        $statusText = empty($m['has_membership']) ? 'No Membership' : 'Active Member';
+        $sub = !empty($m['email']) ? ($m['email'] . ' • ' . $statusText) : $statusText;
+        return [
+            'id'       => (int) $m['member_user_id'],
+            'label'    => $name,
+            'subtitle' => $sub,
+            'initials' => $ini ?: 'M',
+            'avatar'   => !empty($m['profile_picture']) ? upload_url($m['profile_picture']) : null,
+            'goal'     => (string) ($m['primary_goal'] ?? '')
+        ];
+    }, $members ?: []);
 
     $plans = query_all('
         SELECT tp.*, 
@@ -308,17 +325,19 @@ function training_page(): void
                 <h2 style="margin:0; font-size:1.25rem; color:var(--ink);">My Training Plans</h2>
                 <p class="muted" style="margin:3px 0 0 0; font-size:13px;">Manage workouts assigned to your active training roster.</p>
             </div>
+            <?php if (!empty($plans)): ?>
             <button type="button" class="btn btn-primary" onclick="document.getElementById('planModal').style.display='flex'" style="display:inline-flex; align-items:center; gap:6px; font-weight:700;">
                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
                 <span>Add Plan</span>
             </button>
+            <?php endif; ?>
         </div>
 
         <?php if (empty($plans)): ?>
             <div style="padding: 40px 20px; text-align: center; color: var(--muted); background: color-mix(in srgb, var(--surface) 60%, var(--bg)); border-radius: 10px; border: 1px dashed var(--line);">
                 <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" style="opacity:0.6; margin-bottom:10px;"><path d="M6 4v16"/><path d="M10 4v16"/><path d="M6 12h4"/><path d="M14 4v16"/><path d="M18 4v16"/><path d="M14 12h4"/></svg>
                 <p style="margin:0 0 8px 0; font-weight:700; color:var(--ink);">No training plans created yet</p>
-                <p style="margin:0 0 16px 0; font-size:13px;">Click "Add Plan" to assign a new routine to a member and build their exercise schedule.</p>
+                <p style="margin:0 0 16px 0; font-size:13px;">Assign a new routine to a member and build their exercise schedule.</p>
                 <button type="button" class="btn btn-primary" onclick="document.getElementById('planModal').style.display='flex'">+ Add First Plan</button>
             </div>
         <?php else: ?>
@@ -787,8 +806,8 @@ function training_page(): void
 <!-- ==================================================== -->
 <!-- MODAL: ADD TRAINING PLAN                             -->
 <!-- ==================================================== -->
-<div id="planModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.65);backdrop-filter:blur(5px);align-items:center;justify-content:center;z-index:10000;padding:1rem">
-    <div style="background:var(--panel);padding:24px 28px;border-radius:14px;width:100%;max-width:460px;box-shadow:0 24px 50px rgba(0,0,0,0.4);border:1px solid var(--line)">
+<div id="planModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.65);backdrop-filter:blur(5px);align-items:center;justify-content:center;z-index:10000;padding:1rem;">
+    <div style="background:var(--panel);padding:24px 28px;border-radius:14px;width:100%;max-width:460px;box-shadow:0 24px 50px rgba(0,0,0,0.4);border:1px solid var(--line);position:relative;overflow:visible;">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:18px">
             <div>
                 <h2 style="margin:0; font-size:1.35rem; font-weight:700; color:var(--ink)">Add Training Plan</h2>
@@ -796,23 +815,18 @@ function training_page(): void
             </div>
             <button type="button" onclick="document.getElementById('planModal').style.display='none'" style="background:transparent;border:none;color:var(--muted);font-size:1.5rem;cursor:pointer;padding:0;line-height:1;transition:color 0.2s;" onmouseover="this.style.color='var(--ink)'" onmouseout="this.style.color='var(--muted)'">&times;</button>
         </div>
-        <form method="post" class="form" style="display:flex;flex-direction:column;gap:14px">
+        <form id="addPlanForm" method="post" class="form" style="display:flex;flex-direction:column;gap:14px;position:relative;">
             <?= csrf_field() ?>
             <input type="hidden" name="action" value="add_plan">
-            <label style="display:block; color:var(--muted); font-size:13px; font-weight:600">Member
-                <select name="member_user_id" class="form-control" style="width:100%;box-sizing:border-box;margin-top:5px;background:var(--panel);color:var(--ink);border:1.5px solid var(--line);border-radius:8px;padding:9px 12px;" required onchange="updateGoalField(this)">
-                    <option value="" data-goal="">-- Select Member --</option>
-                    <?php foreach ($members as $member): ?>
-                        <?php $statusText = empty($member['has_membership']) ? ' (No Membership)' : ' (Active Member)'; ?>
-                        <option value="<?= (int) $member['member_user_id'] ?>" data-goal="<?= h($member['primary_goal'] ?? '') ?>" <?= $memberId === (int) $member['member_user_id'] ? 'selected' : '' ?>><?= h($member['name']) . $statusText ?></option>
-                    <?php endforeach; ?>
-                </select>
-            </label>
+            <div>
+                <label style="display:block; color:var(--muted); font-size:13px; font-weight:600; margin-bottom:6px;">Member *</label>
+                <div id="planMemberWrap"></div>
+            </div>
             <label style="display:block; color:var(--muted); font-size:13px; font-weight:600">Plan Title 
                 <input name="title" class="form-control" placeholder="e.g., Personalized Strength & Hypertrophy" style="width:100%;box-sizing:border-box;margin-top:5px;background:var(--panel);color:var(--ink);border:1.5px solid var(--line);border-radius:8px;padding:9px 12px;" required>
             </label>
             <label style="display:block; color:var(--muted); font-size:13px; font-weight:600">Goal 
-                <input name="goal" class="form-control" placeholder="e.g., muscle_gain, fat_loss" style="width:100%;box-sizing:border-box;margin-top:5px;background:var(--panel);color:var(--ink);border:1.5px solid var(--line);border-radius:8px;padding:9px 12px;">
+                <input id="planGoalInput" name="goal" class="form-control" placeholder="e.g., muscle_gain, fat_loss" style="width:100%;box-sizing:border-box;margin-top:5px;background:var(--panel);color:var(--ink);border:1.5px solid var(--line);border-radius:8px;padding:9px 12px;">
             </label>
             <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:14px;padding-top:14px;border-top:1px solid var(--line)">
                 <button type="button" onclick="document.getElementById('planModal').style.display='none'" class="btn btn-secondary" style="background:var(--panel-soft);color:var(--ink);border:1px solid var(--line);padding:8px 16px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;">Cancel</button>
@@ -1450,18 +1464,46 @@ function setAllWorkoutsStatusFilter(status, btn) {
     filterAllWorkouts();
 }
 
-function updateGoalField(selectElement) {
-    const selectedOption = selectElement.options[selectElement.selectedIndex];
-    const goalInput = selectElement.closest('form').querySelector('input[name="goal"]');
-    if (goalInput && selectedOption && selectedOption.dataset.goal) {
-        goalInput.value = selectedOption.dataset.goal;
-    }
-}
+window.planMembersData = <?= json_encode($planMembersData ?? [], JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP) ?>;
 
+let planMemberDrop = null;
 document.addEventListener('DOMContentLoaded', () => {
-    const select = document.querySelector('select[name="member_user_id"]');
-    if (select && select.value) {
-        updateGoalField(select);
+    if (document.getElementById('planMemberWrap')) {
+        planMemberDrop = new FitDropdown({
+            container: '#planMemberWrap',
+            name: 'member_user_id',
+            placeholder: 'Search member by name or email...',
+            searchable: true,
+            searchPlaceholder: 'Search members...',
+            allowClear: true,
+            zIndex: 90,
+            items: window.planMembersData,
+            onChange: (selectedMember) => {
+                const goalInput = document.getElementById('planGoalInput');
+                if (goalInput && selectedMember && selectedMember.goal) {
+                    goalInput.value = selectedMember.goal;
+                }
+            }
+        });
+    }
+
+    const addPlanForm = document.getElementById('addPlanForm');
+    if (addPlanForm) {
+        addPlanForm.addEventListener('submit', function(e) {
+            const memberInput = addPlanForm.querySelector('input[name="member_user_id"]');
+            if (!memberInput || !memberInput.value) {
+                e.preventDefault();
+                Swal.fire({
+                    icon: 'warning',
+                    title: 'Please Select a Member',
+                    text: 'You must select a member before creating a workout plan.',
+                    confirmButtonColor: 'var(--lime-dark)',
+                    background: 'var(--bg)',
+                    color: 'var(--ink)'
+                });
+                return false;
+            }
+        });
     }
 
     // Auto-restore saved tab unless specific URL query parameter overrides it

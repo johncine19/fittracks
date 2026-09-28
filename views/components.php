@@ -4061,10 +4061,10 @@ function workout_day_count(int $planId): int
     );
 }
 
-function render_notification_bell(array $user, string $currentPage): void
+function render_notification_bell(array $user, string $currentPage, ?int $cachedUnread = null): void
 {
     $userId = (int) $user['user_id'];
-    $unread = unread_notification_count($userId);
+    $unread = $cachedUnread ?? unread_notification_count($userId);
     $items  = get_notifications($userId, 8);
     ?>
     <div class="notif-wrap" id="notif-wrap">
@@ -4167,6 +4167,22 @@ function render_notification_bell(array $user, string $currentPage): void
                     newBadge.style.display = 'none';
                 }
             }
+            // Sidebar notifications badge & collapsed dot
+            const sidebarBadge = document.getElementById('sidebar-notif-badge');
+            const sidebarDot   = document.getElementById('sidebar-notif-dot');
+            if (sidebarBadge) {
+                if (unreadCount > 0) {
+                    sidebarBadge.textContent = unreadCount > 99 ? '99+' : unreadCount;
+                    sidebarBadge.style.display = 'inline-flex';
+                    sidebarBadge.classList.add('has-unread');
+                } else {
+                    sidebarBadge.style.display = 'none';
+                    sidebarBadge.classList.remove('has-unread');
+                }
+            }
+            if (sidebarDot) {
+                sidebarDot.classList.toggle('has-unread', unreadCount > 0);
+            }
             // Mark-all button state
             if (markAllBtn) {
                 markAllBtn.disabled = unreadCount === 0;
@@ -4174,6 +4190,25 @@ function render_notification_bell(array $user, string $currentPage): void
                 markAllBtn.classList.toggle('is-disabled', unreadCount === 0);
             }
         }
+
+        function updateMessagesBadges(unreadMsgs) {
+            const msgsBadge = document.getElementById('sidebar-messages-badge');
+            const msgsDot   = document.getElementById('sidebar-messages-dot');
+            if (msgsBadge) {
+                if (unreadMsgs > 0) {
+                    msgsBadge.textContent = unreadMsgs > 99 ? '99+' : unreadMsgs;
+                    msgsBadge.style.display = 'inline-flex';
+                    msgsBadge.classList.add('has-unread');
+                } else {
+                    msgsBadge.style.display = 'none';
+                    msgsBadge.classList.remove('has-unread');
+                }
+            }
+            if (msgsDot) {
+                msgsDot.classList.toggle('has-unread', unreadMsgs > 0);
+            }
+        }
+        window.updateSidebarMessagesBadge = updateMessagesBadges;
 
         async function ajaxNotifAction(payload) {
             try {
@@ -4258,14 +4293,19 @@ function render_notification_bell(array $user, string $currentPage): void
                 notification_action: 'fetch_notifications',
                 csrf_token: csrfToken
             });
-            if (data && typeof data.unread === 'number') {
-                if (data.unread > lastUnreadCount) {
-                    if (window.playNotifSound) {
-                        window.playNotifSound('chime');
+            if (data) {
+                if (typeof data.unread === 'number') {
+                    if (data.unread > lastUnreadCount) {
+                        if (window.playNotifSound) {
+                            window.playNotifSound('chime');
+                        }
                     }
+                    lastUnreadCount = data.unread;
+                    updateBadges(data.unread);
                 }
-                lastUnreadCount = data.unread;
-                updateBadges(data.unread);
+                if (typeof data.unread_messages === 'number') {
+                    updateMessagesBadges(data.unread_messages);
+                }
             }
         }, 30000);
     })();

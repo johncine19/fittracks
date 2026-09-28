@@ -284,6 +284,167 @@ input[type="radio"] {
     font-weight: 800;
 }
 
+/* Sidebar Notifications & Nav Badges */
+.sidebar-notif-badge,
+.sidebar-nav-badge {
+    margin-left: auto;
+    min-width: 20px;
+    height: 20px;
+    padding: 0 6px;
+    border-radius: 999px;
+    background: var(--lime);
+    color: #080b0d;
+    font-size: 11px;
+    font-weight: 800;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 1;
+    letter-spacing: -0.2px;
+    flex-shrink: 0;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.25);
+    transition: background 0.15s ease, color 0.15s ease, transform 0.15s ease;
+}
+
+/* Alert badge (e.g. pending requests or urgent alerts) */
+.sidebar-nav-badge.sidebar-badge-alert {
+    background: #ef4444;
+    color: #ffffff;
+    box-shadow: 0 1px 4px rgba(239, 68, 68, 0.35);
+}
+
+/* Active status pill badge (e.g. Active trainer assigned) */
+.sidebar-nav-badge.sidebar-badge-active {
+    background: rgba(132, 204, 22, 0.18);
+    color: #84cc16;
+    border: 1px solid rgba(132, 204, 22, 0.45);
+    font-size: 9.5px;
+    font-weight: 800;
+    padding: 2px 7px;
+    height: auto;
+    letter-spacing: 0.3px;
+    text-transform: uppercase;
+}
+
+/* Pending status pill badge */
+.sidebar-nav-badge.sidebar-badge-pending {
+    background: rgba(245, 158, 11, 0.18);
+    color: #f59e0b;
+    border: 1px solid rgba(245, 158, 11, 0.45);
+    font-size: 9.5px;
+    font-weight: 800;
+    padding: 2px 7px;
+    height: auto;
+    letter-spacing: 0.3px;
+    text-transform: uppercase;
+}
+
+/* New status pill badge (e.g. newly published plan/announcement) */
+.sidebar-nav-badge.sidebar-badge-new {
+    background: var(--lime, #84cc16);
+    color: #080b0d;
+    font-size: 9px;
+    font-weight: 800;
+    padding: 2px 7px;
+    height: auto;
+    letter-spacing: 0.4px;
+    text-transform: uppercase;
+    box-shadow: 0 0 10px rgba(132, 204, 22, 0.45);
+}
+
+.side-nav a.active .sidebar-badge-new,
+.side-nav a:hover .sidebar-badge-new {
+    background: #080b0d !important;
+    color: var(--lime, #84cc16) !important;
+    border: 1px solid var(--lime, #84cc16);
+}
+
+.side-nav a.active .sidebar-notif-badge,
+.side-nav a:hover .sidebar-notif-badge,
+.side-nav a.active .sidebar-nav-badge:not(.sidebar-badge-active):not(.sidebar-badge-pending),
+.side-nav a:hover .sidebar-nav-badge:not(.sidebar-badge-active):not(.sidebar-badge-pending) {
+    background: #080b0d;
+    color: var(--lime);
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.35);
+}
+
+.side-nav a.active .sidebar-badge-active,
+.side-nav a:hover .sidebar-badge-active {
+    background: #080b0d !important;
+    color: #84cc16 !important;
+    border-color: #080b0d !important;
+}
+
+.side-nav a.active .sidebar-badge-pending,
+.side-nav a:hover .sidebar-badge-pending {
+    background: #080b0d !important;
+    color: #f59e0b !important;
+    border-color: #080b0d !important;
+}
+
+[data-theme="light"] .sidebar-notif-badge,
+[data-theme="light"] .sidebar-nav-badge:not(.sidebar-badge-active):not(.sidebar-badge-pending):not(.sidebar-badge-alert) {
+    background: var(--lime);
+    color: #ffffff;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
+}
+
+[data-theme="light"] .side-nav a.active .sidebar-notif-badge,
+[data-theme="light"] .side-nav a:hover .sidebar-notif-badge,
+[data-theme="light"] .side-nav a.active .sidebar-nav-badge:not(.sidebar-badge-active):not(.sidebar-badge-pending),
+[data-theme="light"] .side-nav a:hover .sidebar-nav-badge:not(.sidebar-badge-active):not(.sidebar-badge-pending) {
+    background: #ffffff;
+    color: var(--lime);
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.2);
+}
+
+[data-theme="light"] .side-nav a.active .sidebar-badge-active,
+[data-theme="light"] .side-nav a:hover .sidebar-badge-active {
+    background: #ffffff !important;
+    color: #65a30d !important;
+    border-color: #ffffff !important;
+}
+
+/* Collapsed Sidebar Dot Indicator */
+.sidebar-notif-dot,
+.sidebar-nav-dot {
+    position: absolute;
+    top: -2px;
+    right: -3px;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--lime);
+    border: 1.5px solid var(--panel, #0f131a);
+    box-shadow: 0 0 6px var(--lime);
+    display: none;
+    pointer-events: none;
+}
+
+.sidebar-nav-dot.sidebar-badge-alert {
+    background: #ef4444;
+    box-shadow: 0 0 6px #ef4444;
+}
+
+.sidebar-nav-dot.sidebar-badge-pending {
+    background: #f59e0b;
+    box-shadow: 0 0 6px #f59e0b;
+}
+
+[data-theme="light"] .sidebar-notif-dot,
+[data-theme="light"] .sidebar-nav-dot {
+    border-color: #ffffff;
+}
+
+.side-nav a.active .sidebar-notif-dot,
+.side-nav a:hover .sidebar-notif-dot,
+.side-nav a.active .sidebar-nav-dot,
+.side-nav a:hover .sidebar-nav-dot {
+    background: #080b0d;
+    border-color: var(--lime);
+    box-shadow: 0 0 6px rgba(0, 0, 0, 0.4);
+}
+
 .sidebar-bottom {
     display: grid;
     gap: 4px;
@@ -1501,8 +1662,14 @@ dialog.modal .modal-body {
     .app-frame.collapsed #main-sidebar .nav-label,
     .app-frame.collapsed #main-sidebar .brand > span:not(.brand-mark),
     .app-frame.collapsed #main-sidebar .role-switch,
-    .app-frame.collapsed #main-sidebar .role-badge {
-        display: none;
+    .app-frame.collapsed #main-sidebar .role-badge,
+    .app-frame.collapsed #main-sidebar .sidebar-notif-badge,
+    .app-frame.collapsed #main-sidebar .sidebar-nav-badge {
+        display: none !important;
+    }
+    .app-frame.collapsed #main-sidebar .sidebar-notif-dot.has-unread,
+    .app-frame.collapsed #main-sidebar .sidebar-nav-dot.has-unread {
+        display: block !important;
     }
     .app-frame.collapsed #main-sidebar .brand {
         justify-content: center;

@@ -336,7 +336,7 @@ function diet_builder_page(): void
             <form method="post" style="margin:0;">
                 <?= csrf_field() ?>
                 <input type="hidden" name="action" value="generate_plan">
-                <button type="submit" class="diet-action-btn diet-btn-generate" onclick="return confirm('Auto-generate a dietary plan? This will clear any draft meals you have added manually.');" title="Auto-generate an optimized 7-day meal plan">
+                <button type="button" class="diet-action-btn diet-btn-generate" onclick="confirmGeneratePlan(this, event);" title="Auto-generate an optimized 7-day meal plan">
                     <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3Z"/></svg>
                     <span>Generate Plan</span>
                 </button>
@@ -344,7 +344,7 @@ function diet_builder_page(): void
             <form method="post" style="margin:0;">
                 <?= csrf_field() ?>
                 <input type="hidden" name="action" value="publish">
-                <button type="submit" class="diet-action-btn diet-btn-publish" onclick="return confirm('Publish this diet plan?');" title="Publish this diet plan to member">
+                <button type="button" class="diet-action-btn diet-btn-publish" onclick="confirmPublishPlan(this, event);" title="Publish this diet plan to member">
                     <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
                     <span>Publish Plan</span>
                 </button>
@@ -1054,9 +1054,8 @@ function diet_builder_page(): void
                 <!-- Local Food Library Custom Dropdown (Adheres to Dietary Restriction) -->
                 <div>
                     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; flex-wrap: wrap; gap: 4px;">
-                        <label style="font-size: 12px; font-weight: 700; color: var(--ink); margin: 0; display: inline-flex; align-items: center; gap: 6px;">
-                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--diet-accent)" stroke-width="2.5"><path d="M18 8h1a4 4 0 0 1 0 8h-1"/><path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z"/><line x1="6" y1="2" x2="6" y2="4"/><line x1="10" y1="1" x2="10" y2="4"/><line x1="14" y1="2" x2="14" y2="4"/></svg>
-                            <span>Choose from Food Library</span>
+                        <label style="font-size: 12px; font-weight: 700; color: var(--ink); margin: 0;">
+                            Choose from Food Library
                         </label>
                         <?php if ($memberRestriction !== 'none' && $memberRestriction !== ''): ?>
                             <span style="font-size: 11.5px; color: var(--diet-muted); font-weight: 600;" title="Filtered to adhere to member dietary restriction">
@@ -1229,7 +1228,7 @@ function diet_builder_page(): void
                                         </div>
                                     </div>
                                 </div>
-                                <form method="post" style="margin:0; flex-shrink: 0;" onsubmit="return confirm('Remove this meal from <?= $dayName ?>?');">
+                                <form method="post" style="margin:0; flex-shrink: 0;" onsubmit="return confirmRemoveMeal(this, event, <?= json_encode($dayName) ?>);">
                                     <?= csrf_field() ?>
                                     <input type="hidden" name="action" value="remove_meal">
                                     <input type="hidden" name="meal_id" value="<?= $meal['meal_id'] ?>">
@@ -1245,6 +1244,117 @@ function diet_builder_page(): void
 </div>
 
 <script>
+function confirmGeneratePlan(btn, event) {
+    if (event) {
+        event.preventDefault();
+        event.stopPropagation();
+    }
+    const form = btn.closest('form');
+    if (!form) return false;
+
+    if (typeof Swal !== 'undefined') {
+        Swal.fire({
+            title: 'Auto-Generate Diet Plan?',
+            html: '<div style="font-size: 13.5px; color: var(--muted); line-height: 1.5; margin-top: 6px;">This will automatically generate a tailored 7-day meal plan based on the member\'s dietary restriction and fitness goal.<br><br><span style="color: #f59e0b; font-weight: 600;">⚠️ Any draft meals you have added manually will be cleared.</span></div>',
+            icon: 'question',
+            iconColor: 'var(--diet-accent, #84cc16)',
+            showCancelButton: true,
+            confirmButtonText: 'Yes, Generate Plan',
+            cancelButtonText: 'Cancel',
+            confirmButtonColor: 'var(--lime-dark, #65a30d)',
+            cancelButtonColor: 'var(--line, #334155)',
+            background: 'var(--panel, #121721)',
+            color: 'var(--ink, #ffffff)',
+            reverseButtons: true,
+            focusCancel: true
+        }).then((result) => {
+            if (result.isConfirmed) {
+                Swal.fire({
+                    title: 'Generating Diet Plan...',
+                    html: '<div style="font-size: 13.5px; color: var(--muted); margin-top: 6px;">Balancing nutrition and generating weekly schedule...</div>',
+                    allowOutsideClick: false,
+                    allowEscapeKey: false,
+                    showConfirmButton: false,
+                    background: 'var(--panel, #121721)',
+                    color: 'var(--ink, #ffffff)',
+                    didOpen: () => {
+                        Swal.showLoading();
+                    }
+                });
+                form.submit();
+            }
+        });
+    } else if (confirm('Auto-generate a dietary plan? This will clear any draft meals you have added manually.')) {
+        form.submit();
+    }
+    return false;
+}
+
+function confirmPublishPlan(btn, event) {
+    if (event) {
+        event.preventDefault();
+        event.stopPropagation();
+    }
+    const form = btn.closest('form');
+    if (!form) return false;
+
+    if (typeof Swal !== 'undefined') {
+        Swal.fire({
+            title: 'Publish Diet Plan?',
+            html: '<div style="font-size: 13.5px; color: var(--muted); line-height: 1.5; margin-top: 6px;">This will publish the diet plan and make it immediately active and visible to the member on their dashboard.</div>',
+            icon: 'question',
+            iconColor: 'var(--diet-accent, #84cc16)',
+            showCancelButton: true,
+            confirmButtonText: 'Yes, Publish Plan',
+            cancelButtonText: 'Cancel',
+            confirmButtonColor: 'var(--lime-dark, #65a30d)',
+            cancelButtonColor: 'var(--line, #334155)',
+            background: 'var(--panel, #121721)',
+            color: 'var(--ink, #ffffff)',
+            reverseButtons: true
+        }).then((result) => {
+            if (result.isConfirmed) {
+                form.submit();
+            }
+        });
+    } else if (confirm('Publish this diet plan?')) {
+        form.submit();
+    }
+    return false;
+}
+
+function confirmRemoveMeal(form, event, dayName) {
+    if (event) {
+        event.preventDefault();
+        event.stopPropagation();
+    }
+    if (!form) return false;
+
+    if (typeof Swal !== 'undefined') {
+        Swal.fire({
+            title: 'Remove Meal?',
+            text: `Are you sure you want to remove this meal from ${dayName}?`,
+            icon: 'warning',
+            iconColor: '#ef4444',
+            showCancelButton: true,
+            confirmButtonText: 'Yes, Remove',
+            cancelButtonText: 'Cancel',
+            confirmButtonColor: '#ef4444',
+            cancelButtonColor: 'var(--line, #334155)',
+            background: 'var(--panel, #121721)',
+            color: 'var(--ink, #ffffff)',
+            reverseButtons: true
+        }).then((result) => {
+            if (result.isConfirmed) {
+                form.submit();
+            }
+        });
+    } else if (confirm(`Remove this meal from ${dayName}?`)) {
+        form.submit();
+    }
+    return false;
+}
+
 function updateMacros() {
     const p = parseFloat(document.getElementById('calc_p').value) || 0;
     const c = parseFloat(document.getElementById('calc_c').value) || 0;

@@ -15,7 +15,8 @@ function notifications_page(): void
             header('Content-Type: application/json');
             $items   = get_notifications((int) $user['user_id'], 8);
             $unread  = unread_notification_count((int) $user['user_id']);
-            echo json_encode(['unread' => $unread, 'items' => $items]);
+            $unreadMsgs = (int) scalar('SELECT COUNT(*) FROM trainer_messages WHERE recipient_id = ? AND is_read = 0', [(int)$user['user_id']]);
+            echo json_encode(['unread' => $unread, 'items' => $items, 'unread_messages' => $unreadMsgs]);
             exit;
         }
         if ($isAjax && ($action === 'mark_read' || $action === 'mark_all_read')) {

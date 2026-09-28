@@ -79,6 +79,11 @@ function attendance_page(): void
         $members = db()->query('
             SELECT DISTINCT u.user_id, 
                    u.first_name,
+                   u.last_name,
+                   u.email,
+                   u.profile_picture,
+                   u.role,
+                   IF(gm.gym_id IS NOT NULL, 1, 0) AS is_affiliated,
                    CONCAT(u.first_name, " ", u.last_name, " (", u.role, ")", IF(gm.gym_id IS NOT NULL, " ★", "")) AS name,
                    IF(gm.gym_id = ' . (int)$currentGymId . ' OR tp.gym_id = ' . (int)$currentGymId . ', 0, 1) as sort_prio
             FROM users u 
@@ -107,10 +112,28 @@ function attendance_page(): void
             LIMIT 100
         ')->fetchAll();
     } else {
-        $members = db()->query('SELECT user_id, CONCAT(first_name, " ", last_name, " (", role, ")") AS name FROM users WHERE role IN ("member", "trainer") AND status = "active" ORDER BY role, first_name')->fetchAll();
+        $members = db()->query('SELECT user_id, first_name, last_name, email, profile_picture, role, 0 AS is_affiliated, CONCAT(first_name, " ", last_name, " (", role, ")") AS name FROM users WHERE role IN ("member", "trainer") AND status = "active" ORDER BY role, first_name')->fetchAll();
         $schedules = db()->query('SELECT s.schedule_id, CONCAT(c.class_name, " - ", DATE_FORMAT(s.start_datetime, "%b %d %h:%i %p")) AS label FROM class_schedules s JOIN classes c ON c.class_id = s.class_id WHERE s.start_datetime >= DATE_SUB(NOW(), INTERVAL 1 DAY) ORDER BY s.start_datetime')->fetchAll();
         $rows = db()->query('SELECT a.*, CONCAT(u.first_name, " ", u.last_name) AS member, u.first_name, u.last_name, u.role, c.class_name FROM attendance a JOIN users u ON u.user_id = a.user_id LEFT JOIN class_schedules s ON s.schedule_id = a.schedule_id LEFT JOIN classes c ON c.class_id = s.class_id ORDER BY a.check_in_time DESC LIMIT 100')->fetchAll();
     }
+
+    $checkinMembersData = array_map(function ($m) {
+        $first = trim((string)($m['first_name'] ?? ''));
+        $last  = trim((string)($m['last_name'] ?? ''));
+        $fullName = trim($first . ' ' . $last) ?: ($m['name'] ?? 'User');
+        $ini = (!empty($first) ? strtoupper(substr($first, 0, 1)) : '') . (!empty($last) ? strtoupper(substr($last, 0, 1)) : '');
+        $roleName = ucfirst((string)($m['role'] ?? 'Member'));
+        $star = !empty($m['is_affiliated']) ? ' ★' : '';
+        $label = $fullName . ' (' . $roleName . ')' . $star;
+        $email = (string)($m['email'] ?? '');
+        return [
+            'id'       => (int) $m['user_id'],
+            'label'    => $label,
+            'subtitle' => $email,
+            'initials' => $ini ?: 'U',
+            'avatar'   => !empty($m['profile_picture']) ? upload_url($m['profile_picture']) : null
+        ];
+    }, $members ?: []);
 
     render_header('Attendance', $user);
     ?>
@@ -214,31 +237,35 @@ function attendance_page(): void
     </section>
     
     <script>
+    window.checkinMembersData = <?= json_encode($checkinMembersData ?? [], JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP) ?>;
+
     function recordCheckin() {
+        const checkinUsers = Array.isArray(window.checkinMembersData) ? window.checkinMembersData : [];
+        let userDrop = null;
+
         Swal.fire({
             title: 'Record Check-in',
+            width: '460px',
             html: `
-                <form id="recordCheckinForm" method="post" style="text-align: left; display: flex; flex-direction: column; gap: 12px; margin-top: 15px;">
+                <form id="recordCheckinForm" method="post" style="text-align: left; display: flex; flex-direction: column; gap: 14px; margin-top: 15px; min-height: 220px; position: relative;">
                     <?= csrf_field() ?>
                     <input type="hidden" name="action" value="checkin">
+                    <input type="hidden" name="user_id" id="checkinUserId" value="">
                     
-                    <label style="display:block; color: var(--muted); font-size: 14px;">User *
-                        <select name="user_id" class="form-control" style="width: 100%; box-sizing: border-box;" required>
-                            <option value="">Select User...</option>
-                            <?php foreach ($members as $member): ?>
-                                <option value="<?= (int) $member['user_id'] ?>"><?= h($member['name']) ?></option>
-                            <?php endforeach; ?>
-                        </select>
-                    </label>
+                    <div>
+                        <label style="display:block; color: var(--muted); font-size: 13.5px; margin-bottom: 6px; font-weight: 500;">User *</label>
+                        <div id="checkinUserWrap"></div>
+                    </div>
                     
-                    <label id="sessionLabel" style="display:block; color: var(--muted); font-size: 14px;">Session
-                        <select name="schedule_id" class="form-control" style="width: 100%; box-sizing: border-box;">
-                            <option value="">— General Check-in —</option>
+                    <div>
+                        <label id="sessionLabel" style="display:block; color: var(--muted); font-size: 13.5px; margin-bottom: 6px; font-weight: 500;">Session</label>
+                        <select name="schedule_id" class="form-control" style="width: 100%; height: 42px; box-sizing: border-box; background: var(--panel); color: var(--ink); border: 1px solid var(--line); border-radius: 8px; padding: 0 12px; font-size: 13px; font-family: inherit; outline: none; cursor: pointer;">
+                            <option value="" style="font-size: 13px;">— General Check-in —</option>
                             <?php foreach ($schedules as $schedule): ?>
-                                <option value="<?= (int) $schedule['schedule_id'] ?>"><?= h($schedule['label']) ?></option>
+                                <option value="<?= (int) $schedule['schedule_id'] ?>" style="font-size: 13px;"><?= h($schedule['label']) ?></option>
                             <?php endforeach; ?>
                         </select>
-                    </label>
+                    </div>
                     
                     <input type="hidden" name="check_in_method" value="manual">
                 </form>
@@ -249,13 +276,30 @@ function attendance_page(): void
             cancelButtonColor: 'var(--line)',
             background: 'var(--bg)',
             color: 'var(--ink)',
+            didOpen: () => {
+                const userIdInput = document.getElementById('checkinUserId');
+                userDrop = new FitDropdown({
+                    container: '#checkinUserWrap',
+                    placeholder: 'Search user by name or email...',
+                    searchable: true,
+                    searchPlaceholder: 'Search users...',
+                    allowClear: true,
+                    zIndex: 80,
+                    items: checkinUsers,
+                    onChange: (selectedUser) => {
+                        if (userIdInput) {
+                            userIdInput.value = selectedUser ? selectedUser.id : '';
+                        }
+                    }
+                });
+            },
             preConfirm: () => {
-                const form = document.getElementById('recordCheckinForm');
-                if (!form.user_id.value) {
-                    Swal.showValidationMessage('Please fill all required fields');
+                const userIdInput = document.getElementById('checkinUserId');
+                if (!userIdInput || !userIdInput.value) {
+                    Swal.showValidationMessage('Please select a user to check in');
                     return false;
                 }
-                form.submit();
+                document.getElementById('recordCheckinForm').submit();
             }
         });
     }

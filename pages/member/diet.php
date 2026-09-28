@@ -244,6 +244,13 @@ function diet_page(): void
 
     $action = (string) (post('action') ?: ($_GET['action'] ?? ''));
 
+    // Automatically acknowledge/mark diet plan notifications as read when member opens diet page
+    if (empty($action)) {
+        try {
+            $pdo->prepare('UPDATE notifications SET is_read = 1 WHERE user_id = ? AND is_read = 0 AND (title LIKE "%Diet Plan%" OR message LIKE "%dietary plan%")')->execute([$userId]);
+        } catch (Throwable) {}
+    }
+
     // ----------------------------------------------------
     // AJAX: Get Meal Swap Alternatives
     // ----------------------------------------------------

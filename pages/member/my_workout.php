@@ -20,6 +20,11 @@ function my_workout_page(): void
         redirect('my_workout');
     }
 
+    // Automatically acknowledge/mark workout plan notifications as read when member opens workouts page
+    try {
+        $pdo->prepare('UPDATE notifications SET is_read = 1 WHERE user_id = ? AND is_read = 0 AND (title LIKE "%Workout Plan%" OR message LIKE "%training routine%")')->execute([$userId]);
+    } catch (Throwable) {}
+
     render_header('My Workout', $user);
 
     // Fetch active training plan for this member
