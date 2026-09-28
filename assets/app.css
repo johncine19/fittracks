@@ -18,6 +18,8 @@
     --orange: #ff9548;
     --danger: #ff4d5d;
     --shadow: 0 8px 30px rgba(0, 0, 0, 0.25);
+    --star-empty: rgba(255, 255, 255, 0.22);
+    --star-unfilled: #4b5563;
 }
 
 [data-theme="light"] {
@@ -40,6 +42,8 @@
     --orange: #d97706;
     --danger: #dc2626;
     --shadow: 0 4px 15px rgba(0, 0, 0, 0.08);
+    --star-empty: #cbd5e1;
+    --star-unfilled: #cbd5e1;
 }
 
 /* Plan Card Glow */

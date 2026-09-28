@@ -1051,7 +1051,7 @@ function profile_page(): void
                     </p>
                 </div>
                 <div style="display:flex; align-items:center; gap:8px;">
-                    <span style="font-size:12px; padding:4px 12px; border-radius:999px; background:rgba(199,255,34,0.08); border:1px solid rgba(199,255,34,0.2); color:var(--lime); font-weight:600;">
+                    <span class="rating-badge-active">
                         Two-Way Separation Active
                     </span>
                 </div>
@@ -1060,11 +1060,11 @@ function profile_page(): void
             <!-- Two-Way Grid -->
             <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(360px, 1fr)); gap:22px; margin-top:20px;">
                 <!-- Card 1: Members -> Your Gym -->
-                <div style="border-radius:14px; border:1px solid var(--line); background:color-mix(in srgb, var(--panel-soft) 60%, transparent); padding:22px; display:flex; flex-direction:column;">
+                <div class="rating-hub-card">
                     <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:16px;">
                         <div>
                             <div style="display:flex; align-items:center; gap:8px;">
-                                <span style="font-size:11px; text-transform:uppercase; letter-spacing:0.5px; font-weight:700; color:var(--lime); background:rgba(199,255,34,0.1); padding:2px 8px; border-radius:4px;">Members &rarr; Your Gym</span>
+                                <span class="rating-badge-gym">Members &rarr; Your Gym</span>
                             </div>
                             <h3 style="font-size:17px; font-weight:700; margin:6px 0 0 0; color:var(--ink);">Member Ratings &amp; Reviews</h3>
                             <p style="font-size:12px; color:var(--muted); margin:2px 0 0 0;">Ratings contributed exclusively by your enrolled gym members</p>
@@ -1076,9 +1076,9 @@ function profile_page(): void
 
                     <?php if ($gymRatingStats && $ownerGymId): ?>
                         <!-- Score Summary Box -->
-                        <div style="background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.06); border-radius:12px; padding:16px; margin-bottom:18px; display:flex; align-items:center; gap:20px;">
+                        <div class="rating-summary-box">
                             <div style="text-align:center; min-width:85px;">
-                                <div style="font-size:36px; font-weight:800; line-height:1; color:#fff;">
+                                <div class="rating-big-num">
                                     <?= number_format($gymRatingStats['avg_rating'], 1) ?>
                                 </div>
                                 <div style="margin-top:6px; display:flex; justify-content:center;">
@@ -1090,14 +1090,14 @@ function profile_page(): void
                             </div>
 
                             <!-- Star Breakdown Progress Bars -->
-                            <div style="flex:1; border-left:1px solid rgba(255,255,255,0.06); padding-left:16px; display:flex; flex-direction:column; gap:4px;">
+                            <div class="rating-summary-divider">
                                 <?php for ($s = 5; $s >= 1; $s--): 
                                     $pct = $gymRatingStats['breakdown_pct'][$s] ?? 0;
                                     $cnt = $gymRatingStats['breakdown'][$s] ?? 0;
                                 ?>
                                     <div style="display:flex; align-items:center; gap:8px; font-size:11px;">
                                         <span style="width:20px; color:var(--muted); text-align:right; font-weight:600;"><?= $s ?>★</span>
-                                        <div style="flex:1; height:6px; background:rgba(255,255,255,0.08); border-radius:999px; overflow:hidden;">
+                                        <div class="rating-bar-track">
                                             <div style="height:100%; width:<?= $pct ?>%; background:linear-gradient(90deg, #f59e0b, #fbbf24); border-radius:999px;"></div>
                                         </div>
                                         <span style="width:22px; color:var(--muted); font-size:10px;"><?= $cnt ?></span>
@@ -1107,14 +1107,21 @@ function profile_page(): void
                         </div>
 
                         <!-- Recent Member Reviews Feed -->
-                        <div style="flex:1;">
-                            <div style="font-size:12px; font-weight:700; color:var(--muted); text-transform:uppercase; letter-spacing:0.5px; margin-bottom:10px;">
-                                Recent Member Reviews
+                        <div style="flex:1; display:flex; flex-direction:column;">
+                            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+                                <div style="font-size:12px; font-weight:700; color:var(--muted); text-transform:uppercase; letter-spacing:0.5px;">
+                                    Recent Member Reviews
+                                </div>
+                                <?php if (!empty($recentGymReviews)): ?>
+                                    <span style="font-size:11px; color:var(--muted); font-weight:600;">
+                                        Latest <?= count($recentGymReviews) ?>
+                                    </span>
+                                <?php endif; ?>
                             </div>
-                            <div class="list-stack" style="display:flex; flex-direction:column; gap:10px;">
+                            <div class="rating-reviews-scroll-list" style="display:flex; flex-direction:column; gap:10px; max-height:240px; overflow-y:auto; padding-right:4px;">
                                 <?php if (!empty($recentGymReviews)): ?>
                                     <?php foreach ($recentGymReviews as $rev): ?>
-                                        <div style="padding:12px; background:rgba(255,255,255,0.02); border:1px solid rgba(255,255,255,0.05); border-radius:10px;">
+                                        <div class="rating-review-card">
                                             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
                                                 <div style="display:flex; align-items:center; gap:8px;">
                                                     <?= render_avatar($rev) ?>
@@ -1128,34 +1135,41 @@ function profile_page(): void
                                                 </div>
                                             </div>
                                             <?php if (!empty($rev['review'])): ?>
-                                                <p style="font-size:12.5px; line-height:1.45; color:rgba(255,255,255,0.85); margin:6px 0 0 0; font-style:italic;">
+                                                <p class="rating-review-quote">
                                                     &ldquo;<?= h($rev['review']) ?>&rdquo;
                                                 </p>
                                             <?php endif; ?>
                                         </div>
                                     <?php endforeach; ?>
                                 <?php else: ?>
-                                    <div style="text-align:center; padding:28px 16px; background:rgba(255,255,255,0.02); border:1px dashed rgba(255,255,255,0.08); border-radius:10px;">
-                                        <p style="font-size:13px; color:var(--muted); margin:0;">No member reviews yet.</p>
+                                    <div class="rating-empty-box">
+                                        <p style="font-size:13px; color:var(--muted); margin:0; font-weight:500;">No member reviews yet.</p>
                                         <span style="font-size:11.5px; color:var(--muted); display:block; margin-top:4px;">When your enrolled members rate your gym in their portal, their feedback will show here.</span>
                                     </div>
                                 <?php endif; ?>
                             </div>
+                            <?php if ($ownerGymId && ($gymRatingStats['total_reviews'] ?? 0) > 0): ?>
+                                <div style="margin-top:12px; padding-top:10px; border-top:1px solid var(--line);">
+                                    <a href="index.php?page=gym_profile#sec-ratings" class="btn btn-secondary btn-sm" style="width:100%; justify-content:center; font-size:12px; gap:6px;">
+                                        View All Member Reviews (<?= (int)$gymRatingStats['total_reviews'] ?>) &rarr;
+                                    </a>
+                                </div>
+                            <?php endif; ?>
                         </div>
                     <?php else: ?>
-                        <div style="text-align:center; padding:32px 16px; background:rgba(255,255,255,0.02); border:1px dashed rgba(255,255,255,0.08); border-radius:10px;">
+                        <div class="rating-empty-box" style="padding:32px 16px;">
                             <p style="font-size:13px; color:var(--muted); margin:0;">No gym associated yet.</p>
                         </div>
                     <?php endif; ?>
                 </div>
 
                 <!-- Card 2: Gym Owner -> FitTrack Platform -->
-                <div id="platform-feedback-card" style="border-radius:14px; border:1px solid rgba(199,255,34,0.25); background:color-mix(in srgb, var(--panel-soft) 60%, transparent); padding:22px; display:flex; flex-direction:column;">
+                <div id="platform-feedback-card" class="rating-hub-card rating-platform-card">
                     <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:14px;">
                         <div>
                             <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
-                                <span style="font-size:11px; text-transform:uppercase; letter-spacing:0.5px; font-weight:700; color:#38bdf8; background:rgba(56,189,248,0.1); padding:2px 8px; border-radius:4px;">Gym Owner &rarr; FitTrack</span>
-                                <span style="font-size:11px; color:var(--lime); background:rgba(199,255,34,0.08); border:1px solid rgba(199,255,34,0.2); padding:2px 8px; border-radius:999px;">
+                                <span class="rating-badge-owner">Gym Owner &rarr; FitTrack</span>
+                                <span class="rating-badge-featured">
                                     Featured on Landing Page
                                 </span>
                             </div>
@@ -1165,7 +1179,7 @@ function profile_page(): void
                             </p>
                         </div>
                         <?php if ($myPlatformReview): ?>
-                            <span style="display:inline-flex; align-items:center; gap:4px; font-size:11px; color:#22c55e; background:rgba(34,197,94,0.1); padding:3px 8px; border-radius:6px; font-weight:600; white-space:nowrap;">
+                            <span class="rating-badge-live">
                                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
                                 Feedback Live
                             </span>
@@ -1174,7 +1188,7 @@ function profile_page(): void
 
                     <!-- Existing Review Summary / Toggle if already reviewed -->
                     <?php if ($myPlatformReview): ?>
-                        <div id="platform-review-view" style="background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.06); border-radius:10px; padding:14px; margin-bottom:14px;">
+                        <div id="platform-review-view" class="rating-existing-review">
                             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
                                 <div style="display:flex; align-items:center; gap:8px;">
                                     <?= render_star_rating((float)$myPlatformReview['rating'], 16, true) ?>
@@ -1185,21 +1199,21 @@ function profile_page(): void
                                 </button>
                             </div>
                             <?php if (!empty($myPlatformReview['review'])): ?>
-                                <p style="font-size:13px; line-height:1.45; color:rgba(255,255,255,0.9); margin:0 0 8px 0; font-style:italic;">
+                                <p style="font-size:13px; line-height:1.45; margin:0 0 8px 0; font-style:italic;" class="rating-review-quote">
                                     &ldquo;<?= h($myPlatformReview['review']) ?>&rdquo;
                                 </p>
                             <?php endif; ?>
-                            <div style="display:flex; gap:12px; font-size:11px; color:var(--muted); flex-wrap:wrap; border-top:1px solid rgba(255,255,255,0.05); padding-top:8px;">
+                            <div class="rating-meta-row" style="display:flex; gap:12px; font-size:11px; color:var(--muted); flex-wrap:wrap; border-top:1px solid rgba(255,255,255,0.06); padding-top:8px;">
                                 <?php if (!empty($myPlatformReview['system_experience'])): ?>
-                                    <span>System UX: <strong style="color:var(--lime);"><?= (int)$myPlatformReview['system_experience'] ?>★</strong></span>
+                                    <span>System UX: <strong style="color:#f59e0b;"><?= (int)$myPlatformReview['system_experience'] ?>★</strong></span>
                                 <?php endif; ?>
                                 <?php if (!empty($myPlatformReview['features_rating'])): ?>
-                                    <span>Features: <strong style="color:var(--lime);"><?= (int)$myPlatformReview['features_rating'] ?>★</strong></span>
+                                    <span>Features: <strong style="color:#f59e0b;"><?= (int)$myPlatformReview['features_rating'] ?>★</strong></span>
                                 <?php endif; ?>
                                 <?php if (!empty($myPlatformReview['service_rating'])): ?>
-                                    <span>Service: <strong style="color:var(--lime);"><?= (int)$myPlatformReview['service_rating'] ?>★</strong></span>
+                                    <span>Service: <strong style="color:#f59e0b;"><?= (int)$myPlatformReview['service_rating'] ?>★</strong></span>
                                 <?php endif; ?>
-                                <a href="index.php?page=landing#testimonials" target="_blank" style="margin-left:auto; color:var(--lime); text-decoration:none; font-weight:600;">
+                                <a href="index.php?page=landing#testimonials" target="_blank" class="rating-landing-link" style="margin-left:auto; text-decoration:none; font-weight:600;">
                                     View on Landing Page &rarr;
                                 </a>
                             </div>
@@ -1220,7 +1234,7 @@ function profile_page(): void
 
                         <!-- Overall Platform Rating Selector -->
                         <div>
-                            <label style="font-size:12px; font-weight:700; color:var(--muted); text-transform:uppercase; letter-spacing:0.5px; display:block; margin-bottom:6px;">
+                            <label class="rating-field-label" style="font-size:12px; font-weight:700; color:var(--muted); text-transform:uppercase; letter-spacing:0.5px; display:block; margin-bottom:6px;">
                                 Overall FitTrack Platform Rating <span style="color:var(--danger)">*</span>
                             </label>
                             <div style="display:flex; align-items:center; gap:8px;">
@@ -1230,45 +1244,45 @@ function profile_page(): void
                                     for ($i = 1; $i <= 5; $i++): 
                                         $isFilled = $i <= $currOverall;
                                     ?>
-                                        <button type="button" class="owner-star-btn" data-val="<?= $i ?>" onclick="setPlatformRating('overall', <?= $i ?>)" style="background:none; border:none; padding:2px; cursor:pointer; color:<?= $isFilled ? '#f59e0b' : '#4b5563' ?>; transition:transform 0.15s ease, color 0.15s ease;" title="<?= $i ?> Star<?= $i > 1 ? 's' : '' ?>">
+                                        <button type="button" class="owner-star-btn" data-val="<?= $i ?>" onclick="setPlatformRating('overall', <?= $i ?>)" style="background:none; border:none; padding:2px; cursor:pointer; color:<?= $isFilled ? '#f59e0b' : 'var(--star-unfilled, #4b5563)' ?>; transition:transform 0.15s ease, color 0.15s ease;" title="<?= $i ?> Star<?= $i > 1 ? 's' : '' ?>">
                                             <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
                                                 <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
                                             </svg>
                                         </button>
                                     <?php endfor; ?>
                                 </div>
-                                <span id="owner-rating-text" style="font-size:13px; font-weight:700; color:var(--lime);">
+                                <span id="owner-rating-text" class="rating-score-label">
                                     <?= $currOverall ?> / 5 Stars
                                 </span>
                             </div>
                         </div>
 
                         <!-- Sub-Ratings Row (System UX, Features, Service) -->
-                        <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(110px, 1fr)); gap:10px; background:rgba(255,255,255,0.02); border:1px solid rgba(255,255,255,0.05); border-radius:8px; padding:10px;">
+                        <div class="rating-subratings-box">
                             <div>
-                                <span style="font-size:11px; color:var(--muted); display:block; margin-bottom:4px;">System UX:</span>
+                                <span style="font-size:11px; color:var(--muted); display:block; margin-bottom:4px; font-weight:600;">System UX:</span>
                                 <div class="sub-star-group" data-target="owner-system-rating" style="display:flex; gap:2px;">
                                     <?php $currSys = (int)($myPlatformReview['system_experience'] ?? 5);
                                     for ($i = 1; $i <= 5; $i++): ?>
-                                        <span class="sub-star" data-val="<?= $i ?>" onclick="setSubRating('owner-system-rating', <?= $i ?>, this)" style="cursor:pointer; font-size:14px; color:<?= $i <= $currSys ? '#f59e0b' : '#4b5563' ?>;">★</span>
+                                        <span class="sub-star" data-val="<?= $i ?>" onclick="setSubRating('owner-system-rating', <?= $i ?>, this)" style="cursor:pointer; font-size:14px; color:<?= $i <= $currSys ? '#f59e0b' : 'var(--star-unfilled, #4b5563)' ?>;">★</span>
                                     <?php endfor; ?>
                                 </div>
                             </div>
                             <div>
-                                <span style="font-size:11px; color:var(--muted); display:block; margin-bottom:4px;">Features:</span>
+                                <span style="font-size:11px; color:var(--muted); display:block; margin-bottom:4px; font-weight:600;">Features:</span>
                                 <div class="sub-star-group" data-target="owner-features-rating" style="display:flex; gap:2px;">
                                     <?php $currFeat = (int)($myPlatformReview['features_rating'] ?? 5);
                                     for ($i = 1; $i <= 5; $i++): ?>
-                                        <span class="sub-star" data-val="<?= $i ?>" onclick="setSubRating('owner-features-rating', <?= $i ?>, this)" style="cursor:pointer; font-size:14px; color:<?= $i <= $currFeat ? '#f59e0b' : '#4b5563' ?>;">★</span>
+                                        <span class="sub-star" data-val="<?= $i ?>" onclick="setSubRating('owner-features-rating', <?= $i ?>, this)" style="cursor:pointer; font-size:14px; color:<?= $i <= $currFeat ? '#f59e0b' : 'var(--star-unfilled, #4b5563)' ?>;">★</span>
                                     <?php endfor; ?>
                                 </div>
                             </div>
                             <div>
-                                <span style="font-size:11px; color:var(--muted); display:block; margin-bottom:4px;">Service:</span>
+                                <span style="font-size:11px; color:var(--muted); display:block; margin-bottom:4px; font-weight:600;">Service:</span>
                                 <div class="sub-star-group" data-target="owner-service-rating" style="display:flex; gap:2px;">
                                     <?php $currServ = (int)($myPlatformReview['service_rating'] ?? 5);
                                     for ($i = 1; $i <= 5; $i++): ?>
-                                        <span class="sub-star" data-val="<?= $i ?>" onclick="setSubRating('owner-service-rating', <?= $i ?>, this)" style="cursor:pointer; font-size:14px; color:<?= $i <= $currServ ? '#f59e0b' : '#4b5563' ?>;">★</span>
+                                        <span class="sub-star" data-val="<?= $i ?>" onclick="setSubRating('owner-service-rating', <?= $i ?>, this)" style="cursor:pointer; font-size:14px; color:<?= $i <= $currServ ? '#f59e0b' : 'var(--star-unfilled, #4b5563)' ?>;">★</span>
                                     <?php endfor; ?>
                                 </div>
                             </div>
@@ -1276,13 +1290,13 @@ function profile_page(): void
 
                         <!-- Written Review Comment -->
                         <div>
-                            <label for="platform-review-text" style="font-size:12px; font-weight:700; color:var(--muted); text-transform:uppercase; letter-spacing:0.5px; display:block; margin-bottom:6px;">
+                            <label for="platform-review-text" class="rating-field-label" style="font-size:12px; font-weight:700; color:var(--muted); text-transform:uppercase; letter-spacing:0.5px; display:block; margin-bottom:6px;">
                                 Written Platform Review / Testimonial <span style="font-size:11px; font-weight:normal; text-transform:none; color:var(--muted);">(Optional &bull; featured on landing page)</span>
                             </label>
-                            <textarea id="platform-review-text" name="review" rows="3" class="form-control" style="width:100%; box-sizing:border-box; background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.1); border-radius:8px; color:#fff; padding:10px; font-size:13px; resize:vertical;" placeholder="Share your experience using FitTrack for your gym operations, attendance, billing, or member engagement..."><?= h($myPlatformReview['review'] ?? '') ?></textarea>
+                            <textarea id="platform-review-text" name="review" rows="3" class="form-control rating-textarea" placeholder="Share your experience using FitTrack for your gym operations, attendance, billing, or member engagement..."><?= h($myPlatformReview['review'] ?? '') ?></textarea>
                         </div>
 
-                        <div style="display:flex; align-items:center; justify-content:space-between; margin-top:auto; pt:6px;">
+                        <div style="display:flex; align-items:center; justify-content:space-between; margin-top:auto; padding-top:6px;">
                             <?php if ($myPlatformReview): ?>
                                 <button type="button" onclick="togglePlatformReviewEdit(false)" class="btn btn-secondary" style="font-size:12px; padding:6px 12px;">Cancel</button>
                             <?php else: ?>
@@ -1370,7 +1384,7 @@ function profile_page(): void
         const btns = document.querySelectorAll('#owner-star-picker .owner-star-btn');
         btns.forEach((btn, idx) => {
             const starVal = idx + 1;
-            btn.style.color = starVal <= val ? '#f59e0b' : '#4b5563';
+            btn.style.color = starVal <= val ? '#f59e0b' : 'var(--star-unfilled, #4b5563)';
         });
         const textEl = document.getElementById('owner-rating-text');
         if (textEl) textEl.textContent = val + ' / 5 Stars';
@@ -1383,7 +1397,7 @@ function profile_page(): void
         if (parent) {
             const stars = parent.querySelectorAll('.sub-star');
             stars.forEach((s, idx) => {
-                s.style.color = (idx + 1) <= val ? '#f59e0b' : '#4b5563';
+                s.style.color = (idx + 1) <= val ? '#f59e0b' : 'var(--star-unfilled, #4b5563)';
             });
         }
     }
@@ -1985,6 +1999,285 @@ function profile_page(): void
     input:checked + .toggle-slider:before {
         transform: translateX(24px);
         background-color: var(--bg);
+    }
+
+    /* ── Two-Way Rating & Feedback Hub ── */
+    :root {
+        --star-unfilled: #4b5563;
+        --star-empty: rgba(255, 255, 255, 0.22);
+    }
+    [data-theme="light"] {
+        --star-unfilled: #cbd5e1;
+        --star-empty: #cbd5e1;
+    }
+
+    .rating-hub-card {
+        border-radius: 14px;
+        border: 1px solid var(--line);
+        background: color-mix(in srgb, var(--panel-soft) 60%, transparent);
+        padding: 22px;
+        display: flex;
+        flex-direction: column;
+        transition: border-color 0.2s ease, box-shadow 0.2s ease;
+    }
+    [data-theme="light"] .rating-hub-card {
+        background: #ffffff !important;
+        border: 1px solid #e2e8f0 !important;
+        box-shadow: 0 4px 18px rgba(15, 23, 42, 0.05) !important;
+    }
+
+    .rating-platform-card {
+        border: 1px solid rgba(199, 255, 34, 0.25);
+    }
+    [data-theme="light"] .rating-platform-card {
+        border: 1px solid #cbd5e1 !important;
+        box-shadow: 0 4px 18px rgba(15, 23, 42, 0.06) !important;
+    }
+
+    .rating-badge-active {
+        font-size: 12px;
+        padding: 4px 12px;
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.05);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        color: #cbd5e1;
+        font-weight: 600;
+    }
+    [data-theme="light"] .rating-badge-active {
+        background: #f1f5f9 !important;
+        border: 1px solid #cbd5e1 !important;
+        color: #475569 !important;
+    }
+
+    .rating-badge-gym,
+    .rating-badge-owner {
+        font-size: 11px;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        font-weight: 700;
+        background: rgba(255, 255, 255, 0.06);
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        color: #cbd5e1;
+        padding: 3px 9px;
+        border-radius: 6px;
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+    }
+    [data-theme="light"] .rating-badge-gym,
+    [data-theme="light"] .rating-badge-owner {
+        background: #f1f5f9 !important;
+        border: 1px solid #cbd5e1 !important;
+        color: #334155 !important;
+    }
+
+    .rating-badge-featured {
+        font-size: 11px;
+        color: var(--muted);
+        background: rgba(255, 255, 255, 0.04);
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        padding: 3px 9px;
+        border-radius: 999px;
+        font-weight: 500;
+    }
+    [data-theme="light"] .rating-badge-featured {
+        background: #f8fafc !important;
+        border: 1px solid #e2e8f0 !important;
+        color: #64748b !important;
+    }
+
+    .rating-badge-live {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        font-size: 11px;
+        color: #22c55e;
+        background: rgba(34, 197, 94, 0.1);
+        border: 1px solid rgba(34, 197, 94, 0.25);
+        padding: 3px 8px;
+        border-radius: 6px;
+        font-weight: 600;
+        white-space: nowrap;
+    }
+    [data-theme="light"] .rating-badge-live {
+        background: #f0fdf4 !important;
+        border: 1px solid #bbf7d0 !important;
+        color: #15803d !important;
+    }
+
+    .rating-summary-box {
+        background: rgba(255, 255, 255, 0.03);
+        border: 1px solid rgba(255, 255, 255, 0.06);
+        border-radius: 12px;
+        padding: 16px;
+        margin-bottom: 18px;
+        display: flex;
+        align-items: center;
+        gap: 20px;
+    }
+    [data-theme="light"] .rating-summary-box {
+        background: #f8fafc !important;
+        border: 1px solid #e2e8f0 !important;
+    }
+
+    .rating-big-num {
+        font-size: 36px;
+        font-weight: 800;
+        line-height: 1;
+        color: #ffffff;
+    }
+    [data-theme="light"] .rating-big-num {
+        color: #0f172a !important;
+    }
+
+    .rating-summary-divider {
+        flex: 1;
+        border-left: 1px solid rgba(255, 255, 255, 0.06);
+        padding-left: 16px;
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+    }
+    [data-theme="light"] .rating-summary-divider {
+        border-left: 1px solid #e2e8f0 !important;
+    }
+
+    .rating-bar-track {
+        flex: 1;
+        height: 6px;
+        background: rgba(255, 255, 255, 0.08);
+        border-radius: 999px;
+        overflow: hidden;
+    }
+    [data-theme="light"] .rating-bar-track {
+        background: #e2e8f0 !important;
+    }
+
+    .rating-reviews-scroll-list {
+        scrollbar-width: thin;
+        scrollbar-color: rgba(255, 255, 255, 0.15) transparent;
+    }
+    .rating-reviews-scroll-list::-webkit-scrollbar {
+        width: 5px;
+    }
+    .rating-reviews-scroll-list::-webkit-scrollbar-track {
+        background: transparent;
+    }
+    .rating-reviews-scroll-list::-webkit-scrollbar-thumb {
+        background: rgba(255, 255, 255, 0.15);
+        border-radius: 4px;
+    }
+    [data-theme="light"] .rating-reviews-scroll-list {
+        scrollbar-color: #cbd5e1 transparent;
+    }
+    [data-theme="light"] .rating-reviews-scroll-list::-webkit-scrollbar-thumb {
+        background: #cbd5e1;
+    }
+
+    .rating-review-card {
+        padding: 12px;
+        background: rgba(255, 255, 255, 0.02);
+        border: 1px solid rgba(255, 255, 255, 0.05);
+        border-radius: 10px;
+    }
+    [data-theme="light"] .rating-review-card {
+        background: #f8fafc !important;
+        border: 1px solid #e2e8f0 !important;
+    }
+
+    .rating-review-quote {
+        font-size: 12.5px;
+        line-height: 1.45;
+        color: rgba(255, 255, 255, 0.85);
+        margin: 6px 0 0 0;
+        font-style: italic;
+    }
+    [data-theme="light"] .rating-review-quote {
+        color: #334155 !important;
+    }
+
+    .rating-empty-box {
+        text-align: center;
+        padding: 28px 16px;
+        background: rgba(255, 255, 255, 0.02);
+        border: 1px dashed rgba(255, 255, 255, 0.08);
+        border-radius: 10px;
+    }
+    [data-theme="light"] .rating-empty-box {
+        background: #f8fafc !important;
+        border: 1px dashed #cbd5e1 !important;
+    }
+
+    .rating-score-label {
+        font-size: 13px;
+        font-weight: 700;
+        color: var(--lime);
+    }
+    [data-theme="light"] .rating-score-label {
+        color: #d97706 !important;
+    }
+
+    .rating-subratings-box {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+        gap: 10px;
+        background: rgba(255, 255, 255, 0.02);
+        border: 1px solid rgba(255, 255, 255, 0.05);
+        border-radius: 8px;
+        padding: 10px;
+    }
+    [data-theme="light"] .rating-subratings-box {
+        background: #f8fafc !important;
+        border: 1px solid #e2e8f0 !important;
+    }
+
+    .rating-field-label {
+        color: var(--muted);
+    }
+    [data-theme="light"] .rating-field-label {
+        color: #334155 !important;
+    }
+
+    .rating-textarea {
+        width: 100%;
+        box-sizing: border-box;
+        background: rgba(255, 255, 255, 0.04);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 8px;
+        color: #f8fafc;
+        padding: 10px;
+        font-size: 13px;
+        resize: vertical;
+    }
+    [data-theme="light"] .rating-textarea {
+        background: #ffffff !important;
+        border: 1px solid #cbd5e1 !important;
+        color: #0f172a !important;
+    }
+    [data-theme="light"] .rating-textarea::placeholder {
+        color: #94a3b8 !important;
+    }
+
+    .rating-existing-review {
+        background: rgba(255, 255, 255, 0.03);
+        border: 1px solid rgba(255, 255, 255, 0.06);
+        border-radius: 10px;
+        padding: 14px;
+        margin-bottom: 14px;
+    }
+    [data-theme="light"] .rating-existing-review {
+        background: #f8fafc !important;
+        border: 1px solid #e2e8f0 !important;
+    }
+    [data-theme="light"] .rating-existing-review .rating-meta-row {
+        border-top: 1px solid #e2e8f0 !important;
+    }
+
+    .rating-landing-link {
+        color: var(--lime);
+    }
+    [data-theme="light"] .rating-landing-link {
+        color: #0284c7 !important;
     }
 
     /* ── Responsive ── */

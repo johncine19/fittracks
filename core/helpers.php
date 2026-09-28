@@ -1613,7 +1613,7 @@ function render_star_rating(float|int $rating, string|int $size = 'md', bool $sh
     }
 
     $gold = '#fbbf24';
-    $emptyColor = 'rgba(255, 255, 255, 0.22)';
+    $emptyColor = 'var(--star-empty, rgba(148, 163, 184, 0.35))';
     $uid = substr(md5((string) mt_rand()), 0, 6);
 
     $starSvg = '<svg width="' . $sizePx . '" height="' . $sizePx . '" viewBox="0 0 24 24" fill="' . $gold . '" style="display:inline-block;vertical-align:middle;flex-shrink:0;"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>';
