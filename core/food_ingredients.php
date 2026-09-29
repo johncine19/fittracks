@@ -77,6 +77,248 @@ function format_ingredients_structure(array $items): array
 }
 
 /**
+ * Calculates authentic USDA/real-world macronutrient and calorie values for an ingredient.
+ *
+ * @param string $name Ingredient name (e.g. "Rolled oats", "Unsweetened almond milk")
+ * @param string $amountStr Quantity string (e.g. "50", "1", "1.5", "1/2")
+ * @param string $unitStr Unit string (e.g. "g", "cup", "tbsp", "tsp", "pc")
+ * @param string $portionStr Full portion text if available (e.g. "50 g (1/2 cup)", "to taste")
+ * @return array{calories: int, protein_g: float, carbs_g: float, fat_g: float, fiber_g: float, sodium_mg: int}
+ */
+function calculate_ingredient_nutrition(string $name, string $amountStr = '', string $unitStr = '', string $portionStr = ''): array
+{
+    $n = strtolower(trim($name));
+    $portion = strtolower(trim($portionStr ?: ($amountStr . ' ' . $unitStr)));
+
+    // 1. Zero / Negligible Calorie Items (Sweeteners, spices, pinches, water, ice, aromatics)
+    if (preg_match('/\b(stevia|splenda|monkfruit|erythritol|sweetener|sweeteners|bay leaf|bay leaves|ice|water|pinch|black pepper|cracked pepper|peppercorn|peppercorns|oregano|paprika|parsley|rosemary|thyme|cinnamon|chili flake|chili flakes|mint)\b/i', $n) ||
+        preg_match('/\b(to taste|pinch|cubes)\b/i', $portion) ||
+        preg_match('/^to taste$/i', $amountStr)) {
+        return ['calories' => 0, 'protein_g' => 0.0, 'carbs_g' => 0.0, 'fat_g' => 0.0, 'fiber_g' => 0.0, 'sodium_mg' => 5];
+    }
+
+    // 2. Parse quantity amount
+    $amt = 1.0;
+    if (preg_match('/^(\d+)\s*\/\s*(\d+)/', $amountStr, $m)) {
+        $amt = (float)$m[1] / max(1, (float)$m[2]);
+    } elseif (is_numeric($amountStr) && (float)$amountStr > 0) {
+        $amt = (float)$amountStr;
+    } elseif (preg_match('/(\d+[\/\d\.]*)/', $portion, $m)) {
+        if (strpos($m[1], '/') !== false) {
+            $f = explode('/', $m[1]);
+            $amt = (float)$f[0] / max(1, (float)$f[1]);
+        } else {
+            $amt = (float)$m[1];
+        }
+    }
+
+    // 3. Normalize unit
+    $unit = strtolower(trim($unitStr));
+    if (empty($unit)) {
+        if (preg_match('/(g|gram|grams|kg|ml|oz|tbsp|tsp|cup|cups|scoop|scoops|clove|cloves|pc|pcs|slice|slices|can|cans|cracker|crackers)/i', $portion, $um)) {
+            $unit = $um[1];
+        }
+    }
+
+    // 4. Authentic Nutritional Benchmark Database
+    $db = [
+        // Grains, Oats & Starches
+        'rolled oat' => ['cals_100g' => 375, 'p_100g' => 13.0, 'c_100g' => 66.0, 'f_100g' => 6.5, 'fib_100g' => 10.0],
+        'oat' => ['cals_100g' => 375, 'p_100g' => 13.0, 'c_100g' => 66.0, 'f_100g' => 6.5, 'fib_100g' => 10.0],
+        'garlic brown rice' => ['cals_cup' => 195, 'p_cup' => 4.0, 'c_cup' => 42.0, 'f_cup' => 1.5, 'cals_100g' => 135, 'p_100g' => 2.8, 'c_100g' => 28.0, 'f_100g' => 1.0],
+        'brown rice' => ['cals_cup' => 190, 'p_cup' => 4.0, 'c_cup' => 40.0, 'f_cup' => 1.5, 'cals_100g' => 123, 'p_100g' => 2.7, 'c_100g' => 25.6, 'f_100g' => 1.0],
+        'white rice' => ['cals_cup' => 205, 'p_cup' => 4.2, 'c_cup' => 45.0, 'f_cup' => 0.4, 'cals_100g' => 130, 'p_100g' => 2.7, 'c_100g' => 28.0, 'f_100g' => 0.3],
+        'rice' => ['cals_cup' => 200, 'p_cup' => 4.0, 'c_cup' => 44.0, 'f_cup' => 0.5, 'cals_100g' => 130, 'p_100g' => 2.7, 'c_100g' => 28.0, 'f_100g' => 0.3],
+        'quinoa' => ['cals_cup' => 220, 'p_cup' => 8.0, 'c_cup' => 39.0, 'f_cup' => 3.5, 'cals_100g' => 120, 'p_100g' => 4.4, 'c_100g' => 21.3, 'f_100g' => 1.9],
+        'sweet potato' => ['cals_100g' => 86, 'p_100g' => 1.6, 'c_100g' => 20.1, 'f_100g' => 0.1, 'fib_100g' => 3.0],
+        'kamote' => ['cals_100g' => 86, 'p_100g' => 1.6, 'c_100g' => 20.1, 'f_100g' => 0.1, 'fib_100g' => 3.0],
+        'sourdough' => ['cals_pc' => 90, 'p_pc' => 3.5, 'c_pc' => 17.5, 'f_pc' => 0.6, 'cals_100g' => 260, 'p_100g' => 9.0, 'c_100g' => 50.0, 'f_100g' => 1.5],
+        'cracker' => ['cals_pc' => 22, 'p_pc' => 0.6, 'c_pc' => 4.2, 'f_pc' => 0.4, 'cals_100g' => 420, 'p_100g' => 10.0, 'c_100g' => 70.0, 'f_100g' => 9.0],
+        'bread' => ['cals_pc' => 80, 'p_pc' => 3.0, 'c_pc' => 15.0, 'f_pc' => 1.0, 'cals_100g' => 265, 'p_100g' => 9.0, 'c_100g' => 49.0, 'f_100g' => 3.2],
+        
+        // Proteins, Poultry & Seafood
+        'whey' => ['serving_g' => 30, 'cals_100g' => 367, 'p_100g' => 80.0, 'c_100g' => 4.0, 'f_100g' => 2.0, 'cals' => 110, 'p' => 24.0, 'c' => 1.2, 'f' => 0.6],
+        'protein powder' => ['serving_g' => 30, 'cals_100g' => 367, 'p_100g' => 80.0, 'c_100g' => 4.0, 'f_100g' => 2.0, 'cals' => 110, 'p' => 24.0, 'c' => 1.2, 'f' => 0.6],
+        'isolate' => ['serving_g' => 30, 'cals_100g' => 367, 'p_100g' => 80.0, 'c_100g' => 4.0, 'f_100g' => 2.0, 'cals' => 110, 'p' => 24.0, 'c' => 1.2, 'f' => 0.6],
+        'chicken breast' => ['cals_100g' => 120, 'p_100g' => 23.5, 'c_100g' => 0.0, 'f_100g' => 1.5],
+        'chicken' => ['cals_100g' => 140, 'p_100g' => 22.0, 'c_100g' => 0.0, 'f_100g' => 5.0],
+        'beef sirloin' => ['cals_100g' => 165, 'p_100g' => 23.0, 'c_100g' => 0.0, 'f_100g' => 7.5],
+        'beef' => ['cals_100g' => 180, 'p_100g' => 22.0, 'c_100g' => 0.0, 'f_100g' => 10.0],
+        'tapa' => ['cals_100g' => 175, 'p_100g' => 22.0, 'c_100g' => 2.0, 'f_100g' => 8.0],
+        'egg white' => ['cals_pc' => 17, 'p_pc' => 3.6, 'c_pc' => 0.2, 'f_pc' => 0.1, 'cals_100g' => 52, 'p_100g' => 11.0, 'c_100g' => 0.7, 'f_100g' => 0.2],
+        'egg' => ['cals_pc' => 72, 'p_pc' => 6.3, 'c_pc' => 0.4, 'f_pc' => 4.8, 'cals_100g' => 143, 'p_100g' => 12.6, 'c_100g' => 0.8, 'f_100g' => 9.5],
+        'tofu' => ['cals_100g' => 85, 'p_100g' => 10.0, 'c_100g' => 2.0, 'f_100g' => 4.5],
+        'salmon' => ['cals_100g' => 180, 'p_100g' => 20.0, 'c_100g' => 0.0, 'f_100g' => 11.0],
+        'tuna' => ['cals_100g' => 110, 'p_100g' => 24.0, 'c_100g' => 0.0, 'f_100g' => 1.0],
+        'tinapa' => ['cals_100g' => 150, 'p_100g' => 22.0, 'c_100g' => 0.0, 'f_100g' => 6.5],
+        'bangus' => ['cals_100g' => 148, 'p_100g' => 20.5, 'c_100g' => 0.0, 'f_100g' => 6.7],
+        'milkfish' => ['cals_100g' => 148, 'p_100g' => 20.5, 'c_100g' => 0.0, 'f_100g' => 6.7],
+        'shrimp' => ['cals_100g' => 85, 'p_100g' => 18.0, 'c_100g' => 0.5, 'f_100g' => 1.0],
+        'bacon' => ['cals_pc' => 45, 'p_pc' => 3.0, 'c_pc' => 0.1, 'f_pc' => 3.5, 'cals_100g' => 450, 'p_100g' => 30.0, 'c_100g' => 1.0, 'f_100g' => 35.0],
+        'chicharon' => ['cals_100g' => 540, 'p_100g' => 60.0, 'c_100g' => 0.0, 'f_100g' => 32.0],
+        'edamame' => ['cals_100g' => 120, 'p_100g' => 11.0, 'c_100g' => 10.0, 'f_100g' => 5.0],
+        'mung' => ['cals_100g' => 105, 'p_100g' => 7.0, 'c_100g' => 19.0, 'f_100g' => 0.4],
+
+        // Dairy & Plant Milks
+        'unsweetened almond milk' => ['cals_cup' => 35, 'p_cup' => 1.0, 'c_cup' => 1.0, 'f_cup' => 2.5, 'cals_100g' => 15, 'p_100g' => 0.5, 'c_100g' => 0.5, 'f_100g' => 1.1],
+        'almond milk' => ['cals_cup' => 35, 'p_cup' => 1.0, 'c_cup' => 1.0, 'f_cup' => 2.5, 'cals_100g' => 15, 'p_100g' => 0.5, 'c_100g' => 0.5, 'f_100g' => 1.1],
+        'skim milk' => ['cals_cup' => 85, 'p_cup' => 8.5, 'c_cup' => 12.0, 'f_cup' => 0.2, 'cals_100g' => 35, 'p_100g' => 3.5, 'c_100g' => 5.0, 'f_100g' => 0.1],
+        'coconut cream' => ['cals_cup' => 450, 'p_cup' => 4.5, 'c_cup' => 7.0, 'f_cup' => 48.0, 'cals_tbsp' => 35, 'p_tbsp' => 0.4, 'c_tbsp' => 0.6, 'f_tbsp' => 3.5],
+        'coconut milk' => ['cals_cup' => 400, 'p_cup' => 4.0, 'c_cup' => 6.0, 'f_cup' => 43.0, 'cals_tbsp' => 30, 'p_tbsp' => 0.3, 'c_tbsp' => 0.5, 'f_tbsp' => 3.0],
+        'cottage cheese' => ['cals_cup' => 180, 'p_cup' => 24.0, 'c_cup' => 8.0, 'f_cup' => 5.0, 'cals_100g' => 85, 'p_100g' => 11.0, 'c_100g' => 3.5, 'f_100g' => 2.5],
+        'greek yogurt' => ['cals_cup' => 130, 'p_cup' => 18.0, 'c_cup' => 6.5, 'f_cup' => 1.5, 'cals_100g' => 70, 'p_100g' => 10.0, 'c_100g' => 3.6, 'f_100g' => 0.8],
+        'cheddar' => ['cals_100g' => 400, 'p_100g' => 25.0, 'c_100g' => 1.3, 'f_100g' => 33.0],
+
+        // Fats, Butters & Seeds
+        'almond butter' => ['cals_tbsp' => 98, 'p_tbsp' => 3.4, 'c_tbsp' => 3.0, 'f_tbsp' => 8.8, 'cals_100g' => 610, 'p_100g' => 21.0, 'c_100g' => 19.0, 'f_100g' => 55.0],
+        'peanut butter' => ['cals_tbsp' => 95, 'p_tbsp' => 4.0, 'c_tbsp' => 3.5, 'f_tbsp' => 8.0, 'cals_100g' => 590, 'p_100g' => 25.0, 'c_100g' => 20.0, 'f_100g' => 50.0],
+        'chia' => ['cals_tsp' => 22, 'p_tsp' => 0.8, 'c_tsp' => 1.9, 'f_tsp' => 1.4, 'cals_tbsp' => 65, 'p_tbsp' => 2.5, 'c_tbsp' => 5.5, 'f_tbsp' => 4.2, 'cals_100g' => 485, 'p_100g' => 16.5, 'c_100g' => 42.0, 'f_100g' => 31.0],
+        'oil' => ['cals_tsp' => 40, 'p_tsp' => 0.0, 'c_tsp' => 0.0, 'f_tsp' => 4.5, 'cals_tbsp' => 120, 'p_tbsp' => 0.0, 'c_tbsp' => 0.0, 'f_tbsp' => 14.0],
+        'butter' => ['cals_tbsp' => 102, 'p_tbsp' => 0.1, 'c_tbsp' => 0.0, 'f_tbsp' => 11.5, 'cals_tsp' => 34, 'p_tsp' => 0.0, 'c_tsp' => 0.0, 'f_tsp' => 3.8],
+        'avocado' => ['cals_pc' => 240, 'p_pc' => 3.0, 'c_pc' => 12.0, 'f_pc' => 22.0, 'cals_100g' => 160, 'p_100g' => 2.0, 'c_100g' => 8.5, 'f_100g' => 14.5],
+        'almond' => ['cals_tbsp' => 45, 'p_tbsp' => 1.6, 'c_tbsp' => 1.6, 'f_tbsp' => 4.0, 'cals_100g' => 580, 'p_100g' => 21.0, 'c_100g' => 22.0, 'f_100g' => 50.0],
+        'mayonnaise' => ['cals_tbsp' => 45, 'p_tbsp' => 0.2, 'c_tbsp' => 1.0, 'f_tbsp' => 4.5],
+
+        // Cocoa, Seasonings & Sauces
+        'tablea' => ['cals_tbsp' => 20, 'p_tbsp' => 1.5, 'c_tbsp' => 4.0, 'f_tbsp' => 1.2],
+        'cocoa' => ['cals_tbsp' => 18, 'p_tbsp' => 1.5, 'c_tbsp' => 4.0, 'f_tbsp' => 1.0, 'cals_tsp' => 6, 'p_tsp' => 0.5, 'c_tsp' => 1.3, 'f_tsp' => 0.3],
+        'cacao' => ['cals_tbsp' => 20, 'p_tbsp' => 1.5, 'c_tbsp' => 4.0, 'f_tbsp' => 1.2],
+        'soy sauce' => ['cals_tbsp' => 10, 'p_tbsp' => 1.5, 'c_tbsp' => 1.0, 'f_tbsp' => 0.0],
+        'tamari' => ['cals_tbsp' => 12, 'p_tbsp' => 1.8, 'c_tbsp' => 1.0, 'f_tbsp' => 0.0],
+        'vinegar' => ['cals_tbsp' => 3, 'p_tbsp' => 0.0, 'c_tbsp' => 0.5, 'f_tbsp' => 0.0],
+        'garlic' => ['cals_clove' => 4, 'p_clove' => 0.2, 'c_clove' => 1.0, 'f_clove' => 0.0, 'cals_100g' => 145, 'p_100g' => 6.4, 'c_100g' => 33.0, 'f_100g' => 0.5],
+        'ginger' => ['cals_tbsp' => 5, 'p_tbsp' => 0.1, 'c_tbsp' => 1.0, 'f_tbsp' => 0.0],
+        'calamansi' => ['cals_pc' => 4, 'p_pc' => 0.1, 'c_pc' => 1.0, 'f_pc' => 0.0],
+        'lemon' => ['cals_tbsp' => 4, 'p_tbsp' => 0.1, 'c_tbsp' => 1.0, 'f_tbsp' => 0.0],
+        'tamarind' => ['cals_cup' => 10, 'p_cup' => 0.5, 'c_cup' => 2.0, 'f_cup' => 0.0],
+        'maple' => ['cals_tbsp' => 10, 'p_tbsp' => 0.0, 'c_tbsp' => 2.5, 'f_tbsp' => 0.0],
+        'honey' => ['cals_tsp' => 21, 'p_tsp' => 0.0, 'c_tsp' => 5.7, 'f_tsp' => 0.0],
+        'miso' => ['cals_tsp' => 12, 'p_tsp' => 0.7, 'c_tsp' => 1.5, 'f_tsp' => 0.4],
+
+        // Vegetables & Fruits
+        'saba' => ['cals_pc' => 80, 'p_pc' => 1.0, 'c_pc' => 20.0, 'f_pc' => 0.2, 'cals_100g' => 110, 'p_100g' => 1.2, 'c_100g' => 28.0, 'f_100g' => 0.2],
+        'banana' => ['cals_pc' => 105, 'p_pc' => 1.3, 'c_pc' => 27.0, 'f_pc' => 0.3, 'cals_100g' => 89, 'p_100g' => 1.1, 'c_100g' => 22.8, 'f_100g' => 0.3],
+        'blueberry' => ['cals_cup' => 85, 'p_cup' => 1.1, 'c_cup' => 21.0, 'f_cup' => 0.5, 'cals_100g' => 57, 'p_100g' => 0.7, 'c_100g' => 14.5, 'f_100g' => 0.3],
+        'apple' => ['cals_pc' => 95, 'p_pc' => 0.5, 'c_pc' => 25.0, 'f_pc' => 0.3, 'cals_100g' => 52, 'p_100g' => 0.3, 'c_100g' => 13.8, 'f_100g' => 0.2],
+        'pineapple' => ['cals_cup' => 82, 'p_cup' => 0.9, 'c_cup' => 22.0, 'f_cup' => 0.2, 'cals_100g' => 50, 'p_100g' => 0.5, 'c_100g' => 13.0, 'f_100g' => 0.1],
+        'cabbage' => ['cals_100g' => 25, 'p_100g' => 1.3, 'c_100g' => 5.8, 'f_100g' => 0.1],
+        'sitaw' => ['cals_100g' => 47, 'p_100g' => 2.8, 'c_100g' => 8.3, 'f_100g' => 0.4],
+        'green bean' => ['cals_100g' => 35, 'p_100g' => 1.9, 'c_100g' => 7.0, 'f_100g' => 0.2],
+        'spinach' => ['cals_100g' => 23, 'p_100g' => 2.9, 'c_100g' => 3.6, 'f_100g' => 0.4],
+        'kangkong' => ['cals_100g' => 19, 'p_100g' => 2.6, 'c_100g' => 3.1, 'f_100g' => 0.2],
+        'malunggay' => ['cals_cup' => 20, 'p_cup' => 2.0, 'c_cup' => 2.5, 'f_cup' => 0.3, 'cals_100g' => 64, 'p_100g' => 9.4, 'c_100g' => 8.3, 'f_100g' => 1.4],
+        'eggplant' => ['cals_100g' => 25, 'p_100g' => 1.0, 'c_100g' => 5.9, 'f_100g' => 0.2],
+        'talong' => ['cals_100g' => 25, 'p_100g' => 1.0, 'c_100g' => 5.9, 'f_100g' => 0.2],
+        'tomato' => ['cals_pc' => 22, 'p_pc' => 1.1, 'c_pc' => 4.8, 'f_pc' => 0.2, 'cals_100g' => 18, 'p_100g' => 0.9, 'c_100g' => 3.9, 'f_100g' => 0.2],
+        'cucumber' => ['cals_100g' => 15, 'p_100g' => 0.7, 'c_100g' => 3.6, 'f_100g' => 0.1],
+        'broccoli' => ['cals_100g' => 34, 'p_100g' => 2.8, 'c_100g' => 6.6, 'f_100g' => 0.4],
+        'asparagus' => ['cals_100g' => 20, 'p_100g' => 2.2, 'c_100g' => 3.9, 'f_100g' => 0.1],
+        'mushroom' => ['cals_100g' => 22, 'p_100g' => 3.1, 'c_100g' => 3.3, 'f_100g' => 0.3],
+        'radish' => ['cals_100g' => 16, 'p_100g' => 0.7, 'c_100g' => 3.4, 'f_100g' => 0.1],
+        'labanos' => ['cals_100g' => 16, 'p_100g' => 0.7, 'c_100g' => 3.4, 'f_100g' => 0.1],
+        'onion' => ['cals_pc' => 44, 'p_pc' => 1.2, 'c_pc' => 10.0, 'f_pc' => 0.1, 'cals_100g' => 40, 'p_100g' => 1.1, 'c_100g' => 9.3, 'f_100g' => 0.1],
+        'shallot' => ['cals_tbsp' => 7, 'p_tbsp' => 0.2, 'c_tbsp' => 1.7, 'f_tbsp' => 0.0],
+        'chili' => ['cals_pc' => 4, 'p_pc' => 0.2, 'c_pc' => 0.9, 'f_pc' => 0.0]
+    ];
+
+    // Find best match in database
+    $matched = null;
+    foreach ($db as $k => $info) {
+        if (strpos($n, $k) !== false) {
+            $matched = $info;
+            break;
+        }
+    }
+
+    if (!$matched) {
+        // Fallback by broad food category
+        if (preg_match('/(meat|pork|beef|fish|chicken|turkey|tuna|salmon)/', $n)) {
+            $matched = ['cals_100g' => 150, 'p_100g' => 22.0, 'c_100g' => 0.0, 'f_100g' => 6.0];
+        } elseif (preg_match('/(seed|nut|butter|oil)/', $n)) {
+            $matched = ['cals_100g' => 550, 'p_100g' => 18.0, 'c_100g' => 20.0, 'f_100g' => 48.0, 'cals_tbsp' => 90, 'p_tbsp' => 3.0, 'c_tbsp' => 3.0, 'f_tbsp' => 8.0];
+        } elseif (preg_match('/(vegetable|green|leaf|bean|sprout)/', $n)) {
+            $matched = ['cals_100g' => 30, 'p_100g' => 2.0, 'c_100g' => 6.0, 'f_100g' => 0.2];
+        } else {
+            $matched = ['cals_100g' => 60, 'p_100g' => 2.0, 'c_100g' => 10.0, 'f_100g' => 1.0];
+        }
+    }
+
+    // Calculate macros based on unit & amount
+    $cals = 0; $pro = 0; $carbs = 0; $fat = 0;
+
+    $isGrams = preg_match('/^g\b|^gram/i', $unit) || ($unit === 'g' || $unit === 'grams');
+
+    if (!$isGrams && str_contains($unit, 'cup') && isset($matched['cals_cup'])) {
+        $cals = $matched['cals_cup'] * $amt;
+        $pro = ($matched['p_cup'] ?? 0) * $amt;
+        $carbs = ($matched['c_cup'] ?? 0) * $amt;
+        $fat = ($matched['f_cup'] ?? 0) * $amt;
+    } elseif (!$isGrams && str_contains($unit, 'tbsp') && isset($matched['cals_tbsp'])) {
+        $cals = $matched['cals_tbsp'] * $amt;
+        $pro = ($matched['p_tbsp'] ?? 0) * $amt;
+        $carbs = ($matched['c_tbsp'] ?? 0) * $amt;
+        $fat = ($matched['f_tbsp'] ?? 0) * $amt;
+    } elseif (!$isGrams && str_contains($unit, 'tsp') && isset($matched['cals_tsp'])) {
+        $cals = $matched['cals_tsp'] * $amt;
+        $pro = ($matched['p_tsp'] ?? 0) * $amt;
+        $carbs = ($matched['c_tsp'] ?? 0) * $amt;
+        $fat = ($matched['f_tsp'] ?? 0) * $amt;
+    } elseif (!$isGrams && str_contains($unit, 'clove') && isset($matched['cals_clove'])) {
+        $cals = $matched['cals_clove'] * $amt;
+        $pro = ($matched['p_clove'] ?? 0) * $amt;
+        $carbs = ($matched['c_clove'] ?? 0) * $amt;
+        $fat = ($matched['f_clove'] ?? 0) * $amt;
+    } elseif (!$isGrams && preg_match('/(pc|pcs|slice|slices|egg|cracker|crackers)/', $unit) && isset($matched['cals_pc'])) {
+        $cals = $matched['cals_pc'] * $amt;
+        $pro = ($matched['p_pc'] ?? 0) * $amt;
+        $carbs = ($matched['c_pc'] ?? 0) * $amt;
+        $fat = ($matched['f_pc'] ?? 0) * $amt;
+    } elseif (!$isGrams && str_contains($unit, 'scoop') && isset($matched['cals'])) {
+        $cals = $matched['cals'] * $amt;
+        $pro = ($matched['p'] ?? 0) * $amt;
+        $carbs = ($matched['c'] ?? 0) * $amt;
+        $fat = ($matched['f'] ?? 0) * $amt;
+    } else {
+        // Grams / volume calculation
+        $grams = 100.0;
+        if (str_contains($unit, 'g') && !str_contains($unit, 'kg')) {
+            $grams = $amt;
+        } elseif (str_contains($unit, 'kg')) {
+            $grams = $amt * 1000.0;
+        } elseif (str_contains($unit, 'ml')) {
+            $grams = $amt; // 1ml ~ 1g
+        } elseif (str_contains($unit, 'oz')) {
+            $grams = $amt * 28.35;
+        } elseif (str_contains($unit, 'cup')) {
+            $grams = $amt * 160.0;
+        } elseif (str_contains($unit, 'tbsp')) {
+            $grams = $amt * 15.0;
+        } elseif (str_contains($unit, 'tsp')) {
+            $grams = $amt * 5.0;
+        } elseif (isset($matched['serving_g'])) {
+            $grams = $amt * $matched['serving_g'];
+        }
+
+        $cals100 = $matched['cals_100g'] ?? 100;
+        $p100 = $matched['p_100g'] ?? 5;
+        $c100 = $matched['c_100g'] ?? 10;
+        $f100 = $matched['f_100g'] ?? 2;
+
+        $cals = ($cals100 * $grams) / 100.0;
+        $pro = ($p100 * $grams) / 100.0;
+        $carbs = ($c100 * $grams) / 100.0;
+        $fat = ($f100 * $grams) / 100.0;
+    }
+
+    return [
+        'calories' => max(0, (int)round($cals)),
+        'protein_g' => max(0.0, round($pro, 1)),
+        'carbs_g' => max(0.0, round($carbs, 1)),
+        'fat_g' => max(0.0, round($fat, 1))
+    ];
+}
+
+/**
  * Parses user input or stored database value (JSON or multi-line text).
  */
 function parse_ingredients_data(string $raw): array

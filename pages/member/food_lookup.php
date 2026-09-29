@@ -344,82 +344,49 @@ function food_lookup_page(): void
             $rawItems[] = ['name' => $cleanName ?: $mealFood, 'measure' => '1 serving'];
         }
 
-        // 3. Intelligently weight macronutrients by ingredient food category
-        $proWeights = [];
-        $carbsWeights = [];
-        $fatWeights = [];
-
-        foreach ($rawItems as $idx => $ing) {
-            $n = strtolower($ing['name'] ?? '');
-
-            // Seasonings / spices / sauces get very low macro weight
-            if (preg_match('/(pepper|leaf|clove|salt|spice|cinnamon|vinegar|bay leaf|seasoning)/i', $n)) {
-                $pw = 0.05; $cw = 0.1; $fw = 0.05;
-            } elseif (preg_match('/(garlic|onion|soy sauce|tamari|ginger|calamansi|lemon)/i', $n)) {
-                $pw = 0.2; $cw = 0.5; $fw = 0.1;
-            } else {
-                // Protein weighting
-                if (preg_match('/(chicken|beef|pork|fish|egg|tofu|shrimp|turkey|tuna|salmon|bangus|sirloin|whey|meat|fillet)/i', $n)) {
-                    $pw = 10.0;
-                } elseif (preg_match('/(rice|quinoa|oat|bread|potato|pasta)/i', $n)) {
-                    $pw = 1.0;
-                } elseif (preg_match('/(cabbage|spinach|kangkong|greens|broccoli|veggie|radish)/i', $n)) {
-                    $pw = 0.5;
-                } else {
-                    $pw = 0.2;
-                }
-
-                // Carb weighting
-                if (preg_match('/(rice|quinoa|oat|bread|potato|pasta|noodle|\bcorn\b|flour|pancake|banana|sweet)/i', $n)) {
-                    $cw = 10.0;
-                } elseif (preg_match('/(cabbage|spinach|kangkong|greens|broccoli|radish|tomato)/i', $n)) {
-                    $cw = 1.5;
-                } else {
-                    $cw = 0.2;
-                }
-
-                // Fat weighting
-                if (preg_match('/(oil|butter|cheese|avocado|bacon|fat|mayo|cream|seeds|nuts)/i', $n)) {
-                    $fw = 10.0;
-                } elseif (preg_match('/(chicken|beef|pork|fish|egg|tofu|salmon|bangus|sirloin)/i', $n)) {
-                    $fw = 4.0;
-                } else {
-                    $fw = 0.2;
-                }
-            }
-
-            $proWeights[$idx] = $pw;
-            $carbsWeights[$idx] = $cw;
-            $fatWeights[$idx] = $fw;
-        }
-
-        $sumProW = max(0.1, array_sum($proWeights));
-        $sumCarbsW = max(0.1, array_sum($carbsWeights));
-        $sumFatW = max(0.1, array_sum($fatWeights));
-
+        // 3. Calculate authentic USDA/real-world nutrition for each ingredient
         $items = [];
         foreach ($rawItems as $idx => $ing) {
             $ingName = trim((string)($ing['name'] ?? 'Ingredient'));
-            $pro = round(($proWeights[$idx] / $sumProW) * $targetProtein, 1);
-            $carbs = round(($carbsWeights[$idx] / $sumCarbsW) * $targetCarbs, 1);
-            $fat = round(($fatWeights[$idx] / $sumFatW) * $targetFat, 1);
-            $cals = max(2, (int)round(($pro * 4) + ($carbs * 4) + ($fat * 9)));
-
             $portion = trim((string)($ing['measure'] ?? ''));
+            $amtStr = trim((string)($ing['amount'] ?? ''));
+            $unitStr = trim((string)($ing['unit'] ?? ''));
+
             if (empty($portion)) {
-                $amt = trim((string)($ing['amount'] ?? ''));
-                $unit = trim((string)($ing['unit'] ?? ''));
-                $portion = $amt ? ($amt . ($unit ? ' ' . $unit : '')) : '1 portion';
+                $portion = $amtStr ? ($amtStr . ($unitStr ? ' ' . $unitStr : '')) : '1 portion';
+            }
+
+            // Authentic USDA-standard nutrition calculation
+            $nut = calculate_ingredient_nutrition($ingName, $amtStr, $unitStr, $portion);
+
+            // Compute realistic serving size in grams
+            $servingG = 100.0;
+            if (is_numeric($amtStr) && (float)$amtStr > 0 && preg_match('/^g\b|^gram/i', $unitStr)) {
+                $servingG = (float)$amtStr;
+            } elseif (preg_match('/(\d+[\.\d]*)\s*g\b/i', $portion, $gm)) {
+                $servingG = (float)$gm[1];
+            } elseif (preg_match('/tbsp/i', $portion . ' ' . $unitStr)) {
+                $servingG = 15.0 * (is_numeric($amtStr) ? (float)$amtStr : 1.0);
+            } elseif (preg_match('/tsp/i', $portion . ' ' . $unitStr)) {
+                $servingG = 5.0 * (is_numeric($amtStr) ? (float)$amtStr : 1.0);
+            } elseif (preg_match('/cup/i', $portion . ' ' . $unitStr)) {
+                $servingG = 240.0 * (is_numeric($amtStr) ? (float)$amtStr : 1.0);
+            } elseif (preg_match('/scoop/i', $portion . ' ' . $unitStr)) {
+                $servingG = 30.0 * (is_numeric($amtStr) ? (float)$amtStr : 1.0);
+            } elseif ($nut['calories'] === 0) {
+                $servingG = 0.0;
             }
 
             $items[] = [
                 'name' => ucwords($ingName),
                 'portion' => $portion,
-                'serving_size_g' => !empty($ing['amount']) && is_numeric($ing['amount']) ? (float)$ing['amount'] : 100,
-                'calories' => $cals,
-                'protein_g' => $pro,
-                'carbs_g' => $carbs,
-                'fat_g' => $fat,
+                'serving_size_g' => round($servingG, 1),
+                'calories' => $nut['calories'],
+                'protein_g' => $nut['protein_g'],
+                'carbs_g' => $nut['carbs_g'],
+                'fat_g' => $nut['fat_g'],
+                'fiber_g' => $nut['fiber_g'] ?? 0.0,
+                'sodium_mg' => $nut['sodium_mg'] ?? 0,
                 'is_optional' => !empty($ing['is_optional'])
             ];
         }

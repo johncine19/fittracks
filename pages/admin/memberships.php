@@ -692,7 +692,7 @@ function memberships_page(): void
     render_header($user['role'] === 'gym_owner' ? 'Memberships & Payments' : 'Memberships', $user);
     ?>
     <div class="skeleton-wrapper">
-        <section class="panel">
+        <section class="panel <?= $user['role'] === 'member' ? 'member-membership-panel' : '' ?>">
             <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:24px">
                 <div>
                     <div class="sk sk-title" style="width:180px;margin-bottom:8px"></div>
@@ -711,25 +711,25 @@ function memberships_page(): void
             <?php endif; ?>
 
             <?php if ($user['role'] === 'member'): ?>
-                <div style="display:flex;gap:8px;max-width:440px;margin-bottom:28px">
-                    <div class="sk sk-rect" style="flex:1;height:42px;border-radius:10px"></div>
-                    <div class="sk sk-rect" style="flex:1;height:42px;border-radius:10px"></div>
+                <div style="display:flex;gap:6px;max-width:400px;margin:0 auto 16px">
+                    <div class="sk sk-rect" style="flex:1;height:36px;border-radius:8px"></div>
+                    <div class="sk sk-rect" style="flex:1;height:36px;border-radius:8px"></div>
                 </div>
-                <div style="text-align:center;margin-bottom:30px">
-                    <div class="sk sk-rect" style="width:120px;height:32px;border-radius:16px;margin:0 auto 16px"></div>
-                    <div class="sk sk-title" style="width:340px;height:32px;margin:0 auto 12px"></div>
-                    <div class="sk sk-text" style="width:480px;height:14px;margin:0 auto"></div>
+                <div style="text-align:center;margin-bottom:18px">
+                    <div class="sk sk-rect" style="width:100px;height:24px;border-radius:12px;margin:0 auto 8px"></div>
+                    <div class="sk sk-title" style="width:300px;height:24px;margin:0 auto 6px"></div>
+                    <div class="sk sk-text" style="width:420px;height:12px;margin:0 auto"></div>
                 </div>
-                <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:28px;margin-bottom:40px">
+                <div class="member-pricing-grid" style="margin-bottom:24px">
                     <?php for ($i = 0; $i < 3; $i++): ?>
-                        <div class="sk-card" style="border-radius:24px;min-height:480px;padding:36px 28px;display:flex;flex-direction:column">
-                            <div class="sk sk-title" style="width:60%;height:28px;margin-bottom:12px"></div>
-                            <div class="sk sk-text short" style="height:12px;margin-bottom:24px"></div>
-                            <div class="sk sk-text" style="width:70%;height:42px;margin-bottom:28px"></div>
-                            <div class="sk sk-text full" style="margin-bottom:14px"></div>
-                            <div class="sk sk-text full" style="margin-bottom:14px"></div>
-                            <div class="sk sk-text full" style="margin-bottom:14px"></div>
-                            <div class="sk sk-rect" style="height:48px;border-radius:24px;margin-top:auto"></div>
+                        <div class="sk-card member-pricing-card" style="border-radius:20px;min-height:380px;padding:22px 20px 18px;display:flex;flex-direction:column">
+                            <div class="sk sk-title" style="width:60%;height:22px;margin-bottom:8px"></div>
+                            <div class="sk sk-text short" style="height:12px;margin-bottom:10px"></div>
+                            <div class="sk sk-text" style="width:70%;height:32px;margin-bottom:14px"></div>
+                            <div class="sk sk-text full" style="margin-bottom:8px"></div>
+                            <div class="sk sk-text full" style="margin-bottom:8px"></div>
+                            <div class="sk sk-text full" style="margin-bottom:8px"></div>
+                            <div class="sk sk-rect" style="height:38px;border-radius:24px;margin-top:auto"></div>
                         </div>
                     <?php endfor; ?>
                 </div>
@@ -739,7 +739,7 @@ function memberships_page(): void
             <?php render_skeleton_table(6, 6); ?>
         </section>
     </div>
-    <section class="panel skeleton-content sk-display-block">
+    <section class="panel skeleton-content sk-display-block <?= $user['role'] === 'member' ? 'member-membership-panel' : '' ?>">
         <?php if ($user['role'] === 'gym_owner'): ?>
             <div class="page-header" style="align-items:flex-start; margin-bottom:20px;">
                 <div>
@@ -876,7 +876,7 @@ function memberships_page(): void
                             </p>
                         </div>
                     <?php else: ?>
-                        <div class="member-pricing-grid">
+                        <div class="member-pricing-grid" id="memberPricingGrid">
                             <?php
                             $hasCustomPopular = false;
                             foreach ($plans as $p) {
@@ -921,7 +921,7 @@ function memberships_page(): void
                                 $formattedPrice = '₱' . number_format($displayPrice, (fmod($displayPrice, 1.0) == 0.0 ? 0 : 2));
                                 $formattedOrigPrice = '₱' . number_format((float)$plan['price'], (fmod((float)$plan['price'], 1.0) == 0.0 ? 0 : 2));
                             ?>
-                                <div class="member-pricing-card <?= $isPopular ? 'popular' : '' ?>">
+                                <div class="member-pricing-card <?= $isPopular ? 'popular' : '' ?>" data-index="<?= $index ?>" data-popular="<?= $isPopular ? '1' : '0' ?>">
                                     <?php if ($isPopular): ?>
                                         <div class="member-popular-badge">MOST POPULAR</div>
                                     <?php endif; ?>
@@ -949,7 +949,7 @@ function memberships_page(): void
                                         <?php endforeach; ?>
                                     </ul>
 
-                                    <div style="margin-top: auto; padding-top: 28px;">
+                                    <div style="margin-top: auto; padding-top: 14px;">
                                         <?php if ($isActive): ?>
                                             <button type="button"
                                                 class="member-pricing-btn member-popular-btn btn-subscribe-plan"
@@ -973,6 +973,31 @@ function memberships_page(): void
                                 </div>
                             <?php endforeach; ?>
                         </div>
+
+                        <?php if (count($plans) > 1): ?>
+                            <div class="member-carousel-controls" id="memberCarouselControls">
+                                <button type="button" class="member-carousel-arrow prev" id="memberCarouselPrev" aria-label="Previous plan">
+                                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                                        <polyline points="15 18 9 12 15 6"></polyline>
+                                    </svg>
+                                </button>
+                                <div class="member-carousel-dots" id="memberCarouselDots">
+                                    <?php foreach ($plans as $idx => $p): 
+                                        $isDotActive = $hasCustomPopular ? !empty($p['is_popular']) : ($idx === $popularIndex);
+                                    ?>
+                                        <button type="button" 
+                                                class="member-carousel-dot <?= $isDotActive ? 'active' : '' ?>" 
+                                                data-index="<?= $idx ?>" 
+                                                aria-label="Go to plan <?= $idx + 1 ?>"></button>
+                                    <?php endforeach; ?>
+                                </div>
+                                <button type="button" class="member-carousel-arrow next" id="memberCarouselNext" aria-label="Next plan">
+                                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                                        <polyline points="9 18 15 12 9 6"></polyline>
+                                    </svg>
+                                </button>
+                            </div>
+                        <?php endif; ?>
                     <?php endif; ?>
                 </div>
             </div>
@@ -1073,12 +1098,140 @@ function memberships_page(): void
                         try {
                             history.replaceState(null, null, '#plans');
                         } catch (e) {}
+                        if (typeof window.centerMemberPopularPlan === 'function') {
+                            setTimeout(window.centerMemberPopularPlan, 60);
+                        }
                     }
                 }
 
                 if (window.location.hash === '#records') {
                     switchMembershipView('records');
                 }
+
+                // Mobile Subscription Plan Carousel Controller
+                (function() {
+                    function initMemberPricingCarousel() {
+                        const grid = document.getElementById('memberPricingGrid');
+                        if (!grid) return;
+
+                        const cards = Array.from(grid.querySelectorAll('.member-pricing-card'));
+                        const dots = Array.from(document.querySelectorAll('.member-carousel-dot'));
+                        const prevBtn = document.getElementById('memberCarouselPrev');
+                        const nextBtn = document.getElementById('memberCarouselNext');
+
+                        if (!cards.length) return;
+
+                        function isMobile() {
+                            return window.innerWidth <= 768;
+                        }
+
+                        function getCenterIndex() {
+                            const gridRect = grid.getBoundingClientRect();
+                            const gridCenter = gridRect.left + gridRect.width / 2;
+                            let closestIdx = 0;
+                            let minDiff = Infinity;
+                            cards.forEach((card, idx) => {
+                                const cardRect = card.getBoundingClientRect();
+                                const cardCenter = cardRect.left + cardRect.width / 2;
+                                const diff = Math.abs(gridCenter - cardCenter);
+                                if (diff < minDiff) {
+                                    minDiff = diff;
+                                    closestIdx = idx;
+                                }
+                            });
+                            return closestIdx;
+                        }
+
+                        function scrollToCard(index, smooth) {
+                            if (index < 0 || index >= cards.length) return;
+                            const card = cards[index];
+                            const scrollLeft = card.offsetLeft - (grid.clientWidth - card.offsetWidth) / 2;
+                            grid.scrollTo({
+                                left: Math.max(0, scrollLeft),
+                                behavior: smooth ? 'smooth' : 'auto'
+                            });
+                            updateDots(index);
+                        }
+
+                        function updateDots(activeIdx) {
+                            dots.forEach((dot, idx) => {
+                                dot.classList.toggle('active', idx === activeIdx);
+                            });
+                        }
+
+                        function centerPopular(smooth) {
+                            if (!isMobile()) return;
+                            let targetIdx = cards.findIndex(c => c.classList.contains('popular') || c.getAttribute('data-popular') === '1');
+                            if (targetIdx === -1) {
+                                targetIdx = Math.floor(cards.length / 2);
+                            }
+                            scrollToCard(targetIdx, smooth === true);
+                        }
+
+                        // Dot clicks
+                        dots.forEach((dot, idx) => {
+                            dot.addEventListener('click', () => scrollToCard(idx, true));
+                        });
+
+                        // Arrow clicks
+                        if (prevBtn) {
+                            prevBtn.addEventListener('click', () => {
+                                const current = getCenterIndex();
+                                scrollToCard(Math.max(0, current - 1), true);
+                            });
+                        }
+                        if (nextBtn) {
+                            nextBtn.addEventListener('click', () => {
+                                const current = getCenterIndex();
+                                scrollToCard(Math.min(cards.length - 1, current + 1), true);
+                            });
+                        }
+
+                        // Tapping a side-peeked card centers it
+                        cards.forEach((card, idx) => {
+                            card.addEventListener('click', (e) => {
+                                if (isMobile() && !e.target.closest('button, a')) {
+                                    scrollToCard(idx, true);
+                                }
+                            });
+                        });
+
+                        // Scroll listener for dot sync
+                        let scrollTimeout;
+                        grid.addEventListener('scroll', () => {
+                            if (!isMobile()) return;
+                            clearTimeout(scrollTimeout);
+                            scrollTimeout = setTimeout(() => {
+                                updateDots(getCenterIndex());
+                            }, 50);
+                        }, { passive: true });
+
+                        // Initial centering
+                        requestAnimationFrame(() => {
+                            centerPopular(false);
+                            setTimeout(() => centerPopular(false), 120);
+                        });
+
+                        // Resize listener
+                        let resizeTimeout;
+                        window.addEventListener('resize', () => {
+                            clearTimeout(resizeTimeout);
+                            resizeTimeout = setTimeout(() => {
+                                if (isMobile()) {
+                                    centerPopular(false);
+                                }
+                            }, 150);
+                        });
+
+                        window.centerMemberPopularPlan = centerPopular;
+                    }
+
+                    if (document.readyState === 'loading') {
+                        document.addEventListener('DOMContentLoaded', initMemberPricingCarousel);
+                    } else {
+                        initMemberPricingCarousel();
+                    }
+                })();
 
                 document.addEventListener('click', function(e) {
                     const btn = e.target.closest('.btn-subscribe-plan');
@@ -2030,18 +2183,30 @@ function memberships_page(): void
         /* ============================================================
        Membership Top View Switcher & Subscription Pricing Aesthetic
        ============================================================ */
+        .panel.member-membership-panel {
+            margin-top: 8px;
+            padding: 14px 22px 18px;
+        }
+
         .member-membership-nav {
             display: flex;
-            gap: 8px;
-            margin-bottom: 28px;
+            gap: 6px;
+            margin: 0 auto 12px auto;
             background: rgba(16, 19, 27, 0.85);
             backdrop-filter: blur(14px);
             -webkit-backdrop-filter: blur(14px);
             border: 1px solid var(--line);
-            border-radius: 14px;
-            padding: 6px;
+            border-radius: 12px;
+            padding: 4px;
             box-shadow: 0 4px 20px rgba(0, 0, 0, 0.18);
-            max-width: 480px;
+            max-width: 400px;
+            width: 100%;
+        }
+
+        .admin-membership-nav {
+            margin: 0 0 24px 0 !important;
+            max-width: 440px !important;
+            padding: 6px !important;
         }
 
         [data-theme="light"] .member-membership-nav {
@@ -2055,13 +2220,13 @@ function memberships_page(): void
             display: inline-flex;
             align-items: center;
             justify-content: center;
-            gap: 8px;
-            padding: 11px 18px;
-            border-radius: 10px;
+            gap: 6px;
+            padding: 8px 16px;
+            border-radius: 8px;
             border: 1px solid transparent;
             background: transparent;
             color: var(--muted);
-            font-size: 13.5px;
+            font-size: 13px;
             font-weight: 700;
             cursor: pointer;
             transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
@@ -2117,13 +2282,13 @@ function memberships_page(): void
         @media (max-width: 640px) {
             .member-membership-nav {
                 max-width: 100%;
-                padding: 5px;
-                gap: 6px;
+                padding: 4px;
+                gap: 4px;
             }
 
             .member-nav-tab {
-                padding: 10px 14px;
-                font-size: 13px;
+                padding: 8px 12px;
+                font-size: 12.5px;
             }
         }
 
@@ -2137,29 +2302,29 @@ function memberships_page(): void
             }
 
             .member-nav-tab {
-                padding: 8px 10px;
-                font-size: 12.5px;
-                gap: 6px;
+                padding: 7px 8px;
+                font-size: 12px;
+                gap: 5px;
             }
 
             .member-nav-tab svg {
-                width: 15px;
-                height: 15px;
+                width: 14px;
+                height: 14px;
             }
 
             .tab-badge-pill {
-                height: 17px;
-                min-width: 17px;
+                height: 16px;
+                min-width: 16px;
                 font-size: 10px;
-                padding: 0 5px;
+                padding: 0 4px;
             }
         }
 
-        /* Cleaned Hero Wrapper (Background photo removed per user request) */
+        /* Cleaned Hero Wrapper */
         .membership-plans-hero-wrap {
             position: relative;
-            margin: 0 0 28px 0;
-            padding: 8px 0 24px 0;
+            margin: 0;
+            padding: 0 0 6px 0;
             background: transparent !important;
             background-image: none !important;
             border: none !important;
@@ -2176,36 +2341,40 @@ function memberships_page(): void
 
         .membership-hero-header {
             text-align: center;
-            margin-bottom: 40px;
+            margin-bottom: 12px;
         }
 
         .membership-brand-pill {
             display: inline-flex;
             align-items: center;
-            gap: 10px;
+            gap: 7px;
             text-decoration: none;
-            margin-bottom: 16px;
+            margin-bottom: 4px;
+            padding: 2px 10px 2px 4px;
+            background: rgba(132, 204, 22, 0.08);
+            border: 1px solid rgba(132, 204, 22, 0.22);
+            border-radius: 20px;
         }
 
         .membership-brand-logo {
-            width: 38px;
-            height: 38px;
+            width: 20px;
+            height: 20px;
             background: var(--lime, #84cc16);
-            border-radius: 8px;
+            border-radius: 5px;
             display: flex;
             align-items: center;
             justify-content: center;
             color: #0b110e;
             font-weight: 900;
-            font-size: 19px;
-            box-shadow: 0 0 20px rgba(132, 204, 22, 0.35);
+            font-size: 10.5px;
+            box-shadow: 0 0 10px rgba(132, 204, 22, 0.35);
         }
 
         .membership-brand-title {
             font-weight: 800;
-            font-size: 1.5rem;
+            font-size: 0.88rem;
             line-height: 1;
-            letter-spacing: -0.3px;
+            letter-spacing: -0.2px;
             color: var(--ink);
         }
 
@@ -2214,11 +2383,11 @@ function memberships_page(): void
         }
 
         .membership-hero-title {
-            font-size: 2.2rem;
+            font-size: 1.45rem;
             font-weight: 800;
-            margin: 8px 0 12px;
+            margin: 2px 0 4px;
             color: var(--ink);
-            letter-spacing: -0.5px;
+            letter-spacing: -0.4px;
             line-height: 1.2;
         }
 
@@ -2228,10 +2397,10 @@ function memberships_page(): void
 
         .membership-hero-subtitle {
             color: var(--muted);
-            font-size: 1.05rem;
-            max-width: 620px;
+            font-size: 0.88rem;
+            max-width: 580px;
             margin: 0 auto;
-            line-height: 1.5;
+            line-height: 1.35;
         }
 
         [data-theme="light"] .membership-hero-subtitle {
@@ -2241,45 +2410,46 @@ function memberships_page(): void
         .member-pricing-grid {
             display: grid;
             grid-template-columns: repeat(3, 1fr);
-            gap: 28px;
+            gap: 18px;
             align-items: stretch;
-            max-width: 1200px;
+            max-width: 1140px;
             margin: 0 auto;
-            padding-top: 16px;
+            padding-top: 6px;
         }
 
         .member-pricing-card {
             background: var(--surface);
             border: 1px solid var(--line);
-            border-radius: 24px;
-            padding: 38px 30px;
+            border-radius: 20px;
+            padding: 22px 20px 18px;
+            min-height: 380px;
             display: flex;
             flex-direction: column;
             position: relative;
             transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.25s ease, border-color 0.25s ease;
-            box-shadow: 0 14px 36px -10px rgba(0, 0, 0, 0.5);
+            box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.5);
         }
 
         .member-pricing-card:hover {
-            transform: translateY(-5px);
-            box-shadow: 0 22px 50px -10px rgba(0, 0, 0, 0.7);
+            transform: translateY(-4px);
+            box-shadow: 0 18px 40px -10px rgba(0, 0, 0, 0.7);
             border-color: rgba(255, 255, 255, 0.2);
         }
 
         .member-pricing-card.popular {
             border: 2px solid var(--lime, #84cc16);
             background: color-mix(in srgb, var(--lime) 5%, var(--surface));
-            box-shadow: 0 0 35px rgba(132, 204, 22, 0.18), 0 20px 45px -10px rgba(0, 0, 0, 0.6);
+            box-shadow: 0 0 30px rgba(132, 204, 22, 0.16), 0 16px 36px -10px rgba(0, 0, 0, 0.6);
         }
 
         .member-pricing-card.popular:hover {
-            box-shadow: 0 0 45px rgba(132, 204, 22, 0.28), 0 25px 55px -10px rgba(0, 0, 0, 0.75);
+            box-shadow: 0 0 40px rgba(132, 204, 22, 0.25), 0 20px 45px -10px rgba(0, 0, 0, 0.75);
         }
 
         [data-theme="light"] .member-pricing-card {
             background: #ffffff;
             border: 1px solid #e2e8f0;
-            box-shadow: 0 8px 24px -5px rgba(0, 0, 0, 0.05);
+            box-shadow: 0 6px 20px -5px rgba(0, 0, 0, 0.05);
         }
 
         [data-theme="light"] .member-pricing-card:hover {
@@ -2289,24 +2459,24 @@ function memberships_page(): void
         [data-theme="light"] .member-pricing-card.popular {
             background: #fcfdf9;
             border: 2px solid var(--lime, #22c55e);
-            box-shadow: 0 0 35px rgba(34, 197, 94, 0.15), 0 12px 30px -5px rgba(0, 0, 0, 0.08);
+            box-shadow: 0 0 30px rgba(34, 197, 94, 0.14), 0 10px 24px -5px rgba(0, 0, 0, 0.07);
         }
 
         [data-theme="light"] .member-pricing-card.popular:hover {
-            box-shadow: 0 0 45px rgba(34, 197, 94, 0.25), 0 20px 45px -8px rgba(0, 0, 0, 0.12);
+            box-shadow: 0 0 40px rgba(34, 197, 94, 0.22), 0 16px 36px -8px rgba(0, 0, 0, 0.1);
         }
 
         .member-popular-badge {
             position: absolute;
-            top: -14px;
+            top: -12px;
             left: 50%;
             transform: translateX(-50%);
             background: var(--lime, #84cc16);
             color: #0b110e;
-            font-size: 11px;
+            font-size: 10.5px;
             font-weight: 800;
             letter-spacing: 0.8px;
-            padding: 5px 16px;
+            padding: 4px 14px;
             border-radius: 20px;
             text-transform: uppercase;
             box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
@@ -2318,20 +2488,20 @@ function memberships_page(): void
             background: rgba(34, 197, 94, 0.15);
             color: var(--lime, #22c55e);
             border: 1px solid rgba(34, 197, 94, 0.3);
-            font-size: 11px;
+            font-size: 10.5px;
             font-weight: 800;
             letter-spacing: 0.5px;
-            padding: 3px 8px;
+            padding: 2px 7px;
             border-radius: 5px;
-            margin-left: 8px;
+            margin-left: 6px;
             vertical-align: middle;
         }
 
         .member-pricing-title {
-            font-size: 1.6rem;
+            font-size: 1.32rem;
             font-weight: 800;
             color: #ffffff;
-            margin: 0 0 8px 0;
+            margin: 0 0 4px 0;
             letter-spacing: -0.3px;
             display: flex;
             align-items: center;
@@ -2353,10 +2523,10 @@ function memberships_page(): void
 
         .member-pricing-desc {
             color: var(--muted, #94a3b8);
-            font-size: 14px;
-            line-height: 1.45;
-            margin: 0 0 22px 0;
-            min-height: 42px;
+            font-size: 12.5px;
+            line-height: 1.35;
+            margin: 0 0 10px 0;
+            min-height: 32px;
         }
 
         [data-theme="light"] .member-pricing-desc {
@@ -2366,8 +2536,8 @@ function memberships_page(): void
         .member-pricing-price {
             display: flex;
             align-items: baseline;
-            margin-bottom: 26px;
-            padding-bottom: 22px;
+            margin-bottom: 12px;
+            padding-bottom: 10px;
             border-bottom: 1px solid rgba(255, 255, 255, 0.08);
         }
 
@@ -2376,7 +2546,7 @@ function memberships_page(): void
         }
 
         .member-pricing-price .amount {
-            font-size: 2.8rem;
+            font-size: 2.2rem;
             font-weight: 900;
             color: #ffffff;
             letter-spacing: -1px;
@@ -2388,9 +2558,9 @@ function memberships_page(): void
         }
 
         .member-pricing-price .period {
-            font-size: 1rem;
+            font-size: 0.92rem;
             color: var(--muted, #94a3b8);
-            margin-left: 5px;
+            margin-left: 4px;
             font-weight: 500;
         }
 
@@ -2400,9 +2570,9 @@ function memberships_page(): void
 
         .member-pricing-price .discount-strike {
             text-decoration: line-through;
-            font-size: 1.15rem;
+            font-size: 1.05rem;
             color: var(--muted, #94a3b8);
-            margin-right: 10px;
+            margin-right: 8px;
             font-weight: 600;
         }
 
@@ -2412,17 +2582,17 @@ function memberships_page(): void
             margin: 0;
             display: flex;
             flex-direction: column;
-            gap: 13px;
+            gap: 7px;
             flex: 1;
         }
 
         .member-pricing-features li {
             display: flex;
             align-items: flex-start;
-            gap: 11px;
-            font-size: 14px;
+            gap: 8px;
+            font-size: 12.5px;
             color: #e2e8f0;
-            line-height: 1.4;
+            line-height: 1.35;
         }
 
         [data-theme="light"] .member-pricing-features li {
@@ -2432,7 +2602,7 @@ function memberships_page(): void
         .member-checkmark {
             color: var(--lime, #84cc16);
             font-weight: 900;
-            font-size: 15px;
+            font-size: 14px;
             line-height: 1.2;
             flex-shrink: 0;
         }
@@ -2443,9 +2613,9 @@ function memberships_page(): void
 
         .member-pricing-btn {
             width: 100%;
-            padding: 14px 20px;
-            border-radius: 30px;
-            font-size: 15px;
+            padding: 10.5px 18px;
+            border-radius: 24px;
+            font-size: 13.5px;
             font-weight: 700;
             cursor: pointer;
             text-align: center;
@@ -2490,66 +2660,227 @@ function memberships_page(): void
             transform: translateY(-1px);
         }
 
+        /* Carousel Controls Default */
+        .member-carousel-controls {
+            display: none;
+        }
+
+        .member-carousel-arrow {
+            width: 34px;
+            height: 34px;
+            border-radius: 50%;
+            background: var(--surface);
+            border: 1px solid var(--line);
+            color: var(--ink);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+            padding: 0;
+        }
+
+        .member-carousel-arrow:hover {
+            background: color-mix(in srgb, var(--ink) 10%, var(--surface));
+            border-color: var(--lime);
+            color: var(--lime);
+            transform: scale(1.06);
+        }
+
+        .member-carousel-arrow:active {
+            transform: scale(0.96);
+        }
+
+        .member-carousel-dots {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .member-carousel-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 4px;
+            background: var(--line);
+            border: none;
+            padding: 0;
+            cursor: pointer;
+            transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+
+        .member-carousel-dot.active {
+            width: 22px;
+            background: var(--lime, #84cc16);
+            box-shadow: 0 0 8px rgba(132, 204, 22, 0.4);
+        }
+
+        [data-theme="light"] .member-carousel-arrow {
+            background: #ffffff;
+            border: 1px solid #cbd5e1;
+            color: #0f172a;
+        }
+
+        [data-theme="light"] .member-carousel-arrow:hover {
+            background: #f8fafc;
+            border-color: #16a34a;
+            color: #16a34a;
+        }
+
+        [data-theme="light"] .member-carousel-dot {
+            background: #cbd5e1;
+        }
+
+        [data-theme="light"] .member-carousel-dot.active {
+            background: #16a34a;
+        }
+
+        /* ============================================================
+       Compact Vertical Centering for Standard Displays
+       ============================================================ */
+        @media (max-height: 840px) and (min-width: 992px) {
+            .panel.member-membership-panel {
+                margin-top: 6px;
+                padding: 10px 18px 14px;
+            }
+
+            .member-membership-nav {
+                margin-bottom: 8px;
+            }
+
+            .membership-hero-header {
+                margin-bottom: 8px;
+            }
+
+            .membership-hero-title {
+                font-size: 1.35rem;
+                margin: 2px 0 3px;
+            }
+
+            .member-pricing-card {
+                padding: 16px 16px 14px;
+                min-height: 360px;
+            }
+
+            .member-pricing-price {
+                margin-bottom: 10px;
+                padding-bottom: 8px;
+            }
+
+            .member-pricing-price .amount {
+                font-size: 1.95rem;
+            }
+
+            .member-pricing-desc {
+                margin-bottom: 8px;
+                min-height: auto;
+            }
+
+            .member-pricing-features {
+                gap: 6px;
+            }
+
+            .member-pricing-features li {
+                font-size: 12px;
+            }
+
+            .member-pricing-btn {
+                padding: 9px 16px;
+                font-size: 13px;
+            }
+        }
+
         /* ============================================================
        Multi-Device Responsiveness (Desktop, Laptop, Tablet, Mobile)
        ============================================================ */
         @media (max-width: 1199px) {
             .member-pricing-grid {
-                gap: 20px;
-                max-width: 1060px;
+                gap: 16px;
+                max-width: 1000px;
             }
 
             .member-pricing-card {
-                padding: 32px 22px;
-                border-radius: 20px;
+                padding: 20px 18px 16px;
+                border-radius: 18px;
             }
 
             .member-pricing-title {
-                font-size: 1.45rem;
+                font-size: 1.25rem;
             }
 
             .member-pricing-price .amount {
-                font-size: 2.5rem;
+                font-size: 2rem;
             }
         }
 
-        @media (max-width: 991px) {
+        @media (max-width: 991px) and (min-width: 769px) {
             .member-pricing-grid {
                 grid-template-columns: repeat(2, minmax(0, 1fr));
-                gap: 20px;
-                max-width: 780px;
+                gap: 16px;
+                max-width: 720px;
             }
 
             .member-pricing-card:last-child:nth-child(2n + 1) {
                 grid-column: 1 / -1;
-                max-width: 440px;
+                max-width: 420px;
                 width: 100%;
                 margin: 0 auto;
             }
 
             .membership-hero-title {
-                font-size: 1.95rem;
+                font-size: 1.5rem;
             }
 
             .membership-hero-subtitle {
-                font-size: 0.98rem;
+                font-size: 0.88rem;
             }
 
             .membership-plans-hero-wrap {
-                padding: 8px 0 20px;
+                padding: 0 0 16px;
             }
         }
 
-        @media (max-width: 680px) {
+        /* Mobile Swipeable Carousel (<= 768px) with Popular Card Centered */
+        @media (max-width: 768px) {
+            .panel.member-membership-panel {
+                padding: 14px 12px 18px;
+                overflow: hidden;
+            }
+
             .member-pricing-grid {
-                grid-template-columns: 1fr;
-                max-width: 420px;
-                gap: 26px;
+                display: flex !important;
+                flex-direction: row !important;
+                flex-wrap: nowrap !important;
+                overflow-x: auto !important;
+                scroll-snap-type: x mandatory !important;
+                -webkit-overflow-scrolling: touch !important;
+                gap: 16px !important;
+                padding: 16px 24px 20px 24px !important;
+                margin: 0 -12px !important;
+                scroll-padding: 0 24px !important;
+                scrollbar-width: none !important;
+                max-width: 100% !important;
+            }
+
+            .member-pricing-grid::-webkit-scrollbar {
+                display: none !important;
+            }
+
+            .member-pricing-card {
+                flex: 0 0 82% !important;
+                max-width: 320px !important;
+                min-width: 260px !important;
+                scroll-snap-align: center !important;
+                scroll-snap-stop: always !important;
+                min-height: auto !important;
+                padding: 24px 20px 20px !important;
+                box-sizing: border-box !important;
             }
 
             .member-pricing-card:last-child:nth-child(2n + 1) {
-                grid-column: auto;
-                max-width: 100%;
+                grid-column: auto !important;
+                max-width: 320px !important;
+                margin: 0 !important;
             }
 
             .member-pricing-card.popular {
@@ -2558,108 +2889,113 @@ function memberships_page(): void
 
             .member-pricing-card:hover,
             .member-pricing-card.popular:hover {
-                transform: translateY(-3px);
+                transform: translateY(-2px);
+            }
+
+            .member-carousel-controls {
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                gap: 14px;
+                margin-top: 6px;
             }
 
             .membership-hero-header {
-                margin-bottom: 28px;
+                margin-bottom: 14px;
             }
 
             .membership-hero-title {
-                font-size: 1.7rem;
+                font-size: 1.4rem;
             }
 
             .membership-plans-hero-wrap {
-                padding: 4px 0 16px;
+                padding: 0 0 10px;
             }
         }
 
         @media (max-width: 480px) {
             .membership-plans-hero-wrap {
-                padding: 0 0 16px;
+                padding: 0 0 10px;
             }
 
             .membership-brand-pill {
-                margin-bottom: 12px;
+                margin-bottom: 6px;
             }
 
             .membership-brand-logo {
-                width: 32px;
-                height: 32px;
-                font-size: 16px;
-                border-radius: 6px;
+                width: 20px;
+                height: 20px;
+                font-size: 10px;
+                border-radius: 5px;
             }
 
             .membership-brand-title {
-                font-size: 1.25rem;
+                font-size: 0.82rem;
             }
 
             .membership-hero-title {
-                font-size: 1.45rem;
-                margin: 6px 0 10px;
+                font-size: 1.3rem;
+                margin: 2px 0 6px;
             }
 
             .membership-hero-subtitle {
-                font-size: 0.88rem;
-                line-height: 1.45;
-            }
-
-            .member-pricing-grid {
-                max-width: 100%;
-                gap: 22px;
-                padding-top: 14px;
+                font-size: 0.85rem;
+                line-height: 1.4;
+                padding: 0 10px;
             }
 
             .member-pricing-card {
-                padding: 26px 18px;
+                flex: 0 0 86% !important;
+                max-width: 300px !important;
+                padding: 22px 18px 18px !important;
                 border-radius: 18px;
             }
 
             .member-pricing-title {
-                font-size: 1.3rem;
+                font-size: 1.28rem;
             }
 
             .member-pricing-desc {
-                font-size: 13px;
+                font-size: 12.5px;
                 min-height: auto;
-                margin-bottom: 16px;
+                margin-bottom: 12px;
             }
 
             .member-pricing-price {
-                margin-bottom: 18px;
-                padding-bottom: 16px;
+                margin-bottom: 14px;
+                padding-bottom: 12px;
             }
 
             .member-pricing-price .amount {
-                font-size: 2.15rem;
+                font-size: 2.1rem;
             }
 
             .member-pricing-price .period {
-                font-size: 0.9rem;
+                font-size: 0.88rem;
             }
 
             .member-pricing-price .discount-strike {
-                font-size: 1rem;
+                font-size: 0.95rem;
             }
 
             .member-pricing-features {
-                gap: 10px;
+                gap: 8px;
             }
 
             .member-pricing-features li {
-                font-size: 13px;
-                gap: 9px;
+                font-size: 12.5px;
+                gap: 8px;
             }
 
             .member-pricing-btn {
-                padding: 12px 18px;
-                font-size: 14px;
+                padding: 10.5px 16px;
+                font-size: 13.5px;
             }
 
             .member-popular-badge {
                 font-size: 10px;
-                padding: 4px 12px;
-                top: -12px;
+                padding: 3px 12px;
+                top: -11px;
             }
 
             .membership-view-pane h2 {

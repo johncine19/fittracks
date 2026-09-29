@@ -1053,12 +1053,14 @@ function users_page(): void
                                     </a>
                                 <?php endif; ?>
                                 <?php if ((int) $row['user_id'] !== (int) $user['user_id']): ?>
-                                <form method="post" style="margin:0;" onsubmit="return confirmDeleteUser(this, event, <?= json_encode($row['first_name'] . ' ' . $row['last_name']) ?>);">
-                                    <?= csrf_field() ?>
-                                    <input type="hidden" name="action" value="delete_user">
-                                    <input type="hidden" name="user_id" value="<?= (int) $row['user_id'] ?>">
-                                    <button type="submit" class="btn btn-danger" style="padding:4px 8px;font-size:12px;">Delete</button>
-                                </form>
+                                <button type="button" 
+                                    class="btn btn-danger btn-delete-user" 
+                                    data-user-id="<?= (int) $row['user_id'] ?>" 
+                                    data-user-name="<?= h($row['first_name'] . ' ' . $row['last_name']) ?>" 
+                                    data-user-role="<?= h($row['role']) ?>" 
+                                    style="padding:4px 8px;font-size:12px;">
+                                    Delete
+                                </button>
                                 <?php endif; ?>
                             </div>
                         </td>
@@ -1173,15 +1175,14 @@ function users_page(): void
                                 </a>
                             <?php endif; ?>
                             <?php if ((int) $row['user_id'] !== (int) $user['user_id']): ?>
-                            <form method="post" onsubmit="return confirmDeleteUser(this, event, <?= json_encode($row['first_name'] . ' ' . $row['last_name']) ?>);">
-                                <?= csrf_field() ?>
-                                <input type="hidden" name="action" value="delete_user">
-                                <input type="hidden" name="user_id" value="<?= (int) $row['user_id'] ?>">
-                                <button type="submit" class="btn btn-danger btn-sm">
-                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
-                                    Delete
-                                </button>
-                            </form>
+                            <button type="button" 
+                                class="btn btn-danger btn-sm btn-delete-user" 
+                                data-user-id="<?= (int) $row['user_id'] ?>" 
+                                data-user-name="<?= h($row['first_name'] . ' ' . $row['last_name']) ?>" 
+                                data-user-role="<?= h($row['role']) ?>">
+                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                                Delete
+                            </button>
                             <?php endif; ?>
                         </div>
                     </div>
@@ -1208,34 +1209,98 @@ function users_page(): void
     }
 
     document.addEventListener('click', function(e) {
-        const btn = e.target.closest('.btn-edit-user');
-        if (btn) {
+        const editBtn = e.target.closest('.btn-edit-user');
+        if (editBtn) {
             try {
-                const userData = JSON.parse(btn.getAttribute('data-user') || '{}');
+                const userData = JSON.parse(editBtn.getAttribute('data-user') || '{}');
                 editUser(userData);
             } catch (err) {
                 console.error('Invalid user data', err);
             }
+            return;
+        }
+
+        const delBtn = e.target.closest('.btn-delete-user');
+        if (delBtn) {
+            e.preventDefault();
+            e.stopPropagation();
+            const userId = parseInt(delBtn.getAttribute('data-user-id'), 10);
+            const userName = delBtn.getAttribute('data-user-name') || '';
+            const userRole = delBtn.getAttribute('data-user-role') || '';
+            confirmDeleteUser(userId, userName, userRole);
+            return;
         }
     });
 
-    function confirmDeleteUser(form, event, userName) {
-        if (event) {
-            event.preventDefault();
-            event.stopPropagation();
-        }
-        if (!form) return false;
+    window.confirmDeleteUser = function(target, eventOrName, maybeRole) {
+        let userId = null;
+        let userName = '';
+        let userRole = '';
 
-        const nameMsg = userName ? `<strong>${userName}</strong>` : 'this user account';
+        if (typeof target === 'object' && target !== null && target.tagName === 'FORM') {
+            const idInput = target.querySelector('input[name="user_id"]');
+            userId = idInput ? parseInt(idInput.value, 10) : null;
+            userName = typeof maybeRole === 'string' ? maybeRole : (typeof eventOrName === 'string' ? eventOrName : '');
+            if (eventOrName && typeof eventOrName.preventDefault === 'function') {
+                eventOrName.preventDefault();
+                eventOrName.stopPropagation();
+            }
+        } else {
+            userId = parseInt(target, 10);
+            userName = typeof eventOrName === 'string' ? eventOrName : '';
+            userRole = typeof maybeRole === 'string' ? maybeRole : '';
+        }
+
+        if (!userId) return false;
+
+        const safeName = typeof escapeHtml === 'function' ? escapeHtml(userName) : (userName || 'this user');
+
+        const doSubmit = () => {
+            const tempForm = document.createElement('form');
+            tempForm.method = 'POST';
+            tempForm.action = 'index.php?page=users';
+            tempForm.style.display = 'none';
+
+            const csrfInput = document.createElement('input');
+            csrfInput.type = 'hidden';
+            csrfInput.name = 'csrf_token';
+            csrfInput.value = (typeof CURRENT_CSRF_TOKEN !== 'undefined' ? CURRENT_CSRF_TOKEN : '') || '<?= csrf_token() ?>';
+            tempForm.appendChild(csrfInput);
+
+            const actionInput = document.createElement('input');
+            actionInput.type = 'hidden';
+            actionInput.name = 'action';
+            actionInput.value = 'delete_user';
+            tempForm.appendChild(actionInput);
+
+            const idInput = document.createElement('input');
+            idInput.type = 'hidden';
+            idInput.name = 'user_id';
+            idInput.value = userId;
+            tempForm.appendChild(idInput);
+
+            document.body.appendChild(tempForm);
+            tempForm.submit();
+        };
 
         if (typeof Swal !== 'undefined') {
             Swal.fire({
-                title: 'Delete User?',
-                html: `<div style="font-size: 13.5px; color: var(--muted); line-height: 1.5; margin-top: 6px;">Are you sure you want to permanently delete ${nameMsg}?<br><br><span style="color: #ef4444; font-weight: 600;">⚠️ This action cannot be undone.</span></div>`,
+                title: 'Delete User Account?',
+                html: `
+                    <div style="margin-top: 6px;">
+                        <p style="margin: 0 0 14px 0; font-size: 14.5px; text-align: center; color: var(--ink, #ffffff); line-height: 1.5;">
+                            Are you sure you want to permanently delete <strong>${safeName}</strong>?
+                        </p>
+                        <div style="display: flex; align-items: flex-start; text-align: left; gap: 8px; padding: 10px 12px; background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.25); border-radius: 8px; color: #f87171; font-size: 12.5px; line-height: 1.4;">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="flex-shrink:0; margin-top:1px;"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+                            <span>This will permanently delete this account and all associated access. <strong>This action cannot be undone.</strong></span>
+                        </div>
+                    </div>
+                `,
                 icon: 'warning',
                 iconColor: '#ef4444',
                 showCancelButton: true,
-                confirmButtonText: 'Yes, Delete',
+                confirmButtonText: 'Yes, Delete User',
                 cancelButtonText: 'Cancel',
                 confirmButtonColor: '#ef4444',
                 cancelButtonColor: 'var(--line, #334155)',
@@ -1245,14 +1310,15 @@ function users_page(): void
                 focusCancel: true
             }).then((result) => {
                 if (result.isConfirmed) {
-                    form.submit();
+                    doSubmit();
                 }
             });
-        } else if (confirm(`Delete ${userName || 'this user'}? This cannot be undone.`)) {
-            form.submit();
+        } else if (confirm(`Are you sure you want to permanently delete ${userName || 'this user'}? This action cannot be undone.`)) {
+            doSubmit();
         }
+
         return false;
-    }
+    };
 
     function editUser(u) {
         Swal.fire({
@@ -1489,12 +1555,7 @@ function users_page(): void
                         </a>
                     ` : ''}
                     ${u.can_delete ? `
-                        <form method="post" style="margin:0;" onsubmit="return confirmDeleteUser(this, event, ${JSON.stringify(u.first_name + ' ' + u.last_name)});">
-                            <input type="hidden" name="csrf_token" value="${csrfToken}">
-                            <input type="hidden" name="action" value="delete_user">
-                            <input type="hidden" name="user_id" value="${u.user_id}">
-                            <button type="submit" class="btn btn-danger" style="padding:4px 8px;font-size:12px;">Delete</button>
-                        </form>
+                        <button type="button" class="btn btn-danger btn-delete-user" data-user-id="${u.user_id}" data-user-name="${escapeUserHtml(u.full_name)}" data-user-role="${escapeUserHtml(u.role)}" style="padding:4px 8px;font-size:12px;">Delete</button>
                     ` : ''}
                 </div>
             </td>
@@ -1613,15 +1674,10 @@ function users_page(): void
                         </a>
                     ` : ''}
                     ${u.can_delete ? `
-                    <form method="post" onsubmit="return confirmDeleteUser(this, event, ${JSON.stringify(u.first_name + ' ' + u.last_name)});">
-                        <input type="hidden" name="csrf_token" value="${csrfToken}">
-                        <input type="hidden" name="action" value="delete_user">
-                        <input type="hidden" name="user_id" value="${u.user_id}">
-                        <button type="submit" class="btn btn-danger btn-sm">
-                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
-                            Delete
-                        </button>
-                    </form>
+                    <button type="button" class="btn btn-danger btn-sm btn-delete-user" data-user-id="${u.user_id}" data-user-name="${escapeUserHtml(u.full_name)}" data-user-role="${escapeUserHtml(u.role)}">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                        Delete
+                    </button>
                     ` : ''}
                 </div>
             </div>
