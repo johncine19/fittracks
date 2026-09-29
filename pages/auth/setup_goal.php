@@ -114,10 +114,14 @@ function setup_goal_page(): void
             'Losing excess body fat' => 'Burning calories to lean out and reveal muscle definition.',
             'Gaining lean body mass' => 'Putting on healthy weight strictly through clean muscle tissue.',
             'Reaching body recomposition' => 'Losing fat and building muscle at the exact same time.'
+        ],
+        'Casual Lifestyle & Wellness Goals' => [
+            'Casual / Flexible Lifestyle' => 'Balanced nutrition, sustainable energy, and moderate exercise without extreme dieting.'
         ]
     ];
 
     $goalIcons = [
+        'Casual / Flexible Lifestyle' => '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8h1a4 4 0 0 1 0 8h-1"/><path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z"/><line x1="6" y1="2" x2="6" y2="4"/><line x1="10" y1="2" x2="10" y2="4"/><line x1="14" y1="2" x2="14" y2="4"/></svg>',
         'Building a visible six-pack' => '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="2"></rect><line x1="12" y1="4" x2="12" y2="20"></line><line x1="4" y1="10" x2="20" y2="10"></line><line x1="4" y1="15" x2="20" y2="15"></line></svg>',
         'Growing larger biceps and arms' => '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 5v14M18 5v14M6 12h12M3 8v8M21 8v8"/></svg>',
         'Developing a wide chest' => '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>',
@@ -133,6 +137,12 @@ function setup_goal_page(): void
     ];
 
     $categoryMeta = [
+        'Casual Lifestyle & Wellness Goals' => [
+            'name' => 'Casual & Lifestyle',
+            'desc' => 'Sustainable wellness, flexible nutrition, and active living.',
+            'count' => 1,
+            'icon' => '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8h1a4 4 0 0 1 0 8h-1"/><path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z"/><line x1="6" y1="2" x2="6" y2="4"/><line x1="10" y1="2" x2="10" y2="4"/><line x1="14" y1="2" x2="14" y2="4"/></svg>'
+        ],
         'Aesthetic & Muscle Building Goals' => [
             'name' => 'Muscle & Aesthetics',
             'desc' => 'Target hypertrophy, muscular definition, and aesthetic symmetry.',

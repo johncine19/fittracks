@@ -31,9 +31,11 @@ class SessionDbHandler implements SessionHandlerInterface
 
     public function write(string $id, string $data): bool
     {
-        // Default session lifetime is usually governed by ini settings. We'll use 24 hours as a safe default if not set.
+        // Ensure session lifetime is at least 24 hours (86400 seconds)
         $lifetime = (int) ini_get('session.gc_maxlifetime');
-        if ($lifetime <= 0) $lifetime = 86400;
+        if ($lifetime < 86400) {
+            $lifetime = 86400;
+        }
         
         $expiresAt = time() + $lifetime;
         

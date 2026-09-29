@@ -9,12 +9,17 @@ function memberships_page(): void
 {
     $user = require_roles(['platform_admin', 'gym_owner', 'member']);
 
-    if ($user['role'] === 'member') {
+    if ($user['role'] === 'member' && !isset($_POST['subscribe_plan_id'])) {
         $isGymMember = db()->prepare('SELECT 1 FROM gym_members WHERE user_id = ?');
         $isGymMember->execute([$user['user_id']]);
         if (!$isGymMember->fetchColumn()) {
-            flash('Please select a gym first to view this page.', 'warning');
-            redirect('gym_selection');
+            $hasPlanGym = (int) scalar('SELECT mp.gym_id FROM memberships m JOIN membership_plans mp ON mp.plan_id = m.plan_id WHERE m.user_id = ? ORDER BY m.membership_id DESC LIMIT 1', [$user['user_id']]);
+            if ($hasPlanGym > 0) {
+                db()->prepare('INSERT IGNORE INTO gym_members (user_id, gym_id) VALUES (?, ?)')->execute([$user['user_id'], $hasPlanGym]);
+            } else {
+                flash('Please select a gym first to view this page.', 'warning');
+                redirect('gym_selection');
+            }
         }
     }
 
@@ -524,8 +529,11 @@ function memberships_page(): void
             $membershipId = (int) db()->lastInsertId();
 
             if (!empty($plan['gym_id'])) {
-                db()->prepare('INSERT IGNORE INTO gym_members (user_id, gym_id) VALUES (?, ?)')
-                    ->execute([$user['user_id'], $plan['gym_id']]);
+                $planGymId = (int) $plan['gym_id'];
+                db()->prepare('DELETE FROM gym_members WHERE user_id = ?')->execute([$user['user_id']]);
+                db()->prepare('INSERT INTO gym_members (user_id, gym_id) VALUES (?, ?)')
+                    ->execute([$user['user_id'], $planGymId]);
+                $_SESSION['current_gym_id'] = $planGymId;
             }
 
             $receipt = 'REQ-' . date('Ymd') . '-' . random_int(1000, 9999);
@@ -541,9 +549,10 @@ function memberships_page(): void
                 process_trainer_commission($paymentId, (float) $finalPrice);
             }
 
-            $gymOwners = query_all('SELECT owner_user_id FROM gyms');
-            foreach ($gymOwners as $owner) {
-                notify_user((int) $owner['owner_user_id'], 'system', 'New Subscription', $user['first_name'] . ' ' . $user['last_name'] . ' requested a ' . $plan['plan_name'] . ' membership. Payment method: ' . strtoupper($paymentMethod) . '. Status: ' . strtoupper($paymentStatus) . '.');
+            $planGymId = (int) ($plan['gym_id'] ?? 0);
+            $ownerUserId = (int) scalar('SELECT owner_user_id FROM gyms WHERE gym_id = ?', [$planGymId]);
+            if ($ownerUserId > 0) {
+                notify_user($ownerUserId, 'system', 'New Subscription', $user['first_name'] . ' ' . $user['last_name'] . ' requested a ' . $plan['plan_name'] . ' membership. Payment method: ' . strtoupper($paymentMethod) . '. Status: ' . strtoupper($paymentStatus) . '.');
             }
 
             if ($paymentMethod === 'gcash') {
@@ -570,7 +579,13 @@ function memberships_page(): void
         $plans = db()->query('SELECT * FROM membership_plans WHERE is_active = 1 AND gym_id = ' . $gymId . ' ORDER BY price')->fetchAll();
     } elseif ($user['role'] === 'member') {
         $where = 'WHERE m.user_id = ' . (int) $user['user_id'];
-        $memberGymId = (int) scalar('SELECT gym_id FROM gym_members WHERE user_id = ? LIMIT 1', [$user['user_id']]);
+        $memberGymId = (int) scalar('SELECT gym_id FROM gym_members WHERE user_id = ? ORDER BY created_at DESC LIMIT 1', [$user['user_id']]);
+        if (!$memberGymId) {
+            $memberGymId = (int) scalar('SELECT mp.gym_id FROM memberships m JOIN membership_plans mp ON mp.plan_id = m.plan_id WHERE m.user_id = ? ORDER BY m.membership_id DESC LIMIT 1', [$user['user_id']]);
+            if ($memberGymId > 0) {
+                db()->prepare('INSERT IGNORE INTO gym_members (user_id, gym_id) VALUES (?, ?)')->execute([$user['user_id'], $memberGymId]);
+            }
+        }
         if ($memberGymId > 0) {
             $gymName = (string) scalar('SELECT name FROM gyms WHERE gym_id = ?', [$memberGymId]);
             $plans = db()->query('SELECT mp.*, g.name AS gym_name FROM membership_plans mp LEFT JOIN gyms g ON g.gym_id = mp.gym_id WHERE mp.is_active = 1 AND mp.gym_id = ' . $memberGymId . ' ORDER BY mp.price')->fetchAll();

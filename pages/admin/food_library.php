@@ -2213,10 +2213,11 @@ select {
 
             <!-- Recipe Notes & Preparation (if any) -->
             <div id="ing-modal-desc-box" class="ing-modal-desc-box" style="display: none; border-radius: 0 8px 8px 0; margin-top: 10px;">
-                <div class="ing-modal-desc-lbl">
-                    Preparation & Notes
+                <div class="ing-modal-desc-lbl" style="display: flex; align-items: center; gap: 5px;">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+                    <span>Why This Food is Good for You</span>
                 </div>
-                <div id="ing-modal-desc" style="font-size: 11.5px; color: var(--ink); line-height: 1.4;"></div>
+                <div id="ing-modal-desc" style="font-size: 11.5px; color: var(--ink); line-height: 1.45;"></div>
             </div>
         </div>
 

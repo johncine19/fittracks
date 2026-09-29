@@ -799,6 +799,9 @@ function map_detailed_goal_to_basic(string $detailedGoal): string
         'reducing_body_fat' => 'fat_loss',
         'improving_endurance' => 'general_health',
         'general_fitness' => 'general_health',
+        'casual' => 'casual',
+        'casual_fitness' => 'casual',
+        'Casual Lifestyle / Flexible' => 'casual',
         'Building a visible six-pack' => 'fat_loss',
         'Growing larger biceps and arms' => 'muscle_gain',
         'Developing a wide chest' => 'muscle_gain',
@@ -819,6 +822,9 @@ function map_detailed_goal_to_basic(string $detailedGoal): string
 function resolve_goal_category(string $goal): string
 {
     $g = strtolower(trim($goal));
+    if ($g === 'casual' || str_contains($g, 'casual') || str_contains($g, 'flexible') || str_contains($g, 'lifestyle')) {
+        return 'casual';
+    }
     if ($g === 'increasing_strength' || str_contains($g, 'strength') || str_contains($g, 'powerlifting') || str_contains($g, 'explosive') || str_contains($g, 'heavy')) {
         return 'increasing_strength';
     }
@@ -847,8 +853,8 @@ function get_recommendations_by_goal(PDO $pdo, string $detailedGoal): array
         $keywords = ['hiit', 'cardio', 'zumba', 'burn', 'fat', 'sweat', 'core', 'abs', 'cycle', 'spin'];
     } elseif ($basicGoal === 'muscle_gain') {
         $keywords = ['strength', 'weight', 'power', 'lift', 'crossfit', 'bodybuilding', 'hypertrophy', 'muscle'];
-    } elseif ($basicGoal === 'general_health' || $basicGoal === 'maintenance') {
-        $keywords = ['yoga', 'pilates', 'wellness', 'stretch', 'balance', 'flow', 'mobility', 'health'];
+    } elseif ($basicGoal === 'general_health' || $basicGoal === 'maintenance' || $basicGoal === 'casual') {
+        $keywords = ['yoga', 'pilates', 'wellness', 'stretch', 'balance', 'flow', 'mobility', 'health', 'walk'];
     }
     
     $classes = [];
@@ -1856,19 +1862,19 @@ function get_platform_rating_stats(): array
 
         return [
             'total_reviews' => $total,
-            'avg_rating' => $avg > 0 ? $avg : 4.9,
-            'avg_system' => round((float) ($row['avg_system'] ?? 0), 1),
-            'avg_features' => round((float) ($row['avg_features'] ?? 0), 1),
-            'avg_service' => round((float) ($row['avg_service'] ?? 0), 1),
+            'avg_rating' => $total > 0 ? $avg : 0.0,
+            'avg_system' => $total > 0 ? round((float) ($row['avg_system'] ?? 0), 1) : 0.0,
+            'avg_features' => $total > 0 ? round((float) ($row['avg_features'] ?? 0), 1) : 0.0,
+            'avg_service' => $total > 0 ? round((float) ($row['avg_service'] ?? 0), 1) : 0.0,
             'breakdown' => $breakdown,
         ];
     } catch (Throwable $e) {
         return [
             'total_reviews' => 0,
-            'avg_rating' => 4.9,
-            'avg_system' => 5.0,
-            'avg_features' => 4.9,
-            'avg_service' => 5.0,
+            'avg_rating' => 0.0,
+            'avg_system' => 0.0,
+            'avg_features' => 0.0,
+            'avg_service' => 0.0,
             'breakdown' => [5 => 0, 4 => 0, 3 => 0, 2 => 0, 1 => 0],
         ];
     }

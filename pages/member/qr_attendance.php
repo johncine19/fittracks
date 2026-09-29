@@ -36,14 +36,33 @@ function qr_attendance_page(): void
             // If token is null, it means the scanner just invalidated it
             if ($tokenRaw === null) {
                 // Find latest attendance
-                $row = db()->query('SELECT attendance_id, check_in_time, check_out_time FROM attendance WHERE user_id = ' . (int)$user['user_id'] . ' ORDER BY attendance_id DESC LIMIT 1')->fetch();
+                $row = db()->query('SELECT attendance_id, gym_id, check_in_time, check_out_time FROM attendance WHERE user_id = ' . (int)$user['user_id'] . ' ORDER BY attendance_id DESC LIMIT 1')->fetch();
                 if ($row) {
                     $isCheckout = ($row['check_out_time'] !== null && strtotime($row['check_out_time']) >= strtotime($row['check_in_time']));
+                    $gymId = (int)($row['gym_id'] ?? 0);
+                    if (!$gymId) {
+                        $gymId = (int) scalar('SELECT gym_id FROM gym_members WHERE user_id = ? LIMIT 1', [$user['user_id']]);
+                    }
+                    if (!$gymId && $user['role'] === 'trainer') {
+                        $gymId = (int) scalar('SELECT gym_id FROM trainer_profiles WHERE user_id = ? LIMIT 1', [$user['user_id']]);
+                    }
+
+                    $equipmentCats = [];
+                    $equipmentList = [];
+                    if ($gymId > 0) {
+                        $equipmentCats = db()->query('SELECT category, COUNT(*) as cnt FROM gym_equipment WHERE gym_id = ' . $gymId . ' AND status = "available" GROUP BY category')->fetchAll(PDO::FETCH_KEY_PAIR);
+                        $equipmentList = db()->query('SELECT equipment_id, name, category, location_area FROM gym_equipment WHERE gym_id = ' . $gymId . ' AND status = "available" ORDER BY name ASC LIMIT 12')->fetchAll(PDO::FETCH_ASSOC);
+                    }
+
                     header('Content-Type: application/json');
                     echo json_encode([
                         'scanned' => true,
                         'type' => $isCheckout ? 'checkout' : 'checkin',
-                        'attendance_id' => $row['attendance_id']
+                        'attendance_id' => $row['attendance_id'],
+                        'role' => $user['role'],
+                        'gym_id' => $gymId,
+                        'equipment_categories' => $equipmentCats,
+                        'equipment_list' => $equipmentList
                     ]);
                     exit;
                 }
@@ -233,17 +252,67 @@ function qr_attendance_page(): void
                 if (data.type === 'checkout') {
                     promptRating(data.attendance_id);
                 } else {
-                    Swal.fire({
-                        icon: 'success',
-                        title: 'Checked In!',
-                        text: 'Enjoy your workout.',
-                        background: 'var(--surface-color, #090b10)',
-                        color: 'var(--ink, #ffffff)',
-                        confirmButtonColor: 'var(--lime, #c7ff22)'
-                    });
+                    promptEquipmentUsage(data);
                 }
             }
         }).catch(() => {});
+    }
+
+    function promptEquipmentUsage(data) {
+        const isTrainer = (data.role === 'trainer');
+        const categories = data.equipment_categories || {};
+        const catKeys = Object.keys(categories);
+
+        let catChipsHtml = '';
+        if (catKeys.length > 0) {
+            catChipsHtml = '<div style="display:flex; flex-wrap:wrap; gap:8px; justify-content:center; margin:16px 0;">' +
+                catKeys.map(cat => {
+                    const count = categories[cat];
+                    return `<a href="index.php?page=equipment&category=${encodeURIComponent(cat)}" style="background:rgba(199,255,34,0.1); border:1px solid rgba(199,255,34,0.3); color:var(--lime,#c7ff22); padding:7px 14px; border-radius:20px; font-size:12.5px; text-decoration:none; font-weight:600; display:inline-flex; align-items:center; gap:6px; transition:transform 0.2s;" onmouseover="this.style.transform='scale(1.05)'" onmouseout="this.style.transform='scale(1)'">
+                        <span>${cat}</span>
+                        <span style="background:var(--lime,#c7ff22); color:#000; border-radius:10px; padding:1px 7px; font-size:11px; font-weight:700;">${count}</span>
+                    </a>`;
+                }).join('') +
+            '</div>';
+        } else {
+            catChipsHtml = '<p style="color:var(--muted); font-size:13px; margin:14px 0;">All gym stations and free zones are ready for your session.</p>';
+        }
+
+        const titleText = isTrainer
+            ? "Session Setup: What training equipment and circuit areas will you utilize for your clients today?"
+            : "Checked In! What would you like to train or use today?";
+
+        const descText = isTrainer
+            ? "Select the training equipment and workout zones you plan to utilize with your clients during today's training."
+            : "Explore available equipment in the gym right now or jump straight into your personalized workout routine.";
+
+        const primaryBtnText = isTrainer ? "Browse Equipment Availability" : "View Gym Equipment";
+        const primaryBtnUrl = "index.php?page=equipment";
+        const secondaryBtnText = isTrainer ? "Client Training Plans" : "Start Today's Workout";
+        const secondaryBtnUrl = isTrainer ? "index.php?page=training" : "index.php?page=my_workout";
+
+        Swal.fire({
+            title: titleText,
+            html: `
+                <p style="color:var(--muted); font-size:13.5px; line-height:1.5; margin-bottom:12px;">${descText}</p>
+                ${catChipsHtml}
+                <div style="display:flex; flex-direction:column; gap:10px; margin-top:20px;">
+                    <a href="${primaryBtnUrl}" class="swal2-confirm swal2-styled" style="display:flex; align-items:center; justify-content:center; gap:8px; text-decoration:none; padding:12px 20px; border-radius:8px; background:var(--lime,#c7ff22); color:#000; font-weight:700; font-size:14px; margin:0; box-shadow: 0 4px 14px rgba(199,255,34,0.25);">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+                        ${primaryBtnText}
+                    </a>
+                    <a href="${secondaryBtnUrl}" class="swal2-cancel swal2-styled" style="display:flex; align-items:center; justify-content:center; gap:8px; text-decoration:none; padding:12px 20px; border-radius:8px; background:var(--panel,#161a23); border:1px solid var(--line,#2a3142); color:var(--ink,#fff); font-weight:600; font-size:14px; margin:0;">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+                        ${secondaryBtnText}
+                    </a>
+                </div>
+            `,
+            showConfirmButton: false,
+            showCancelButton: true,
+            cancelButtonText: 'Dismiss',
+            background: 'var(--surface-color, #090b10)',
+            color: 'var(--ink, #ffffff)'
+        });
     }
 
     function promptRating(attendanceId) {

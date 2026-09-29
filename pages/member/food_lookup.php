@@ -12,7 +12,7 @@ function food_lookup_page(): void
     }
 
     $action = (string) ($_GET['action'] ?? $_POST['action'] ?? '');
-    $query = trim((string) ($_GET['query'] ?? $_POST['query'] ?? ''));
+    $query = trim((string) ($_GET['query'] ?? $_POST['query'] ?? $_GET['food'] ?? $_POST['food'] ?? ''));
 
     // Action 1: Search local database food library
     if ($action === 'search_library') {
@@ -291,6 +291,150 @@ function food_lookup_page(): void
         exit;
     }
 
-    echo json_encode(['success' => false, 'error' => 'Invalid action. Specify calorieninjas or openfoodfacts.']);
+    if ($action === 'decompose_meal') {
+        $mealFood = trim((string)($_GET['food'] ?? $_POST['food'] ?? $query));
+        $calories = max(0, (float)($_GET['calories'] ?? $_POST['calories'] ?? 0));
+        $protein = max(0.0, (float)($_GET['protein_g'] ?? $_POST['protein_g'] ?? 0));
+        $carbs = max(0.0, (float)($_GET['carbs_g'] ?? $_POST['carbs_g'] ?? 0));
+        $fat = max(0.0, (float)($_GET['fat_g'] ?? $_POST['fat_g'] ?? 0));
+
+        require_once __DIR__ . '/../../core/food_ingredients.php';
+
+        // 1. Strip portion prefix e.g. "292g of " or "1 bowl of " or "1 serving of "
+        $cleanName = trim(preg_replace('/\b(\d+g|\d+\s*g|\d+\s*ml|\d+\s*oz|\d+\s*plate|\d+\s*bowl|\d+\s*cup|\d+\s*serving|\d+\s*servings)\s*(?:of\s*)?/i', '', $mealFood));
+
+        // 2. Query food_items database table for matching gym or system recipe
+        $gymId = get_user_gym_id($user);
+        $stmt = db()->prepare('
+            SELECT * FROM food_items 
+            WHERE (? IS NULL OR gym_id = ? OR gym_id IS NULL OR gym_id = 0) 
+              AND (name = ? OR name LIKE ? OR ? LIKE CONCAT("%", name, "%"))
+            ORDER BY (gym_id IS NOT NULL AND gym_id > 0) DESC, (name = ?) DESC LIMIT 1
+        ');
+        $stmt->execute([$gymId, $gymId, $cleanName, '%' . $cleanName . '%', $cleanName, $cleanName]);
+        $foodRow = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        $recipeNotes = $foodRow['recipe_desc'] ?? null;
+        $verifiedName = $foodRow['name'] ?? null;
+        $targetCalories = $calories > 0 ? $calories : (!empty($foodRow['calories']) ? (float)$foodRow['calories'] : 500);
+        $targetProtein  = $protein > 0 ? $protein : (!empty($foodRow['protein_g']) ? (float)$foodRow['protein_g'] : 30);
+        $targetCarbs    = $carbs > 0 ? $carbs : (!empty($foodRow['carbs_g']) ? (float)$foodRow['carbs_g'] : 45);
+        $targetFat      = $fat > 0 ? $fat : (!empty($foodRow['fat_g']) ? (float)$foodRow['fat_g'] : 15);
+
+        if ($foodRow) {
+            $ingredientsStruct = get_food_ingredients($foodRow);
+        } else {
+            $ingredientsStruct = get_food_ingredients(['name' => $cleanName, 'recipe_desc' => $cleanName]);
+        }
+
+        $rawItems = !empty($ingredientsStruct['all']) ? $ingredientsStruct['all'] : [];
+
+        if (empty($rawItems)) {
+            // Split by comma, "with", "and", "&", or "+"
+            $parts = preg_split('/,|(\band\b)|(\bwith\b)|&|\+/i', $cleanName);
+            foreach ($parts as $p) {
+                $p = trim($p);
+                if (!empty($p) && strlen($p) > 1) {
+                    $rawItems[] = ['name' => $p, 'measure' => '1 portion'];
+                }
+            }
+        }
+
+        if (empty($rawItems)) {
+            $rawItems[] = ['name' => $cleanName ?: $mealFood, 'measure' => '1 serving'];
+        }
+
+        // 3. Intelligently weight macronutrients by ingredient food category
+        $proWeights = [];
+        $carbsWeights = [];
+        $fatWeights = [];
+
+        foreach ($rawItems as $idx => $ing) {
+            $n = strtolower($ing['name'] ?? '');
+
+            // Seasonings / spices / sauces get very low macro weight
+            if (preg_match('/(pepper|leaf|clove|salt|spice|cinnamon|vinegar|bay leaf|seasoning)/i', $n)) {
+                $pw = 0.05; $cw = 0.1; $fw = 0.05;
+            } elseif (preg_match('/(garlic|onion|soy sauce|tamari|ginger|calamansi|lemon)/i', $n)) {
+                $pw = 0.2; $cw = 0.5; $fw = 0.1;
+            } else {
+                // Protein weighting
+                if (preg_match('/(chicken|beef|pork|fish|egg|tofu|shrimp|turkey|tuna|salmon|bangus|sirloin|whey|meat|fillet)/i', $n)) {
+                    $pw = 10.0;
+                } elseif (preg_match('/(rice|quinoa|oat|bread|potato|pasta)/i', $n)) {
+                    $pw = 1.0;
+                } elseif (preg_match('/(cabbage|spinach|kangkong|greens|broccoli|veggie|radish)/i', $n)) {
+                    $pw = 0.5;
+                } else {
+                    $pw = 0.2;
+                }
+
+                // Carb weighting
+                if (preg_match('/(rice|quinoa|oat|bread|potato|pasta|noodle|\bcorn\b|flour|pancake|banana|sweet)/i', $n)) {
+                    $cw = 10.0;
+                } elseif (preg_match('/(cabbage|spinach|kangkong|greens|broccoli|radish|tomato)/i', $n)) {
+                    $cw = 1.5;
+                } else {
+                    $cw = 0.2;
+                }
+
+                // Fat weighting
+                if (preg_match('/(oil|butter|cheese|avocado|bacon|fat|mayo|cream|seeds|nuts)/i', $n)) {
+                    $fw = 10.0;
+                } elseif (preg_match('/(chicken|beef|pork|fish|egg|tofu|salmon|bangus|sirloin)/i', $n)) {
+                    $fw = 4.0;
+                } else {
+                    $fw = 0.2;
+                }
+            }
+
+            $proWeights[$idx] = $pw;
+            $carbsWeights[$idx] = $cw;
+            $fatWeights[$idx] = $fw;
+        }
+
+        $sumProW = max(0.1, array_sum($proWeights));
+        $sumCarbsW = max(0.1, array_sum($carbsWeights));
+        $sumFatW = max(0.1, array_sum($fatWeights));
+
+        $items = [];
+        foreach ($rawItems as $idx => $ing) {
+            $ingName = trim((string)($ing['name'] ?? 'Ingredient'));
+            $pro = round(($proWeights[$idx] / $sumProW) * $targetProtein, 1);
+            $carbs = round(($carbsWeights[$idx] / $sumCarbsW) * $targetCarbs, 1);
+            $fat = round(($fatWeights[$idx] / $sumFatW) * $targetFat, 1);
+            $cals = max(2, (int)round(($pro * 4) + ($carbs * 4) + ($fat * 9)));
+
+            $portion = trim((string)($ing['measure'] ?? ''));
+            if (empty($portion)) {
+                $amt = trim((string)($ing['amount'] ?? ''));
+                $unit = trim((string)($ing['unit'] ?? ''));
+                $portion = $amt ? ($amt . ($unit ? ' ' . $unit : '')) : '1 portion';
+            }
+
+            $items[] = [
+                'name' => ucwords($ingName),
+                'portion' => $portion,
+                'serving_size_g' => !empty($ing['amount']) && is_numeric($ing['amount']) ? (float)$ing['amount'] : 100,
+                'calories' => $cals,
+                'protein_g' => $pro,
+                'carbs_g' => $carbs,
+                'fat_g' => $fat,
+                'is_optional' => !empty($ing['is_optional'])
+            ];
+        }
+
+        echo json_encode([
+            'success' => true,
+            'provider' => $foodRow ? 'gym_food_library' : 'master_recipes',
+            'verified_food_name' => $verifiedName ?: $cleanName,
+            'recipe_notes' => $recipeNotes,
+            'query' => $mealFood,
+            'items' => $items
+        ]);
+        exit;
+    }
+
+    echo json_encode(['success' => false, 'error' => 'Invalid action. Specify calorieninjas, openfoodfacts, or decompose_meal.']);
     exit;
 }

@@ -158,6 +158,7 @@ function diet_builder_page(): void
             $targetCals = $tdee;
             if ($goal === 'fat_loss') $targetCals -= 500;
             if ($goal === 'muscle_gain') $targetCals += 300;
+            if ($goal === 'casual') $targetCals = $tdee;
             $targetCals = max(1200, round($targetCals));
             
             // 4. Macro Split (use prepared statements to prevent SQL injection)
@@ -265,20 +266,22 @@ function diet_builder_page(): void
             
             for ($d = 1; $d <= 7; $d++) {
                 foreach ($dist as $mType => $pct) {
-                    $mCals = round($targetCals * $pct);
-                    $mP = round($p_g * $pct);
-                    $mC = round($c_g * $pct);
-                    $mF = round($f_g * $pct);
-                    $portionGrams = round($mCals / 1.5);
-                    
                     $options = $foodsByType[$mType];
                     $selectedFood = !empty($options) ? $options[($d - 1) % count($options)] : null;
                     
                     if ($selectedFood) {
-                        $mFood = $portionGrams . "g of " . $selectedFood['name'];
+                        $mFood = $selectedFood['name'];
                         $mImg = $selectedFood['image_url'] ?? null;
+                        $mCals = (int) $selectedFood['calories'];
+                        $mP = (float) $selectedFood['protein_g'];
+                        $mC = (float) $selectedFood['carbs_g'];
+                        $mF = (float) $selectedFood['fat_g'];
                     } else {
-                        $mFood = $portionGrams . "g of Healthy " . $mType;
+                        $mCals = round($targetCals * $pct);
+                        $mP = round($p_g * $pct);
+                        $mC = round($c_g * $pct);
+                        $mF = round($f_g * $pct);
+                        $mFood = "Healthy " . $mType;
                         $mImg = null;
                     }
                     
@@ -292,7 +295,11 @@ function diet_builder_page(): void
         }
 
         if ($action === 'add_meal') {
-            $dayOfWeek = (int) post('day_of_week');
+            $daysOfWeek = post('days_of_week');
+            if (!is_array($daysOfWeek) || empty($daysOfWeek)) {
+                $singleDay = (int) post('day_of_week');
+                $daysOfWeek = ($singleDay >= 1 && $singleDay <= 7) ? [$singleDay] : [1];
+            }
             $mealType = post('meal_type');
             $foodItems = post('food_items');
             $calories = (int) post('calories');
@@ -302,16 +309,105 @@ function diet_builder_page(): void
             $imageUrl = trim((string) post('image_url')) ?: null;
             
             $stmt = $pdo->prepare('INSERT INTO dietary_plan_meals (plan_id, day_of_week, meal_type, food_items, image_url, calories, protein_g, carbs_g, fat_g) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)');
-            $stmt->execute([$planId, $dayOfWeek, $mealType, $foodItems, $imageUrl, $calories, $protein, $carbs, $fat]);
             
-            header('Location: index.php?page=diet_builder&member_user_id=' . $memberId . $refQuery);
+            $daysMap = [1=>'Monday', 2=>'Tuesday', 3=>'Wednesday', 4=>'Thursday', 5=>'Friday', 6=>'Saturday', 7=>'Sunday'];
+            $addedDaysCount = 0;
+            $firstDay = 1;
+            foreach ($daysOfWeek as $d) {
+                $dInt = (int) $d;
+                if ($dInt >= 1 && $dInt <= 7) {
+                    if ($addedDaysCount === 0) $firstDay = $dInt;
+                    $stmt->execute([$planId, $dInt, $mealType, $foodItems, $imageUrl, $calories, $protein, $carbs, $fat]);
+                    $addedDaysCount++;
+                }
+            }
+            
+            if ($addedDaysCount > 1) {
+                flash("Added {$mealType} to {$addedDaysCount} days!", 'success');
+            } else {
+                flash("Added {$mealType} to {$daysMap[$firstDay]}!", 'success');
+            }
+            
+            $activeDayParam = '&active_day=' . (int)(post('active_day') ?: $firstDay);
+            header('Location: index.php?page=diet_builder&member_user_id=' . $memberId . $refQuery . $activeDayParam);
             exit;
         }
         
+        if ($action === 'copy_day_menu') {
+            $fromDay = (int) post('from_day');
+            $targetDays = post('target_days');
+            $replaceExisting = (int) post('replace_existing', 1);
+            $daysMap = [1=>'Monday', 2=>'Tuesday', 3=>'Wednesday', 4=>'Thursday', 5=>'Friday', 6=>'Saturday', 7=>'Sunday'];
+            
+            if ($fromDay >= 1 && $fromDay <= 7 && is_array($targetDays) && !empty($targetDays)) {
+                $srcStmt = $pdo->prepare('SELECT meal_type, food_items, image_url, calories, protein_g, carbs_g, fat_g FROM dietary_plan_meals WHERE plan_id = ? AND day_of_week = ? ORDER BY FIELD(meal_type, "Breakfast", "Lunch", "Dinner", "Snack")');
+                $srcStmt->execute([$planId, $fromDay]);
+                $srcMeals = $srcStmt->fetchAll(PDO::FETCH_ASSOC);
+                
+                if (!empty($srcMeals)) {
+                    $insertStmt = $pdo->prepare('INSERT INTO dietary_plan_meals (plan_id, day_of_week, meal_type, food_items, image_url, calories, protein_g, carbs_g, fat_g) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)');
+                    $delStmt = $pdo->prepare('DELETE FROM dietary_plan_meals WHERE plan_id = ? AND day_of_week = ?');
+                    
+                    $validTargets = [];
+                    foreach ($targetDays as $td) {
+                        $tdInt = (int)$td;
+                        if ($tdInt >= 1 && $tdInt <= 7 && $tdInt !== $fromDay) {
+                            $validTargets[] = $tdInt;
+                        }
+                    }
+                    
+                    if (!empty($validTargets)) {
+                        $pdo->beginTransaction();
+                        foreach ($validTargets as $tDay) {
+                            if ($replaceExisting) {
+                                $delStmt->execute([$planId, $tDay]);
+                            }
+                            foreach ($srcMeals as $sm) {
+                                $insertStmt->execute([
+                                    $planId,
+                                    $tDay,
+                                    $sm['meal_type'],
+                                    $sm['food_items'],
+                                    $sm['image_url'],
+                                    $sm['calories'],
+                                    $sm['protein_g'],
+                                    $sm['carbs_g'],
+                                    $sm['fat_g']
+                                ]);
+                            }
+                        }
+                        $pdo->commit();
+                        
+                        $targetNames = array_map(function($d) use ($daysMap) { return $daysMap[$d] ?? "Day $d"; }, $validTargets);
+                        flash("Successfully copied {$daysMap[$fromDay]}'s menu to " . implode(', ', $targetNames) . "!", 'success');
+                    }
+                } else {
+                    flash("Cannot copy: {$daysMap[$fromDay]} has no meals scheduled.", 'warning');
+                }
+            }
+            $activeDayParam = '&active_day=' . $fromDay;
+            header('Location: index.php?page=diet_builder&member_user_id=' . $memberId . $refQuery . $activeDayParam);
+            exit;
+        }
+
+        if ($action === 'clear_day_menu') {
+            $clearDay = (int) post('clear_day');
+            $daysMap = [1=>'Monday', 2=>'Tuesday', 3=>'Wednesday', 4=>'Thursday', 5=>'Friday', 6=>'Saturday', 7=>'Sunday'];
+            if ($clearDay >= 1 && $clearDay <= 7) {
+                $pdo->prepare('DELETE FROM dietary_plan_meals WHERE plan_id = ? AND day_of_week = ?')->execute([$planId, $clearDay]);
+                flash("Cleared all meals for {$daysMap[$clearDay]}.", 'info');
+            }
+            $activeDayParam = '&active_day=' . $clearDay;
+            header('Location: index.php?page=diet_builder&member_user_id=' . $memberId . $refQuery . $activeDayParam);
+            exit;
+        }
+
         if ($action === 'remove_meal') {
             $mealId = (int) post('meal_id');
+            $currentDay = (int) post('current_day');
             $pdo->prepare('DELETE FROM dietary_plan_meals WHERE meal_id = ? AND plan_id = ?')->execute([$mealId, $planId]);
-            header('Location: index.php?page=diet_builder&member_user_id=' . $memberId . $refQuery);
+            $activeDayParam = ($currentDay >= 1 && $currentDay <= 7) ? '&active_day=' . $currentDay : '';
+            header('Location: index.php?page=diet_builder&member_user_id=' . $memberId . $refQuery . $activeDayParam);
             exit;
         }
     }
@@ -1012,6 +1108,123 @@ function diet_builder_page(): void
     overflow-y: auto;
     flex: 1;
 }
+
+/* Multi-Day Selection Chips */
+.target-days-pills .day-chip {
+    padding: 7px 0;
+    font-size: 11.5px;
+    font-weight: 700;
+    border-radius: 6px;
+    border: 1px solid var(--diet-border);
+    background: var(--bg);
+    color: var(--diet-muted);
+    cursor: pointer;
+    text-align: center;
+    transition: all 0.15s ease;
+    user-select: none;
+}
+.target-days-pills .day-chip:hover {
+    border-color: var(--diet-accent);
+    color: var(--ink);
+}
+.target-days-pills .day-chip.is-active {
+    background: var(--diet-accent-tint);
+    border-color: var(--diet-accent);
+    color: var(--diet-accent);
+    font-weight: 800;
+    box-shadow: 0 0 10px var(--diet-accent-tint);
+}
+[data-theme="light"] .target-days-pills .day-chip.is-active {
+    background: rgba(101, 163, 13, 0.15);
+    border-color: #65a30d;
+    color: #4d7c0f;
+}
+
+/* Preset Buttons */
+.btn-day-preset {
+    font-size: 10.5px;
+    padding: 3px 8px;
+    border-radius: 4px;
+    border: 1px solid var(--diet-border);
+    background: transparent;
+    color: var(--diet-muted);
+    cursor: pointer;
+    font-weight: 600;
+    transition: all 0.15s ease;
+}
+.btn-day-preset:hover {
+    background: var(--panel-soft);
+    color: var(--ink);
+    border-color: var(--diet-accent-border);
+}
+
+/* Copy & Clear Day Action Buttons */
+.btn-copy-day-menu {
+    background: var(--panel-soft);
+    border: 1px solid var(--diet-accent-border);
+    color: var(--diet-accent);
+    padding: 4px 11px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 700;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    white-space: nowrap;
+}
+.btn-copy-day-menu:hover {
+    background: var(--diet-accent);
+    color: #080b0d;
+    border-color: var(--diet-accent);
+    transform: translateY(-1px);
+    box-shadow: 0 0 12px var(--diet-accent-tint);
+}
+[data-theme="light"] .btn-copy-day-menu:hover {
+    background: #65a30d;
+    color: #ffffff;
+}
+
+.btn-clear-day-menu {
+    background: transparent;
+    border: 1px solid var(--diet-border);
+    color: var(--diet-muted);
+    padding: 4px 10px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    transition: all 0.15s ease;
+    white-space: nowrap;
+}
+.btn-clear-day-menu:hover {
+    border-color: #ef4444;
+    color: #ef4444;
+    background: rgba(239, 68, 68, 0.08);
+}
+
+/* Quick Slot Buttons */
+.btn-quick-slot {
+    background: var(--bg);
+    border: 1px solid var(--diet-border);
+    color: var(--ink);
+    padding: 3px 10px;
+    border-radius: 6px;
+    font-size: 11.5px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+.btn-quick-slot:hover {
+    border-color: var(--diet-accent);
+    color: var(--diet-accent);
+    background: var(--diet-accent-tint);
+    transform: translateY(-1px);
+}
 </style>
 
 <div class="diet-builder-layout">
@@ -1027,33 +1240,37 @@ function diet_builder_page(): void
                 <input type="hidden" name="action" value="add_meal">
                 
                 <div>
-                    <label style="display:block; font-size: 12px; font-weight: 600; color: var(--diet-muted); margin-bottom: 6px;">Day of Week</label>
-                    <div class="custom-food-dropdown-wrap" id="wrap_day_of_week">
-                        <input type="hidden" name="day_of_week" id="input_day_of_week" value="1" required>
-                        <div id="day_dropdown_trigger" class="custom-food-trigger" role="button" tabindex="0" onclick="toggleCustomSelect(event, 'day')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();toggleCustomSelect(event, 'day');}">
-                            <span class="custom-food-trigger-text">
-                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--diet-accent)" stroke-width="2.2" style="flex-shrink: 0;"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
-                                <span id="day_trigger_label">Monday</span>
-                            </span>
-                            <span class="custom-food-trigger-right">
-                                <span id="day_trigger_badge" class="trigger-count-badge">Day 1</span>
-                                <svg id="day_trigger_arrow" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="transition: transform 0.2s; flex-shrink: 0;"><polyline points="6 9 12 15 18 9"/></svg>
-                            </span>
-                        </div>
-                        <div id="day_custom_menu" class="custom-food-menu" style="display: none;">
-                            <?php foreach ($daysMap as $num => $name): 
-                                $mCount = count($mealsByDay[$num] ?? []);
-                            ?>
-                                <div class="custom-select-option <?= $num === 1 ? 'is-selected' : '' ?>" data-day="<?= $num ?>" onclick="selectDayOfWeek(<?= $num ?>, '<?= $name ?>', event)">
-                                    <div style="display: flex; align-items: center; gap: 8px;">
-                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="opacity: 0.7;"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
-                                        <span><?= $name ?></span>
-                                    </div>
-                                    <span style="font-size: 11px; opacity: 0.75; font-weight: 600;"><?= $mCount ?> <?= $mCount === 1 ? 'meal' : 'meals' ?></span>
-                                </div>
-                            <?php endforeach; ?>
-                        </div>
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                        <label style="font-size: 12px; font-weight: 700; color: var(--ink); margin: 0;">Apply to Day(s)</label>
+                        <span id="target_days_count_badge" style="font-size: 11px; font-weight: 700; color: var(--diet-accent); background: var(--diet-accent-tint); padding: 2px 7px; border-radius: 10px; border: 1px solid var(--diet-accent-border);">1 day (Monday)</span>
                     </div>
+
+                    <!-- Day chips selector -->
+                    <div class="target-days-pills" id="target_days_pills" style="display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; margin-bottom: 7px;">
+                        <?php 
+                        $shortDays = [1 => 'Mon', 2 => 'Tue', 3 => 'Wed', 4 => 'Thu', 5 => 'Fri', 6 => 'Sat', 7 => 'Sun'];
+                        foreach ($shortDays as $num => $sName): 
+                        ?>
+                            <button type="button" class="day-chip <?= $num === 1 ? 'is-active' : '' ?>" data-day="<?= $num ?>" onclick="toggleTargetDay(<?= $num ?>)" title="Apply to <?= $daysMap[$num] ?>">
+                                <?= $sName ?>
+                            </button>
+                        <?php endforeach; ?>
+                    </div>
+
+                    <!-- Quick Preset Buttons -->
+                    <div style="display: flex; gap: 5px; flex-wrap: wrap;">
+                        <button type="button" class="btn-day-preset" onclick="setTargetDaysPreset('active')">Current Day</button>
+                        <button type="button" class="btn-day-preset" onclick="setTargetDaysPreset('weekdays')">Weekdays (M-F)</button>
+                        <button type="button" class="btn-day-preset" onclick="setTargetDaysPreset('all')">All 7 Days</button>
+                        <button type="button" class="btn-day-preset" onclick="setTargetDaysPreset('weekend')">Weekend</button>
+                    </div>
+
+                    <!-- Hidden inputs container for selected days -->
+                    <div id="target_days_inputs">
+                        <input type="hidden" name="days_of_week[]" value="1">
+                    </div>
+                    <input type="hidden" name="day_of_week" id="input_day_of_week" value="1">
+                    <input type="hidden" name="active_day" id="builder_active_day_input" value="1">
                 </div>
                 
                 <div>
@@ -1184,9 +1401,9 @@ function diet_builder_page(): void
                     </div>
                 </div>
                 
-                <button type="submit" class="diet-btn-add-meal">
+                <button type="submit" class="diet-btn-add-meal" id="btn_submit_add_meal">
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 5v14M5 12h14"/></svg>
-                    <span>Add Meal to Plan</span>
+                    <span id="btn_submit_add_meal_text">Add Meal to Plan</span>
                 </button>
             </form>
         </section>
@@ -1236,6 +1453,16 @@ function diet_builder_page(): void
                         <span style="background: var(--bg); border: 1px solid var(--diet-border); padding: 4px 10px; border-radius: 20px; font-size: 12px; color: var(--diet-muted); font-weight: 600;">
                             F: <strong style="color: var(--ink);"><?= round($dayFat, 1) ?>g</strong>
                         </span>
+                        <?php if (!empty($mealsByDay[$dayNum])): ?>
+                            <button type="button" class="btn-copy-day-menu" onclick="openCopyDayModal(<?= $dayNum ?>, '<?= $dayName ?>', <?= count($mealsByDay[$dayNum]) ?>)" title="Copy this entire day's menu to other days">
+                                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                                <span>Copy Day Menu</span>
+                            </button>
+                            <button type="button" class="btn-clear-day-menu" onclick="confirmClearDay(<?= $dayNum ?>, '<?= $dayName ?>')" title="Clear all meals from this day">
+                                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                                <span>Clear Day</span>
+                            </button>
+                        <?php endif; ?>
                     </div>
                 </div>
                 
@@ -1243,7 +1470,14 @@ function diet_builder_page(): void
                     <div style="text-align: center; padding: 40px 20px; background: var(--bg); border: 1px dashed var(--diet-border); border-radius: 10px;">
                         <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="var(--diet-muted)" stroke-width="1.5" style="margin-bottom: 10px;"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
                         <p style="margin: 0; font-size: 14px; font-weight: 600; color: var(--ink);">No meals planned for <?= $dayName ?> yet</p>
-                        <p style="margin: 4px 0 0; font-size: 12.5px; color: var(--diet-muted);">Fill out the Add Meal form on the left or click "Generate Plan" above to create an automated 7-day menu.</p>
+                        <p style="margin: 4px 0 0; font-size: 12.5px; color: var(--diet-muted);">Add meals individually or quickly copy from another day.</p>
+                        <div style="display: flex; justify-content: center; gap: 8px; margin-top: 16px; flex-wrap: wrap;">
+                            <?php foreach (['Breakfast', 'Lunch', 'Dinner', 'Snack'] as $qmt): ?>
+                                <button type="button" class="btn-quick-slot" onclick="quickSelectMealSlot(<?= $dayNum ?>, '<?= $qmt ?>')">
+                                    + Add <?= $qmt ?>
+                                </button>
+                            <?php endforeach; ?>
+                        </div>
                     </div>
                 <?php else: ?>
                     <div style="display: flex; flex-direction: column; gap: 12px;">
@@ -1274,10 +1508,24 @@ function diet_builder_page(): void
                                     <?= csrf_field() ?>
                                     <input type="hidden" name="action" value="remove_meal">
                                     <input type="hidden" name="meal_id" value="<?= $meal['meal_id'] ?>">
+                                    <input type="hidden" name="current_day" value="<?= $dayNum ?>">
                                     <button type="submit" class="btn-diet-remove-meal" title="Remove Meal">Remove</button>
                                 </form>
                             </div>
                         <?php endforeach; ?>
+                        
+                        <!-- Quick Add Slot Bar -->
+                        <div class="day-quick-slot-bar" style="display: flex; gap: 8px; flex-wrap: wrap; margin-top: 6px; padding-top: 12px; border-top: 1px dashed var(--diet-border); align-items: center;">
+                            <span style="font-size: 11.5px; font-weight: 700; color: var(--diet-muted); display: inline-flex; align-items: center; gap: 4px;">
+                                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--diet-accent)" stroke-width="2.5"><path d="M12 5v14M5 12h14"/></svg>
+                                Quick Add to <?= $dayName ?>:
+                            </span>
+                            <?php foreach (['Breakfast', 'Lunch', 'Dinner', 'Snack'] as $qmt): ?>
+                                <button type="button" class="btn-quick-slot" onclick="quickSelectMealSlot(<?= $dayNum ?>, '<?= $qmt ?>')">
+                                    + <?= $qmt ?>
+                                </button>
+                            <?php endforeach; ?>
+                        </div>
                     </div>
                 <?php endif; ?>
             </div>
@@ -1796,7 +2044,228 @@ function clearOnlineFoodSelection() {
     }
 }
 
+const csrfToken = <?= json_encode(csrf_token()) ?>;
+let currentActiveDay = 1;
+let selectedTargetDays = [1];
+
+function toggleTargetDay(dayNum) {
+    dayNum = parseInt(dayNum, 10);
+    const idx = selectedTargetDays.indexOf(dayNum);
+    if (idx > -1) {
+        if (selectedTargetDays.length > 1) {
+            selectedTargetDays.splice(idx, 1);
+        }
+    } else {
+        selectedTargetDays.push(dayNum);
+        selectedTargetDays.sort((a, b) => a - b);
+    }
+    syncTargetDaysUI();
+}
+
+function setTargetDaysPreset(preset) {
+    if (preset === 'active') {
+        selectedTargetDays = [currentActiveDay];
+    } else if (preset === 'weekdays') {
+        selectedTargetDays = [1, 2, 3, 4, 5];
+    } else if (preset === 'all') {
+        selectedTargetDays = [1, 2, 3, 4, 5, 6, 7];
+    } else if (preset === 'weekend') {
+        selectedTargetDays = [6, 7];
+    }
+    syncTargetDaysUI();
+}
+
+function syncTargetDaysUI() {
+    const daysMapJs = {1:'Mon', 2:'Tue', 3:'Wed', 4:'Thu', 5:'Fri', 6:'Sat', 7:'Sun'};
+    const daysFullMapJs = {1:'Monday', 2:'Tuesday', 3:'Wednesday', 4:'Thursday', 5:'Friday', 6:'Saturday', 7:'Sunday'};
+    
+    // Update chip classes
+    document.querySelectorAll('#target_days_pills .day-chip').forEach(btn => {
+        const d = parseInt(btn.getAttribute('data-day'), 10);
+        btn.classList.toggle('is-active', selectedTargetDays.includes(d));
+    });
+
+    // Update hidden inputs
+    const inputsContainer = document.getElementById('target_days_inputs');
+    if (inputsContainer) {
+        inputsContainer.innerHTML = selectedTargetDays.map(d => `<input type="hidden" name="days_of_week[]" value="${d}">`).join('');
+    }
+
+    // Update count badge
+    const badge = document.getElementById('target_days_count_badge');
+    if (badge) {
+        if (selectedTargetDays.length === 1) {
+            badge.textContent = `1 day (${daysFullMapJs[selectedTargetDays[0]]})`;
+        } else if (selectedTargetDays.length === 5 && selectedTargetDays.join(',') === '1,2,3,4,5') {
+            badge.textContent = `5 days (Mon - Fri)`;
+        } else if (selectedTargetDays.length === 7) {
+            badge.textContent = `All 7 days`;
+        } else {
+            badge.textContent = `${selectedTargetDays.length} days (${selectedTargetDays.map(d => daysMapJs[d]).join(', ')})`;
+        }
+    }
+
+    // Update Submit Button Text
+    const submitBtnText = document.getElementById('btn_submit_add_meal_text');
+    if (submitBtnText) {
+        if (selectedTargetDays.length === 1) {
+            submitBtnText.textContent = `Add Meal to Plan`;
+        } else if (selectedTargetDays.length === 5 && selectedTargetDays.join(',') === '1,2,3,4,5') {
+            submitBtnText.textContent = `Add Meal to 5 Days (M-F)`;
+        } else if (selectedTargetDays.length === 7) {
+            submitBtnText.textContent = `Add Meal to All 7 Days`;
+        } else {
+            submitBtnText.textContent = `Add Meal to ${selectedTargetDays.length} Days`;
+        }
+    }
+}
+
+function quickSelectMealSlot(dayNum, mealType) {
+    switchDay(dayNum);
+    setTargetDaysPreset('active');
+    selectMealType(mealType);
+    const wrap = document.getElementById('wrap_local_food');
+    if (wrap) {
+        wrap.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        setTimeout(() => {
+            toggleCustomSelect('food', true);
+        }, 300);
+    }
+}
+
+function openCopyDayModal(sourceDayNum, sourceDayName, mealCount) {
+    const days = [
+        { num: 1, name: 'Monday' },
+        { num: 2, name: 'Tuesday' },
+        { num: 3, name: 'Wednesday' },
+        { num: 4, name: 'Thursday' },
+        { num: 5, name: 'Friday' },
+        { num: 6, name: 'Saturday' },
+        { num: 7, name: 'Sunday' }
+    ];
+    
+    const targets = days.filter(d => d.num !== sourceDayNum);
+    let checkboxesHtml = targets.map(t => `
+        <label style="display: flex; align-items: center; justify-content: space-between; padding: 9px 12px; background: rgba(255,255,255,0.03); border: 1px solid var(--diet-border); border-radius: 8px; cursor: pointer; margin-bottom: 6px; transition: border-color 0.15s;">
+            <span style="font-weight: 600; font-size: 13px; color: var(--ink);">${t.name}</span>
+            <input type="checkbox" value="${t.num}" class="swal-target-day-cb" ${t.num <= 5 ? 'checked' : ''} style="width: 17px; height: 17px; accent-color: var(--diet-accent); cursor: pointer;">
+        </label>
+    `).join('');
+
+    Swal.fire({
+        title: `Copy ${sourceDayName} Menu`,
+        html: `
+            <div style="text-align: left; font-size: 13px;">
+                <p style="color: var(--diet-muted); margin: 0 0 12px; line-height: 1.4;">Copy all <strong>${mealCount} meals</strong> from <strong>${sourceDayName}</strong> to other days:</p>
+                <div style="display: flex; gap: 6px; margin-bottom: 12px; flex-wrap: wrap;">
+                    <button type="button" onclick="document.querySelectorAll('.swal-target-day-cb').forEach(c => c.checked = (parseInt(c.value) <= 5));" style="padding: 4px 9px; border-radius: 5px; font-size: 11px; font-weight: 600; background: var(--surface); color: var(--ink); border: 1px solid var(--diet-border); cursor: pointer;">Select Weekdays</button>
+                    <button type="button" onclick="document.querySelectorAll('.swal-target-day-cb').forEach(c => c.checked = true);" style="padding: 4px 9px; border-radius: 5px; font-size: 11px; font-weight: 600; background: var(--surface); color: var(--ink); border: 1px solid var(--diet-border); cursor: pointer;">Select All</button>
+                    <button type="button" onclick="document.querySelectorAll('.swal-target-day-cb').forEach(c => c.checked = false);" style="padding: 4px 9px; border-radius: 5px; font-size: 11px; font-weight: 600; background: var(--surface); color: var(--ink); border: 1px solid var(--diet-border); cursor: pointer;">Deselect All</button>
+                </div>
+                <div style="max-height: 200px; overflow-y: auto; margin-bottom: 12px; padding-right: 4px;">
+                    ${checkboxesHtml}
+                </div>
+                <label style="display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--diet-muted); cursor: pointer; padding-top: 10px; border-top: 1px solid var(--diet-border);">
+                    <input type="checkbox" id="swal_replace_existing" checked style="width: 15px; height: 15px; accent-color: var(--diet-accent); cursor: pointer;">
+                    <span>Replace existing meals on target days</span>
+                </label>
+            </div>
+        `,
+        showCancelButton: true,
+        confirmButtonText: '⚡ Copy Menu Now',
+        cancelButtonText: 'Cancel',
+        confirmButtonColor: 'var(--lime-dark, #65a30d)',
+        cancelButtonColor: 'var(--line, #334155)',
+        background: 'var(--panel, #121721)',
+        color: 'var(--ink, #ffffff)',
+        reverseButtons: true,
+        preConfirm: () => {
+            const selected = Array.from(document.querySelectorAll('.swal-target-day-cb:checked')).map(c => c.value);
+            if (selected.length === 0) {
+                Swal.showValidationMessage('Please select at least one day to copy to.');
+                return false;
+            }
+            const replace = document.getElementById('swal_replace_existing').checked ? 1 : 0;
+            return { targetDays: selected, replaceExisting: replace };
+        }
+    }).then(result => {
+        if (result && result.isConfirmed) {
+            submitCopyDayForm(sourceDayNum, result.value.targetDays, result.value.replaceExisting);
+        }
+    });
+}
+
+function submitCopyDayForm(fromDay, targetDays, replaceExisting) {
+    const form = document.createElement('form');
+    form.method = 'POST';
+    form.style.display = 'none';
+
+    let html = `
+        <input type="hidden" name="csrf_token" value="${escapeHtml(csrfToken)}">
+        <input type="hidden" name="action" value="copy_day_menu">
+        <input type="hidden" name="from_day" value="${fromDay}">
+        <input type="hidden" name="replace_existing" value="${replaceExisting}">
+        <input type="hidden" name="active_day" value="${fromDay}">
+    `;
+    targetDays.forEach(td => {
+        html += `<input type="hidden" name="target_days[]" value="${td}">`;
+    });
+    form.innerHTML = html;
+    document.body.appendChild(form);
+    form.submit();
+}
+
+function confirmClearDay(dayNum, dayName) {
+    Swal.fire({
+        title: `Clear ${dayName}?`,
+        text: `Are you sure you want to remove all meals from ${dayName}?`,
+        icon: 'warning',
+        iconColor: '#ef4444',
+        showCancelButton: true,
+        confirmButtonText: 'Yes, Clear Day',
+        cancelButtonText: 'Cancel',
+        confirmButtonColor: '#ef4444',
+        cancelButtonColor: 'var(--line, #334155)',
+        background: 'var(--panel, #121721)',
+        color: 'var(--ink, #ffffff)',
+        reverseButtons: true
+    }).then(res => {
+        if (res && res.isConfirmed) {
+            const form = document.createElement('form');
+            form.method = 'POST';
+            form.style.display = 'none';
+            form.innerHTML = `
+                <input type="hidden" name="csrf_token" value="${escapeHtml(csrfToken)}">
+                <input type="hidden" name="action" value="clear_day_menu">
+                <input type="hidden" name="clear_day" value="${dayNum}">
+                <input type="hidden" name="active_day" value="${dayNum}">
+            `;
+            document.body.appendChild(form);
+            form.submit();
+        }
+    });
+}
+
 function switchDay(dayNum) {
+    dayNum = parseInt(dayNum, 10);
+    if (!dayNum || dayNum < 1 || dayNum > 7) dayNum = 1;
+    currentActiveDay = dayNum;
+
+    try {
+        localStorage.setItem('fittracks_builder_day', dayNum);
+    } catch(e) {}
+
+    const builderActiveDayInput = document.getElementById('builder_active_day_input');
+    if (builderActiveDayInput) {
+        builderActiveDayInput.value = dayNum;
+    }
+
+    // If only 1 target day was selected, auto-update it to the new active day
+    if (selectedTargetDays.length === 1) {
+        selectedTargetDays = [dayNum];
+        syncTargetDaysUI();
+    }
+
     document.querySelectorAll('.day-panel').forEach(panel => {
         panel.style.display = 'none';
         panel.classList.remove('active');
@@ -1989,7 +2458,18 @@ function clearModalOnlineQuery() {
 }
 
 document.addEventListener("DOMContentLoaded", function() {
-    switchDay(1);
+    const urlParams = new URLSearchParams(window.location.search);
+    let initialDay = parseInt(urlParams.get('active_day'), 10);
+    if (!initialDay || isNaN(initialDay)) {
+        try {
+            initialDay = parseInt(localStorage.getItem('fittracks_builder_day'), 10);
+        } catch(e) {}
+    }
+    if (!initialDay || initialDay < 1 || initialDay > 7) {
+        initialDay = 1;
+    }
+    switchDay(initialDay);
+    setTargetDaysPreset('active');
     updateMacros();
     updateLocalFoodDropdown();
 

@@ -952,6 +952,7 @@ function render_member_form(string $context, ?array $user = null, ?array $profil
                     'reducing_body_fat'   => ['label' => 'Reducing Body Fat', 'desc' => 'Focus on reducing body-fat percentage & waistline'],
                     'improving_endurance' => ['label' => 'Improving Endurance', 'desc' => 'Focus on aerobic capacity, stamina & cardiovascular pacing'],
                     'general_fitness'     => ['label' => 'Improving General Fitness', 'desc' => 'Focus on consistent weekly workouts & overall health'],
+                    'casual'              => ['label' => 'Casual / Flexible Lifestyle', 'desc' => 'Balanced nutrition & sustainable wellness without strict dieting'],
                 ]
             ],
             'Specific Targets' => [

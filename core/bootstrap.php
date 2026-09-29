@@ -11,7 +11,7 @@ header('Content-Type: text/html; charset=UTF-8');
 header('X-Content-Type-Options: nosniff');
 header('X-Frame-Options: SAMEORIGIN');
 header('Referrer-Policy: strict-origin-when-cross-origin');
-header("Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline' cdn.jsdelivr.net unpkg.com; style-src 'self' 'unsafe-inline' fonts.googleapis.com cdn.jsdelivr.net unpkg.com; img-src 'self' data: blob: *.imagekit.io res.cloudinary.com images.unsplash.com *.unsplash.com *.openfoodfacts.org *.openfoodfacts.net *.wikimedia.org; font-src 'self' fonts.gstatic.com; connect-src 'self' *.openfoodfacts.net *.openfoodfacts.org; frame-src 'none'; object-src 'none';");
+header("Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline' cdn.jsdelivr.net unpkg.com; style-src 'self' 'unsafe-inline' fonts.googleapis.com cdn.jsdelivr.net unpkg.com; img-src 'self' data: blob: *.imagekit.io res.cloudinary.com images.unsplash.com *.unsplash.com *.openfoodfacts.org *.openfoodfacts.net *.wikimedia.org; font-src 'self' fonts.gstatic.com; connect-src 'self' cdn.jsdelivr.net *.jsdelivr.net unpkg.com *.openfoodfacts.net *.openfoodfacts.org; frame-src 'none'; object-src 'none';");
 
 require __DIR__ . '/helpers.php';
 require __DIR__ . '/../config/config.php';
@@ -32,13 +32,31 @@ if (!file_exists($seedLockFile)) {
     }
 }
 
+// Cloudflare & Reverse Proxy Support: Real client IP restoration
+if (!empty($_SERVER['HTTP_CF_CONNECTING_IP'])) {
+    $_SERVER['REMOTE_ADDR'] = $_SERVER['HTTP_CF_CONNECTING_IP'];
+} elseif (!empty($_SERVER['HTTP_X_FORWARDED_FOR'])) {
+    $forwardedIps = explode(',', $_SERVER['HTTP_X_FORWARDED_FOR']);
+    $_SERVER['REMOTE_ADDR'] = trim($forwardedIps[0]);
+}
+
 $redisClient = redis();
 if ($redisClient !== null) {
     $sessionHandler = new SessionRedisHandler($redisClient);
 } else {
     $sessionHandler = new SessionDbHandler(db());
 }
-$isHttps = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') || (isset($_SERVER['SERVER_PORT']) && $_SERVER['SERVER_PORT'] == 443);
+
+// Detect HTTPS directly or when proxied by Cloudflare
+$isHttps = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')
+    || (isset($_SERVER['SERVER_PORT']) && (int)$_SERVER['SERVER_PORT'] === 443)
+    || (isset($_SERVER['HTTP_X_FORWARDED_PROTO']) && strtolower($_SERVER['HTTP_X_FORWARDED_PROTO']) === 'https')
+    || (isset($_SERVER['HTTP_CF_VISITOR']) && str_contains($_SERVER['HTTP_CF_VISITOR'], '"scheme":"https"'));
+
+ini_set('session.gc_maxlifetime', '86400');
+ini_set('session.cookie_lifetime', '86400');
+ini_set('session.use_strict_mode', '1');
+
 session_set_cookie_params([
     'lifetime' => 86400,
     'path' => '/',
@@ -46,7 +64,6 @@ session_set_cookie_params([
     'httponly' => true,
     'samesite' => 'Lax',
 ]);
-ini_set('session.use_strict_mode', '1');
 
 session_set_save_handler($sessionHandler, true);
 session_start();

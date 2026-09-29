@@ -512,6 +512,7 @@ function diet_page(): void
             $targetCals = $tdee;
             if ($goal === 'fat_loss') $targetCals -= 500;
             if ($goal === 'muscle_gain') $targetCals += 300;
+            if ($goal === 'casual') $targetCals = $tdee;
             $targetCals = max(1200, round($targetCals));
             
             // 4. Macro Split (use prepared statements to prevent SQL injection)
@@ -631,20 +632,22 @@ function diet_page(): void
 
             for ($d = 1; $d <= 7; $d++) {
                 foreach ($dist as $mType => $pct) {
-                    $mCals = round($targetCals * $pct);
-                    $mP = round($p_g * $pct);
-                    $mC = round($c_g * $pct);
-                    $mF = round($f_g * $pct);
-                    $portionGrams = round($mCals / 1.5);
-
                     $options = $foodsByType[$mType];
                     $selectedFood = !empty($options) ? $options[($d - 1) % count($options)] : null;
 
                     if ($selectedFood) {
-                        $mFood = $portionGrams . "g of " . $selectedFood['name'];
+                        $mFood = $selectedFood['name'];
                         $mImg = $selectedFood['image_url'] ?? null;
+                        $mCals = (int) $selectedFood['calories'];
+                        $mP = (float) $selectedFood['protein_g'];
+                        $mC = (float) $selectedFood['carbs_g'];
+                        $mF = (float) $selectedFood['fat_g'];
                     } else {
-                        $mFood = $portionGrams . "g of Healthy " . $mType;
+                        $mCals = round($targetCals * $pct);
+                        $mP = round($p_g * $pct);
+                        $mC = round($c_g * $pct);
+                        $mF = round($f_g * $pct);
+                        $mFood = "Healthy " . $mType;
                         $mImg = null;
                     }
 
@@ -3920,7 +3923,7 @@ $stFat   = $calcMacroStatus($loggedFat, $targetFat, 'fat');
         <div class="ft-modal-header">
             <div>
                 <h3 class="ft-modal-title" id="inspect-modal-title">Meal Ingredient Breakdown</h3>
-                <p class="ft-modal-subtitle" id="inspect-modal-subtitle">Itemized ingredients & micronutrients via CalorieNinjas</p>
+                <p class="ft-modal-subtitle" id="inspect-modal-subtitle">Select the ingredients you ate to calculate and estimate exact calories & macros</p>
             </div>
             <button type="button" class="ft-modal-close" onclick="closeInspectModal()" aria-label="Close modal">
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
@@ -3928,9 +3931,12 @@ $stFat   = $calcMacroStatus($loggedFat, $targetFat, 'fat');
         </div>
 
         <div class="ft-modal-body">
-            <!-- Planned Meal Header Bar -->
+            <!-- Planned Meal Header Bar with Live Recalculated Macros -->
             <div class="inspect-meal-summary">
-                <div class="inspect-meal-name" id="inspect-meal-name">Loading meal...</div>
+                <div>
+                    <div class="inspect-meal-name" id="inspect-meal-name">Loading meal...</div>
+                    <div style="font-size: 11px; color: var(--muted); margin-top: 3px;" id="inspect-meal-status-hint">Calculated based on selected ingredients below</div>
+                </div>
                 <div class="inspect-macro-chips">
                     <span class="inspect-chip chip-cals" id="inspect-chip-cals">0 kcal</span>
                     <span class="inspect-chip chip-pro" id="inspect-chip-pro">0g P</span>
@@ -3947,13 +3953,29 @@ $stFat   = $calcMacroStatus($loggedFat, $targetFat, 'fat');
 
             <!-- Content Body -->
             <div id="inspect-content" style="display:none;">
-                <div style="font-size: 11.5px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 10px;">
-                    Itemized Ingredients & Macronutrients
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; gap: 10px; flex-wrap: wrap;">
+                    <div>
+                        <div style="font-size: 11.5px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px;">Select Consumed Ingredients</div>
+                        <div style="font-size: 11px; color: var(--muted); margin-top: 2px;">Ticking/unticking ingredients live-estimates your actual calories & macros</div>
+                    </div>
+                    <div style="display: flex; gap: 6px;">
+                        <button type="button" class="btn-cancel" style="padding: 4px 10px; font-size: 11.5px; border-radius: 6px; cursor: pointer;" onclick="toggleAllInspectedIngredients(true)">Select All</button>
+                        <button type="button" class="btn-cancel" style="padding: 4px 10px; font-size: 11.5px; border-radius: 6px; cursor: pointer;" onclick="toggleAllInspectedIngredients(false)">Deselect All</button>
+                    </div>
                 </div>
                 <div class="inspect-items-wrap" id="inspect-items-container"></div>
                 
                 <!-- Micronutrient Highlights Banner -->
                 <div id="inspect-micro-banner" class="inspect-micro-banner" style="display:none; margin-top: 14px;"></div>
+
+                <!-- Health Benefits & Notes -->
+                <div id="inspect-recipe-notes" style="display:none; margin-top: 14px; padding: 12px 14px; border-radius: 8px; background: rgba(199,255,34,0.04); border-left: 3px solid var(--lime);">
+                    <div style="font-size: 11px; font-weight: 700; color: var(--lime); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px; display: inline-flex; align-items: center; gap: 5px;">
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+                        <span>Why This Food is Good for You</span>
+                    </div>
+                    <div id="inspect-recipe-notes-text" style="font-size: 12.5px; color: var(--ink); line-height: 1.45;"></div>
+                </div>
             </div>
 
             <!-- Fallback/Notice -->
@@ -3968,7 +3990,7 @@ $stFat   = $calcMacroStatus($loggedFat, $targetFat, 'fat');
             <button type="button" class="btn-cancel" onclick="closeInspectModal()">Close</button>
             <button type="button" id="btn-inspect-quick-log" class="btn-primary-action" onclick="quickLogFromInspection()">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
-                <span>+ Log This Meal to Today</span>
+                <span>+ Log Selected Ingredients</span>
             </button>
         </div>
     </div>
@@ -4842,7 +4864,7 @@ function resetTodayMealCardsUI() {
     });
 }
 
-async function quickLogPlannedMeal(mealId) {
+async function quickLogPlannedMeal(mealId, customTotals = null) {
     const card = document.getElementById('meal-card-' + mealId);
     if (!card) return;
 
@@ -4851,10 +4873,15 @@ async function quickLogPlannedMeal(mealId) {
     const rawType = card.dataset.type || 'Meal';
     const normType = normalizeMealType(rawType);
     const dayNum = parseInt(card.dataset.day || 0, 10);
-    const cals = parseFloat(card.dataset.cals || 0);
-    const pro = parseFloat(card.dataset.pro || 0);
-    const carbs = parseFloat(card.dataset.carbs || 0);
-    const fat = parseFloat(card.dataset.fat || 0);
+    
+    // If customTotals is provided (from selected ingredients), use those!
+    const cals = customTotals && customTotals.cals !== undefined ? customTotals.cals : parseFloat(card.dataset.cals || 0);
+    const pro = customTotals && customTotals.pro !== undefined ? customTotals.pro : parseFloat(card.dataset.pro || 0);
+    const carbs = customTotals && customTotals.carbs !== undefined ? customTotals.carbs : parseFloat(card.dataset.carbs || 0);
+    const fat = customTotals && customTotals.fat !== undefined ? customTotals.fat : parseFloat(card.dataset.fat || 0);
+    const foodItems = customTotals && customTotals.names && customTotals.names.length > 0 
+        ? customTotals.names.join(', ') 
+        : (card.dataset.food || '');
 
     // Guard 1: Only today can be logged
     if (dayNum !== window.FT_CURRENT_DAY_NUM) {
@@ -4894,6 +4921,7 @@ async function quickLogPlannedMeal(mealId) {
             protein_g: pro.toString(),
             carbs_g: carbs.toString(),
             fat_g: fat.toString(),
+            food_items: foodItems,
             csrf_token: FT_CSRF_TOKEN
         });
 
@@ -5083,57 +5111,104 @@ async function inspectPlannedMeal(mealId) {
     const cleanQuery = currentInspectingMeal.food.replace(/\b(\d+g)\s+of\s+/i, '$1 ');
 
     try {
-        const res = await fetch('index.php?page=food_lookup&action=calorieninjas&query=' + encodeURIComponent(cleanQuery));
-        const data = await res.json();
+        let items = [];
+        let totFiber = 0, totSugar = 0, totSodium = 0, totPotassium = 0;
+
+        // 1. Prioritize Gym Owner's Food Library & Verified Recipe Database FIRST
+        let decData = null;
+        try {
+            const decUrl = 'index.php?page=food_lookup&action=decompose_meal&query=' + encodeURIComponent(currentInspectingMeal.food) +
+                '&food=' + encodeURIComponent(currentInspectingMeal.food) +
+                `&calories=${currentInspectingMeal.cals}&protein_g=${currentInspectingMeal.pro}&carbs_g=${currentInspectingMeal.carbs}&fat_g=${currentInspectingMeal.fat}`;
+            const decRes = await fetch(decUrl);
+            decData = await decRes.json();
+            if (decData && decData.success && Array.isArray(decData.items) && decData.items.length > 0) {
+                items = decData.items;
+                if (decData.verified_food_name) {
+                    nameEl.textContent = decData.verified_food_name;
+                }
+            }
+        } catch (_) {}
+
+        // 2. Fallback: If no match in gym's food library, query external nutrition API (CalorieNinjas)
+        if (!items || items.length === 0) {
+            try {
+                const res = await fetch('index.php?page=food_lookup&action=calorieninjas&query=' + encodeURIComponent(cleanQuery));
+                const data = await res.json();
+                if (data && data.success && Array.isArray(data.items) && data.items.length > 0) {
+                    items = data.items;
+                }
+            } catch (_) {}
+        }
+
         loadingEl.style.display = 'none';
 
-        if (data && data.success && Array.isArray(data.items) && data.items.length > 0) {
+        if (items && items.length > 0) {
             contentEl.style.display = 'block';
+            currentInspectingMeal.items = items;
 
-            let totFiber = 0, totSugar = 0, totSodium = 0, totPotassium = 0;
-
-            itemsCont.innerHTML = data.items.map(item => {
+            itemsCont.innerHTML = items.map((item, idx) => {
                 totFiber += (item.fiber_g || 0);
                 totSugar += (item.sugar_g || 0);
                 totSodium += (item.sodium_mg || 0);
                 totPotassium += (item.potassium_mg || 0);
 
+                const portionDisplay = item.portion || (item.serving_size_g ? Math.round(item.serving_size_g) + 'g' : '1 portion');
+
                 return `
-                    <div class="inspect-item-row">
-                        <div class="inspect-item-left">
-                            <span class="inspect-item-title">${escapeHtml(item.name)}</span>
-                            <span class="inspect-item-portion">${item.serving_size_g ? Math.round(item.serving_size_g) + 'g serving' : '1 serving'}</span>
+                    <label class="inspect-item-row" style="cursor: pointer; display: flex; align-items: center; gap: 12px; padding: 11px 14px; border-radius: 10px; border: 1.5px solid var(--line); margin-bottom: 8px; background: var(--panel); transition: all 0.2s ease;">
+                        <input type="checkbox" class="inspect-ingredient-check" data-idx="${idx}" checked onchange="recalculateInspectedIngredients()" style="width: 18px; height: 18px; accent-color: var(--lime); cursor: pointer; flex-shrink: 0;">
+                        <div class="inspect-item-left" style="flex: 1; min-width: 0;">
+                            <span class="inspect-item-title" style="font-weight: 600; font-size: 13.5px; color: var(--ink); display: block;">${escapeHtml(item.name)}</span>
+                            <span class="inspect-item-portion" style="font-size: 11.5px; color: var(--muted);">${escapeHtml(portionDisplay)}</span>
                         </div>
-                        <div class="inspect-item-macros">
+                        <div class="inspect-item-macros" style="display: flex; gap: 6px; flex-shrink: 0; flex-wrap: wrap;">
                             <span class="inspect-chip chip-cals">${item.calories} kcal</span>
                             <span class="inspect-chip chip-pro">${item.protein_g}g P</span>
                             <span class="inspect-chip chip-carbs">${item.carbs_g}g C</span>
                             <span class="inspect-chip chip-fat">${item.fat_g}g F</span>
                         </div>
-                    </div>
+                    </label>
                 `;
             }).join('');
 
-            // Micronutrient banner
-            microBanner.style.display = 'flex';
-            microBanner.innerHTML = `
-                <div class="inspect-micro-stat">
-                    <span class="inspect-micro-stat-label">Dietary Fiber</span>
-                    <span class="inspect-micro-stat-val">${totFiber.toFixed(1)}g</span>
-                </div>
-                <div class="inspect-micro-stat">
-                    <span class="inspect-micro-stat-label">Sugars</span>
-                    <span class="inspect-micro-stat-val">${totSugar.toFixed(1)}g</span>
-                </div>
-                <div class="inspect-micro-stat">
-                    <span class="inspect-micro-stat-label">Sodium</span>
-                    <span class="inspect-micro-stat-val">${Math.round(totSodium)}mg</span>
-                </div>
-                <div class="inspect-micro-stat">
-                    <span class="inspect-micro-stat-label">Potassium</span>
-                    <span class="inspect-micro-stat-val">${Math.round(totPotassium)}mg</span>
-                </div>
-            `;
+            // Display Preparation & Notes from Gym's Food Library if available
+            const notesEl = document.getElementById('inspect-recipe-notes');
+            const notesText = document.getElementById('inspect-recipe-notes-text');
+            if (notesEl && notesText) {
+                if (decData && decData.recipe_notes) {
+                    notesText.textContent = decData.recipe_notes;
+                    notesEl.style.display = 'block';
+                } else {
+                    notesEl.style.display = 'none';
+                }
+            }
+
+            // Recalculate based on default checked status
+            recalculateInspectedIngredients();
+
+            // Micronutrient banner if available
+            if (totFiber > 0 || totSodium > 0 || totSugar > 0 || totPotassium > 0) {
+                microBanner.style.display = 'flex';
+                microBanner.innerHTML = `
+                    <div class="inspect-micro-stat">
+                        <span class="inspect-micro-stat-label">Dietary Fiber</span>
+                        <span class="inspect-micro-stat-val">${totFiber.toFixed(1)}g</span>
+                    </div>
+                    <div class="inspect-micro-stat">
+                        <span class="inspect-micro-stat-label">Sugars</span>
+                        <span class="inspect-micro-stat-val">${totSugar.toFixed(1)}g</span>
+                    </div>
+                    <div class="inspect-micro-stat">
+                        <span class="inspect-micro-stat-label">Sodium</span>
+                        <span class="inspect-micro-stat-val">${Math.round(totSodium)}mg</span>
+                    </div>
+                    <div class="inspect-micro-stat">
+                        <span class="inspect-micro-stat-label">Potassium</span>
+                        <span class="inspect-micro-stat-val">${Math.round(totPotassium)}mg</span>
+                    </div>
+                `;
+            }
         } else {
             // Graceful fallback to planned targets
             fallbackEl.style.display = 'block';
@@ -5149,6 +5224,78 @@ async function inspectPlannedMeal(mealId) {
     }
 }
 
+function recalculateInspectedIngredients() {
+    if (!currentInspectingMeal || !currentInspectingMeal.items) return;
+    const checks = document.querySelectorAll('.inspect-ingredient-check');
+    let totCals = 0, totPro = 0, totCarbs = 0, totFat = 0;
+    let selectedCount = 0;
+    let selectedNames = [];
+
+    checks.forEach(chk => {
+        const row = chk.closest('.inspect-item-row');
+        if (chk.checked) {
+            const idx = parseInt(chk.dataset.idx, 10);
+            const it = currentInspectingMeal.items[idx];
+            if (it) {
+                totCals += (parseFloat(it.calories) || 0);
+                totPro += (parseFloat(it.protein_g) || 0);
+                totCarbs += (parseFloat(it.carbs_g) || 0);
+                totFat += (parseFloat(it.fat_g) || 0);
+                selectedNames.push(it.name);
+                selectedCount++;
+            }
+            if (row) {
+                row.style.opacity = '1';
+                row.style.borderColor = 'var(--line)';
+            }
+        } else {
+            if (row) {
+                row.style.opacity = '0.45';
+                row.style.borderColor = 'transparent';
+            }
+        }
+    });
+
+    currentInspectingMeal.selectedTotals = {
+        cals: Math.round(totCals),
+        pro: Math.round(totPro * 10) / 10,
+        carbs: Math.round(totCarbs * 10) / 10,
+        fat: Math.round(totFat * 10) / 10,
+        count: selectedCount,
+        names: selectedNames
+    };
+
+    // Update chips live
+    document.getElementById('inspect-chip-cals').textContent = `${currentInspectingMeal.selectedTotals.cals} kcal`;
+    document.getElementById('inspect-chip-pro').textContent = `${currentInspectingMeal.selectedTotals.pro}g P`;
+    document.getElementById('inspect-chip-carbs').textContent = `${currentInspectingMeal.selectedTotals.carbs}g C`;
+    document.getElementById('inspect-chip-fat').textContent = `${currentInspectingMeal.selectedTotals.fat}g F`;
+
+    const hintEl = document.getElementById('inspect-meal-status-hint');
+    if (hintEl) {
+        hintEl.textContent = `Estimated based on ${selectedCount} of ${checks.length} selected ingredients`;
+    }
+
+    const logBtn = document.getElementById('btn-inspect-quick-log');
+    if (logBtn && !logBtn.disabled) {
+        if (selectedCount === 0) {
+            logBtn.innerHTML = `<span>Select at least 1 ingredient</span>`;
+            logBtn.style.opacity = '0.5';
+            logBtn.style.pointerEvents = 'none';
+        } else {
+            logBtn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg> <span>+ Log Selected Ingredients (${currentInspectingMeal.selectedTotals.cals} kcal)</span>`;
+            logBtn.style.opacity = '1';
+            logBtn.style.pointerEvents = 'auto';
+        }
+    }
+}
+
+function toggleAllInspectedIngredients(status) {
+    const checks = document.querySelectorAll('.inspect-ingredient-check');
+    checks.forEach(chk => { chk.checked = status; });
+    recalculateInspectedIngredients();
+}
+
 function closeInspectModal() {
     const modal = document.getElementById('modal-inspect-meal');
     if (modal) modal.style.display = 'none';
@@ -5158,8 +5305,14 @@ function closeInspectModal() {
 function quickLogFromInspection() {
     if (!currentInspectingMeal) return;
     const mealId = currentInspectingMeal.mealId;
+    const custom = currentInspectingMeal.selectedTotals;
     closeInspectModal();
-    quickLogPlannedMeal(mealId);
+
+    if (custom && custom.count > 0) {
+        quickLogPlannedMeal(mealId, custom);
+    } else {
+        quickLogPlannedMeal(mealId);
+    }
 }
 
 // ----------------------------------------------------

@@ -249,13 +249,21 @@ function landing_page(): void
                 <div class="hero-grid">
                     <!-- Left Side: Brand Narrative & Feature Pills Floating directly on Background -->
                     <div class="hero-left">
-                        <a href="#testimonials" class="hero-rating-badge" style="display:inline-flex; align-items:center; gap:8px; background:rgba(255,255,255,0.04); border:1px solid rgba(199,255,34,0.3); padding:6px 14px; border-radius:999px; margin-bottom:16px; text-decoration:none; backdrop-filter:blur(8px); width:fit-content;">
-                            <span style="display:inline-flex; align-items:center;">
-                                <?= render_star_rating((float)$platformStats['avg_rating'], 14, false) ?>
-                            </span>
-                            <span style="font-weight:700; font-size:13px; color:#fff;"><?= number_format($platformStats['avg_rating'], 1) ?>/5</span>
-                            <span style="font-size:12px; color:rgba(255,255,255,0.7);">&bull; Rated by <?= $platformStats['total_reviews'] ?> Verified Gym Owners &rarr;</span>
-                        </a>
+                        <?php if ($platformStats['total_reviews'] > 0): ?>
+                            <a href="#testimonials" class="hero-rating-badge" style="display:inline-flex; align-items:center; gap:8px; background:rgba(255,255,255,0.04); border:1px solid rgba(199,255,34,0.3); padding:6px 14px; border-radius:999px; margin-bottom:16px; text-decoration:none; backdrop-filter:blur(8px); width:fit-content;">
+                                <span style="display:inline-flex; align-items:center;">
+                                    <?= render_star_rating((float)$platformStats['avg_rating'], 14, false) ?>
+                                </span>
+                                <span style="font-weight:700; font-size:13px; color:#fff;"><?= number_format($platformStats['avg_rating'], 1) ?>/5</span>
+                                <span style="font-size:12px; color:rgba(255,255,255,0.7);">&bull; Rated by <?= $platformStats['total_reviews'] ?> Verified Gym <?= $platformStats['total_reviews'] === 1 ? 'Owner' : 'Owners' ?> &rarr;</span>
+                            </a>
+                        <?php else: ?>
+                            <div class="hero-rating-badge" style="display:inline-flex; align-items:center; gap:8px; background:rgba(255,255,255,0.04); border:1px solid rgba(199,255,34,0.3); padding:6px 14px; border-radius:999px; margin-bottom:16px; backdrop-filter:blur(8px); width:fit-content;">
+                                <span style="display:inline-flex; align-items:center; width:8px; height:8px; border-radius:50%; background:var(--lime, #c7ff22); box-shadow:0 0 8px var(--lime, #c7ff22);"></span>
+                                <span style="font-weight:700; font-size:12.5px; color:#fff;">Commercial Gym Operations Platform</span>
+                                <span style="font-size:12px; color:rgba(255,255,255,0.7);">&bull; Cloud-Powered Management</span>
+                            </div>
+                        <?php endif; ?>
                         <div class="hero-brand-header">
                             <h1 class="hero-title">
                                 Smarter Gym Management.
@@ -1103,6 +1111,7 @@ function landing_page(): void
                 </div>
             </div>
 
+            <?php if ($platformStats['total_reviews'] > 0): ?>
             <!-- Dynamic FitTrack Platform Rating Banner -->
             <div class="container" style="margin-bottom: 28px;">
                 <div class="platform-rating-banner" style="display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:20px; background:linear-gradient(135deg, rgba(255,255,255,0.04), rgba(255,255,255,0.01)); border:1px solid rgba(199,255,34,0.2); border-radius:16px; padding:22px 28px; backdrop-filter:blur(12px); box-shadow:0 8px 32px rgba(0,0,0,0.25);">
@@ -1118,7 +1127,7 @@ function landing_page(): void
                                 </span>
                             </div>
                             <div style="font-size:13px; color:var(--text-muted, #94a3b8);">
-                                Based on <strong><?= $platformStats['total_reviews'] ?></strong> verified gym owner reviews &bull; 100% verified facility operators
+                                Based on <strong><?= $platformStats['total_reviews'] ?></strong> verified gym owner <?= $platformStats['total_reviews'] === 1 ? 'review' : 'reviews' ?> &bull; 100% verified facility operators
                             </div>
                         </div>
                     </div>
@@ -1144,10 +1153,38 @@ function landing_page(): void
                     </div>
                 </div>
             </div>
+            <?php else: ?>
+            <!-- Fallback Banner when no ratings yet -->
+            <div class="container" style="margin-bottom: 28px;">
+                <div class="platform-rating-banner" style="display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:16px; background:linear-gradient(135deg, rgba(255,255,255,0.04), rgba(255,255,255,0.01)); border:1px solid rgba(255,255,255,0.1); border-radius:16px; padding:20px 26px; backdrop-filter:blur(12px); box-shadow:0 8px 32px rgba(0,0,0,0.2);">
+                    <div style="display:flex; align-items:center; gap:14px;">
+                        <div style="width:44px; height:44px; border-radius:12px; background:rgba(199,255,34,0.1); border:1px solid rgba(199,255,34,0.25); display:flex; align-items:center; justify-content:center; color:var(--lime, #c7ff22); flex-shrink:0;">
+                            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+                        </div>
+                        <div>
+                            <div style="display:flex; align-items:center; gap:8px; margin-bottom:2px;">
+                                <strong style="font-size:15px; color:#fff;">Authentic Gym Owner Reviews</strong>
+                                <span style="font-size:11px; font-weight:600; color:var(--lime, #c7ff22); background:rgba(199,255,34,0.08); border:1px solid rgba(199,255,34,0.2); padding:1px 7px; border-radius:999px;">
+                                    Verified Only
+                                </span>
+                            </div>
+                            <p style="font-size:13px; color:#94a3b8; margin:0;">
+                                We never publish fabricated reviews. All ratings are contributed exclusively by enrolled commercial gym owners.
+                            </p>
+                        </div>
+                    </div>
+                    <div style="display:flex; align-items:center; gap:10px;">
+                        <a href="index.php?page=register&role=gym_owner" class="btn btn-lime btn-sm" style="text-decoration:none; padding:8px 16px; font-size:13px; white-space:nowrap;">
+                            Join as Gym Partner &rarr;
+                        </a>
+                    </div>
+                </div>
+            </div>
+            <?php endif; ?>
 
-            <!-- Infinite Marquee Ticker Track with Dynamic Gym Owner Reviews -->
+            <!-- Gym Owner Reviews Ticker Track -->
             <?php
-            // Prepare cards for ticker marquee
+            // Prepare cards from real database reviews only
             $marqueeCards = [];
             foreach ($platformReviews as $pr) {
                 if (!empty($pr['review'])) {
@@ -1163,109 +1200,87 @@ function landing_page(): void
                     ];
                 }
             }
-
-            // Fallback curated testimonials if fewer than 4 exist in database
-            $curatedFallbacks = [
-                [
-                    'rating' => 5,
-                    'review' => 'FitTrack gave us total visibility over member attendance trends. Our turnstile lines disappeared after adopting dynamic QR verification.',
-                    'first_name' => 'Mark',
-                    'last_name' => 'Ramirez',
-                    'gym_name' => 'Titan Fitness Center',
-                    'system_experience' => 5,
-                    'features_rating' => 5,
-                    'service_rating' => 5,
-                ],
-                [
-                    'rating' => 5,
-                    'review' => 'The automated engagement monitoring flagged 45 inactive members last month. We re-engaged over 70% of them before their subscriptions lapsed.',
-                    'first_name' => 'Jessica',
-                    'last_name' => 'Cruz',
-                    'gym_name' => 'Apex Athletics',
-                    'system_experience' => 5,
-                    'features_rating' => 5,
-                    'service_rating' => 5,
-                ],
-                [
-                    'rating' => 5,
-                    'review' => 'Assigning customized workout programs and dietary routines to my clients takes half the time now. It’s the cleanest platform I’ve used.',
-                    'first_name' => 'David',
-                    'last_name' => 'Castillo',
-                    'gym_name' => 'Elevate Performance',
-                    'system_experience' => 5,
-                    'features_rating' => 5,
-                    'service_rating' => 5,
-                ],
-                [
-                    'rating' => 5,
-                    'review' => 'Managing multi-branch gym locations used to be a nightmare of disconnected spreadsheets. FitTrack synchronized our staff and billing in 24 hours.',
-                    'first_name' => 'Samantha',
-                    'last_name' => 'Lim',
-                    'gym_name' => 'MetroFit Philippines',
-                    'system_experience' => 5,
-                    'features_rating' => 5,
-                    'service_rating' => 5,
-                ]
-            ];
-
-            if (count($marqueeCards) < 4) {
-                $marqueeCards = array_merge($marqueeCards, array_slice($curatedFallbacks, 0, 4 - count($marqueeCards)));
-            }
-
-            // Duplicate cards list to allow seamless 50% translateX marquee loop
-            $displayCards = array_merge($marqueeCards, $marqueeCards);
             ?>
 
-            <div class="ticker-container">
-                <div class="ticker-track">
-                    <?php foreach ($displayCards as $card): ?>
-                        <div class="testimonial-card ticker-card" style="display:flex; flex-direction:column; justify-content:space-between;">
-                            <div>
-                                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
-                                    <div>
-                                        <?= render_star_rating((float)($card['rating'] ?? 5), 14, false) ?>
-                                    </div>
-                                    <span style="display:inline-flex; align-items:center; gap:4px; font-size:11px; font-weight:600; color:var(--lime, #c7ff22); background:rgba(199,255,34,0.08); border:1px solid rgba(199,255,34,0.2); padding:2px 8px; border-radius:999px;">
-                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
-                                        Verified Gym Owner
-                                    </span>
-                                </div>
-                                <p class="quote-text" style="font-size:13.5px; line-height:1.55; color:rgba(255,255,255,0.88); margin-bottom:14px; font-style:italic;">
-                                    &ldquo;<?= h($card['review']) ?>&rdquo;
-                                </p>
-                            </div>
-                            <div>
-                                <?php if (!empty($card['system_experience']) || !empty($card['features_rating'])): ?>
-                                    <div style="display:flex; gap:8px; font-size:10.5px; color:var(--muted, #94a3b8); margin-bottom:12px; padding-bottom:10px; border-bottom:1px solid rgba(255,255,255,0.06);">
-                                        <?php if (!empty($card['system_experience'])): ?>
-                                            <span>UX: <strong style="color:#fff;"><?= (int)$card['system_experience'] ?>★</strong></span>
-                                        <?php endif; ?>
-                                        <?php if (!empty($card['features_rating'])): ?>
-                                            <span>Features: <strong style="color:#fff;"><?= (int)$card['features_rating'] ?>★</strong></span>
-                                        <?php endif; ?>
-                                        <?php if (!empty($card['service_rating'])): ?>
-                                            <span>Support: <strong style="color:#fff;"><?= (int)$card['service_rating'] ?>★</strong></span>
-                                        <?php endif; ?>
-                                    </div>
-                                <?php endif; ?>
-                                <div class="author-info" style="display:flex; align-items:center; gap:10px;">
-                                    <div class="author-avatar" style="width:36px; height:36px; border-radius:50%; background:linear-gradient(135deg, rgba(199,255,34,0.25), rgba(56,189,248,0.25)); display:flex; align-items:center; justify-content:center; font-weight:700; font-size:12px; color:#fff; border:1px solid rgba(255,255,255,0.12);">
-                                        <?= strtoupper(substr($card['first_name'] ?? 'G', 0, 1) . substr($card['last_name'] ?? 'O', 0, 1)) ?>
-                                    </div>
-                                    <div>
-                                        <div class="author-name" style="font-weight:700; font-size:13.5px; color:#fff;">
-                                            <?= h(($card['first_name'] ?? 'Gym') . ' ' . ($card['last_name'] ?? 'Owner')) ?>
+            <?php if (!empty($marqueeCards)): ?>
+                <?php
+                // Duplicate cards to allow smooth continuous ticker sliding
+                $displayCards = $marqueeCards;
+                while (count($displayCards) < 6) {
+                    $displayCards = array_merge($displayCards, $marqueeCards);
+                }
+                $displayCards = array_merge($displayCards, $displayCards); // duplicate for seamless 50% translateX loop
+                ?>
+                <div class="ticker-container">
+                    <div class="ticker-track">
+                        <?php foreach ($displayCards as $card): ?>
+                            <div class="testimonial-card ticker-card" style="display:flex; flex-direction:column; justify-content:space-between;">
+                                <div>
+                                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+                                        <div>
+                                            <?= render_star_rating((float)($card['rating'] ?? 5), 14, false) ?>
                                         </div>
-                                        <div class="author-role" style="font-size:11.5px; color:var(--muted, #94a3b8);">
-                                            Gym Owner &bull; <?= h($card['gym_name'] ?? 'Commercial Fitness') ?>
+                                        <span style="display:inline-flex; align-items:center; gap:4px; font-size:11px; font-weight:600; color:var(--lime, #c7ff22); background:rgba(199,255,34,0.08); border:1px solid rgba(199,255,34,0.2); padding:2px 8px; border-radius:999px;">
+                                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+                                            Verified Gym Owner
+                                        </span>
+                                    </div>
+                                    <p class="quote-text" style="font-size:13.5px; line-height:1.55; color:rgba(255,255,255,0.88); margin-bottom:14px; font-style:italic;">
+                                        &ldquo;<?= h($card['review']) ?>&rdquo;
+                                    </p>
+                                </div>
+                                <div>
+                                    <?php if (!empty($card['system_experience']) || !empty($card['features_rating'])): ?>
+                                        <div style="display:flex; gap:8px; font-size:10.5px; color:var(--muted, #94a3b8); margin-bottom:12px; padding-bottom:10px; border-bottom:1px solid rgba(255,255,255,0.06);">
+                                            <?php if (!empty($card['system_experience'])): ?>
+                                                <span>UX: <strong style="color:#fff;"><?= (int)$card['system_experience'] ?>★</strong></span>
+                                            <?php endif; ?>
+                                            <?php if (!empty($card['features_rating'])): ?>
+                                                <span>Features: <strong style="color:#fff;"><?= (int)$card['features_rating'] ?>★</strong></span>
+                                            <?php endif; ?>
+                                            <?php if (!empty($card['service_rating'])): ?>
+                                                <span>Support: <strong style="color:#fff;"><?= (int)$card['service_rating'] ?>★</strong></span>
+                                            <?php endif; ?>
+                                        </div>
+                                    <?php endif; ?>
+                                    <div class="author-info" style="display:flex; align-items:center; gap:10px;">
+                                        <div class="author-avatar" style="width:36px; height:36px; border-radius:50%; background:linear-gradient(135deg, rgba(199,255,34,0.25), rgba(56,189,248,0.25)); display:flex; align-items:center; justify-content:center; font-weight:700; font-size:12px; color:#fff; border:1px solid rgba(255,255,255,0.12);">
+                                            <?= strtoupper(substr($card['first_name'] ?? 'G', 0, 1) . substr($card['last_name'] ?? 'O', 0, 1)) ?>
+                                        </div>
+                                        <div>
+                                            <div class="author-name" style="font-weight:700; font-size:13.5px; color:#fff;">
+                                                <?= h(($card['first_name'] ?? 'Gym') . ' ' . ($card['last_name'] ?? 'Owner')) ?>
+                                            </div>
+                                            <div class="author-role" style="font-size:11.5px; color:var(--muted, #94a3b8);">
+                                                Gym Owner &bull; <?= h($card['gym_name'] ?? 'Commercial Fitness') ?>
+                                            </div>
                                         </div>
                                     </div>
                                 </div>
                             </div>
-                        </div>
-                    <?php endforeach; ?>
+                        <?php endforeach; ?>
+                    </div>
                 </div>
-            </div>
+            <?php else: ?>
+                <!-- Fallback Empty State when no testimonials submitted yet -->
+                <div class="container" style="max-width: 680px; margin: 0 auto; text-align: center; padding: 44px 24px; background: rgba(255, 255, 255, 0.025); border: 1px dashed rgba(255, 255, 255, 0.12); border-radius: 16px;">
+                    <div style="width: 48px; height: 48px; border-radius: 50%; background: rgba(199, 255, 34, 0.08); border: 1px solid rgba(199, 255, 34, 0.2); display: flex; align-items: center; justify-content: center; margin: 0 auto 14px; color: var(--lime, #c7ff22);">
+                        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+                    </div>
+                    <h3 style="font-size: 18px; font-weight: 700; color: #fff; margin: 0 0 8px;">No Partner Testimonials Yet</h3>
+                    <p style="font-size: 13.5px; color: #94a3b8; line-height: 1.6; max-width: 480px; margin: 0 auto 20px;">
+                        FitTrack only displays real, verified feedback submitted by registered gym owners from their management portal. When our partners submit reviews, they will be showcased here.
+                    </p>
+                    <div style="display: flex; gap: 12px; justify-content: center; flex-wrap: wrap;">
+                        <a href="index.php?page=register&role=gym_owner" class="btn btn-lime btn-sm" style="text-decoration: none; padding: 8px 18px; font-size: 13px;">
+                            Register Gym &rarr;
+                        </a>
+                        <a href="index.php?page=login" class="btn btn-secondary btn-sm" style="text-decoration: none; padding: 8px 18px; font-size: 13px; background: rgba(255,255,255,0.05); color: #fff; border: 1px solid rgba(255,255,255,0.12);">
+                            Gym Owner Portal Login
+                        </a>
+                    </div>
+                </div>
+            <?php endif; ?>
         </section>
 
         <!-- ==========================================================================
