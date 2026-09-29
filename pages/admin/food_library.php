@@ -1207,18 +1207,65 @@ select {
     flex: 1 1 auto;
     min-height: 0;
 }
-.ing-modal-footer {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 12px 18px;
-    flex-shrink: 0;
+.ing-modal-footer,
+#modal-food-ingredients .ing-modal-footer {
+    display: flex !important;
+    justify-content: center !important;
+    align-items: center !important;
+    gap: 12px !important;
+    padding: 14px 20px !important;
+    flex-shrink: 0 !important;
     border-top: 1px solid #e5e7eb;
     background: #f9fafb;
+    box-sizing: border-box;
 }
-[data-theme="dark"] .ing-modal-footer {
-    border-top-color: var(--line);
-    background: color-mix(in srgb, var(--bg) 40%, var(--panel-bg, #121721));
+[data-theme="dark"] .ing-modal-footer,
+[data-theme="dark"] #modal-food-ingredients .ing-modal-footer {
+    border-top-color: var(--line) !important;
+    background: color-mix(in srgb, var(--bg) 40%, var(--panel-bg, #121721)) !important;
+}
+#ing-modal-footer-edit-container {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+#ing-modal-footer-edit-container:empty {
+    display: none !important;
+}
+#modal-food-ingredients .btn-modal-cancel {
+    height: 38px;
+    padding: 0 22px;
+    font-size: 13px;
+    font-weight: 600;
+    border-radius: 8px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: transparent;
+    color: var(--muted);
+    border: 1px solid var(--line);
+    cursor: pointer;
+    transition: all 0.2s ease;
+    line-height: 1;
+}
+#modal-food-ingredients .btn-modal-cancel:hover {
+    color: var(--ink);
+    border-color: var(--ink);
+    background: color-mix(in srgb, var(--ink) 5%, transparent);
+}
+#modal-food-ingredients #ing-modal-footer-edit-container button {
+    height: 38px;
+    padding: 0 18px;
+    font-size: 13px;
+    font-weight: 600;
+    border-radius: 8px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    line-height: 1;
 }
 
 /* SweetAlert and Modal Mobile Responsiveness & Centering */
@@ -1359,18 +1406,39 @@ select {
         gap: 3.5px !important;
     }
     #modal-food-ingredients .ing-modal-footer {
-        padding: 6px 10px !important;
+        padding: 10px 14px !important;
+        display: flex !important;
+        justify-content: center !important;
+        align-items: center !important;
+        gap: 8px !important;
         flex-shrink: 0 !important;
+        flex-wrap: wrap !important;
     }
     #modal-food-ingredients .btn-modal-cancel {
-        padding: 5px 12px !important;
-        font-size: 11.5px !important;
-        border-radius: 6px !important;
+        height: 36px !important;
+        padding: 0 16px !important;
+        font-size: 12px !important;
+        border-radius: 7px !important;
+        display: inline-flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+    }
+    #modal-food-ingredients #ing-modal-footer-edit-container {
+        display: inline-flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+    }
+    #modal-food-ingredients #ing-modal-footer-edit-container:empty {
+        display: none !important;
     }
     #modal-food-ingredients #ing-modal-footer-edit-container button {
-        padding: 5px 8px !important;
-        font-size: 11px !important;
-        border-radius: 6px !important;
+        height: 36px !important;
+        padding: 0 14px !important;
+        font-size: 12px !important;
+        border-radius: 7px !important;
+        display: inline-flex !important;
+        align-items: center !important;
+        justify-content: center !important;
     }
 
     .swal2-container {
@@ -2222,10 +2290,10 @@ select {
         </div>
 
         <div class="ft-modal-footer ing-modal-footer">
+            <button type="button" class="btn-modal-cancel" onclick="closeViewIngredientsModal()">Close</button>
             <div id="ing-modal-footer-edit-container">
                 <!-- Injected dynamically if user has edit permission -->
             </div>
-            <button type="button" class="btn-modal-cancel" onclick="closeViewIngredientsModal()" style="padding: 7px 18px;">Close</button>
         </div>
     </div>
 </div>
@@ -2440,7 +2508,7 @@ async function openViewIngredientsModal(foodId) {
     if (editContainer) {
         if (canEdit) {
             editContainer.innerHTML = `
-                <button type="button" onclick="editFromIngredientsModal()" class="btn-sm btn-ghost" style="padding: 6px 12px; font-size: 12.5px; border-radius: 7px; color: var(--lime); border-color: rgba(132,204,22,0.35); display: inline-flex; align-items: center; gap: 5px; font-weight: 600;">
+                <button type="button" onclick="editFromIngredientsModal()" class="btn-sm btn-ghost btn-ing-modal-edit" style="color: var(--lime); border-color: rgba(132,204,22,0.35);">
                     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
                     <span>Edit Food & Ingredients</span>
                 </button>

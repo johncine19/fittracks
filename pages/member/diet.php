@@ -3953,17 +3953,31 @@ $stFat   = $calcMacroStatus($loggedFat, $targetFat, 'fat');
 
             <!-- Content Body -->
             <div id="inspect-content" style="display:none;">
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; gap: 10px; flex-wrap: wrap;">
-                    <div>
-                        <div style="font-size: 11.5px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px;">Select Consumed Ingredients</div>
-                        <div style="font-size: 11px; color: var(--muted); margin-top: 2px;">Ticking/unticking ingredients live-estimates your actual calories & macros</div>
+                <div class="inspect-header-controls">
+                    <div class="inspect-header-text">
+                        <div class="inspect-header-heading">Select Consumed Ingredients</div>
+                        <div class="inspect-header-sub">Ticking/unticking ingredients live-estimates your actual calories & macros</div>
                     </div>
-                    <div style="display: flex; gap: 6px;">
-                        <button type="button" class="btn-cancel" style="padding: 4px 10px; font-size: 11.5px; border-radius: 6px; cursor: pointer;" onclick="toggleAllInspectedIngredients(true)">Select All</button>
-                        <button type="button" class="btn-cancel" style="padding: 4px 10px; font-size: 11.5px; border-radius: 6px; cursor: pointer;" onclick="toggleAllInspectedIngredients(false)">Deselect All</button>
+                    <div class="inspect-select-actions">
+                        <button type="button" class="btn-cancel inspect-bulk-btn" onclick="toggleAllInspectedIngredients(true)">
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                            <span>Select All</span>
+                        </button>
+                        <button type="button" class="btn-cancel inspect-bulk-btn" onclick="toggleAllInspectedIngredients(false)">
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                            <span>Deselect All</span>
+                        </button>
                     </div>
                 </div>
                 <div class="inspect-items-wrap" id="inspect-items-container"></div>
+
+                <!-- See More Ingredients Toggle -->
+                <div id="inspect-see-more-wrap" style="display:none; margin-top: 6px; margin-bottom: 8px; text-align: center;">
+                    <button type="button" id="btn-inspect-toggle-more" class="btn-inspect-see-more" onclick="toggleInspectSeeMore()" aria-expanded="false">
+                        <span id="inspect-toggle-more-text">See More Ingredients</span>
+                        <svg class="inspect-toggle-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                    </button>
+                </div>
                 
                 <!-- Micronutrient Highlights Banner -->
                 <div id="inspect-micro-banner" class="inspect-micro-banner" style="display:none; margin-top: 14px;"></div>
@@ -3986,9 +4000,9 @@ $stFat   = $calcMacroStatus($loggedFat, $targetFat, 'fat');
         </div>
 
         <!-- Modal Actions Footer -->
-        <div class="ft-modal-footer">
-            <button type="button" class="btn-cancel" onclick="closeInspectModal()">Close</button>
-            <button type="button" id="btn-inspect-quick-log" class="btn-primary-action" onclick="quickLogFromInspection()">
+        <div class="ft-modal-footer inspect-modal-footer">
+            <button type="button" class="btn-cancel btn-inspect-footer-close" onclick="closeInspectModal()">Close</button>
+            <button type="button" id="btn-inspect-quick-log" class="btn-primary-action btn-inspect-footer-log" onclick="quickLogFromInspection()">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
                 <span>+ Log Selected Ingredients</span>
             </button>
@@ -4315,12 +4329,12 @@ $stFat   = $calcMacroStatus($loggedFat, $targetFat, 'fat');
     flex: 1 1 auto;
 }
 .ft-modal-footer {
-    padding: 14px 22px;
+    padding: 16px 24px;
     border-top: 1px solid var(--line);
     display: flex;
-    justify-content: flex-end;
+    justify-content: center;
     align-items: center;
-    gap: 10px;
+    gap: 12px;
     flex-shrink: 0;
     background: color-mix(in srgb, var(--bg) 40%, var(--panel-bg, #121721));
 }
@@ -4431,32 +4445,168 @@ $stFat   = $calcMacroStatus($loggedFat, $targetFat, 'fat');
 }
 .inspect-item-row {
     background: var(--bg);
-    border: 1px solid var(--line);
-    border-radius: 8px;
-    padding: 10px 14px;
+    border: 1.5px solid var(--line);
+    border-radius: 10px;
+    padding: 11px 14px;
     display: flex;
     justify-content: space-between;
     align-items: center;
-    flex-wrap: wrap;
-    gap: 8px;
+    gap: 12px;
+    cursor: pointer;
+    transition: border-color 0.2s ease, opacity 0.2s ease, background-color 0.2s ease;
+    box-sizing: border-box;
+}
+.inspect-item-row:hover {
+    border-color: color-mix(in srgb, var(--lime) 40%, var(--line));
+}
+.inspect-item-main {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex: 1;
+    min-width: 0;
+}
+.inspect-ingredient-check {
+    width: 18px;
+    height: 18px;
+    accent-color: var(--lime);
+    cursor: pointer;
+    flex-shrink: 0;
+    margin: 0;
 }
 .inspect-item-left {
     display: flex;
     flex-direction: column;
+    min-width: 0;
+    flex: 1;
 }
 .inspect-item-title {
-    font-size: 13px;
-    font-weight: 700;
+    font-size: 13.5px;
+    font-weight: 600;
     color: var(--ink);
+    display: block;
+    line-height: 1.35;
+    word-break: break-word;
 }
 .inspect-item-portion {
-    font-size: 11px;
+    font-size: 11.5px;
     color: var(--muted);
+    margin-top: 2px;
 }
 .inspect-item-macros {
     display: flex;
-    gap: 8px;
+    gap: 6px;
+    flex-shrink: 0;
+    flex-wrap: wrap;
+    align-items: center;
+}
+
+/* Header Controls & Bulk Actions */
+.inspect-header-controls {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+.inspect-header-heading {
+    font-size: 11.5px;
+    font-weight: 700;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+.inspect-header-sub {
     font-size: 11px;
+    color: var(--muted);
+    margin-top: 2px;
+}
+.inspect-select-actions {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+.inspect-bulk-btn {
+    padding: 5px 12px;
+    font-size: 11.5px;
+    font-weight: 600;
+    border-radius: 6px;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+    white-space: nowrap;
+    transition: all 0.2s ease;
+}
+
+/* See More Button */
+.btn-inspect-see-more {
+    width: 100%;
+    padding: 9px 16px;
+    border-radius: 8px;
+    border: 1px dashed var(--line);
+    background: color-mix(in srgb, var(--surface) 50%, var(--bg));
+    color: var(--lime);
+    font-size: 12px;
+    font-weight: 700;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    transition: all 0.2s ease;
+    box-sizing: border-box;
+}
+.btn-inspect-see-more:hover {
+    border-color: var(--lime);
+    background: color-mix(in srgb, var(--lime) 8%, var(--bg));
+    transform: translateY(-1px);
+}
+.inspect-toggle-icon {
+    transition: transform 0.25s ease;
+}
+.btn-inspect-see-more.expanded .inspect-toggle-icon {
+    transform: rotate(180deg);
+}
+
+.inspect-modal-footer {
+    padding: 16px 24px;
+    border-top: 1px solid var(--line);
+    display: flex !important;
+    justify-content: center !important;
+    align-items: center !important;
+    gap: 12px !important;
+    flex-shrink: 0;
+    background: color-mix(in srgb, var(--bg) 40%, var(--panel-bg, #121721));
+}
+.btn-inspect-footer-log {
+    height: 42px;
+    padding: 0 24px;
+    font-size: 13px;
+    font-weight: 700;
+    border-radius: 8px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    gap: 8px;
+    cursor: pointer;
+    box-sizing: border-box;
+}
+.btn-inspect-footer-close {
+    height: 42px;
+    padding: 0 22px;
+    font-size: 13px;
+    font-weight: 600;
+    border-radius: 8px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    cursor: pointer;
+    box-sizing: border-box;
 }
 .inspect-micro-banner {
     background: color-mix(in srgb, var(--surface) 40%, var(--bg));
@@ -4723,6 +4873,86 @@ $stFat   = $calcMacroStatus($loggedFat, $targetFat, 'fat');
         width: 100%;
         justify-content: center;
         margin-top: 6px;
+    }
+
+    /* Inspection Modal Mobile Optimizations */
+    .inspect-header-controls {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 10px;
+        margin-bottom: 14px;
+    }
+    .inspect-select-actions {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 8px;
+        width: 100%;
+        justify-content: center;
+    }
+    .inspect-bulk-btn {
+        width: 100%;
+        padding: 8px 10px;
+        font-size: 12px;
+        justify-content: center;
+        text-align: center;
+    }
+    .inspect-item-row {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 8px;
+        padding: 11px 12px;
+    }
+    .inspect-item-main {
+        align-items: flex-start;
+        gap: 10px;
+    }
+    .inspect-ingredient-check {
+        margin-top: 2px;
+    }
+    .inspect-item-title {
+        font-size: 13px;
+        line-height: 1.35;
+    }
+    .inspect-item-portion {
+        font-size: 11px;
+    }
+    .inspect-item-macros {
+        padding-left: 28px;
+        gap: 5px;
+        width: 100%;
+        box-sizing: border-box;
+    }
+    .inspect-item-macros .inspect-chip {
+        font-size: 10.5px;
+        padding: 2px 7px;
+    }
+    .inspect-modal-footer {
+        display: flex;
+        flex-direction: column-reverse;
+        gap: 8px;
+        align-items: stretch;
+        width: 100%;
+        padding: 12px 16px;
+    }
+    .btn-inspect-footer-log {
+        width: 100%;
+        height: auto;
+        min-height: 44px;
+        justify-content: center;
+        text-align: center;
+        padding: 10px 16px;
+        font-size: 13px;
+        border-radius: 8px;
+    }
+    .btn-inspect-footer-close {
+        width: 100%;
+        height: auto;
+        min-height: 40px;
+        justify-content: center;
+        text-align: center;
+        padding: 9px 16px;
+        font-size: 12.5px;
+        border-radius: 8px;
     }
 }
 </style>
@@ -5101,6 +5331,9 @@ async function inspectPlannedMeal(mealId) {
     }
 
     itemsCont.innerHTML = '';
+    const seeMoreWrapReset = document.getElementById('inspect-see-more-wrap');
+    if (seeMoreWrapReset) seeMoreWrapReset.style.display = 'none';
+    isInspectIngredientsExpanded = false;
     microBanner.style.display = 'none';
     fallbackEl.style.display = 'none';
     contentEl.style.display = 'none';
@@ -5147,6 +5380,10 @@ async function inspectPlannedMeal(mealId) {
             contentEl.style.display = 'block';
             currentInspectingMeal.items = items;
 
+            const INSPECT_INITIAL_LIMIT = 4;
+            const hasMore = items.length > INSPECT_INITIAL_LIMIT;
+            isInspectIngredientsExpanded = false;
+
             itemsCont.innerHTML = items.map((item, idx) => {
                 totFiber += (item.fiber_g || 0);
                 totSugar += (item.sugar_g || 0);
@@ -5154,15 +5391,20 @@ async function inspectPlannedMeal(mealId) {
                 totPotassium += (item.potassium_mg || 0);
 
                 const portionDisplay = item.portion || (item.serving_size_g ? Math.round(item.serving_size_g) + 'g' : '1 portion');
+                const isExtra = idx >= INSPECT_INITIAL_LIMIT;
+                const extraClass = isExtra ? ' inspect-item-extra' : '';
+                const extraStyle = isExtra ? ' style="display: none;"' : '';
 
                 return `
-                    <label class="inspect-item-row" style="cursor: pointer; display: flex; align-items: center; gap: 12px; padding: 11px 14px; border-radius: 10px; border: 1.5px solid var(--line); margin-bottom: 8px; background: var(--panel); transition: all 0.2s ease;">
-                        <input type="checkbox" class="inspect-ingredient-check" data-idx="${idx}" checked onchange="recalculateInspectedIngredients()" style="width: 18px; height: 18px; accent-color: var(--lime); cursor: pointer; flex-shrink: 0;">
-                        <div class="inspect-item-left" style="flex: 1; min-width: 0;">
-                            <span class="inspect-item-title" style="font-weight: 600; font-size: 13.5px; color: var(--ink); display: block;">${escapeHtml(item.name)}</span>
-                            <span class="inspect-item-portion" style="font-size: 11.5px; color: var(--muted);">${escapeHtml(portionDisplay)}</span>
+                    <label class="inspect-item-row${extraClass}" data-idx="${idx}"${extraStyle}>
+                        <div class="inspect-item-main">
+                            <input type="checkbox" class="inspect-ingredient-check" data-idx="${idx}" checked onchange="recalculateInspectedIngredients()">
+                            <div class="inspect-item-left">
+                                <span class="inspect-item-title">${escapeHtml(item.name)}</span>
+                                <span class="inspect-item-portion">${escapeHtml(portionDisplay)}</span>
+                            </div>
                         </div>
-                        <div class="inspect-item-macros" style="display: flex; gap: 6px; flex-shrink: 0; flex-wrap: wrap;">
+                        <div class="inspect-item-macros">
                             <span class="inspect-chip chip-cals">${item.calories} kcal</span>
                             <span class="inspect-chip chip-pro">${item.protein_g}g P</span>
                             <span class="inspect-chip chip-carbs">${item.carbs_g}g C</span>
@@ -5171,6 +5413,22 @@ async function inspectPlannedMeal(mealId) {
                     </label>
                 `;
             }).join('');
+
+            // Configure See More Ingredients Button
+            const seeMoreWrap = document.getElementById('inspect-see-more-wrap');
+            const seeMoreBtn = document.getElementById('btn-inspect-toggle-more');
+            const seeMoreText = document.getElementById('inspect-toggle-more-text');
+            if (hasMore) {
+                const extraCount = items.length - INSPECT_INITIAL_LIMIT;
+                if (seeMoreWrap) seeMoreWrap.style.display = 'block';
+                if (seeMoreText) seeMoreText.textContent = `See More Ingredients (+${extraCount})`;
+                if (seeMoreBtn) {
+                    seeMoreBtn.setAttribute('aria-expanded', 'false');
+                    seeMoreBtn.classList.remove('expanded');
+                }
+            } else {
+                if (seeMoreWrap) seeMoreWrap.style.display = 'none';
+            }
 
             // Display Preparation & Notes from Gym's Food Library if available
             const notesEl = document.getElementById('inspect-recipe-notes');
@@ -5296,9 +5554,37 @@ function toggleAllInspectedIngredients(status) {
     recalculateInspectedIngredients();
 }
 
+let isInspectIngredientsExpanded = false;
+
+function toggleInspectSeeMore() {
+    isInspectIngredientsExpanded = !isInspectIngredientsExpanded;
+    const extras = document.querySelectorAll('.inspect-item-extra');
+    const seeMoreBtn = document.getElementById('btn-inspect-toggle-more');
+    const seeMoreText = document.getElementById('inspect-toggle-more-text');
+    const extraCount = currentInspectingMeal && currentInspectingMeal.items ? Math.max(0, currentInspectingMeal.items.length - 4) : 0;
+
+    extras.forEach(el => {
+        el.style.display = isInspectIngredientsExpanded ? '' : 'none';
+    });
+
+    if (seeMoreBtn) {
+        seeMoreBtn.setAttribute('aria-expanded', isInspectIngredientsExpanded ? 'true' : 'false');
+        if (isInspectIngredientsExpanded) {
+            seeMoreBtn.classList.add('expanded');
+            if (seeMoreText) seeMoreText.textContent = 'See Less Ingredients';
+        } else {
+            seeMoreBtn.classList.remove('expanded');
+            if (seeMoreText) seeMoreText.textContent = `See More Ingredients (+${extraCount})`;
+        }
+    }
+}
+
 function closeInspectModal() {
     const modal = document.getElementById('modal-inspect-meal');
     if (modal) modal.style.display = 'none';
+    const seeMoreWrap = document.getElementById('inspect-see-more-wrap');
+    if (seeMoreWrap) seeMoreWrap.style.display = 'none';
+    isInspectIngredientsExpanded = false;
     currentInspectingMeal = null;
 }
 
