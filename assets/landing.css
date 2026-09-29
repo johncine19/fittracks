@@ -450,6 +450,86 @@ video {
     max-width: 100%;
 }
 
+/* Hero Rating Badge */
+.hero-rating-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(199, 255, 34, 0.3);
+    padding: 6px 14px;
+    border-radius: var(--radius-pill, 999px);
+    margin-bottom: 16px;
+    text-decoration: none;
+    backdrop-filter: blur(8px);
+    width: fit-content;
+    max-width: 100%;
+    box-sizing: border-box;
+    white-space: nowrap;
+    transition: border-color var(--transition-fast, 0.15s), background-color var(--transition-fast, 0.15s), transform var(--transition-fast, 0.15s);
+}
+
+.hero-rating-badge:hover {
+    border-color: rgba(199, 255, 34, 0.6);
+    background: rgba(255, 255, 255, 0.08);
+    transform: translateY(-1px);
+}
+
+.hero-rating-stars {
+    display: inline-flex;
+    align-items: center;
+    flex-shrink: 0;
+}
+
+.hero-rating-score {
+    font-weight: 700;
+    font-size: 13px;
+    color: #fff;
+    flex-shrink: 0;
+}
+
+.hero-rating-sep {
+    font-size: 12px;
+    color: rgba(255, 255, 255, 0.4);
+    flex-shrink: 0;
+}
+
+.hero-rating-text {
+    font-size: 12px;
+    color: rgba(255, 255, 255, 0.75);
+    display: inline-flex;
+    align-items: center;
+    white-space: nowrap;
+}
+
+.hero-rating-by {
+    display: inline;
+}
+
+.hero-rating-arrow {
+    display: inline-block;
+    color: rgba(255, 255, 255, 0.85);
+    flex-shrink: 0;
+    margin-left: 2px;
+    transition: transform var(--transition-fast, 0.15s);
+}
+
+.hero-rating-badge:hover .hero-rating-arrow {
+    transform: translateX(3px);
+    color: var(--lime, #c7ff22);
+}
+
+.hero-rating-dot {
+    display: inline-flex;
+    align-items: center;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--lime, #c7ff22);
+    box-shadow: 0 0 8px var(--lime, #c7ff22);
+    flex-shrink: 0;
+}
+
 .hero-title {
     font-size: clamp(1.65rem, 4.8vw + 0.5rem, 3.35rem);
     font-weight: 900;
@@ -1480,6 +1560,149 @@ video {
     border-top: 1px solid var(--border-subtle);
     border-bottom: 1px solid var(--border-subtle);
     overflow: hidden;
+}
+
+/* Dynamic FitTrack Platform Rating Banner */
+.platform-rating-banner {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 20px;
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0.01));
+    border: 1px solid rgba(199, 255, 34, 0.2);
+    border-radius: 16px;
+    padding: 22px 28px;
+    backdrop-filter: blur(12px);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.25);
+    width: 100%;
+    box-sizing: border-box;
+}
+
+.platform-rating-banner.fallback {
+    border-color: rgba(255, 255, 255, 0.1);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+    padding: 20px 26px;
+}
+
+.platform-fallback-icon {
+    width: 44px;
+    height: 44px;
+    border-radius: 12px;
+    background: rgba(199, 255, 34, 0.1);
+    border: 1px solid rgba(199, 255, 34, 0.25);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--lime, #c7ff22);
+    flex-shrink: 0;
+}
+
+.platform-banner-main {
+    display: flex;
+    align-items: center;
+    gap: 18px;
+    flex: 1 1 360px;
+    min-width: 0;
+}
+
+.platform-score-num {
+    font-size: 44px;
+    font-weight: 900;
+    line-height: 1;
+    color: #fff;
+    letter-spacing: -1px;
+    flex-shrink: 0;
+}
+
+.platform-score-info {
+    min-width: 0;
+    flex: 1;
+}
+
+.platform-score-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 4px;
+    flex-wrap: wrap;
+}
+
+.platform-score-stars {
+    display: inline-flex;
+    align-items: center;
+    flex-shrink: 0;
+}
+
+.platform-score-pill {
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--lime, #c7ff22);
+    background: rgba(199, 255, 34, 0.1);
+    border: 1px solid rgba(199, 255, 34, 0.25);
+    padding: 2px 9px;
+    border-radius: 999px;
+    white-space: nowrap;
+    display: inline-flex;
+    align-items: center;
+    flex-shrink: 0;
+}
+
+.platform-score-meta {
+    font-size: 13px;
+    color: var(--text-muted, #94a3b8);
+    line-height: 1.45;
+}
+
+.platform-banner-actions {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    flex-wrap: wrap;
+}
+
+.platform-metrics-grid {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+}
+
+.platform-metric-item {
+    text-align: center;
+    padding: 0 8px;
+}
+
+.platform-metric-val {
+    font-size: 18px;
+    font-weight: 800;
+    color: var(--lime, #c7ff22);
+}
+
+.platform-metric-lbl {
+    font-size: 11px;
+    color: #94a3b8;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-top: 2px;
+    white-space: nowrap;
+}
+
+.platform-metric-divider {
+    height: 26px;
+    width: 1px;
+    background: rgba(255, 255, 255, 0.1);
+    flex-shrink: 0;
+}
+
+.platform-banner-btn {
+    margin-left: 6px;
+    text-decoration: none;
+    padding: 8px 18px;
+    font-size: 13px;
+    white-space: nowrap;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
 }
 
 .ticker-container {
@@ -4143,11 +4366,84 @@ video {
         font-size: 0.825rem;
     }
 
+    /* Hero Rating Badge (<= 768px) */
+    .hero-rating-badge {
+        gap: 7px;
+        padding: 6px 12px;
+        margin-bottom: 14px;
+    }
+
+    /* Platform Rating Banner Tablet & Mobile Layout */
+    .platform-rating-banner {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 18px;
+        padding: 20px 22px;
+    }
+
+    .platform-banner-main {
+        width: 100%;
+        flex: 1 1 100%;
+    }
+
+    .platform-banner-actions {
+        width: 100%;
+        flex-direction: column;
+        align-items: stretch;
+        gap: 14px;
+        padding-top: 16px;
+        border-top: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
+    .platform-metrics-grid {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 0;
+        width: 100%;
+        background: rgba(255, 255, 255, 0.025);
+        border: 1px solid rgba(255, 255, 255, 0.07);
+        border-radius: 12px;
+        padding: 10px 4px;
+        box-sizing: border-box;
+    }
+
+    .platform-metric-item {
+        padding: 2px 4px;
+        border-right: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
+    .platform-metric-item:last-child {
+        border-right: none;
+    }
+
+    .platform-metric-divider {
+        display: none;
+    }
+
+    .platform-metric-val {
+        font-size: 16px;
+    }
+
+    .platform-metric-lbl {
+        font-size: 10px;
+        letter-spacing: 0.3px;
+    }
+
+    .platform-banner-btn {
+        width: 100%;
+        margin-left: 0;
+        text-align: center;
+        justify-content: center;
+        padding: 10px 16px;
+        font-size: 13.5px;
+        box-sizing: border-box;
+    }
+
     /* Testimonials Marquee Card Tuned Down */
     .testimonial-card.ticker-card {
-        width: min(280px, 80vw);
-        padding: 1.15rem 1rem;
-        border-radius: 10px;
+        width: min(330px, 86vw);
+        padding: 1.25rem 1.15rem;
+        border-radius: 12px;
     }
 
     .quote-icon {
@@ -4701,10 +4997,84 @@ video {
         font-size: 0.78rem;
     }
 
+    /* Hero Rating Badge (<= 520px) */
+    .hero-rating-badge {
+        gap: 6px;
+        padding: 5px 11px;
+        margin-bottom: 12px;
+        max-width: 100%;
+    }
+
+    .hero-rating-stars svg {
+        width: 13px !important;
+        height: 13px !important;
+    }
+
+    .hero-rating-score {
+        font-size: 12px;
+    }
+
+    .hero-rating-text {
+        font-size: 11.5px;
+    }
+
+    /* Platform Rating Banner (<= 520px) */
+    .platform-rating-banner {
+        padding: 16px 14px;
+        border-radius: 14px;
+        gap: 14px;
+    }
+
+    .platform-banner-main {
+        gap: 12px;
+    }
+
+    .platform-score-num {
+        font-size: 38px;
+    }
+
+    .platform-score-header {
+        gap: 8px;
+        margin-bottom: 3px;
+    }
+
+    .platform-score-stars svg {
+        width: 16px !important;
+        height: 16px !important;
+    }
+
+    .platform-score-pill {
+        font-size: 11px;
+        padding: 2px 8px;
+    }
+
+    .platform-score-meta {
+        font-size: 11.5px;
+        line-height: 1.4;
+    }
+
+    .platform-banner-actions {
+        padding-top: 12px;
+        gap: 12px;
+    }
+
+    .platform-metrics-grid {
+        padding: 8px 2px;
+        border-radius: 10px;
+    }
+
+    .platform-metric-val {
+        font-size: 15px;
+    }
+
+    .platform-metric-lbl {
+        font-size: 9.5px;
+    }
+
     .testimonial-card.ticker-card {
-        width: min(250px, 75vw);
-        padding: 0.95rem 0.8rem;
-        border-radius: 8px;
+        width: min(310px, 88vw);
+        padding: 1.15rem 1rem;
+        border-radius: 12px;
     }
 
     .quote-text {
@@ -4920,9 +5290,74 @@ video {
         padding: 2px 5px;
     }
 
+    /* Hero Rating Badge (<= 380px) */
+    .hero-rating-by {
+        display: none !important;
+    }
+
+    .hero-rating-badge {
+        gap: 5px;
+        padding: 5px 9px;
+    }
+
+    .hero-rating-stars svg {
+        width: 12px !important;
+        height: 12px !important;
+    }
+
+    .hero-rating-score {
+        font-size: 11.5px;
+    }
+
+    .hero-rating-text {
+        font-size: 11px;
+    }
+
+    /* Platform Rating Banner (<= 380px) */
+    .platform-rating-banner {
+        padding: 14px 12px;
+    }
+
+    .platform-banner-main {
+        gap: 10px;
+    }
+
+    .platform-score-num {
+        font-size: 32px;
+    }
+
+    .platform-score-stars svg {
+        width: 14px !important;
+        height: 14px !important;
+    }
+
+    .platform-score-pill {
+        font-size: 10px;
+        padding: 1px 7px;
+    }
+
+    .platform-score-meta {
+        font-size: 11px;
+    }
+
+    .platform-metric-val {
+        font-size: 14px;
+    }
+
+    .platform-metric-lbl {
+        font-size: 8.5px;
+        letter-spacing: 0;
+    }
+
+    .platform-banner-btn {
+        padding: 8px 12px;
+        font-size: 12.5px;
+    }
+
     .testimonial-card.ticker-card {
-        width: min(240px, 80vw);
-        padding: 0.85rem 0.75rem;
+        width: min(290px, 90vw);
+        padding: 1rem 0.9rem;
+        border-radius: 10px;
     }
 
     .user-tab-btn {

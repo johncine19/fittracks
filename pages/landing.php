@@ -250,18 +250,21 @@ function landing_page(): void
                     <!-- Left Side: Brand Narrative & Feature Pills Floating directly on Background -->
                     <div class="hero-left">
                         <?php if ($platformStats['total_reviews'] > 0): ?>
-                            <a href="#testimonials" class="hero-rating-badge" style="display:inline-flex; align-items:center; gap:8px; background:rgba(255,255,255,0.04); border:1px solid rgba(199,255,34,0.3); padding:6px 14px; border-radius:999px; margin-bottom:16px; text-decoration:none; backdrop-filter:blur(8px); width:fit-content;">
-                                <span style="display:inline-flex; align-items:center;">
-                                    <?= render_star_rating((float)$platformStats['avg_rating'], 14, false) ?>
+                            <a href="#testimonials" class="hero-rating-badge">
+                                <span class="hero-rating-stars">
+                                    <?= render_star_rating((float)$platformStats['avg_rating'], 13, false) ?>
                                 </span>
-                                <span style="font-weight:700; font-size:13px; color:#fff;"><?= number_format($platformStats['avg_rating'], 1) ?>/5</span>
-                                <span style="font-size:12px; color:rgba(255,255,255,0.7);">&bull; Rated by <?= $platformStats['total_reviews'] ?> Verified Gym <?= $platformStats['total_reviews'] === 1 ? 'Owner' : 'Owners' ?> &rarr;</span>
+                                <span class="hero-rating-score"><?= number_format($platformStats['avg_rating'], 1) ?>/5</span>
+                                <span class="hero-rating-sep">&bull;</span>
+                                <span class="hero-rating-text"><span class="hero-rating-by">Rated by </span><?= $platformStats['total_reviews'] ?> Verified Gym <?= $platformStats['total_reviews'] === 1 ? 'Owner' : 'Owners' ?></span>
+                                <span class="hero-rating-arrow">&rarr;</span>
                             </a>
                         <?php else: ?>
-                            <div class="hero-rating-badge" style="display:inline-flex; align-items:center; gap:8px; background:rgba(255,255,255,0.04); border:1px solid rgba(199,255,34,0.3); padding:6px 14px; border-radius:999px; margin-bottom:16px; backdrop-filter:blur(8px); width:fit-content;">
-                                <span style="display:inline-flex; align-items:center; width:8px; height:8px; border-radius:50%; background:var(--lime, #c7ff22); box-shadow:0 0 8px var(--lime, #c7ff22);"></span>
-                                <span style="font-weight:700; font-size:12.5px; color:#fff;">Commercial Gym Operations Platform</span>
-                                <span style="font-size:12px; color:rgba(255,255,255,0.7);">&bull; Cloud-Powered Management</span>
+                            <div class="hero-rating-badge">
+                                <span class="hero-rating-dot"></span>
+                                <span class="hero-rating-score">Commercial Gym Operations Platform</span>
+                                <span class="hero-rating-sep">&bull;</span>
+                                <span class="hero-rating-text">Cloud-Powered Management</span>
                             </div>
                         <?php endif; ?>
                         <div class="hero-brand-header">
@@ -1114,40 +1117,44 @@ function landing_page(): void
             <?php if ($platformStats['total_reviews'] > 0): ?>
             <!-- Dynamic FitTrack Platform Rating Banner -->
             <div class="container" style="margin-bottom: 28px;">
-                <div class="platform-rating-banner" style="display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:20px; background:linear-gradient(135deg, rgba(255,255,255,0.04), rgba(255,255,255,0.01)); border:1px solid rgba(199,255,34,0.2); border-radius:16px; padding:22px 28px; backdrop-filter:blur(12px); box-shadow:0 8px 32px rgba(0,0,0,0.25);">
-                    <div style="display:flex; align-items:center; gap:18px;">
-                        <div style="font-size:44px; font-weight:900; line-height:1; color:#fff; letter-spacing:-1px;">
+                <div class="platform-rating-banner">
+                    <div class="platform-banner-main">
+                        <div class="platform-score-num">
                             <?= number_format($platformStats['avg_rating'], 1) ?>
                         </div>
-                        <div>
-                            <div style="display:flex; align-items:center; gap:8px; margin-bottom:4px;">
-                                <?= render_star_rating((float)$platformStats['avg_rating'], 18, false) ?>
-                                <span style="font-size:12px; font-weight:700; color:var(--lime, #c7ff22); background:rgba(199,255,34,0.1); border:1px solid rgba(199,255,34,0.25); padding:2px 8px; border-radius:999px;">
+                        <div class="platform-score-info">
+                            <div class="platform-score-header">
+                                <div class="platform-score-stars">
+                                    <?= render_star_rating((float)$platformStats['avg_rating'], 18, false) ?>
+                                </div>
+                                <span class="platform-score-pill">
                                     FitTrack Platform Score
                                 </span>
                             </div>
-                            <div style="font-size:13px; color:var(--text-muted, #94a3b8);">
+                            <div class="platform-score-meta">
                                 Based on <strong><?= $platformStats['total_reviews'] ?></strong> verified gym owner <?= $platformStats['total_reviews'] === 1 ? 'review' : 'reviews' ?> &bull; 100% verified facility operators
                             </div>
                         </div>
                     </div>
 
-                    <div style="display:flex; align-items:center; gap:20px; flex-wrap:wrap;">
-                        <div style="text-align:center; padding:0 8px;">
-                            <div style="font-size:18px; font-weight:800; color:var(--lime, #c7ff22);"><?= number_format($platformStats['avg_system'], 1) ?>★</div>
-                            <div style="font-size:11px; color:#94a3b8; text-transform:uppercase; letter-spacing:0.5px; margin-top:2px;">System UX</div>
+                    <div class="platform-banner-actions">
+                        <div class="platform-metrics-grid">
+                            <div class="platform-metric-item">
+                                <div class="platform-metric-val"><?= number_format($platformStats['avg_system'], 1) ?>★</div>
+                                <div class="platform-metric-lbl">System UX</div>
+                            </div>
+                            <div class="platform-metric-divider"></div>
+                            <div class="platform-metric-item">
+                                <div class="platform-metric-val"><?= number_format($platformStats['avg_features'], 1) ?>★</div>
+                                <div class="platform-metric-lbl">Features</div>
+                            </div>
+                            <div class="platform-metric-divider"></div>
+                            <div class="platform-metric-item">
+                                <div class="platform-metric-val"><?= number_format($platformStats['avg_service'], 1) ?>★</div>
+                                <div class="platform-metric-lbl">Service &amp; Support</div>
+                            </div>
                         </div>
-                        <div style="height:26px; width:1px; background:rgba(255,255,255,0.1);"></div>
-                        <div style="text-align:center; padding:0 8px;">
-                            <div style="font-size:18px; font-weight:800; color:var(--lime, #c7ff22);"><?= number_format($platformStats['avg_features'], 1) ?>★</div>
-                            <div style="font-size:11px; color:#94a3b8; text-transform:uppercase; letter-spacing:0.5px; margin-top:2px;">Features</div>
-                        </div>
-                        <div style="height:26px; width:1px; background:rgba(255,255,255,0.1);"></div>
-                        <div style="text-align:center; padding:0 8px;">
-                            <div style="font-size:18px; font-weight:800; color:var(--lime, #c7ff22);"><?= number_format($platformStats['avg_service'], 1) ?>★</div>
-                            <div style="font-size:11px; color:#94a3b8; text-transform:uppercase; letter-spacing:0.5px; margin-top:2px;">Service &amp; Support</div>
-                        </div>
-                        <a href="index.php?page=register&role=gym_owner" class="btn btn-lime btn-sm" style="margin-left:6px; text-decoration:none; padding:8px 16px; font-size:13px;">
+                        <a href="index.php?page=register&role=gym_owner" class="btn btn-lime btn-sm platform-banner-btn">
                             Register Gym &rarr;
                         </a>
                     </div>
@@ -1156,25 +1163,23 @@ function landing_page(): void
             <?php else: ?>
             <!-- Fallback Banner when no ratings yet -->
             <div class="container" style="margin-bottom: 28px;">
-                <div class="platform-rating-banner" style="display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:16px; background:linear-gradient(135deg, rgba(255,255,255,0.04), rgba(255,255,255,0.01)); border:1px solid rgba(255,255,255,0.1); border-radius:16px; padding:20px 26px; backdrop-filter:blur(12px); box-shadow:0 8px 32px rgba(0,0,0,0.2);">
-                    <div style="display:flex; align-items:center; gap:14px;">
-                        <div style="width:44px; height:44px; border-radius:12px; background:rgba(199,255,34,0.1); border:1px solid rgba(199,255,34,0.25); display:flex; align-items:center; justify-content:center; color:var(--lime, #c7ff22); flex-shrink:0;">
+                <div class="platform-rating-banner fallback">
+                    <div class="platform-banner-main">
+                        <div class="platform-fallback-icon">
                             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
                         </div>
-                        <div>
-                            <div style="display:flex; align-items:center; gap:8px; margin-bottom:2px;">
+                        <div class="platform-score-info">
+                            <div class="platform-score-header">
                                 <strong style="font-size:15px; color:#fff;">Authentic Gym Owner Reviews</strong>
-                                <span style="font-size:11px; font-weight:600; color:var(--lime, #c7ff22); background:rgba(199,255,34,0.08); border:1px solid rgba(199,255,34,0.2); padding:1px 7px; border-radius:999px;">
-                                    Verified Only
-                                </span>
+                                <span class="platform-score-pill">Verified Only</span>
                             </div>
-                            <p style="font-size:13px; color:#94a3b8; margin:0;">
+                            <p class="platform-score-meta" style="margin:0;">
                                 We never publish fabricated reviews. All ratings are contributed exclusively by enrolled commercial gym owners.
                             </p>
                         </div>
                     </div>
-                    <div style="display:flex; align-items:center; gap:10px;">
-                        <a href="index.php?page=register&role=gym_owner" class="btn btn-lime btn-sm" style="text-decoration:none; padding:8px 16px; font-size:13px; white-space:nowrap;">
+                    <div class="platform-banner-actions">
+                        <a href="index.php?page=register&role=gym_owner" class="btn btn-lime btn-sm platform-banner-btn">
                             Join as Gym Partner &rarr;
                         </a>
                     </div>
@@ -1216,11 +1221,11 @@ function landing_page(): void
                         <?php foreach ($displayCards as $card): ?>
                             <div class="testimonial-card ticker-card" style="display:flex; flex-direction:column; justify-content:space-between;">
                                 <div>
-                                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
-                                        <div>
+                                    <div class="ticker-card-header" style="display:flex; justify-content:space-between; align-items:center; gap:8px; margin-bottom:12px; flex-wrap:wrap;">
+                                        <div style="display:inline-flex; align-items:center; flex-shrink:0;">
                                             <?= render_star_rating((float)($card['rating'] ?? 5), 14, false) ?>
                                         </div>
-                                        <span style="display:inline-flex; align-items:center; gap:4px; font-size:11px; font-weight:600; color:var(--lime, #c7ff22); background:rgba(199,255,34,0.08); border:1px solid rgba(199,255,34,0.2); padding:2px 8px; border-radius:999px;">
+                                        <span class="ticker-verified-badge" style="display:inline-flex; align-items:center; gap:4px; font-size:11px; font-weight:600; color:var(--lime, #c7ff22); background:rgba(199,255,34,0.08); border:1px solid rgba(199,255,34,0.2); padding:2px 8px; border-radius:999px; white-space:nowrap; flex-shrink:0;">
                                             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
                                             Verified Gym Owner
                                         </span>
