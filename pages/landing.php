@@ -186,9 +186,25 @@ function landing_page(): void
             href="https://fonts.googleapis.com/css2?family=Inter:ital,wght@0,400;0,500;0,600;0,700;0,800;0,900;1,700;1,900&display=swap"
             rel="stylesheet">
         <link rel="stylesheet" href="assets/landing.css?v=<?= filemtime(__DIR__ . '/../assets/landing.css') ?>">
+        <link rel="stylesheet" href="assets/splash.css?v=<?= file_exists(__DIR__ . '/../assets/splash.css') ? filemtime(__DIR__ . '/../assets/splash.css') : 1 ?>">
+        <script src="assets/splash.js?v=<?= file_exists(__DIR__ . '/../assets/splash.js') ? filemtime(__DIR__ . '/../assets/splash.js') : 1 ?>"></script>
     </head>
 
     <body>
+        <!-- In-App FitTrack Splash Preloader -->
+        <div id="ft-splash-screen" aria-hidden="true">
+            <div class="ft-splash-glow"></div>
+            <div class="ft-splash-content">
+                <div class="ft-splash-logo-wrap">
+                    <div class="ft-splash-ring"></div>
+                    <div class="ft-splash-logo">FT</div>
+                </div>
+                <div class="ft-splash-brand-title">Fit<span>Track</span></div>
+                <div class="ft-splash-bar-track">
+                    <div class="ft-splash-bar-fill"></div>
+                </div>
+            </div>
+        </div>
 
         <!-- ==========================================================================
        01. BRAND LOGO & NAVIGATION

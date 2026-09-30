@@ -174,9 +174,24 @@ function render_header(string $title, ?array $user = null): void
                 };
             })();
         </script>
-        <script src="assets/audio.js?v=<?= filemtime(__DIR__ . '/../assets/audio.js') ?>"></script>
+        <link rel="stylesheet" href="assets/splash.css?v=<?= file_exists(__DIR__ . '/../assets/splash.css') ? filemtime(__DIR__ . '/../assets/splash.css') : 1 ?>">
+        <script src="assets/splash.js?v=<?= file_exists(__DIR__ . '/../assets/splash.js') ? filemtime(__DIR__ . '/../assets/splash.js') : 1 ?>"></script>
     </head>
     <body class="<?= $user ? 'app-body' : 'auth-body' ?>">
+    <!-- In-App FitTrack Splash Preloader -->
+    <div id="ft-splash-screen" aria-hidden="true">
+        <div class="ft-splash-glow"></div>
+        <div class="ft-splash-content">
+            <div class="ft-splash-logo-wrap">
+                <div class="ft-splash-ring"></div>
+                <div class="ft-splash-logo">FT</div>
+            </div>
+            <div class="ft-splash-brand-title">Fit<span>Track</span></div>
+            <div class="ft-splash-bar-track">
+                <div class="ft-splash-bar-fill"></div>
+            </div>
+        </div>
+    </div>
     
     <?php if (!$user): ?>
     <!-- Grain texture overlay for auth pages -->

@@ -1,0 +1,147 @@
+/* ═══════════════════════════════════════════════════════════════
+   FitTrack In-App Splash & Preloader
+   Ultra-smooth, zero-lag aesthetic preloader
+   ═══════════════════════════════════════════════════════════════ */
+
+#ft-splash-screen {
+    position: fixed;
+    inset: 0;
+    width: 100vw;
+    height: 100vh;
+    background-color: #0a0a09;
+    z-index: 999999;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    transition: opacity 0.45s cubic-bezier(0.4, 0, 0.2, 1), 
+                visibility 0.45s cubic-bezier(0.4, 0, 0.2, 1),
+                transform 0.45s cubic-bezier(0.4, 0, 0.2, 1);
+    opacity: 1;
+    visibility: visible;
+    transform: scale(1);
+    pointer-events: all;
+    overflow: hidden;
+}
+
+#ft-splash-screen.ft-splash-hidden {
+    opacity: 0;
+    visibility: hidden;
+    transform: scale(1.03);
+    pointer-events: none;
+}
+
+/* Ambient glow */
+.ft-splash-glow {
+    position: absolute;
+    width: 420px;
+    height: 420px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(39, 242, 70, 0.16) 0%, rgba(39, 242, 70, 0) 70%);
+    filter: blur(60px);
+    pointer-events: none;
+    animation: ft-glow-pulse 2.2s ease-in-out infinite alternate;
+}
+
+@keyframes ft-glow-pulse {
+    0% { transform: scale(0.92); opacity: 0.6; }
+    100% { transform: scale(1.15); opacity: 1; }
+}
+
+/* Brand badge */
+.ft-splash-content {
+    position: relative;
+    z-index: 2;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 24px;
+}
+
+.ft-splash-logo-wrap {
+    position: relative;
+    width: 72px;
+    height: 72px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.ft-splash-ring {
+    position: absolute;
+    inset: 0;
+    border-radius: 20px;
+    border: 2px solid rgba(243, 241, 234, 0.08);
+    border-top-color: #27f246;
+    animation: ft-spin 1.2s cubic-bezier(0.65, 0, 0.35, 1) infinite;
+}
+
+.ft-splash-logo {
+    width: 52px;
+    height: 52px;
+    border-radius: 14px;
+    background: linear-gradient(135deg, #27f246 0%, #1ea72d 100%);
+    color: #0a0a09;
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    font-weight: 900;
+    font-size: 22px;
+    letter-spacing: -0.5px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 0 35px rgba(39, 242, 70, 0.45);
+    animation: ft-logo-pulse 2s ease-in-out infinite alternate;
+}
+
+@keyframes ft-spin {
+    to { transform: rotate(360deg); }
+}
+
+@keyframes ft-logo-pulse {
+    0% { transform: scale(1); }
+    100% { transform: scale(1.05); }
+}
+
+.ft-splash-brand-title {
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    font-size: 20px;
+    font-weight: 800;
+    letter-spacing: 2px;
+    color: #f3f1ea;
+    text-transform: uppercase;
+    display: flex;
+    align-items: center;
+    gap: 2px;
+}
+
+.ft-splash-brand-title span {
+    color: #27f246;
+}
+
+/* Micro progress indicator */
+.ft-splash-bar-track {
+    width: 140px;
+    height: 2.5px;
+    background: rgba(243, 241, 234, 0.08);
+    border-radius: 3px;
+    overflow: hidden;
+    position: relative;
+}
+
+.ft-splash-bar-fill {
+    position: absolute;
+    top: 0;
+    left: 0;
+    height: 100%;
+    width: 40%;
+    background: linear-gradient(90deg, #1ea72d, #27f246);
+    border-radius: 3px;
+    box-shadow: 0 0 10px rgba(39, 242, 70, 0.6);
+    animation: ft-bar-slide 1.4s ease-in-out infinite alternate;
+}
+
+@keyframes ft-bar-slide {
+    0% { left: 0%; width: 20%; }
+    50% { width: 55%; }
+    100% { left: 80%; width: 20%; }
+}
