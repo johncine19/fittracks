@@ -2598,38 +2598,6 @@ function landing_page(): void
                     }, { passive: true });
                 }
             });
-
-            // ── Back to Top Floating Button Handler ─────────────────────────────
-            (() => {
-                const backToTopBtn = document.getElementById('backToTopBtn');
-                if (!backToTopBtn) return;
-
-                let scrollTimeout;
-                function checkScroll() {
-                    if (window.scrollY > 300) {
-                        backToTopBtn.classList.add('visible');
-                    } else {
-                        backToTopBtn.classList.remove('visible');
-                    }
-                }
-
-                window.addEventListener('scroll', () => {
-                    if (!scrollTimeout) {
-                        scrollTimeout = requestAnimationFrame(() => {
-                            checkScroll();
-                            scrollTimeout = null;
-                        });
-                    }
-                }, { passive: true });
-
-                backToTopBtn.addEventListener('click', (e) => {
-                    e.preventDefault();
-                    window.scrollTo({
-                        top: 0,
-                        behavior: 'smooth'
-                    });
-                });
-            })();
         </script>
 
         <!-- Back to Top Floating Button -->
@@ -2641,6 +2609,53 @@ function landing_page(): void
             </span>
             <span class="back-to-top-text">Back to Top</span>
         </button>
+
+        <script>
+            // ── Back to Top Floating Button Handler ─────────────────────────────
+            (() => {
+                function initBackToTop() {
+                    const backToTopBtn = document.getElementById('backToTopBtn');
+                    if (!backToTopBtn) return;
+
+                    function checkScroll() {
+                        const currentScroll = window.pageYOffset || document.documentElement.scrollTop || document.body.scrollTop || 0;
+                        if (currentScroll > 300) {
+                            backToTopBtn.classList.add('visible');
+                        } else {
+                            backToTopBtn.classList.remove('visible');
+                        }
+                    }
+
+                    // Check immediately on load in case page is already scrolled
+                    checkScroll();
+
+                    let ticking = false;
+                    window.addEventListener('scroll', () => {
+                        if (!ticking) {
+                            window.requestAnimationFrame(() => {
+                                checkScroll();
+                                ticking = false;
+                            });
+                            ticking = true;
+                        }
+                    }, { passive: true });
+
+                    backToTopBtn.addEventListener('click', (e) => {
+                        e.preventDefault();
+                        window.scrollTo({
+                            top: 0,
+                            behavior: 'smooth'
+                        });
+                    });
+                }
+
+                if (document.readyState === 'loading') {
+                    document.addEventListener('DOMContentLoaded', initBackToTop);
+                } else {
+                    initBackToTop();
+                }
+            })();
+        </script>
 
     </body>
 
