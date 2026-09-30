@@ -2606,7 +2606,7 @@ function landing_page(): void
 
                 let scrollTimeout;
                 function checkScroll() {
-                    if (window.scrollY > 450) {
+                    if (window.scrollY > 300) {
                         backToTopBtn.classList.add('visible');
                     } else {
                         backToTopBtn.classList.remove('visible');
