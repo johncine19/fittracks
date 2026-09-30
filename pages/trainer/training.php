@@ -603,19 +603,19 @@ function training_page(): void
     <?php else: ?>
         <!-- All Workout Plans Directory -->
         <section class="panel">
-            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1.25rem; flex-wrap:wrap; gap:12px;">
+            <div class="all-workouts-header-wrap" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1.25rem; flex-wrap:wrap; gap:12px;">
                 <div>
                     <h2 style="margin:0; font-size:1.25rem; color:var(--ink);">All Workout Plans</h2>
                     <p class="muted" style="margin:4px 0 0 0; font-size:13px;">Complete directory of workout regimens created for members.</p>
                 </div>
-                <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
-                    <div style="display:flex; gap:6px;" class="all-workout-filters-wrap" id="all-workouts-filters">
+                <div class="all-workouts-toolbar">
+                    <div class="all-workout-filters-wrap" id="all-workouts-filters">
                         <button type="button" class="all-workout-filter-pill active" onclick="setAllWorkoutsStatusFilter('all', this)">All (<?= count($allPlans) ?>)</button>
                         <button type="button" class="all-workout-filter-pill" onclick="setAllWorkoutsStatusFilter('active', this)">Active (<?= count(array_filter($allPlans, fn($p) => strtolower((string)$p['status']) === 'active')) ?>)</button>
                         <button type="button" class="all-workout-filter-pill" onclick="setAllWorkoutsStatusFilter('draft', this)">Draft (<?= count(array_filter($allPlans, fn($p) => strtolower((string)$p['status']) === 'draft')) ?>)</button>
                         <button type="button" class="all-workout-filter-pill" onclick="setAllWorkoutsStatusFilter('other', this)">Expired / Other (<?= count(array_filter($allPlans, fn($p) => !in_array(strtolower((string)$p['status']), ['active', 'draft'], true))) ?>)</button>
                     </div>
-                    <div style="position:relative; min-width:240px;">
+                    <div class="all-workouts-search-wrap">
                         <input type="text" id="all-workouts-search" oninput="filterAllWorkouts()" placeholder="Search member, trainer, or plan title..." style="width:100%; box-sizing:border-box; padding:7px 12px 7px 32px; font-size:12.5px; border-radius:8px; border:1px solid var(--line); background:var(--panel); color:var(--ink);">
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="position:absolute; left:10px; top:50%; transform:translateY(-50%); color:var(--muted); pointer-events:none;"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
                     </div>
@@ -989,6 +989,23 @@ function training_page(): void
 }
 
 /* Toolbar & Filter Pills for All Workouts */
+.all-workouts-toolbar {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    flex-wrap: wrap;
+    min-width: 0;
+}
+.all-workout-filters-wrap {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+    min-width: 0;
+}
+.all-workouts-search-wrap {
+    position: relative;
+    min-width: 240px;
+}
 .all-workout-filter-pill {
     background: transparent;
     border: 1px solid var(--line);
@@ -1340,10 +1357,21 @@ function training_page(): void
         flex-direction: column;
         gap: 12px;
     }
-    .all-workouts-toolbar {
+    .all-workouts-header-wrap {
         flex-direction: column;
         align-items: stretch !important;
         gap: 12px;
+        width: 100% !important;
+        max-width: 100% !important;
+        min-width: 0 !important;
+    }
+    .all-workouts-toolbar {
+        flex-direction: column;
+        align-items: stretch !important;
+        gap: 10px;
+        width: 100% !important;
+        max-width: 100% !important;
+        min-width: 0 !important;
     }
     .all-workout-filters-wrap {
         display: flex;
@@ -1351,8 +1379,15 @@ function training_page(): void
         gap: 6px;
         overflow-x: auto;
         -webkit-overflow-scrolling: touch;
+        scrollbar-width: none;
+        -ms-overflow-style: none;
         padding-bottom: 4px;
-        max-width: 100%;
+        width: 100% !important;
+        max-width: 100% !important;
+        min-width: 0 !important;
+    }
+    .all-workout-filters-wrap::-webkit-scrollbar {
+        display: none;
     }
     .all-workout-filter-pill {
         white-space: nowrap;
@@ -1361,6 +1396,7 @@ function training_page(): void
     .all-workouts-search-wrap {
         width: 100% !important;
         max-width: 100% !important;
+        min-width: 0 !important;
         flex: 1 1 100% !important;
     }
     .view-plan-header-card {

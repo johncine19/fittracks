@@ -4,6 +4,20 @@ declare(strict_types=1);
 function messages_page(): void
 {
     $user = require_login();
+
+    // Ensure user_blocks table exists
+    try {
+        db()->exec('CREATE TABLE IF NOT EXISTS user_blocks (
+            block_id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+            blocker_id INT UNSIGNED NOT NULL,
+            blocked_id INT UNSIGNED NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE KEY uq_blocker_blocked (blocker_id, blocked_id),
+            INDEX idx_blocker (blocker_id),
+            INDEX idx_blocked (blocked_id)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4');
+    } catch (Throwable) {}
+
     $role = $user['role'] ?? '';
     $isGymOwner = in_array($role, ['gym_owner', 'admin'], true);
     $currentGymId = 0;
@@ -212,13 +226,89 @@ function messages_page(): void
         exit;
     }
 
+    // ── AJAX: Delete Entire Conversation ────────────────────────────────
+    if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && post('action') === 'delete_conversation') {
+        if (ob_get_level()) ob_clean();
+        header('Content-Type: application/json');
+        $targetUserId = (int) post('target_user_id');
+        if ($targetUserId <= 0) {
+            echo json_encode(['success' => false, 'error' => 'Invalid user selected.']);
+            exit;
+        }
+
+        $myId = (int) $user['user_id'];
+        $pdo = db();
+        $pdo->prepare('DELETE FROM trainer_messages WHERE (sender_id = ? AND recipient_id = ?) OR (sender_id = ? AND recipient_id = ?)')
+            ->execute([$myId, $targetUserId, $targetUserId, $myId]);
+
+        try {
+            $pdo->prepare('DELETE FROM notifications WHERE user_id = ? AND reference_id = ? AND type = "coach_message"')
+                ->execute([$myId, $targetUserId]);
+        } catch (Throwable) {}
+
+        echo json_encode(['success' => true, 'message' => 'Conversation deleted successfully.']);
+        exit;
+    }
+
+    // ── AJAX: Block User ─────────────────────────────────────────────────
+    if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && post('action') === 'block_user') {
+        if (ob_get_level()) ob_clean();
+        header('Content-Type: application/json');
+        $targetUserId = (int) post('target_user_id');
+        if ($targetUserId <= 0 || $targetUserId === (int)$user['user_id']) {
+            echo json_encode(['success' => false, 'error' => 'Invalid user.']);
+            exit;
+        }
+
+        // Guard rail: Gym owners and admins cannot be blocked
+        $targetRole = (string) scalar('SELECT role FROM users WHERE user_id = ?', [$targetUserId]);
+        if (in_array($targetRole, ['gym_owner', 'admin', 'platform_admin'], true)) {
+            echo json_encode(['success' => false, 'error' => 'Gym owners and administrators cannot be blocked.']);
+            exit;
+        }
+
+        $myId = (int) $user['user_id'];
+        $pdo = db();
+        $pdo->prepare('INSERT INTO user_blocks (blocker_id, blocked_id) VALUES (?, ?) ON DUPLICATE KEY UPDATE created_at = CURRENT_TIMESTAMP')
+            ->execute([$myId, $targetUserId]);
+
+        echo json_encode(['success' => true, 'blocked' => true, 'message' => 'User blocked successfully.']);
+        exit;
+    }
+
+    // ── AJAX: Unblock User ───────────────────────────────────────────────
+    if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && post('action') === 'unblock_user') {
+        if (ob_get_level()) ob_clean();
+        header('Content-Type: application/json');
+        $targetUserId = (int) post('target_user_id');
+        if ($targetUserId <= 0) {
+            echo json_encode(['success' => false, 'error' => 'Invalid user.']);
+            exit;
+        }
+
+        $myId = (int) $user['user_id'];
+        $pdo = db();
+        $pdo->prepare('DELETE FROM user_blocks WHERE blocker_id = ? AND blocked_id = ?')
+            ->execute([$myId, $targetUserId]);
+
+        echo json_encode(['success' => true, 'blocked' => false, 'message' => 'User unblocked successfully.']);
+        exit;
+    }
+
     // ── AJAX: Poll for new messages ──────────────────────────────────────
-    if ($_SERVER['REQUEST_METHOD'] === 'POST' && post('action') === 'poll_messages' && $isAjax) {
+    if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && post('action') === 'poll_messages' && $isAjax) {
         if (ob_get_level()) ob_clean();
         header('Content-Type: application/json');
         $recipientId = (int) post('recipient_id');
         $lastId      = (int) post('last_message_id');
-        if ($recipientId <= 0 || !$canMessageUser($recipientId)) { echo json_encode(['messages' => []]); exit; }
+        
+        $isBlockedByTarget = (bool) scalar('SELECT 1 FROM user_blocks WHERE blocker_id = ? AND blocked_id = ? LIMIT 1', [$recipientId, $user['user_id']]);
+        $isTargetBlockedByMe = (bool) scalar('SELECT 1 FROM user_blocks WHERE blocker_id = ? AND blocked_id = ? LIMIT 1', [$user['user_id'], $recipientId]);
+
+        if ($recipientId <= 0 || !$canMessageUser($recipientId) || $isBlockedByTarget || $isTargetBlockedByMe) {
+            echo json_encode(['messages' => []]);
+            exit;
+        }
         $newRows = query_all(
             'SELECT m.message_id, m.sender_id, m.message_text, m.sent_at,
                     CONCAT(s.first_name, " ", s.last_name) AS sender_name
@@ -239,14 +329,21 @@ function messages_page(): void
     }
 
     // Handle sending a message
-    if ($_SERVER['REQUEST_METHOD'] === 'POST' && post('action') === 'send') {
+    if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && post('action') === 'send') {
         $recipientId = (int) post('recipient_id');
         $text = trim((string) post('message_text'));
         $newMessageId = null;
         $error = null;
 
         if ($recipientId && $text !== '') {
-            if (!$canMessageUser($recipientId)) {
+            $isBlockedByTarget = (bool) scalar('SELECT 1 FROM user_blocks WHERE blocker_id = ? AND blocked_id = ? LIMIT 1', [$recipientId, $user['user_id']]);
+            $isTargetBlockedByMe = (bool) scalar('SELECT 1 FROM user_blocks WHERE blocker_id = ? AND blocked_id = ? LIMIT 1', [$user['user_id'], $recipientId]);
+
+            if ($isBlockedByTarget) {
+                $error = 'You cannot send messages to this user.';
+            } elseif ($isTargetBlockedByMe) {
+                $error = 'You have blocked this user. Unblock them to send messages.';
+            } elseif (!$canMessageUser($recipientId)) {
                 $error = 'You can only message members and trainers within your gym.';
             } elseif (mb_strlen($text) > 1000) {
                 $error = 'Message is too long. Maximum 1000 characters.';
@@ -301,6 +398,7 @@ function messages_page(): void
     if ($isGymOwner) {
         $conversations = query_all(
             'SELECT u.user_id, u.first_name, u.last_name, u.profile_picture, u.role,
+                    (SELECT 1 FROM user_blocks WHERE blocker_id = ? AND blocked_id = u.user_id LIMIT 1) as is_blocked,
                     (SELECT message_text FROM trainer_messages WHERE (sender_id = u.user_id AND recipient_id = ?) OR (sender_id = ? AND recipient_id = u.user_id) ORDER BY sent_at DESC LIMIT 1) as last_message,
                     (SELECT sent_at FROM trainer_messages WHERE (sender_id = u.user_id AND recipient_id = ?) OR (sender_id = ? AND recipient_id = u.user_id) ORDER BY sent_at DESC LIMIT 1) as last_time
              FROM users u
@@ -327,6 +425,7 @@ function messages_page(): void
              )
              ORDER BY last_time DESC, u.first_name ASC',
             [
+                $user['user_id'],
                 $user['user_id'], $user['user_id'], $user['user_id'], $user['user_id'],
                 $user['user_id'], $user['user_id'],
                 $currentGymId, $currentGymId,
@@ -336,6 +435,7 @@ function messages_page(): void
     } elseif ($role === 'trainer') {
         $conversations = query_all(
             'SELECT u.user_id, u.first_name, u.last_name, u.profile_picture, u.role,
+                    (SELECT 1 FROM user_blocks WHERE blocker_id = ? AND blocked_id = u.user_id LIMIT 1) as is_blocked,
                     (SELECT message_text FROM trainer_messages WHERE (sender_id = u.user_id AND recipient_id = ?) OR (sender_id = ? AND recipient_id = u.user_id) ORDER BY sent_at DESC LIMIT 1) as last_message,
                     (SELECT sent_at FROM trainer_messages WHERE (sender_id = u.user_id AND recipient_id = ?) OR (sender_id = ? AND recipient_id = u.user_id) ORDER BY sent_at DESC LIMIT 1) as last_time
              FROM users u
@@ -350,6 +450,7 @@ function messages_page(): void
              )
              ORDER BY last_time DESC, u.first_name ASC',
             [
+                $user['user_id'],
                 $user['user_id'], $user['user_id'], $user['user_id'], $user['user_id'],
                 $user['user_id'], $user['user_id'],
                 $currentGymId,
@@ -359,6 +460,7 @@ function messages_page(): void
     } else {
         $conversations = query_all(
             'SELECT u.user_id, u.first_name, u.last_name, u.profile_picture, u.role,
+                    (SELECT 1 FROM user_blocks WHERE blocker_id = ? AND blocked_id = u.user_id LIMIT 1) as is_blocked,
                     (SELECT message_text FROM trainer_messages WHERE (sender_id = u.user_id AND recipient_id = ?) OR (sender_id = ? AND recipient_id = u.user_id) ORDER BY sent_at DESC LIMIT 1) as last_message,
                     (SELECT sent_at FROM trainer_messages WHERE (sender_id = u.user_id AND recipient_id = ?) OR (sender_id = ? AND recipient_id = u.user_id) ORDER BY sent_at DESC LIMIT 1) as last_time
              FROM users u
@@ -369,6 +471,7 @@ function messages_page(): void
              )
              ORDER BY last_time DESC, u.first_name ASC',
             [
+                $user['user_id'],
                 $user['user_id'], $user['user_id'], $user['user_id'], $user['user_id'],
                 $user['user_id'], $user['user_id']
             ]
@@ -377,12 +480,17 @@ function messages_page(): void
 
     $activeChatId = isset($_GET['chat']) ? (int) $_GET['chat'] : null;
     $activeUser = null;
+    $isTargetBlockedByMe = false;
+    $amIBlockedByTarget = false;
 
     if ($activeChatId) {
         if (!$canMessageUser($activeChatId)) {
             $activeChatId = null;
             flash('You can only message members and trainers within your gym.', 'danger');
         } else {
+            $isTargetBlockedByMe = (bool) scalar('SELECT 1 FROM user_blocks WHERE blocker_id = ? AND blocked_id = ? LIMIT 1', [$user['user_id'], $activeChatId]);
+            $amIBlockedByTarget = (bool) scalar('SELECT 1 FROM user_blocks WHERE blocker_id = ? AND blocked_id = ? LIMIT 1', [$activeChatId, $user['user_id']]);
+
             $found = false;
             foreach ($conversations as $c) {
                 if ((int)$c['user_id'] === $activeChatId) {
@@ -396,6 +504,7 @@ function messages_page(): void
                 $stmt->execute([$activeChatId]);
                 $activeUser = $stmt->fetch();
                 if ($activeUser) {
+                    $activeUser['is_blocked'] = $isTargetBlockedByMe;
                     array_unshift($conversations, $activeUser);
                 }
             }
@@ -488,6 +597,181 @@ function messages_page(): void
 
     render_header('Messages', $user);
     ?>
+    <style>
+    .conv-item-row {
+        position: relative;
+        display: flex;
+        align-items: center;
+        border-bottom: 1px solid var(--line);
+        transition: background 0.2s;
+        background: transparent;
+    }
+    .conv-item-row:hover {
+        background: var(--panel-hover, rgba(255, 255, 255, 0.03));
+    }
+    .conv-item-row.active {
+        background: color-mix(in srgb, var(--lime) 10%, transparent);
+    }
+    .conv-item-link {
+        display: flex;
+        gap: 12px;
+        padding: 15px 10px 15px 20px;
+        text-decoration: none;
+        color: inherit;
+        align-items: center;
+        flex: 1;
+        min-width: 0;
+    }
+    .conv-menu-container {
+        position: relative;
+        flex-shrink: 0;
+        margin-right: 10px;
+    }
+    .conv-dots-btn {
+        background: transparent;
+        border: none;
+        color: var(--muted);
+        cursor: pointer;
+        padding: 6px;
+        border-radius: 6px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        opacity: 0.7;
+        transition: all 0.15s ease;
+    }
+    .conv-item-row:hover .conv-dots-btn,
+    .conv-dots-btn:hover {
+        opacity: 1;
+        color: var(--ink);
+        background: var(--panel-hover, rgba(255, 255, 255, 0.08));
+    }
+    .conv-action-menu {
+        display: none;
+        position: absolute;
+        right: 0;
+        top: calc(100% + 4px);
+        background: var(--surface);
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        box-shadow: 0 10px 25px rgba(0, 0, 0, 0.45);
+        min-width: 210px;
+        width: max-content;
+        max-width: 280px;
+        z-index: 100;
+        overflow: hidden;
+        padding: 6px 0;
+    }
+    .conv-action-menu.header-dropdown {
+        right: 0;
+        top: calc(100% + 8px);
+    }
+    .conv-action-item {
+        display: flex !important;
+        align-items: center !important;
+        justify-content: flex-start !important;
+        gap: 12px !important;
+        width: 100% !important;
+        min-height: auto !important;
+        height: auto !important;
+        padding: 10px 16px !important;
+        border: none !important;
+        border-radius: 0 !important;
+        background: transparent !important;
+        color: var(--ink) !important;
+        font-size: 0.9rem !important;
+        font-weight: 500 !important;
+        font-family: inherit !important;
+        text-align: left !important;
+        cursor: pointer !important;
+        transition: background 0.15s ease !important;
+        white-space: nowrap !important;
+        box-sizing: border-box !important;
+    }
+    .conv-action-icon {
+        width: 20px !important;
+        height: 20px !important;
+        display: inline-flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        flex-shrink: 0 !important;
+    }
+    .conv-action-icon svg {
+        width: 17px !important;
+        height: 17px !important;
+        flex-shrink: 0 !important;
+        display: block !important;
+    }
+    .conv-action-item:hover {
+        background: var(--panel-hover, rgba(255, 255, 255, 0.08)) !important;
+    }
+    .conv-action-item.danger {
+        color: #ef4444 !important;
+    }
+    .conv-action-item.danger:hover {
+        background: rgba(239, 68, 68, 0.12) !important;
+    }
+    .conv-action-item.warn {
+        color: #f59e0b !important;
+    }
+    .conv-action-item.warn:hover {
+        background: rgba(245, 158, 11, 0.12) !important;
+    }
+
+    /* Mobile-optimized SweetAlert Modal Popups */
+    @media (max-width: 640px) {
+        .swal2-container {
+            padding: 12px !important;
+        }
+        .swal2-popup:not(.swal2-toast) {
+            width: 90% !important;
+            max-width: 330px !important;
+            padding: 1.25rem 1rem 1rem !important;
+            border-radius: 16px !important;
+            box-sizing: border-box !important;
+        }
+        .swal2-popup:not(.swal2-toast) .swal2-icon {
+            width: 3.25rem !important;
+            height: 3.25rem !important;
+            margin: 0.5rem auto 0.5rem !important;
+            border-width: 3px !important;
+        }
+        .swal2-popup:not(.swal2-toast) .swal2-icon .swal2-icon-content {
+            font-size: 1.85rem !important;
+        }
+        .swal2-popup:not(.swal2-toast) .swal2-title {
+            font-size: 1.2rem !important;
+            padding: 0 0.5rem !important;
+            margin: 0 0 0.4rem !important;
+            line-height: 1.3 !important;
+            word-break: break-word !important;
+        }
+        .swal2-popup:not(.swal2-toast) .swal2-html-container {
+            font-size: 0.88rem !important;
+            padding: 0 0.5rem !important;
+            margin: 0.25rem 0 0.75rem !important;
+            line-height: 1.45 !important;
+            word-break: break-word !important;
+        }
+        .swal2-popup:not(.swal2-toast) .swal2-actions {
+            display: flex !important;
+            flex-direction: row !important;
+            width: 100% !important;
+            margin: 0.75rem 0 0 0 !important;
+            gap: 8px !important;
+            box-sizing: border-box !important;
+        }
+        .swal2-popup:not(.swal2-toast) .swal2-actions button {
+            flex: 1 1 0 !important;
+            font-size: 0.88rem !important;
+            padding: 8px 10px !important;
+            min-height: 38px !important;
+            margin: 0 !important;
+            box-sizing: border-box !important;
+            white-space: nowrap !important;
+        }
+    }
+    </style>
     <?php render_skeleton_chat(); ?>
     <section class="panel wide skeleton-content sk-display-flex msg-container <?= $activeChatId ? 'has-active-chat' : '' ?>">
         
@@ -513,13 +797,53 @@ function messages_page(): void
                     $cAvatar = render_avatar($c, 'small');
                     $lastMsg = h($c['last_message'] ?? 'New conversation');
                 ?>
-                    <a href="index.php?page=messages&chat=<?= (int)$c['user_id'] ?>" style="display: flex; gap: 12px; padding: 15px 20px; text-decoration: none; color: inherit; border-bottom: 1px solid var(--line); background: <?= $isActive ? 'color-mix(in srgb, var(--lime) 10%, transparent)' : 'transparent' ?>; align-items: center; transition: background 0.2s;">
-                        <?= $cAvatar ?>
-                        <div style="overflow: hidden;">
-                            <div style="font-weight: <?= $isActive ? 'bold' : 'normal' ?>; font-size: 1rem; color: var(--ink); white-space: nowrap; text-overflow: ellipsis; overflow: hidden;"><?= $cName ?></div>
-                            <div style="font-size: 0.8rem; color: var(--muted); white-space: nowrap; text-overflow: ellipsis; overflow: hidden; margin-top: 2px;"><?= $lastMsg ?></div>
+                    <div class="conv-item-row <?= $isActive ? 'active' : '' ?>">
+                        <a href="index.php?page=messages&chat=<?= (int)$c['user_id'] ?>" class="conv-item-link">
+                            <?= $cAvatar ?>
+                            <div style="overflow: hidden; flex: 1; min-width: 0;">
+                                <div style="display: flex; align-items: center; justify-content: space-between; gap: 6px;">
+                                    <div style="font-weight: <?= $isActive ? '600' : '500' ?>; font-size: 0.95rem; color: var(--ink); white-space: nowrap; text-overflow: ellipsis; overflow: hidden;"><?= $cName ?></div>
+                                    <?php if (!empty($c['is_blocked'])): ?>
+                                        <span style="font-size: 0.65rem; padding: 2px 6px; border-radius: 4px; background: rgba(239, 68, 68, 0.15); color: #ef4444; font-weight: 600; text-transform: uppercase;">Blocked</span>
+                                    <?php endif; ?>
+                                </div>
+                                <div style="font-size: 0.8rem; color: var(--muted); white-space: nowrap; text-overflow: ellipsis; overflow: hidden; margin-top: 2px;"><?= $lastMsg ?></div>
+                            </div>
+                        </a>
+                        <div class="conv-menu-container">
+                            <button type="button" class="conv-dots-btn" onclick="toggleConvDropdown(event, 'sidebar-<?= (int)$c['user_id'] ?>')" title="Conversation Options">
+                                <svg viewBox="0 0 24 24" fill="currentColor" width="18" height="18">
+                                    <circle cx="12" cy="5" r="2"/>
+                                    <circle cx="12" cy="12" r="2"/>
+                                    <circle cx="12" cy="19" r="2"/>
+                                </svg>
+                            </button>
+                            <div id="conv-dropdown-sidebar-<?= (int)$c['user_id'] ?>" class="conv-action-menu">
+                                <button type="button" class="conv-action-item danger" onclick="handleDeleteConversation(event, <?= (int)$c['user_id'] ?>, '<?= h(addslashes($cName)) ?>')">
+                                    <span class="conv-action-icon">
+                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+                                            <polyline points="3 6 5 6 21 6"></polyline>
+                                            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                                            <line x1="10" y1="11" x2="10" y2="17"></line>
+                                            <line x1="14" y1="11" x2="14" y2="17"></line>
+                                        </svg>
+                                    </span>
+                                    <span>Delete Conversation</span>
+                                </button>
+                                <?php if (!in_array($c['role'] ?? '', ['gym_owner', 'admin', 'platform_admin'], true)): ?>
+                                    <button type="button" class="conv-action-item <?= !empty($c['is_blocked']) ? '' : 'warn' ?>" onclick="handleToggleBlockUser(event, <?= (int)$c['user_id'] ?>, '<?= h(addslashes($cName)) ?>', <?= !empty($c['is_blocked']) ? 'true' : 'false' ?>)">
+                                        <span class="conv-action-icon">
+                                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+                                                <circle cx="12" cy="12" r="10"></circle>
+                                                <line x1="4.93" y1="4.93" x2="19.07" y2="19.07"></line>
+                                            </svg>
+                                        </span>
+                                        <span><?= !empty($c['is_blocked']) ? 'Unblock User' : 'Block User' ?></span>
+                                    </button>
+                                <?php endif; ?>
+                            </div>
                         </div>
-                    </a>
+                    </div>
                 <?php endforeach; ?>
             </div>
         </div>
@@ -530,17 +854,56 @@ function messages_page(): void
                 $aName = h($activeUser['first_name'] . ' ' . $activeUser['last_name']);
             ?>
                 <!-- Chat Header -->
-                <div class="chat-header" style="flex-shrink: 0; padding: 15px 20px; border-bottom: 1px solid var(--line); display: flex; align-items: center; gap: 12px; background: var(--surface);">
-                    <a href="index.php?page=messages" class="mobile-back-btn" title="Back to messages">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="24" height="24">
-                            <path d="M19 12H5M12 19l-7-7 7-7"/>
-                        </svg>
-                    </a>
-                    <div style="display: flex; align-items: center; gap: 12px; flex: 1;">
+                <div class="chat-header" style="flex-shrink: 0; padding: 15px 20px; border-bottom: 1px solid var(--line); display: flex; align-items: center; justify-content: space-between; gap: 12px; background: var(--surface);">
+                    <div style="display: flex; align-items: center; gap: 12px; flex: 1; min-width: 0;">
+                        <a href="index.php?page=messages" class="mobile-back-btn" title="Back to messages">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="24" height="24">
+                                <path d="M19 12H5M12 19l-7-7 7-7"/>
+                            </svg>
+                        </a>
                         <?= render_avatar($activeUser, 'small') ?>
-                        <div>
-                            <h3 style="margin: 0; font-size: 1.1rem; color: var(--ink);"><?= $aName ?></h3>
+                        <div style="min-width: 0;">
+                            <div style="display: flex; align-items: center; gap: 8px;">
+                                <h3 style="margin: 0; font-size: 1.1rem; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"><?= $aName ?></h3>
+                                <?php if ($isTargetBlockedByMe): ?>
+                                    <span style="font-size: 0.7rem; padding: 2px 6px; border-radius: 4px; background: rgba(239, 68, 68, 0.15); color: #ef4444; font-weight: 600; text-transform: uppercase;">Blocked</span>
+                                <?php endif; ?>
+                            </div>
                             <p style="margin: 0; font-size: 0.8rem; color: var(--muted); text-transform: capitalize;"><?= h($activeUser['role']) ?></p>
+                        </div>
+                    </div>
+                    <!-- Chat Header Options (Three dots) -->
+                    <div class="conv-menu-container">
+                        <button type="button" class="conv-dots-btn" onclick="toggleConvDropdown(event, 'header-<?= (int)$activeChatId ?>')" title="Conversation Options" style="opacity: 1; padding: 6px;">
+                            <svg viewBox="0 0 24 24" fill="currentColor" width="20" height="20">
+                                <circle cx="12" cy="5" r="2"/>
+                                <circle cx="12" cy="12" r="2"/>
+                                <circle cx="12" cy="19" r="2"/>
+                            </svg>
+                        </button>
+                        <div id="conv-dropdown-header-<?= (int)$activeChatId ?>" class="conv-action-menu header-dropdown">
+                            <button type="button" class="conv-action-item danger" onclick="handleDeleteConversation(event, <?= (int)$activeChatId ?>, '<?= h(addslashes($aName)) ?>')">
+                                <span class="conv-action-icon">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+                                        <polyline points="3 6 5 6 21 6"></polyline>
+                                        <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                                        <line x1="10" y1="11" x2="10" y2="17"></line>
+                                        <line x1="14" y1="11" x2="14" y2="17"></line>
+                                    </svg>
+                                </span>
+                                <span>Delete Conversation</span>
+                            </button>
+                            <?php if (!in_array($activeUser['role'] ?? '', ['gym_owner', 'admin', 'platform_admin'], true)): ?>
+                                <button type="button" class="conv-action-item <?= $isTargetBlockedByMe ? '' : 'warn' ?>" onclick="handleToggleBlockUser(event, <?= (int)$activeChatId ?>, '<?= h(addslashes($aName)) ?>', <?= $isTargetBlockedByMe ? 'true' : 'false' ?>)">
+                                    <span class="conv-action-icon">
+                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+                                            <circle cx="12" cy="12" r="10"></circle>
+                                            <line x1="4.93" y1="4.93" x2="19.07" y2="19.07"></line>
+                                        </svg>
+                                    </span>
+                                    <span><?= $isTargetBlockedByMe ? 'Unblock User' : 'Block User' ?></span>
+                                </button>
+                            <?php endif; ?>
                         </div>
                     </div>
                 </div>
@@ -581,18 +944,31 @@ function messages_page(): void
                 
                 <!-- Chat Input -->
                 <div style="padding: 15px 20px; border-top: 1px solid var(--line); background: var(--surface);">
-                    <form id="msg-send-form" method="post" style="display: flex; gap: 10px; align-items: flex-end;">
-                        <?= csrf_field() ?>
-                        <input type="hidden" name="action" value="send">
-                        <input type="hidden" name="recipient_id" id="msg-recipient-id" value="<?= $activeChatId ?>">
-                        <textarea id="msg-textarea" name="message_text" rows="1" placeholder="Type a message..." required style="flex: 1; resize: none; border-radius: 20px; padding: 12px 16px; border: 1px solid var(--line); background: var(--bg); color: var(--ink); font-family: inherit; font-size: 0.95rem; outline: none; line-height: 1.5; overflow-y: hidden;" oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px'"></textarea>
-                        <button id="msg-send-btn" type="submit" style="background: var(--lime); color: var(--bg); border: none; border-radius: 50%; width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; cursor: pointer; flex-shrink: 0; transition: all 0.2s;" onmouseover="this.style.transform='scale(1.05)'" onmouseout="this.style.transform='scale(1)'">
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18" style="margin-right: 2px;">
-                                <line x1="22" y1="2" x2="11" y2="13"></line>
-                                <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
-                            </svg>
-                        </button>
-                    </form>
+                    <?php if ($isTargetBlockedByMe): ?>
+                        <div style="display: flex; align-items: center; justify-content: center; gap: 12px; padding: 6px 0; color: var(--muted); font-size: 0.9rem;">
+                            <span>You have blocked this user.</span>
+                            <button type="button" class="btn btn-sm btn-secondary" onclick="handleToggleBlockUser(event, <?= (int)$activeChatId ?>, '<?= h(addslashes($aName)) ?>', true)">
+                                Unblock User
+                            </button>
+                        </div>
+                    <?php elseif ($amIBlockedByTarget): ?>
+                        <div style="text-align: center; padding: 6px 0; color: var(--muted); font-size: 0.9rem;">
+                            <span>You cannot send messages to this user.</span>
+                        </div>
+                    <?php else: ?>
+                        <form id="msg-send-form" method="post" style="display: flex; gap: 10px; align-items: flex-end;">
+                            <?= csrf_field() ?>
+                            <input type="hidden" name="action" value="send">
+                            <input type="hidden" name="recipient_id" id="msg-recipient-id" value="<?= $activeChatId ?>">
+                            <textarea id="msg-textarea" name="message_text" rows="1" placeholder="Type a message..." required style="flex: 1; resize: none; border-radius: 20px; padding: 12px 16px; border: 1px solid var(--line); background: var(--bg); color: var(--ink); font-family: inherit; font-size: 0.95rem; outline: none; line-height: 1.5; overflow-y: hidden;" oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px'"></textarea>
+                            <button id="msg-send-btn" type="submit" style="background: var(--lime); color: var(--bg); border: none; border-radius: 50%; width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; cursor: pointer; flex-shrink: 0; transition: all 0.2s;" onmouseover="this.style.transform='scale(1.05)'" onmouseout="this.style.transform='scale(1)'">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18" style="margin-right: 2px;">
+                                    <line x1="22" y1="2" x2="11" y2="13"></line>
+                                    <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+                                </svg>
+                            </button>
+                        </form>
+                    <?php endif; ?>
                 </div>
                 
                 <script>
@@ -845,8 +1221,159 @@ function messages_page(): void
             </div>
         </div>
     </dialog>
-
     <script>
+    // ── Dropdown Controller & Action Handlers ───────────────────────
+    function toggleConvDropdown(event, id) {
+        if (event) {
+            event.stopPropagation();
+            event.preventDefault();
+        }
+        const allMenus = document.querySelectorAll('.conv-action-menu');
+        const target = document.getElementById('conv-dropdown-' + id);
+        const wasOpen = target && target.style.display === 'block';
+
+        allMenus.forEach(m => m.style.display = 'none');
+
+        if (target && !wasOpen) {
+            target.style.display = 'block';
+        }
+    }
+
+    document.addEventListener('click', function(e) {
+        if (!e.target.closest('.conv-menu-container')) {
+            document.querySelectorAll('.conv-action-menu').forEach(m => m.style.display = 'none');
+        }
+    });
+
+    async function handleDeleteConversation(event, targetUserId, userName) {
+        if (event) event.stopPropagation();
+        document.querySelectorAll('.conv-action-menu').forEach(m => m.style.display = 'none');
+
+        const result = await Swal.fire({
+            title: 'Delete Conversation?',
+            text: `Are you sure you want to delete your entire conversation with ${userName}? All messages will be permanently removed.`,
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#ef4444',
+            cancelButtonColor: 'var(--line)',
+            confirmButtonText: 'Yes, Delete',
+            cancelButtonText: 'Cancel'
+        });
+
+        if (!result.isConfirmed) return;
+
+        try {
+            const formData = new URLSearchParams({
+                action: 'delete_conversation',
+                target_user_id: targetUserId,
+                csrf_token: '<?= csrf_token() ?>'
+            });
+
+            const resp = await fetch('index.php?page=messages', {
+                method: 'POST',
+                headers: { 
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'Content-Type': 'application/x-www-form-urlencoded' 
+                },
+                body: formData.toString()
+            });
+            const data = await resp.json();
+
+            if (data.success) {
+                Swal.fire({
+                    icon: 'success',
+                    title: 'Conversation Deleted',
+                    text: data.message,
+                    timer: 1500,
+                    showConfirmButton: false
+                });
+                setTimeout(() => {
+                    window.location.href = 'index.php?page=messages';
+                }, 800);
+            } else {
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Error',
+                    text: data.error || 'Failed to delete conversation.'
+                });
+            }
+        } catch (err) {
+            console.error(err);
+            Swal.fire({
+                icon: 'error',
+                title: 'Error',
+                text: 'An error occurred while deleting the conversation.'
+            });
+        }
+    }
+
+    async function handleToggleBlockUser(event, targetUserId, userName, currentlyBlocked) {
+        if (event) event.stopPropagation();
+        document.querySelectorAll('.conv-action-menu').forEach(m => m.style.display = 'none');
+
+        const actionText = currentlyBlocked ? 'Unblock' : 'Block';
+        const actionDesc = currentlyBlocked 
+            ? `Unblock ${userName}? You will be able to exchange messages again.` 
+            : `Block messages from ${userName}? They will no longer be able to message you.`;
+
+        const result = await Swal.fire({
+            title: `${actionText} User?`,
+            text: actionDesc,
+            icon: currentlyBlocked ? 'question' : 'warning',
+            showCancelButton: true,
+            confirmButtonColor: currentlyBlocked ? 'var(--lime-dark, #22c55e)' : '#ef4444',
+            cancelButtonColor: 'var(--line)',
+            confirmButtonText: `Yes, ${actionText}`,
+            cancelButtonText: 'Cancel'
+        });
+
+        if (!result.isConfirmed) return;
+
+        try {
+            const formData = new URLSearchParams({
+                action: currentlyBlocked ? 'unblock_user' : 'block_user',
+                target_user_id: targetUserId,
+                csrf_token: '<?= csrf_token() ?>'
+            });
+
+            const resp = await fetch('index.php?page=messages', {
+                method: 'POST',
+                headers: { 
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'Content-Type': 'application/x-www-form-urlencoded' 
+                },
+                body: formData.toString()
+            });
+            const data = await resp.json();
+
+            if (data.success) {
+                Swal.fire({
+                    icon: 'success',
+                    title: currentlyBlocked ? 'User Unblocked' : 'User Blocked',
+                    text: data.message,
+                    timer: 1500,
+                    showConfirmButton: false
+                });
+                setTimeout(() => {
+                    window.location.reload();
+                }, 800);
+            } else {
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Error',
+                    text: data.error || 'Failed to update user block status.'
+                });
+            }
+        } catch (err) {
+            console.error(err);
+            Swal.fire({
+                icon: 'error',
+                title: 'Error',
+                text: 'An error occurred.'
+            });
+        }
+    }
+
     function openComposeModal() {
         const modal = document.getElementById('composeModal');
         if (!modal) return;

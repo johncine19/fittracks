@@ -1919,9 +1919,9 @@ function progress_page(): void
                         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
                         <span>Message Client</span>
                     </button>
-                    <a href="index.php?page=trainer&action=assign_plan&member_user_id=<?= (int)$memberId ?>" class="btn-hub-primary">
+                    <a href="index.php?page=workout_builder&member_user_id=<?= (int)$memberId ?>" class="btn-hub-primary">
                         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-                        <span>Assign Workout</span>
+                        <span><?= $activePlan ? 'Edit Workout Plan' : 'Assign Workout' ?></span>
                     </a>
                 <?php else: ?>
                     <button type="button" class="btn-hub-secondary" onclick="openNoteModal()">
@@ -1946,10 +1946,6 @@ function progress_page(): void
         <button type="button" class="hub-tab-btn active" id="hub-tab-btn-overview" onclick="switchHubTab('overview')">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><rect width="7" height="9" x="3" y="3" rx="1"/><rect width="7" height="5" x="14" y="3" rx="1"/><rect width="7" height="9" x="14" y="12" rx="1"/><rect width="7" height="5" x="3" y="16" rx="1"/></svg>
             <span>Overview</span>
-        </button>
-        <button type="button" class="hub-tab-btn" id="hub-tab-btn-measurements" onclick="switchHubTab('measurements')">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"/><path d="M2 12h20"/></svg>
-            <span>Measurements</span>
         </button>
         <button type="button" class="hub-tab-btn" id="hub-tab-btn-workout" onclick="switchHubTab('workout')">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="m6.5 6.5 11 11"/><path d="m21 21-1-1"/><path d="m3 3 1 1"/><path d="m18 22 4-4"/><path d="m2 6 4-4"/><path d="m3 10 7-7"/><path d="m14 21 7-7"/></svg>
@@ -2153,43 +2149,80 @@ function progress_page(): void
                     <div class="hub-card-header">
                         <div class="hub-card-title-group">
                             <h3>Current Workout Plan</h3>
-                            <p><?= $activePlan ? h($activePlan['title']) : 'Standard Fitness Routine' ?></p>
+                            <p style="color: var(--muted);"><?= $activePlan ? h($activePlan['title']) : 'No active workout plan assigned' ?></p>
                         </div>
-                        <span class="routine-split-tag"><?= $weeklyTarget ?> days/wk</span>
+                        <?php if ($activePlan): ?>
+                            <span class="routine-split-tag"><?= $weeklyTarget ?> days/wk</span>
+                        <?php else: ?>
+                            <span class="routine-split-tag" style="background: rgba(239, 68, 68, 0.1); color: #ef4444; border-color: rgba(239, 68, 68, 0.25);">Not Assigned</span>
+                        <?php endif; ?>
                     </div>
 
-                    <div>
-                        <!-- Consistency Progress Bar -->
-                        <div style="display: flex; justify-content: space-between; align-items: baseline; font-size: 13px; margin-bottom: 6px;">
-                            <span style="color: var(--muted); font-weight: 600;">This Week's Consistency</span>
-                            <strong style="color: var(--ink);"><?= $workoutsThisWeek ?> / <?= $weeklyTarget ?> completed</strong>
-                        </div>
-                        <div style="height: 7px; background: var(--panel-soft); border-radius: 999px; overflow: hidden; margin-bottom: 16px;">
-                            <div style="height: 100%; width: <?= $weeklyPct ?>%; background: var(--lime); border-radius: 999px; transition: width 0.3s ease;"></div>
-                        </div>
+                    <?php if ($activePlan): ?>
+                        <div>
+                            <!-- Consistency Progress Bar -->
+                            <div style="display: flex; justify-content: space-between; align-items: baseline; font-size: 13px; margin-bottom: 6px;">
+                                <span style="color: var(--muted); font-weight: 600;">This Week's Consistency</span>
+                                <strong style="color: var(--ink);"><?= $workoutsThisWeek ?> / <?= $weeklyTarget ?> completed</strong>
+                            </div>
+                            <div style="height: 7px; background: var(--panel-soft); border-radius: 999px; overflow: hidden; margin-bottom: 16px;">
+                                <div style="height: 100%; width: <?= $weeklyPct ?>%; background: var(--lime); border-radius: 999px; transition: width 0.3s ease;"></div>
+                            </div>
 
-                        <!-- Days of Week Pills -->
-                        <?php
-                        $dayNames = [1 => 'Mon', 2 => 'Tue', 3 => 'Wed', 4 => 'Thu', 5 => 'Fri', 6 => 'Sat', 7 => 'Sun'];
-                        ?>
-                        <div class="dow-pill-grid">
-                            <?php foreach ($dayNames as $dowNum => $dayLabel): 
-                                $hasDayExercises = !empty($exercisesByDow[$dowNum]);
-                                $exCount = $hasDayExercises ? count($exercisesByDow[$dowNum]) : 0;
+                            <!-- Days of Week Pills -->
+                            <?php
+                            $dayNames = [1 => 'Mon', 2 => 'Tue', 3 => 'Wed', 4 => 'Thu', 5 => 'Fri', 6 => 'Sat', 7 => 'Sun'];
                             ?>
-                                <div class="dow-pill <?= $hasDayExercises ? 'has-workout' : '' ?>">
-                                    <span class="day-name"><?= $dayLabel ?></span>
-                                    <span class="workout-count"><?= $hasDayExercises ? $exCount . ' ex' : 'Rest' ?></span>
-                                </div>
-                            <?php endforeach; ?>
-                        </div>
+                            <div class="dow-pill-grid">
+                                <?php foreach ($dayNames as $dowNum => $dayLabel): 
+                                    $hasDayExercises = !empty($exercisesByDow[$dowNum]);
+                                    $exCount = $hasDayExercises ? count($exercisesByDow[$dowNum]) : 0;
+                                ?>
+                                    <div class="dow-pill <?= $hasDayExercises ? 'has-workout' : '' ?>">
+                                        <span class="day-name"><?= $dayLabel ?></span>
+                                        <span class="workout-count"><?= $hasDayExercises ? $exCount . ' ex' : 'Rest' ?></span>
+                                    </div>
+                                <?php endforeach; ?>
+                            </div>
 
-                        <div style="margin-top: 14px; text-align: right;">
-                            <a href="index.php?page=my_workout" class="btn btn-sm btn-secondary" style="font-size: 12px; font-weight: 700;">
-                                View Full Routine & Schedule →
-                            </a>
+                            <div style="margin-top: 14px; text-align: right;">
+                                <?php if ($user['role'] === 'trainer'): ?>
+                                    <a href="index.php?page=workout_builder&member_user_id=<?= (int)$memberId ?>" class="btn btn-sm btn-secondary" style="font-size: 12px; font-weight: 700;">
+                                        Edit in Workout Builder →
+                                    </a>
+                                <?php else: ?>
+                                    <a href="index.php?page=my_workout" class="btn btn-sm btn-secondary" style="font-size: 12px; font-weight: 700;">
+                                        View Full Routine & Schedule →
+                                    </a>
+                                <?php endif; ?>
+                            </div>
                         </div>
-                    </div>
+                    <?php else: ?>
+                        <!-- Empty Workout Plan State -->
+                        <div style="padding: 24px 16px; text-align: center; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px;">
+                            <div style="width: 44px; height: 44px; border-radius: 50%; background: color-mix(in srgb, var(--ink) 6%, transparent); display: flex; align-items: center; justify-content: center; color: var(--muted);">
+                                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m6.5 6.5 11 11"/><path d="m21 21-1-1"/><path d="m3 3 1 1"/><path d="m18 22 4-4"/><path d="m2 6 4-4"/><path d="m3 10 7-7"/><path d="m14 21 7-7"/></svg>
+                            </div>
+                            <div>
+                                <div style="font-size: 14px; font-weight: 700; color: var(--ink); margin-bottom: 3px;">No Active Workout Plan</div>
+                                <p style="margin: 0; font-size: 12.5px; color: var(--muted); max-width: 290px; line-height: 1.45;">
+                                    <?= $user['role'] === 'trainer' ? h($member['first_name']) . ' currently has no workout routine scheduled. Build a custom plan using Workout Builder.' : 'You don\'t have an active training schedule yet. Generate one now to start tracking your daily workouts!' ?>
+                                </p>
+                            </div>
+                            <div style="margin-top: 6px;">
+                                <?php if ($user['role'] === 'trainer'): ?>
+                                    <a href="index.php?page=workout_builder&member_user_id=<?= (int)$memberId ?>" class="btn btn-sm btn-lime" style="font-size: 12px; font-weight: 700; display: inline-flex; align-items: center; gap: 6px;">
+                                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                                        Build Workout Plan
+                                    </a>
+                                <?php else: ?>
+                                    <a href="index.php?page=my_workout" class="btn btn-sm btn-lime" style="font-size: 12px; font-weight: 700;">
+                                        Generate Workout Plan
+                                    </a>
+                                <?php endif; ?>
+                            </div>
+                        </div>
+                    <?php endif; ?>
                 </div>
             </div>
 
@@ -2337,135 +2370,7 @@ function progress_page(): void
         </div>
     </div>
 
-    <!-- 4. TAB PANE 2: MEASUREMENTS -->
-    <div id="hub-pane-measurements" class="hub-tab-pane">
-        <div class="hub-card">
-            <div class="hub-card-header">
-                <div class="hub-card-title-group">
-                    <h3>Anatomical Measurement Breakdown</h3>
-                    <p>Track circumference metrics over time for muscle building and fat loss</p>
-                </div>
-                <div class="hub-header-actions">
-                    <button type="button" class="btn btn-sm btn-secondary" onclick="calculateBodyFat(event)">
-                        Navy Body Fat Calculator
-                    </button>
-                    <button type="button" class="btn btn-sm btn-lime" onclick="logProgress()">
-                        Update Measurements
-                    </button>
-                </div>
-            </div>
-
-            <!-- Desktop View: Table -->
-            <div class="measurements-desktop-table table-wrap">
-                <table>
-                    <thead>
-                        <tr>
-                            <th>Metric Area</th>
-                            <th>Current Value</th>
-                            <th>Target / Goal</th>
-                            <th>Status / Delta</th>
-                            <th>Action</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <tr>
-                            <td><strong>Neck</strong></td>
-                            <td><?= $recentNeck ? h(number_format((float)$recentNeck, 1)) . ' cm' : '—' ?></td>
-                            <td>—</td>
-                            <td><span class="badge badge-info">Circumference</span></td>
-                            <td><button class="btn btn-xs btn-secondary" onclick="logProgress()">Edit</button></td>
-                        </tr>
-                        <tr>
-                            <td><strong>Chest</strong></td>
-                            <td><?= $recentChest ? h(number_format((float)$recentChest, 1)) . ' cm' : '—' ?></td>
-                            <td><?= !empty($member['target_chest_cm']) ? h(number_format((float)$member['target_chest_cm'], 1)) . ' cm' : '—' ?></td>
-                            <td>
-                                <?php if (!empty($member['target_chest_cm']) && $recentChest): ?>
-                                    <span class="badge badge-lime"><?= round((float)$member['target_chest_cm'] - (float)$recentChest, 1) ?> cm to target</span>
-                                <?php else: ?>
-                                    <span class="badge badge-info">Torso</span>
-                                <?php endif; ?>
-                            </td>
-                            <td><button class="btn btn-xs btn-secondary" onclick="logProgress()">Edit</button></td>
-                        </tr>
-                        <tr>
-                            <td><strong>Arms / Biceps</strong></td>
-                            <td><?= $recentArm ? h(number_format((float)$recentArm, 1)) . ' cm' : '—' ?></td>
-                            <td><?= !empty($member['target_arm_cm']) ? h(number_format((float)$member['target_arm_cm'], 1)) . ' cm' : '—' ?></td>
-                            <td>
-                                <?php if (!empty($member['target_arm_cm']) && $recentArm): ?>
-                                    <span class="badge badge-lime"><?= round((float)$member['target_arm_cm'] - (float)$recentArm, 1) ?> cm to target</span>
-                                <?php else: ?>
-                                    <span class="badge badge-info">Upper Limb</span>
-                                <?php endif; ?>
-                            </td>
-                            <td><button class="btn btn-xs btn-secondary" onclick="logProgress()">Edit</button></td>
-                        </tr>
-                        <tr>
-                            <td><strong>Waist</strong></td>
-                            <td><?= $recentWaist ? h(number_format((float)$recentWaist, 1)) . ' cm' : '—' ?></td>
-                            <td><?= !empty($member['target_waist_cm']) ? h(number_format((float)$member['target_waist_cm'], 1)) . ' cm' : '—' ?></td>
-                            <td>
-                                <?php if (!empty($member['target_waist_cm']) && $recentWaist): ?>
-                                    <span class="badge badge-lime"><?= round((float)$recentWaist - (float)$member['target_waist_cm'], 1) ?> cm to reduce</span>
-                                <?php else: ?>
-                                    <span class="badge badge-info">Core</span>
-                                <?php endif; ?>
-                            </td>
-                            <td><button class="btn btn-xs btn-secondary" onclick="logProgress()">Edit</button></td>
-                        </tr>
-                        <tr>
-                            <td><strong>Hips</strong></td>
-                            <td><?= $recentHips ? h(number_format((float)$recentHips, 1)) . ' cm' : '—' ?></td>
-                            <td>—</td>
-                            <td><span class="badge badge-info">Pelvic</span></td>
-                            <td><button class="btn btn-xs btn-secondary" onclick="logProgress()">Edit</button></td>
-                        </tr>
-                    </tbody>
-                </table>
-            </div>
-
-            <!-- Mobile View: Cards -->
-            <div class="measurements-mobile-cards">
-                <?php
-                $measurementMetrics = [
-                    ['label' => 'Neck', 'current' => $recentNeck, 'target' => null, 'cat' => 'Circumference'],
-                    ['label' => 'Chest', 'current' => $recentChest, 'target' => $member['target_chest_cm'] ?? null, 'cat' => 'Torso'],
-                    ['label' => 'Arms / Biceps', 'current' => $recentArm, 'target' => $member['target_arm_cm'] ?? null, 'cat' => 'Upper Limb'],
-                    ['label' => 'Waist', 'current' => $recentWaist, 'target' => $member['target_waist_cm'] ?? null, 'cat' => 'Core'],
-                    ['label' => 'Hips', 'current' => $recentHips, 'target' => null, 'cat' => 'Pelvic'],
-                ];
-                foreach ($measurementMetrics as $mm): 
-                    $hasVal = !empty($mm['current']);
-                    $hasTarget = !empty($mm['target']);
-                ?>
-                    <div class="mobile-detail-card">
-                        <div class="mdc-header">
-                            <strong class="mdc-title"><?= h($mm['label']) ?></strong>
-                            <span class="badge badge-info"><?= h($mm['cat']) ?></span>
-                        </div>
-                        <div class="mdc-body-grid">
-                            <div class="mdc-stat">
-                                <span class="mdc-label">Current Value</span>
-                                <span class="mdc-val <?= $hasVal ? 'val-highlight' : '' ?>"><?= $hasVal ? h(number_format((float)$mm['current'], 1)) . ' cm' : '—' ?></span>
-                            </div>
-                            <div class="mdc-stat">
-                                <span class="mdc-label">Target Goal</span>
-                                <span class="mdc-val"><?= $hasTarget ? h(number_format((float)$mm['target'], 1)) . ' cm' : '—' ?></span>
-                            </div>
-                        </div>
-                        <div class="mdc-footer">
-                            <button type="button" class="btn btn-sm btn-secondary w-100" onclick="logProgress()">
-                                Update <?= h($mm['label']) ?>
-                            </button>
-                        </div>
-                    </div>
-                <?php endforeach; ?>
-            </div>
-        </div>
-    </div>
-
-    <!-- 5. TAB PANE 3: WORKOUT PLAN -->
+    <!-- 3. TAB PANE 2: WORKOUT PLAN -->
     <div id="hub-pane-workout" class="hub-tab-pane">
         <div class="hub-card">
             <div class="hub-card-header">
@@ -2475,8 +2380,8 @@ function progress_page(): void
                 </div>
                 <div class="hub-header-actions">
                     <?php if ($user['role'] === 'trainer'): ?>
-                        <a href="index.php?page=trainer&action=assign_plan&member_user_id=<?= (int)$memberId ?>" class="btn btn-sm btn-lime">
-                            Edit / Assign Plan
+                        <a href="index.php?page=workout_builder&member_user_id=<?= (int)$memberId ?>" class="btn btn-sm btn-lime">
+                            <?= $activePlan ? 'Edit in Workout Builder' : '+ Build Workout Plan' ?>
                         </a>
                     <?php else: ?>
                         <a href="index.php?page=my_workout" class="btn btn-sm btn-lime">
@@ -2559,12 +2464,20 @@ function progress_page(): void
             <?php else: ?>
                 <div style="text-align: center; padding: 48px 20px;">
                     <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="color: var(--muted); margin-bottom: 12px;"><path d="m6.5 6.5 11 11"/><path d="m21 21-1-1"/><path d="m3 3 1 1"/><path d="m18 22 4-4"/><path d="m2 6 4-4"/></svg>
-                    <h4 style="margin: 0 0 6px;">No workout plan configured yet</h4>
-                    <p style="color: var(--muted); margin: 0 0 16px;">Generate a plan automatically based on your fitness goals or consult your gym trainer.</p>
-                    <form method="post" action="index.php?page=my_workout" style="display: inline-block;">
-                        <?= csrf_field() ?>
-                        <button type="submit" class="btn btn-lime">Generate Workout Plan</button>
-                    </form>
+                    <h4 style="margin: 0 0 6px; color: var(--ink);">No workout plan configured yet</h4>
+                    <p style="color: var(--muted); margin: 0 0 16px; font-size: 13px;">
+                        <?= $user['role'] === 'trainer' ? 'Create a customized routine for ' . h($member['first_name']) . ' in the Workout Builder.' : 'Generate a plan automatically based on your fitness goals or consult your gym trainer.' ?>
+                    </p>
+                    <?php if ($user['role'] === 'trainer'): ?>
+                        <a href="index.php?page=workout_builder&member_user_id=<?= (int)$memberId ?>" class="btn btn-lime">
+                            Build Workout Plan
+                        </a>
+                    <?php else: ?>
+                        <form method="post" action="index.php?page=my_workout" style="display: inline-block;">
+                            <?= csrf_field() ?>
+                            <button type="submit" class="btn btn-lime">Generate Workout Plan</button>
+                        </form>
+                    <?php endif; ?>
                 </div>
             <?php endif; ?>
         </div>
@@ -2720,7 +2633,7 @@ function progress_page(): void
     <script>
     // Tab Switching Logic with Hash Support
     function switchHubTab(tabName) {
-        const tabs = ['overview', 'measurements', 'workout', 'progress', 'notes'];
+        const tabs = ['overview', 'workout', 'progress', 'notes'];
         tabs.forEach(t => {
             const btn = document.getElementById('hub-tab-btn-' + t);
             const pane = document.getElementById('hub-pane-' + t);
@@ -2744,7 +2657,7 @@ function progress_page(): void
     // Auto-select tab if URL has hash
     window.addEventListener('DOMContentLoaded', () => {
         const hash = window.location.hash.replace('#', '');
-        if (['overview', 'measurements', 'workout', 'progress', 'notes'].includes(hash)) {
+        if (['overview', 'workout', 'progress', 'notes'].includes(hash)) {
             switchHubTab(hash);
         }
         initHubChart();

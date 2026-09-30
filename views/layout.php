@@ -539,6 +539,60 @@ function render_header(string $title, ?array $user = null): void
             color: #475569 !important;
         }
 
+        /* Mobile-optimized SweetAlert Modal Popups */
+        @media (max-width: 640px) {
+            .swal2-container {
+                padding: 12px !important;
+            }
+            .swal2-popup:not(.swal2-toast) {
+                width: 90% !important;
+                max-width: 330px !important;
+                padding: 1.25rem 1rem 1rem !important;
+                border-radius: 16px !important;
+                box-sizing: border-box !important;
+            }
+            .swal2-popup:not(.swal2-toast) .swal2-icon {
+                width: 3.25rem !important;
+                height: 3.25rem !important;
+                margin: 0.5rem auto 0.5rem !important;
+                border-width: 3px !important;
+            }
+            .swal2-popup:not(.swal2-toast) .swal2-icon .swal2-icon-content {
+                font-size: 1.85rem !important;
+            }
+            .swal2-popup:not(.swal2-toast) .swal2-title {
+                font-size: 1.2rem !important;
+                padding: 0 0.5rem !important;
+                margin: 0 0 0.4rem !important;
+                line-height: 1.3 !important;
+                word-break: break-word !important;
+            }
+            .swal2-popup:not(.swal2-toast) .swal2-html-container {
+                font-size: 0.88rem !important;
+                padding: 0 0.5rem !important;
+                margin: 0.25rem 0 0.75rem !important;
+                line-height: 1.45 !important;
+                word-break: break-word !important;
+            }
+            .swal2-popup:not(.swal2-toast) .swal2-actions {
+                display: flex !important;
+                flex-direction: row !important;
+                width: 100% !important;
+                margin: 0.75rem 0 0 0 !important;
+                gap: 8px !important;
+                box-sizing: border-box !important;
+            }
+            .swal2-popup:not(.swal2-toast) .swal2-actions button {
+                flex: 1 1 0 !important;
+                font-size: 0.88rem !important;
+                padding: 8px 10px !important;
+                min-height: 38px !important;
+                margin: 0 !important;
+                box-sizing: border-box !important;
+                white-space: nowrap !important;
+            }
+        }
+
         /* Star Rating in SweetAlert Modals */
         .co-star {
             font-size: 2.25rem !important;

@@ -7,7 +7,16 @@ function trainer_assessment_page(): void
     $pdo = db();
     
     $memberUserId = (int) ($_GET['member_user_id'] ?? 0);
+    $isAjax = (!empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest') 
+              || isset($_GET['ajax']) 
+              || isset($_POST['ajax']);
+
     if (!$memberUserId) {
+        if ($isAjax) {
+            header('Content-Type: application/json');
+            echo json_encode(['success' => false, 'message' => 'No member selected.']);
+            exit;
+        }
         flash('No member selected.', 'danger');
         redirect('trainer_members');
     }
@@ -17,6 +26,11 @@ function trainer_assessment_page(): void
     $assignment = $pdo->prepare('SELECT 1 FROM trainer_assignments WHERE trainer_id = ? AND member_user_id = ? AND status = "active"');
     $assignment->execute([$coachId, $memberUserId]);
     if (!$assignment->fetchColumn()) {
+        if ($isAjax) {
+            header('Content-Type: application/json');
+            echo json_encode(['success' => false, 'message' => 'You are not assigned to this member.']);
+            exit;
+        }
         flash('You are not assigned to this member.', 'danger');
         redirect('trainer_members');
     }
@@ -37,6 +51,11 @@ function trainer_assessment_page(): void
         ]);
         
         if (!$valid) {
+            if ($isAjax) {
+                header('Content-Type: application/json');
+                echo json_encode(['success' => false, 'message' => $validator->firstError() ?? 'Invalid measurements provided.']);
+                exit;
+            }
             flash($validator->firstError() ?? 'Invalid measurements provided.', 'danger');
         } else {
             save_member_profile($memberUserId);
@@ -49,14 +68,37 @@ function trainer_assessment_page(): void
             }
             
             notify_user($memberUserId, 'system', 'Assessment Updated', 'Your trainer updated your physical assessment profile.');
+            
+            if ($isAjax) {
+                header('Content-Type: application/json');
+                echo json_encode([
+                    'success' => true,
+                    'message' => 'Fitness assessment updated for ' . ($memberUser['first_name'] ?? 'member') . '.',
+                    'weight_kg' => $weight,
+                    'height_cm' => (float) post('height_cm'),
+                    'primary_goal' => post('primary_goal')
+                ]);
+                exit;
+            }
+
             flash('Fitness assessment updated for ' . h($memberUser['first_name']) . '.', 'success');
-            redirect("index.php?page=trainer_assessment&member_user_id={$memberUserId}");
+            redirect('trainer_members');
         }
     }
 
     $profile = member_profile($memberUserId);
     if (!$profile) {
         $profile = ['biological_sex' => 'male', 'activity_level' => 'sedentary', 'primary_goal' => 'general_health', 'fitness_tier' => 1];
+    }
+
+    if (isset($_GET['modal'])) {
+        ?>
+        <div style="margin-bottom: 14px; font-size: 12.5px; color: var(--muted); line-height: 1.45;">
+            Update the physical profile for this member. Changes will affect their generated workouts and allow you to track their progress.
+        </div>
+        <?php
+        render_member_form('profile', $memberUser, $profile);
+        exit;
     }
 
     render_header('Fitness Assessment - ' . h($memberUser['first_name']), $user);

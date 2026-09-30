@@ -1128,18 +1128,30 @@ function get_user_gym_id(array $user): ?int
 
     if ($role === 'member') {
         $gymId = scalar('SELECT gym_id FROM gym_members WHERE user_id = ? LIMIT 1', [$userId]);
-        return $gymId ? (int)$gymId : null;
-    }
-
-    if ($role === 'trainer') {
-        $gymId = scalar('SELECT gym_id FROM gym_members WHERE user_id = ? LIMIT 1', [$userId]);
         if (!$gymId) {
-            $gymId = scalar('SELECT gym_id FROM classes WHERE trainer_user_id = ? LIMIT 1', [$userId]);
+            $cg = get_user_gym($user);
+            $gymId = $cg['gym_id'] ?? null;
         }
         return $gymId ? (int)$gymId : null;
     }
 
-    return null;
+    if ($role === 'trainer') {
+        $gymId = scalar('SELECT gym_id FROM trainer_profiles WHERE user_id = ? AND gym_id IS NOT NULL LIMIT 1', [$userId]);
+        if (!$gymId) {
+            $gymId = scalar('SELECT gym_id FROM gym_members WHERE user_id = ? LIMIT 1', [$userId]);
+        }
+        if (!$gymId) {
+            $gymId = scalar('SELECT gym_id FROM classes WHERE instructor_id = ? AND gym_id IS NOT NULL LIMIT 1', [$userId]);
+        }
+        if (!$gymId) {
+            $cg = get_user_gym($user);
+            $gymId = $cg['gym_id'] ?? null;
+        }
+        return $gymId ? (int)$gymId : null;
+    }
+
+    $cg = get_user_gym($user);
+    return !empty($cg['gym_id']) ? (int)$cg['gym_id'] : null;
 }
 
 function format_equipment_duration(int $seconds): string

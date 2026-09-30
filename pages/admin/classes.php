@@ -140,26 +140,307 @@ function classes_page(): void
         .class-card { background: var(--panel-soft); border: 1px solid var(--line); border-radius: 16px; padding: 20px; transition: all 0.2s ease; display: flex; flex-direction: column; gap: 12px; position: relative; overflow: hidden; }
         .class-card:hover { border-color: rgba(255,255,255,0.15); transform: translateY(-2px); box-shadow: 0 8px 24px rgba(0,0,0,0.2); }
         .cc-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr)); gap: 16px; }
+        .classes-banner {
+            background: linear-gradient(135deg, rgba(199,255,34,0.1) 0%, rgba(66,219,165,0.05) 100%);
+            border: 1px solid rgba(199,255,34,0.2);
+            border-radius: 16px;
+            padding: 24px 28px;
+            margin-bottom: 24px;
+            box-shadow: 0 4px 24px rgba(0,0,0,0.1);
+            backdrop-filter: blur(16px);
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            flex-wrap: wrap;
+            gap: 16px;
+        }
+        .classes-banner-title {
+            margin: 0;
+            font-size: 24px;
+            color: var(--ink);
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        .classes-banner-icon {
+            width: 28px;
+            height: 28px;
+            flex-shrink: 0;
+        }
+        .classes-banner-desc {
+            margin: 8px 0 0 0;
+            color: var(--muted);
+            font-size: 14.5px;
+            max-width: 600px;
+        }
+        .classes-banner-actions {
+            display: flex;
+            gap: 12px;
+            align-items: center;
+        }
+        .classes-banner-btn-secondary {
+            background: var(--surface);
+            border: 1px solid var(--line);
+            color: var(--ink);
+            padding: 10px 16px;
+            border-radius: 8px;
+            font-weight: 500;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 14px;
+            white-space: nowrap;
+            transition: background 0.2s;
+        }
+        .classes-banner-btn-primary {
+            background: var(--lime);
+            border: none;
+            color: var(--bg);
+            padding: 10px 16px;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 14px;
+            white-space: nowrap;
+            transition: opacity 0.2s;
+        }
+        /* Modals in Classes & Schedules */
+        dialog#scheduleModal.modal,
+        dialog#classModal.modal {
+            border: 1px solid var(--line);
+            border-radius: 14px;
+            background: var(--panel);
+            color: var(--ink);
+            width: min(440px, calc(100% - 24px));
+            max-width: 440px;
+            box-shadow: 0 16px 36px rgba(0,0,0,0.45);
+        }
+        .classes-modal-title {
+            margin: 0;
+            font-size: 18px;
+            color: var(--ink);
+            font-weight: 700;
+        }
+        .classes-modal-form {
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
+        }
+        .schedule-datetime-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 14px;
+        }
+        .schedule-datetime-grid > label {
+            min-width: 0;
+            width: 100%;
+        }
+        #scheduleModal .form-control,
+        #classModal .form-control {
+            width: 100%;
+            box-sizing: border-box;
+            background: var(--panel-soft);
+            border: 1px solid var(--line);
+            border-radius: 8px;
+            color: var(--ink);
+            padding: 8px 12px;
+            font-size: 13.5px;
+            font-family: inherit;
+            transition: border-color 0.2s, box-shadow 0.2s;
+        }
+        #scheduleModal select.form-control,
+        #classModal select.form-control,
+        #scheduleModal input.form-control,
+        #classModal input.form-control {
+            height: 38px;
+        }
+        #classModal textarea.form-control {
+            height: 60px;
+            min-height: 60px;
+            resize: vertical;
+        }
+        #scheduleModal .form-control:focus,
+        #classModal .form-control:focus {
+            outline: none;
+            border-color: var(--lime);
+            box-shadow: 0 0 0 2px color-mix(in srgb, var(--lime) 25%, transparent);
+        }
+        #scheduleModal label,
+        #classModal label {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+            font-size: 12.5px;
+            font-weight: 600;
+            color: var(--muted);
+        }
+        .classes-modal-submit {
+            margin-top: 4px;
+            min-height: 40px;
+            font-size: 14px;
+            font-weight: 700;
+            border-radius: 8px;
+            width: 100%;
+            justify-content: center;
+        }
+        [data-theme="light"] #scheduleModal .form-control,
+        [data-theme="light"] #classModal .form-control {
+            background: #ffffff;
+            border-color: #cbd5e1;
+            color: #1e293b;
+        }
+
+        @media (max-width: 640px) {
+            .classes-banner {
+                padding: 14px 16px !important;
+                border-radius: 12px !important;
+                margin-bottom: 16px !important;
+                gap: 12px !important;
+            }
+            .classes-banner-title {
+                font-size: 18px !important;
+                gap: 8px !important;
+            }
+            .classes-banner-icon {
+                width: 20px !important;
+                height: 20px !important;
+            }
+            .classes-banner-desc {
+                font-size: 12.5px !important;
+                margin-top: 4px !important;
+                line-height: 1.35 !important;
+            }
+            .classes-banner-actions {
+                width: 100% !important;
+                display: flex !important;
+                gap: 8px !important;
+            }
+            .classes-banner-btn-secondary,
+            .classes-banner-btn-primary {
+                flex: 1 1 0 !important;
+                padding: 8px 6px !important;
+                font-size: 12px !important;
+                min-height: 38px !important;
+                justify-content: center !important;
+                gap: 5px !important;
+                white-space: nowrap !important;
+            }
+            .classes-banner-btn-secondary svg,
+            .classes-banner-btn-primary svg {
+                width: 14px !important;
+                height: 14px !important;
+                flex-shrink: 0 !important;
+            }
+            .class-card {
+                padding: 14px 16px !important;
+                border-radius: 12px !important;
+                gap: 10px !important;
+            }
+
+            /* Compact Mobile Modals */
+            dialog#scheduleModal.modal,
+            dialog#classModal.modal {
+                width: min(350px, calc(100% - 24px)) !important;
+                max-width: 350px !important;
+                margin: auto !important;
+                border-radius: 14px !important;
+                max-height: calc(100vh - 36px) !important;
+                max-height: calc(100dvh - 36px) !important;
+                overflow-y: auto !important;
+            }
+            dialog#scheduleModal.modal .modal-header,
+            dialog#classModal.modal .modal-header {
+                padding: 10px 14px !important;
+            }
+            .classes-modal-title {
+                font-size: 15px !important;
+                font-weight: 700 !important;
+            }
+            dialog#scheduleModal.modal .modal-close,
+            dialog#classModal.modal .modal-close {
+                padding: 3px !important;
+            }
+            dialog#scheduleModal.modal .modal-close svg,
+            dialog#classModal.modal .modal-close svg {
+                width: 16px !important;
+                height: 16px !important;
+            }
+            dialog#scheduleModal.modal .modal-body,
+            dialog#classModal.modal .modal-body {
+                padding: 12px 14px 14px !important;
+            }
+            .classes-modal-form {
+                gap: 8px !important;
+            }
+            #scheduleModal label,
+            #classModal label {
+                gap: 3px !important;
+                font-size: 11.5px !important;
+                font-weight: 600 !important;
+            }
+            #scheduleModal .form-control,
+            #classModal .form-control {
+                font-size: 12.5px !important;
+                padding: 6px 9px !important;
+                border-radius: 7px !important;
+            }
+            #scheduleModal select.form-control,
+            #classModal select.form-control,
+            #scheduleModal input.form-control,
+            #classModal input.form-control {
+                height: 35px !important;
+                min-height: 35px !important;
+            }
+            #classModal textarea.form-control {
+                height: 48px !important;
+                min-height: 48px !important;
+                resize: none !important;
+            }
+            .schedule-datetime-grid {
+                grid-template-columns: 1fr !important;
+                gap: 8px !important;
+            }
+            .schedule-datetime-grid input[type="datetime-local"] {
+                width: 100% !important;
+                box-sizing: border-box !important;
+                min-width: 0 !important;
+                height: 35px !important;
+                min-height: 35px !important;
+                font-size: 12px !important;
+            }
+            .classes-modal-submit {
+                min-height: 36px !important;
+                height: 36px !important;
+                font-size: 13px !important;
+                font-weight: 700 !important;
+                border-radius: 7px !important;
+                margin-top: 4px !important;
+            }
+        }
     </style>
 
     <div>
         <!-- Glassmorphic Banner -->
-        <div class="animate-fade-in" style="background: linear-gradient(135deg, rgba(199,255,34,0.1) 0%, rgba(66,219,165,0.05) 100%); border: 1px solid rgba(199,255,34,0.2); border-radius: 16px; padding: 28px 32px; margin-bottom: 24px; box-shadow: 0 4px 24px rgba(0,0,0,0.1); backdrop-filter: blur(16px); display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 16px;">
+        <div class="classes-banner animate-fade-in">
             <div>
-                <h1 style="margin: 0; font-size: 26px; color: var(--ink); display: flex; align-items: center; gap: 12px;">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="var(--lime)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+                <h1 class="classes-banner-title">
+                    <svg class="classes-banner-icon" xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="var(--lime)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
                     Classes & Schedules
                 </h1>
-                <p style="margin: 8px 0 0 0; color: var(--muted); font-size: 15px; max-width: 600px;">
+                <p class="classes-banner-desc">
                     Create class types and schedule sessions with rooms and instructors.
                 </p>
             </div>
-            <div style="display:flex; gap:12px;">
-                <button type="button" onclick="document.getElementById('classModal').showModal()" style="background: var(--surface); border: 1px solid var(--line); color: var(--ink); padding: 10px 16px; border-radius: 8px; font-weight: 500; cursor: pointer; display: flex; align-items: center; gap: 8px; transition: background 0.2s;">
+            <div class="classes-banner-actions">
+                <button type="button" class="classes-banner-btn-secondary" onclick="document.getElementById('classModal').showModal()">
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
                     New Class Type
                 </button>
-                <button type="button" onclick="document.getElementById('scheduleModal').showModal()" style="background: var(--lime); border: none; color: var(--bg); padding: 10px 16px; border-radius: 8px; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 8px; transition: opacity 0.2s;">
+                <button type="button" class="classes-banner-btn-primary" onclick="document.getElementById('scheduleModal').showModal()">
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
                     Schedule Session
                 </button>
@@ -247,13 +528,13 @@ function classes_page(): void
     <!-- Modals -->
     <dialog id="classModal" class="modal">
         <div class="modal-header">
-            <h3 style="margin:0; font-size:20px;">Add New Class Type</h3>
+            <h3 class="classes-modal-title">Add New Class Type</h3>
             <button type="button" class="modal-close" onclick="document.getElementById('classModal').close()">
                 <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
             </button>
         </div>
         <div class="modal-body">
-            <form method="post" style="display:flex; flex-direction:column; gap:16px;">
+            <form method="post" class="classes-modal-form">
                 <?= csrf_field() ?>
                 <input type="hidden" name="action" value="class">
                 <label>Class Name <input type="text" name="class_name" class="form-control" placeholder="e.g. HIIT Training" required></label>
@@ -269,20 +550,20 @@ function classes_page(): void
                 </label>
                 <?php endif; ?>
                 <label>Capacity <input type="number" name="capacity" class="form-control" min="1" placeholder="e.g. 20" required></label>
-                <button type="submit" class="btn btn-primary" style="margin-top:8px;">Save Class</button>
+                <button type="submit" class="btn btn-primary classes-modal-submit">Save Class</button>
             </form>
         </div>
     </dialog>
 
     <dialog id="scheduleModal" class="modal">
         <div class="modal-header">
-            <h3 style="margin:0; font-size:20px;">Schedule Session</h3>
+            <h3 class="classes-modal-title">Schedule Session</h3>
             <button type="button" class="modal-close" onclick="document.getElementById('scheduleModal').close()">
                 <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
             </button>
         </div>
         <div class="modal-body">
-            <form method="post" style="display:flex; flex-direction:column; gap:16px;">
+            <form method="post" class="classes-modal-form">
                 <?= csrf_field() ?>
                 <input type="hidden" name="action" value="schedule">
                 <label>Class Type
@@ -294,11 +575,11 @@ function classes_page(): void
                     </select>
                 </label>
                 <label>Room / Location <input type="text" name="room_location" class="form-control" placeholder="e.g. Studio A"></label>
-                <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px;">
+                <div class="schedule-datetime-grid">
                     <label>Start Date/Time <input type="datetime-local" name="start_datetime" class="form-control" required></label>
                     <label>End Date/Time <input type="datetime-local" name="end_datetime" class="form-control" required></label>
                 </div>
-                <button type="submit" class="btn btn-primary" style="margin-top:8px;">Save Schedule</button>
+                <button type="submit" class="btn btn-primary classes-modal-submit">Save Schedule</button>
             </form>
         </div>
     </dialog>

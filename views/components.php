@@ -1758,15 +1758,18 @@ function render_member_form(string $context, ?array $user = null, ?array $profil
                     Next Step →
                 </button>
             </div>
-            <button type="submit" class="btn btn-primary" style="padding: 7px 20px; font-size: 13px; font-weight: 600;">
-                Save Profile
-            </button>
+            <div style="display: flex; align-items: center; gap: 8px;">
+                <button type="button" class="btn btn-ghost" onclick="const d = this.closest('dialog'); if (d) d.close(); const ov = this.closest('.ft-modal-overlay'); if (ov) ov.style.display = 'none'; document.body.style.overflow = '';" style="padding: 7px 14px; font-size: 13px;">Cancel</button>
+                <button type="submit" class="btn btn-primary" style="padding: 7px 20px; font-size: 13px; font-weight: 600;">
+                    Save Profile
+                </button>
+            </div>
         </div>
     </form>
 
     <script>
-    const PM_TABS_<?= h($context) ?> = ['body', 'goal', 'lifestyle'];
-    let currentPmTabIndex_<?= h($context) ?> = 0;
+    var PM_TABS_<?= h($context) ?> = ['body', 'goal', 'lifestyle'];
+    var currentPmTabIndex_<?= h($context) ?> = 0;
 
     function switchProfileTab_<?= h($context) ?>(tabName) {
         currentPmTabIndex_<?= h($context) ?> = PM_TABS_<?= h($context) ?>.indexOf(tabName);
@@ -1795,7 +1798,7 @@ function render_member_form(string $context, ?array $user = null, ?array $profil
         }
     }
 
-    const goalTargetConfig_<?= h($context) ?> = {
+    var goalTargetConfig_<?= h($context) ?> = {
         increasing_strength: {
             icon: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m6.5 6.5 11 11"/><path d="m21 21-1-1"/><path d="m3 3 1 1"/><path d="m18 22 4-4"/><path d="m2 6 4-4"/><path d="m3 10 7-7"/><path d="m14 21 7-7"/></svg>',
             desc: 'Focus on progressive overload, compound lift progression, and personal record targets.',
@@ -2096,8 +2099,8 @@ function render_member_form(string $context, ?array $user = null, ?array $profil
         return true;
     }
 
-    let forceShowStrength_<?= h($context) ?> = <?= (!empty($profile['target_strength_max_kg']) || !empty($profile['current_strength_max_kg'])) ? 'true' : 'false' ?>;
-    let forceShowEndurance_<?= h($context) ?> = <?= (!empty($profile['target_endurance_distance_km']) || !empty($profile['target_endurance_time_mins'])) ? 'true' : 'false' ?>;
+    var forceShowStrength_<?= h($context) ?> = <?= (!empty($profile['target_strength_max_kg']) || !empty($profile['current_strength_max_kg'])) ? 'true' : 'false' ?>;
+    var forceShowEndurance_<?= h($context) ?> = <?= (!empty($profile['target_endurance_distance_km']) || !empty($profile['target_endurance_time_mins'])) ? 'true' : 'false' ?>;
 
     function toggleOptionalStrengthTarget_<?= h($context) ?>() {
         forceShowStrength_<?= h($context) ?> = !forceShowStrength_<?= h($context) ?>;

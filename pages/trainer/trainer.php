@@ -13,7 +13,7 @@ function trainer_members_page(): void
 {
     $user = require_roles(['trainer']);
     $coachId = ensure_coach_profile((int) $user['user_id']);
-    if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         if (post('action') === 'workout') {
             $memberUserId = (int) post('member_user_id');
             generate_workout_plan($memberUserId, $coachId);
@@ -120,28 +120,29 @@ function trainer_members_page(): void
     /* KPI Metrics Bar - Neutral & Unified */
     .tm-kpi-grid {
         display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
-        gap: 1rem;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 0.85rem;
     }
     .tm-kpi-card {
         background: var(--surface);
         border: 1px solid var(--line);
-        border-radius: 14px;
-        padding: 1.15rem 1.25rem;
+        border-radius: 12px;
+        padding: 0.85rem 1rem;
         display: flex;
         align-items: center;
-        gap: 14px;
-        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.03);
+        gap: 12px;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.03);
         transition: transform 0.2s ease, border-color 0.2s ease;
+        min-width: 0;
     }
     .tm-kpi-card:hover {
         transform: translateY(-2px);
         border-color: var(--muted);
     }
     .tm-kpi-icon {
-        width: 44px;
-        height: 44px;
-        border-radius: 12px;
+        width: 38px;
+        height: 38px;
+        border-radius: 10px;
         display: flex;
         align-items: center;
         justify-content: center;
@@ -151,23 +152,64 @@ function trainer_members_page(): void
         color: var(--muted);
         transition: color 0.2s ease, border-color 0.2s ease;
     }
+    .tm-kpi-icon svg {
+        width: 18px;
+        height: 18px;
+    }
     .tm-kpi-card:hover .tm-kpi-icon {
         color: var(--ink);
         border-color: var(--muted);
     }
+    .tm-kpi-info {
+        min-width: 0;
+        overflow: hidden;
+        flex: 1;
+    }
     .tm-kpi-num {
-        font-size: 1.6rem;
+        font-size: 1.45rem;
         font-weight: 800;
         line-height: 1.1;
         color: var(--ink);
     }
     .tm-kpi-label {
-        font-size: 0.78rem;
+        font-size: 0.72rem;
         color: var(--muted);
         text-transform: uppercase;
-        letter-spacing: 0.05em;
+        letter-spacing: 0.04em;
         font-weight: 600;
-        margin-top: 3px;
+        margin-top: 2px;
+        line-height: 1.25;
+        white-space: normal;
+        word-break: break-word;
+    }
+
+    /* 2x2 Grid on Mobile and Tablets to save vertical space */
+    @media (max-width: 900px) {
+        .tm-kpi-grid {
+            grid-template-columns: repeat(2, 1fr) !important;
+            gap: 0.65rem !important;
+        }
+        .tm-kpi-card {
+            padding: 0.75rem 0.85rem !important;
+            border-radius: 10px !important;
+            gap: 10px !important;
+        }
+        .tm-kpi-icon {
+            width: 34px !important;
+            height: 34px !important;
+            border-radius: 8px !important;
+        }
+        .tm-kpi-icon svg {
+            width: 16px !important;
+            height: 16px !important;
+        }
+        .tm-kpi-num {
+            font-size: 1.25rem !important;
+        }
+        .tm-kpi-label {
+            font-size: 0.68rem !important;
+            letter-spacing: 0.02em !important;
+        }
     }
 
     /* Search & Filter Toolbar */
@@ -501,14 +543,106 @@ function trainer_members_page(): void
         box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
         transition: all 0.18s ease;
         cursor: pointer;
-        text-align: center;
+        font-family: inherit;
+        line-height: inherit;
+    }
+    .tm-btn-tool svg,
+    .tm-btn-tool span {
+        pointer-events: none;
     }
     .tm-btn-tool:hover {
-        background: color-mix(in srgb, var(--ink) 16%, var(--surface));
-        border-color: color-mix(in srgb, var(--ink) 42%, transparent);
-        color: #ffffff !important;
+        background: color-mix(in srgb, var(--ink) 14%, var(--surface));
+        border-color: color-mix(in srgb, var(--ink) 35%, transparent);
+        color: var(--ink) !important;
         transform: translateY(-1.5px);
         box-shadow: 0 3px 10px rgba(0, 0, 0, 0.16);
+    }
+    [data-theme="dark"] .tm-btn-tool:hover {
+        color: #ffffff !important;
+    }
+
+    /* Modal Overlay & Box Container */
+    .ft-modal-overlay {
+        position: fixed;
+        inset: 0;
+        z-index: 9999;
+        background: rgba(0, 0, 0, 0.75);
+        backdrop-filter: blur(6px);
+        -webkit-backdrop-filter: blur(6px);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 16px;
+        animation: ftModalFadeIn 0.2s ease;
+        box-sizing: border-box;
+    }
+    @keyframes ftModalFadeIn {
+        from { opacity: 0; }
+        to { opacity: 1; }
+    }
+    .ft-modal-box {
+        background: var(--surface);
+        color: var(--ink);
+        border: 1px solid var(--line);
+        border-radius: 14px;
+        width: 100%;
+        max-width: 600px;
+        max-height: 90vh;
+        max-height: 90dvh;
+        display: flex;
+        flex-direction: column;
+        box-shadow: 0 24px 60px rgba(0,0,0,0.6);
+        overflow: hidden;
+        animation: ftModalSlideUp 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+        box-sizing: border-box;
+    }
+    @keyframes ftModalSlideUp {
+        from { opacity: 0; transform: translateY(14px) scale(0.98); }
+        to { opacity: 1; transform: translateY(0) scale(1); }
+    }
+    .ft-modal-header {
+        padding: 16px 20px;
+        border-bottom: 1px solid var(--line);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        flex-shrink: 0;
+        background: var(--surface);
+    }
+    .ft-modal-title {
+        margin: 0;
+        font-size: 1.15rem;
+        font-weight: 800;
+        color: var(--ink);
+    }
+    .ft-modal-subtitle {
+        margin: 3px 0 0 0;
+        font-size: 12px;
+        color: var(--muted);
+    }
+    .ft-modal-close {
+        background: transparent;
+        border: none;
+        color: var(--muted);
+        cursor: pointer;
+        padding: 6px;
+        border-radius: 8px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: all 0.2s ease;
+    }
+    .ft-modal-close:hover {
+        background: color-mix(in srgb, var(--ink) 8%, transparent);
+        color: var(--ink);
+    }
+    .ft-modal-body {
+        padding: 18px 20px;
+        overflow-y: auto;
+        overflow-x: hidden;
+        -webkit-overflow-scrolling: touch;
+        flex: 1 1 auto;
+        min-height: 0;
     }
 
     .tm-btn-chat {
@@ -659,7 +793,7 @@ function trainer_members_page(): void
                         <path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>
                     </svg>
                 </div>
-                <div>
+                <div class="tm-kpi-info">
                     <div class="tm-kpi-num"><?= $totalClients ?></div>
                     <div class="tm-kpi-label">Active Clients</div>
                 </div>
@@ -671,7 +805,7 @@ function trainer_members_page(): void
                         <path d="M6 5h12M6 19h12M6 12h12M4 7v10M20 7v10"/>
                     </svg>
                 </div>
-                <div>
+                <div class="tm-kpi-info">
                     <div class="tm-kpi-num"><?= $withPlanCount ?></div>
                     <div class="tm-kpi-label">Active Workout Plans</div>
                 </div>
@@ -686,7 +820,7 @@ function trainer_members_page(): void
                         <line x1="3" y1="10" x2="21" y2="10"/>
                     </svg>
                 </div>
-                <div>
+                <div class="tm-kpi-info">
                     <div class="tm-kpi-num"><?= $pendingCount ?></div>
                     <div class="tm-kpi-label">Pending Requests</div>
                 </div>
@@ -698,7 +832,7 @@ function trainer_members_page(): void
                         <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
                     </svg>
                 </div>
-                <div>
+                <div class="tm-kpi-info">
                     <div class="tm-kpi-num"><?= $totalLogs ?></div>
                     <div class="tm-kpi-label">Progress Check-ins</div>
                 </div>
@@ -810,9 +944,10 @@ function trainer_members_page(): void
         <?php if ($members): ?>
             <div class="tm-clients-grid" id="tmClientsGrid">
             <?php foreach ($members as $member):
-                $name = h($member['first_name'] . ' ' . $member['last_name']);
-                $firstName = h($member['first_name']);
-                $email = h($member['email']);
+                $firstName = h($member['first_name'] ?? '');
+                $lastName = h($member['last_name'] ?? '');
+                $name = trim($firstName . ' ' . $lastName);
+                $email = h($member['email'] ?? '');
                 $rawGoal = $member['primary_goal'] ?? '';
                 $goal = h(!empty($rawGoal) ? ucwords(str_replace('_', ' ', $rawGoal)) : 'General Fitness');
                 $weight = !empty($member['weight_kg']) ? number_format((float)$member['weight_kg'], 1) : '-';
@@ -878,12 +1013,12 @@ function trainer_members_page(): void
                     <div class="tm-vitals-grid">
                         <div class="tm-vital-item">
                             <span class="tm-vital-label">Weight</span>
-                            <span class="tm-vital-val"><?= $weight ?> <small style="font-size:0.75rem;font-weight:normal;color:var(--muted);">kg</small></span>
+                            <span class="tm-vital-val" id="vital-weight-<?= $memberId ?>"><?= $weight ?> <small style="font-size:0.75rem;font-weight:normal;color:var(--muted);">kg</small></span>
                             <span class="tm-vital-sub"><?= $targetWeight ? "Goal: {$targetWeight}kg" : "Target: -" ?></span>
                         </div>
                         <div class="tm-vital-item">
                             <span class="tm-vital-label">Height</span>
-                            <span class="tm-vital-val"><?= $height ?> <small style="font-size:0.75rem;font-weight:normal;color:var(--muted);">cm</small></span>
+                            <span class="tm-vital-val" id="vital-height-<?= $memberId ?>"><?= $height ?> <small style="font-size:0.75rem;font-weight:normal;color:var(--muted);">cm</small></span>
                             <span class="tm-vital-sub"><?= $bmiText ?></span>
                         </div>
                         <div class="tm-vital-item">
@@ -930,10 +1065,15 @@ function trainer_members_page(): void
 
                     <!-- Secondary Management Row -->
                     <div class="tm-action-tools-grid">
-                        <a href="index.php?page=trainer_assessment&member_user_id=<?= $memberId ?>" class="tm-btn-tool" title="Update health and physical assessment">
+                        <button type="button" 
+                                class="tm-btn-tool btn-trigger-assessment" 
+                                title="Update health and physical assessment"
+                                data-member-id="<?= $memberId ?>"
+                                data-member-name="<?= htmlspecialchars($name, ENT_QUOTES, 'UTF-8') ?>"
+                                onclick="openTrainerAssessmentModal(<?= $memberId ?>, <?= htmlspecialchars(json_encode($name), ENT_QUOTES, 'UTF-8') ?>)">
                             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/></svg>
-                            Assessment
-                        </a>
+                            <span>Assessment</span>
+                        </button>
                         <a href="index.php?page=training&member_user_id=<?= $memberId ?>" class="tm-btn-tool" title="View assigned training plan">
                             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
                             Routines
@@ -997,6 +1137,24 @@ function trainer_members_page(): void
                 </p>
             </div>
         <?php endif; ?>
+    </div>
+
+    <!-- Trainer Client Fitness Assessment Modal Overlay -->
+    <div class="ft-modal-overlay" id="trainerAssessmentModal" style="display: none;" onclick="if (event.target === this) closeTrainerAssessmentModal();">
+        <div class="ft-modal-box" style="max-width: 620px; max-height: 90vh;">
+            <div class="ft-modal-header">
+                <div>
+                    <h3 class="ft-modal-title" id="trainerAssessmentModalTitle">Fitness Assessment</h3>
+                    <p class="ft-modal-subtitle" id="trainerAssessmentModalSub">Update physical profile & assessment metrics for this member.</p>
+                </div>
+                <button type="button" class="ft-modal-close" onclick="closeTrainerAssessmentModal()" aria-label="Close modal">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                </button>
+            </div>
+            <div class="ft-modal-body" id="trainerAssessmentModalBody" style="padding: 18px 22px;">
+                <!-- Dynamic Content Loaded via AJAX -->
+            </div>
+        </div>
     </div>
 
     <script>
@@ -1144,6 +1302,169 @@ function trainer_members_page(): void
             }
         });
     }
+
+    // Assessment Modal Controller
+    let currentAssessmentMemberId = null;
+
+    function closeTrainerAssessmentModal() {
+        const modal = document.getElementById('trainerAssessmentModal');
+        if (modal) {
+            modal.style.display = 'none';
+            document.body.style.overflow = '';
+        }
+    }
+
+    async function openTrainerAssessmentModal(memberUserId, memberName) {
+        currentAssessmentMemberId = memberUserId;
+        const modal = document.getElementById('trainerAssessmentModal');
+        const titleEl = document.getElementById('trainerAssessmentModalTitle');
+        const subEl = document.getElementById('trainerAssessmentModalSub');
+        const bodyEl = document.getElementById('trainerAssessmentModalBody');
+
+        if (titleEl) titleEl.textContent = 'Assessment: ' + (memberName || 'Client');
+        if (subEl) subEl.textContent = 'Update physical profile, targets & assessment for this member.';
+        if (bodyEl) {
+            bodyEl.innerHTML = `
+                <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;padding:50px 20px;gap:14px;color:var(--muted);text-align:center;">
+                    <span class="loader" style="width:30px;height:30px;border:3px solid var(--line);border-bottom-color:var(--lime);border-radius:50%;display:inline-block;animation:rotation 1s linear infinite;"></span>
+                    <span style="font-size:13.5px;font-weight:600;color:var(--ink);">Loading assessment profile...</span>
+                </div>
+            `;
+        }
+
+        if (modal) {
+            if (modal.parentElement !== document.body) {
+                document.body.appendChild(modal);
+            }
+            modal.style.display = 'flex';
+            document.body.style.overflow = 'hidden';
+        }
+
+        try {
+            const resp = await fetch(`index.php?page=trainer_assessment&member_user_id=${memberUserId}&modal=1`, {
+                headers: { 'X-Requested-With': 'XMLHttpRequest' }
+            });
+
+            if (!resp.ok) {
+                throw new Error('Failed to load assessment data');
+            }
+
+            const html = await resp.text();
+            if (bodyEl) {
+                bodyEl.innerHTML = html;
+
+                // Re-evaluate script tags so that tab switching and custom select functions run
+                const scripts = bodyEl.querySelectorAll('script');
+                scripts.forEach(oldScript => {
+                    const newScript = document.createElement('script');
+                    Array.from(oldScript.attributes).forEach(attr => newScript.setAttribute(attr.name, attr.value));
+                    newScript.appendChild(document.createTextNode(oldScript.innerHTML));
+                    oldScript.parentNode.replaceChild(newScript, oldScript);
+                });
+
+                // Intercept form submission for smooth in-modal saving
+                const form = bodyEl.querySelector('form');
+                if (form) {
+                    form.addEventListener('submit', async function(e) {
+                        e.preventDefault();
+
+                        // Call any validator defined by render_member_form
+                        if (typeof window.validateStrengthTarget_profile === 'function') {
+                            if (!window.validateStrengthTarget_profile()) {
+                                if (typeof window.switchProfileTab_profile === 'function') {
+                                    window.switchProfileTab_profile('goal');
+                                }
+                                return;
+                            }
+                        }
+
+                        const submitBtn = form.querySelector('button[type=submit]');
+                        const origBtnHtml = submitBtn ? submitBtn.innerHTML : 'Save Profile';
+                        if (submitBtn) {
+                            submitBtn.disabled = true;
+                            submitBtn.innerHTML = '<span class="loader" style="width:14px;height:14px;border:2px solid var(--bg);border-bottom-color:transparent;border-radius:50%;display:inline-block;box-sizing:border-box;animation:rotation 1s linear infinite;margin-right:6px;vertical-align:-2px;"></span> Saving...';
+                        }
+
+                        try {
+                            const formData = new FormData(form);
+                            const saveResp = await fetch(`index.php?page=trainer_assessment&member_user_id=${memberUserId}&ajax=1`, {
+                                method: 'POST',
+                                body: formData,
+                                headers: { 'X-Requested-With': 'XMLHttpRequest' }
+                            });
+
+                            const result = await saveResp.json();
+                            if (result.success) {
+                                closeTrainerAssessmentModal();
+                                Swal.fire({
+                                    icon: 'success',
+                                    title: 'Assessment Saved',
+                                    text: result.message || 'Fitness assessment updated successfully.',
+                                    timer: 2000,
+                                    showConfirmButton: false
+                                });
+
+                                // Update live card vitals if weight or height changed
+                                if (result.weight_kg) {
+                                    const wEl = document.getElementById(`vital-weight-${memberUserId}`);
+                                    if (wEl) wEl.innerHTML = `${result.weight_kg} <small style="font-size:0.75rem;font-weight:normal;color:var(--muted);">kg</small>`;
+                                }
+                                if (result.height_cm) {
+                                    const hEl = document.getElementById(`vital-height-${memberUserId}`);
+                                    if (hEl) hEl.innerHTML = `${result.height_cm} <small style="font-size:0.75rem;font-weight:normal;color:var(--muted);">cm</small>`;
+                                }
+                            } else {
+                                if (submitBtn) {
+                                    submitBtn.disabled = false;
+                                    submitBtn.innerHTML = origBtnHtml;
+                                }
+                                Swal.fire({
+                                    icon: 'error',
+                                    title: 'Validation Error',
+                                    text: result.message || 'Invalid measurements provided.'
+                                });
+                            }
+                        } catch (err) {
+                            console.error('Error saving assessment:', err);
+                            // Fallback: standard submit
+                            form.action = `index.php?page=trainer_assessment&member_user_id=${memberUserId}`;
+                            form.submit();
+                        }
+                    });
+                }
+            }
+        } catch (err) {
+            console.error(err);
+            if (bodyEl) {
+                bodyEl.innerHTML = `
+                    <div style="padding:30px 20px;text-align:center;color:var(--danger);">
+                        <p style="font-weight:700;margin:0 0 8px 0;">Failed to load assessment form.</p>
+                        <p style="font-size:12.5px;color:var(--muted);margin:0 0 16px 0;">Please check your connection and try again.</p>
+                        <button type="button" class="btn btn-secondary" onclick="openTrainerAssessmentModal(${memberUserId}, ${JSON.stringify(memberName)})">Retry</button>
+                    </div>
+                `;
+            }
+        }
+    }
+
+    // Delegated click handler and escape key listener for trainer assessment modal
+    document.addEventListener('click', function(e) {
+        const btn = e.target.closest('.btn-trigger-assessment');
+        if (btn) {
+            e.preventDefault();
+            const id = btn.getAttribute('data-member-id');
+            const name = btn.getAttribute('data-member-name') || 'Client';
+            if (id) {
+                openTrainerAssessmentModal(parseInt(id, 10), name);
+            }
+        }
+    });
+
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape') {
+            closeTrainerAssessmentModal();
+        }
+    });
 
     // Initialize pagination and filtering on load
     document.addEventListener('DOMContentLoaded', () => {
