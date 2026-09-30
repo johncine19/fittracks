@@ -2598,7 +2598,49 @@ function landing_page(): void
                     }, { passive: true });
                 }
             });
+
+            // ── Back to Top Floating Button Handler ─────────────────────────────
+            (() => {
+                const backToTopBtn = document.getElementById('backToTopBtn');
+                if (!backToTopBtn) return;
+
+                let scrollTimeout;
+                function checkScroll() {
+                    if (window.scrollY > 450) {
+                        backToTopBtn.classList.add('visible');
+                    } else {
+                        backToTopBtn.classList.remove('visible');
+                    }
+                }
+
+                window.addEventListener('scroll', () => {
+                    if (!scrollTimeout) {
+                        scrollTimeout = requestAnimationFrame(() => {
+                            checkScroll();
+                            scrollTimeout = null;
+                        });
+                    }
+                }, { passive: true });
+
+                backToTopBtn.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    window.scrollTo({
+                        top: 0,
+                        behavior: 'smooth'
+                    });
+                });
+            })();
         </script>
+
+        <!-- Back to Top Floating Button -->
+        <button type="button" id="backToTopBtn" class="back-to-top" aria-label="Back to top" title="Back to top">
+            <span class="back-to-top-icon">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">
+                    <polyline points="18 15 12 9 6 15"></polyline>
+                </svg>
+            </span>
+            <span class="back-to-top-text">Back to Top</span>
+        </button>
 
     </body>
 
