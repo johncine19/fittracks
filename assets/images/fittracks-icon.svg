@@ -1,0 +1,47 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0a0f1d"/>
+      <stop offset="100%" stop-color="#030712"/>
+    </linearGradient>
+    <linearGradient id="accentGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#22c55e"/>
+      <stop offset="100%" stop-color="#10b981"/>
+    </linearGradient>
+    <linearGradient id="glowGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#4ade80"/>
+      <stop offset="100%" stop-color="#22c55e"/>
+    </linearGradient>
+    <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="12" result="blur"/>
+      <feComposite in="SourceGraphic" in2="blur" operator="over"/>
+    </filter>
+  </defs>
+  
+  <!-- Rounded App Icon Background -->
+  <rect width="512" height="512" rx="112" fill="url(#bgGrad)"/>
+  <rect width="504" height="504" x="4" y="4" rx="108" fill="none" stroke="rgba(34, 197, 94, 0.25)" stroke-width="6"/>
+  
+  <!-- Dumbbell / QR Scanner Symbol -->
+  <g transform="translate(256, 256) scale(1.15)">
+    <!-- Central Bar -->
+    <rect x="-110" y="-12" width="220" height="24" rx="12" fill="#e2e8f0"/>
+    <rect x="-55" y="-18" width="110" height="36" rx="8" fill="url(#accentGrad)" filter="url(#glow)"/>
+
+    <!-- Left Weight Plates -->
+    <rect x="-145" y="-70" width="24" height="140" rx="8" fill="#94a3b8"/>
+    <rect x="-175" y="-95" width="22" height="190" rx="9" fill="url(#glowGrad)"/>
+    <rect x="-195" y="-60" width="16" height="120" rx="6" fill="#64748b"/>
+
+    <!-- Right Weight Plates -->
+    <rect x="121" y="-70" width="24" height="140" rx="8" fill="#94a3b8"/>
+    <rect x="153" y="-95" width="22" height="190" rx="9" fill="url(#glowGrad)"/>
+    <rect x="179" y="-60" width="16" height="120" rx="6" fill="#64748b"/>
+
+    <!-- Corner Scanner Reticles -->
+    <path d="M -130 -130 L -100 -130 M -130 -130 L -130 -100" stroke="#22c55e" stroke-width="8" stroke-linecap="round"/>
+    <path d="M 130 -130 L 100 -130 M 130 -130 L 130 -100" stroke="#22c55e" stroke-width="8" stroke-linecap="round"/>
+    <path d="M -130 130 L -100 130 M -130 130 L -130 100" stroke="#22c55e" stroke-width="8" stroke-linecap="round"/>
+    <path d="M 130 130 L 100 130 M 130 130 L 130 100" stroke="#22c55e" stroke-width="8" stroke-linecap="round"/>
+  </g>
+</svg>

@@ -164,3 +164,60 @@ For platforms like Render without background OS daemons, schedule a single unifi
   3. Recompute member engagement scores and points.
   4. Dispatch automated at-risk member notifications and emails.
 
+---
+
+## Offline Resilience & Brownout Continuity (PWA + IndexedDB Auto-Sync)
+
+When FitTracks is deployed on a live cloud domain (e.g., Render, VPS, AWS), the central server runs 24/7 in the cloud. However, the physical gym facility can experience **sudden brownouts (power cuts)** or **ISP internet connection drops**.
+
+To prevent front-desk queues, lost attendance, and downtime, FitTracks includes a native **Offline-First PWA & IndexedDB Attendance Engine** in `pages/admin/scanner.php`:
+
+### 1. Architectural Components
+
+```
+[Member Scans QR / Staff Enters ID]
+              │
+      ┌───────┴───────┐
+      ▼               ▼
+[Internet UP]   [Internet DOWN / Brownout]
+      │               │
+  Live AJAX       Save to Browser IndexedDB Queue
+      │           (FitTracksTerminalDB -> 'queue')
+      │               │
+      │           Verify against Cached Roster
+      │           Toggle Local 'is_inside' State
+      │           Display "OFFLINE CONFIRMED" & Audio Chime
+      │           Prepend Activity with [OFFLINE] Tag
+      │               │
+      │           [Electricity / Internet Restores]
+      │               │
+      │           Background Sync Worker Detects 'online'
+      │           Batch POST to 'action=sync_offline_batch'
+      │           (Preserves Original 'scanned_at' Timestamps)
+      ▼               ▼
+  [Central Cloud Database Updated with 100% Accurate Logs]
+```
+
+* **Service Worker (`sw.js`) & Web App Manifest (`manifest.json`)**:
+  - Caches the entire terminal application shell (HTML layout, CSS design system, audio feedback chimes, and offline assets).
+  - Even if staff opens or refreshes the scanner tab with **zero internet**, the terminal loads instantly without the browser "No Internet" screen.
+  - Front-desk staff can click *"Install App"* in Google Chrome or Microsoft Edge to run FitTracks as an independent desktop window on Windows.
+* **Local Member Roster (`IndexedDB -> roster`)**:
+  - Automatically fetches an encrypted, lightweight cache of active gym members, roles, plans, and QR tokens on startup via `action=get_offline_roster`.
+  - Enables instant QR token validation and name lookup offline without contacting the server.
+* **Preserved Client Timestamps (`scanned_at`)**:
+  - When an offline scan occurs, the browser captures the exact ISO timestamp (e.g. `09:14:22 AM`).
+  - When synced later (e.g. `11:00:00 AM`), the server writes `09:14:22 AM` into the database—ensuring attendance history and daily rush metrics remain accurate.
+* **Offline Manual Search & Entry**:
+  - If staff uses **Manual Entry** during a blackout, the search input automatically filters the local `IndexedDB` roster by name, email, or phone.
+* **Zero-CDN Dependency**:
+  - `assets/html5-qrcode.min.js` and `assets/sweetalert2.all.min.js` are bundled locally, ensuring camera scanner initialization and interactive feedback modals run completely offline.
+
+### 2. Operational Standard Operating Procedure (SOP) for Staff
+
+| Situation | System Action | Staff Action |
+| :--- | :--- | :--- |
+| **Sudden Brownout / Outage** | Front desk laptop or battery-backed PC continues running. Status badge turns to `⚡ OFFLINE MODE`. | Continue scanning member QR codes or using Manual Entry as normal. |
+| **During Blackout** | Scans display `OFFLINE CHECK-IN / CHECK-OUT CONFIRMED`, increment local counters, and queue in IndexedDB. | Allow member entry immediately. No paper logging required. |
+| **Power / Internet Restores** | System automatically detects reconnection and pushes batch to `action=sync_offline_batch`. | A confirmation toast appears: *"⚡ Back Online! Synced X offline record(s)"*. All records are live. |
+

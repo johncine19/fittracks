@@ -278,44 +278,30 @@ function landing_page(): void
                         <?php else: ?>
                             <div class="hero-rating-badge">
                                 <span class="hero-rating-dot"></span>
-                                <span class="hero-rating-score">Commercial Gym Operations Platform</span>
-                                <span class="hero-rating-sep">&bull;</span>
-                                <span class="hero-rating-text">Cloud-Powered Management</span>
+                                <span class="hero-rating-score">Built around the daily work of a gym</span>
                             </div>
                         <?php endif; ?>
                         <div class="hero-brand-header">
                             <h1 class="hero-title">
-                                Smarter Gym Management.
-                                <span class="title-highlight">Stronger Community.</span>
+                                Your gym runs on people.
+                                <span class="title-highlight">Keep the whole team in sync.</span>
                             </h1>
                             <p class="hero-subtitle">
-                                FitTrack helps gyms streamline operations, monitor member engagement, dynamic QR
-                                attendance, and drive growth.
+                                From the front desk to the training floor, FitTrack brings check-ins, memberships,
+                                payments, and coaching into one place—so your team can spend less time chasing updates.
                             </p>
                         </div>
 
-                        <div class="hero-feature-pills">
-                            <div class="hero-feature-pill">
-                                <div class="pill-icon"><?= landing_icon('chart', 'icon-svg') ?></div>
-                                <div>
-                                    <div class="pill-title">Track Attendance</div>
-                                    <div class="pill-sub">Monitor member check-ins and floor activity in real time.</div>
-                                </div>
-                            </div>
-
-                            <div class="hero-feature-pill">
-                                <div class="pill-icon"><?= landing_icon('zap', 'icon-svg') ?></div>
-                                <div>
-                                    <div class="pill-title">Engage Members</div>
-                                    <div class="pill-sub">Automated churn warnings flag inactive members early.</div>
-                                </div>
-                            </div>
+                        <div class="hero-capabilities" aria-label="FitTrack capabilities">
+                            <span>Member check-in</span>
+                            <span>Memberships &amp; payments</span>
+                            <span>Trainer plans</span>
                         </div>
 
                         <div class="hero-cta-block">
                             <div class="hero-ctas">
                                 <a href="index.php?page=register&role=gym_owner" class="btn btn-lime btn-lg">
-                                    <span>Register Your Gym</span>
+                                    <span>Start your gym setup</span>
                                     <?= landing_icon('arrow-right', 'btn-svg') ?>
                                 </a>
                                 <button class="btn btn-secondary btn-lg" onclick="openDemoModal()">
@@ -597,8 +583,8 @@ function landing_page(): void
             <div class="container">
                 <div class="section-header">
                     <span class="section-label">Platform Capabilities</span>
-                    <h2 class="section-title">Comprehensive Tools Built for Gym Growth</h2>
-                    <p class="section-desc">Designed to handle real commercial gym workloads with precision and reliability.
+                    <h2 class="section-title">Everything moving behind the workout.</h2>
+                    <p class="section-desc">The daily details that keep members showing up and your team on the same page.
                     </p>
                 </div>
 

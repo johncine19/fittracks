@@ -93,6 +93,9 @@ function render_header(string $title, ?array $user = null): void
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <title><?= h($title) ?> - <?= h($gym['name'] ?? 'FitTrack') ?></title>
+        <link rel="manifest" href="manifest.json">
+        <meta name="theme-color" content="#22c55e">
+        <link rel="icon" type="image/svg+xml" href="assets/images/fittracks-icon.svg">
         <link rel="stylesheet" href="assets/app.css?v=<?= filemtime(__DIR__ . '/../assets/app.css') ?>">
         <link rel="stylesheet" href="assets/dropdown.css?v=<?= file_exists(__DIR__ . '/../assets/dropdown.css') ? filemtime(__DIR__ . '/../assets/dropdown.css') : 1 ?>">
         <?php if ($gym && !empty($gym['brand_color'])): ?>
@@ -119,9 +122,23 @@ function render_header(string $title, ?array $user = null): void
                     .replace(/"/g, '&quot;')
                     .replace(/'/g, '&#039;');
             };
+
+            // Register Service Worker for PWA & Offline Support
+            if ('serviceWorker' in navigator) {
+                window.addEventListener('load', () => {
+                    navigator.serviceWorker.register('sw.js').catch(err => {
+                        console.warn('[PWA] Service Worker registration failed:', err);
+                    });
+                });
+            }
         </script>
         <script src="assets/dropdown.js?v=<?= file_exists(__DIR__ . '/../assets/dropdown.js') ? filemtime(__DIR__ . '/../assets/dropdown.js') : 1 ?>"></script>
-        <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+        <script src="assets/sweetalert2.all.min.js"></script>
+        <script>
+            if (typeof Swal === 'undefined') {
+                document.write('<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"><\/script>');
+            }
+        </script>
         <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
         <script>
             if (typeof Chart === 'undefined') {

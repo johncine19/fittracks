@@ -153,6 +153,174 @@ function scanner_page(): void
         exit;
     }
 
+    // AJAX: Fetch compact roster for offline cache
+    if ($_SERVER['REQUEST_METHOD'] === 'GET' && ($_GET['action'] ?? '') === 'get_offline_roster') {
+        header('Content-Type: application/json');
+
+        $rosterSql = '
+            SELECT u.user_id, u.first_name, u.last_name, u.role, u.email, u.phone, u.qr_token, u.profile_picture,
+                   (SELECT attendance_id FROM attendance WHERE user_id = u.user_id AND check_out_time IS NULL AND DATE(check_in_time) = CURDATE() ORDER BY check_in_time DESC LIMIT 1) as active_attendance_id
+            FROM users u
+            WHERE u.status = "active" AND u.role IN ("member", "trainer")
+        ';
+        $params = [];
+        if ($currentGymId && $user['role'] !== 'platform_admin') {
+            $rosterSql .= ' AND (
+                u.user_id IN (SELECT user_id FROM gym_members WHERE gym_id = ?)
+                OR u.user_id IN (SELECT user_id FROM trainer_profiles WHERE gym_id = ?)
+                OR u.user_id IN (SELECT m.user_id FROM memberships m JOIN membership_plans mp ON m.plan_id = mp.plan_id WHERE mp.gym_id = ? AND m.status = "active")
+            )';
+            $params = [$currentGymId, $currentGymId, $currentGymId];
+        }
+        $rosterSql .= ' ORDER BY u.first_name ASC LIMIT 500';
+
+        $stmt = $pdo->prepare($rosterSql);
+        $stmt->execute($params);
+        $members = $stmt->fetchAll();
+
+        $gymName = $currentGymId ? scalar('SELECT name FROM gyms WHERE gym_id = ?', [$currentGymId]) : 'FitTracks Central';
+        $walkInFee = $currentGymId ? (float) (scalar('SELECT walk_in_fee FROM gyms WHERE gym_id = ?', [$currentGymId]) ?: 100.0) : 100.0;
+
+        $items = array_map(function($m) {
+            return [
+                'user_id' => (int) $m['user_id'],
+                'name' => trim($m['first_name'] . ' ' . $m['last_name']),
+                'role' => ucfirst($m['role']),
+                'email' => $m['email'],
+                'phone' => $m['phone'] ?: '',
+                'qr_token' => $m['qr_token'] ?: '',
+                'avatar_html' => render_avatar($m, 'medium'),
+                'is_inside' => !empty($m['active_attendance_id'])
+            ];
+        }, $members);
+
+        echo json_encode([
+            'success' => true,
+            'gym_id' => $currentGymId,
+            'gym_name' => $gymName,
+            'walk_in_fee' => $walkInFee,
+            'members' => $items,
+            'server_time' => date('Y-m-d H:i:s')
+        ]);
+        exit;
+    }
+
+    // AJAX: Sync batch of offline attendance logs
+    if ($_SERVER['REQUEST_METHOD'] === 'POST' && post('action') === 'sync_offline_batch') {
+        header('Content-Type: application/json');
+
+        $batchJson = post('batch');
+        $batch = json_decode((string) $batchJson, true);
+        if (!is_array($batch) || empty($batch)) {
+            echo json_encode(['success' => false, 'message' => 'Empty or invalid offline batch payload.']);
+            exit;
+        }
+
+        $syncedIds = [];
+        $errors = [];
+
+        foreach ($batch as $entry) {
+            $tempId = $entry['temp_id'] ?? null;
+            $actionType = $entry['action'] ?? 'process_qr';
+            $scannedAt = !empty($entry['scanned_at']) ? date('Y-m-d H:i:s', strtotime($entry['scanned_at'])) : date('Y-m-d H:i:s');
+            $scanDate = date('Y-m-d', strtotime($scannedAt));
+
+            $userId = null;
+            $method = 'qr_code';
+
+            if ($actionType === 'manual_checkin') {
+                $userId = (int) ($entry['user_id'] ?? 0);
+                $method = 'manual';
+            } else {
+                $qrData = $entry['qr_data'] ?? '';
+                if (str_contains((string) $qrData, ':')) {
+                    list($rawUid, ) = explode(':', (string) $qrData, 2);
+                    $userId = (int) $rawUid;
+                } else {
+                    $userId = (int) ($entry['user_id'] ?? 0);
+                }
+                $method = 'qr_code';
+            }
+
+            if (!$userId) {
+                $errors[] = "Missing user ID for temp entry #{$tempId}";
+                continue;
+            }
+
+            // Check if member exists
+            $mCheck = $pdo->prepare('SELECT user_id, first_name, last_name, role FROM users WHERE user_id = ?');
+            $mCheck->execute([$userId]);
+            $memberInfo = $mCheck->fetch();
+            if (!$memberInfo) {
+                $errors[] = "User #{$userId} not found for entry #{$tempId}";
+                continue;
+            }
+
+            // Check for open attendance record on that specific date
+            $stmt = $pdo->prepare('
+                SELECT attendance_id, check_in_time 
+                FROM attendance 
+                WHERE user_id = ? AND check_out_time IS NULL AND DATE(check_in_time) = ?
+                ORDER BY check_in_time DESC LIMIT 1
+            ');
+            $stmt->execute([$userId, $scanDate]);
+            $openRecord = $stmt->fetch();
+
+            if ($openRecord) {
+                // Check-out
+                $pdo->prepare('UPDATE attendance SET check_out_time = ? WHERE attendance_id = ?')
+                    ->execute([$scannedAt, $openRecord['attendance_id']]);
+                audit_log($user['user_id'], 'offline_sync_checkout', 'attendance', (string) $openRecord['attendance_id'], json_encode([
+                    'user_id' => $userId,
+                    'scanned_at' => $scannedAt,
+                    'method' => $method
+                ]));
+            } else {
+                // Check-in
+                $stmtIns = $pdo->prepare('
+                    INSERT INTO attendance (user_id, schedule_id, gym_id, check_in_time, check_in_method, recorded_by)
+                    VALUES (?, NULL, ?, ?, ?, ?)
+                ');
+                $stmtIns->execute([$userId, $currentGymId, $scannedAt, $method, $user['user_id']]);
+                $newAttId = (int) $pdo->lastInsertId();
+
+                if ($memberInfo['role'] === 'member' && $currentGymId) {
+                    $pdo->prepare('INSERT IGNORE INTO gym_members (user_id, gym_id) VALUES (?, ?)')->execute([$userId, $currentGymId]);
+                }
+
+                // If payment was recorded
+                $amount = (float) ($entry['amount_paid'] ?? 0);
+                if ($amount > 0 && $currentGymId) {
+                    $payMethod = in_array($entry['payment_method'] ?? '', ['cash', 'gcash', 'card']) ? $entry['payment_method'] : 'cash';
+                    $gName = trim($memberInfo['first_name'] . ' ' . $memberInfo['last_name']);
+                    $contact = scalar('SELECT phone FROM users WHERE user_id = ?', [$userId]) ?: 'N/A';
+                    $pdo->prepare('
+                        INSERT INTO walk_in_transactions (gym_id, guest_name, contact_info, amount_paid, payment_method, visit_date, processed_by, converted_to_member_id)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                    ')->execute([$currentGymId, $gName, $contact, $amount, $payMethod, $scannedAt, $user['user_id'], $userId]);
+                }
+
+                audit_log($user['user_id'], 'offline_sync_checkin', 'attendance', (string) $newAttId, json_encode([
+                    'user_id' => $userId,
+                    'scanned_at' => $scannedAt,
+                    'method' => $method
+                ]));
+            }
+
+            $syncedIds[] = $tempId;
+        }
+
+        echo json_encode([
+            'success' => true,
+            'synced_count' => count($syncedIds),
+            'synced_ids' => $syncedIds,
+            'errors' => $errors,
+            'stats' => $getStats(),
+            'recent' => $getRecentActivity(15)
+        ]);
+        exit;
+    }
+
     // AJAX: Manual check-in / check-out
     if ($_SERVER['REQUEST_METHOD'] === 'POST' && post('action') === 'manual_checkin') {
         header('Content-Type: application/json');
@@ -541,6 +709,95 @@ function scanner_page(): void
         background: var(--lime);
         color: #05070a !important;
         border-color: var(--lime);
+    }
+
+    /* Offline Resilience HUD & Badges */
+    .terminal-offline-hud {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        background: color-mix(in srgb, var(--ink) 4%, transparent);
+        padding: 3px 6px;
+        border-radius: 12px;
+        border: 1px solid var(--line);
+    }
+    .net-status-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 5px 10px;
+        border-radius: 8px;
+        font-size: 0.74rem;
+        font-weight: 800;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+        transition: all 0.3s ease;
+    }
+    .net-status-badge.is-online {
+        background: rgba(34, 197, 94, 0.12);
+        color: #22c55e;
+        border: 1px solid rgba(34, 197, 94, 0.3);
+    }
+    .net-status-badge.is-offline {
+        background: rgba(245, 158, 11, 0.18);
+        color: #f59e0b;
+        border: 1px solid rgba(245, 158, 11, 0.4);
+    }
+    .net-status-dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        display: inline-block;
+    }
+    .net-status-badge.is-online .net-status-dot {
+        background: #22c55e;
+        box-shadow: 0 0 8px #22c55e;
+    }
+    .net-status-badge.is-offline .net-status-dot {
+        background: #f59e0b;
+        box-shadow: 0 0 10px #f59e0b;
+        animation: pulseAmber 1.2s infinite;
+    }
+    @keyframes pulseAmber {
+        0%, 100% { opacity: 1; transform: scale(1); }
+        50% { opacity: 0.4; transform: scale(0.85); }
+    }
+    .btn-offline-sync-pill {
+        background: #f59e0b !important;
+        color: #05070a !important;
+        font-weight: 800 !important;
+        border: none !important;
+        height: 32px !important;
+        padding: 0 12px !important;
+        box-shadow: 0 2px 8px rgba(245, 158, 11, 0.3);
+        animation: pulseSyncBtn 2s infinite;
+    }
+    .btn-offline-sync-pill:hover {
+        background: #d97706 !important;
+        color: #fff !important;
+        transform: scale(1.03);
+    }
+    .btn-offline-sync-pill.is-syncing .sync-spin-icon {
+        display: inline-block;
+        animation: spinSync 1s linear infinite;
+    }
+    @keyframes spinSync {
+        from { transform: rotate(0deg); }
+        to { transform: rotate(360deg); }
+    }
+    @keyframes pulseSyncBtn {
+        0%, 100% { box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.4); }
+        50% { box-shadow: 0 0 0 6px rgba(245, 158, 11, 0); }
+    }
+    .veri-status-tag.tag-offline {
+        background: rgba(245, 158, 11, 0.18) !important;
+        color: #f59e0b !important;
+        border-color: rgba(245, 158, 11, 0.35) !important;
+    }
+    .activity-tag.offline {
+        background: rgba(245, 158, 11, 0.15) !important;
+        color: #f59e0b !important;
+        border: 1px solid rgba(245, 158, 11, 0.3) !important;
     }
 
     /* Sound Toggle Alignment */
@@ -1698,6 +1955,22 @@ function scanner_page(): void
 
             <!-- Terminal Actions -->
             <div class="terminal-header-actions">
+                <!-- Offline Connection & Queue Status HUD -->
+                <div class="terminal-offline-hud" id="terminal-offline-hud">
+                    <span class="net-status-badge is-online" id="net-status-badge" title="Connection status. Automatically switches to offline mode during brownouts.">
+                        <span class="net-status-dot"></span>
+                        <span id="net-status-label">ONLINE</span>
+                    </span>
+                    <button type="button" class="term-btn-icon btn-offline-sync-pill" id="btn-offline-sync" style="display: none;" onclick="triggerManualSync()" title="Click to sync offline queued scans to live server">
+                        <span class="sync-spin-icon">⚡</span>
+                        <span id="offline-pending-count">0 Queued</span>
+                    </button>
+                    <button type="button" class="term-btn-icon" id="btn-cache-roster" onclick="refreshOfflineRoster(true)" title="Local offline member cache. Click to refresh.">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path><polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline><line x1="12" y1="22.08" x2="12" y2="12"></line></svg>
+                        <span id="roster-cache-text">Cache: --</span>
+                    </button>
+                </div>
+
                 <a href="index.php?page=gym_profile" class="term-btn-icon" title="Standard walk-in fee. Click to customize in Gym Profile" style="text-decoration: none;">
                     <span style="color: var(--lime); font-weight: 800;">₱<?= number_format($currentGymWalkInFee, 2) ?></span>
                     <span style="color: var(--muted); font-size: 0.78rem;">Walk-in Rate</span>
@@ -1990,8 +2263,13 @@ function scanner_page(): void
         </div>
     </div>
 
-    <!-- HTML5 QR Code Library -->
-    <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
+    <!-- HTML5 QR Code Library (Local offline first, CDN fallback) -->
+    <script src="assets/html5-qrcode.min.js"></script>
+    <script>
+        if (typeof Html5Qrcode === 'undefined') {
+            document.write('<script src="https://unpkg.com/html5-qrcode"><\/script>');
+        }
+    </script>
 
     <script>
     (function() {
@@ -2043,6 +2321,426 @@ function scanner_page(): void
         const statTodayCheckins = document.getElementById('stat-today-checkins');
         const statCurrentlyInside = document.getElementById('stat-currently-inside');
         const activityList = document.getElementById('activity-list');
+
+        // Offline Resilience & IndexedDB Elements
+        const netStatusBadge = document.getElementById('net-status-badge');
+        const netStatusLabel = document.getElementById('net-status-label');
+        const btnOfflineSync = document.getElementById('btn-offline-sync');
+        const offlinePendingCount = document.getElementById('offline-pending-count');
+        const rosterCacheText = document.getElementById('roster-cache-text');
+
+        // -------------------------------------------------------------
+        // FitTracks Offline-First Resilience & PWA Manager (IndexedDB)
+        // -------------------------------------------------------------
+        const DB_NAME = 'FitTracksTerminalDB';
+        const DB_VERSION = 1;
+        let dbInstance = null;
+        let isSyncingOffline = false;
+        let isNetworkOnline = navigator.onLine;
+
+        function getDB() {
+            return new Promise((resolve, reject) => {
+                if (dbInstance) return resolve(dbInstance);
+                const req = indexedDB.open(DB_NAME, DB_VERSION);
+                req.onupgradeneeded = (e) => {
+                    const db = e.target.result;
+                    if (!db.objectStoreNames.contains('roster')) {
+                        const rStore = db.createObjectStore('roster', { keyPath: 'user_id' });
+                        rStore.createIndex('qr_token', 'qr_token', { unique: false });
+                        rStore.createIndex('name', 'name', { unique: false });
+                    }
+                    if (!db.objectStoreNames.contains('queue')) {
+                        db.createObjectStore('queue', { keyPath: 'id', autoIncrement: true });
+                    }
+                };
+                req.onsuccess = (e) => {
+                    dbInstance = e.target.result;
+                    resolve(dbInstance);
+                };
+                req.onerror = (e) => reject(e);
+            });
+        }
+
+        async function updateRosterCacheCountUI() {
+            try {
+                const db = await getDB();
+                const tx = db.transaction('roster', 'readonly');
+                const countReq = tx.objectStore('roster').count();
+                countReq.onsuccess = () => {
+                    if (rosterCacheText) {
+                        rosterCacheText.textContent = `Cache: ${countReq.result}`;
+                    }
+                };
+            } catch (e) {}
+        }
+
+        async function updateQueueBadgeUI() {
+            try {
+                const db = await getDB();
+                const tx = db.transaction('queue', 'readonly');
+                const countReq = tx.objectStore('queue').count();
+                countReq.onsuccess = () => {
+                    const cnt = countReq.result || 0;
+                    if (cnt > 0) {
+                        if (btnOfflineSync) {
+                            btnOfflineSync.style.display = 'inline-flex';
+                            if (offlinePendingCount) {
+                                offlinePendingCount.textContent = `${cnt} Queued`;
+                            }
+                        }
+                    } else {
+                        if (btnOfflineSync) {
+                            btnOfflineSync.style.display = 'none';
+                        }
+                    }
+                };
+            } catch (e) {}
+        }
+
+        function setNetworkStatus(online) {
+            isNetworkOnline = online;
+            if (netStatusBadge && netStatusLabel) {
+                if (online) {
+                    netStatusBadge.className = 'net-status-badge is-online';
+                    netStatusLabel.textContent = 'ONLINE';
+                } else {
+                    netStatusBadge.className = 'net-status-badge is-offline';
+                    netStatusLabel.textContent = 'OFFLINE MODE';
+                }
+            }
+        }
+
+        window.refreshOfflineRoster = async function(showToast = false) {
+            if (!navigator.onLine) {
+                if (showToast && window.Swal) {
+                    Swal.fire({
+                        toast: true,
+                        position: 'top-end',
+                        icon: 'info',
+                        title: 'Offline mode active. Using saved local database.',
+                        timer: 3000,
+                        showConfirmButton: false
+                    });
+                }
+                return;
+            }
+
+            try {
+                if (rosterCacheText) rosterCacheText.textContent = 'Caching...';
+                const res = await fetch('index.php?page=scanner&action=get_offline_roster');
+                const data = await res.json();
+                if (data.success && Array.isArray(data.members)) {
+                    const db = await getDB();
+                    const tx = db.transaction('roster', 'readwrite');
+                    const store = tx.objectStore('roster');
+                    await new Promise((resClean, rejClean) => {
+                        const cReq = store.clear();
+                        cReq.onsuccess = resClean;
+                        cReq.onerror = rejClean;
+                    });
+                    for (const m of data.members) {
+                        store.put(m);
+                    }
+                    await new Promise((resComp) => { tx.oncomplete = resComp; });
+                    if (rosterCacheText) {
+                        rosterCacheText.textContent = `Cache: ${data.members.length}`;
+                    }
+                    if (showToast && window.Swal) {
+                        Swal.fire({
+                            toast: true,
+                            position: 'top-end',
+                            icon: 'success',
+                            title: `Cached ${data.members.length} members for offline check-ins!`,
+                            timer: 3000,
+                            showConfirmButton: false
+                        });
+                    }
+                }
+            } catch (e) {
+                console.warn('Failed to refresh offline roster:', e);
+                updateRosterCacheCountUI();
+            }
+        };
+
+        window.triggerManualSync = function() {
+            syncOfflineQueue(true);
+        };
+
+        async function syncOfflineQueue(userTriggered = false) {
+            if (isSyncingOffline) return;
+            if (!navigator.onLine) {
+                if (userTriggered && window.Swal) {
+                    Swal.fire({
+                        toast: true,
+                        position: 'top-end',
+                        icon: 'warning',
+                        title: 'Cannot sync while offline. Waiting for connection...',
+                        timer: 3000,
+                        showConfirmButton: false
+                    });
+                }
+                return;
+            }
+
+            try {
+                const db = await getDB();
+                const tx = db.transaction('queue', 'readonly');
+                const items = await new Promise((res, rej) => {
+                    const req = tx.objectStore('queue').getAll();
+                    req.onsuccess = () => res(req.result || []);
+                    req.onerror = rej;
+                });
+
+                if (!items || items.length === 0) {
+                    updateQueueBadgeUI();
+                    if (userTriggered && window.Swal) {
+                        Swal.fire({
+                            toast: true,
+                            position: 'top-end',
+                            icon: 'info',
+                            title: 'All attendance records are up to date.',
+                            timer: 2500,
+                            showConfirmButton: false
+                        });
+                    }
+                    return;
+                }
+
+                isSyncingOffline = true;
+                if (btnOfflineSync) {
+                    btnOfflineSync.classList.add('is-syncing');
+                    if (offlinePendingCount) offlinePendingCount.textContent = `Syncing (${items.length})...`;
+                }
+
+                const payload = items.map(it => ({
+                    temp_id: it.id,
+                    action: it.action,
+                    qr_data: it.qr_data,
+                    user_id: it.user_id,
+                    amount_paid: it.amount_paid || 0,
+                    payment_method: it.payment_method || 'cash',
+                    scanned_at: it.scanned_at
+                }));
+
+                const resp = await fetch('index.php?page=scanner', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                    body: 'action=sync_offline_batch&batch=' + encodeURIComponent(JSON.stringify(payload)) + '&csrf_token=' + encodeURIComponent(csrfToken)
+                });
+                const resData = await resp.json();
+
+                if (resData.success) {
+                    const delTx = db.transaction('queue', 'readwrite');
+                    const qStore = delTx.objectStore('queue');
+                    for (const sId of (resData.synced_ids || [])) {
+                        qStore.delete(sId);
+                    }
+                    await new Promise((resDel) => { delTx.oncomplete = resDel; });
+
+                    setNetworkStatus(true);
+                    updateQueueBadgeUI();
+
+                    if (resData.stats) {
+                        if (statTodayCheckins) statTodayCheckins.textContent = resData.stats.today_checkins;
+                        if (statCurrentlyInside) statCurrentlyInside.textContent = resData.stats.currently_inside;
+                    }
+
+                    if (typeof pollRecentActivity === 'function') {
+                        pollRecentActivity();
+                    }
+
+                    if (window.Swal) {
+                        Swal.fire({
+                            toast: true,
+                            position: 'top-end',
+                            icon: 'success',
+                            title: `⚡ Back Online! Synced ${resData.synced_count} offline record(s) with central database.`,
+                            timer: 4500,
+                            showConfirmButton: false
+                        });
+                    }
+                }
+            } catch (err) {
+                console.warn('Sync failed (connection issue):', err);
+                setNetworkStatus(false);
+            } finally {
+                isSyncingOffline = false;
+                if (btnOfflineSync) btnOfflineSync.classList.remove('is-syncing');
+                updateQueueBadgeUI();
+            }
+        }
+
+        async function queueOfflineScan(scanData, method = 'qr_code', extra = {}) {
+            let member = null;
+            let userId = null;
+
+            if (method === 'manual') {
+                userId = parseInt(scanData, 10);
+            } else if (typeof scanData === 'string' && scanData.includes(':')) {
+                const parts = scanData.split(':');
+                userId = parseInt(parts[0], 10);
+            }
+
+            try {
+                const db = await getDB();
+                if (userId) {
+                    const tx = db.transaction('roster', 'readonly');
+                    member = await new Promise((res) => {
+                        const req = tx.objectStore('roster').get(userId);
+                        req.onsuccess = () => res(req.result || null);
+                        req.onerror = () => res(null);
+                    });
+                }
+            } catch (e) {
+                console.warn('Error reading offline roster:', e);
+            }
+
+            const isCheckOut = member ? !!member.is_inside : false;
+            const nowIso = new Date().toISOString();
+
+            const queueItem = {
+                action: method === 'manual' ? 'manual_checkin' : 'process_qr',
+                qr_data: scanData,
+                user_id: userId,
+                method: method,
+                amount_paid: extra.amount || 0,
+                payment_method: extra.method || 'cash',
+                scanned_at: nowIso,
+                is_checkout: isCheckOut,
+                member_name: member ? member.name : (userId ? `Member #${userId}` : 'Walk-in / Guest'),
+                member_role: member ? member.role : 'Member',
+                member_plan: member ? (member.role === 'trainer' ? 'Certified Trainer' : 'Active Member') : 'Walk-in / Guest Pass',
+                avatar_html: member ? member.avatar_html : '',
+                created_at: Date.now()
+            };
+
+            try {
+                const db = await getDB();
+                const tx = db.transaction(['queue', 'roster'], 'readwrite');
+                tx.objectStore('queue').add(queueItem);
+                if (member) {
+                    member.is_inside = !isCheckOut;
+                    tx.objectStore('roster').put(member);
+                }
+                await new Promise((res) => { tx.oncomplete = res; });
+            } catch (e) {
+                console.error('Failed to write to offline queue:', e);
+            }
+
+            setNetworkStatus(false);
+            updateQueueBadgeUI();
+            displayOfflineSuccessResult(queueItem);
+        }
+
+        function displayOfflineSuccessResult(data) {
+            playChime('success');
+
+            const isCheckIn = !data.is_checkout;
+            veriCard.className = 'verification-card ' + (isCheckIn ? 'state-success-in' : 'state-success-out');
+            veriTag.className = 'veri-status-tag tag-offline';
+            veriTagText.textContent = isCheckIn ? 'OFFLINE CHECK-IN CONFIRMED' : 'OFFLINE CHECK-OUT RECORDED';
+
+            veriAvatarWrap.innerHTML = data.avatar_html || '';
+            veriMemberName.textContent = data.member_name || 'Member';
+            veriRoleBadge.textContent = data.member_role || 'Member';
+            veriPlanBadge.textContent = (data.member_plan || 'Active') + ' • Offline Mode';
+
+            const localTimeStr = new Date(data.scanned_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true });
+            veriTimeBadge.textContent = localTimeStr;
+
+            veriExtraInfo.innerHTML = '<span style="color:#f59e0b; font-weight:700;">⚡ Saved to Local Device</span> • Will automatically sync once electricity/internet returns.';
+            setHudState('result');
+
+            // Optimistic update of local stats
+            if (statTodayCheckins) {
+                const cur = parseInt(statTodayCheckins.textContent, 10) || 0;
+                statTodayCheckins.textContent = cur + (isCheckIn ? 1 : 0);
+            }
+            if (statCurrentlyInside) {
+                const curInside = parseInt(statCurrentlyInside.textContent, 10) || 0;
+                statCurrentlyInside.textContent = Math.max(0, curInside + (isCheckIn ? 1 : -1));
+            }
+
+            prependActivityFeed({
+                avatar_html: data.avatar_html,
+                name: data.member_name,
+                time_formatted: localTimeStr,
+                method: data.method === 'manual' ? 'Manual' : 'QR Scan',
+                is_checkout: !isCheckIn,
+                duration: null,
+                is_offline: true
+            });
+
+            veriProgressBar.style.transition = 'none';
+            veriProgressBar.style.width = '100%';
+            setTimeout(() => {
+                veriProgressBar.style.transition = 'width 4s linear';
+                veriProgressBar.style.width = '0%';
+            }, 50);
+
+            clearTimeout(resetTimer);
+            resetTimer = setTimeout(() => {
+                isProcessing = false;
+                setHudState('idle');
+            }, 4000);
+        }
+
+        async function searchOfflineRoster(query) {
+            manualResultsList.innerHTML = '<div style="text-align:center; padding: 20px; color: var(--muted);">Searching offline cache...</div>';
+            try {
+                const db = await getDB();
+                const tx = db.transaction('roster', 'readonly');
+                const allMembers = await new Promise((res, rej) => {
+                    const req = tx.objectStore('roster').getAll();
+                    req.onsuccess = () => res(req.result || []);
+                    req.onerror = rej;
+                });
+
+                const q = query.trim().toLowerCase();
+                const filtered = q.length === 0
+                    ? allMembers.slice(0, 15)
+                    : allMembers.filter(m => {
+                        const name = (m.name || '').toLowerCase();
+                        const email = (m.email || '').toLowerCase();
+                        const phone = (m.phone || '').toLowerCase();
+                        return name.includes(q) || email.includes(q) || phone.includes(q);
+                    }).slice(0, 15);
+
+                if (filtered.length === 0) {
+                    manualResultsList.innerHTML = '<div style="text-align:center; padding: 25px; color: var(--muted);">No matching members found in offline cache.</div>';
+                    return;
+                }
+
+                manualResultsList.innerHTML = '';
+                filtered.forEach(m => {
+                    const row = document.createElement('div');
+                    row.className = 'manual-item';
+                    const safeName = typeof escapeHtml === 'function' ? escapeHtml(m.name) : m.name;
+                    const safeRole = typeof escapeHtml === 'function' ? escapeHtml(m.role) : m.role;
+                    const safePhone = typeof escapeHtml === 'function' ? escapeHtml(m.phone) : m.phone;
+                    const insideBadge = m.is_inside ? `<span style="display:inline-block; margin-top:2px; font-size:0.7rem; font-weight:700; color:#38bdf8;">Currently Inside (Offline Cache)</span>` : '';
+
+                    row.innerHTML = `
+                        <div style="display:flex; align-items:center; gap:12px; min-width:0;">
+                            ${m.avatar_html}
+                            <div style="min-width:0;">
+                                <p style="margin:0; font-weight:700; color:var(--ink); font-size:0.9rem;">${safeName}</p>
+                                <div style="font-size:0.75rem; color:var(--muted);">${safeRole} • ${safePhone}</div>
+                                ${insideBadge}
+                            </div>
+                        </div>
+                        <div>
+                            <button type="button" class="btn-manual-action ${m.is_inside ? 'checkout' : 'checkin'}" onclick="submitManualAttendance(${parseInt(m.user_id, 10)})">
+                                ${m.is_inside ? 'Check-Out' : 'Check-In'}
+                            </button>
+                        </div>
+                    `;
+                    manualResultsList.appendChild(row);
+                });
+            } catch (err) {
+                manualResultsList.innerHTML = '<div style="text-align:center; padding: 25px; color: var(--danger);">Failed to read offline database.</div>';
+            }
+        }
 
         // Clock Update
         function updateTerminalClock() {
@@ -2283,6 +2981,11 @@ function scanner_page(): void
 
             setHudState('processing');
 
+            if (!isNetworkOnline) {
+                queueOfflineScan(qrString, method);
+                return;
+            }
+
             fetch('index.php?page=scanner', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -2374,6 +3077,11 @@ function scanner_page(): void
                                 } else {
                                     showErrorResult('Payment / Check-in Failed', data2.message);
                                 }
+                            })
+                            .catch(err => {
+                                console.warn('Network error recording payment, saving offline:', err);
+                                setNetworkStatus(false);
+                                queueOfflineScan(qrString, method, { amount: result.value.amount, method: result.value.method });
                             });
                         } else {
                             isProcessing = false;
@@ -2394,10 +3102,9 @@ function scanner_page(): void
                 }
             })
             .catch(err => {
-                console.error(err);
-                showErrorResult('Network Error', 'Could not reach server to verify attendance.');
-                isProcessing = false;
-                processedTokensInSession.delete(qrString);
+                console.warn('Network unreachable, auto-diverting to offline queue:', err);
+                setNetworkStatus(false);
+                queueOfflineScan(qrString, method);
             });
         }
 
@@ -2507,6 +3214,11 @@ function scanner_page(): void
                 subText += `<span>• ${safeDuration}</span>`;
             }
 
+            const tagClass = item.is_offline ? 'offline' : (item.is_checkout ? 'out' : 'in');
+            const tagLabel = item.is_offline 
+                ? (item.is_checkout ? 'OUT (OFFLINE)' : 'IN (OFFLINE)') 
+                : (item.is_checkout ? 'CHECK-OUT' : 'CHECK-IN');
+
             row.innerHTML = `
                 <div class="activity-left">
                     ${item.avatar_html}
@@ -2515,8 +3227,8 @@ function scanner_page(): void
                         <div class="activity-sub">${subText}</div>
                     </div>
                 </div>
-                <span class="activity-tag ${item.is_checkout ? 'out' : 'in'}">
-                    ${item.is_checkout ? 'CHECK-OUT' : 'CHECK-IN'}
+                <span class="activity-tag ${tagClass}">
+                    ${tagLabel}
                 </span>
             `;
 
@@ -2731,6 +3443,11 @@ function scanner_page(): void
         function fetchMemberSearch(query) {
             manualResultsList.innerHTML = '<div style="text-align:center; padding: 20px; color: var(--muted);">Searching members...</div>';
             
+            if (!isNetworkOnline) {
+                searchOfflineRoster(query);
+                return;
+            }
+
             fetch('index.php?page=scanner&action=search_members&q=' + encodeURIComponent(query))
                 .then(r => r.json())
                 .then(data => {
@@ -2768,11 +3485,18 @@ function scanner_page(): void
                     });
                 })
                 .catch(() => {
-                    manualResultsList.innerHTML = '<div style="text-align:center; padding: 25px; color: var(--danger);">Failed to search members.</div>';
+                    searchOfflineRoster(query);
                 });
         }
 
         window.submitManualAttendance = function(userId) {
+            closeManualModal();
+
+            if (!isNetworkOnline) {
+                queueOfflineScan(userId, 'manual');
+                return;
+            }
+
             fetch('index.php?page=scanner', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -2780,7 +3504,6 @@ function scanner_page(): void
             })
             .then(r => r.json())
             .then(data => {
-                closeManualModal();
                 if (data.success) {
                     handleSuccessResponse(data);
                 } else {
@@ -2788,8 +3511,9 @@ function scanner_page(): void
                 }
             })
             .catch(err => {
-                closeManualModal();
-                showErrorResult('Error', 'Could not record manual attendance.');
+                console.warn('Network error recording manual attendance, queuing offline:', err);
+                setNetworkStatus(false);
+                queueOfflineScan(userId, 'manual');
             });
         };
 
@@ -2800,6 +3524,54 @@ function scanner_page(): void
                 populateCameraSelect(devices);
             }
         }).catch(() => {});
+
+        // Network connection listeners
+        window.addEventListener('online', () => {
+            setNetworkStatus(true);
+            syncOfflineQueue();
+            refreshOfflineRoster(false);
+        });
+
+        window.addEventListener('offline', () => {
+            setNetworkStatus(false);
+        });
+
+        // Periodic connectivity heartbeat & auto-sync check (every 20s)
+        setInterval(async () => {
+            if (!navigator.onLine) {
+                setNetworkStatus(false);
+                return;
+            }
+            try {
+                const ctrl = new AbortController();
+                const timeoutId = setTimeout(() => ctrl.abort(), 3500);
+                const ping = await fetch('index.php?page=scanner&action=get_activity', { signal: ctrl.signal });
+                clearTimeout(timeoutId);
+                if (ping.ok) {
+                    setNetworkStatus(true);
+                    syncOfflineQueue();
+                } else {
+                    setNetworkStatus(false);
+                }
+            } catch (e) {
+                setNetworkStatus(false);
+            }
+        }, 20000);
+
+        // Terminal startup initialization for offline DB
+        getDB().then(() => {
+            updateQueueBadgeUI();
+            updateRosterCacheCountUI();
+            if (navigator.onLine) {
+                setNetworkStatus(true);
+                refreshOfflineRoster(false);
+                syncOfflineQueue();
+            } else {
+                setNetworkStatus(false);
+            }
+        }).catch(err => {
+            console.warn('IndexedDB initialization failed:', err);
+        });
 
     })();
     </script>

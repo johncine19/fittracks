@@ -5512,6 +5512,97 @@ video {
     }
 }
 
+/* FitTrack landing hero: lead with the real day-to-day gym workflow. */
+.hero-section {
+    min-height: min(900px, 100svh);
+    background:
+        linear-gradient(90deg, rgba(6, 9, 11, .96) 0%, rgba(6, 9, 11, .84) 42%, rgba(6, 9, 11, .40) 100%),
+        linear-gradient(0deg, rgba(6, 9, 11, .82), transparent 44%),
+        url('landing/hero_gym.png') center 54% / cover no-repeat;
+}
+
+.hero-grid {
+    grid-template-columns: minmax(0, .92fr) minmax(0, 1.08fr);
+    gap: clamp(2rem, 4vw, 4.5rem);
+}
+
+.hero-title {
+    max-width: 690px;
+    font-size: clamp(3rem, 5.7vw, 5.2rem);
+    line-height: .99;
+    letter-spacing: -.065em;
+    text-shadow: 0 4px 28px rgba(0, 0, 0, .52);
+}
+
+.hero-title .title-highlight {
+    margin-top: .18em;
+    color: #b8f35b;
+    text-shadow: 0 4px 30px rgba(132, 204, 22, .2);
+}
+
+.hero-subtitle {
+    max-width: 490px;
+    color: rgba(245, 248, 242, .82);
+    font-size: clamp(1rem, 1.35vw, 1.16rem);
+    line-height: 1.75;
+    text-shadow: none;
+}
+
+.hero-rating-badge {
+    background: rgba(11, 16, 13, .52);
+    border-color: rgba(184, 243, 91, .38);
+    backdrop-filter: blur(14px);
+}
+
+.hero-feature-pills {
+    gap: .7rem;
+    max-width: 490px;
+    margin-bottom: 1.8rem;
+}
+
+.hero-feature-pill {
+    background: rgba(9, 13, 12, .54);
+    border-color: rgba(255, 255, 255, .12);
+    box-shadow: 0 12px 34px rgba(0, 0, 0, .16);
+    backdrop-filter: blur(12px);
+}
+
+.hero-feature-pill:hover {
+    background: rgba(20, 31, 17, .76);
+    border-color: rgba(184, 243, 91, .42);
+}
+
+.hero-laptop-container {
+    filter: drop-shadow(0 28px 48px rgba(0, 0, 0, .5));
+}
+
+@media (max-width: 1024px) {
+    .hero-section {
+        background:
+            linear-gradient(180deg, rgba(6, 9, 11, .72), rgba(6, 9, 11, .9)),
+            url('landing/hero_gym.png') center / cover no-repeat;
+    }
+
+    .hero-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .hero-title {
+        font-size: clamp(2.8rem, 8vw, 4.5rem);
+    }
+}
+
+@media (max-width: 600px) {
+    .hero-title {
+        font-size: clamp(2.55rem, 12vw, 3.7rem);
+        letter-spacing: -.055em;
+    }
+
+    .hero-feature-pills {
+        margin-bottom: 1.4rem;
+    }
+}
+
 /* ==========================================================================
    SUBSCRIPTION PLAN DISTRIBUTION TRIGGER & MODAL
    ========================================================================== */
@@ -6066,5 +6157,259 @@ video {
     }
     .back-to-top-text {
         display: none;
+    }
+}
+
+/* Keep the hero editorial and photo-led; capabilities read as a single line. */
+.hero-grid {
+    align-items: start;
+}
+
+.hero-right {
+    align-self: start;
+    padding-top: 1.25rem;
+}
+
+.hero-feature-pills {
+    display: none;
+}
+
+.hero-capabilities {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: .7rem 0;
+    max-width: 520px;
+    margin: 0 0 2rem;
+    color: rgba(245, 248, 242, .88);
+    font-size: .82rem;
+    font-weight: 600;
+    letter-spacing: .01em;
+}
+
+.hero-capabilities span {
+    display: inline-flex;
+    align-items: center;
+    gap: .7rem;
+    padding: 0 .9rem;
+}
+
+.hero-capabilities span:first-child {
+    padding-left: 0;
+}
+
+.hero-capabilities span + span::before {
+    content: '';
+    width: 4px;
+    height: 4px;
+    margin-left: -.9rem;
+    border-radius: 50%;
+    background: var(--accent-bright);
+}
+
+.trust-roles-grid {
+    gap: 0;
+    border-top: 1px solid var(--border-medium);
+    border-bottom: 1px solid var(--border-medium);
+}
+
+.trust-role-card {
+    padding: 1.8rem 2rem;
+    background: transparent;
+    border: 0;
+    border-radius: 0;
+    transition: background-color var(--transition-base);
+}
+
+.trust-role-card + .trust-role-card {
+    border-left: 1px solid var(--border-medium);
+}
+
+.trust-role-card:hover {
+    transform: none;
+    background: rgba(255, 255, 255, .025);
+    border-color: var(--border-medium);
+}
+
+@media (max-width: 900px) {
+    .trust-role-card {
+        padding: 1.4rem 1rem;
+    }
+}
+
+@media (max-width: 600px) {
+    .hero-capabilities {
+        justify-content: center;
+        font-size: .76rem;
+    }
+
+    .hero-capabilities span {
+        padding: 0 .55rem;
+        gap: .55rem;
+    }
+
+    .hero-capabilities span + span::before {
+        margin-left: -.55rem;
+    }
+
+    .trust-roles-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .trust-role-card + .trust-role-card {
+        border-left: 0;
+        border-top: 1px solid var(--border-medium);
+    }
+}
+
+@media (max-width: 1024px) {
+    .hero-right {
+        padding-top: 0;
+    }
+}
+
+/* Feature overview: capability index instead of a stack of template cards. */
+.features-section .section-header {
+    max-width: 780px;
+    margin-bottom: 2.25rem;
+}
+
+.features-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    column-gap: clamp(1.5rem, 5vw, 5rem);
+    row-gap: 0;
+    border-top: 1px solid var(--border-medium);
+}
+
+.feature-card {
+    display: grid;
+    grid-template-columns: 42px minmax(0, 1fr);
+    grid-template-rows: auto auto;
+    align-items: start;
+    column-gap: 1rem;
+    padding: 1.5rem 0;
+    background: transparent;
+    border: 0;
+    border-bottom: 1px solid var(--border-medium);
+    border-radius: 0;
+    transition: color var(--transition-base);
+}
+
+.feature-card:hover {
+    transform: none;
+    background: transparent;
+    box-shadow: none;
+}
+
+.feature-icon-box {
+    grid-column: 1;
+    grid-row: 1 / span 2;
+    width: 30px;
+    height: 30px;
+    margin: .05rem 0 0;
+    background: transparent;
+    border: 0;
+    color: var(--accent-bright);
+}
+
+.feature-title {
+    grid-column: 2;
+    margin: 0 0 .35rem;
+    font-size: 1.05rem;
+    letter-spacing: -.02em;
+}
+
+.feature-desc {
+    grid-column: 2;
+    max-width: 42ch;
+    font-size: .9rem;
+}
+
+@media (max-width: 600px) {
+    .features-section {
+        padding: 64px 0;
+    }
+
+    .features-grid {
+        grid-template-columns: 1fr;
+        border-top: 1px solid var(--border-medium);
+    }
+
+    .feature-card {
+        grid-template-columns: 34px minmax(0, 1fr);
+        column-gap: .75rem;
+        padding: 1.1rem 0;
+    }
+
+    .feature-icon-box {
+        width: 24px;
+        height: 24px;
+        margin-top: .12rem;
+    }
+
+    .feature-title {
+        font-size: 1rem;
+    }
+
+    .feature-desc {
+        font-size: .875rem;
+    }
+}
+
+/* Keep pricing actions on one baseline in the mobile plan carousel. */
+@media (max-width: 768px) {
+    .pricing-grid {
+        align-items: stretch !important;
+    }
+
+    .pricing-card {
+        align-self: stretch;
+        height: auto;
+    }
+
+    .plan-card-actions {
+        margin-top: auto;
+        height: 160px;
+        min-height: 160px;
+        flex: 0 0 160px;
+        display: flex;
+        flex-direction: column;
+        justify-content: flex-end;
+    }
+
+    .plan-card-trial-btn {
+        box-sizing: border-box;
+        width: 100%;
+        min-height: 54px;
+        height: 54px;
+        flex: 0 0 54px;
+        padding: .65rem .35rem;
+        font-size: .9rem;
+        letter-spacing: -.02em;
+        white-space: nowrap;
+        line-height: 1.25;
+        text-align: center;
+    }
+
+    .plan-card-subnote {
+        height: 36px;
+        min-height: 36px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin-top: .55rem;
+    }
+
+    .plan-card-skip-trial {
+        height: 48px;
+        flex: 0 0 48px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin-top: 10px;
+    }
+
+    .skip-trial-link {
+        text-align: center;
     }
 }

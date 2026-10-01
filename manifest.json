@@ -1,0 +1,19 @@
+{
+  "name": "FitTracks Attendance Terminal",
+  "short_name": "FitTracks",
+  "description": "FitTracks Gym Management & Offline-Ready Attendance Terminal",
+  "start_url": "index.php?page=scanner",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#05080c",
+  "theme_color": "#22c55e",
+  "icons": [
+    {
+      "src": "assets/images/fittracks-icon.svg",
+      "sizes": "192x192 512x512",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
