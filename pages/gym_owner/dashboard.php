@@ -31,8 +31,8 @@ function admin_dashboard(PDO $pdo, array $user): void
                 SELECT amount_paid AS revenue FROM walk_in_transactions WHERE visit_date >= DATE_FORMAT(CURDATE(), "%Y-%m-01")
             ) AS combined'
         )->fetchColumn();
-        $classesToday = (int) $pdo->query('SELECT COUNT(*) FROM class_schedules WHERE DATE(start_datetime) = CURDATE()')->fetchColumn();
-        $checkinsToday = (int) $pdo->query('SELECT COUNT(*) FROM attendance WHERE DATE(check_in_time) = CURDATE()')->fetchColumn();
+        $classesToday = (int) $pdo->query('SELECT COUNT(*) FROM class_schedules WHERE start_datetime >= CURDATE() AND start_datetime < CURDATE() + INTERVAL 1 DAY')->fetchColumn();
+        $checkinsToday = (int) $pdo->query('SELECT COUNT(*) FROM attendance WHERE check_in_time >= CURDATE() AND check_in_time < CURDATE() + INTERVAL 1 DAY')->fetchColumn();
     } else {
         // Gym Owner stats
         $revenue = (float) $pdo->query(
@@ -42,8 +42,8 @@ function admin_dashboard(PDO $pdo, array $user): void
                 SELECT amount_paid AS revenue FROM walk_in_transactions WHERE gym_id = ' . $gymId . ' AND visit_date >= DATE_FORMAT(CURDATE(), "%Y-%m-01")
             ) AS combined'
         )->fetchColumn();
-        $classesToday = (int) $pdo->query('SELECT COUNT(*) FROM class_schedules cs JOIN classes c ON c.class_id = cs.class_id WHERE c.gym_id = ' . $gymId . ' AND DATE(cs.start_datetime) = CURDATE()')->fetchColumn();
-        $checkinsToday = (int) $pdo->query('SELECT COUNT(*) FROM attendance WHERE gym_id = ' . $gymId . ' AND DATE(check_in_time) = CURDATE()')->fetchColumn();
+        $classesToday = (int) $pdo->query('SELECT COUNT(*) FROM class_schedules cs JOIN classes c ON c.class_id = cs.class_id WHERE c.gym_id = ' . $gymId . ' AND cs.start_datetime >= CURDATE() AND cs.start_datetime < CURDATE() + INTERVAL 1 DAY')->fetchColumn();
+        $checkinsToday = (int) $pdo->query('SELECT COUNT(*) FROM attendance WHERE gym_id = ' . $gymId . ' AND check_in_time >= CURDATE() AND check_in_time < CURDATE() + INTERVAL 1 DAY')->fetchColumn();
     }
 
     $revenueTrend = calc_revenue_trend($pdo, $gymId);
@@ -95,7 +95,7 @@ function admin_dashboard(PDO $pdo, array $user): void
         'Sat' => $weekMap[7],
         'Sun' => $weekMap[1],
     ];
-    $todayClasses = $pdo->query('SELECT c.class_name, c.capacity, s.start_datetime, COALESCE(CONCAT(u.first_name, " ", u.last_name), "Open trainer") AS trainer, (SELECT COUNT(*) FROM class_bookings b WHERE b.schedule_id = s.schedule_id AND b.booking_status = "booked") AS booked FROM class_schedules s JOIN classes c ON c.class_id = s.class_id LEFT JOIN users u ON u.user_id = c.instructor_id WHERE ' . ($isPlatformAdmin ? '' : 'c.gym_id = ' . $gymId . ' AND ') . 'DATE(s.start_datetime) = CURDATE() ORDER BY s.start_datetime LIMIT 4')->fetchAll();
+    $todayClasses = $pdo->query('SELECT c.class_name, c.capacity, s.start_datetime, COALESCE(CONCAT(u.first_name, " ", u.last_name), "Open trainer") AS trainer, (SELECT COUNT(*) FROM class_bookings b WHERE b.schedule_id = s.schedule_id AND b.booking_status = "booked") AS booked FROM class_schedules s JOIN classes c ON c.class_id = s.class_id LEFT JOIN users u ON u.user_id = c.instructor_id WHERE ' . ($isPlatformAdmin ? '' : 'c.gym_id = ' . $gymId . ' AND ') . 's.start_datetime >= CURDATE() AND s.start_datetime < CURDATE() + INTERVAL 1 DAY ORDER BY s.start_datetime LIMIT 4')->fetchAll();
     $recent = $pdo->query('SELECT a.check_in_time, CONCAT(u.first_name, " ", u.last_name) AS member, u.first_name, u.last_name, u.profile_picture FROM attendance a JOIN users u ON u.user_id = a.user_id ' . ($isPlatformAdmin ? '' : 'WHERE a.gym_id = ' . $gymId . ' ') . 'ORDER BY a.check_in_time DESC LIMIT 15')->fetchAll();
 
     // Revenue trend % for chart panel label

@@ -42,6 +42,12 @@ The admin dashboard charts use Chart.js loaded from CDN in `views/layout.php`, w
 
 ---
 
+## Architecture, Security & Performance Documentation
+- 🔒 **[SECURITY.md](SECURITY.md)**: Production security audit remediations, migration authentication, permit authorization endpoints, TLS enforcement, reverse proxy IP spoofing mitigation, and environment hardening.
+- ⚡ **[OPTIMIZATIONS.md](OPTIMIZATIONS.md)**: Database scaling guide, sargable index-range queries, equipment poll session lock optimization, batch-grouped engagement calculation, and atomic distributed locking with Redis Lua / flock.
+
+---
+
 ## Recent System Hardening & Bug Fixes
 
 ### 1. Cross-Site Scripting (XSS) Hardening & HTTP Security Headers

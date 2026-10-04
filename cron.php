@@ -24,8 +24,13 @@ $cleanupResults = cleanup_old_notifications(30, 60);
 echo "Notification cleanup completed: {$cleanupResults['read_deleted']} read and {$cleanupResults['unread_deleted']} unread ({$cleanupResults['total']} total purged).\n";
 
 // Schedule jobs instead of running them synchronously
-echo "Scheduling engagement score computation...\n";
-Queue::push('recompute_all_engagement_scores_batch');
+$activeSweep = function_exists('get_engagement_sweep_lock') ? get_engagement_sweep_lock() : null;
+if ($activeSweep && !empty($activeSweep['run_id']) && (time() - (int)($activeSweep['updated_at'] ?? 0)) < 1800) {
+    echo "Engagement sweep already in progress (Run: {$activeSweep['run_id']}, Last User ID: {$activeSweep['last_user_id']}). Continuing existing chain...\n";
+} else {
+    echo "Scheduling engagement score computation...\n";
+    Queue::push('recompute_all_engagement_scores_batch');
+}
 
 echo "Scheduling automated at-risk notifications...\n";
 Queue::push('process_automated_at_risk_notifications');

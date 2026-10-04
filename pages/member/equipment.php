@@ -23,7 +23,7 @@ function member_equipment_page(): void
 
     $gymName = scalar('SELECT name FROM gyms WHERE gym_id = ?', [$gymId]) ?: 'Your Gym';
     $userId = (int)$user['user_id'];
-    $isCheckedIn = (bool)scalar('SELECT attendance_id FROM attendance WHERE user_id = ? AND gym_id = ? AND check_out_time IS NULL AND DATE(check_in_time) = CURDATE() LIMIT 1', [$userId, $gymId]);
+    $isCheckedIn = (bool)scalar('SELECT attendance_id FROM attendance WHERE user_id = ? AND gym_id = ? AND check_out_time IS NULL AND check_in_time >= CURDATE() AND check_in_time < CURDATE() + INTERVAL 1 DAY LIMIT 1', [$userId, $gymId]);
 
     $lastLogStmt = $pdo->prepare('SELECT weight_kg, body_fat_percent, waist_cm, chest_cm, arm_cm FROM progress_logs WHERE user_id = ? ORDER BY log_date DESC, log_id DESC LIMIT 1');
     $lastLogStmt->execute([$userId]);

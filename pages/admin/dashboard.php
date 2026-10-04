@@ -64,10 +64,10 @@ function calc_checkin_trend(PDO $pdo, ?int $gymId = null): string
     return Cache::remember($cacheKey, 300, function () use ($pdo, $gymId) {
         $gymFilter = $gymId ? " AND gym_id = $gymId" : "";
         $today = (int) $pdo->query(
-            "SELECT COUNT(*) FROM attendance WHERE DATE(check_in_time)=CURDATE() $gymFilter"
+            "SELECT COUNT(*) FROM attendance WHERE check_in_time >= CURDATE() AND check_in_time < CURDATE() + INTERVAL 1 DAY $gymFilter"
         )->fetchColumn();
         $yesterday = (int) $pdo->query(
-            "SELECT COUNT(*) FROM attendance WHERE DATE(check_in_time)=DATE_SUB(CURDATE(),INTERVAL 1 DAY) $gymFilter"
+            "SELECT COUNT(*) FROM attendance WHERE check_in_time >= DATE_SUB(CURDATE(), INTERVAL 1 DAY) AND check_in_time < CURDATE() $gymFilter"
         )->fetchColumn();
         if ($yesterday == 0) return 'No data yesterday';
         $pct = round((($today - $yesterday) / $yesterday) * 100, 1);

@@ -35,7 +35,7 @@ function scanner_page(): void
     // Helper: fetch current live stats
     $getStats = function () use ($pdo, $currentGymId) {
         $todayParams = [];
-        $todaySql = 'SELECT COUNT(*) FROM attendance WHERE DATE(check_in_time) = CURDATE()';
+        $todaySql = 'SELECT COUNT(*) FROM attendance WHERE check_in_time >= CURDATE() AND check_in_time < CURDATE() + INTERVAL 1 DAY';
         if ($currentGymId) {
             $todaySql .= ' AND gym_id = ?';
             $todayParams[] = $currentGymId;
@@ -45,7 +45,7 @@ function scanner_page(): void
         $todayCheckins = (int) $stmt->fetchColumn();
 
         $insideParams = [];
-        $insideSql = 'SELECT COUNT(*) FROM attendance WHERE DATE(check_in_time) = CURDATE() AND check_out_time IS NULL';
+        $insideSql = 'SELECT COUNT(*) FROM attendance WHERE check_in_time >= CURDATE() AND check_in_time < CURDATE() + INTERVAL 1 DAY AND check_out_time IS NULL';
         if ($currentGymId) {
             $insideSql .= ' AND gym_id = ?';
             $insideParams[] = $currentGymId;
@@ -69,7 +69,7 @@ function scanner_page(): void
                 JOIN users u ON u.user_id = a.user_id
                 LEFT JOIN class_schedules s ON s.schedule_id = a.schedule_id
                 LEFT JOIN classes c ON c.class_id = s.class_id
-                WHERE DATE(a.check_in_time) = CURDATE()';
+                WHERE a.check_in_time >= CURDATE() AND a.check_in_time < CURDATE() + INTERVAL 1 DAY';
         $params = [];
         if ($currentGymId) {
             $sql .= ' AND a.gym_id = ?';
@@ -122,8 +122,8 @@ function scanner_page(): void
 
         $searchSql = '
             SELECT u.user_id, u.first_name, u.last_name, u.role, u.email, u.phone, u.profile_picture,
-                   (SELECT attendance_id FROM attendance WHERE user_id = u.user_id AND check_out_time IS NULL AND DATE(check_in_time) = CURDATE() ORDER BY check_in_time DESC LIMIT 1) as active_attendance_id,
-                   (SELECT check_in_time FROM attendance WHERE user_id = u.user_id AND check_out_time IS NULL AND DATE(check_in_time) = CURDATE() ORDER BY check_in_time DESC LIMIT 1) as active_check_in_time
+                   (SELECT attendance_id FROM attendance WHERE user_id = u.user_id AND check_out_time IS NULL AND check_in_time >= CURDATE() AND check_in_time < CURDATE() + INTERVAL 1 DAY ORDER BY check_in_time DESC LIMIT 1) as active_attendance_id,
+                   (SELECT check_in_time FROM attendance WHERE user_id = u.user_id AND check_out_time IS NULL AND check_in_time >= CURDATE() AND check_in_time < CURDATE() + INTERVAL 1 DAY ORDER BY check_in_time DESC LIMIT 1) as active_check_in_time
             FROM users u
             WHERE u.status = "active" AND u.role IN ("member", "trainer")
               AND (u.first_name LIKE ? OR u.last_name LIKE ? OR CONCAT(u.first_name, " ", u.last_name) LIKE ? OR u.email LIKE ? OR u.phone LIKE ?)
@@ -159,7 +159,7 @@ function scanner_page(): void
 
         $rosterSql = '
             SELECT u.user_id, u.first_name, u.last_name, u.role, u.email, u.phone, u.qr_token, u.profile_picture,
-                   (SELECT attendance_id FROM attendance WHERE user_id = u.user_id AND check_out_time IS NULL AND DATE(check_in_time) = CURDATE() ORDER BY check_in_time DESC LIMIT 1) as active_attendance_id
+                   (SELECT attendance_id FROM attendance WHERE user_id = u.user_id AND check_out_time IS NULL AND check_in_time >= CURDATE() AND check_in_time < CURDATE() + INTERVAL 1 DAY ORDER BY check_in_time DESC LIMIT 1) as active_attendance_id
             FROM users u
             WHERE u.status = "active" AND u.role IN ("member", "trainer")
         ';
@@ -260,10 +260,11 @@ function scanner_page(): void
             $stmt = $pdo->prepare('
                 SELECT attendance_id, check_in_time 
                 FROM attendance 
-                WHERE user_id = ? AND check_out_time IS NULL AND DATE(check_in_time) = ?
+                WHERE user_id = ? AND check_out_time IS NULL 
+                  AND check_in_time >= ? AND check_in_time < DATE_ADD(?, INTERVAL 1 DAY)
                 ORDER BY check_in_time DESC LIMIT 1
             ');
-            $stmt->execute([$userId, $scanDate]);
+            $stmt->execute([$userId, $scanDate, $scanDate]);
             $openRecord = $stmt->fetch();
 
             if ($openRecord) {
@@ -345,7 +346,7 @@ function scanner_page(): void
         auto_checkout_past_attendance($targetUserId);
 
         // Check for open attendance record for today
-        $stmt = $pdo->prepare('SELECT attendance_id, check_in_time FROM attendance WHERE user_id = ? AND check_out_time IS NULL AND DATE(check_in_time) = CURDATE() ORDER BY check_in_time DESC LIMIT 1');
+        $stmt = $pdo->prepare('SELECT attendance_id, check_in_time FROM attendance WHERE user_id = ? AND check_out_time IS NULL AND check_in_time >= CURDATE() AND check_in_time < CURDATE() + INTERVAL 1 DAY ORDER BY check_in_time DESC LIMIT 1');
         $stmt->execute([$targetUserId]);
         $openRecord = $stmt->fetch();
 
@@ -481,7 +482,7 @@ function scanner_page(): void
         auto_checkout_past_attendance($userId);
 
         // Check for open attendance record for today
-        $stmt = $pdo->prepare('SELECT attendance_id, check_in_time FROM attendance WHERE user_id = ? AND check_out_time IS NULL AND DATE(check_in_time) = CURDATE() ORDER BY check_in_time DESC LIMIT 1');
+        $stmt = $pdo->prepare('SELECT attendance_id, check_in_time FROM attendance WHERE user_id = ? AND check_out_time IS NULL AND check_in_time >= CURDATE() AND check_in_time < CURDATE() + INTERVAL 1 DAY ORDER BY check_in_time DESC LIMIT 1');
         $stmt->execute([$userId]);
         $openRecord = $stmt->fetch();
 

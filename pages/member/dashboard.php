@@ -202,7 +202,12 @@ function get_dashboard_attendance_activity_data(array $user, array $params = [])
 
 function member_dashboard(PDO $pdo, array $user): void
 {
-    $score    = calculate_engagement_score((int) $user['user_id']);
+    // Use cached engagement score if computed within the last hour to prevent redundant query load
+    $scoreStmt = $pdo->prepare('SELECT engagement_score, engagement_computed_at FROM users WHERE user_id = ?');
+    $scoreStmt->execute([(int)$user['user_id']]);
+    $scoreRow = $scoreStmt->fetch(PDO::FETCH_ASSOC);
+    $isRecent = !empty($scoreRow['engagement_computed_at']) && (time() - strtotime((string)$scoreRow['engagement_computed_at']) < 3600);
+    $score = ($isRecent && isset($scoreRow['engagement_score'])) ? (int)$scoreRow['engagement_score'] : calculate_engagement_score((int) $user['user_id']);
     $category = get_engagement_category($score);
     $attendance = scalar('SELECT COUNT(*) FROM attendance WHERE user_id = ?', [$user['user_id']]);
     $progressLogs = scalar('SELECT COUNT(*) FROM progress_logs WHERE user_id = ?', [$user['user_id']]);

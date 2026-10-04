@@ -228,6 +228,7 @@ function reconcile_equipment_states(PDO $pdo, int $gymId): void
                 AND a.gym_id = s.gym_id
                 AND a.check_out_time IS NULL
                 AND a.check_in_time >= CURDATE()
+                AND a.check_in_time < CURDATE() + INTERVAL 1 DAY
           )
     ");
     $staleUserSessions->execute([$gymId, $gymId]);
@@ -252,6 +253,7 @@ function reconcile_equipment_states(PDO $pdo, int $gymId): void
                 AND a.gym_id = q.gym_id
                 AND a.check_out_time IS NULL
                 AND a.check_in_time >= CURDATE()
+                AND a.check_in_time < CURDATE() + INTERVAL 1 DAY
           )
     ");
     $staleQueuesStmt->execute([$gymId, $gymId]);
@@ -425,7 +427,7 @@ function handle_poll(PDO $pdo, int $gymId, array $user): void
     $isCheckedIn = true;
     if ($user['role'] === 'member') {
         $isCheckedIn = (bool)scalar(
-            "SELECT attendance_id FROM attendance WHERE user_id = ? AND gym_id = ? AND check_out_time IS NULL AND check_in_time >= CURDATE() LIMIT 1",
+            "SELECT attendance_id FROM attendance WHERE user_id = ? AND gym_id = ? AND check_out_time IS NULL AND check_in_time >= CURDATE() AND check_in_time < CURDATE() + INTERVAL 1 DAY LIMIT 1",
             [$userId, $gymId]
         );
     }
@@ -465,7 +467,7 @@ function handle_start_session(PDO $pdo, int $gymId, array $user): void
     // Rule: Member must be checked in at the gym to use equipment
     if ($user['role'] === 'member') {
         $isCheckedIn = (bool)scalar(
-            "SELECT attendance_id FROM attendance WHERE user_id = ? AND gym_id = ? AND check_out_time IS NULL AND check_in_time >= CURDATE() LIMIT 1",
+            "SELECT attendance_id FROM attendance WHERE user_id = ? AND gym_id = ? AND check_out_time IS NULL AND check_in_time >= CURDATE() AND check_in_time < CURDATE() + INTERVAL 1 DAY LIMIT 1",
             [$userId, $eqGymId]
         );
         if (!$isCheckedIn) {
@@ -697,7 +699,7 @@ function handle_join_queue(PDO $pdo, int $gymId, array $user): void
     // Rule: Member must be checked in at the gym to join equipment queues
     if ($user['role'] === 'member') {
         $isCheckedIn = (bool)scalar(
-            "SELECT attendance_id FROM attendance WHERE user_id = ? AND gym_id = ? AND check_out_time IS NULL AND check_in_time >= CURDATE() LIMIT 1",
+            "SELECT attendance_id FROM attendance WHERE user_id = ? AND gym_id = ? AND check_out_time IS NULL AND check_in_time >= CURDATE() AND check_in_time < CURDATE() + INTERVAL 1 DAY LIMIT 1",
             [$userId, $eqGymId]
         );
         if (!$isCheckedIn) {
