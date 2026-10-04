@@ -1384,7 +1384,8 @@ CREATE TABLE IF NOT EXISTS `equipment_queues` (
     `claim_deadline` TIMESTAMP NULL DEFAULT NULL,
     `resolved_at` TIMESTAMP NULL DEFAULT NULL,
     INDEX `idx_user_active_queue` (`user_id`, `equipment_id`, `queue_status`),
-    INDEX `idx_equip_queue_pos` (`equipment_id`, `queue_status`, `queue_position`)
+    INDEX `idx_equip_queue_pos` (`equipment_id`, `queue_status`, `queue_position`),
+    INDEX `idx_equip_queue_gym_status` (`gym_id`, `queue_status`, `equipment_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS `equipment_maintenance_logs` (
