@@ -33,11 +33,47 @@ if (!file_exists($seedLockFile)) {
 }
 
 // Cloudflare & Reverse Proxy Support: Real client IP restoration
-if (!empty($_SERVER['HTTP_CF_CONNECTING_IP'])) {
-    $_SERVER['REMOTE_ADDR'] = $_SERVER['HTTP_CF_CONNECTING_IP'];
-} elseif (!empty($_SERVER['HTTP_X_FORWARDED_FOR'])) {
-    $forwardedIps = explode(',', $_SERVER['HTTP_X_FORWARDED_FOR']);
-    $_SERVER['REMOTE_ADDR'] = trim($forwardedIps[0]);
+// Only trust forwarded headers when the connection originates from an explicitly configured trusted proxy
+$directIp = $_SERVER['REMOTE_ADDR'] ?? '';
+$trustedProxiesRaw = (string) app_env('TRUSTED_PROXIES', '');
+
+if (!empty($trustedProxiesRaw) && !empty($directIp)) {
+    $trustedProxies = array_filter(array_map('trim', explode(',', $trustedProxiesRaw)));
+    $isTrustedProxy = false;
+
+    foreach ($trustedProxies as $trusted) {
+        if ($trusted === '*' || $trusted === $directIp) {
+            $isTrustedProxy = true;
+            break;
+        }
+        if (str_contains($trusted, '/')) {
+            [$subnet, $bits] = explode('/', $trusted, 2);
+            $bits = (int) $bits;
+            if (filter_var($subnet, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4) && filter_var($directIp, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4)) {
+                $subnetLong = ip2long($subnet);
+                $directLong = ip2long($directIp);
+                if ($subnetLong !== false && $directLong !== false && $bits >= 0 && $bits <= 32) {
+                    $mask = $bits === 0 ? 0 : (~0 << (32 - $bits));
+                    if (($directLong & $mask) === ($subnetLong & $mask)) {
+                        $isTrustedProxy = true;
+                        break;
+                    }
+                }
+            }
+        }
+    }
+
+    if ($isTrustedProxy) {
+        if (!empty($_SERVER['HTTP_CF_CONNECTING_IP']) && filter_var($_SERVER['HTTP_CF_CONNECTING_IP'], FILTER_VALIDATE_IP)) {
+            $_SERVER['REMOTE_ADDR'] = $_SERVER['HTTP_CF_CONNECTING_IP'];
+        } elseif (!empty($_SERVER['HTTP_X_FORWARDED_FOR'])) {
+            $forwardedIps = explode(',', $_SERVER['HTTP_X_FORWARDED_FOR']);
+            $candidateIp = trim($forwardedIps[0]);
+            if (filter_var($candidateIp, FILTER_VALIDATE_IP)) {
+                $_SERVER['REMOTE_ADDR'] = $candidateIp;
+            }
+        }
+    }
 }
 
 $redisClient = redis();

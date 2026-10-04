@@ -1702,7 +1702,7 @@ function gym_profile_page(): void
                                 </div>
                             </div>
                             <?php if (!empty($gym['business_permit_url'])): ?>
-                                <a href="assets/permits/<?= h($gym['business_permit_url']) ?>" target="_blank" class="btn btn-secondary" style="font-size: 11px; padding: 4px 9px; border-radius: 6px;">
+                                <a href="<?= h(upload_url($gym['business_permit_url'], 'permits')) ?>" target="_blank" class="btn btn-secondary" style="font-size: 11px; padding: 4px 9px; border-radius: 6px;">
                                     View
                                 </a>
                             <?php endif; ?>
@@ -1726,7 +1726,7 @@ function gym_profile_page(): void
                                 </div>
                             </div>
                             <?php if (!empty($gym['barangay_clearance_url'])): ?>
-                                <a href="assets/permits/<?= h($gym['barangay_clearance_url']) ?>" target="_blank" class="btn btn-secondary" style="font-size: 11px; padding: 4px 9px; border-radius: 6px;">
+                                <a href="<?= h(upload_url($gym['barangay_clearance_url'], 'permits')) ?>" target="_blank" class="btn btn-secondary" style="font-size: 11px; padding: 4px 9px; border-radius: 6px;">
                                     View
                                 </a>
                             <?php endif; ?>
@@ -1750,7 +1750,7 @@ function gym_profile_page(): void
                                 </div>
                             </div>
                             <?php if (!empty($gym['fire_safety_cert_url'])): ?>
-                                <a href="assets/permits/<?= h($gym['fire_safety_cert_url']) ?>" target="_blank" class="btn btn-secondary" style="font-size: 11px; padding: 4px 9px; border-radius: 6px;">
+                                <a href="<?= h(upload_url($gym['fire_safety_cert_url'], 'permits')) ?>" target="_blank" class="btn btn-secondary" style="font-size: 11px; padding: 4px 9px; border-radius: 6px;">
                                     View
                                 </a>
                             <?php endif; ?>
@@ -2050,7 +2050,7 @@ function gym_profile_page(): void
                                 <span style="font-size: 12px; color: var(--ink); font-weight: 600;" title="<?= h($gym['business_permit_url']) ?>">
                                     <?= h(clean_doc_name($gym['business_permit_url'])) ?>
                                 </span>
-                                <a href="assets/permits/<?= h($gym['business_permit_url']) ?>" target="_blank" class="btn btn-secondary" style="font-size: 11px; padding: 3px 8px; border-radius: 5px;">
+                                <a href="<?= h(upload_url($gym['business_permit_url'], 'permits')) ?>" target="_blank" class="btn btn-secondary" style="font-size: 11px; padding: 3px 8px; border-radius: 5px;">
                                     View
                                 </a>
                             </div>
@@ -2085,7 +2085,7 @@ function gym_profile_page(): void
                                 <span style="font-size: 12px; color: var(--ink); font-weight: 600;" title="<?= h($gym['barangay_clearance_url']) ?>">
                                     <?= h(clean_doc_name($gym['barangay_clearance_url'])) ?>
                                 </span>
-                                <a href="assets/permits/<?= h($gym['barangay_clearance_url']) ?>" target="_blank" class="btn btn-secondary" style="font-size: 11px; padding: 3px 8px; border-radius: 5px;">
+                                <a href="<?= h(upload_url($gym['barangay_clearance_url'], 'permits')) ?>" target="_blank" class="btn btn-secondary" style="font-size: 11px; padding: 3px 8px; border-radius: 5px;">
                                     View
                                 </a>
                             </div>
@@ -2120,7 +2120,7 @@ function gym_profile_page(): void
                                 <span style="font-size: 12px; color: var(--ink); font-weight: 600;" title="<?= h($gym['fire_safety_cert_url']) ?>">
                                     <?= h(clean_doc_name($gym['fire_safety_cert_url'])) ?>
                                 </span>
-                                <a href="assets/permits/<?= h($gym['fire_safety_cert_url']) ?>" target="_blank" class="btn btn-secondary" style="font-size: 11px; padding: 3px 8px; border-radius: 5px;">
+                                <a href="<?= h(upload_url($gym['fire_safety_cert_url'], 'permits')) ?>" target="_blank" class="btn btn-secondary" style="font-size: 11px; padding: 3px 8px; border-radius: 5px;">
                                     View
                                 </a>
                             </div>

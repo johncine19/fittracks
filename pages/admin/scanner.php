@@ -380,6 +380,24 @@ function scanner_page(): void
             $scheduleId = $bookedClass ? $bookedClass['schedule_id'] : null;
             $attendedClassTitle = $bookedClass ? $bookedClass['class_name'] : null;
 
+            if (!$scheduleId && $member['role'] === 'trainer') {
+                $trainerClass = $pdo->prepare('
+                    SELECT s.schedule_id, c.class_name
+                    FROM class_schedules s
+                    JOIN classes c ON c.class_id = s.class_id
+                    WHERE c.instructor_id = ?
+                      AND s.start_datetime >= DATE_SUB(NOW(), INTERVAL 1 HOUR)
+                      AND s.start_datetime <= DATE_ADD(NOW(), INTERVAL 2 HOUR)
+                    ORDER BY s.start_datetime ASC LIMIT 1
+                ');
+                $trainerClass->execute([$targetUserId]);
+                $teachingClass = $trainerClass->fetch();
+                if ($teachingClass) {
+                    $scheduleId = (int) $teachingClass['schedule_id'];
+                    $attendedClassTitle = $teachingClass['class_name'];
+                }
+            }
+
             $stmt = $pdo->prepare('INSERT INTO attendance (user_id, schedule_id, gym_id, check_in_time, check_in_method, recorded_by) VALUES (?, ?, ?, NOW(), "manual", ?)');
             $stmt->execute([$targetUserId, $scheduleId, $currentGymId, $user['user_id']]);
             $newAttendanceId = (int) $pdo->lastInsertId();
@@ -389,8 +407,12 @@ function scanner_page(): void
             }
 
             if ($scheduleId) {
-                $pdo->prepare('UPDATE class_bookings SET booking_status = "attended" WHERE user_id = ? AND schedule_id = ?')->execute([$targetUserId, $scheduleId]);
-                $message = 'Check-in recorded & Class attended for ' . $member['first_name'] . ' ' . $member['last_name'];
+                if ($member['role'] === 'member') {
+                    $pdo->prepare('UPDATE class_bookings SET booking_status = "attended" WHERE user_id = ? AND schedule_id = ?')->execute([$targetUserId, $scheduleId]);
+                    $message = 'Check-in recorded & Class attended for ' . $member['first_name'] . ' ' . $member['last_name'];
+                } else {
+                    $message = 'Instructor Check-in recorded for ' . $member['first_name'] . ' ' . $member['last_name'] . ' (' . $attendedClassTitle . ')';
+                }
             } else {
                 $message = 'Check-in recorded for ' . $member['first_name'] . ' ' . $member['last_name'];
             }
@@ -535,6 +557,24 @@ function scanner_page(): void
             $scheduleId = $bookedClass ? $bookedClass['schedule_id'] : null;
             $attendedClassTitle = $bookedClass ? $bookedClass['class_name'] : null;
 
+            if (!$scheduleId && $member['role'] === 'trainer') {
+                $trainerClass = $pdo->prepare('
+                    SELECT s.schedule_id, c.class_name
+                    FROM class_schedules s
+                    JOIN classes c ON c.class_id = s.class_id
+                    WHERE c.instructor_id = ?
+                      AND s.start_datetime >= DATE_SUB(NOW(), INTERVAL 1 HOUR)
+                      AND s.start_datetime <= DATE_ADD(NOW(), INTERVAL 2 HOUR)
+                    ORDER BY s.start_datetime ASC LIMIT 1
+                ');
+                $trainerClass->execute([$userId]);
+                $teachingClass = $trainerClass->fetch();
+                if ($teachingClass) {
+                    $scheduleId = (int) $teachingClass['schedule_id'];
+                    $attendedClassTitle = $teachingClass['class_name'];
+                }
+            }
+
             $stmt = $pdo->prepare('INSERT INTO attendance (user_id, schedule_id, gym_id, check_in_time, check_in_method, recorded_by) VALUES (?, ?, ?, NOW(), "qr_code", ?)');
             $stmt->execute([$userId, $scheduleId, $currentGymId, $user['user_id']]);
             $newAttendanceId = (int) $pdo->lastInsertId();
@@ -545,8 +585,12 @@ function scanner_page(): void
             }
             
             if ($scheduleId) {
-                $pdo->prepare('UPDATE class_bookings SET booking_status = "attended" WHERE user_id = ? AND schedule_id = ?')->execute([$userId, $scheduleId]);
-                $message = 'Check-in verified & Class Auto-Attended for ' . $member['first_name'] . ' ' . $member['last_name'];
+                if ($member['role'] === 'member') {
+                    $pdo->prepare('UPDATE class_bookings SET booking_status = "attended" WHERE user_id = ? AND schedule_id = ?')->execute([$userId, $scheduleId]);
+                    $message = 'Check-in verified & Class Auto-Attended for ' . $member['first_name'] . ' ' . $member['last_name'];
+                } else {
+                    $message = 'Instructor Check-in verified for ' . $member['first_name'] . ' ' . $member['last_name'] . ' (' . $attendedClassTitle . ')';
+                }
             } else {
                 $message = 'Check-in verified for ' . $member['first_name'] . ' ' . $member['last_name'];
             }

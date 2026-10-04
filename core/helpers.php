@@ -658,6 +658,10 @@ function upload_url(?string $filename, string $folder = 'uploads', string $fallb
         return $filename;
     }
 
+    if ($folder === 'permits') {
+        return 'index.php?page=view_permit&file=' . rawurlencode(basename($filename));
+    }
+
     $cdnUrl = app_env('CDN_URL', app_env('STORAGE_PUBLIC_URL', ''));
     if (!empty($cdnUrl)) {
         return rtrim($cdnUrl, '/') . '/assets/' . $folder . '/' . ltrim($filename, '/');

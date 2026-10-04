@@ -1,6 +1,87 @@
 <?php
 declare(strict_types=1);
 
+/**
+ * Retrieve active or upcoming class schedule for a trainer around check-in time.
+ */
+function get_trainer_upcoming_class(int $trainerUserId, ?int $scheduleId = null): ?array
+{
+    $pdo = db();
+    $sql = '
+        SELECT s.schedule_id, s.room_location, s.start_datetime, s.end_datetime,
+               c.class_name, c.description, c.capacity,
+               (SELECT COUNT(*) FROM class_bookings b WHERE b.schedule_id = s.schedule_id AND b.booking_status = "attended") as attended_members,
+               (SELECT COUNT(*) FROM class_bookings b WHERE b.schedule_id = s.schedule_id AND b.booking_status IN ("booked", "attended")) as total_booked
+        FROM class_schedules s
+        JOIN classes c ON c.class_id = s.class_id
+    ';
+
+    if ($scheduleId) {
+        $stmt = $pdo->prepare($sql . ' WHERE s.schedule_id = ? LIMIT 1');
+        $stmt->execute([$scheduleId]);
+    } else {
+        $stmt = $pdo->prepare($sql . ' WHERE c.instructor_id = ?
+            AND s.start_datetime >= DATE_SUB(NOW(), INTERVAL 1 HOUR)
+            AND s.start_datetime <= DATE_ADD(NOW(), INTERVAL 3 HOUR)
+            ORDER BY s.start_datetime ASC LIMIT 1');
+        $stmt->execute([$trainerUserId]);
+    }
+
+    $class = $stmt->fetch(PDO::FETCH_ASSOC);
+    if (!$class) {
+        return null;
+    }
+
+    // Fetch list of registered members so trainer knows whom they are training
+    $bookedMembersStmt = $pdo->prepare('
+        SELECT u.first_name, u.last_name, b.booking_status
+        FROM class_bookings b
+        JOIN users u ON u.user_id = b.user_id
+        WHERE b.schedule_id = ? AND b.booking_status IN ("booked", "attended")
+        ORDER BY b.booking_status DESC, u.first_name ASC
+        LIMIT 6
+    ');
+    $bookedMembersStmt->execute([(int)$class['schedule_id']]);
+    $members = $bookedMembersStmt->fetchAll(PDO::FETCH_ASSOC);
+
+    // Recommend equipment categories based on class name & description
+    $cText = strtolower((string)$class['class_name'] . ' ' . (string)($class['description'] ?? ''));
+    $recommended = [];
+    if (preg_match('/(cycle|spin|cardio|running|treadmill|aerobic|sprint)/i', $cText)) {
+        $recommended[] = 'Cardio';
+    }
+    if (preg_match('/(strength|pump|bodybuilding|power|lift|squat|bench|hypertrophy|weight)/i', $cText)) {
+        $recommended[] = 'Strength';
+        $recommended[] = 'Free Weights';
+    }
+    if (preg_match('/(bootcamp|functional|cross|circuit|hiit|agility|core|abs|tabata)/i', $cText)) {
+        $recommended[] = 'Functional Training';
+        $recommended[] = 'Free Weights';
+        $recommended[] = 'Cardio';
+    }
+    if (preg_match('/(yoga|pilates|stretch|mobility|recovery|barre)/i', $cText)) {
+        $recommended[] = 'Functional Training';
+    }
+    if (empty($recommended)) {
+        $recommended = ['Functional Training', 'Strength', 'Cardio'];
+    }
+    $recommended = array_values(array_unique($recommended));
+
+    return [
+        'schedule_id' => (int)$class['schedule_id'],
+        'class_name' => (string)$class['class_name'],
+        'description' => (string)($class['description'] ?? ''),
+        'room_location' => !empty($class['room_location']) ? (string)$class['room_location'] : 'Main Studio',
+        'start_time_fmt' => date('g:i A', strtotime((string)$class['start_datetime'])),
+        'end_time_fmt' => !empty($class['end_datetime']) ? date('g:i A', strtotime((string)$class['end_datetime'])) : '',
+        'capacity' => (int)$class['capacity'],
+        'total_booked' => (int)$class['total_booked'],
+        'attended_members' => (int)$class['attended_members'],
+        'members' => $members,
+        'recommended_categories' => $recommended,
+    ];
+}
+
 function qr_attendance_page(): void
 {
     $user = require_roles(['member', 'trainer']);
@@ -36,7 +117,7 @@ function qr_attendance_page(): void
             // If token is null, it means the scanner just invalidated it
             if ($tokenRaw === null) {
                 // Find latest attendance
-                $row = db()->query('SELECT attendance_id, gym_id, check_in_time, check_out_time FROM attendance WHERE user_id = ' . (int)$user['user_id'] . ' ORDER BY attendance_id DESC LIMIT 1')->fetch();
+                $row = db()->query('SELECT attendance_id, schedule_id, gym_id, check_in_time, check_out_time FROM attendance WHERE user_id = ' . (int)$user['user_id'] . ' ORDER BY attendance_id DESC LIMIT 1')->fetch();
                 if ($row) {
                     $isCheckout = ($row['check_out_time'] !== null && strtotime($row['check_out_time']) >= strtotime($row['check_in_time']));
                     $gymId = (int)($row['gym_id'] ?? 0);
@@ -59,6 +140,11 @@ function qr_attendance_page(): void
                         $equipmentList = $eqStmt->fetchAll(PDO::FETCH_ASSOC);
                     }
 
+                    $trainerClass = null;
+                    if ($user['role'] === 'trainer') {
+                        $trainerClass = get_trainer_upcoming_class((int)$user['user_id'], !empty($row['schedule_id']) ? (int)$row['schedule_id'] : null);
+                    }
+
                     header('Content-Type: application/json');
                     echo json_encode([
                         'scanned' => true,
@@ -67,7 +153,8 @@ function qr_attendance_page(): void
                         'role' => $user['role'],
                         'gym_id' => $gymId,
                         'equipment_categories' => $equipmentCats,
-                        'equipment_list' => $equipmentList
+                        'equipment_list' => $equipmentList,
+                        'trainer_class' => $trainerClass
                     ]);
                     exit;
                 }
@@ -108,7 +195,7 @@ function qr_attendance_page(): void
 
     // Check if user currently has an active, unclosed attendance today
     $activeAttendanceStmt = db()->prepare("
-        SELECT a.attendance_id, a.gym_id, a.check_in_time, g.name as gym_name
+        SELECT a.attendance_id, a.schedule_id, a.gym_id, a.check_in_time, g.name as gym_name
         FROM attendance a
         LEFT JOIN gyms g ON g.gym_id = a.gym_id
         WHERE a.user_id = ?
@@ -124,8 +211,13 @@ function qr_attendance_page(): void
     $checkedInEquipmentCats = [];
     $checkedInEquipmentList = [];
     $shouldAutoRestoreModal = false;
+    $activeTrainerClass = null;
 
     if ($activeAttendance) {
+        if ($user['role'] === 'trainer') {
+            $activeTrainerClass = get_trainer_upcoming_class((int)$user['user_id'], !empty($activeAttendance['schedule_id']) ? (int)$activeAttendance['schedule_id'] : null);
+        }
+
         $activeEquipStmt = db()->prepare("
             SELECT s.session_id, s.equipment_id, s.start_time, e.name as equipment_name, e.unit_number, e.category
             FROM equipment_sessions s
@@ -258,11 +350,28 @@ function qr_attendance_page(): void
                 </div>
             <?php endif; ?>
 
+            <?php if ($activeTrainerClass): ?>
+                <div style="background:var(--panel-soft); border:1px solid color-mix(in srgb, var(--lime) 40%, var(--line)); border-radius:8px; padding:7px 10px; margin-bottom:8px; display:flex; align-items:center; justify-content:space-between; gap:8px;">
+                    <div style="display:flex; align-items:center; gap:8px; min-width:0;">
+                        <div style="width:26px; height:26px; border-radius:6px; background:color-mix(in srgb, var(--lime) 20%, transparent); color:var(--lime); display:flex; align-items:center; justify-content:center; flex-shrink:0;">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+                        </div>
+                        <div style="min-width:0; overflow:hidden;">
+                            <div style="font-size:9.5px; text-transform:uppercase; color:var(--lime); font-weight:800; line-height:1.1;">Class Session Today</div>
+                            <strong style="font-size:12.5px; color:var(--ink); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; display:block;"><?= h($activeTrainerClass['class_name']) ?> &bull; <?= h($activeTrainerClass['start_time_fmt']) ?> (<?= (int)$activeTrainerClass['total_booked'] ?> booked)</strong>
+                        </div>
+                    </div>
+                    <a href="index.php?page=classes" class="btn" style="background:var(--panel); border:1px solid var(--line); color:var(--ink); font-size:11px; font-weight:700; padding:4px 9px; border-radius:6px; text-decoration:none; white-space:nowrap; flex-shrink:0;">
+                        Roster &rarr;
+                    </a>
+                </div>
+            <?php endif; ?>
+
             <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap:6px;">
                 <?php if (!$activeEquipSession && !empty($checkedInEquipmentList)): ?>
                     <button type="button" id="btn-reopen-equipment-modal" class="btn btn-primary" style="font-weight:700; font-size:11.5px; padding:6px 8px; display:inline-flex; align-items:center; justify-content:center; gap:5px; border-radius:7px; min-height:32px; line-height:1.2; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="flex-shrink:0;"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
-                        <span>Choose Equipment</span>
+                        <span><?= $user['role'] === 'trainer' ? 'Training Equipment' : 'Choose Equipment' ?></span>
                     </button>
                 <?php endif; ?>
                 <a href="index.php?page=equipment" class="btn" style="background:var(--panel-soft); border:1px solid var(--line); color:var(--ink); font-weight:600; font-size:11.5px; padding:6px 8px; text-decoration:none; display:inline-flex; align-items:center; justify-content:center; gap:5px; border-radius:7px; min-height:32px; line-height:1.2; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
@@ -427,7 +536,8 @@ function qr_attendance_page(): void
         'gym_id' => (int)($activeAttendance['gym_id'] ?? 0),
         'attendance_id' => (int)($activeAttendance['attendance_id'] ?? 0),
         'equipment_categories' => $checkedInEquipmentCats,
-        'equipment_list' => $checkedInEquipmentList
+        'equipment_list' => $checkedInEquipmentList,
+        'trainer_class' => $activeTrainerClass
     ] : null) ?>;
     const shouldAutoRestore = <?= $shouldAutoRestoreModal ? 'true' : 'false' ?>;
 
@@ -547,14 +657,57 @@ function qr_attendance_page(): void
         const categories = data.equipment_categories || {};
         const catKeys = Object.keys(categories);
         const equipList = Array.isArray(data.equipment_list) ? data.equipment_list : [];
+        const trainerClass = data.trainer_class || null;
+
+        let classBannerHtml = '';
+        if (isTrainer && trainerClass) {
+            const memberTags = Array.isArray(trainerClass.members) && trainerClass.members.length > 0
+                ? `<div style="display:flex; flex-wrap:wrap; gap:4px; margin-top:6px;">` +
+                  trainerClass.members.map(m => {
+                      const isHere = m.booking_status === 'attended';
+                      return `<span style="font-size:10px; padding:2px 6px; border-radius:6px; background:${isHere ? 'color-mix(in srgb, var(--lime) 20%, transparent)' : 'var(--panel-soft)'}; color:${isHere ? 'var(--lime)' : 'var(--muted)'}; border:1px solid ${isHere ? 'var(--lime)' : 'var(--line)'}; font-weight:600;">` +
+                          `${escapeHtml(m.first_name)} ${escapeHtml(m.last_name ? m.last_name.charAt(0) + '.' : '')}${isHere ? ' ✓' : ''}` +
+                          `</span>`;
+                  }).join('') +
+                  (trainerClass.total_booked > trainerClass.members.length ? `<span style="font-size:9.5px; color:var(--muted); align-self:center;">+${trainerClass.total_booked - trainerClass.members.length} more</span>` : '') +
+                  `</div>`
+                : '';
+
+            classBannerHtml = `
+                <div style="background: color-mix(in srgb, var(--lime) 7%, var(--panel-soft)); border: 1px solid color-mix(in srgb, var(--lime) 35%, var(--line)); border-radius: 10px; padding: 9px 11px; margin: 4px 0 8px; text-align: left;">
+                    <div style="display:flex; justify-content:space-between; align-items:center; gap:6px; margin-bottom:3px;">
+                        <span style="display:inline-flex; align-items:center; gap:4px; font-size:9.5px; font-weight:800; text-transform:uppercase; letter-spacing:0.04em; color:var(--lime); background:color-mix(in srgb, var(--lime) 15%, transparent); padding:2px 7px; border-radius:6px;">
+                            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                            Class Session Today
+                        </span>
+                        <span style="font-size:11px; font-weight:700; color:var(--ink);">
+                            ${escapeHtml(trainerClass.start_time_fmt)}${trainerClass.end_time_fmt ? ' – ' + escapeHtml(trainerClass.end_time_fmt) : ''}
+                        </span>
+                    </div>
+                    <div style="font-size:13.5px; font-weight:800; color:var(--ink); line-height:1.2; margin-bottom:3px;">
+                        ${escapeHtml(trainerClass.class_name)}
+                    </div>
+                    <div style="font-size:11px; color:var(--muted); display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+                        <span>📍 ${escapeHtml(trainerClass.room_location)}</span>
+                        <span>👥 <strong style="color:var(--ink);">${trainerClass.total_booked}</strong> booked (${trainerClass.attended_members} here)</span>
+                    </div>
+                    ${memberTags}
+                </div>
+            `;
+        }
 
         let catChipsHtml = '';
         if (catKeys.length > 0) {
             if (isTrainer) {
+                const recCats = (trainerClass && Array.isArray(trainerClass.recommended_categories)) ? trainerClass.recommended_categories : [];
                 catChipsHtml = '<div style="display:flex; gap:6px; overflow-x:auto; -webkit-overflow-scrolling:touch; padding:2px 2px 6px; margin:4px 0 8px; scrollbar-width:none;">' +
                     catKeys.map(cat => {
                         const count = categories[cat];
-                        return `<a href="index.php?page=equipment&category=${encodeURIComponent(cat)}" style="background:var(--panel-soft); border:1px solid var(--line); color:var(--lime); padding:4px 9px; border-radius:14px; font-size:11px; text-decoration:none; font-weight:700; display:inline-flex; align-items:center; gap:4px; white-space:nowrap; flex-shrink:0;">
+                        const isRec = recCats.includes(cat);
+                        const border = isRec ? '1px solid var(--lime)' : '1px solid var(--line)';
+                        const bg = isRec ? 'color-mix(in srgb, var(--lime) 15%, var(--panel-soft))' : 'var(--panel-soft)';
+                        return `<a href="index.php?page=equipment&category=${encodeURIComponent(cat)}" style="background:${bg}; border:${border}; color:var(--lime); padding:4px 9px; border-radius:14px; font-size:11px; text-decoration:none; font-weight:700; display:inline-flex; align-items:center; gap:4px; white-space:nowrap; flex-shrink:0;">
+                            ${isRec ? '<span>★</span>' : ''}
                             <span>${escapeHtml(cat)}</span>
                             <span style="background:var(--lime); color:#000; border-radius:10px; padding:1px 5px; font-size:9.5px; font-weight:800;">${count}</span>
                         </a>`;
@@ -614,21 +767,25 @@ function qr_attendance_page(): void
             </div>
         `;
 
-        const descText = isTrainer
-            ? "Select your training equipment and circuit areas for today's clients:"
-            : "Floor access unlocked. Quick-claim your machine or browse zones:";
+        const descText = (isTrainer && trainerClass)
+            ? `Gear up for <strong>${escapeHtml(trainerClass.class_name)}</strong>! Select gym equipment and check station availability to train your members:`
+            : (isTrainer
+                ? "Select your training equipment and circuit areas for today's clients:"
+                : "Floor access unlocked. Quick-claim your machine or browse zones:");
 
         const primaryBtnText = isTrainer ? "Floor Availability" : "Floor Equipment";
         const primaryBtnUrl = "index.php?page=equipment";
-        const secondaryBtnText = isTrainer ? "Training Plans" : "My Workout";
-        const secondaryBtnUrl = isTrainer ? "index.php?page=training" : "index.php?page=my_workout";
+        const secondaryBtnText = (isTrainer && trainerClass) ? "Class Roster" : (isTrainer ? "Training Plans" : "My Workout");
+        const secondaryBtnUrl = (isTrainer && trainerClass) ? "index.php?page=classes" : (isTrainer ? "index.php?page=training" : "index.php?page=my_workout");
+        const zoneTitle = (isTrainer && trainerClass) ? "Equipment Zones (★ Recommended)" : "Filter by Zone";
 
         Swal.fire({
             title: titleHtml,
             html: `
                 <p style="color:var(--muted); font-size:12px; line-height:1.35; margin:2px 0 6px;">${descText}</p>
+                ${classBannerHtml}
                 ${quickSelectHtml}
-                <div style="font-size:10.5px; color:var(--muted); text-transform:uppercase; letter-spacing:0.04em; font-weight:800; margin:6px 0 3px; text-align:left;">Filter by Zone</div>
+                <div style="font-size:10.5px; color:var(--muted); text-transform:uppercase; letter-spacing:0.04em; font-weight:800; margin:6px 0 3px; text-align:left;">${zoneTitle}</div>
                 ${catChipsHtml}
                 <div style="display:grid; grid-template-columns:1fr 1fr; gap:7px; margin-top:8px;">
                     <a href="${primaryBtnUrl}" style="display:flex; align-items:center; justify-content:center; gap:5px; text-decoration:none; padding:8px 10px; border-radius:8px; background:var(--lime); color:#000; font-weight:800; font-size:11.5px;">

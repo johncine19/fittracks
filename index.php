@@ -214,6 +214,7 @@ try {
         'announcements' => ['file' => 'pages/admin/announcements.php', 'handler' => 'announcements_page'],
         'terms' => ['file' => 'pages/shared/terms.php', 'handler' => 'terms_page'],
         'privacy' => ['file' => 'pages/shared/privacy.php', 'handler' => 'privacy_page'],
+        'view_permit' => ['file' => 'pages/admin/view_permit.php', 'handler' => 'view_permit_handler'],
     ];
 
     $route = $routes[$page] ?? $routes['dashboard'];
