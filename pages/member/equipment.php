@@ -1127,6 +1127,15 @@ function member_equipment_page(): void
                     const data = await res.json();
                     if (!data.success) {
                         console.warn(data.message);
+                        const grid = document.getElementById('equipment-grid');
+                        if (grid && allEquipment.length === 0) {
+                            grid.innerHTML = `
+                                <div style="grid-column: 1 / -1; text-align: center; padding: 48px 16px; color: var(--muted);">
+                                    <p style="font-size: 15px; margin-bottom: 12px;">${escapeHtml(data.message || 'Unable to load equipment inventory.')}</p>
+                                    <button onclick="fetchEquipmentData()" class="btn btn-sm" style="background: var(--lime); color: var(--bg); font-weight: 700; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer;">Retry</button>
+                                </div>
+                            `;
+                        }
                         return;
                     }
 
@@ -1161,6 +1170,15 @@ function member_equipment_page(): void
                     renderEquipmentGrid();
                 } catch (err) {
                     console.error('Error syncing equipment:', err);
+                    const grid = document.getElementById('equipment-grid');
+                    if (grid && allEquipment.length === 0) {
+                        grid.innerHTML = `
+                            <div style="grid-column: 1 / -1; text-align: center; padding: 48px 16px; color: var(--muted);">
+                                <p style="font-size: 15px; margin-bottom: 12px;">Connection error loading equipment.</p>
+                                <button onclick="fetchEquipmentData()" class="btn btn-sm" style="background: var(--lime); color: var(--bg); font-weight: 700; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer;">Retry</button>
+                            </div>
+                        `;
+                    }
                 }
             }
 
@@ -1519,20 +1537,14 @@ function member_equipment_page(): void
                             <!-- FRONT FACE: Data & Action Controls -->
                             <div class="equip-card-front" onclick="window.toggleEquipCardFlip(this, event)">
                                 <div>
-                                    <!-- Header with category, photo flip button, and status badge -->
+                                    <!-- Header with category and status badge -->
                                     <div style="display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 12px;">
                                         <span style="font-size: 11.5px; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em;">
                                             ${escapeHtml(eq.category)}
                                         </span>
-                                        <div style="display: flex; align-items: center; gap: 6px;">
-                                            <button type="button" class="btn-flip-trigger" onclick="window.toggleEquipCardFlip(this, event)" title="Click to view equipment photo">
-                                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
-                                                <span>Photo</span>
-                                            </button>
-                                            <span class="equip-badge ${badgeClass}">
-                                                ${iconSvg} ${statusLabel}
-                                            </span>
-                                        </div>
+                                        <span class="equip-badge ${badgeClass}">
+                                            ${iconSvg} ${statusLabel}
+                                        </span>
                                     </div>
 
                                     <!-- Title & Unit identifier -->

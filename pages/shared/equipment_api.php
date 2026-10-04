@@ -195,7 +195,7 @@ function reconcile_equipment_states(PDO $pdo, int $gymId): void
     $staleUserSessions->execute([$gymId, $gymId]);
     $staleSessions = $staleUserSessions->fetchAll(PDO::FETCH_ASSOC);
     foreach ($staleSessions as $ss) {
-        $pdo->prepare("UPDATE equipment_sessions SET session_status = 'finished', end_time = NOW() WHERE session_id = ?")->execute([(int)$ss['session_id']]);
+        $pdo->prepare("UPDATE equipment_sessions SET session_status = 'completed', end_time = NOW() WHERE session_id = ?")->execute([(int)$ss['session_id']]);
         $pdo->prepare("UPDATE gym_equipment SET current_session_id = NULL WHERE equipment_id = ?")->execute([(int)$ss['equipment_id']]);
         process_next_in_queue($pdo, (int)$ss['gym_id'], (int)$ss['equipment_id']);
     }

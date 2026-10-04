@@ -8,23 +8,44 @@ function attendance_page(): void
     
     $currentGymId = null;
     if ($user['role'] === 'gym_owner') {
-        $currentGymId = (int) scalar('SELECT gym_id FROM gyms WHERE owner_user_id = ?', [$user['user_id']]);
+        $gid = scalar('SELECT gym_id FROM gyms WHERE owner_user_id = ?', [$user['user_id']]);
+        $currentGymId = $gid ? (int)$gid : null;
+    } else {
+        if (!empty($_GET['gym_id'])) {
+            $currentGymId = (int) $_GET['gym_id'];
+        } else {
+            $gid = scalar('SELECT gym_id FROM gyms ORDER BY gym_id ASC LIMIT 1');
+            $currentGymId = $gid ? (int)$gid : null;
+        }
     }
 
     if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if (post('action') === 'checkout') {
+            $attId = (int) post('attendance_id');
+            $attInfo = db()->prepare('SELECT user_id, gym_id FROM attendance WHERE attendance_id = ?');
+            $attInfo->execute([$attId]);
+            $attRow = $attInfo->fetch(PDO::FETCH_ASSOC);
+
             $checkoutSql = ($user['role'] === 'gym_owner' && $currentGymId)
                 ? 'UPDATE attendance SET check_out_time = NOW() WHERE attendance_id = ? AND (gym_id = ? OR recorded_by = ?)'
                 : 'UPDATE attendance SET check_out_time = NOW() WHERE attendance_id = ?';
             $checkoutParams = ($user['role'] === 'gym_owner' && $currentGymId)
-                ? [post('attendance_id'), $currentGymId, $user['user_id']]
-                : [post('attendance_id')];
+                ? [$attId, $currentGymId, $user['user_id']]
+                : [$attId];
             db()->prepare($checkoutSql)->execute($checkoutParams);
-            audit_log($user['user_id'], 'checkout', 'attendance', (string) post('attendance_id'));
+
+            if ($attRow && !empty($attRow['user_id'])) {
+                if (function_exists('release_user_equipment_on_checkout')) {
+                    release_user_equipment_on_checkout((int)$attRow['user_id'], $currentGymId ?: ((int)($attRow['gym_id'] ?? 0) ?: null));
+                }
+            }
+
+            audit_log($user['user_id'], 'checkout', 'attendance', (string) $attId);
             flash('Check-out recorded.');
         } else {
             $userId = (int) post('user_id');
             $scheduleId = post('schedule_id') ? (int) post('schedule_id') : null;
+            $equipmentId = post('equipment_id') ? (int) post('equipment_id') : 0;
             $method = post('check_in_method') ?: 'manual';
 
             // Resolve gym_id for this check-in
@@ -57,6 +78,7 @@ function attendance_page(): void
             
             db()->prepare('INSERT INTO attendance (user_id, schedule_id, gym_id, check_in_time, check_in_method, recorded_by) VALUES (?, ?, ?, NOW(), ?, ?)')
                 ->execute([$userId, $scheduleId, $gymId ?: null, $method, $user['user_id']]);
+            $newAttId = (string) db()->lastInsertId();
             
             if ($gymId) {
                 // Ensure member is affiliated with the gym
@@ -68,11 +90,48 @@ function attendance_page(): void
                 // Automatically mark their class booking as attended so they get Engagement Points
                 db()->prepare('UPDATE class_bookings SET booking_status = "attended" WHERE user_id = ? AND schedule_id = ?')->execute([$userId, $scheduleId]);
             }
+
+            // Assign equipment if selected AND belongs strictly to this gym
+            $assignedEquipName = null;
+            if ($equipmentId > 0 && $gymId > 0) {
+                $claimStmt = db()->prepare('UPDATE gym_equipment SET status = "in_use" WHERE equipment_id = ? AND gym_id = ? AND status = "available"');
+                $claimStmt->execute([$equipmentId, $gymId]);
+                if ($claimStmt->rowCount() > 0) {
+                    $sessStmt = db()->prepare('INSERT INTO equipment_sessions (gym_id, equipment_id, user_id, start_time, session_status) VALUES (?, ?, ?, NOW(), "active")');
+                    $sessStmt->execute([$gymId, $equipmentId, $userId]);
+                    $sessionId = (int) db()->lastInsertId();
+                    db()->prepare('UPDATE gym_equipment SET current_session_id = ? WHERE equipment_id = ?')->execute([$sessionId, $equipmentId]);
+                    $assignedEquipName = scalar('SELECT name FROM gym_equipment WHERE equipment_id = ?', [$equipmentId]);
+                }
+            }
             
-            audit_log($user['user_id'], 'checkin', 'attendance', (string) db()->lastInsertId(), json_encode(['user_id' => $userId, 'gym_id' => $gymId, 'method' => $method]));
-            flash('Check-in recorded.');
+            audit_log($user['user_id'], 'checkin', 'attendance', $newAttId, json_encode([
+                'user_id' => $userId,
+                'gym_id' => $gymId,
+                'equipment_id' => $equipmentId ?: null,
+                'method' => $method
+            ]));
+
+            if ($assignedEquipName) {
+                flash('Check-in recorded and assigned to ' . $assignedEquipName . '.');
+            } else {
+                flash('Check-in recorded.');
+            }
         }
         redirect('attendance');
+    }
+
+    // Only load equipment belonging strictly to this gym and currently available
+    $availableEquipment = [];
+    if ($currentGymId) {
+        $eqStmt = db()->prepare('
+            SELECT equipment_id, name, unit_number, category, location_area 
+            FROM gym_equipment 
+            WHERE gym_id = ? AND status = "available" 
+            ORDER BY category ASC, name ASC, unit_number ASC
+        ');
+        $eqStmt->execute([$currentGymId]);
+        $availableEquipment = $eqStmt->fetchAll(PDO::FETCH_ASSOC);
     }
 
     if ($user['role'] === 'gym_owner' && $currentGymId) {
@@ -83,14 +142,15 @@ function attendance_page(): void
                    u.email,
                    u.profile_picture,
                    u.role,
-                   IF(gm.gym_id IS NOT NULL, 1, 0) AS is_affiliated,
-                   CONCAT(u.first_name, " ", u.last_name, " (", u.role, ")", IF(gm.gym_id IS NOT NULL, " ★", "")) AS name,
-                   IF(gm.gym_id = ' . (int)$currentGymId . ' OR tp.gym_id = ' . (int)$currentGymId . ', 0, 1) as sort_prio
+                   1 AS is_affiliated,
+                   CONCAT(u.first_name, " ", u.last_name, " (", u.role, ")") AS name
             FROM users u 
             LEFT JOIN gym_members gm ON gm.user_id = u.user_id AND gm.gym_id = ' . (int)$currentGymId . '
             LEFT JOIN trainer_profiles tp ON tp.user_id = u.user_id AND tp.gym_id = ' . (int)$currentGymId . '
-            WHERE u.role IN ("member", "trainer") AND u.status = "active"
-            ORDER BY sort_prio ASC, u.first_name ASC
+            WHERE u.role IN ("member", "trainer") 
+              AND u.status = "active"
+              AND (gm.gym_id = ' . (int)$currentGymId . ' OR tp.gym_id = ' . (int)$currentGymId . ')
+            ORDER BY u.first_name ASC, u.last_name ASC
         ')->fetchAll();
 
         $schedules = db()->query('
@@ -102,7 +162,12 @@ function attendance_page(): void
         ')->fetchAll();
 
         $rows = db()->query('
-            SELECT a.*, CONCAT(u.first_name, " ", u.last_name) AS member, u.first_name, u.last_name, u.role, c.class_name 
+            SELECT a.*, CONCAT(u.first_name, " ", u.last_name) AS member, u.first_name, u.last_name, u.role, c.class_name,
+                   (SELECT CONCAT(ge.name, IF(ge.unit_number != "" AND ge.unit_number != "#1" AND ge.unit_number != "1", CONCAT(" (", ge.unit_number, ")"), ""))
+                    FROM equipment_sessions es
+                    JOIN gym_equipment ge ON ge.equipment_id = es.equipment_id
+                    WHERE es.user_id = a.user_id AND es.session_status = "active" AND es.gym_id = ' . (int)$currentGymId . '
+                    ORDER BY es.session_id DESC LIMIT 1) AS active_equipment
             FROM attendance a 
             JOIN users u ON u.user_id = a.user_id 
             LEFT JOIN class_schedules s ON s.schedule_id = a.schedule_id 
@@ -112,9 +177,29 @@ function attendance_page(): void
             LIMIT 100
         ')->fetchAll();
     } else {
-        $members = db()->query('SELECT user_id, first_name, last_name, email, profile_picture, role, 0 AS is_affiliated, CONCAT(first_name, " ", last_name, " (", role, ")") AS name FROM users WHERE role IN ("member", "trainer") AND status = "active" ORDER BY role, first_name')->fetchAll();
+        $members = db()->query('
+            SELECT DISTINCT u.user_id, u.first_name, u.last_name, u.email, u.profile_picture, u.role, 1 AS is_affiliated, CONCAT(u.first_name, " ", u.last_name, " (", u.role, ")") AS name 
+            FROM users u 
+            LEFT JOIN gym_members gm ON gm.user_id = u.user_id ' . ($currentGymId ? 'AND gm.gym_id = ' . (int)$currentGymId : '') . '
+            LEFT JOIN trainer_profiles tp ON tp.user_id = u.user_id ' . ($currentGymId ? 'AND tp.gym_id = ' . (int)$currentGymId : '') . '
+            WHERE u.role IN ("member", "trainer") AND u.status = "active" ' . ($currentGymId ? 'AND (gm.gym_id = ' . (int)$currentGymId . ' OR tp.gym_id = ' . (int)$currentGymId . ')' : '') . '
+            ORDER BY u.role, u.first_name, u.last_name
+        ')->fetchAll();
         $schedules = db()->query('SELECT s.schedule_id, CONCAT(c.class_name, " - ", DATE_FORMAT(s.start_datetime, "%b %d %h:%i %p")) AS label FROM class_schedules s JOIN classes c ON c.class_id = s.class_id WHERE s.start_datetime >= DATE_SUB(NOW(), INTERVAL 1 DAY) ORDER BY s.start_datetime')->fetchAll();
-        $rows = db()->query('SELECT a.*, CONCAT(u.first_name, " ", u.last_name) AS member, u.first_name, u.last_name, u.role, c.class_name FROM attendance a JOIN users u ON u.user_id = a.user_id LEFT JOIN class_schedules s ON s.schedule_id = a.schedule_id LEFT JOIN classes c ON c.class_id = s.class_id ORDER BY a.check_in_time DESC LIMIT 100')->fetchAll();
+        $rows = db()->query('
+            SELECT a.*, CONCAT(u.first_name, " ", u.last_name) AS member, u.first_name, u.last_name, u.role, c.class_name,
+                   (SELECT CONCAT(ge.name, IF(ge.unit_number != "" AND ge.unit_number != "#1" AND ge.unit_number != "1", CONCAT(" (", ge.unit_number, ")"), ""))
+                    FROM equipment_sessions es
+                    JOIN gym_equipment ge ON ge.equipment_id = es.equipment_id
+                    WHERE es.user_id = a.user_id AND es.session_status = "active" ' . ($currentGymId ? 'AND es.gym_id = ' . (int)$currentGymId : '') . '
+                    ORDER BY es.session_id DESC LIMIT 1) AS active_equipment
+            FROM attendance a 
+            JOIN users u ON u.user_id = a.user_id 
+            LEFT JOIN class_schedules s ON s.schedule_id = a.schedule_id 
+            LEFT JOIN classes c ON c.class_id = s.class_id 
+            ORDER BY a.check_in_time DESC 
+            LIMIT 100
+        ')->fetchAll();
     }
 
     $checkinMembersData = array_map(function ($m) {
@@ -123,8 +208,7 @@ function attendance_page(): void
         $fullName = trim($first . ' ' . $last) ?: ($m['name'] ?? 'User');
         $ini = (!empty($first) ? strtoupper(substr($first, 0, 1)) : '') . (!empty($last) ? strtoupper(substr($last, 0, 1)) : '');
         $roleName = ucfirst((string)($m['role'] ?? 'Member'));
-        $star = !empty($m['is_affiliated']) ? ' ★' : '';
-        $label = $fullName . ' (' . $roleName . ')' . $star;
+        $label = $fullName . ' (' . $roleName . ')';
         $email = (string)($m['email'] ?? '');
         return [
             'id'       => (int) $m['user_id'],
@@ -207,6 +291,13 @@ function attendance_page(): void
                             <?php else: ?>
                                 <span style="color:var(--muted);font-size:12px;">Gym visit</span>
                             <?php endif; ?>
+                            <?php if (!$checkedOut && !empty($row['active_equipment'])): ?>
+                                <div style="margin-top: 5px;">
+                                    <span class="badge" style="background: rgba(34, 197, 94, 0.12); color: #22c55e; border: 1px solid rgba(34, 197, 94, 0.3); font-size: 11px; padding: 2px 7px; display: inline-flex; align-items: center; gap: 4px; border-radius: 4px; font-weight: 500;">
+                                        ⚡ <?= h($row['active_equipment']) ?>
+                                    </span>
+                                </div>
+                            <?php endif; ?>
                         </td>
                         <td><?= h(date('M j, h:i A', strtotime($row['check_in_time']))) ?></td>
                         <td><?= $checkedOut ? h(date('M j, h:i A', strtotime($row['check_out_time']))) : '<span class="muted">—</span>' ?></td>
@@ -247,7 +338,7 @@ function attendance_page(): void
             title: 'Record Check-in',
             width: '460px',
             html: `
-                <form id="recordCheckinForm" method="post" style="text-align: left; display: flex; flex-direction: column; gap: 14px; margin-top: 15px; min-height: 220px; position: relative;">
+                <form id="recordCheckinForm" method="post" style="text-align: left; display: flex; flex-direction: column; gap: 14px; margin-top: 15px; min-height: 300px; position: relative;">
                     <?= csrf_field() ?>
                     <input type="hidden" name="action" value="checkin">
                     <input type="hidden" name="user_id" id="checkinUserId" value="">
@@ -265,6 +356,36 @@ function attendance_page(): void
                                 <option value="<?= (int) $schedule['schedule_id'] ?>" style="font-size: 13px;"><?= h($schedule['label']) ?></option>
                             <?php endforeach; ?>
                         </select>
+                    </div>
+
+                    <div>
+                        <label style="display:block; color: var(--muted); font-size: 13.5px; margin-bottom: 6px; font-weight: 500;">Assign Equipment <span style="font-size: 11.5px; opacity: 0.8; font-weight: normal;">(Optional)</span></label>
+                        <select name="equipment_id" class="form-control" style="width: 100%; height: 42px; box-sizing: border-box; background: var(--panel); color: var(--ink); border: 1px solid var(--line); border-radius: 8px; padding: 0 12px; font-size: 13px; font-family: inherit; outline: none; cursor: pointer;">
+                            <option value="">— None / General Floor Access —</option>
+                            <?php if (!empty($availableEquipment)): ?>
+                                <?php
+                                $groupedEquip = [];
+                                foreach ($availableEquipment as $eq) {
+                                    $catName = !empty($eq['category']) ? $eq['category'] : 'Equipment';
+                                    $groupedEquip[$catName][] = $eq;
+                                }
+                                foreach ($groupedEquip as $catName => $items):
+                                ?>
+                                    <optgroup label="<?= h($catName) ?>">
+                                        <?php foreach ($items as $eqItem): 
+                                            $uNum = trim((string)($eqItem['unit_number'] ?? ''));
+                                            $uStr = ($uNum !== '' && $uNum !== '#1' && $uNum !== '1') ? ' ' . $uNum : '';
+                                            $locStr = !empty($eqItem['location_area']) ? ' • ' . $eqItem['location_area'] : '';
+                                        ?>
+                                            <option value="<?= (int) $eqItem['equipment_id'] ?>"><?= h($eqItem['name'] . $uStr . $locStr) ?></option>
+                                        <?php endforeach; ?>
+                                    </optgroup>
+                                <?php endforeach; ?>
+                            <?php else: ?>
+                                <option value="" disabled>No equipment currently available</option>
+                            <?php endif; ?>
+                        </select>
+                        <div style="font-size: 11.5px; color: var(--muted); margin-top: 4px;">Assign a machine for members whose phone was left behind.</div>
                     </div>
                     
                     <input type="hidden" name="check_in_method" value="manual">

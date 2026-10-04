@@ -30,6 +30,12 @@ function progress_page(): void
     $member = $stmt->fetch();
     $isFemale = strtolower((string)($member['biological_sex'] ?? '')) === 'female';
 
+    // Check if member has an active assigned trainer/coach
+    $hasCoach = (bool) scalar(
+        'SELECT 1 FROM trainer_assignments WHERE member_user_id = ? AND status = "active" LIMIT 1',
+        [$memberId]
+    );
+
     if (!$member && $user['role'] === 'trainer') {
         render_header('Member Progress', $user);
         echo '<div class="panel" style="text-align:center; padding: 48px 24px;">
@@ -702,6 +708,14 @@ function progress_page(): void
         .btn-hub-secondary:hover {
             background: color-mix(in srgb, var(--ink) 8%, transparent);
             border-color: color-mix(in srgb, var(--ink) 20%, transparent);
+        }
+
+        /* Floating Action Button (FAB) Speed Dial - Hidden on desktop */
+        .hub-fab-backdrop {
+            display: none;
+        }
+        .hub-fab-container {
+            display: none;
         }
 
         /* 2. Navigation Tabs */
@@ -1529,7 +1543,12 @@ function progress_page(): void
 
             .profile-card-inner {
                 flex-direction: column !important;
-                align-items: center !important;
+                align-items: stretch !important;
+                text-align: center !important;
+            }
+
+            .hub-header-title-group {
+                width: 100% !important;
                 text-align: center !important;
             }
 
@@ -1571,7 +1590,7 @@ function progress_page(): void
             }
 
             .p-detail-card {
-                background: var(--panel-soft);
+                background: transparent;
                 border: 1px solid var(--line);
                 border-radius: 10px;
                 padding: 8px 12px;
@@ -1600,26 +1619,168 @@ function progress_page(): void
             }
 
             .profile-actions-group {
-                width: 100% !important;
-                display: grid !important;
-                grid-template-columns: 1fr 1fr;
-                gap: 8px !important;
-                margin-top: 10px;
-                box-sizing: border-box;
+                display: none !important;
             }
 
-            .profile-actions-group .btn-hub-primary {
-                grid-column: span 2;
-                justify-content: center;
-                padding: 12px 16px;
-                font-size: 14px;
+            /* Mobile FAB Speed Dial */
+            .hub-fab-backdrop {
+                display: block !important;
+                position: fixed;
+                inset: 0;
+                background: rgba(0, 0, 0, 0.45);
+                backdrop-filter: blur(3px);
+                -webkit-backdrop-filter: blur(3px);
+                z-index: 998;
+                opacity: 0;
+                pointer-events: none;
+                transition: opacity 0.24s ease;
             }
 
-            .profile-actions-group .btn-hub-secondary {
+            .hub-fab-backdrop.active {
+                opacity: 1;
+                pointer-events: auto;
+            }
+
+            .hub-fab-container {
+                display: block !important;
+                position: fixed;
+                bottom: 24px;
+                right: 20px;
+                z-index: 999;
+            }
+
+            .hub-fab-trigger {
+                width: 56px;
+                height: 56px;
+                border-radius: 50%;
+                background: var(--lime);
+                color: #0b110e;
+                border: none;
+                cursor: pointer;
+                display: flex;
+                align-items: center;
                 justify-content: center;
-                padding: 10px 12px;
+                box-shadow: 0 8px 24px rgba(0, 0, 0, 0.38), 0 0 0 1px rgba(255, 255, 255, 0.15);
+                transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.25s ease;
+                outline: none;
+                -webkit-tap-highlight-color: transparent;
+            }
+
+            [data-theme="light"] .hub-fab-trigger {
+                background: #16a34a;
+                color: #ffffff;
+                box-shadow: 0 8px 24px rgba(22, 163, 74, 0.4), 0 2px 8px rgba(0, 0, 0, 0.12);
+            }
+
+            .hub-fab-trigger:active {
+                transform: scale(0.92);
+            }
+
+            .hub-fab-plus {
+                transition: transform 0.28s cubic-bezier(0.34, 1.56, 0.64, 1);
+            }
+
+            .hub-fab-container.active .hub-fab-plus {
+                transform: rotate(45deg);
+            }
+
+            .hub-fab-menu {
+                position: absolute;
+                bottom: 68px;
+                right: 0;
+                display: flex;
+                flex-direction: column;
+                gap: 12px;
+                align-items: flex-end;
+                pointer-events: none;
+                opacity: 0;
+                transform: translateY(16px) scale(0.9);
+                transition: opacity 0.22s ease, transform 0.24s cubic-bezier(0.34, 1.56, 0.64, 1);
+            }
+
+            .hub-fab-container.active .hub-fab-menu {
+                opacity: 1;
+                pointer-events: auto;
+                transform: translateY(0) scale(1);
+            }
+
+            .hub-fab-item {
+                display: flex;
+                align-items: center;
+                gap: 10px;
+                text-decoration: none;
+                background: none;
+                border: none;
+                padding: 0;
+                cursor: pointer;
+                outline: none;
+                -webkit-tap-highlight-color: transparent;
+            }
+
+            .hub-fab-label {
+                background: rgba(18, 24, 38, 0.96);
+                color: #ffffff;
                 font-size: 13px;
-                text-align: center;
+                font-weight: 700;
+                padding: 7px 14px;
+                border-radius: 8px;
+                box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35);
+                border: 1px solid rgba(255, 255, 255, 0.14);
+                white-space: nowrap;
+                letter-spacing: 0.01em;
+            }
+
+            [data-theme="light"] .hub-fab-label {
+                background: #ffffff;
+                color: #0f172a;
+                border-color: #cbd5e1;
+                box-shadow: 0 4px 14px rgba(0, 0, 0, 0.12);
+            }
+
+            .hub-fab-icon {
+                width: 44px;
+                height: 44px;
+                border-radius: 50%;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                box-shadow: 0 4px 12px rgba(0, 0, 0, 0.28);
+                flex-shrink: 0;
+                transition: transform 0.15s ease;
+            }
+
+            .hub-fab-item:active .hub-fab-icon {
+                transform: scale(0.92);
+            }
+
+            .hub-fab-icon.icon-log {
+                background: var(--lime);
+                color: #0b110e;
+            }
+
+            [data-theme="light"] .hub-fab-icon.icon-log {
+                background: #16a34a;
+                color: #ffffff;
+            }
+
+            .hub-fab-icon.icon-workout {
+                background: var(--lime);
+                color: #0b110e;
+            }
+
+            [data-theme="light"] .hub-fab-icon.icon-workout {
+                background: #16a34a;
+                color: #ffffff;
+            }
+
+            .hub-fab-icon.icon-message {
+                background: #38bdf8;
+                color: #0b110e;
+            }
+
+            .hub-fab-icon.icon-profile {
+                background: #a855f7;
+                color: #ffffff;
             }
 
             .hub-kpi-grid {
@@ -1842,87 +2003,43 @@ function progress_page(): void
     <!-- 1. HEADER PROFILE CARD -->
     <section class="member-hub-profile-card">
         <div class="profile-card-inner">
-            <div class="profile-bio-group">
-                <div class="profile-avatar-wrap">
-                    <?php if (!empty($member['profile_picture'])): ?>
-                        <img src="<?= h($member['profile_picture']) ?>" alt="<?= h($member['first_name']) ?>" class="profile-avatar-img">
-                    <?php else: ?>
-                        <div class="profile-avatar-img">
-                            <?= strtoupper(substr($member['first_name'] ?? 'M', 0, 1) . substr($member['last_name'] ?? '', 0, 1)) ?>
-                        </div>
-                    <?php endif; ?>
-                    <span class="avatar-online-dot" title="Active"></span>
+            <div class="hub-header-title-group" style="min-width: 0; flex: 1 1 auto;">
+                <h1 class="profile-name-title" style="font-size: 1.45rem;">
+                    <?= $user['role'] === 'trainer' ? h($member['first_name'] . ' ' . $member['last_name']) . "'s Progress" : 'Progress Hub' ?>
+                </h1>
+
+                <!-- Desktop Meta Pills (Hidden on small screens) -->
+                <div class="profile-desktop-meta" style="margin-top: 6px;">
+                    <div class="profile-meta-pills">
+                        <?php if (!empty($member['primary_goal'])): ?>
+                            <span class="meta-goal-chip">
+                                🎯 <?= h(ucwords(str_replace('_', ' ', $member['primary_goal']))) ?>
+                            </span>
+                        <?php endif; ?>
+
+                        <span class="meta-pill-item">
+                            <span>Member Since:</span> <strong><?= date('M j, Y', strtotime($member['user_created_at'] ?? $member['created_at'])) ?></strong>
+                        </span>
+                        <span>•</span>
+                        <span class="meta-pill-item">
+                            <span>Training:</span> <strong><?= $weeklyTarget ?> days/week</strong>
+                        </span>
+                    </div>
                 </div>
 
-                <div class="profile-info">
-                    <div class="profile-name-row">
-                        <h1 class="profile-name-title"><?= h($member['first_name'] . ' ' . $member['last_name']) ?></h1>
-                        <span class="status-pill-active">Active Member</span>
+                <!-- Mobile Details Cards (Visible only on small screens) -->
+                <div class="profile-mobile-cards">
+                    <div class="p-detail-card p-detail-card-wide">
+                        <span class="p-detail-label">Goal</span>
+                        <span class="p-detail-val" style="color: var(--lime);">🎯 <?= h(ucwords(str_replace('_', ' ', $member['primary_goal'] ?? 'General Fitness'))) ?></span>
                     </div>
-
-                    <!-- Desktop Meta Pills (Hidden on small screens) -->
-                    <div class="profile-desktop-meta">
-                        <div class="profile-meta-pills">
-                            <span class="meta-pill-item">
-                                <span>Sex:</span> <strong><?= ucfirst(h($member['biological_sex'] ?? 'Not set')) ?></strong>
-                            </span>
-                            <span>•</span>
-                            <span class="meta-pill-item">
-                                <span>Age:</span> <strong><?= !empty($member['age']) ? h((string)$member['age']) . ' yrs' : '—' ?></strong>
-                            </span>
-                            <span>•</span>
-                            <span class="meta-pill-item">
-                                <span>Height:</span> <strong><?= $heightCm > 0 ? h(number_format($heightCm, 1)) . ' cm' : '—' ?></strong>
-                            </span>
-                            <span>•</span>
-                            <span class="meta-pill-item">
-                                <span>Weight:</span> <strong><?= $weightCurr > 0 ? h(number_format($weightCurr, 1)) . ' kg' : '—' ?></strong>
-                            </span>
-                        </div>
-
-                        <div class="profile-meta-pills" style="margin-top: 2px;">
-                            <?php if (!empty($member['primary_goal'])): ?>
-                                <span class="meta-goal-chip">
-                                    🎯 <?= h(str_replace('_', ' ', $member['primary_goal'])) ?>
-                                </span>
-                            <?php endif; ?>
-
-                            <span class="meta-pill-item">
-                                <span>Member Since:</span> <strong><?= date('M j, Y', strtotime($member['user_created_at'] ?? $member['created_at'])) ?></strong>
-                            </span>
-                            <span>•</span>
-                            <span class="meta-pill-item">
-                                <span>Training:</span> <strong><?= $weeklyTarget ?> days/week</strong>
-                            </span>
-                        </div>
+                    <div class="p-detail-card">
+                        <span class="p-detail-label">Training</span>
+                        <span class="p-detail-val"><?= $weeklyTarget ?> days/wk</span>
                     </div>
-
-                    <!-- Mobile Details Cards (Visible only on small screens) -->
-                    <div class="profile-mobile-cards">
-                        <div class="p-detail-card">
-                            <span class="p-detail-label">Sex / Age</span>
-                            <span class="p-detail-val"><?= ucfirst(h($member['biological_sex'] ?? '—')) ?>, <?= !empty($member['age']) ? h((string)$member['age']) . 'y' : '—' ?></span>
-                        </div>
-                        <div class="p-detail-card">
-                            <span class="p-detail-label">Height</span>
-                            <span class="p-detail-val"><?= $heightCm > 0 ? h(number_format($heightCm, 1)) . ' cm' : '—' ?></span>
-                        </div>
-                        <div class="p-detail-card">
-                            <span class="p-detail-label">Weight</span>
-                            <span class="p-detail-val"><?= $weightCurr > 0 ? h(number_format($weightCurr, 1)) . ' kg' : '—' ?></span>
-                        </div>
-                        <div class="p-detail-card">
-                            <span class="p-detail-label">Training</span>
-                            <span class="p-detail-val"><?= $weeklyTarget ?> days/wk</span>
-                        </div>
-                        <div class="p-detail-card p-detail-card-wide">
-                            <span class="p-detail-label">Goal</span>
-                            <span class="p-detail-val" style="color: var(--lime);">🎯 <?= h(ucwords(str_replace('_', ' ', $member['primary_goal'] ?? 'General Fitness'))) ?></span>
-                        </div>
-                        <div class="p-detail-card p-detail-card-wide">
-                            <span class="p-detail-label">Member Since</span>
-                            <span class="p-detail-val"><?= date('M j, Y', strtotime($member['user_created_at'] ?? $member['created_at'])) ?></span>
-                        </div>
+                    <div class="p-detail-card">
+                        <span class="p-detail-label">Member Since</span>
+                        <span class="p-detail-val"><?= date('M j, Y', strtotime($member['user_created_at'] ?? $member['created_at'])) ?></span>
                     </div>
                 </div>
             </div>
@@ -1939,10 +2056,12 @@ function progress_page(): void
                         <span><?= $activePlan ? 'Edit Workout Plan' : 'Assign Workout' ?></span>
                     </a>
                 <?php else: ?>
-                    <button type="button" class="btn-hub-secondary" onclick="openNoteModal()">
-                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
-                        <span>Message Coach</span>
-                    </button>
+                    <?php if ($hasCoach): ?>
+                        <button type="button" class="btn-hub-secondary" onclick="openNoteModal()">
+                            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+                            <span>Message Coach</span>
+                        </button>
+                    <?php endif; ?>
                     <a href="index.php?page=profile" class="btn-hub-secondary">
                         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
                         <span>Edit Profile</span>
@@ -1955,6 +2074,55 @@ function progress_page(): void
             </div>
         </div>
     </section>
+
+    <!-- MOBILE FLOATING ACTION BUTTON (SPEED DIAL) -->
+    <div class="hub-fab-backdrop" id="hubFabBackdrop" onclick="toggleHubFab(false)"></div>
+    <div class="hub-fab-container" id="hubFabContainer">
+        <div class="hub-fab-menu" id="hubFabMenu" aria-hidden="true">
+            <?php if ($user['role'] === 'trainer'): ?>
+                <a href="index.php?page=workout_builder&member_user_id=<?= (int)$memberId ?>" class="hub-fab-item">
+                    <span class="hub-fab-label"><?= $activePlan ? 'Edit Workout Plan' : 'Assign Workout' ?></span>
+                    <div class="hub-fab-icon icon-workout">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                    </div>
+                </a>
+                <button type="button" class="hub-fab-item" onclick="toggleHubFab(false); openNoteModal();">
+                    <span class="hub-fab-label">Message Client</span>
+                    <div class="hub-fab-icon icon-message">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+                    </div>
+                </button>
+            <?php else: ?>
+                <button type="button" class="hub-fab-item" onclick="toggleHubFab(false); logProgress();">
+                    <span class="hub-fab-label">Log Progress</span>
+                    <div class="hub-fab-icon icon-log">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                    </div>
+                </button>
+                <a href="index.php?page=profile" class="hub-fab-item">
+                    <span class="hub-fab-label">Edit Profile</span>
+                    <div class="hub-fab-icon icon-profile">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+                    </div>
+                </a>
+                <?php if ($hasCoach): ?>
+                    <button type="button" class="hub-fab-item" onclick="toggleHubFab(false); openNoteModal();">
+                        <span class="hub-fab-label">Message Coach</span>
+                        <div class="hub-fab-icon icon-message">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+                        </div>
+                    </button>
+                <?php endif; ?>
+            <?php endif; ?>
+        </div>
+
+        <button type="button" class="hub-fab-trigger" id="hubFabTrigger" onclick="toggleHubFab()" aria-label="Quick Actions">
+            <svg class="hub-fab-plus" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                <line x1="12" y1="5" x2="12" y2="19"/>
+                <line x1="5" y1="12" x2="19" y2="12"/>
+            </svg>
+        </button>
+    </div>
 
     <!-- 2. NAVIGATION TABS -->
     <nav class="member-hub-tabs-nav" aria-label="Member Hub Tabs">
@@ -3089,6 +3257,30 @@ function progress_page(): void
             }
         });
     }
+
+    // Toggle Mobile Floating Action Button (FAB) Speed Dial
+    function toggleHubFab(forceState) {
+        const container = document.getElementById('hubFabContainer');
+        const backdrop = document.getElementById('hubFabBackdrop');
+        if (!container || !backdrop) return;
+
+        const isActive = (typeof forceState === 'boolean') ? forceState : !container.classList.contains('active');
+        if (isActive) {
+            container.classList.add('active');
+            backdrop.classList.add('active');
+            document.body.style.overflow = 'hidden';
+        } else {
+            container.classList.remove('active');
+            backdrop.classList.remove('active');
+            document.body.style.overflow = '';
+        }
+    }
+
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape') {
+            toggleHubFab(false);
+        }
+    });
     </script>
     <?php
     render_footer();

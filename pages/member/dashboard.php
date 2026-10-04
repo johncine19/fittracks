@@ -114,7 +114,6 @@ function get_dashboard_attendance_activity_data(array $user, array $params = [])
     $peakIndices = [];
 
     if ($range === 'day') {
-        $hourCounts = array_fill(5, 19, 0); // 5 AM to 11 PM
         $hrStmt = $pdo->prepare("
             SELECT HOUR(check_in_time) AS hr, COUNT(*) AS cnt
             FROM attendance
@@ -123,99 +122,59 @@ function get_dashboard_attendance_activity_data(array $user, array $params = [])
             GROUP BY HOUR(check_in_time)
         ");
         $hrStmt->execute(['date' => $date, 'gym_id' => $gymId]);
+    } elseif ($range === 'week') {
+        $targetDt = new DateTime($date);
+        $dStart = (clone $targetDt)->modify('-6 days')->format('Y-m-d');
+        $dEnd = $targetDt->format('Y-m-d');
+
+        $hrStmt = $pdo->prepare("
+            SELECT HOUR(check_in_time) AS hr, COUNT(*) AS cnt
+            FROM attendance
+            WHERE DATE(check_in_time) BETWEEN :d_start AND :d_end
+              AND (:gym_id = 0 OR gym_id = :gym_id)
+            GROUP BY HOUR(check_in_time)
+        ");
+        $hrStmt->execute(['d_start' => $dStart, 'd_end' => $dEnd, 'gym_id' => $gymId]);
+    } elseif ($range === 'month') {
+        $yearMonth = date('Y-m', strtotime($date));
+
+        $hrStmt = $pdo->prepare("
+            SELECT HOUR(check_in_time) AS hr, COUNT(*) AS cnt
+            FROM attendance
+            WHERE DATE_FORMAT(check_in_time, '%Y-%m') = :ym
+              AND (:gym_id = 0 OR gym_id = :gym_id)
+            GROUP BY HOUR(check_in_time)
+        ");
+        $hrStmt->execute(['ym' => $yearMonth, 'gym_id' => $gymId]);
+    }
+
+    $hourCounts = array_fill(5, 19, 0); // 5 AM to 11 PM
+    if (isset($hrStmt)) {
         foreach ($hrStmt->fetchAll(PDO::FETCH_ASSOC) as $hRow) {
             $h = (int) $hRow['hr'];
             if ($h >= 5 && $h <= 23) {
                 $hourCounts[$h] = (int) $hRow['cnt'];
             }
         }
+    }
 
-        foreach ($hourCounts as $hour => $cnt) {
-            $chartLabels[] = date('g A', strtotime("$hour:00"));
-            $chartData[] = $cnt;
-            if ($cnt > $peakMaxCount) {
-                $peakMaxCount = $cnt;
+    foreach ($hourCounts as $hour => $cnt) {
+        $chartLabels[] = date('g A', strtotime("$hour:00"));
+        $chartData[] = $cnt;
+        if ($cnt > $peakMaxCount) {
+            $peakMaxCount = $cnt;
+        }
+    }
+
+    if ($peakMaxCount > 0) {
+        $peakHoursList = [];
+        foreach ($chartData as $k => $c) {
+            if ($c === $peakMaxCount) {
+                $peakIndices[] = $k;
+                $peakHoursList[] = $chartLabels[$k];
             }
         }
-
-        if ($peakMaxCount > 0) {
-            $peakHoursList = [];
-            foreach ($chartData as $k => $c) {
-                if ($c === $peakMaxCount) {
-                    $peakIndices[] = $k;
-                    $peakHoursList[] = $chartLabels[$k];
-                }
-            }
-            $peakHourLabel = implode(', ', $peakHoursList) . " ($peakMaxCount " . ($peakMaxCount === 1 ? 'check-in' : 'check-ins') . ')';
-        }
-    } elseif ($range === 'week') {
-        $targetDt = new DateTime($date);
-        $dates = [];
-        for ($i = 6; $i >= 0; $i--) {
-            $d = (clone $targetDt)->modify("-$i days");
-            $dates[] = $d->format('Y-m-d');
-        }
-
-        $wkStmt = $pdo->prepare("
-            SELECT DATE(check_in_time) AS d, COUNT(*) AS cnt
-            FROM attendance
-            WHERE DATE(check_in_time) BETWEEN :d_start AND :d_end
-              AND (:gym_id = 0 OR gym_id = :gym_id)
-            GROUP BY DATE(check_in_time)
-        ");
-        $wkStmt->execute(['d_start' => $dates[0], 'd_end' => $dates[6], 'gym_id' => $gymId]);
-        $wkMap = $wkStmt->fetchAll(PDO::FETCH_KEY_PAIR);
-
-        foreach ($dates as $dStr) {
-            $cnt = (int) ($wkMap[$dStr] ?? 0);
-            $chartLabels[] = date('D, M j', strtotime($dStr));
-            $chartData[] = $cnt;
-            if ($cnt > $peakMaxCount) {
-                $peakMaxCount = $cnt;
-            }
-        }
-        if ($peakMaxCount > 0) {
-            $peakDaysList = [];
-            foreach ($chartData as $k => $c) {
-                if ($c === $peakMaxCount) {
-                    $peakIndices[] = $k;
-                    $peakDaysList[] = $chartLabels[$k];
-                }
-            }
-            $peakHourLabel = implode(', ', $peakDaysList) . " ($peakMaxCount visits)";
-        }
-    } elseif ($range === 'month') {
-        $yearMonth = date('Y-m', strtotime($date));
-        $daysInMonth = (int) date('t', strtotime($date));
-
-        $moStmt = $pdo->prepare("
-            SELECT DAY(check_in_time) AS d, COUNT(*) AS cnt
-            FROM attendance
-            WHERE DATE_FORMAT(check_in_time, '%Y-%m') = :ym
-              AND (:gym_id = 0 OR gym_id = :gym_id)
-            GROUP BY DAY(check_in_time)
-        ");
-        $moStmt->execute(['ym' => $yearMonth, 'gym_id' => $gymId]);
-        $moMap = $moStmt->fetchAll(PDO::FETCH_KEY_PAIR);
-
-        for ($d = 1; $d <= $daysInMonth; $d++) {
-            $cnt = (int) ($moMap[$d] ?? 0);
-            $chartLabels[] = date('M', strtotime($date)) . ' ' . $d;
-            $chartData[] = $cnt;
-            if ($cnt > $peakMaxCount) {
-                $peakMaxCount = $cnt;
-            }
-        }
-        if ($peakMaxCount > 0) {
-            $peakDaysList = [];
-            foreach ($chartData as $k => $c) {
-                if ($c === $peakMaxCount) {
-                    $peakIndices[] = $k;
-                    $peakDaysList[] = $chartLabels[$k];
-                }
-            }
-            $peakHourLabel = implode(', ', $peakDaysList) . " ($peakMaxCount visits)";
-        }
+        $peakHourLabel = implode(', ', $peakHoursList) . " ($peakMaxCount " . ($peakMaxCount === 1 ? 'check-in' : 'check-ins') . ')';
     }
 
     return [
@@ -2643,28 +2602,6 @@ function member_dashboard(PDO $pdo, array $user): void
     <!-- TAB 1: TODAY & WORKOUT                     -->
     <!-- ========================================== -->
     <div id="panel-today" class="member-tab-panel active">
-        <!-- 1-Tap Quick Action Strip -->
-        <div class="member-quick-actions">
-            <a href="index.php?page=qr_attendance" class="member-action-pill">
-                <div class="member-action-icon">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
-                </div>
-                <span>Scan Attendance QR</span>
-            </a>
-            <a href="index.php?page=diet" class="member-action-pill">
-                <div class="member-action-icon">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8h1a4 4 0 0 1 0 8h-1"/><path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z"/><line x1="6" y1="1" x2="6" y2="4"/><line x1="10" y1="1" x2="10" y2="4"/><line x1="14" y1="1" x2="14" y2="4"/></svg>
-                </div>
-                <span>Log Meal & Macros</span>
-            </a>
-            <a href="index.php?page=my_workout" class="member-action-pill">
-                <div class="member-action-icon">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m6.5 6.5 11 11"/><path d="m21 21-1-1"/><path d="m3 3 1 1"/><path d="m18 22 4-4"/><path d="m2 6 4-4"/><path d="m3 10 7-7"/><path d="m14 21 7-7"/></svg>
-                </div>
-                <span>Full Workout Routine</span>
-            </a>
-        </div>
-
         <!-- Key Stats Metrics Grid -->
         <div class="member-stats-grid skeleton-content sk-display-grid animate-fade-in delay-1">
             <!-- Attendance Records Card -->
@@ -2940,7 +2877,7 @@ function member_dashboard(PDO $pdo, array $user): void
                                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" style="color: var(--lime);"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
                                 Peak Hours Analysis
                             </h3>
-                            <p class="act-panel-sub">Traffic distribution and gym congestion patterns</p>
+                            <p class="act-panel-sub" id="act-peak-panel-sub">Traffic distribution and gym congestion patterns</p>
                         </div>
                         <div class="act-toolbar" style="margin: 0;">
                             <label class="act-calendar-btn" title="Select Date (<?= h($actInitialData['date']) ?>)">
@@ -3624,13 +3561,30 @@ function member_dashboard(PDO $pdo, array $user): void
             statPeak.title = data.peak_hour_label;
         }
 
-        // 3. Peak Rush banner
+        // 3. Peak Rush banner & Subtitle
         const peakBannerText = document.getElementById('act-peak-banner-text');
         if (peakBannerText) {
             if (data.peak_max_count > 0) {
-                peakBannerText.innerHTML = '<strong>Peak Traffic Detected:</strong> Peak check-ins occurred at <strong>' + escapeHtml(data.peak_hour_label) + '</strong>. Plan your gym session to avoid busy hours or join the rush!';
+                let rangePrefix = 'Peak check-ins occurred at ';
+                if (data.range === 'week') {
+                    rangePrefix = 'Over the past 7 days, peak rush occurred at ';
+                } else if (data.range === 'month') {
+                    rangePrefix = 'Across this month, peak rush occurred at ';
+                }
+                peakBannerText.innerHTML = '<strong>Peak Traffic Detected:</strong> ' + rangePrefix + '<strong>' + escapeHtml(data.peak_hour_label) + '</strong>. Plan your gym session to avoid busy hours or join the rush!';
             } else {
                 peakBannerText.innerHTML = '<strong>No Check-in Activity:</strong> No attendance recorded yet for this time window.';
+            }
+        }
+
+        const peakSub = document.getElementById('act-peak-panel-sub');
+        if (peakSub) {
+            if (data.range === 'week') {
+                peakSub.textContent = 'Hourly traffic distribution aggregated over the past 7 days';
+            } else if (data.range === 'month') {
+                peakSub.textContent = 'Hourly traffic distribution aggregated across the month';
+            } else {
+                peakSub.textContent = 'Traffic distribution and gym congestion patterns for ' + (data.date_formatted || 'selected date');
             }
         }
 

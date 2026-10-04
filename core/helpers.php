@@ -1616,7 +1616,7 @@ function release_user_equipment_on_checkout(int $userId, ?int $gymId = null): vo
             $sId = (int)$sess['session_id'];
             $eqId = (int)$sess['equipment_id'];
 
-            $pdo->prepare("UPDATE equipment_sessions SET session_status = 'finished', end_time = NOW() WHERE session_id = ?")->execute([$sId]);
+            $pdo->prepare("UPDATE equipment_sessions SET session_status = 'completed', end_time = NOW() WHERE session_id = ?")->execute([$sId]);
             $pdo->prepare("UPDATE gym_equipment SET current_session_id = NULL WHERE equipment_id = ?")->execute([$eqId]);
 
             // Promote next in line if waiting
