@@ -12,6 +12,9 @@ try {
         if ($user) {
             $attendanceId = (int) $_POST['attendance_id'];
             db()->prepare('UPDATE attendance SET check_out_time = NOW() WHERE attendance_id = ? AND user_id = ?')->execute([$attendanceId, $user['user_id']]);
+            if (function_exists('release_user_equipment_on_checkout')) {
+                release_user_equipment_on_checkout((int)$user['user_id']);
+            }
             
             $rating = isset($_POST['rating']) ? (int) $_POST['rating'] : 0;
             $comment = isset($_POST['comment']) ? mb_substr(trim((string)$_POST['comment']), 0, 1000) : null;
@@ -153,6 +156,7 @@ try {
         'verify_email' => ['file' => 'pages/auth/verify_email.php', 'handler' => 'verify_email_page'],
         'setup_profile' => ['file' => 'pages/auth/setup_profile.php', 'handler' => 'setup_profile_page'],
         'setup_goal' => ['file' => 'pages/auth/setup_goal.php', 'handler' => 'setup_goal_page'],
+        'setup_review' => ['file' => 'pages/auth/setup_review.php', 'handler' => 'setup_review_page'],
         'pending_gym' => ['file' => 'pages/auth/pending_gym.php', 'handler' => 'pending_gym_page'],
         
         'gym_onboarding' => ['file' => 'pages/gym_owner/gym_onboarding.php', 'handler' => 'gym_onboarding_page'],

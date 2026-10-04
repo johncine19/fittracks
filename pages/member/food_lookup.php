@@ -156,6 +156,45 @@ function food_lookup_page(): void
     }
 
     if ($action === 'calorieninjas') {
+        $normalizedQuery = strtolower(trim(preg_replace('/\s+/', ' ', $query)));
+        $cacheKey = 'calorieninjas:' . md5($normalizedQuery);
+
+        // 1. Check server-side cache (MySQL `cache` table / Redis)
+        try {
+            $pdo = db();
+            $stmt = $pdo->prepare('SELECT cache_value, expires_at FROM cache WHERE cache_key = ?');
+            $stmt->execute([$cacheKey]);
+            $row = $stmt->fetch(PDO::FETCH_ASSOC);
+            if ($row && time() < (int)$row['expires_at']) {
+                $cachedData = json_decode($row['cache_value'], true);
+                if (!empty($cachedData) && is_array($cachedData) && !empty($cachedData['success'])) {
+                    $cachedData['cached'] = true;
+                    echo json_encode($cachedData);
+                    exit;
+                }
+            }
+        } catch (Throwable $e) {}
+
+        // 2. Abuse prevention / Rate limiting (per user session): max 20 external API requests per 5 minutes
+        if (!isset($_SESSION['cn_req_timestamps']) || !is_array($_SESSION['cn_req_timestamps'])) {
+            $_SESSION['cn_req_timestamps'] = [];
+        }
+        $now = time();
+        $window = 300; // 5 minutes
+        $_SESSION['cn_req_timestamps'] = array_values(array_filter(
+            $_SESSION['cn_req_timestamps'],
+            fn($ts) => ($now - (int)$ts) < $window
+        ));
+
+        if (count($_SESSION['cn_req_timestamps']) >= 20) {
+            http_response_code(429);
+            echo json_encode([
+                'success' => false,
+                'error' => 'Rate limit reached: You have analyzed 20 new meals in the last 5 minutes. Please wait a few moments or enter macros manually.'
+            ]);
+            exit;
+        }
+
         $apiKey = trim((string) ($_ENV['CALORIENINJAS_API_KEY'] ?? ''));
         if (empty($apiKey)) {
             echo json_encode(['success' => false, 'error' => 'CalorieNinjas API key is not configured in .env.']);
@@ -171,6 +210,9 @@ function food_lookup_page(): void
         $res = curl_exec($ch);
         $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
         curl_close($ch);
+
+        // Record timestamp for external network call
+        $_SESSION['cn_req_timestamps'][] = $now;
 
         if ($res === false || $httpCode !== 200) {
             echo json_encode(['success' => false, 'error' => 'CalorieNinjas service error (HTTP ' . $httpCode . ').']);
@@ -214,7 +256,7 @@ function food_lookup_page(): void
             ];
         }
 
-        echo json_encode([
+        $resultPayload = [
             'success' => true,
             'provider' => 'calorieninjas',
             'query' => $query,
@@ -223,11 +265,39 @@ function food_lookup_page(): void
             'total_carbs' => round($totCarbs, 1),
             'total_fat' => round($totFat, 1),
             'items' => $cleanItems,
-        ]);
+        ];
+
+        // Cache in MySQL cache table for 30 days
+        try {
+            $pdo = db();
+            $stmt = $pdo->prepare('REPLACE INTO cache (cache_key, cache_value, expires_at) VALUES (?, ?, ?)');
+            $stmt->execute([$cacheKey, json_encode($resultPayload), time() + (86400 * 30)]);
+        } catch (Throwable $e) {}
+
+        echo json_encode($resultPayload);
         exit;
     }
 
     if ($action === 'openfoodfacts') {
+        $normalizedOffQuery = strtolower(trim(preg_replace('/\s+/', ' ', $query)));
+        $cacheKeyOff = 'openfoodfacts:' . md5($normalizedOffQuery);
+
+        // 1. Check server-side cache
+        try {
+            $pdo = db();
+            $stmt = $pdo->prepare('SELECT cache_value, expires_at FROM cache WHERE cache_key = ?');
+            $stmt->execute([$cacheKeyOff]);
+            $row = $stmt->fetch(PDO::FETCH_ASSOC);
+            if ($row && time() < (int)$row['expires_at']) {
+                $cachedData = json_decode($row['cache_value'], true);
+                if (!empty($cachedData) && is_array($cachedData) && !empty($cachedData['success'])) {
+                    $cachedData['cached'] = true;
+                    echo json_encode($cachedData);
+                    exit;
+                }
+            }
+        } catch (Throwable $e) {}
+
         // Query Open Food Facts mirror (fallback safely)
         $url = 'https://world.openfoodfacts.net/cgi/search.pl?search_terms=' . urlencode($query) . '&search_simple=1&action=process&json=1&page_size=12';
         $ch = curl_init($url);
@@ -282,12 +352,21 @@ function food_lookup_page(): void
             exit;
         }
 
-        echo json_encode([
+        $resultPayload = [
             'success' => true,
             'provider' => 'openfoodfacts',
             'query' => $query,
             'products' => $products
-        ]);
+        ];
+
+        // Cache in MySQL cache table for 7 days
+        try {
+            $pdo = db();
+            $stmt = $pdo->prepare('REPLACE INTO cache (cache_key, cache_value, expires_at) VALUES (?, ?, ?)');
+            $stmt->execute([$cacheKeyOff, json_encode($resultPayload), time() + (86400 * 7)]);
+        } catch (Throwable $e) {}
+
+        echo json_encode($resultPayload);
         exit;
     }
 

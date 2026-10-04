@@ -23,6 +23,8 @@ function member_equipment_page(): void
 
     $gymName = scalar('SELECT name FROM gyms WHERE gym_id = ?', [$gymId]) ?: 'Your Gym';
     $userId = (int)$user['user_id'];
+    $isCheckedIn = (bool)scalar('SELECT attendance_id FROM attendance WHERE user_id = ? AND gym_id = ? AND check_out_time IS NULL AND DATE(check_in_time) = CURDATE() LIMIT 1', [$userId, $gymId]);
+
     $lastLogStmt = $pdo->prepare('SELECT weight_kg, body_fat_percent, waist_cm, chest_cm, arm_cm FROM progress_logs WHERE user_id = ? ORDER BY log_date DESC, log_id DESC LIMIT 1');
     $lastLogStmt->execute([$userId]);
     $lastLog = $lastLogStmt->fetch(PDO::FETCH_ASSOC) ?: [];
@@ -764,6 +766,52 @@ function member_equipment_page(): void
                 padding: 4px 10px !important;
             }
         }
+
+        /* Responsive Status Filter: Pills on Desktop, Dropdown on Mobile */
+        .status-filters-pills {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .status-filters-select-wrap {
+            display: none;
+        }
+
+        @media (max-width: 768px) {
+            .equip-filter-panel {
+                padding: 12px 14px !important;
+            }
+            .equip-filter-row {
+                gap: 10px !important;
+            }
+            .equip-search-wrap {
+                flex: 1 1 100% !important;
+                max-width: 100% !important;
+            }
+            .status-filters-pills {
+                display: none !important;
+            }
+            .status-filters-select-wrap {
+                display: block !important;
+                flex: 1 1 calc(50% - 6px) !important;
+            }
+            .equip-category-wrap {
+                flex: 1 1 calc(50% - 6px) !important;
+            }
+            .equip-sound-wrap {
+                flex: 1 1 100% !important;
+            }
+            .equip-sound-wrap .btn-sound-toggle {
+                width: 100% !important;
+                justify-content: center !important;
+            }
+            .equip-category-wrap select,
+            .status-filters-select-wrap select {
+                width: 100% !important;
+                min-width: 0 !important;
+            }
+        }
     </style>
 
     <div class="equipment-member-container" style="max-width: 1200px; margin: 0 auto; padding-bottom: 60px;">
@@ -785,6 +833,25 @@ function member_equipment_page(): void
             </div>
         </div>
 
+        <!-- CHECK-IN STATUS BANNER (shown when not checked into the gym) -->
+        <div id="checkin-gate-alert" style="<?= $isCheckedIn ? 'display: none;' : 'display: flex;' ?> align-items: center; justify-content: space-between; gap: 14px; background: rgba(245, 158, 11, 0.1); border: 1px solid rgba(245, 158, 11, 0.3); border-radius: 12px; padding: 14px 18px; margin-bottom: 20px; flex-wrap: wrap;">
+            <div style="display: flex; align-items: center; gap: 12px;">
+                <span style="display: flex; align-items: center; justify-content: center; width: 36px; height: 36px; border-radius: 50%; background: rgba(245, 158, 11, 0.2); color: #d97706; flex-shrink: 0;">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                </span>
+                <div>
+                    <h4 style="margin: 0 0 2px; font-size: 14px; color: var(--ink);">Browsing in Remote Mode</h4>
+                    <p style="margin: 0; font-size: 12.5px; color: var(--muted); line-height: 1.4;">
+                        You are viewing live availability from outside <strong><?= h($gymName) ?></strong>. Check in with your QR code at the entrance to use machines or join waitlists.
+                    </p>
+                </div>
+            </div>
+            <a href="index.php?page=qr_attendance" class="btn btn-lime" style="padding: 8px 16px; border-radius: 8px; font-size: 13px; text-decoration: none; white-space: nowrap; display: inline-flex; align-items: center; gap: 6px;">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+                Check In via QR
+            </a>
+        </div>
+
         <!-- ACTIVE SESSION BANNER (Rendered dynamically) -->
         <div id="active-session-wrapper" style="display: none; margin-bottom: 24px;"></div>
 
@@ -792,10 +859,10 @@ function member_equipment_page(): void
         <div id="my-queues-wrapper" style="display: none; margin-bottom: 24px;"></div>
 
         <!-- SEARCH & FILTER TOOLBAR -->
-        <div class="panel" style="padding: 16px 20px; border-radius: 12px; margin-bottom: 24px; background: var(--panel); border: 1px solid var(--line); box-shadow: 0 2px 8px rgba(0,0,0,0.03);">
-            <div style="display: flex; flex-wrap: wrap; gap: 14px; align-items: center; justify-content: space-between;">
+        <div class="panel equip-filter-panel" style="padding: 16px 20px; border-radius: 12px; margin-bottom: 24px; background: var(--panel); border: 1px solid var(--line); box-shadow: 0 2px 8px rgba(0,0,0,0.03);">
+            <div class="equip-filter-row" style="display: flex; flex-wrap: wrap; gap: 14px; align-items: center; justify-content: space-between;">
                 <!-- Search Input -->
-                <div style="flex: 1 1 260px; max-width: 400px; position: relative;">
+                <div class="equip-search-wrap" style="flex: 1 1 260px; max-width: 400px; position: relative;">
                     <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--muted)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="position: absolute; left: 12px; top: 50%; transform: translateY(-50%); pointer-events: none;">
                         <circle cx="11" cy="11" r="8" />
                         <line x1="21" y1="21" x2="16.65" y2="16.65" />
@@ -804,16 +871,26 @@ function member_equipment_page(): void
                         style="width: 100%; padding: 10px 12px 10px 38px; border-radius: 8px; background: var(--bg); border: 1px solid var(--line); color: var(--ink); font-size: 13px; box-sizing: border-box; outline: none;">
                 </div>
 
-                <!-- Status Filter Pills -->
-                <div style="display: flex; gap: 8px; flex-wrap: wrap;" id="status-filters">
+                <!-- Status Filter Pills (Desktop/Tablet) -->
+                <div class="status-filters-pills" id="status-filters">
                     <button type="button" class="filter-btn active" data-status="all">All</button>
                     <button type="button" class="filter-btn" data-status="available">Available</button>
                     <button type="button" class="filter-btn" data-status="in_use">In Use</button>
                     <button type="button" class="filter-btn" data-status="maintenance">Maintenance</button>
                 </div>
 
+                <!-- Status Filter Dropdown (Mobile) -->
+                <div class="status-filters-select-wrap">
+                    <select id="status-filter-select" style="width: 100%; padding: 9px 12px; border-radius: 8px; background: var(--bg); border: 1px solid var(--line); color: var(--ink); font-size: 13px; box-sizing: border-box; cursor: pointer;">
+                        <option value="all">Status: All</option>
+                        <option value="available">Status: Available</option>
+                        <option value="in_use">Status: In Use</option>
+                        <option value="maintenance">Status: Maintenance</option>
+                    </select>
+                </div>
+
                 <!-- Category Filter -->
-                <div style="flex: 0 0 auto;">
+                <div class="equip-category-wrap" style="flex: 0 0 auto;">
                     <select id="category-filter" style="width: auto; min-width: 150px; padding: 9px 14px; border-radius: 8px; background: var(--bg); border: 1px solid var(--line); color: var(--ink); font-size: 13px; box-sizing: border-box; cursor: pointer;">
                         <option value="all">All Categories</option>
                         <option value="Cardio">Cardio</option>
@@ -824,7 +901,7 @@ function member_equipment_page(): void
                         <option value="Other">Other</option>
                     </select>
                 </div>
-                <div style="flex: 0 0 auto;">
+                <div class="equip-sound-wrap" style="flex: 0 0 auto;">
                     <button type="button" class="btn-sound-toggle filter-btn" style="display: inline-flex; align-items: center; gap: 7px; padding: 9px 14px; border-radius: 8px; font-size: 13px; border: 1px solid var(--line); background: var(--panel-soft); color: var(--ink); cursor: pointer; transition: all 0.2s;" aria-label="Toggle notification sounds" title="Sound: Enabled (Click to mute)">
                         <span class="sound-toggle-icon"></span>
                         <span class="sound-toggle-text">Sound On</span>
@@ -883,6 +960,8 @@ function member_equipment_page(): void
             let RECENT_WAIST = <?= json_encode($recentWaist !== null && $recentWaist !== false ? (float)$recentWaist : null) ?>;
             let RECENT_CHEST = <?= json_encode($recentChest !== null && $recentChest !== false ? (float)$recentChest : null) ?>;
             let RECENT_ARM = <?= json_encode($recentArm !== null && $recentArm !== false ? (float)$recentArm : null) ?>;
+            let isCheckedIn = <?= json_encode($isCheckedIn) ?>;
+            const GYM_NAME = <?= json_encode($gymName) ?>;
             let allEquipment = [];
             let activeSession = null;
             let myQueues = [];
@@ -894,6 +973,39 @@ function member_equipment_page(): void
             let memberPageSize = 8;
             let timerInterval = null;
             let pollInterval = null;
+
+            function updateCheckinBannerUI() {
+                const banner = document.getElementById('checkin-gate-alert');
+                if (banner) {
+                    banner.style.display = isCheckedIn ? 'none' : 'flex';
+                }
+            }
+
+            window.promptMustCheckIn = function() {
+                Swal.fire({
+                    icon: 'info',
+                    title: 'Check-In Required',
+                    html: `
+                        <p style="font-size: 13.5px; color: var(--muted); line-height: 1.5; margin-bottom: 16px;">
+                            To ensure fairness on the gym floor and prevent remote machine hogging, live equipment usage is reserved for members physically checked into <strong>${escapeHtml(GYM_NAME)}</strong>.
+                        </p>
+                        <p style="font-size: 13px; color: var(--ink); margin-bottom: 20px;">
+                            Please scan your QR code at the gym entrance to unlock live sessions and waitlists.
+                        </p>
+                        <a href="index.php?page=qr_attendance" class="swal2-confirm swal2-styled" style="display:inline-flex; align-items:center; justify-content:center; gap:8px; text-decoration:none; padding:10px 20px; border-radius:8px; background:var(--lime,#c7ff22); color:var(--lime-btn-text,#000); font-weight:800; font-size:13.5px; box-shadow: 0 4px 14px rgba(199,255,34,0.25);">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+                            Open My Check-In QR
+                        </a>
+                    `,
+                    showConfirmButton: false,
+                    showCancelButton: true,
+                    cancelButtonText: 'Browse Mode Only',
+                    allowOutsideClick: false,
+                    allowEscapeKey: false,
+                    background: 'var(--surface-color, #090b10)',
+                    color: 'var(--ink, #ffffff)'
+                });
+            };
 
             async function memberEquipPost(action, formData) {
                 formData.append('csrf_token', CSRF_TOKEN);
@@ -1021,6 +1133,11 @@ function member_equipment_page(): void
                     allEquipment = data.equipment || [];
                     activeSession = data.active_session || null;
                     myQueues = data.my_queues || [];
+
+                    if (typeof data.is_checked_in !== 'undefined') {
+                        isCheckedIn = Boolean(data.is_checked_in);
+                        updateCheckinBannerUI();
+                    }
 
                     // Audio cue when equipment becomes available for this member
                     const currentNotifiedIds = new Set();
@@ -1278,7 +1395,17 @@ function member_equipment_page(): void
                         `;
                         }
                     } else if (status === 'available') {
-                        if (isReservedForOther) {
+                        if (!isCheckedIn) {
+                            actionBtnHtml = `
+                            <button type="button" onclick="promptMustCheckIn()" class="btn" style="width: 100%; background: var(--panel-soft); color: var(--muted); border: 1px dashed var(--line); font-weight: 700; padding: 10px; border-radius: 8px; cursor: pointer; transition: all 0.2s;"
+                                    title="Check in at the gym to use equipment" onmouseover="this.style.borderColor='var(--lime)'; this.style.color='var(--ink)'" onmouseout="this.style.borderColor='var(--line)'; this.style.color='var(--muted)'">
+                                <span style="display: flex; align-items: center; justify-content: center; gap: 6px;">
+                                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                                    Check In to Use
+                                </span>
+                            </button>
+                        `;
+                        } else if (isReservedForOther) {
                             const queueCount = parseInt(eq.waiting_queue_count || 0);
                             const queueText = queueCount > 0 ? `Join Queue (${queueCount} in line)` : 'Join Queue';
                             actionBtnHtml = `
@@ -1299,14 +1426,26 @@ function member_equipment_page(): void
                         `;
                         }
                     } else if (status === 'in_use') {
-                        const queueCount = parseInt(eq.waiting_queue_count || 0);
-                        const queueText = queueCount > 0 ? `Join Queue (${queueCount} waiting)` : 'Join Queue';
-                        actionBtnHtml = `
-                        <button type="button" onclick="confirmJoinQueue(${eq.equipment_id})" class="btn" style="width: 100%; background: var(--panel-soft); color: var(--ink); border: 1px solid var(--line); font-weight: 600; padding: 10px; border-radius: 8px; cursor: pointer; transition: all 0.2s;"
-                                onmouseover="this.style.borderColor='var(--lime)'; this.style.color='var(--lime)'" onmouseout="this.style.borderColor='var(--line)'; this.style.color='var(--ink)'">
-                            ${queueText}
-                        </button>
-                    `;
+                        if (!isCheckedIn) {
+                            actionBtnHtml = `
+                            <button type="button" onclick="promptMustCheckIn()" class="btn" style="width: 100%; background: var(--panel-soft); color: var(--muted); border: 1px dashed var(--line); font-weight: 600; padding: 10px; border-radius: 8px; cursor: pointer; transition: all 0.2s;"
+                                    title="Check in at the gym to join the queue" onmouseover="this.style.borderColor='var(--lime)'; this.style.color='var(--ink)'" onmouseout="this.style.borderColor='var(--line)'; this.style.color='var(--muted)'">
+                                <span style="display: flex; align-items: center; justify-content: center; gap: 6px;">
+                                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                                    Check In to Queue
+                                </span>
+                            </button>
+                        `;
+                        } else {
+                            const queueCount = parseInt(eq.waiting_queue_count || 0);
+                            const queueText = queueCount > 0 ? `Join Queue (${queueCount} waiting)` : 'Join Queue';
+                            actionBtnHtml = `
+                            <button type="button" onclick="confirmJoinQueue(${eq.equipment_id})" class="btn" style="width: 100%; background: var(--panel-soft); color: var(--ink); border: 1px solid var(--line); font-weight: 600; padding: 10px; border-radius: 8px; cursor: pointer; transition: all 0.2s;"
+                                    onmouseover="this.style.borderColor='var(--lime)'; this.style.color='var(--lime)'" onmouseout="this.style.borderColor='var(--line)'; this.style.color='var(--ink)'">
+                                ${queueText}
+                            </button>
+                        `;
+                        }
                     } else {
                         actionBtnHtml = `
                         <button type="button" disabled class="btn" style="width: 100%; background: var(--panel-soft); color: var(--muted); border: 1px solid var(--line); font-weight: 500; padding: 10px; border-radius: 8px; cursor: not-allowed; opacity: 0.6;">
@@ -1317,11 +1456,19 @@ function member_equipment_page(): void
 
                     let occupancyHtml = '';
                     if (status === 'in_use') {
-                        const occupant = eq.current_user_display ? escapeHtml(eq.current_user_display) : 'Occupied';
+                        const occupant = eq.current_user_display ? escapeHtml(eq.current_user_display) : 'A member';
+                        let elapsedMins = parseInt(eq.session_elapsed_mins || 0);
+                        if (!elapsedMins && eq.session_start_ts) {
+                            elapsedMins = Math.max(0, Math.floor((Math.floor(Date.now() / 1000) - parseInt(eq.session_start_ts)) / 60));
+                        }
+                        const elapsedLabel = elapsedMins > 0 ? `(~${elapsedMins} min${elapsedMins > 1 ? 's' : ''} in)` : '(Just started)';
                         occupancyHtml = `
-                        <div style="font-size: 12px; color: var(--muted); display: flex; justify-content: space-between; margin-bottom: 6px;">
-                            <span>Current user:</span>
-                            <strong style="color: var(--ink);">${occupant}</strong>
+                        <div style="font-size: 12px; color: var(--muted); display: flex; justify-content: space-between; margin-bottom: 4px;">
+                            <span>Active user:</span>
+                            <strong style="color: var(--ink);">${occupant} <span style="font-size: 11px; font-weight: normal; color: var(--muted);">${elapsedLabel}</span></strong>
+                        </div>
+                        <div style="font-size: 11px; color: #d97706; background: rgba(245, 158, 11, 0.08); border-left: 2px solid #f59e0b; padding: 5px 8px; border-radius: 4px; margin-bottom: 8px; line-height: 1.35;">
+                            <span>ℹ️ Probably in use by ${occupant}. (Workout finish times vary — join queue to be next in line)</span>
                         </div>
                     `;
                     } else if (status === 'available') {
@@ -1561,6 +1708,11 @@ function member_equipment_page(): void
 
             // CONFIRM START SESSION
             window.confirmStartSession = function(equipmentId, equipName, unitNumber) {
+                if (!isCheckedIn) {
+                    promptMustCheckIn();
+                    return;
+                }
+
                 if (!equipName && Array.isArray(allEquipment)) {
                     const eq = allEquipment.find(e => parseInt(e.equipment_id, 10) === parseInt(equipmentId, 10));
                     if (eq) {
@@ -1588,6 +1740,8 @@ function member_equipment_page(): void
                     html: `<strong>${escapeHtml(equipName)} ${escapeHtml(unitNumber)}</strong> is currently available.<br><span style="font-size:13px; color:var(--muted);">Your usage session and workout timer will start immediately.</span>`,
                     icon: 'question',
                     showCancelButton: true,
+                    allowOutsideClick: false,
+                    allowEscapeKey: false,
                     confirmButtonText: 'Start Session',
                     cancelButtonText: 'Cancel',
                     confirmButtonColor: 'var(--lime)',
@@ -1669,6 +1823,8 @@ function member_equipment_page(): void
                     text: `Are you finished using ${fullName}?`,
                     icon: 'question',
                     showCancelButton: true,
+                    allowOutsideClick: false,
+                    allowEscapeKey: false,
                     confirmButtonText: 'Finish Session',
                     cancelButtonText: 'Continue Using',
                     confirmButtonColor: '#ef4444',
@@ -1837,6 +1993,8 @@ function member_equipment_page(): void
                     </div>
                 `,
                     showCancelButton: true,
+                    allowOutsideClick: false,
+                    allowEscapeKey: false,
                     confirmButtonText: '<span style="color:var(--lime-btn-text, #090b10);font-weight:800;">Save Progress</span>',
                     cancelButtonText: 'Cancel',
                     confirmButtonColor: 'var(--lime)',
@@ -1947,6 +2105,11 @@ function member_equipment_page(): void
 
             // CONFIRM JOIN QUEUE
             window.confirmJoinQueue = function(equipmentId, equipName, unitNumber, currentQueueCount) {
+                if (!isCheckedIn) {
+                    promptMustCheckIn();
+                    return;
+                }
+
                 if (!equipName && Array.isArray(allEquipment)) {
                     const eq = allEquipment.find(e => parseInt(e.equipment_id, 10) === parseInt(equipmentId, 10));
                     if (eq) {
@@ -1982,6 +2145,8 @@ function member_equipment_page(): void
                 `,
                     icon: 'info',
                     showCancelButton: true,
+                    allowOutsideClick: false,
+                    allowEscapeKey: false,
                     confirmButtonText: 'Join Queue',
                     cancelButtonText: 'Cancel',
                     confirmButtonColor: 'var(--lime)',
@@ -2079,6 +2244,11 @@ function member_equipment_page(): void
 
             // CLAIM EQUIPMENT SESSION
             window.claimEquipmentSession = async function(equipmentId) {
+                if (!isCheckedIn) {
+                    promptMustCheckIn();
+                    return;
+                }
+
                 try {
                     const formData = new FormData();
                     formData.append('equipment_id', equipmentId);
@@ -2136,16 +2306,37 @@ function member_equipment_page(): void
             // Polling interval: every 5 seconds
             pollInterval = setInterval(fetchEquipmentData, 5000);
 
-            // Event listeners for filters
+            // Event listeners for filters (Desktop Pills)
             document.querySelectorAll('#status-filters .filter-btn').forEach(btn => {
                 btn.addEventListener('click', function() {
                     document.querySelectorAll('#status-filters .filter-btn').forEach(b => b.classList.remove('active'));
                     this.classList.add('active');
                     activeFilter = this.getAttribute('data-status');
+                    const selectEl = document.getElementById('status-filter-select');
+                    if (selectEl) {
+                        selectEl.value = activeFilter;
+                    }
                     currentMemberPage = 1;
                     renderEquipmentGrid();
                 });
             });
+
+            // Event listener for mobile status dropdown
+            const mobileStatusSelect = document.getElementById('status-filter-select');
+            if (mobileStatusSelect) {
+                mobileStatusSelect.addEventListener('change', function() {
+                    activeFilter = this.value;
+                    document.querySelectorAll('#status-filters .filter-btn').forEach(b => {
+                        if (b.getAttribute('data-status') === activeFilter) {
+                            b.classList.add('active');
+                        } else {
+                            b.classList.remove('active');
+                        }
+                    });
+                    currentMemberPage = 1;
+                    renderEquipmentGrid();
+                });
+            }
 
             document.getElementById('category-filter').addEventListener('change', function() {
                 categoryFilter = this.value;

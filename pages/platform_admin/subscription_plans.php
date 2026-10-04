@@ -87,7 +87,7 @@ function platform_subscription_plans_page(): void
                         </label>
 
                         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
-                            <label class="plan-label">
+                            <label class="plan-label" style="display: flex; flex-direction: column; justify-content: flex-end; gap: 5px;">
                                 Monthly Price (₱) *
                                 <div class="price-input-wrap">
                                     <span class="currency-symbol">₱</span>
@@ -95,8 +95,8 @@ function platform_subscription_plans_page(): void
                                 </div>
                             </label>
 
-                            <label class="plan-label">
-                                Annual / Yearly Price (₱) *
+                            <label class="plan-label" style="display: flex; flex-direction: column; justify-content: flex-end; gap: 5px;">
+                                Annual Price (₱) *
                                 <div class="price-input-wrap">
                                     <span class="currency-symbol">₱</span>
                                     <input type="number" step="0.01" name="annual_price" class="form-control plan-input price-input" value="<?= h((string)$annPrice) ?>" required>

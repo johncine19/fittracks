@@ -418,21 +418,21 @@ function users_page(): void
     
     $allGyms = db()->query('SELECT gym_id, name FROM gyms ORDER BY name ASC')->fetchAll();
 
-    $renderGymBadge = function(?string $status, bool $hasGym): string {
+    $renderGymVerifyMark = function(?string $status, bool $hasGym): string {
+        if ($hasGym && $status === 'approved') {
+            return '<span class="gym-verify-mark is-verified" title="Verified Gym" aria-label="Verified"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span>';
+        }
+        $hint = 'Not Verified';
         if (!$hasGym) {
-            return '<span class="badge badge-gym-unsubmitted" style="font-size: 10px; padding: 1px 6px; letter-spacing: 0.3px;">Not Submitted</span>';
+            $hint = 'Not Verified (No Gym Submitted)';
+        } elseif ($status === 'pending') {
+            $hint = 'Not Verified (Pending Approval)';
+        } elseif ($status === 'rejected') {
+            $hint = 'Not Verified (Rejected)';
         }
-        if ($status === 'approved') {
-            return '<span class="badge badge-gym-approved" style="font-size: 10px; padding: 1px 6px; letter-spacing: 0.3px;">✓ Verified</span>';
-        }
-        if ($status === 'rejected') {
-            return '<span class="badge badge-gym-rejected" style="font-size: 10px; padding: 1px 6px; letter-spacing: 0.3px;">✕ Rejected</span>';
-        }
-        if ($status === 'pending') {
-            return '<span class="badge badge-gym-pending" style="font-size: 10px; padding: 1px 6px; letter-spacing: 0.3px;">⏳ Pending</span>';
-        }
-        return '<span class="badge badge-gym-rejected" style="font-size: 10px; padding: 1px 6px; letter-spacing: 0.3px;">' . htmlspecialchars(ucfirst($status ?? 'Unknown')) . '</span>';
+        return '<span class="gym-verify-mark is-unverified" title="' . htmlspecialchars($hint) . '" aria-label="' . htmlspecialchars($hint) . '">*</span>';
     };
+    $renderGymBadge = $renderGymVerifyMark;
     
     render_header('Users', $user);
     ?>
@@ -443,11 +443,60 @@ function users_page(): void
     .badge-trainer        { background: rgba(59, 130, 246, 0.12); color: #60a5fa; border: 1px solid rgba(59, 130, 246, 0.25); }
     .badge-member         { background: rgba(20, 184, 166, 0.12); color: #2dd4bf; border: 1px solid rgba(20, 184, 166, 0.25); }
 
-    /* Gym Verification Badges */
-    .badge-gym-approved    { background: rgba(34, 197, 94, 0.14); color: #22c55e; border: 1px solid rgba(34, 197, 94, 0.3); font-weight: 600; border-radius: 4px; }
-    .badge-gym-pending     { background: rgba(234, 179, 8, 0.14); color: #eab308; border: 1px solid rgba(234, 179, 8, 0.3); font-weight: 600; border-radius: 4px; }
-    .badge-gym-rejected    { background: rgba(239, 68, 68, 0.14); color: #ef4444; border: 1px solid rgba(239, 68, 68, 0.3); font-weight: 600; border-radius: 4px; }
-    .badge-gym-unsubmitted { background: rgba(148, 163, 184, 0.12); color: #94a3b8; border: 1px solid rgba(148, 163, 184, 0.25); font-weight: 600; border-radius: 4px; }
+    /* Gym Verification Mark */
+    .gym-verify-mark {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        vertical-align: middle;
+        user-select: none;
+        cursor: default;
+        flex-shrink: 0;
+    }
+    .gym-verify-mark.is-verified {
+        color: #22c55e;
+        margin-left: 4px;
+    }
+    .gym-verify-mark.is-unverified {
+        color: #ef4444;
+        font-weight: 800;
+        font-size: 16px;
+        line-height: 1;
+        margin-left: 3px;
+    }
+    html[data-theme="light"] .gym-verify-mark.is-verified,
+    [data-theme="light"] .gym-verify-mark.is-verified {
+        color: #16a34a;
+    }
+    html[data-theme="light"] .gym-verify-mark.is-unverified,
+    [data-theme="light"] .gym-verify-mark.is-unverified {
+        color: #dc2626;
+    }
+
+    /* Gym / Branch Column No-Wrap & Truncation */
+    .users-desktop-table table td {
+        vertical-align: middle;
+    }
+    .user-gym-td {
+        white-space: nowrap;
+    }
+    .user-gym-cell {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        white-space: nowrap;
+        max-width: 240px;
+    }
+    .user-gym-name {
+        font-weight: 500;
+        color: var(--ink);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        max-width: 180px;
+        display: inline-block;
+        vertical-align: middle;
+    }
 
     html[data-theme="light"] .badge-platform_admin,
     [data-theme="light"] .badge-platform_admin { background: rgba(132, 204, 22, 0.15); color: #4d7c0f; border-color: rgba(132, 204, 22, 0.35); }
@@ -457,15 +506,6 @@ function users_page(): void
     [data-theme="light"] .badge-trainer { background: rgba(59, 130, 246, 0.12); color: #1d4ed8; border-color: rgba(59, 130, 246, 0.3); }
     html[data-theme="light"] .badge-member,
     [data-theme="light"] .badge-member { background: rgba(20, 184, 166, 0.12); color: #0f766e; border-color: rgba(20, 184, 166, 0.3); }
-
-    html[data-theme="light"] .badge-gym-approved,
-    [data-theme="light"] .badge-gym-approved { background: rgba(22, 163, 74, 0.12); color: #15803d; border-color: rgba(22, 163, 74, 0.3); }
-    html[data-theme="light"] .badge-gym-pending,
-    [data-theme="light"] .badge-gym-pending { background: rgba(202, 138, 4, 0.12); color: #a16207; border-color: rgba(202, 138, 4, 0.3); }
-    html[data-theme="light"] .badge-gym-rejected,
-    [data-theme="light"] .badge-gym-rejected { background: rgba(239, 68, 68, 0.12); color: #b91c1c; border-color: rgba(239, 68, 68, 0.3); }
-    html[data-theme="light"] .badge-gym-unsubmitted,
-    [data-theme="light"] .badge-gym-unsubmitted { background: rgba(100, 116, 139, 0.12); color: #64748b; border-color: rgba(100, 116, 139, 0.25); }
 
     /* Desktop vs Mobile Toggle */
     .users-desktop-table {
@@ -995,18 +1035,18 @@ function users_page(): void
                             elseif ($row['role'] === 'trainer') $associatedGym = $row['trainer_gym_name'];
                             elseif ($row['role'] === 'member') $associatedGym = $row['member_gym_name'];
                         ?>
-                        <td>
+                        <td class="user-gym-td">
                             <?php if ($associatedGym): ?>
-                                <div style="display: flex; flex-direction: column; gap: 4px; align-items: flex-start;">
-                                    <span style="font-weight: 500; color: var(--ink);"><?= h($associatedGym) ?></span>
+                                <div class="user-gym-cell">
+                                    <span class="user-gym-name" title="<?= h($associatedGym) ?>"><?= h($associatedGym) ?></span>
                                     <?php if ($row['role'] === 'gym_owner'): ?>
-                                        <?= $renderGymBadge($row['owner_gym_status'] ?? null, true) ?>
+                                        <?= $renderGymVerifyMark($row['owner_gym_status'] ?? null, true) ?>
                                     <?php endif; ?>
                                 </div>
                             <?php elseif ($row['role'] === 'gym_owner'): ?>
-                                <div style="display: flex; flex-direction: column; gap: 4px; align-items: flex-start;">
+                                <div class="user-gym-cell">
                                     <span class="muted">—</span>
-                                    <?= $renderGymBadge(null, false) ?>
+                                    <?= $renderGymVerifyMark(null, false) ?>
                                 </div>
                             <?php else: ?>
                                 <span class="muted">—</span>
@@ -1112,10 +1152,10 @@ function users_page(): void
                                 <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 21h18M3 7v14M21 7v14M6 11h4M6 15h4M14 11h4M14 15h4M9 21v-4h6v4M3 7l9-4 9 4"/></svg>
                                 Gym / Branch
                             </span>
-                            <div class="user-card-detail-value" style="display:flex; flex-direction:column; align-items:flex-end; gap:3px;">
-                                <span><?= h($associatedGym ?: '—') ?></span>
+                            <div class="user-card-detail-value" style="display:inline-flex; align-items:center; justify-content:flex-end; gap:2px; max-width:65%;">
+                                <span style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="<?= h($associatedGym ?: '—') ?>"><?= h($associatedGym ?: '—') ?></span>
                                 <?php if ($row['role'] === 'gym_owner'): ?>
-                                    <?= $renderGymBadge($row['owner_gym_status'] ?? null, !empty($associatedGym)) ?>
+                                    <?= $renderGymVerifyMark($row['owner_gym_status'] ?? null, !empty($associatedGym)) ?>
                                 <?php endif; ?>
                             </div>
                         </div>
@@ -1493,22 +1533,19 @@ function users_page(): void
         const statusClass = 'badge badge-' + u.status;
         const roleDisplayName = escapeUserHtml(u.role_display);
 
-        let gymBadgeHtml = '';
+        let gymMarkHtml = '';
         if (u.is_gym_owner) {
             if (u.owner_gym_status === 'approved') {
-                gymBadgeHtml = '<span class="badge badge-gym-approved" style="font-size: 10px; padding: 1px 6px; letter-spacing: 0.3px;">✓ Verified</span>';
-            } else if (u.owner_gym_status === 'rejected') {
-                gymBadgeHtml = '<span class="badge badge-gym-rejected" style="font-size: 10px; padding: 1px 6px; letter-spacing: 0.3px;">✕ Rejected</span>';
-            } else if (u.owner_gym_status === 'pending') {
-                gymBadgeHtml = '<span class="badge badge-gym-pending" style="font-size: 10px; padding: 1px 6px; letter-spacing: 0.3px;">⏳ Pending</span>';
-            } else if (!u.associated_gym) {
-                gymBadgeHtml = '<span class="badge badge-gym-unsubmitted" style="font-size: 10px; padding: 1px 6px; letter-spacing: 0.3px;">Not Submitted</span>';
+                gymMarkHtml = '<span class="gym-verify-mark is-verified" title="Verified Gym" aria-label="Verified"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span>';
+            } else {
+                const hint = !u.associated_gym ? 'Not Verified (No Gym Submitted)' : (u.owner_gym_status === 'pending' ? 'Not Verified (Pending Approval)' : (u.owner_gym_status === 'rejected' ? 'Not Verified (Rejected)' : 'Not Verified'));
+                gymMarkHtml = `<span class="gym-verify-mark is-unverified" title="${escapeUserHtml(hint)}" aria-label="${escapeUserHtml(hint)}">*</span>`;
             }
         }
 
         const associatedGymHtml = u.associated_gym 
-            ? `<div style="display:flex;flex-direction:column;gap:4px;align-items:flex-start;"><span style="font-weight: 500; color: var(--ink);">${escapeUserHtml(u.associated_gym)}</span>${gymBadgeHtml}</div>`
-            : (gymBadgeHtml ? `<div style="display:flex;flex-direction:column;gap:4px;align-items:flex-start;"><span class="muted">—</span>${gymBadgeHtml}</div>` : `<span class="muted">—</span>`);
+            ? `<div class="user-gym-cell"><span class="user-gym-name" title="${escapeUserHtml(u.associated_gym)}">${escapeUserHtml(u.associated_gym)}</span>${gymMarkHtml}</div>`
+            : (u.is_gym_owner ? `<div class="user-gym-cell"><span class="muted">—</span>${gymMarkHtml}</div>` : `<span class="muted">—</span>`);
         const specHtml = u.is_trainer
             ? `<span style="color:var(--ink);">${escapeUserHtml(u.specialization)}</span>`
             : `<span class="muted">—</span>`;
@@ -1530,7 +1567,7 @@ function users_page(): void
             </td>
             <td style="color:var(--muted)">${escapeUserHtml(u.email)}</td>
             <td><span class="${roleClass}">${roleDisplayName}</span></td>
-            ${IS_ADMIN ? `<td>${associatedGymHtml}</td>` : ''}
+            ${IS_ADMIN ? `<td class="user-gym-td">${associatedGymHtml}</td>` : ''}
             ${CURRENT_TAB === 'trainer' ? `<td>${specHtml}</td>` : ''}
             ${CURRENT_TAB === 'member' ? `<td>${scoreHtml}</td>` : ''}
             <td><span class="${statusClass}">${escapeUserHtml(u.status)}</span></td>
@@ -1569,16 +1606,13 @@ function users_page(): void
         const roleDisplayName = escapeUserHtml(u.role_display);
         const rawUserJson = escapeUserHtml(JSON.stringify(u.raw_user));
 
-        let gymBadgeHtml = '';
+        let gymMarkHtml = '';
         if (u.is_gym_owner) {
             if (u.owner_gym_status === 'approved') {
-                gymBadgeHtml = '<span class="badge badge-gym-approved" style="font-size: 10px; padding: 1px 6px; letter-spacing: 0.3px;">✓ Verified</span>';
-            } else if (u.owner_gym_status === 'rejected') {
-                gymBadgeHtml = '<span class="badge badge-gym-rejected" style="font-size: 10px; padding: 1px 6px; letter-spacing: 0.3px;">✕ Rejected</span>';
-            } else if (u.owner_gym_status === 'pending') {
-                gymBadgeHtml = '<span class="badge badge-gym-pending" style="font-size: 10px; padding: 1px 6px; letter-spacing: 0.3px;">⏳ Pending</span>';
-            } else if (!u.associated_gym) {
-                gymBadgeHtml = '<span class="badge badge-gym-unsubmitted" style="font-size: 10px; padding: 1px 6px; letter-spacing: 0.3px;">Not Submitted</span>';
+                gymMarkHtml = '<span class="gym-verify-mark is-verified" title="Verified Gym" aria-label="Verified"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span>';
+            } else {
+                const hint = !u.associated_gym ? 'Not Verified (No Gym Submitted)' : (u.owner_gym_status === 'pending' ? 'Not Verified (Pending Approval)' : (u.owner_gym_status === 'rejected' ? 'Not Verified (Rejected)' : 'Not Verified'));
+                gymMarkHtml = `<span class="gym-verify-mark is-unverified" title="${escapeUserHtml(hint)}" aria-label="${escapeUserHtml(hint)}">*</span>`;
             }
         }
 
@@ -1613,9 +1647,9 @@ function users_page(): void
                         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 21h18M3 7v14M21 7v14M6 11h4M6 15h4M14 11h4M14 15h4M9 21v-4h6v4M3 7l9-4 9 4"/></svg>
                         Gym / Branch
                     </span>
-                    <div class="user-card-detail-value" style="display:flex; flex-direction:column; align-items:flex-end; gap:3px;">
-                        <span>${escapeUserHtml(u.associated_gym || '—')}</span>
-                        ${gymBadgeHtml}
+                    <div class="user-card-detail-value" style="display:inline-flex; align-items:center; justify-content:flex-end; gap:2px; max-width:65%;">
+                        <span style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="${escapeUserHtml(u.associated_gym || '—')}">${escapeUserHtml(u.associated_gym || '—')}</span>
+                        ${gymMarkHtml}
                     </div>
                 </div>
                 ` : ''}

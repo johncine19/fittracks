@@ -44,6 +44,11 @@ function h(mixed $value): string
     return htmlspecialchars((string) $value, ENT_QUOTES, 'UTF-8');
 }
 
+function escapeHtml(mixed $value): string
+{
+    return h($value);
+}
+
 function money(float|string|null $value): string
 {
     return '₱' . number_format((float) $value, 2);
@@ -1589,6 +1594,77 @@ function auto_checkout_past_attendance(mixed $userId = null, bool $force = false
     } catch (Throwable $e) {
         error_log('auto_checkout_past_attendance error: ' . $e->getMessage());
         return 0;
+    }
+}
+
+/**
+ * Automatically completes active equipment sessions and cancels waiting queues
+ * when a member checks out of the gym.
+ */
+function release_user_equipment_on_checkout(int $userId, ?int $gymId = null): void
+{
+    if ($userId <= 0) return;
+    try {
+        $pdo = db();
+        
+        // 1. Finish any active equipment session for this user
+        $sessStmt = $pdo->prepare("SELECT session_id, equipment_id, gym_id FROM equipment_sessions WHERE user_id = ? AND session_status = 'active'");
+        $sessStmt->execute([$userId]);
+        $activeSessions = $sessStmt->fetchAll(PDO::FETCH_ASSOC);
+
+        foreach ($activeSessions as $sess) {
+            $sId = (int)$sess['session_id'];
+            $eqId = (int)$sess['equipment_id'];
+
+            $pdo->prepare("UPDATE equipment_sessions SET session_status = 'finished', end_time = NOW() WHERE session_id = ?")->execute([$sId]);
+            $pdo->prepare("UPDATE gym_equipment SET current_session_id = NULL WHERE equipment_id = ?")->execute([$eqId]);
+
+            // Promote next in line if waiting
+            $next = $pdo->prepare("SELECT queue_id FROM equipment_queues WHERE equipment_id = ? AND queue_status = 'waiting' ORDER BY queue_position ASC, joined_at ASC LIMIT 1");
+            $next->execute([$eqId]);
+            $nextQId = (int)($next->fetchColumn() ?: 0);
+
+            if ($nextQId > 0) {
+                $pdo->prepare("UPDATE equipment_queues SET queue_status = 'notified', notified_at = NOW(), claim_deadline = DATE_ADD(NOW(), INTERVAL 2 MINUTE) WHERE queue_id = ?")->execute([$nextQId]);
+            }
+            $pdo->prepare("UPDATE gym_equipment SET status = 'available' WHERE equipment_id = ? AND status NOT IN ('maintenance', 'out_of_service')")->execute([$eqId]);
+        }
+
+        // 2. Cancel any waiting or notified queues for this user
+        $qStmt = $pdo->prepare("SELECT queue_id, equipment_id, gym_id, queue_status FROM equipment_queues WHERE user_id = ? AND queue_status IN ('waiting', 'notified')");
+        $qStmt->execute([$userId]);
+        $myQueues = $qStmt->fetchAll(PDO::FETCH_ASSOC);
+
+        foreach ($myQueues as $q) {
+            $qId = (int)$q['queue_id'];
+            $eqId = (int)$q['equipment_id'];
+            $wasNotified = ($q['queue_status'] === 'notified');
+
+            $pdo->prepare("UPDATE equipment_queues SET queue_status = 'cancelled', resolved_at = NOW() WHERE queue_id = ?")->execute([$qId]);
+
+            // Reorder remaining queue
+            $stmtReorder = $pdo->prepare("SELECT queue_id FROM equipment_queues WHERE equipment_id = ? AND queue_status = 'waiting' ORDER BY queue_position ASC, joined_at ASC");
+            $stmtReorder->execute([$eqId]);
+            $items = $stmtReorder->fetchAll(PDO::FETCH_COLUMN);
+            $pos = 1;
+            $upd = $pdo->prepare("UPDATE equipment_queues SET queue_position = ? WHERE queue_id = ?");
+            foreach ($items as $itemQid) {
+                $upd->execute([$pos, $itemQid]);
+                $pos++;
+            }
+
+            if ($wasNotified) {
+                // Advance to next waiting member
+                $next = $pdo->prepare("SELECT queue_id FROM equipment_queues WHERE equipment_id = ? AND queue_status = 'waiting' ORDER BY queue_position ASC, joined_at ASC LIMIT 1");
+                $next->execute([$eqId]);
+                $nextQId = (int)($next->fetchColumn() ?: 0);
+                if ($nextQId > 0) {
+                    $pdo->prepare("UPDATE equipment_queues SET queue_status = 'notified', notified_at = NOW(), claim_deadline = DATE_ADD(NOW(), INTERVAL 2 MINUTE) WHERE queue_id = ?")->execute([$nextQId]);
+                }
+            }
+        }
+    } catch (Throwable $e) {
+        error_log('release_user_equipment_on_checkout error: ' . $e->getMessage());
     }
 }
 

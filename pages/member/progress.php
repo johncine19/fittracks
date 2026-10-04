@@ -1714,8 +1714,23 @@ function progress_page(): void
             }
 
             .chart-summary-stats {
-                grid-template-columns: 1fr;
+                grid-template-columns: repeat(3, 1fr);
                 gap: 8px;
+            }
+
+            .summary-stat-box {
+                min-width: 0;
+            }
+
+            .summary-stat-box .stat-label {
+                font-size: 10px;
+                letter-spacing: 0.02em;
+                line-height: 1.25;
+            }
+
+            .summary-stat-box .stat-delta {
+                font-size: 14px;
+                white-space: nowrap;
             }
 
             .dow-pill-grid {

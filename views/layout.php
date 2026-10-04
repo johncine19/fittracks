@@ -82,6 +82,11 @@ function render_header(string $title, ?array $user = null): void
     }
     $page = $_GET['page'] ?? 'dashboard';
     $flash = flash();
+    if ($flash && in_array($page, ['setup_profile', 'setup_goal', 'setup_review', 'gym_onboarding', 'gym_pending', 'gym_rejected'], true)) {
+        if (str_starts_with((string)($flash['message'] ?? ''), 'Welcome back')) {
+            $flash = null;
+        }
+    }
     if ($user && ($user['role'] ?? '') === 'member') {
         maybe_notify_membership_renewal((int) $user['user_id']);
         maybe_notify_membership_expired((int) $user['user_id']);
@@ -163,7 +168,7 @@ function render_header(string $title, ?array $user = null): void
                     return opts;
                 }
 
-                const origFire = window.Swal.fire.bind(window.Swal);
+                const origFire = window.Swal.fire;
                 window.Swal.fire = function(...args) {
                     if (args.length === 1 && typeof args[0] === 'object') {
                         args[0] = injectToastIcon(args[0]);
@@ -171,23 +176,23 @@ function render_header(string $title, ?array $user = null): void
                         const icon = args[2];
                         const svg = icon === 'success' ? checkmarkSvg : (icon === 'error' ? crossSvg : (icon === 'warning' ? warnSvg : (icon === 'info' ? infoSvg : null)));
                         if (svg) {
-                            return origFire({ title: args[0], html: args[1], icon: icon, iconHtml: svg });
+                            return origFire.call(this, { title: args[0], html: args[1], icon: icon, iconHtml: svg });
                         }
                     }
-                    return origFire(...args);
+                    return origFire.apply(this, args);
                 };
 
-                const origMixin = window.Swal.mixin.bind(window.Swal);
+                const origMixin = window.Swal.mixin;
                 window.Swal.mixin = function(mixinOpts) {
-                    const instance = origMixin(mixinOpts);
-                    const origInstFire = instance.fire.bind(instance);
-                    instance.fire = function(...args) {
+                    const subClass = origMixin.call(this, mixinOpts);
+                    const origSubFire = subClass.fire;
+                    subClass.fire = function(...args) {
                         if (args.length === 1 && typeof args[0] === 'object') {
                             args[0] = injectToastIcon(args[0]);
                         }
-                        return origInstFire(...args);
+                        return origSubFire.apply(this, args);
                     };
-                    return instance;
+                    return subClass;
                 };
             })();
         </script>
@@ -482,6 +487,10 @@ function render_header(string $title, ?array $user = null): void
         }
         .swal2-popup:not(.swal2-toast) .swal2-title {
             color: #f8fafc !important;
+            font-size: 1.2rem !important;
+            font-weight: 700 !important;
+            line-height: 1.35 !important;
+            padding: 0 1rem !important;
         }
         [data-theme="light"] .swal2-popup:not(.swal2-toast) .swal2-title {
             color: #0f172a !important;
@@ -1452,7 +1461,7 @@ function render_header(string $title, ?array $user = null): void
                         <?php endif; ?>
                     </a>
                     <?php if ($role !== 'platform_admin'): ?>
-                        <a href="https://mail.google.com/mail/?view=cm&fs=1&to=johncinemartil596@gmail.com" target="_blank"><span class="nav-icon"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path><polyline points="22,6 12,13 2,6"></polyline></svg></span> <span class="nav-label">Contact Support</span></a>
+                        <a href="mailto:johncinemartil596@gmail.com?subject=FitTracks%20Support" target="_blank"><span class="nav-icon"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path><polyline points="22,6 12,13 2,6"></polyline></svg></span> <span class="nav-label">Contact Support</span></a>
                     <?php endif; ?>
                     <a href="index.php?page=logout" data-confirm="Are you sure you want to sign out?"><span class="nav-icon"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg></span> <span class="nav-label">Sign Out</span></a>
                 </div>
@@ -1898,128 +1907,6 @@ HTML;
 
     $isAuthPage = defined('AUTH_PAGE') && AUTH_PAGE;
 
-    $adminEmail = 'johncinemartil596@gmail.com';
-    $supportHtml = <<<HTML
-    <div class="floating-support-container" id="floatingSupport">
-        <div class="floating-support-label">Contact Support</div>
-        <a href="https://mail.google.com/mail/?view=cm&fs=1&to={$adminEmail}" target="_blank" class="floating-support-btn" title="Contact Support" aria-label="Contact Support">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="22" height="22">
-                <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path>
-                <polyline points="22,6 12,13 2,6"></polyline>
-            </svg>
-        </a>
-    </div>
-    <style>
-        .floating-support-container {
-            position: fixed;
-            bottom: 24px;
-            right: 24px;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            gap: 8px;
-            z-index: 9999;
-            transition: opacity 0.25s ease, transform 0.25s ease, visibility 0.25s ease;
-        }
-        .floating-support-label {
-            background: var(--panel, rgba(16, 19, 27, 0.9));
-            color: var(--ink, #f8fafc);
-            font-size: 11.5px;
-            font-weight: 600;
-            padding: 5px 12px;
-            border-radius: 12px;
-            border: 1px solid var(--line, rgba(255,255,255,0.08));
-            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
-            white-space: nowrap;
-            letter-spacing: 0.04em;
-            pointer-events: none;
-        }
-        .floating-support-btn {
-            width: 50px;
-            height: 50px;
-            background: var(--lime, #c7ff22);
-            color: var(--bg, #090b10);
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            box-shadow: 0 4px 14px rgba(199, 255, 34, 0.4);
-            transition: transform 0.2s, box-shadow 0.2s, opacity 0.2s;
-        }
-        .floating-support-btn:hover {
-            transform: translateY(-3px) scale(1.05);
-            box-shadow: 0 6px 20px rgba(199, 255, 34, 0.6);
-            color: var(--bg, #090b10);
-        }
-
-        /* Auto-hide completely when typing, when any input is focused, or keyboard is open */
-        body:has(input:focus) .floating-support-container,
-        body:has(textarea:focus) .floating-support-container,
-        body:has(select:focus) .floating-support-container,
-        body.keyboard-open .floating-support-container {
-            opacity: 0 !important;
-            pointer-events: none !important;
-            visibility: hidden !important;
-            transform: translateY(16px) scale(0.8) !important;
-        }
-
-        /* Mobile specific unobtrusive layout */
-        @media (max-width: 768px) {
-            .floating-support-container {
-                bottom: 16px;
-                right: 16px;
-                gap: 0;
-            }
-            .floating-support-label {
-                display: none !important; /* Remove bulky text badge on mobile */
-            }
-            .floating-support-btn {
-                width: 42px;
-                height: 42px;
-                opacity: 0.88;
-                box-shadow: 0 3px 12px rgba(0, 0, 0, 0.35);
-            }
-            .floating-support-btn svg {
-                width: 19px;
-                height: 19px;
-            }
-            .floating-support-btn:active {
-                opacity: 1;
-                transform: scale(0.95);
-            }
-        }
-    </style>
-    <script>
-    (function() {
-        function updateKeyboardState() {
-            var isInputActive = false;
-            var active = document.activeElement;
-            if (active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA' || active.tagName === 'SELECT')) {
-                isInputActive = true;
-            }
-            var isViewportConstrained = false;
-            if (window.visualViewport && window.visualViewport.height < (window.innerHeight * 0.78)) {
-                isViewportConstrained = true;
-            }
-            document.body.classList.toggle('keyboard-open', isInputActive || isViewportConstrained);
-        }
-
-        document.addEventListener('focusin', function(e) {
-            if (e.target && e.target.matches && e.target.matches('input, textarea, select')) {
-                document.body.classList.add('keyboard-open');
-            }
-        });
-
-        document.addEventListener('focusout', function(e) {
-            setTimeout(updateKeyboardState, 80);
-        });
-
-        if (window.visualViewport) {
-            window.visualViewport.addEventListener('resize', updateKeyboardState);
-        }
-    })();
-    </script>
-HTML;
 
     if (!$isAuthPage && current_user()) {
         $u = current_user();
@@ -2041,7 +1928,6 @@ HTML;
     echo $confirmScript;
     echo $passwordScript;
     echo $skeletonScript;
-    echo $supportHtml;
     echo '</body></html>';
 }
 

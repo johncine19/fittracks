@@ -58,10 +58,9 @@ function platform_admin_dashboard(PDO $pdo, array $user): void
     ')->fetchAll();
 
     $platformRatingStats = get_platform_rating_stats();
-    $recentPlatformFeedback = get_platform_reviews(6);
 ?>
     <?php render_skeleton_stats(5); ?>
-    <section class="dash-grid stats-row skeleton-content sk-display-grid" style="grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));">
+    <section class="dash-grid stats-row platform-admin-stats skeleton-content sk-display-grid" style="grid-template-columns: repeat(5, minmax(0, 1fr));">
         <?php 
         $iconMembers = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>';
         $iconRevenue = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 21V3h7.5a4.5 4.5 0 1 1 0 9H7" /><line x1="4" y1="8" x2="17" y2="8" /><line x1="4" y1="12" x2="17" y2="12" /></svg>';
@@ -145,101 +144,6 @@ function platform_admin_dashboard(PDO $pdo, array $user): void
         </article>
     </section>
 
-    <!-- Platform Owner Ratings & Feedback Section -->
-    <section class="dash-grid skeleton-content sk-display-grid" style="grid-template-columns: 1fr; margin-top:24px;">
-        <article class="panel">
-            <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:16px; flex-wrap:wrap; gap:12px;">
-                <div>
-                    <div style="display:flex; align-items:center; gap:8px;">
-                        <span style="font-size:11px; text-transform:uppercase; letter-spacing:0.5px; font-weight:700; color:var(--lime); background:rgba(199,255,34,0.1); padding:2px 8px; border-radius:4px;">
-                            Gym Owners &rarr; FitTrack Platform
-                        </span>
-                        <span style="font-size:11px; color:#94a3b8; background:rgba(255,255,255,0.06); padding:2px 8px; border-radius:999px;">
-                            Featured on Public Landing Page
-                        </span>
-                    </div>
-                    <h2 style="font-size:1.15rem; font-weight:700; margin:6px 0 0 0;">Commercial Gym Owner Feedback</h2>
-                    <p style="font-size:12px; color:var(--muted); margin:3px 0 0 0;">
-                        Live ratings submitted by gym operators regarding system usability, features, and platform services.
-                    </p>
-                </div>
-                <div style="display:flex; align-items:center; gap:10px;">
-                    <a href="index.php?page=landing#testimonials" target="_blank" class="btn btn-secondary" style="font-size:12px; padding:5px 12px; text-decoration:none;">
-                        View Live on Landing Page &rarr;
-                    </a>
-                </div>
-            </div>
 
-            <!-- Score Summary & Breakdown Bar -->
-            <div style="background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.06); border-radius:12px; padding:18px 24px; margin-bottom:20px; display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:20px;">
-                <div style="display:flex; align-items:center; gap:18px;">
-                    <div style="font-size:42px; font-weight:900; line-height:1; color:#fff;">
-                        <?= number_format($platformRatingStats['avg_rating'], 1) ?>
-                    </div>
-                    <div>
-                        <div style="display:flex; align-items:center; gap:6px; margin-bottom:4px;">
-                            <?= render_star_rating((float)$platformRatingStats['avg_rating'], 16, false) ?>
-                            <strong style="color:var(--lime); font-size:13px;">Overall Platform Score</strong>
-                        </div>
-                        <span style="font-size:12px; color:var(--muted);">
-                            Based on <?= $platformRatingStats['total_reviews'] ?> verified reviews from approved gym owners
-                        </span>
-                    </div>
-                </div>
-
-                <div style="display:flex; align-items:center; gap:20px; flex-wrap:wrap;">
-                    <div style="text-align:center; padding:0 10px;">
-                        <div style="font-size:17px; font-weight:800; color:var(--lime);"><?= number_format($platformRatingStats['avg_system'], 1) ?>★</div>
-                        <div style="font-size:11px; color:var(--muted); text-transform:uppercase;">System UX</div>
-                    </div>
-                    <div style="height:24px; width:1px; background:rgba(255,255,255,0.1);"></div>
-                    <div style="text-align:center; padding:0 10px;">
-                        <div style="font-size:17px; font-weight:800; color:var(--lime);"><?= number_format($platformRatingStats['avg_features'], 1) ?>★</div>
-                        <div style="font-size:11px; color:var(--muted); text-transform:uppercase;">Features</div>
-                    </div>
-                    <div style="height:24px; width:1px; background:rgba(255,255,255,0.1);"></div>
-                    <div style="text-align:center; padding:0 10px;">
-                        <div style="font-size:17px; font-weight:800; color:var(--lime);"><?= number_format($platformRatingStats['avg_service'], 1) ?>★</div>
-                        <div style="font-size:11px; color:var(--muted); text-transform:uppercase;">Service Quality</div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Recent Gym Owner Reviews Grid -->
-            <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(320px, 1fr)); gap:14px;">
-                <?php foreach ($recentPlatformFeedback as $pf): ?>
-                    <div style="background:rgba(255,255,255,0.02); border:1px solid rgba(255,255,255,0.04); border-radius:10px; padding:14px; display:flex; flex-direction:column; justify-content:space-between;">
-                        <div>
-                            <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:8px;">
-                                <div>
-                                    <strong style="font-size:13.5px; display:block; color:#fff;"><?= h($pf['gym_name'] ?? 'Commercial Gym') ?></strong>
-                                    <small style="font-size:11.5px; color:var(--muted);"><?= h(($pf['first_name'] ?? '') . ' ' . ($pf['last_name'] ?? '')) ?> (Owner)</small>
-                                </div>
-                                <div>
-                                    <?= render_star_rating((float)$pf['rating'], 14, false) ?>
-                                </div>
-                            </div>
-                            <?php if (!empty($pf['review'])): ?>
-                                <p style="font-size:12.5px; line-height:1.45; color:rgba(255,255,255,0.85); margin:0 0 10px 0; font-style:italic;">
-                                    &ldquo;<?= h($pf['review']) ?>&rdquo;
-                                </p>
-                            <?php endif; ?>
-                        </div>
-                        <div style="display:flex; justify-content:space-between; align-items:center; font-size:11px; color:var(--muted); border-top:1px solid rgba(255,255,255,0.04); padding-top:8px; margin-top:6px;">
-                            <div style="display:flex; gap:8px;">
-                                <span>UX: <b style="color:var(--lime);"><?= (int)($pf['system_experience'] ?? 5) ?>★</b></span>
-                                <span>Feat: <b style="color:var(--lime);"><?= (int)($pf['features_rating'] ?? 5) ?>★</b></span>
-                                <span>Serv: <b style="color:var(--lime);"><?= (int)($pf['service_rating'] ?? 5) ?>★</b></span>
-                            </div>
-                            <time><?= h(date('M d, Y', strtotime($pf['created_at']))) ?></time>
-                        </div>
-                    </div>
-                <?php endforeach; ?>
-                <?php if (!$recentPlatformFeedback): ?>
-                    <p class="muted" style="grid-column: 1 / -1; text-align:center; padding:20px;">No platform reviews submitted yet.</p>
-                <?php endif; ?>
-            </div>
-        </article>
-    </section>
 <?php
 }

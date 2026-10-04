@@ -137,14 +137,14 @@ function plans_page(): void
                                 </label>
                             </div>
 
-                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
-                                <label class="plan-label">
+                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; align-items: start;">
+                                <label class="plan-label" style="display: flex; flex-direction: column; gap: 5px;">
                                     Commission Rate (%)
-                                    <input type="number" step="0.01" name="commission_rate" class="form-control plan-input" value="<?= h((string)$plan['commission_rate']) ?>" required>
+                                    <input type="number" step="0.01" name="commission_rate" class="form-control plan-input" style="margin-top: 0;" value="<?= h((string)$plan['commission_rate']) ?>" required>
                                 </label>
 
-                                <label class="plan-label" style="display: flex; flex-direction: column; justify-content: flex-end;">
-                                    <span style="display: block; margin-bottom: 6px;">Status</span>
+                                <label class="plan-label" style="display: flex; flex-direction: column; gap: 5px;">
+                                    Status
                                     <label class="popular-checkbox-label" style="padding: 9px 12px; margin: 0; min-height: 42px; box-sizing: border-box;">
                                         <input type="checkbox" name="is_active" value="1" <?= $plan['is_active'] ? 'checked' : '' ?> class="popular-checkbox">
                                         <span class="popular-checkbox-text">Active Plan</span>

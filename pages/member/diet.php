@@ -1547,10 +1547,16 @@ $stFat   = $calcMacroStatus($loggedFat, $targetFat, 'fat');
             </div>
             <div class="smart-meal-input-wrap">
                 <input type="text" id="smart-ninja-input" class="smart-meal-textarea" placeholder="e.g., 2 eggs, 1 slice wheat bread, and 1 glass milk..." autocomplete="off">
-                <button type="button" id="btn-analyze-ninja" class="smart-meal-action-btn">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
-                    <span id="btn-analyze-ninja-txt">Analyze & Fill</span>
-                </button>
+                <div class="smart-meal-btn-group">
+                    <button type="button" id="btn-clear-smart-ninja" class="smart-meal-clear-btn" onclick="clearSmartMealAssistant()" title="Clear search and input fields">
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                        <span>Clear</span>
+                    </button>
+                    <button type="button" id="btn-analyze-ninja" class="smart-meal-action-btn">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                        <span id="btn-analyze-ninja-txt">Analyze & Fill</span>
+                    </button>
+                </div>
             </div>
             <!-- Quick Suggestion Pills (SVG icons, zero emojis) -->
             <div class="smart-quick-pills">
@@ -1575,14 +1581,14 @@ $stFat   = $calcMacroStatus($loggedFat, $targetFat, 'fat');
 
             <!-- CalorieNinjas Breakdown Container -->
             <div id="ninja-breakdown-wrap" style="display: none;" class="smart-breakdown-card">
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; flex-wrap: wrap; gap: 4px;">
-                    <strong style="color: var(--ink); font-size: 12px;">Meal Ingredients Breakdown</strong>
-                    <span style="font-size: 10.5px; color: #22c55e; font-weight: 700; background: rgba(34,197,94,0.12); padding: 2px 8px; border-radius: 10px; border: 1px solid rgba(34,197,94,0.3);">✓ Applied to inputs below</span>
+                <div class="smart-breakdown-header">
+                    <span class="smart-breakdown-title">Meal Ingredients Breakdown</span>
+                    <span class="smart-breakdown-badge">✓ Applied to inputs below</span>
                 </div>
-                <div id="ninja-breakdown-items"></div>
-                <div style="margin-top: 8px; padding-top: 6px; border-top: 1px solid color-mix(in srgb, var(--line) 80%, transparent); display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 6px;">
-                    <div style="font-weight: 800; font-size: 12.5px; color: var(--ink);" id="ninja-breakdown-totals"></div>
-                    <span style="font-size: 11px; color: var(--muted);">Click "+ Add to Log" below to record this meal.</span>
+                <div id="ninja-breakdown-items" class="smart-breakdown-list"></div>
+                <div class="smart-breakdown-totals-bar">
+                    <div id="ninja-breakdown-totals" class="smart-totals-grid"></div>
+                    <span class="smart-breakdown-hint">Click "+ Add to Log" below to record this meal.</span>
                 </div>
             </div>
         </div>
@@ -1595,10 +1601,16 @@ $stFat   = $calcMacroStatus($loggedFat, $targetFat, 'fat');
             <div class="off-search-wrap">
                 <div class="smart-meal-input-wrap off-search-main">
                     <input type="text" id="smart-off-input" class="smart-meal-textarea" placeholder="Search product or brand (e.g., Greek yogurt, Rolled oats)..." autocomplete="off">
-                    <button type="button" id="btn-search-off" class="smart-meal-action-btn off-search-btn">
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-                        <span id="btn-search-off-txt">Search</span>
-                    </button>
+                    <div class="smart-meal-btn-group">
+                        <button type="button" id="btn-clear-smart-off" class="smart-meal-clear-btn" onclick="clearSmartMealAssistant()" title="Clear search and input fields">
+                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                            <span>Clear</span>
+                        </button>
+                        <button type="button" id="btn-search-off" class="smart-meal-action-btn off-search-btn">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                            <span id="btn-search-off-txt">Search</span>
+                        </button>
+                    </div>
                 </div>
                 <div class="off-portion-pill">
                     <span class="off-portion-label">Portion:</span>
@@ -2163,6 +2175,36 @@ $stFat   = $calcMacroStatus($loggedFat, $targetFat, 'fat');
     border-color: var(--macro-pro);
     box-shadow: 0 0 0 3px color-mix(in srgb, var(--macro-pro) 20%, transparent);
 }
+.smart-meal-btn-group {
+    display: inline-flex;
+    gap: 8px;
+    align-items: stretch;
+    flex-shrink: 0;
+}
+.smart-meal-clear-btn {
+    background: color-mix(in srgb, var(--ink) 6%, transparent);
+    color: var(--muted);
+    border: 1px solid var(--line);
+    padding: 0 14px;
+    border-radius: 8px;
+    font-size: 12.5px;
+    font-weight: 700;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    white-space: nowrap;
+    transition: all 0.2s ease;
+}
+.smart-meal-clear-btn:hover {
+    background: color-mix(in srgb, #ef4444 14%, transparent);
+    color: #ef4444;
+    border-color: color-mix(in srgb, #ef4444 35%, transparent);
+    transform: translateY(-1px);
+}
+.smart-meal-clear-btn:active {
+    transform: translateY(0);
+}
 .smart-meal-action-btn {
     background: var(--macro-pro);
     color: #ffffff;
@@ -2312,22 +2354,153 @@ $stFat   = $calcMacroStatus($loggedFat, $targetFat, 'fat');
 }
 .smart-breakdown-card {
     margin-top: 12px;
-    background: color-mix(in srgb, var(--macro-pro) 6%, var(--macro-card-bg));
-    border: 1px solid color-mix(in srgb, var(--macro-pro) 22%, var(--line));
-    border-radius: 9px;
-    padding: 12px 14px;
+    background: color-mix(in srgb, var(--ink) 3%, var(--surface, #121721));
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 14px 16px;
     font-size: 12px;
+}
+[data-theme="light"] .smart-breakdown-card {
+    background: #f8fafc;
+    border-color: #e2e8f0;
+}
+.smart-breakdown-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+.smart-breakdown-title {
+    color: var(--ink);
+    font-size: 11.5px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+.smart-breakdown-badge {
+    font-size: 10.5px;
+    color: #16a34a;
+    font-weight: 700;
+    background: rgba(34, 197, 94, 0.1);
+    padding: 2px 8px;
+    border-radius: 10px;
+    border: 1px solid rgba(34, 197, 94, 0.25);
+}
+[data-theme="dark"] .smart-breakdown-badge {
+    color: #4ade80;
+    background: rgba(34, 197, 94, 0.15);
+}
+.smart-breakdown-list {
+    display: flex;
+    flex-direction: column;
 }
 .smart-breakdown-item {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 4px 0;
-    border-bottom: 1px dashed color-mix(in srgb, var(--line) 70%, transparent);
-    font-size: 12px;
+    padding: 6px 0;
+    border-bottom: 1px solid color-mix(in srgb, var(--line) 60%, transparent);
+    gap: 8px;
+    flex-wrap: wrap;
 }
 .smart-breakdown-item:last-child {
     border-bottom: none;
+}
+.breakdown-item-main {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+}
+.breakdown-item-name {
+    font-weight: 600;
+    color: var(--ink);
+    font-size: 12px;
+}
+.breakdown-item-portion {
+    color: var(--muted);
+    font-size: 11px;
+    background: color-mix(in srgb, var(--ink) 5%, transparent);
+    padding: 1px 5px;
+    border-radius: 4px;
+}
+.breakdown-item-macros {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11.5px;
+    color: var(--muted);
+    white-space: nowrap;
+    margin-left: auto;
+}
+.breakdown-macro-val {
+    font-weight: 700;
+    color: var(--ink);
+}
+.breakdown-macro-unit {
+    color: var(--muted);
+    font-size: 10.5px;
+    margin-left: 1px;
+}
+.breakdown-macro-sep {
+    color: color-mix(in srgb, var(--muted) 40%, transparent);
+    font-size: 9px;
+}
+
+.smart-breakdown-totals-bar {
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 1px solid var(--line);
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+.smart-totals-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 8px;
+}
+.smart-total-chip {
+    background: color-mix(in srgb, var(--ink) 4%, transparent);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 6px 6px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    gap: 2px;
+}
+[data-theme="light"] .smart-total-chip {
+    background: #ffffff;
+    border-color: #e2e8f0;
+}
+.smart-total-chip .chip-label {
+    font-size: 9.5px;
+    color: var(--muted);
+    text-transform: uppercase;
+    font-weight: 700;
+    letter-spacing: 0.03em;
+}
+.smart-total-chip .chip-value {
+    font-size: 12.5px;
+    font-weight: 800;
+    color: var(--ink);
+    white-space: nowrap;
+}
+.smart-breakdown-hint {
+    font-size: 11px;
+    color: var(--muted);
+    text-align: center;
+    margin-top: 2px;
+}
+
+@media (max-width: 480px) {
+    .smart-totals-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
 }
 .off-search-results {
     margin-top: 12px;
@@ -2677,8 +2850,21 @@ $stFat   = $calcMacroStatus($loggedFat, $targetFat, 'fat');
         min-height: 42px;
         box-sizing: border-box;
     }
-    .smart-meal-action-btn {
+    .smart-meal-btn-group {
         width: 100%;
+        display: flex;
+        gap: 8px;
+    }
+    .smart-meal-clear-btn {
+        flex: 1;
+        justify-content: center;
+        height: 42px;
+        font-size: 13px;
+        box-sizing: border-box;
+    }
+    .smart-meal-action-btn {
+        flex: 2;
+        width: auto;
         justify-content: center;
         height: 42px;
         font-size: 13px;
@@ -2717,6 +2903,34 @@ $stFat   = $calcMacroStatus($loggedFat, $targetFat, 'fat');
     .off-search-results {
         grid-template-columns: 1fr;
         max-height: 300px;
+    }
+
+    /* Smart Meal Breakdown Mobile Optimization */
+    .smart-breakdown-card {
+        padding: 11px 12px;
+    }
+    .smart-breakdown-item {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 3px;
+        padding: 6px 0;
+    }
+    .breakdown-item-main {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+    }
+    .breakdown-item-macros {
+        margin-left: 0 !important;
+        width: 100%;
+        display: flex;
+        align-items: center;
+        gap: 5px;
+        font-size: 11px;
+    }
+    .smart-totals-grid {
+        grid-template-columns: repeat(2, 1fr) !important;
+        gap: 6px;
     }
 
     /* 6. Macro Log Form 2x2 Grid on Mobile */
@@ -2874,9 +3088,113 @@ $stFat   = $calcMacroStatus($loggedFat, $targetFat, 'fat');
         }
     };
 
+    // In-memory memoization cache for smart meal queries (seeded with the quick meal presets)
+    const clientMealCache = new Map([
+        ['2 boiled eggs and 1 slice whole wheat bread', {
+            success: true,
+            total_calories: 217,
+            total_protein: 16.2,
+            total_carbs: 14.5,
+            total_fat: 10.6,
+            items: [
+                { name: 'Boiled Eggs', serving_size_g: 100, calories: 143, protein_g: 12.6, carbs_g: 0.7, fat_g: 9.5 },
+                { name: 'Whole Wheat Bread', serving_size_g: 30, calories: 74, protein_g: 3.6, carbs_g: 13.8, fat_g: 1.1 }
+            ]
+        }],
+        ['150g grilled chicken breast and 1 cup white rice', {
+            success: true,
+            total_calories: 489,
+            total_protein: 50.9,
+            total_carbs: 53.2,
+            total_fat: 5.8,
+            items: [
+                { name: 'Grilled Chicken Breast', serving_size_g: 150, calories: 247, protein_g: 46.5, carbs_g: 0.0, fat_g: 5.4 },
+                { name: 'White Rice', serving_size_g: 186, calories: 242, protein_g: 4.4, carbs_g: 53.2, fat_g: 0.4 }
+            ]
+        }],
+        ['1 scoop whey protein and 1 cup milk', {
+            success: true,
+            total_calories: 269,
+            total_protein: 31.7,
+            total_carbs: 13.7,
+            total_fat: 9.4,
+            items: [
+                { name: 'Whey Protein', serving_size_g: 30, calories: 120, protein_g: 24.0, carbs_g: 2.0, fat_g: 1.5 },
+                { name: 'Milk', serving_size_g: 244, calories: 149, protein_g: 7.7, carbs_g: 11.7, fat_g: 7.9 }
+            ]
+        }],
+        ['1 can tuna and 1 medium banana', {
+            success: true,
+            total_calories: 219,
+            total_protein: 26.3,
+            total_carbs: 27.4,
+            total_fat: 0.9,
+            items: [
+                { name: 'Tuna', serving_size_g: 85, calories: 113, protein_g: 25.0, carbs_g: 0.0, fat_g: 0.5 },
+                { name: 'Banana', serving_size_g: 118, calories: 106, protein_g: 1.3, carbs_g: 27.4, fat_g: 0.4 }
+            ]
+        }]
+    ]);
+
+    function renderMealBreakdownAndApply(data, mealLabel = 'Meal') {
+        if (!data || !data.success) return;
+
+        // Render clean, structured breakdown items
+        if (ninjaItemsEl && data.items && data.items.length) {
+            ninjaItemsEl.innerHTML = data.items.map(item => `
+                <div class="smart-breakdown-item">
+                    <div class="breakdown-item-main">
+                        <span class="breakdown-item-name">${escapeHtml(item.name)}</span>
+                        <span class="breakdown-item-portion">${item.serving_size_g}g</span>
+                    </div>
+                    <div class="breakdown-item-macros">
+                        <span><strong class="breakdown-macro-val">${item.calories}</strong> <span class="breakdown-macro-unit">kcal</span></span>
+                        <span class="breakdown-macro-sep">&bull;</span>
+                        <span><strong class="breakdown-macro-val">${item.protein_g}</strong><span class="breakdown-macro-unit">g P</span></span>
+                        <span class="breakdown-macro-sep">&bull;</span>
+                        <span><strong class="breakdown-macro-val">${item.carbs_g}</strong><span class="breakdown-macro-unit">g C</span></span>
+                        <span class="breakdown-macro-sep">&bull;</span>
+                        <span><strong class="breakdown-macro-val">${item.fat_g}</strong><span class="breakdown-macro-unit">g F</span></span>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        // Render balanced, cohesive total chips
+        if (ninjaTotalsEl) {
+            ninjaTotalsEl.innerHTML = `
+                <div class="smart-total-chip">
+                    <span class="chip-label">Calories</span>
+                    <span class="chip-value">${data.total_calories} kcal</span>
+                </div>
+                <div class="smart-total-chip">
+                    <span class="chip-label">Protein</span>
+                    <span class="chip-value">${data.total_protein}g</span>
+                </div>
+                <div class="smart-total-chip">
+                    <span class="chip-label">Carbs</span>
+                    <span class="chip-value">${data.total_carbs}g</span>
+                </div>
+                <div class="smart-total-chip">
+                    <span class="chip-label">Fat</span>
+                    <span class="chip-value">${data.total_fat}g</span>
+                </div>
+            `;
+        }
+
+        if (ninjaBreakdown) ninjaBreakdown.style.display = 'block';
+
+        applyMacrosToForm(data.total_calories, data.total_protein, data.total_carbs, data.total_fat, mealLabel);
+    }
+
     window.setQuickMealText = function(text) {
         if (!ninjaInput) return;
         ninjaInput.value = text;
+        const norm = text.trim().toLowerCase().replace(/\s+/g, ' ');
+        if (clientMealCache.has(norm)) {
+            renderMealBreakdownAndApply(clientMealCache.get(norm), text);
+            return;
+        }
         analyzeMealText();
     };
 
@@ -2900,24 +3218,69 @@ $stFat   = $calcMacroStatus($loggedFat, $targetFat, 'fat');
             inp.classList.add('field-highlight-flash');
         });
 
-        // Toast notification
-        const bgVal  = getComputedStyle(document.documentElement).getPropertyValue('--bg').trim() || '#121721';
-        const inkVal = getComputedStyle(document.documentElement).getPropertyValue('--ink').trim() || '#ffffff';
-        const Toast = Swal.mixin({
-            toast: true, position: 'top-end', showConfirmButton: false,
-            timer: 3500, timerProgressBar: true,
-            background: bgVal, color: inkVal
-        });
-
-        const label = foodName ? `<strong>${escapeHtml(foodName)}</strong>` : 'Meal';
-        Toast.fire({
-            icon: 'success',
-            title: `Applied ${label} (${Math.round(cals)} kcal) to inputs below!`
-        });
+        // Toast notification (sleek corner toast, compact font, zero modal blocking)
+        const label = foodName ? escapeHtml(foodName) : 'Meal';
+        if (window.Swal) {
+            Swal.fire({
+                toast: true,
+                position: 'top-end',
+                showConfirmButton: false,
+                timer: 2200,
+                timerProgressBar: false,
+                icon: 'success',
+                title: `Applied ${label} (${Math.round(cals)} kcal)`
+            });
+        }
 
         // Scroll to form fields
         form?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     }
+
+    window.clearSmartMealAssistant = function() {
+        // 1. Clear search inputs
+        if (ninjaInput) ninjaInput.value = '';
+        if (offInput) offInput.value = '';
+
+        // 2. Hide and clear breakdown containers
+        if (ninjaBreakdown) ninjaBreakdown.style.display = 'none';
+        if (ninjaItemsEl) ninjaItemsEl.innerHTML = '';
+        if (ninjaTotalsEl) ninjaTotalsEl.innerHTML = '';
+        if (offContainer) offContainer.style.display = 'none';
+
+        // 3. Clear bottom macro inputs
+        if (inCals)  inCals.value  = '';
+        if (inPro)   inPro.value   = '';
+        if (inCarbs) inCarbs.value = '';
+        if (inFat)   inFat.value   = '';
+
+        // 4. Remove flash highlights
+        [inCals, inPro, inCarbs, inFat].forEach(inp => {
+            if (inp) {
+                inp.classList.remove('field-highlight-flash');
+                inp.style.background = '';
+            }
+        });
+
+        // 5. Refocus current search input
+        if (panelSmartOff?.classList.contains('active')) {
+            offInput?.focus();
+        } else {
+            ninjaInput?.focus();
+        }
+
+        // 6. Toast notification
+        if (window.Swal) {
+            Swal.fire({
+                toast: true,
+                position: 'top-end',
+                showConfirmButton: false,
+                timer: 1600,
+                timerProgressBar: false,
+                icon: 'info',
+                title: 'Cleared search & inputs'
+            });
+        }
+    };
 
     async function analyzeMealText() {
         const text = ninjaInput?.value?.trim();
@@ -2925,6 +3288,17 @@ $stFat   = $calcMacroStatus($loggedFat, $targetFat, 'fat');
             ninjaInput?.focus();
             return;
         }
+
+        const norm = text.toLowerCase().replace(/\s+/g, ' ');
+
+        // Check instant client-side cache first (Zero API call)
+        if (clientMealCache.has(norm)) {
+            renderMealBreakdownAndApply(clientMealCache.get(norm), text);
+            return;
+        }
+
+        // Prevent duplicate concurrent requests
+        if (ninjaBtn && ninjaBtn.disabled) return;
 
         if (ninjaBtn) ninjaBtn.disabled = true;
         if (ninjaBtnTxt) ninjaBtnTxt.textContent = 'Analyzing...';
@@ -2935,8 +3309,8 @@ $stFat   = $calcMacroStatus($loggedFat, $targetFat, 'fat');
 
             if (!data || !data.success) {
                 Swal.fire({
-                    icon: 'info',
-                    title: 'Meal Not Found',
+                    icon: res.status === 429 ? 'warning' : 'info',
+                    title: res.status === 429 ? 'Rate Limit Reached' : 'Meal Not Found',
                     text: data?.error || 'Could not parse nutritional data for this query.',
                     background: getComputedStyle(document.documentElement).getPropertyValue('--bg').trim() || '#121721',
                     color: getComputedStyle(document.documentElement).getPropertyValue('--ink').trim() || '#ffffff'
@@ -2944,33 +3318,10 @@ $stFat   = $calcMacroStatus($loggedFat, $targetFat, 'fat');
                 return;
             }
 
-            // Render breakdown
-            if (ninjaItemsEl && data.items && data.items.length) {
-                ninjaItemsEl.innerHTML = data.items.map(item => `
-                    <div class="smart-breakdown-item">
-                        <span><strong>${escapeHtml(item.name)}</strong> (${item.serving_size_g}g)</span>
-                        <span style="color: var(--muted); font-size: 11.5px;">
-                            <strong style="color: var(--macro-cals);">${item.calories} kcal</strong> &bull;
-                            <span style="color: var(--macro-pro);">${item.protein_g}g P</span> &bull;
-                            <span style="color: var(--macro-carbs);">${item.carbs_g}g C</span> &bull;
-                            <span style="color: var(--macro-fat);">${item.fat_g}g F</span>
-                        </span>
-                    </div>
-                `).join('');
-            }
+            // Save to client-side cache for instant re-use in this session
+            clientMealCache.set(norm, data);
 
-            if (ninjaTotalsEl) {
-                ninjaTotalsEl.innerHTML = `
-                    <span style="color: var(--macro-cals);">${data.total_calories} kcal</span> &bull;
-                    <span style="color: var(--macro-pro);">${data.total_protein}g Protein</span> &bull;
-                    <span style="color: var(--macro-carbs);">${data.total_carbs}g Carbs</span> &bull;
-                    <span style="color: var(--macro-fat);">${data.total_fat}g Fat</span>
-                `;
-            }
-
-            if (ninjaBreakdown) ninjaBreakdown.style.display = 'block';
-
-            applyMacrosToForm(data.total_calories, data.total_protein, data.total_carbs, data.total_fat, 'Meal');
+            renderMealBreakdownAndApply(data, text);
         } catch (err) {
             Swal.fire({
                 icon: 'error',

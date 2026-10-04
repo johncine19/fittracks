@@ -270,6 +270,9 @@ function scanner_page(): void
                 // Check-out
                 $pdo->prepare('UPDATE attendance SET check_out_time = ? WHERE attendance_id = ?')
                     ->execute([$scannedAt, $openRecord['attendance_id']]);
+                if (function_exists('release_user_equipment_on_checkout')) {
+                    release_user_equipment_on_checkout((int)$userId);
+                }
                 audit_log($user['user_id'], 'offline_sync_checkout', 'attendance', (string) $openRecord['attendance_id'], json_encode([
                     'user_id' => $userId,
                     'scanned_at' => $scannedAt,
@@ -353,6 +356,9 @@ function scanner_page(): void
         if ($openRecord) {
             // Check-out
             $pdo->prepare('UPDATE attendance SET check_out_time = NOW() WHERE attendance_id = ?')->execute([$openRecord['attendance_id']]);
+            if (function_exists('release_user_equipment_on_checkout')) {
+                release_user_equipment_on_checkout((int)$targetUserId);
+            }
             audit_log($user['user_id'], 'manual_checkout', 'attendance', (string) $openRecord['attendance_id'], json_encode(['user_id' => $targetUserId]));
             $actionType = 'checkout';
             $sessionDuration = $formatDuration($openRecord['check_in_time'], date('Y-m-d H:i:s'));
@@ -464,6 +470,9 @@ function scanner_page(): void
         if ($openRecord) {
             // Check out
             $pdo->prepare('UPDATE attendance SET check_out_time = NOW() WHERE attendance_id = ?')->execute([$openRecord['attendance_id']]);
+            if (function_exists('release_user_equipment_on_checkout')) {
+                release_user_equipment_on_checkout((int)$userId);
+            }
             audit_log($user['user_id'], 'qr_checkout', 'attendance', (string) $openRecord['attendance_id'], json_encode(['user_id' => $userId]));
             $actionType = 'checkout';
             $sessionDuration = $formatDuration($openRecord['check_in_time'], date('Y-m-d H:i:s'));
@@ -3047,6 +3056,8 @@ function scanner_page(): void
                         confirmButtonColor: 'var(--lime)',
                         cancelButtonColor: 'color-mix(in srgb, var(--ink) 12%, transparent)',
                         showCancelButton: true,
+                        allowOutsideClick: false,
+                        allowEscapeKey: false,
                         confirmButtonText: '<span style="color:#05080c; font-weight:700;">Record Payment & Check-in</span>',
                         cancelButtonText: '<span style="color:var(--ink);">Cancel</span>',
                         didOpen: () => {

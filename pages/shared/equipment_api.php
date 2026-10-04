@@ -176,6 +176,56 @@ function maintenance_check_expired_queues(PDO $pdo, int $gymId): void
  */
 function reconcile_equipment_states(PDO $pdo, int $gymId): void
 {
+    // 0. Auto-finish active sessions whose member is no longer checked in today
+    $staleUserSessions = $pdo->prepare("
+        SELECT s.session_id, s.equipment_id, s.gym_id
+        FROM equipment_sessions s
+        JOIN users u ON u.user_id = s.user_id
+        WHERE s.session_status = 'active'
+          AND (s.gym_id = ? OR ? = 0)
+          AND u.role = 'member'
+          AND NOT EXISTS (
+              SELECT 1 FROM attendance a
+              WHERE a.user_id = s.user_id
+                AND a.gym_id = s.gym_id
+                AND a.check_out_time IS NULL
+                AND DATE(a.check_in_time) = CURDATE()
+          )
+    ");
+    $staleUserSessions->execute([$gymId, $gymId]);
+    $staleSessions = $staleUserSessions->fetchAll(PDO::FETCH_ASSOC);
+    foreach ($staleSessions as $ss) {
+        $pdo->prepare("UPDATE equipment_sessions SET session_status = 'finished', end_time = NOW() WHERE session_id = ?")->execute([(int)$ss['session_id']]);
+        $pdo->prepare("UPDATE gym_equipment SET current_session_id = NULL WHERE equipment_id = ?")->execute([(int)$ss['equipment_id']]);
+        process_next_in_queue($pdo, (int)$ss['gym_id'], (int)$ss['equipment_id']);
+    }
+
+    // 0b. Auto-cancel waiting/notified queues whose member is no longer checked in today
+    $staleQueuesStmt = $pdo->prepare("
+        SELECT q.queue_id, q.equipment_id, q.gym_id, q.queue_status
+        FROM equipment_queues q
+        JOIN users u ON u.user_id = q.user_id
+        WHERE q.queue_status IN ('waiting', 'notified')
+          AND (q.gym_id = ? OR ? = 0)
+          AND u.role = 'member'
+          AND NOT EXISTS (
+              SELECT 1 FROM attendance a
+              WHERE a.user_id = q.user_id
+                AND a.gym_id = q.gym_id
+                AND a.check_out_time IS NULL
+                AND DATE(a.check_in_time) = CURDATE()
+          )
+    ");
+    $staleQueuesStmt->execute([$gymId, $gymId]);
+    $staleQueues = $staleQueuesStmt->fetchAll(PDO::FETCH_ASSOC);
+    foreach ($staleQueues as $sq) {
+        $pdo->prepare("UPDATE equipment_queues SET queue_status = 'cancelled', resolved_at = NOW() WHERE queue_id = ?")->execute([(int)$sq['queue_id']]);
+        reorder_waiting_queues($pdo, (int)$sq['equipment_id']);
+        if ($sq['queue_status'] === 'notified') {
+            process_next_in_queue($pdo, (int)$sq['gym_id'], (int)$sq['equipment_id']);
+        }
+    }
+
     // 1. Find all equipment marked 'in_use' that have no active session
     $staleStmt = $pdo->prepare("
         SELECT e.equipment_id, e.gym_id, e.name, e.unit_number
@@ -308,6 +358,7 @@ function handle_poll(PDO $pdo, int $gymId, array $user): void
                (SELECT COUNT(*) FROM equipment_queues q WHERE q.equipment_id = e.equipment_id AND q.queue_status IN ('waiting', 'notified')) as waiting_queue_count,
                (SELECT CONCAT(u.first_name, ' ', SUBSTRING(u.last_name, 1, 1), '.') FROM equipment_sessions s JOIN users u ON u.user_id = s.user_id WHERE s.equipment_id = e.equipment_id AND s.session_status = 'active' LIMIT 1) as current_user_display,
                (SELECT UNIX_TIMESTAMP(s.start_time) FROM equipment_sessions s WHERE s.equipment_id = e.equipment_id AND s.session_status = 'active' LIMIT 1) as session_start_ts,
+               (SELECT TIMESTAMPDIFF(MINUTE, s.start_time, NOW()) FROM equipment_sessions s WHERE s.equipment_id = e.equipment_id AND s.session_status = 'active' LIMIT 1) as session_elapsed_mins,
                (SELECT s.user_id FROM equipment_sessions s WHERE s.equipment_id = e.equipment_id AND s.session_status = 'active' LIMIT 1) as current_session_user_id,
                (SELECT CONCAT(u.first_name, ' ', SUBSTRING(u.last_name, 1, 1), '.') FROM equipment_queues q JOIN users u ON u.user_id = q.user_id WHERE q.equipment_id = e.equipment_id AND q.queue_status = 'notified' AND q.claim_deadline >= NOW() LIMIT 1) as notified_user_display,
                (SELECT q.user_id FROM equipment_queues q WHERE q.equipment_id = e.equipment_id AND q.queue_status = 'notified' AND q.claim_deadline >= NOW() LIMIT 1) as notified_user_id,
@@ -319,9 +370,18 @@ function handle_poll(PDO $pdo, int $gymId, array $user): void
     $equipStmt->execute([$gymId]);
     $equipment = $equipStmt->fetchAll(PDO::FETCH_ASSOC);
 
+    $isCheckedIn = true;
+    if ($user['role'] === 'member') {
+        $isCheckedIn = (bool)scalar(
+            "SELECT attendance_id FROM attendance WHERE user_id = ? AND gym_id = ? AND check_out_time IS NULL AND DATE(check_in_time) = CURDATE() LIMIT 1",
+            [$userId, $gymId]
+        );
+    }
+
     echo json_encode([
         'success' => true,
         'server_time' => time(),
+        'is_checked_in' => $isCheckedIn,
         'active_session' => $activeSession,
         'my_queues' => $myQueues,
         'equipment' => $equipment
@@ -338,13 +398,6 @@ function handle_start_session(PDO $pdo, int $gymId, array $user): void
         return;
     }
 
-    // Rule 8: A member cannot occupy multiple equipment sessions simultaneously
-    $hasActive = scalar("SELECT session_id FROM equipment_sessions WHERE user_id = ? AND session_status = 'active' LIMIT 1", [$userId]);
-    if ($hasActive) {
-        echo json_encode(['success' => false, 'message' => "You already have an active equipment session. Please finish it before starting another."]);
-        return;
-    }
-
     // Check if equipment exists
     $equipStmt = $pdo->prepare("SELECT * FROM gym_equipment WHERE equipment_id = ?");
     $equipStmt->execute([$equipmentId]);
@@ -356,6 +409,28 @@ function handle_start_session(PDO $pdo, int $gymId, array $user): void
     }
 
     $eqGymId = (int)$equip['gym_id'];
+
+    // Rule: Member must be checked in at the gym to use equipment
+    if ($user['role'] === 'member') {
+        $isCheckedIn = (bool)scalar(
+            "SELECT attendance_id FROM attendance WHERE user_id = ? AND gym_id = ? AND check_out_time IS NULL AND DATE(check_in_time) = CURDATE() LIMIT 1",
+            [$userId, $eqGymId]
+        );
+        if (!$isCheckedIn) {
+            echo json_encode([
+                'success' => false,
+                'message' => 'You must be checked in at the gym to use equipment. Please scan your QR code at the gym entrance.'
+            ]);
+            return;
+        }
+    }
+
+    // Rule 8: A member cannot occupy multiple equipment sessions simultaneously
+    $hasActive = scalar("SELECT session_id FROM equipment_sessions WHERE user_id = ? AND session_status = 'active' LIMIT 1", [$userId]);
+    if ($hasActive) {
+        echo json_encode(['success' => false, 'message' => "You already have an active equipment session. Please finish it before starting another."]);
+        return;
+    }
 
     if ($equip['status'] === 'maintenance' || $equip['status'] === 'out_of_service') {
         echo json_encode(['success' => false, 'message' => 'This equipment is currently under maintenance or out of service.']);
@@ -566,6 +641,21 @@ function handle_join_queue(PDO $pdo, int $gymId, array $user): void
     }
 
     $eqGymId = (int)$equip['gym_id'];
+
+    // Rule: Member must be checked in at the gym to join equipment queues
+    if ($user['role'] === 'member') {
+        $isCheckedIn = (bool)scalar(
+            "SELECT attendance_id FROM attendance WHERE user_id = ? AND gym_id = ? AND check_out_time IS NULL AND DATE(check_in_time) = CURDATE() LIMIT 1",
+            [$userId, $eqGymId]
+        );
+        if (!$isCheckedIn) {
+            echo json_encode([
+                'success' => false,
+                'message' => 'You must be checked in at the gym to join the equipment queue. Please scan your QR code at the gym entrance.'
+            ]);
+            return;
+        }
+    }
 
     if ($equip['status'] === 'maintenance' || $equip['status'] === 'out_of_service') {
         echo json_encode(['success' => false, 'message' => 'Cannot join queue: equipment is currently unavailable.']);

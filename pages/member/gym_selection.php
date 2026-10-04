@@ -587,6 +587,35 @@ function gym_selection_page(): void
         }
         .modal-tab-btn.is-active .tab-underline { transform: scaleX(1); }
 
+        .modal-tab-badge {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-width: 19px;
+            height: 18px;
+            padding: 0 6px;
+            border-radius: 999px;
+            font-size: 11px;
+            font-weight: 700;
+            line-height: 1;
+            background: rgba(255, 255, 255, 0.08);
+            color: #94a3b8;
+            border: 1px solid rgba(255, 255, 255, 0.14);
+            margin-left: 3px;
+            transition: all 0.2s ease;
+        }
+        .modal-tab-btn:hover .modal-tab-badge {
+            background: rgba(255, 255, 255, 0.16);
+            color: #f8fafc;
+            border-color: rgba(255, 255, 255, 0.24);
+        }
+        .modal-tab-btn.is-active .modal-tab-badge {
+            background: rgba(199, 255, 34, 0.22);
+            color: var(--lime);
+            border-color: rgba(199, 255, 34, 0.5);
+            font-weight: 800;
+        }
+
         .modal-body-inner { padding: 22px 30px 30px; }
         .modal-tab-panel { display: none; }
         .modal-tab-panel.is-active { display: block; }
@@ -1091,6 +1120,12 @@ function gym_selection_page(): void
                 font-size: 0.8rem !important;
                 padding: 7px 10px !important;
             }
+            .modal-tab-badge {
+                font-size: 10px !important;
+                min-width: 17px !important;
+                height: 16px !important;
+                padding: 0 4px !important;
+            }
             .close-btn {
                 top: 12px !important;
                 right: 12px !important;
@@ -1132,6 +1167,12 @@ function gym_selection_page(): void
             <svg class="pulse-line" viewBox="0 0 460 30" preserveAspectRatio="none" aria-hidden="true">
                 <path d="M0,15 L150,15 L168,3 L184,27 L200,15 L215,15 L228,8 L240,22 L252,15 L460,15" />
             </svg>
+            <div style="margin-top: 14px;">
+                <a href="index.php?page=dashboard" style="display: inline-flex; align-items: center; gap: 6px; padding: 7px 16px; border-radius: 999px; background: rgba(255, 255, 255, 0.06); border: 1px solid rgba(255, 255, 255, 0.15); color: #94a3b8; font-size: 12.5px; font-weight: 600; text-decoration: none; transition: all 0.2s;" onmouseover="this.style.color='#f8fafc'; this.style.borderColor='rgba(199,255,34,0.4)'; this.style.background='rgba(199,255,34,0.08)';" onmouseout="this.style.color='#94a3b8'; this.style.borderColor='rgba(255,255,255,0.15)'; this.style.background='rgba(255,255,255,0.06)';">
+                    <span>Skip gym selection for now &amp; go to Dashboard</span>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><polyline points="9 18 15 12 9 6"/></svg>
+                </a>
+            </div>
         </div>
 
         <?php if (empty($gymData)): ?>
@@ -1227,7 +1268,7 @@ function gym_selection_page(): void
         </div>
     </div>
 
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/gsap.min.js"></script>
     <script>
     const gymData = <?= json_encode($gymData) ?>;
     const hasGSAP = typeof gsap !== 'undefined';
@@ -1358,6 +1399,7 @@ function gym_selection_page(): void
     function buildModalHtml(gym) {
         const classCount = gym.classes ? gym.classes.length : 0;
         const planCount = gym.plans ? gym.plans.length : 0;
+        const imageCount = gym.images ? gym.images.length : 0;
         let minPrice = null;
         let highlightedPlanId = null;
         let highlightBadgeText = 'Most Popular';
@@ -1417,8 +1459,6 @@ function gym_selection_page(): void
                 <div class="modal-hero-sub">
                     <div class="modal-quickstats">
                         <span style="color:#fbbf24;"><strong style="color:#fbbf24;">★ ${ratingScore.toFixed(1)}</strong> (${reviewCount})</span>
-                        <span><strong>${classCount}</strong> classes</span>
-                        <span><strong>${planCount}</strong> plans</span>
                         ${minPrice !== null ? `<span>From <strong>₱${minPrice.toFixed(0)}</strong></span>` : ''}
                         <a href="index.php?page=view_gym&gym_id=${gym.gym_id}#gym-ratings-section" class="modal-reviews-link" style="color:var(--lime);font-size:12px;text-decoration:none;font-weight:600;margin-left:auto;">View Full Page & Reviews →</a>
                     </div>
@@ -1436,16 +1476,22 @@ function gym_selection_page(): void
                     ${hasGallery ? `
                     <button type="button" class="modal-tab-btn is-active" id="tabbtn-gallery" data-tab="gallery">
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline></svg>
-                        Gallery<span class="tab-underline"></span>
+                        <span>Gym Images</span>
+                        <span class="modal-tab-badge">${imageCount}</span>
+                        <span class="tab-underline"></span>
                     </button>
                     ` : ''}
                     <button type="button" class="modal-tab-btn ${!hasGallery ? 'is-active' : ''}" id="tabbtn-classes" data-tab="classes">
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
-                        Classes<span class="tab-underline"></span>
+                        <span>Classes</span>
+                        <span class="modal-tab-badge">${classCount}</span>
+                        <span class="tab-underline"></span>
                     </button>
                     <button type="button" class="modal-tab-btn" id="tabbtn-plans" data-tab="plans">
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><circle cx="7" cy="7" r="1"/></svg>
-                        Membership Plans<span class="tab-underline"></span>
+                        <span>Membership Plans</span>
+                        <span class="modal-tab-badge">${planCount}</span>
+                        <span class="tab-underline"></span>
                     </button>
                 </div>
             </div>

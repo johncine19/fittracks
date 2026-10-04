@@ -210,6 +210,11 @@ function handle_login(): void
                 if (!$gymCheck || in_array($gymCheck['status'], ['pending', 'rejected'], true)) {
                     $shouldFlashWelcome = false;
                 }
+            } elseif ($user['role'] === 'member') {
+                $profCheck = member_profile((int)$user['user_id']);
+                if (!$profCheck || empty($profCheck['height_cm']) || empty($profCheck['primary_goal'])) {
+                    $shouldFlashWelcome = false;
+                }
             }
 
             if ($shouldFlashWelcome) {

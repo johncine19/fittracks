@@ -37,7 +37,7 @@ The admin dashboard charts use Chart.js loaded from CDN in `views/layout.php`, w
 - Optical QR Scanner Terminal (`page=scanner`) with fullscreen Kiosk mode, live occupancy HUD, walk-in fee auto-detection, and 1-tap payment processing.
 - Hierarchical Inactive Member & Churn Automation Engine (`core/engagement_engine.php`, `cron.php`) with Platform Admin defaults and Gym Owner custom threshold/cooldown/toggle settings.
 - Nutrition & Food Lookup APIs (`pages/member/food_lookup.php`): CalorieNinjas NLP search (`CALORIENINJAS_API_KEY`) and Open Food Facts barcode/product search with 1-click gym library import.
-- Real-Time Equipment Queue API (`pages/shared/equipment_api.php`): Real-time polling, session countdown timers, waitlist positions, and audio chime alerts.
+- Real-Time Equipment Queue API & Anti-Abuse Attendance Gate (`pages/shared/equipment_api.php`, `pages/member/equipment.php`, `pages/member/qr_attendance.php`): Strict attendance-gated machine usage and waitlists to eliminate remote phantom bookings, entrance check-in quick-claim selector, "probably-in-use" active workout transparency notes, real-time polling, session countdown timers, waitlist positions, audio chime alerts, and automated session/queue release on gym check-out.
 - Mathematical Member Engagement Engine (`core/engagement_engine.php`): Multi-factor weighted score (attendance, classes, consistency, workouts, progress) classifying members as Highly Engaged, Moderately Engaged, or At-Risk.
 
 ---
@@ -53,8 +53,7 @@ The admin dashboard charts use Chart.js loaded from CDN in `views/layout.php`, w
 - **Refactored Inline Action Handlers**: Replaced raw string interpolations in inline `onclick` attributes across `memberships.php`, `equipment.php`, `training.php`, `users.php`, and `walk_ins.php` with HTML5 `data-*` attributes and event delegation.
 - **Client DOM Sanitization**: Secured client-side dynamic template rendering in `diet_builder.php`, `setup_goal.php`, and `scanner.php`.
 
-### 2. MySQL Error 3065 in Attendance Filters
-- In `pages/admin/attendance.php`, resolved MySQL Error 3065 (`Expression #2 of ORDER BY clause is not in SELECT list... incompatible with DISTINCT`) by including `u.first_name`, `u.last_name`, and `u.email` directly in the `SELECT DISTINCT` column list.
+
 
 ### 3. Universal Chart.js Analytics Restoration
 - Added Chart.js 4.5.1 CDN import and offline fallback script in `views/layout.php` alongside a local cached bundle (`assets/chart.umd.min.js`), resolving blank canvases across the Gym Owner Dashboard, Reports & Analytics (Revenue Streams, Revenue Mix, Attendance Trends, Hourly Rush, and Day-of-Week Distribution), and Member Progress Hub.
@@ -63,6 +62,33 @@ The admin dashboard charts use Chart.js loaded from CDN in `views/layout.php`, w
 - In `pages/shared/messages.php`, restricted gym owners to only viewing, listing, and messaging users affiliated with their specific gym (`trainer_profiles.gym_id` and `gym_members.gym_id` / active plan memberships).
 - Added server-side validation guard `canMessageUser()` to block cross-gym message submission, unauthorized AJAX polling, and direct URL query tampering (`?chat=XX`).
 - Corrected helper call to `get_user_gym($user)` to eliminate IDE undefined function warnings.
+
+### 5. Equipment Anti-Abuse Attendance Gate, Usage Transparency & Auto-Release
+- **Problem Resolved**: Eliminated "remote phantom bookings" where members sitting at home could start sessions or clog equipment queues on `page=equipment`, locking physical gym equipment away from members physically present on the floor.
+- **Strict Active Attendance Gate (`equipment_api.php`)**:
+  - `start_session`, `join_queue`, and `claim_session` now verify that the member has an open, active check-in at the gym for the current calendar day (`attendance.check_out_time IS NULL AND DATE(attendance.check_in_time) = CURDATE()`).
+  - Remote attempts from outside the gym are immediately rejected with an actionable directive.
+- **Remote Browse Mode UI (`page=equipment`)**:
+  - Members outside the gym can still safely browse live equipment availability in read-only mode to see how busy the gym is.
+  - An amber contextual banner explains that the user is in *Remote Mode*, and action buttons display locked states (`🔒 Check In to Use`, `🔒 Check In to Queue`).
+  - Clicking any locked button opens a modal explaining the anti-hogging policy with a 1-tap shortcut to open their entrance QR Code.
+- **Realistic Active Usage Transparency Note**:
+  - Because workout durations vary from person to person, machines currently occupied display:
+    - Current active occupant and elapsed minutes (e.g. *John D. (~12 mins in)*).
+    - Status note: `ℹ️ Probably in use by [Member Name]. (Workout finish times vary — join queue to automatically get next claim window)`.
+- **Entrance Check-In Quick-Claim & Hybrid Live Search (`page=qr_attendance`)**:
+  - Enhanced the post-scan check-in modal to include an optional *"Quick-Claim Your First Machine"* section with real-time hybrid live search.
+  - **Live Filter Input**: Members can instantly type to filter equipment across names, unit numbers, zones, and areas (e.g., typing *"tread"*, *"bench"*, or *"cable"* narrows down the list in real-time).
+  - **Interactive Category Filter Chips**: Category pills (`All`, `Cardio`, `Strength`, `Free Weights`, `Machines`) act as interactive filters, dynamically updating available counts and grouping matching machines under categorized `<optgroup>` blocks.
+  - Members can claim their initial workout station with 1 click right at the door, or dismiss the popup to warm up and claim later.
+- **Active Gym Visit Banner & Browser Refresh Resilience (`page=qr_attendance`)**:
+  - **Checked-In Status Banner**: When an active check-in exists today, the page displays a prominent status card with a pulsing green indicator, gym name, check-in timestamp, floor time counter, active machine session indicator, and quick actions (*"Choose Equipment & Claim"*, *"View Gym Floor & Queue"*).
+  - **Modal Auto-Restore on Refresh**: If a member refreshes within 5 minutes of check-in and hasn't claimed a machine or explicitly dismissed the prompt, the quick-claim modal automatically re-opens.
+  - **Smart Dismissal Memory**: Explicitly clicking *"Dismiss"* saves a scoped dismissal flag to `sessionStorage`, ensuring members who choose not to claim right away are not repeatedly interrupted on subsequent page reloads while still retaining 1-tap re-open capability via the banner button.
+  - **Check-Out QR Mode**: When checked in, the QR code generator automatically switches context to generate a Check-Out pass for smooth scanning upon departure.
+- **Automated Check-Out Release (`core/helpers.php` & `equipment_api.php`)**:
+  - Implemented `release_user_equipment_on_checkout()`: whenever a member scans out, performs self-checkout, or is checked out by staff, any active equipment sessions they forgot to end are automatically finalized, and any waitlist queues they were holding are cancelled.
+  - `reconcile_equipment_states()` automatically detects and releases stale sessions and advances the queue to the next waiting member on every poll.
 
 ---
 

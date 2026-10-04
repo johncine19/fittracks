@@ -1912,9 +1912,6 @@ function gym_profile_page(): void
                 <!-- 6. MEMBER REVIEWS & RATINGS TAB -->
                 <section class="profile-card settings-tab-pane" id="sec-ratings" style="display: none;">
                     <div class="card-header">
-                        <div class="card-header-icon" style="background: rgba(245, 158, 11, 0.12); color: #fbbf24; border: 1px solid rgba(245, 158, 11, 0.25);">
-                            <svg width="18" height="18" viewBox="0 0 24 24" fill="#fbbf24" stroke="none"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
-                        </div>
                         <div class="card-header-title-wrap">
                             <h2 class="card-title">Member Ratings & Reviews</h2>
                             <p class="card-desc">Authentic ratings and feedback submitted by your gym members.</p>
@@ -1926,8 +1923,8 @@ function gym_profile_page(): void
                     </div>
 
                     <!-- Summary Stats Card -->
-                    <div style="display: grid; grid-template-columns: minmax(200px, 260px) 1fr; gap: 20px; background: var(--panel-soft); border: 1px solid var(--line); border-radius: 14px; padding: 20px; margin-bottom: 20px;">
-                        <div style="display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center; border-right: 1px solid var(--line); padding-right: 20px;">
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 20px; background: var(--panel-soft); border: 1px solid var(--line); border-radius: 14px; padding: 20px; margin-bottom: 20px; overflow: hidden; box-sizing: border-box;">
+                        <div style="display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center; border-right: 1px solid var(--line); padding-right: 20px; min-width: 0;">
                             <div style="font-size: 46px; font-weight: 900; color: #fbbf24; line-height: 1; letter-spacing: -1px; margin-bottom: 6px;">
                                 <?= number_format((float)$gymRatingStats['avg_rating'], 1) ?>
                             </div>
@@ -1938,17 +1935,17 @@ function gym_profile_page(): void
                         </div>
 
                         <!-- Star breakdown -->
-                        <div style="display: flex; flex-direction: column; justify-content: center; gap: 8px;">
+                        <div style="display: flex; flex-direction: column; justify-content: center; gap: 8px; min-width: 0;">
                             <?php for ($s = 5; $s >= 1; $s--): 
                                 $bCount = $gymRatingStats['breakdown'][$s] ?? 0;
                                 $bPct = $gymRatingStats['breakdown_pct'][$s] ?? 0;
                             ?>
-                                <div style="display: flex; align-items: center; gap: 10px; font-size: 12px;">
-                                    <span style="width: 32px; color: var(--muted); font-weight: 600;"><?= $s ?> ★</span>
-                                    <div style="flex: 1; height: 8px; border-radius: 999px; background: var(--line); overflow: hidden;">
+                                <div style="display: flex; align-items: center; gap: 8px; font-size: 12px; min-width: 0;">
+                                    <span style="width: 28px; flex-shrink: 0; color: var(--muted); font-weight: 600;"><?= $s ?> ★</span>
+                                    <div style="flex: 1; min-width: 0; height: 8px; border-radius: 999px; background: var(--line); overflow: hidden;">
                                         <div style="height: 100%; width: <?= $bPct ?>%; background: #fbbf24; border-radius: 999px; transition: width 0.3s ease;"></div>
                                     </div>
-                                    <span style="width: 70px; text-align: right; color: var(--muted); font-size: 11.5px;"><?= $bCount ?> (<?= $bPct ?>%)</span>
+                                    <span style="flex-shrink: 0; width: 62px; text-align: right; color: var(--muted); font-size: 11.5px;"><?= $bCount ?> (<?= $bPct ?>%)</span>
                                 </div>
                             <?php endfor; ?>
                         </div>

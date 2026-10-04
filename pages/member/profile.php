@@ -163,13 +163,9 @@ function profile_page(): void
                         ->execute([$key, trim((string)$_POST[$key])]);
                 }
             }
-            audit_log((int)$user['user_id'], 'edit', 'platform_settings', null, json_encode([
-                'platform_name' => $_POST['platform_name'] ?? '',
-                'contact_email' => $_POST['contact_email'] ?? '',
-                'registration_enabled' => $_POST['registration_enabled'] ?? '',
-                'at_risk_inactivity_days' => $_POST['at_risk_inactivity_days'] ?? '',
-                'at_risk_notification_cooldown' => $_POST['at_risk_notification_cooldown'] ?? ''
-            ]));
+            $submittedSettings = array_intersect_key($_POST, array_flip($keys));
+            $submittedSettings = array_map(static fn($value) => trim((string)$value), $submittedSettings);
+            audit_log((int)$user['user_id'], 'edit', 'platform_settings', null, json_encode($submittedSettings));
             flash('Platform settings updated successfully.', 'success');
             redirect('profile');
         } elseif (isset($_POST['switch_home_gym']) && $is_member) {
@@ -232,6 +228,12 @@ function profile_page(): void
     $recentGymReviews = [];
     $myPlatformReview = null;
     $platformStats = null;
+    $platformRatingStats = null;
+    $recentPlatformFeedback = [];
+    if (($user['role'] ?? '') === 'platform_admin') {
+        $platformRatingStats = get_platform_rating_stats();
+        $recentPlatformFeedback = get_platform_reviews(6);
+    }
     if (in_array(($user['role'] ?? ''), ['gym_owner', 'admin'], true)) {
         $ownerGym = db()->query('SELECT * FROM gyms WHERE owner_user_id = ' . (int)$user['user_id'])->fetch(PDO::FETCH_ASSOC);
         if (!$ownerGym && !empty($user['gym_id'])) {
@@ -329,6 +331,10 @@ function profile_page(): void
             <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
             Platform Settings
         </button>
+        <button class="settings-tab" data-tab="platform_feedback">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+            Feedback
+        </button>
         <?php endif; ?>
         <?php if ($user['role'] === 'gym_owner'): ?>
         <button class="settings-tab" data-tab="subscription">
@@ -421,10 +427,16 @@ function profile_page(): void
                     <h2 class="settings-section-title">Physical Profile</h2>
                     <p class="settings-section-desc">Keeping your physical profile up to date helps generate accurate workout & diet plans.</p>
                 </div>
-                <button type="button" class="settings-edit-btn" onclick="document.getElementById('physicalProfileModal').showModal()">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg>
-                    Edit
-                </button>
+                <div style="display: flex; gap: 8px; align-items: center;">
+                    <a href="index.php?page=setup_review" class="settings-edit-btn" style="text-decoration:none;">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+                        Review Setup
+                    </a>
+                    <button type="button" class="settings-edit-btn" onclick="document.getElementById('physicalProfileModal').showModal()">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg>
+                        Edit
+                    </button>
+                </div>
             </div>
 
             <!-- Body Measurements -->
@@ -799,47 +811,118 @@ function profile_page(): void
                 </div>
             </div>
 
-            <form method="post" class="form grid-form" style="max-width: 650px; margin-top: 1rem;" onsubmit="const btn = this.querySelector('button[type=submit]'); btn.disabled = true; btn.innerHTML = '<span class=\'loader\' style=\'width:16px;height:16px;border:2px solid var(--bg);border-bottom-color:transparent;border-radius:50%;display:inline-block;box-sizing:border-box;animation:rotation 1s linear infinite;margin-right:8px;vertical-align:-2px;\'></span> Saving...';">
-                <?= csrf_field() ?>
-                <input type="hidden" name="update_platform_settings" value="1">
-                
-                <label>Platform Name
-                    <input type="text" name="platform_name" value="<?= h($sysSettings['platform_name']['setting_value'] ?? 'FITTRACKS') ?>" required>
-                </label>
+            <div class="platform-settings-cards">
+                <article class="platform-settings-card">
+                    <div class="platform-settings-card-mark" aria-hidden="true">01</div>
+                    <div class="platform-settings-card-copy">
+                        <span class="platform-settings-eyebrow">CORE CONFIGURATION</span>
+                        <h3>General platform</h3>
+                        <p>Manage your platform identity, support contact, and new account registration.</p>
+                    </div>
+                    <button type="button" class="platform-settings-open" onclick="document.getElementById('generalPlatformSettingsModal').showModal()">Configure <span aria-hidden="true">&rarr;</span></button>
+                </article>
+                <article class="platform-settings-card">
+                    <div class="platform-settings-card-mark" aria-hidden="true">02</div>
+                    <div class="platform-settings-card-copy">
+                        <span class="platform-settings-eyebrow">MEMBER ENGAGEMENT</span>
+                        <h3>Inactive member reminders</h3>
+                        <p>Set when members are flagged inactive and the wait between reminder messages.</p>
+                    </div>
+                    <button type="button" class="platform-settings-open" onclick="document.getElementById('inactiveMemberSettingsModal').showModal()">Configure <span aria-hidden="true">&rarr;</span></button>
+                </article>
+            </div>
 
-                <label>Contact Email (For Support)
-                    <input type="email" name="contact_email" value="<?= h($sysSettings['contact_email']['setting_value'] ?? 'support@fittracks.com') ?>" required>
-                </label>
-
-                <label>Registration Enabled
-                    <select name="registration_enabled">
-                        <option value="1" <?= ($sysSettings['registration_enabled']['setting_value'] ?? '1') === '1' ? 'selected' : '' ?>>Enabled (Allow new gyms and members to register)</option>
-                        <option value="0" <?= ($sysSettings['registration_enabled']['setting_value'] ?? '1') === '0' ? 'selected' : '' ?>>Disabled</option>
-                    </select>
-                </label>
-
-                <h3 style="grid-column: 1 / -1; margin-top: 24px; font-size: 1.05rem; color: var(--ink); border-bottom: 1px solid var(--line); padding-bottom: 8px; display: flex; align-items: center; gap: 8px;">
-                    <span>🔔 Inactive Member Notifications</span>
-                </h3>
-
-                <label>Inactivity Threshold (Days)
-                    <input type="number" min="1" max="90" name="at_risk_inactivity_days" value="<?= h($sysSettings['at_risk_inactivity_days']['setting_value'] ?? '3') ?>" required>
-                    <span class="muted" style="font-size: 12px; display: block; margin-top: 4px;">
-                        Days of absence/no check-ins before a member is flagged as inactive and eligible for an automated reminder.
-                    </span>
-                </label>
-
-                <label>Re-send Cooldown (Days)
-                    <input type="number" min="1" max="180" name="at_risk_notification_cooldown" value="<?= h($sysSettings['at_risk_notification_cooldown']['setting_value'] ?? '14') ?>" required>
-                    <span class="muted" style="font-size: 12px; display: block; margin-top: 4px;">
-                        Minimum days to wait before sending another "We miss you!" reminder to the same member.
-                    </span>
-                </label>
-
-                <div style="grid-column: 1 / -1; margin-top: 10px;">
-                    <button type="submit" class="btn-primary" style="padding: 10px 24px; border-radius: 8px;">Save Platform Settings</button>
+            <dialog id="generalPlatformSettingsModal" class="modal platform-settings-modal" onclick="if (event.target === this) this.close();">
+                <div class="modal-header">
+                    <div><span class="platform-settings-eyebrow">CORE CONFIGURATION</span><h3>General platform</h3></div>
+                    <button type="button" class="modal-close" onclick="this.closest('dialog').close()" aria-label="Close">&times;</button>
                 </div>
-            </form>
+                <div class="modal-body">
+                    <form method="post" class="form grid-form platform-settings-form">
+                        <?= csrf_field() ?>
+                        <input type="hidden" name="update_platform_settings" value="1">
+                        <label>Platform Name<input type="text" name="platform_name" value="<?= h($sysSettings['platform_name']['setting_value'] ?? 'FITTRACKS') ?>" required></label>
+                        <label>Support Contact Email<input type="email" name="contact_email" value="<?= h($sysSettings['contact_email']['setting_value'] ?? 'support@fittracks.com') ?>" required></label>
+                        <label class="platform-settings-full">New account registration
+                            <select name="registration_enabled">
+                                <option value="1" <?= ($sysSettings['registration_enabled']['setting_value'] ?? '1') === '1' ? 'selected' : '' ?>>Open - new gyms and members can register</option>
+                                <option value="0" <?= ($sysSettings['registration_enabled']['setting_value'] ?? '1') === '0' ? 'selected' : '' ?>>Closed - pause new registrations</option>
+                            </select>
+                        </label>
+                        <div class="platform-settings-modal-actions">
+                            <button type="button" class="platform-settings-cancel" onclick="this.closest('dialog').close()">Cancel</button>
+                            <button type="submit" class="btn-primary">Save changes</button>
+                        </div>
+                    </form>
+                </div>
+            </dialog>
+
+            <dialog id="inactiveMemberSettingsModal" class="modal platform-settings-modal" onclick="if (event.target === this) this.close();">
+                <div class="modal-header">
+                    <div><span class="platform-settings-eyebrow">MEMBER ENGAGEMENT</span><h3>Inactive member reminders</h3></div>
+                    <button type="button" class="modal-close" onclick="this.closest('dialog').close()" aria-label="Close">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <form method="post" class="form grid-form platform-settings-form">
+                        <?= csrf_field() ?>
+                        <input type="hidden" name="update_platform_settings" value="1">
+                        <label>Inactivity threshold (days)
+                            <input type="number" min="1" max="90" name="at_risk_inactivity_days" value="<?= h($sysSettings['at_risk_inactivity_days']['setting_value'] ?? '3') ?>" required>
+                            <span class="platform-settings-help">Days without a check-in before a member is flagged as inactive.</span>
+                        </label>
+                        <label>Reminder cooldown (days)
+                            <input type="number" min="1" max="180" name="at_risk_notification_cooldown" value="<?= h($sysSettings['at_risk_notification_cooldown']['setting_value'] ?? '14') ?>" required>
+                            <span class="platform-settings-help">Minimum wait before sending another reminder to the same member.</span>
+                        </label>
+                        <div class="platform-settings-modal-actions">
+                            <button type="button" class="platform-settings-cancel" onclick="this.closest('dialog').close()">Cancel</button>
+                            <button type="submit" class="btn-primary">Save changes</button>
+                        </div>
+                    </form>
+                </div>
+            </dialog>
+
+        </div>
+    </div>
+    <?php endif; ?>
+
+    <?php if ($user['role'] === 'platform_admin'): ?>
+    <!-- Tab: Platform Feedback -->
+    <div class="settings-panel" data-panel="platform_feedback">
+        <div class="settings-section">
+            <div class="settings-section-header" style="margin-top:2rem;">
+                <div>
+                    <h2 class="settings-section-title">Commercial Gym Owner Feedback</h2>
+                    <p class="settings-section-desc">Live ratings submitted by gym operators regarding system usability, features, and platform services.</p>
+                </div>
+                <a href="index.php?page=landing#testimonials" target="_blank" rel="noopener" class="btn btn-secondary" style="font-size:12px; padding:5px 12px; text-decoration:none;">View Live on Landing Page &rarr;</a>
+            </div>
+            <div class="platform-rating-summary">
+                <div class="platform-rating-overall">
+                    <div class="platform-rating-number"><?= number_format($platformRatingStats['avg_rating'], 1) ?></div>
+                    <div>
+                        <div class="platform-rating-title"><?= render_star_rating((float)$platformRatingStats['avg_rating'], 16, false) ?><strong>Overall Platform Score</strong></div>
+                        <span style="font-size:12px; color:var(--muted);">Based on <?= (int)$platformRatingStats['total_reviews'] ?> verified reviews from approved gym owners</span>
+                    </div>
+                </div>
+                <div class="platform-rating-metrics">
+                    <?php foreach (['System UX' => 'avg_system', 'Features' => 'avg_features', 'Service Quality' => 'avg_service'] as $label => $key): ?>
+                        <div style="text-align:center; padding:0 10px;"><div style="font-size:17px; font-weight:800; color:var(--lime);"><?= number_format($platformRatingStats[$key], 1) ?>★</div><div style="font-size:11px; color:var(--muted); text-transform:uppercase;"><?= h($label) ?></div></div>
+                    <?php endforeach; ?>
+                </div>
+            </div>
+            <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(min(320px, 100%), 1fr)); gap:14px;">
+                <?php foreach ($recentPlatformFeedback as $pf): ?>
+                    <div style="background:rgba(255,255,255,0.02); border:1px solid rgba(255,255,255,0.04); border-radius:10px; padding:14px; display:flex; flex-direction:column; justify-content:space-between;">
+                        <div>
+                            <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:8px;"><div><strong style="font-size:13.5px; display:block; color:#fff;"><?= h($pf['gym_name'] ?? 'Commercial Gym') ?></strong><small style="font-size:11.5px; color:var(--muted);"><?= h(($pf['first_name'] ?? '') . ' ' . ($pf['last_name'] ?? '')) ?> (Owner)</small></div><?= render_star_rating((float)$pf['rating'], 14, false) ?></div>
+                            <?php if (!empty($pf['review'])): ?><p style="font-size:12.5px; line-height:1.45; color:rgba(255,255,255,0.85); margin:0 0 10px; font-style:italic;">&ldquo;<?= h($pf['review']) ?>&rdquo;</p><?php endif; ?>
+                        </div>
+                        <div style="display:flex; justify-content:space-between; align-items:center; font-size:11px; color:var(--muted); border-top:1px solid rgba(255,255,255,0.04); padding-top:8px; margin-top:6px;"><div style="display:flex; gap:8px;"><span>UX: <b style="color:var(--lime);"><?= (int)($pf['system_experience'] ?? 5) ?>★</b></span><span>Feat: <b style="color:var(--lime);"><?= (int)($pf['features_rating'] ?? 5) ?>★</b></span><span>Serv: <b style="color:var(--lime);"><?= (int)($pf['service_rating'] ?? 5) ?>★</b></span></div><time><?= h(date('M d, Y', strtotime($pf['created_at']))) ?></time></div>
+                    </div>
+                <?php endforeach; ?>
+                <?php if (!$recentPlatformFeedback): ?><p class="muted" style="grid-column:1/-1; text-align:center; padding:20px;">No platform reviews submitted yet.</p><?php endif; ?>
+            </div>
         </div>
     </div>
     <?php endif; ?>
@@ -1532,6 +1615,12 @@ function profile_page(): void
         cursor: pointer;
         transition: transform 0.2s, box-shadow 0.2s;
     }
+    .settings-hero .settings-avatar-edit {
+        min-width: 0;
+        min-height: 0;
+        padding: 0;
+        line-height: 1;
+    }
     .settings-avatar-edit:hover {
         transform: scale(1.1);
         box-shadow: 0 0 12px color-mix(in srgb, var(--lime) 40%, transparent);
@@ -1574,6 +1663,35 @@ function profile_page(): void
     }
 
     /* ── Tab Navigation ── */
+    .platform-rating-summary {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        align-items: center;
+        gap: 20px;
+        padding: 18px 24px;
+        margin: 16px 0 20px;
+        background: rgba(255,255,255,0.03);
+        border: 1px solid rgba(255,255,255,0.06);
+        border-radius: 12px;
+    }
+    .platform-rating-overall { display: flex; align-items: center; gap: 18px; min-width: 0; }
+    .platform-rating-number { flex: 0 0 auto; color: #fff; font-size: 42px; font-weight: 900; line-height: 1; }
+    .platform-rating-copy { min-width: 0; }
+    .platform-rating-title { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; margin-bottom: 4px; }
+    .platform-rating-title strong { color: var(--lime); font-size: 13px; }
+    .platform-rating-metrics {
+        display: grid !important;
+        grid-template-columns: repeat(3, minmax(80px, 1fr));
+        gap: 12px;
+        align-items: center;
+    }
+    .platform-rating-metric { min-width: 0; padding: 0 6px; text-align: center; }
+    .platform-rating-metric > div { color: var(--lime); font-size: 17px; font-weight: 800; }
+    .platform-rating-metric > span { display: block; color: var(--muted); font-size: 11px; text-transform: uppercase; }
+    @media (max-width: 760px) {
+        .platform-rating-summary { grid-template-columns: 1fr; gap: 18px; padding: 18px; }
+        .platform-rating-metrics { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    }
     .settings-tabs {
         display: flex;
         gap: 0;
@@ -1612,7 +1730,9 @@ function profile_page(): void
     }
     .settings-tab:hover { color: var(--ink); }
     .settings-tab.active {
-        color: var(--lime);
+        color: var(--ink);
+        background: color-mix(in srgb, var(--lime) 16%, var(--panel));
+        font-weight: 700;
     }
     .settings-tab.active::after {
         background: var(--lime);
@@ -1630,6 +1750,163 @@ function profile_page(): void
         to { opacity: 1; transform: translateY(0); }
     }
 
+    .platform-settings-cards {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 16px;
+        margin-top: 1rem;
+    }
+    .platform-settings-card {
+        position: relative;
+        display: flex;
+        flex-direction: column;
+        align-items: flex-start;
+        min-height: 220px;
+        padding: 22px;
+        overflow: hidden;
+        border: 1px solid var(--line);
+        border-radius: 14px;
+        background:
+            radial-gradient(circle at 100% 0, color-mix(in srgb, var(--lime) 9%, transparent), transparent 48%),
+            color-mix(in srgb, var(--panel) 88%, transparent);
+        transition: border-color 0.2s, transform 0.2s, box-shadow 0.2s;
+    }
+    .platform-settings-card:hover {
+        border-color: color-mix(in srgb, var(--lime) 48%, var(--line));
+        transform: translateY(-2px);
+        box-shadow: 0 12px 30px rgba(0,0,0,0.12);
+    }
+    .platform-settings-card-mark {
+        display: grid;
+        place-items: center;
+        width: 38px;
+        height: 38px;
+        margin-bottom: 18px;
+        border: 1px solid color-mix(in srgb, var(--lime) 30%, transparent);
+        border-radius: 11px;
+        background: color-mix(in srgb, var(--lime) 10%, transparent);
+        color: var(--lime);
+        font-size: 20px;
+    }
+    .platform-settings-eyebrow {
+        color: var(--lime);
+        font-size: 10px;
+        font-weight: 800;
+        letter-spacing: 0.09em;
+    }
+    .platform-settings-card-copy h3 {
+        margin: 5px 0 6px;
+        color: var(--ink);
+        font-size: 16px;
+        letter-spacing: -0.02em;
+    }
+    .platform-settings-card-copy p {
+        max-width: 38ch;
+        margin: 0;
+        color: var(--muted);
+        font-size: 12px;
+        line-height: 1.55;
+    }
+    .platform-settings-open {
+        display: inline-flex;
+        align-items: center;
+        gap: 9px;
+        min-height: 34px;
+        margin-top: auto;
+        padding: 7px 0 0;
+        border: 0;
+        background: transparent;
+        color: var(--ink);
+        font-size: 12px;
+        font-weight: 750;
+    }
+    .platform-settings-open span { color: var(--lime); font-size: 16px; transition: transform 0.2s; }
+    .platform-settings-open:hover { background: transparent; color: var(--lime); }
+    .platform-settings-open:hover span { transform: translateX(3px); }
+    .platform-settings-modal { width: min(560px, calc(100vw - 28px)); }
+    .platform-settings-modal .modal-header { align-items: center; }
+    .platform-settings-modal .modal-header h3 { margin: 4px 0 0; color: var(--ink); font-size: 18px; }
+    .platform-settings-modal .modal-body { padding-top: 18px; }
+    .platform-settings-modal .platform-settings-form { max-width: none; margin: 0; }
+    .platform-settings-modal .platform-settings-form > label { grid-column: auto; }
+    .platform-settings-modal .platform-settings-form > .platform-settings-full,
+    .platform-settings-modal .platform-settings-modal-actions { grid-column: 1 / -1; }
+    .platform-settings-modal-actions {
+        display: flex;
+        justify-content: flex-end;
+        gap: 10px;
+        margin-top: 4px;
+        padding-top: 14px;
+        border-top: 1px solid var(--line);
+    }
+    .platform-settings-cancel {
+        border: 1px solid var(--line);
+        background: transparent;
+        color: var(--ink);
+    }
+    .platform-settings-cancel:hover { border-color: var(--lime); background: color-mix(in srgb, var(--lime) 7%, transparent); }
+    .platform-settings-form {
+        max-width: 860px;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 14px;
+        margin-top: 1rem;
+        padding: 0;
+    }
+    .platform-settings-form > h3,
+    .platform-settings-form > label:nth-of-type(3),
+    .platform-settings-form > div {
+        grid-column: 1 / -1;
+    }
+    .platform-settings-form > h3 {
+        display: flex;
+        align-items: center;
+        gap: 9px;
+        margin: 18px 0 2px !important;
+        padding: 0 0 10px !important;
+        border-bottom: 1px solid var(--line);
+        color: var(--ink);
+        font-size: 0.92rem !important;
+        font-weight: 800;
+        letter-spacing: 0.01em;
+    }
+    .platform-settings-form > h3::before {
+        content: '';
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: var(--lime);
+        box-shadow: 0 0 12px color-mix(in srgb, var(--lime) 45%, transparent);
+        flex: 0 0 auto;
+    }
+    .platform-settings-form > h3:first-of-type { margin-top: 0 !important; }
+    .platform-settings-form > label {
+        align-content: start;
+        padding: 14px;
+        border: 1px solid var(--line);
+        border-left: 2px solid color-mix(in srgb, var(--lime) 38%, var(--line));
+        border-radius: 10px;
+        background: color-mix(in srgb, var(--panel-soft) 70%, transparent);
+        transition: border-color 0.18s, background 0.18s, box-shadow 0.18s;
+    }
+    .platform-settings-form > label:focus-within {
+        border-color: color-mix(in srgb, var(--lime) 65%, var(--line));
+        border-left-color: var(--lime);
+        background: color-mix(in srgb, var(--lime) 5%, var(--panel));
+        box-shadow: 0 0 0 3px color-mix(in srgb, var(--lime) 8%, transparent);
+    }
+    .platform-settings-form input,
+    .platform-settings-form select { min-height: 44px; }
+    .platform-settings-form > div:last-child {
+        margin-top: 6px !important;
+        padding-top: 14px;
+        border-top: 1px solid var(--line);
+    }
+    .platform-settings-form button {
+        min-height: 42px;
+        padding: 10px 20px;
+        border-radius: 9px;
+        box-shadow: 0 5px 18px color-mix(in srgb, var(--lime) 16%, transparent);
+    }
     .settings-section {
         padding: 2rem 0;
     }
@@ -2282,14 +2559,49 @@ function profile_page(): void
 
     /* ── Responsive ── */
     @media (max-width: 600px) {
-        .settings-hero-content { flex-direction: column; align-items: flex-start; padding: 1.25rem; }
+        .platform-settings-cards { grid-template-columns: 1fr; gap: 12px; }
+        .platform-settings-card { min-height: 0; padding: 18px; }
+        .platform-settings-modal .platform-settings-form { grid-template-columns: 1fr; }
+        .platform-settings-modal .platform-settings-form > label { grid-column: 1 / -1; }
+        .platform-settings-form { grid-template-columns: 1fr; gap: 12px; }
+        .settings-hero-content { flex-direction: row; align-items: center; gap: 14px; padding: 16px; }
         .settings-hero-avatar img,
-        .settings-hero-initials { width: 64px; height: 64px; }
-        .settings-hero-name { font-size: 1.2rem; }
+        .settings-hero-initials { width: 54px; height: 54px; }
+        .settings-hero .settings-avatar-edit { width: 18px; height: 18px; min-width: 18px; min-height: 18px; padding: 0; right: -2px; bottom: -2px; border-width: 1px; }
+        .settings-hero .settings-avatar-edit svg { width: 10px; height: 10px; }
+        .settings-hero-info {
+            min-width: 0;
+            flex: 1;
+            position: relative;
+            padding-right: 150px;
+        }
+        .settings-hero-name { font-size: 1.05rem; margin-bottom: 3px; }
+        .settings-hero-meta { flex-wrap: wrap; gap: 5px; margin-bottom: 6px; }
+        .settings-hero-role { padding: 2px 8px; font-size: 10px; }
+        .settings-hero-gym { font-size: 11px; }
+        .settings-hero-contact {
+            position: absolute;
+            top: 50%;
+            right: 0;
+            max-width: 145px;
+            transform: translateY(-50%);
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 7px;
+            font-size: 10px;
+        }
         .settings-tab { padding: 12px 14px; font-size: 12px; }
         .settings-stat-grid { grid-template-columns: 1fr 1fr; }
         .settings-section { padding: 1.25rem 0; }
         .settings-section-header { flex-direction: column; }
+    }
+    @media (max-width: 380px) {
+        .settings-hero-content { gap: 10px; padding: 12px; }
+        .settings-hero-avatar img,
+        .settings-hero-initials { width: 46px; height: 46px; }
+        .settings-hero-info { padding-right: 132px; }
+        .settings-hero-name { font-size: 0.95rem; }
+        .settings-hero-contact { max-width: 128px; font-size: 9px; }
     }
     </style>
     </div>
