@@ -63,13 +63,16 @@ function equipment_api_handler(): void
         $runMaintenance = true;
         if ($action === 'poll') {
             $redis = redis();
+            $redisHandled = false;
             if ($redis !== null) {
                 try {
                     $runMaintenance = (bool)$redis->set("reconcile:gym:{$gymId}", '1', 'EX', 30, 'NX');
+                    $redisHandled = true;
                 } catch (Throwable) {
-                    $runMaintenance = false;
+                    $redisHandled = false;
                 }
-            } else {
+            }
+            if (!$redisHandled) {
                 $cacheDir = __DIR__ . '/../../storage/cache';
                 if (!is_dir($cacheDir)) {
                     @mkdir($cacheDir, 0775, true);
@@ -410,13 +413,13 @@ function handle_poll(PDO $pdo, int $gymId, array $user): void
         LEFT JOIN (
             SELECT equipment_id, COUNT(*) as waiting_queue_count
             FROM equipment_queues
-            WHERE queue_status IN ('waiting', 'notified')
+            WHERE gym_id = ? AND queue_status IN ('waiting', 'notified')
             GROUP BY equipment_id
         ) qc ON qc.equipment_id = e.equipment_id
         WHERE e.gym_id = ?
         ORDER BY e.category ASC, e.name ASC, e.unit_number ASC
     ");
-    $equipStmt->execute([$gymId]);
+    $equipStmt->execute([$gymId, $gymId]);
     $equipment = $equipStmt->fetchAll(PDO::FETCH_ASSOC);
 
     $isCheckedIn = true;
