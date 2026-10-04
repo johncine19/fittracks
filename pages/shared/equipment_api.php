@@ -50,9 +50,44 @@ function equipment_api_handler(): void
     }
 
     try {
-        // Run queue expiration maintenance and equipment state reconciliation on each request
-        maintenance_check_expired_queues($pdo, $gymId);
-        reconcile_equipment_states($pdo, $gymId);
+        // Optimization: For read-only polling, close session early to release locks and avoid DB writes
+        if ($action === 'poll') {
+            if (session_status() === PHP_SESSION_ACTIVE) {
+                session_write_close();
+            }
+        }
+
+        // Run queue expiration maintenance and equipment state reconciliation:
+        // Always run on state-changing actions (start_session, finish_session, claim, join, leave).
+        // For read-only 'poll', throttle reconciliation to at most once every 30 seconds per gym.
+        $runMaintenance = true;
+        if ($action === 'poll') {
+            $redis = redis();
+            if ($redis !== null) {
+                try {
+                    $runMaintenance = (bool)$redis->set("reconcile:gym:{$gymId}", '1', 'EX', 30, 'NX');
+                } catch (Throwable) {
+                    $runMaintenance = false;
+                }
+            } else {
+                $cacheDir = __DIR__ . '/../../storage/cache';
+                if (!is_dir($cacheDir)) {
+                    @mkdir($cacheDir, 0775, true);
+                }
+                $lockFile = $cacheDir . "/reconcile_gym_{$gymId}.lock";
+                if (file_exists($lockFile) && (time() - filemtime($lockFile) < 30)) {
+                    $runMaintenance = false;
+                } else {
+                    @touch($lockFile);
+                    $runMaintenance = true;
+                }
+            }
+        }
+
+        if ($runMaintenance) {
+            maintenance_check_expired_queues($pdo, $gymId);
+            reconcile_equipment_states($pdo, $gymId);
+        }
 
         switch ($action) {
             case 'poll':
@@ -189,7 +224,7 @@ function reconcile_equipment_states(PDO $pdo, int $gymId): void
               WHERE a.user_id = s.user_id
                 AND a.gym_id = s.gym_id
                 AND a.check_out_time IS NULL
-                AND DATE(a.check_in_time) = CURDATE()
+                AND a.check_in_time >= CURDATE()
           )
     ");
     $staleUserSessions->execute([$gymId, $gymId]);
@@ -213,7 +248,7 @@ function reconcile_equipment_states(PDO $pdo, int $gymId): void
               WHERE a.user_id = q.user_id
                 AND a.gym_id = q.gym_id
                 AND a.check_out_time IS NULL
-                AND DATE(a.check_in_time) = CURDATE()
+                AND a.check_in_time >= CURDATE()
           )
     ");
     $staleQueuesStmt->execute([$gymId, $gymId]);
@@ -352,18 +387,32 @@ function handle_poll(PDO $pdo, int $gymId, array $user): void
     $myQueuesStmt->execute([$userId]);
     $myQueues = $myQueuesStmt->fetchAll(PDO::FETCH_ASSOC);
 
-    // 3. Equipment inventory list for this gym
+    // 3. Equipment inventory list for this gym (optimized with indexed LEFT JOINs instead of correlated subqueries)
     $equipStmt = $pdo->prepare("
         SELECT e.*,
-               (SELECT COUNT(*) FROM equipment_queues q WHERE q.equipment_id = e.equipment_id AND q.queue_status IN ('waiting', 'notified')) as waiting_queue_count,
-               (SELECT CONCAT(u.first_name, ' ', SUBSTRING(u.last_name, 1, 1), '.') FROM equipment_sessions s JOIN users u ON u.user_id = s.user_id WHERE s.equipment_id = e.equipment_id AND s.session_status = 'active' LIMIT 1) as current_user_display,
-               (SELECT UNIX_TIMESTAMP(s.start_time) FROM equipment_sessions s WHERE s.equipment_id = e.equipment_id AND s.session_status = 'active' LIMIT 1) as session_start_ts,
-               (SELECT TIMESTAMPDIFF(MINUTE, s.start_time, NOW()) FROM equipment_sessions s WHERE s.equipment_id = e.equipment_id AND s.session_status = 'active' LIMIT 1) as session_elapsed_mins,
-               (SELECT s.user_id FROM equipment_sessions s WHERE s.equipment_id = e.equipment_id AND s.session_status = 'active' LIMIT 1) as current_session_user_id,
-               (SELECT CONCAT(u.first_name, ' ', SUBSTRING(u.last_name, 1, 1), '.') FROM equipment_queues q JOIN users u ON u.user_id = q.user_id WHERE q.equipment_id = e.equipment_id AND q.queue_status = 'notified' AND q.claim_deadline >= NOW() LIMIT 1) as notified_user_display,
-               (SELECT q.user_id FROM equipment_queues q WHERE q.equipment_id = e.equipment_id AND q.queue_status = 'notified' AND q.claim_deadline >= NOW() LIMIT 1) as notified_user_id,
-               (SELECT TIMESTAMPDIFF(SECOND, NOW(), q.claim_deadline) FROM equipment_queues q WHERE q.equipment_id = e.equipment_id AND q.queue_status = 'notified' AND q.claim_deadline >= NOW() LIMIT 1) as claim_remaining_seconds
+               COALESCE(qc.waiting_queue_count, 0) as waiting_queue_count,
+               CASE WHEN s.session_id IS NOT NULL THEN CONCAT(su.first_name, ' ', SUBSTRING(su.last_name, 1, 1), '.') ELSE NULL END as current_user_display,
+               UNIX_TIMESTAMP(s.start_time) as session_start_ts,
+               TIMESTAMPDIFF(MINUTE, s.start_time, NOW()) as session_elapsed_mins,
+               s.user_id as current_session_user_id,
+               CASE WHEN nq.queue_id IS NOT NULL THEN CONCAT(qu.first_name, ' ', SUBSTRING(qu.last_name, 1, 1), '.') ELSE NULL END as notified_user_display,
+               nq.user_id as notified_user_id,
+               TIMESTAMPDIFF(SECOND, NOW(), nq.claim_deadline) as claim_remaining_seconds
         FROM gym_equipment e
+        LEFT JOIN equipment_sessions s 
+            ON s.equipment_id = e.equipment_id AND s.session_status = 'active'
+        LEFT JOIN users su 
+            ON su.user_id = s.user_id
+        LEFT JOIN equipment_queues nq 
+            ON nq.equipment_id = e.equipment_id AND nq.queue_status = 'notified' AND nq.claim_deadline >= NOW()
+        LEFT JOIN users qu 
+            ON qu.user_id = nq.user_id
+        LEFT JOIN (
+            SELECT equipment_id, COUNT(*) as waiting_queue_count
+            FROM equipment_queues
+            WHERE queue_status IN ('waiting', 'notified')
+            GROUP BY equipment_id
+        ) qc ON qc.equipment_id = e.equipment_id
         WHERE e.gym_id = ?
         ORDER BY e.category ASC, e.name ASC, e.unit_number ASC
     ");
@@ -373,7 +422,7 @@ function handle_poll(PDO $pdo, int $gymId, array $user): void
     $isCheckedIn = true;
     if ($user['role'] === 'member') {
         $isCheckedIn = (bool)scalar(
-            "SELECT attendance_id FROM attendance WHERE user_id = ? AND gym_id = ? AND check_out_time IS NULL AND DATE(check_in_time) = CURDATE() LIMIT 1",
+            "SELECT attendance_id FROM attendance WHERE user_id = ? AND gym_id = ? AND check_out_time IS NULL AND check_in_time >= CURDATE() LIMIT 1",
             [$userId, $gymId]
         );
     }
@@ -413,7 +462,7 @@ function handle_start_session(PDO $pdo, int $gymId, array $user): void
     // Rule: Member must be checked in at the gym to use equipment
     if ($user['role'] === 'member') {
         $isCheckedIn = (bool)scalar(
-            "SELECT attendance_id FROM attendance WHERE user_id = ? AND gym_id = ? AND check_out_time IS NULL AND DATE(check_in_time) = CURDATE() LIMIT 1",
+            "SELECT attendance_id FROM attendance WHERE user_id = ? AND gym_id = ? AND check_out_time IS NULL AND check_in_time >= CURDATE() LIMIT 1",
             [$userId, $eqGymId]
         );
         if (!$isCheckedIn) {
@@ -645,7 +694,7 @@ function handle_join_queue(PDO $pdo, int $gymId, array $user): void
     // Rule: Member must be checked in at the gym to join equipment queues
     if ($user['role'] === 'member') {
         $isCheckedIn = (bool)scalar(
-            "SELECT attendance_id FROM attendance WHERE user_id = ? AND gym_id = ? AND check_out_time IS NULL AND DATE(check_in_time) = CURDATE() LIMIT 1",
+            "SELECT attendance_id FROM attendance WHERE user_id = ? AND gym_id = ? AND check_out_time IS NULL AND check_in_time >= CURDATE() LIMIT 1",
             [$userId, $eqGymId]
         );
         if (!$isCheckedIn) {

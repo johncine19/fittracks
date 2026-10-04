@@ -141,6 +141,8 @@ Add or verify these environment variables in your production `.env`:
 
 | Key | Description | Example / Recommended Value |
 | :--- | :--- | :--- |
+| `REDIS_URL` | Redis connection URL on Render/cloud hosting. When present, offloads sessions from MySQL to Redis in RAM. | `redis://red-xxxx:6379` or `rediss://...` |
+| `REDIS_HOST`, `REDIS_PORT`, `REDIS_USER`, `REDIS_PASSWORD` | Discrete Redis credentials (as set on Render dashboard). Supported as an alternative to `REDIS_URL`. | Host, port (e.g. 6379), user (e.g. `default`), and password |
 | `TRUSTED_PROXIES` | Comma-separated list of trusted reverse proxy IPs or CIDR blocks. Leave blank if the app is directly internet-facing without a reverse proxy. | `127.0.0.1, 10.0.0.0/8, 172.16.0.0/12` (or Cloudflare IP ranges) |
 | `MIGRATION_SECRET` | Secret token required to run migrations via HTTP GET request. | A 32+ character random hex or alphanumeric string |
 | `APP_ENV` | Application environment state. Set to `production` on live systems to suppress stack traces. | `production` |

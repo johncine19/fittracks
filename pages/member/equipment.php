@@ -1168,6 +1168,9 @@ function member_equipment_page(): void
                     renderActiveSessionBanner();
                     renderMyQueuesSection();
                     renderEquipmentGrid();
+                    if (typeof resetPolling === 'function') {
+                        resetPolling();
+                    }
                 } catch (err) {
                     console.error('Error syncing equipment:', err);
                     const grid = document.getElementById('equipment-grid');
@@ -2315,8 +2318,31 @@ function member_equipment_page(): void
                 });
             }, 1000);
 
-            // Polling interval: every 5 seconds
-            pollInterval = setInterval(fetchEquipmentData, 5000);
+            // Dynamic Polling Interval: adjusted based on Page Visibility and urgency
+            let isTabVisible = !document.hidden;
+            function getOptimalPollInterval() {
+                if (!isTabVisible) return 30000; // Tab in background: 30 seconds
+                // If user is actively in a session or waiting on a notified claim window: 5s, otherwise 8s
+                if (activeSession || (myQueues && myQueues.some(q => q.queue_status === 'notified'))) {
+                    return 5000;
+                }
+                return 8000;
+            }
+
+            function resetPolling() {
+                if (pollInterval) clearInterval(pollInterval);
+                pollInterval = setInterval(fetchEquipmentData, getOptimalPollInterval());
+            }
+
+            resetPolling();
+
+            document.addEventListener('visibilitychange', function() {
+                isTabVisible = !document.hidden;
+                if (isTabVisible) {
+                    fetchEquipmentData();
+                }
+                resetPolling();
+            });
 
             // Event listeners for filters (Desktop Pills)
             document.querySelectorAll('#status-filters .filter-btn').forEach(btn => {
