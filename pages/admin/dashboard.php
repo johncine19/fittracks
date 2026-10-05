@@ -52,7 +52,8 @@ function calc_member_trend(PDO $pdo, ?int $gymId = null): string
             "SELECT COUNT(DISTINCT u.user_id) FROM users u $gymJoin WHERE u.role='member' AND u.status='active'
              AND DATE_FORMAT(u.created_at,'%Y-%m')=DATE_FORMAT(DATE_SUB(CURDATE(),INTERVAL 1 MONTH),'%Y-%m')"
         )->fetchColumn();
-        if ($lastMonth == 0) return $thisMonth > 0 ? '+' . $thisMonth . ' new this month' : 'No new members yet';
+        if ($lastMonth == 0) return $thisMonth > 0 ? '+' . $thisMonth . ' new this month' : 'No new signups yet';
+        if ($thisMonth == 0) return '0 new this month';
         $pct = round((($thisMonth - $lastMonth) / $lastMonth) * 100, 1);
         return ($pct >= 0 ? '▲ ' : '▼ ') . abs($pct) . '% vs last month';
     });

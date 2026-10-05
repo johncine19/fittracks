@@ -2281,14 +2281,25 @@ function render_member_form(string $context, ?array $user = null, ?array $profil
     <?php
 }
 
-function dashboard_stat(string $label, string $value, string $subtext, string $trend, string $icon, bool $featured = false): void
+function dashboard_stat(string $label, string $value, string $subtext, string $trend, string $icon, bool $featured = false, ?string $colorVariant = null): void
 {
     $isDown = str_contains($trend, '▼');
-    echo '<article class="dash-stat ' . ($featured ? 'featured' : '') . '">';
+    $isUp   = str_contains($trend, '▲') || str_starts_with(trim($trend), '+');
+    $trendClass = 'trend-neutral';
+    if ($isDown) {
+        $trendClass = 'trend-down';
+    } elseif ($isUp) {
+        $trendClass = 'trend-up';
+    }
+
+    $extraClass = $colorVariant ? ' stat-' . $colorVariant : '';
+    echo '<article class="dash-stat ' . ($featured ? 'featured' : '') . $extraClass . '">';
     echo '<div class="stat-head"><span>' . h($label) . '</span><i>' . $icon . '</i></div>';
     echo '<strong>' . h($value) . '</strong>';
     echo '<p>' . h($subtext) . '</p>';
-    echo '<em' . ($isDown ? ' class="trend-down"' : '') . '>' . h($trend) . '</em>';
+    if ($trend !== '') {
+        echo '<em class="' . $trendClass . '">' . h($trend) . '</em>';
+    }
     echo '</article>';
 }
 
