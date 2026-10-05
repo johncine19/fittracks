@@ -794,7 +794,7 @@ function gym_profile_page(): void
         .gym-switch-label {
             position: relative;
             display: inline-block;
-            width: 42px;
+            width: 44px;
             height: 24px;
             flex-shrink: 0;
             margin: 0;
@@ -804,32 +804,63 @@ function gym_profile_page(): void
             opacity: 0;
             width: 0;
             height: 0;
+            position: absolute;
         }
         .gym-switch-slider {
             position: absolute;
             cursor: pointer;
             inset: 0;
-            background-color: var(--line);
-            transition: .25s;
+            background-color: var(--line, #334155);
+            transition: .25s ease;
             border-radius: 24px;
+            border: 1px solid rgba(255, 255, 255, 0.08);
         }
         .gym-switch-slider:before {
             position: absolute;
             content: "";
             height: 16px;
             width: 16px;
-            left: 4px;
-            bottom: 4px;
-            background-color: white;
-            transition: .25s;
+            left: 3px;
+            bottom: 3px;
+            background-color: #ffffff;
+            transition: .25s ease;
             border-radius: 50%;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.35);
         }
         .gym-switch-label input:checked + .gym-switch-slider {
-            background-color: var(--lime, #84cc16);
+            background-color: #10b981;
+            border-color: #10b981;
         }
         .gym-switch-label input:checked + .gym-switch-slider:before {
-            transform: translateX(18px);
-            background-color: #06090e;
+            transform: translateX(20px);
+            background-color: #ffffff;
+        }
+
+        /* Branding Section Scroll Area */
+        .branding-scroll-list {
+            max-height: 460px;
+            overflow-y: auto;
+            padding-right: 6px;
+            overscroll-behavior: contain;
+            scrollbar-width: thin;
+            scrollbar-color: var(--line, #334155) transparent;
+        }
+
+        .branding-scroll-list::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        .branding-scroll-list::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        .branding-scroll-list::-webkit-scrollbar-thumb {
+            background: var(--line, #334155);
+            border-radius: 4px;
+        }
+
+        .branding-scroll-list::-webkit-scrollbar-thumb:hover {
+            background: var(--muted, #64748b);
         }
 
         /* Single Sticky Save Bar - Compact */
@@ -1596,7 +1627,7 @@ function gym_profile_page(): void
                             <?php endif; ?>
                         </div>
 
-                        <div class="overview-doc-list">
+                        <div class="overview-doc-list branding-scroll-list">
                             <!-- Item 1: Gym Logo -->
                             <div class="overview-doc-item">
                                 <div class="overview-doc-left">
@@ -1756,7 +1787,7 @@ function gym_profile_page(): void
                             <!-- Item 6: Automated Midnight EOD Revenue Digest -->
                             <div class="overview-doc-item">
                                 <div class="overview-doc-left">
-                                    <div class="overview-doc-icon" style="background: rgba(132, 204, 22, 0.12); color: var(--lime);">
+                                    <div class="overview-doc-icon" style="background: rgba(16, 185, 129, 0.12); color: #10b981;">
                                         <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
                                     </div>
                                     <div class="overview-doc-info">
@@ -1776,9 +1807,9 @@ function gym_profile_page(): void
                                             Business Plan
                                         </a>
                                     <?php else: ?>
-                                        <label class="switch" style="position: relative; display: inline-block; width: 42px; height: 24px; margin: 0;">
-                                            <input type="checkbox" name="eod_email_summary" value="1" <?= (!isset($gym['eod_email_summary']) || $gym['eod_email_summary']) ? 'checked' : '' ?> style="opacity: 0; width: 0; height: 0;">
-                                            <span class="slider round" style="position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: var(--line); transition: .3s; border-radius: 24px;"></span>
+                                        <label class="gym-switch-label" title="Toggle Daily Settlement Email">
+                                            <input type="checkbox" name="eod_email_summary" value="1" <?= (!isset($gym['eod_email_summary']) || $gym['eod_email_summary']) ? 'checked' : '' ?>>
+                                            <span class="gym-switch-slider"></span>
                                         </label>
                                     <?php endif; ?>
                                 </div>
@@ -1787,7 +1818,7 @@ function gym_profile_page(): void
                             <!-- Item 7: Staff Financial Privacy Mode -->
                             <div class="overview-doc-item">
                                 <div class="overview-doc-left">
-                                    <div class="overview-doc-icon" style="background: rgba(239, 68, 68, 0.12); color: #ef4444;">
+                                    <div class="overview-doc-icon" style="background: rgba(244, 63, 94, 0.12); color: #f43f5e;">
                                         <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
                                     </div>
                                     <div class="overview-doc-info">
@@ -1807,9 +1838,9 @@ function gym_profile_page(): void
                                             Business Plan
                                         </a>
                                     <?php else: ?>
-                                        <label class="switch" style="position: relative; display: inline-block; width: 42px; height: 24px; margin: 0;">
-                                            <input type="checkbox" name="staff_hide_financials" value="1" <?= (!empty($gym['staff_hide_financials'])) ? 'checked' : '' ?> style="opacity: 0; width: 0; height: 0;">
-                                            <span class="slider round" style="position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: var(--line); transition: .3s; border-radius: 24px;"></span>
+                                        <label class="gym-switch-label" title="Toggle Staff Financial Privacy">
+                                            <input type="checkbox" name="staff_hide_financials" value="1" <?= (!empty($gym['staff_hide_financials'])) ? 'checked' : '' ?>>
+                                            <span class="gym-switch-slider"></span>
                                         </label>
                                     <?php endif; ?>
                                 </div>
