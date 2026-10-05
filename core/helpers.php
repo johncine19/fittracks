@@ -2277,13 +2277,8 @@ function render_member_floating_rating_modal(array $user): void
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
         </button>
 
-        <div style="display:flex; align-items:flex-start; gap:12px; padding-right:26px;">
-            <!-- Badge Icon -->
-            <div style="width:40px; height:40px; border-radius:12px; background:<?= $myRating ? 'rgba(245,158,11,0.15)' : 'rgba(199,255,34,0.15)' ?>; border:1px solid <?= $myRating ? 'rgba(245,158,11,0.35)' : 'rgba(199,255,34,0.35)' ?>; display:flex; align-items:center; justify-content:center; flex-shrink:0;">
-                <svg width="22" height="22" viewBox="0 0 24 24" fill="<?= $myRating ? '#fbbf24' : '#c7ff22' ?>"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
-            </div>
-            
-            <div style="flex:1; min-width:0;">
+        <div style="padding-right:26px;">
+            <div style="min-width:0;">
                 <div class="ft-modal-title" id="ft-floating-rating-title">
                     <?= $myRating ? 'Your Rating for ' . $gymName : 'Rate ' . $gymName ?>
                 </div>
@@ -2595,12 +2590,8 @@ function render_owner_floating_rating_modal(array $user): void
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
         </button>
 
-        <div style="display:flex; align-items:flex-start; gap:12px; padding-right:26px;">
-            <!-- Badge Icon -->
-            <div style="width:40px; height:40px; border-radius:12px; background:<?= $myReview ? 'rgba(245,158,11,0.15)' : 'rgba(56,189,248,0.15)' ?>; border:1px solid <?= $myReview ? 'rgba(245,158,11,0.35)' : 'rgba(56,189,248,0.35)' ?>; display:flex; align-items:center; justify-content:center; flex-shrink:0;">
-                <svg width="22" height="22" viewBox="0 0 24 24" fill="<?= $myReview ? '#fbbf24' : '#38bdf8' ?>"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
-            </div>
-            <div style="flex:1; min-width:0;">
+        <div style="padding-right:26px;">
+            <div style="min-width:0;">
                 <div class="ft-owner-modal-title" id="ft-owner-floating-rating-title">
                     <?= $myReview ? 'FitTrack Platform Review' : 'Rate FitTrack Platform' ?>
                 </div>
