@@ -1340,14 +1340,43 @@ function reports_page(): void
                 font-size: 12.5px;
             }
             .kpi-grid {
-                gap: 12px;
+                grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+                gap: 10px !important;
                 margin-bottom: 18px;
             }
             .kpi-card {
-                padding: 14px 16px;
+                padding: 13px 12px;
+                border-radius: 12px;
+                display: flex;
+                flex-direction: column;
+                justify-content: space-between;
+                min-height: 128px;
+            }
+            .kpi-card-header {
+                margin-bottom: 6px;
+                gap: 6px;
+            }
+            .kpi-title {
+                font-size: 9.5px;
+                letter-spacing: 0.04em;
+            }
+            .kpi-card-header .pill-badge {
+                font-size: 9px;
+                padding: 1.5px 5px;
+                white-space: nowrap;
             }
             .kpi-value {
-                font-size: 22px;
+                font-size: clamp(1.2rem, 4.5vw, 1.55rem);
+                margin-bottom: 4px;
+                line-height: 1.15;
+            }
+            .kpi-sub {
+                font-size: 10px;
+                line-height: 1.25;
+            }
+            .split-bar-wrap {
+                height: 4px;
+                margin: 4px 0;
             }
             .report-tabs {
                 gap: 8px;
