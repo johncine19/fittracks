@@ -863,6 +863,38 @@ function gym_profile_page(): void
             background: var(--muted, #64748b);
         }
 
+        .branding-custom-input {
+            background: var(--bg);
+            border: 1px solid var(--line);
+            border-radius: 8px;
+            padding: 7px 12px;
+            color: var(--ink);
+            font-size: 12.5px;
+            width: 175px;
+            box-sizing: border-box;
+            transition: border-color 0.2s;
+        }
+        .branding-custom-input:focus {
+            outline: none;
+            border-color: var(--lime, #84cc16);
+        }
+        .branding-custom-textarea {
+            background: var(--bg);
+            border: 1px solid var(--line);
+            border-radius: 8px;
+            padding: 6px 10px;
+            color: var(--ink);
+            font-size: 12px;
+            width: 175px;
+            box-sizing: border-box;
+            resize: vertical;
+            transition: border-color 0.2s;
+        }
+        .branding-custom-textarea:focus {
+            outline: none;
+            border-color: var(--lime, #84cc16);
+        }
+
         /* Single Sticky Save Bar - Compact */
         .sticky-save-bar {
             margin-top: 20px;
@@ -1287,6 +1319,14 @@ function gym_profile_page(): void
             .settings-content-flow.view-all-grid {
                 grid-template-columns: minmax(0, 1fr);
             }
+
+            /* Natural flowing scroll on mobile/tablet without scroll traps */
+            .branding-scroll-list {
+                max-height: none !important;
+                overflow: visible !important;
+                padding-right: 0 !important;
+                padding-bottom: 24px !important;
+            }
         }
 
         @media (max-width: 600px) {
@@ -1323,8 +1363,97 @@ function gym_profile_page(): void
             }
 
             .overview-doc-item {
-                flex-wrap: wrap;
-                gap: 10px;
+                display: flex !important;
+                flex-direction: row !important;
+                align-items: center !important;
+                justify-content: space-between !important;
+                flex-wrap: nowrap !important;
+                gap: 12px !important;
+                padding: 12px 14px !important;
+            }
+
+            .overview-doc-left {
+                display: flex !important;
+                align-items: center !important;
+                gap: 10px !important;
+                min-width: 0 !important;
+                flex: 1 1 auto !important;
+            }
+
+            .overview-doc-info {
+                min-width: 0 !important;
+                flex: 1 1 auto !important;
+            }
+
+            .overview-doc-name {
+                font-size: 13px !important;
+                font-weight: 700 !important;
+                color: var(--ink) !important;
+                line-height: 1.3 !important;
+                white-space: normal !important;
+                word-break: break-word !important;
+            }
+
+            .overview-doc-status {
+                font-size: 11px !important;
+                color: var(--muted) !important;
+                line-height: 1.35 !important;
+                white-space: normal !important;
+                word-break: break-word !important;
+            }
+
+            .overview-doc-right {
+                flex-shrink: 0 !important;
+                display: flex !important;
+                align-items: center !important;
+                justify-content: flex-end !important;
+            }
+
+            .overview-doc-item.is-stacked-field {
+                flex-direction: column !important;
+                align-items: stretch !important;
+                gap: 10px !important;
+            }
+
+            .overview-doc-item.is-stacked-field .overview-doc-left {
+                width: 100% !important;
+            }
+
+            .overview-doc-item.is-stacked-field .overview-doc-right {
+                width: 100% !important;
+                display: flex !important;
+            }
+
+            .overview-doc-item.is-stacked-field .branding-custom-input,
+            .overview-doc-item.is-stacked-field .branding-custom-textarea {
+                width: 100% !important;
+                max-width: 100% !important;
+                font-size: 13.5px !important;
+                height: 42px !important;
+            }
+
+            .overview-doc-item.is-stacked-field .branding-custom-textarea {
+                height: 64px !important;
+                resize: vertical !important;
+            }
+
+            .branding-custom-input {
+                width: 140px !important;
+                max-width: 42vw !important;
+                height: 38px !important;
+                font-size: 12.5px !important;
+                padding: 6px 10px !important;
+                box-sizing: border-box !important;
+            }
+
+            .branding-custom-textarea {
+                width: 140px !important;
+                max-width: 42vw !important;
+                height: 44px !important;
+                font-size: 11px !important;
+                padding: 5px 8px !important;
+                box-sizing: border-box !important;
+                resize: none !important;
             }
 
             .contact-input-wrap,
@@ -1385,7 +1514,7 @@ function gym_profile_page(): void
             }
 
             #gym-profile-form {
-                padding-bottom: 95px !important;
+                padding-bottom: calc(150px + env(safe-area-inset-bottom, 24px)) !important;
             }
 
             .sticky-save-bar #save-btn {
@@ -1701,7 +1830,7 @@ function gym_profile_page(): void
                             </div>
 
                             <!-- Item 3: Digital Member Pass Slogan / Card Header -->
-                            <div class="overview-doc-item">
+                            <div class="overview-doc-item is-stacked-field">
                                 <div class="overview-doc-left">
                                     <div class="overview-doc-icon" style="background: rgba(14, 165, 233, 0.12); color: #38bdf8;">
                                         <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="16" rx="3"/><line x1="7" y1="9" x2="13" y2="9"/><line x1="7" y1="13" x2="11" y2="13"/><circle cx="17" cy="11" r="2"/></svg>
@@ -1723,13 +1852,13 @@ function gym_profile_page(): void
                                             Business Plan
                                         </a>
                                     <?php else: ?>
-                                        <input type="text" name="member_pass_slogan" value="<?= h($gym['member_pass_slogan'] ?? 'Official Member') ?>" placeholder="e.g. VIP Access, Elite Member" style="background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 7px 12px; color: var(--ink); font-size: 12.5px; width: 175px;">
+                                        <input type="text" name="member_pass_slogan" class="branding-custom-input" value="<?= h($gym['member_pass_slogan'] ?? 'Official Member') ?>" placeholder="e.g. VIP Access, Elite Member">
                                     <?php endif; ?>
                                 </div>
                             </div>
 
                             <!-- Item 4: Official Receipt Header & Tax / TIN Info -->
-                            <div class="overview-doc-item">
+                            <div class="overview-doc-item is-stacked-field">
                                 <div class="overview-doc-left">
                                     <div class="overview-doc-icon" style="background: rgba(245, 158, 11, 0.12); color: #f59e0b;">
                                         <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
@@ -1751,13 +1880,13 @@ function gym_profile_page(): void
                                             Business Plan
                                         </a>
                                     <?php else: ?>
-                                        <input type="text" name="receipt_header_note" value="<?= h($gym['receipt_header_note'] ?? '') ?>" placeholder="e.g. TIN: 123-456-789 | BIR Permit #0012" style="background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 7px 12px; color: var(--ink); font-size: 12.5px; width: 175px;">
+                                        <input type="text" name="receipt_header_note" class="branding-custom-input" value="<?= h($gym['receipt_header_note'] ?? '') ?>" placeholder="e.g. TIN: 123-456-789 | BIR Permit #0012">
                                     <?php endif; ?>
                                 </div>
                             </div>
 
                             <!-- Item 5: Official Receipt Footer Policy & Terms -->
-                            <div class="overview-doc-item">
+                            <div class="overview-doc-item is-stacked-field">
                                 <div class="overview-doc-left">
                                     <div class="overview-doc-icon" style="background: rgba(168, 85, 247, 0.12); color: #a855f7;">
                                         <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
@@ -1779,7 +1908,7 @@ function gym_profile_page(): void
                                             Business Plan
                                         </a>
                                     <?php else: ?>
-                                        <textarea name="receipt_footer_policy" rows="2" placeholder="e.g. Strictly non-refundable and non-transferable. Valid for 30 days." style="background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 6px 10px; color: var(--ink); font-size: 12px; width: 175px; resize: vertical;"><?= h($gym['receipt_footer_policy'] ?? '') ?></textarea>
+                                        <textarea name="receipt_footer_policy" class="branding-custom-textarea" rows="2" placeholder="e.g. Strictly non-refundable and non-transferable. Valid for 30 days."><?= h($gym['receipt_footer_policy'] ?? '') ?></textarea>
                                     <?php endif; ?>
                                 </div>
                             </div>
