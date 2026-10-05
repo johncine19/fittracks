@@ -116,11 +116,15 @@ function book_classes_page(): void
     $limit = 12;
     $offset = ($page - 1) * $limit;
 
-    $totalSql = 'SELECT COUNT(*) FROM class_schedules s WHERE DATE(s.start_datetime) >= CURDATE()';
+    $currentGym = get_user_gym($user);
+    $gymId = $currentGym ? (int) $currentGym['gym_id'] : 0;
+
+    $whereGym = $gymId > 0 ? ' AND c.gym_id = ' . $gymId : '';
+    $totalSql = 'SELECT COUNT(*) FROM class_schedules s JOIN classes c ON c.class_id = s.class_id WHERE s.start_datetime >= CURDATE()' . $whereGym;
     $total = (int) scalar($totalSql);
     $totalPages = (int) ceil($total / $limit);
 
-    $sql = 'SELECT s.*, c.class_name, c.description, c.capacity, COALESCE(CONCAT(u.first_name, " ", u.last_name), "Open trainer") AS instructor, (SELECT COUNT(*) FROM class_bookings b WHERE b.schedule_id = s.schedule_id AND b.booking_status = "booked") AS booked, (SELECT COUNT(*) FROM class_bookings b2 WHERE b2.schedule_id = s.schedule_id AND b2.user_id = ' . (int)$user['user_id'] . ' AND b2.booking_status = "booked") AS is_booked FROM class_schedules s JOIN classes c ON c.class_id = s.class_id LEFT JOIN users u ON u.user_id = c.instructor_id WHERE DATE(s.start_datetime) >= CURDATE() ORDER BY s.start_datetime LIMIT ' . $limit . ' OFFSET ' . $offset;
+    $sql = 'SELECT s.*, c.class_name, c.description, c.capacity, COALESCE(CONCAT(u.first_name, " ", u.last_name), "Open trainer") AS instructor, (SELECT COUNT(*) FROM class_bookings b WHERE b.schedule_id = s.schedule_id AND b.booking_status = "booked") AS booked, (SELECT COUNT(*) FROM class_bookings b2 WHERE b2.schedule_id = s.schedule_id AND b2.user_id = ' . (int)$user['user_id'] . ' AND b2.booking_status = "booked") AS is_booked FROM class_schedules s JOIN classes c ON c.class_id = s.class_id LEFT JOIN users u ON u.user_id = c.instructor_id WHERE s.start_datetime >= CURDATE()' . $whereGym . ' ORDER BY s.start_datetime LIMIT ' . $limit . ' OFFSET ' . $offset;
     $rows = db()->query($sql)->fetchAll();
     render_header('Book a Class', $user);
     ?>

@@ -9,8 +9,9 @@ This document details the database performance optimizations, query index enhanc
 2. [Equipment Real-Time Polling & Concurrency Scaling](#2-equipment-real-time-polling--concurrency-scaling)
 3. [Batch Engagement Scoring Architecture](#3-batch-engagement-scoring-architecture)
 4. [Concurrency-Safe Distributed Locking & Run Deduplication](#4-concurrency-safe-distributed-locking--run-deduplication)
-5. [Verification & Concurrency Testing](#5-verification--concurrency-testing)
-6. [Summary of Database Queries & Benchmarks](#6-summary-of-database-queries--benchmarks)
+5. [Automated At-Risk Member Reminder Sweep Optimization](#5-automated-at-risk-member-reminder-sweep-optimization)
+6. [Verification Coverage](#6-verification-coverage)
+7. [Expected Query-Shape Changes (Not Benchmarks)](#7-expected-query-shape-changes-not-benchmarks)
 
 ---
 
@@ -182,29 +183,49 @@ In `core/engagement_engine.php`:
 
 ---
 
-## 5. Verification & Concurrency Testing
+## 5. Automated At-Risk Member Reminder Sweep Optimization
 
-The concurrency locking and release behaviors were verified using an automated multi-worker simulation script:
+### The Bottlenecks
+1. **Trailing Space Cooldown Bug**: Notifications were saved as `'We miss you at the gym! '` (with trailing whitespace), but the cooldown query checked `WHERE title = 'We miss you at the gym!'` (without trailing whitespace). Because the strings mismatched, `recentCount` always returned `0`, bypassing the 14-day cooldown and sending duplicate reminders every night.
+2. **N-Query Inefficiency**: The worker loaded all active members and fired an individual `SELECT COUNT(*)` query for every candidate to check prior notifications.
+3. **Missing Index**: The `notifications` table had no index covering `(user_id, type, title, created_at)`.
 
-```
-[TEST 1] Worker 1 initial acquisition:             SUCCESS (Lock acquired with run_id)
-[TEST 2] Worker 2 acquire while Worker 1 active:   CORRECTLY REJECTED (false returned)
-[TEST 3] Progress update on Worker 1:              SUCCESS (last_user_id advanced to 25)
-[TEST 4] Unauthorized release by Worker 2:         CORRECTLY REJECTED (Lock remains intact)
-[TEST 5] Authorized release by Worker 1:           SUCCESS (File truncated under lock)
-[TEST 6] Subsequent acquire by Worker 3:           SUCCESS (Clean acquisition of released lock)
-```
+### The Solutions
+1. **Shared Title Constant**: Defined `const AT_RISK_NOTIFICATION_TITLE = 'We miss you at the gym!';` shared by both `send_at_risk_notification_job` and `process_automated_at_risk_notifications`, guaranteeing 100% exact string matching.
+2. **Covering Composite Index**: Added `idx_notif_cooldown (user_id, type, title, created_at)` in `migrate.php` and `tidb_setup.sql`.
+3. **Cursor Batching & Grouped Cooldown Queries**:
+   - `process_automated_at_risk_notifications` pages distinct active members in bounded cursor batches (`LIMIT 50`) before resolving affiliation and attendance. Each member gets one deterministic gym affiliation, preventing join fan-out from duplicating a member or splitting one member across pages.
+   - Prior reminders for qualifying members are looked up in one grouped query using `IN ($placeholders) GROUP BY user_id`. This reduces application-level cooldown lookups to one query per candidate batch; runtime and total query cost still depend on candidate count, indexes, and the database query plan.
 
 ---
 
-## 6. Summary of Database Queries & Benchmarks
+## 6. Verification Coverage
 
-| Operation | Before Optimization | After Optimization | Improvement |
-| :--- | :--- | :--- | :--- |
-| **Equipment Poll Queries** | 8 subqueries + reconciliation on every poll | 1 indexed query; reconciliation throttled to 30s | **~85% fewer queries per poll** |
-| **PHP Session Lock Time** | Held for full duration of poll (~100ms) | Released immediately (`session_write_close`) | **Lock freed in < 1ms** |
-| **Today's Attendance / Stats** | `DATE(check_in_time) = CURDATE()` (Full Scan) | `check_in_time >= CURDATE() AND < +1 DAY` (Range Seek) | **Direct index seek (< 1ms)** |
-| **Offline Sync Attendance Lookup** | `DATE(check_in_time) = ?` (Full Scan) | `check_in_time >= ? AND < +1 DAY` (Range Seek) | **Direct index seek (< 1ms)** |
-| **Engagement Batch Queries (25 members)** | 200–250 individual queries | 6 grouped reads + 1 bulk update + 1 badge insert | **96% reduction (8 queries total)** |
-| **Batch Execution Duration** | ~500ms – 1.5s per batch | ~15ms – 25ms per batch | **~50x faster; well under 15s limit** |
-| **Cron Sweep Overlap Risk** | High (Duplicate jobs queued every day) | Zero (Atomic Redis Lua / flock deduplication) | **100% mutual exclusion** |
+The automated test suite (`composer test` / `php tests/run.php`) exercises three key subsystems:
+1. **Engagement-Score Arithmetic** (`tests/run.php`): Validates metric calculations, target clamping, zero-activity thresholds, and weight configurations.
+2. **At-Risk Member Multi-Gym Affiliation & Batch Boundaries** (`tests/at_risk_batch_test.php`):
+   - Verifies that members with multiple gym affiliations (`gym_members` composite PK `(user_id, gym_id)`) are never duplicated within a batch.
+   - Verifies that deterministic gym affiliation precedence (recent attendance > active membership > pending membership > minimum `gym_id`) is strictly enforced.
+   - Verifies that users lying at and across batch cursor boundaries (`last_user_id`) receive exactly one reminder job and are never re-evaluated or skipped across boundaries.
+   - Verifies that cooldown windows and gym-level alert disable flags (`auto_inactivity_alerts = 0`) are honored.
+3. **Concurrency Locking & Release** (`tests/lock_concurrency_test.php`):
+   - Verifies that `acquire_engagement_sweep_lock()` guarantees mutual exclusion between workers.
+   - Verifies that active locks track cursor progress updates (`update_engagement_sweep_lock()`).
+   - Verifies that unauthorized release attempts by conflicting run IDs are rejected, preserving active locks.
+   - Verifies that authorized releases clear the lock and allow subsequent workers to acquire.
+
+Full multi-worker Redis latency benchmarks and query plan metrics under production datasets still require measurement against a dedicated TiDB Cloud and Redis cluster setup.
+
+---
+
+## 7. Expected Query-Shape Changes (Not Benchmarks)
+
+The table records code-level changes only. It does not claim measured latency or throughput improvements.
+
+| Operation | Code-level change | What to measure |
+| :--- | :--- | :--- |
+| Equipment polling | Consolidated equipment read; maintenance is throttled | Query plan, queries per poll, and p95 poll latency under concurrent clients |
+| Session handling | Read-only poll closes the PHP session after authentication | Session lock wait under concurrent requests |
+| Date filters | Function-wrapped date filters replaced with half-open ranges in listed paths | `EXPLAIN` plans and rows examined with production-like data |
+| Engagement scoring | Member metrics use grouped reads and batched writes | Query count, rows examined, and batch duration at increasing member counts |
+| At-risk reminders | Distinct-member cursor batches and grouped cooldown lookup | Query plan, duplicate-free pagination, and sweep duration at increasing member counts |

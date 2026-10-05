@@ -6,12 +6,23 @@ class Queue
     private const REDIS_QUEUE_KEY = 'queue:default';
 
     /**
+     * Optional interceptor callback for unit tests or queue mocking.
+     * @var null|Closure(string, array): void
+     */
+    public static ?Closure $interceptor = null;
+
+    /**
      * Push a job onto the queue.
      * @param string $jobClass The name of the function or class to execute.
      * @param array $payload The arguments to pass to the job.
      */
     public static function push(string $jobClass, array $payload = []): void
     {
+        if (self::$interceptor !== null) {
+            (self::$interceptor)($jobClass, $payload);
+            return;
+        }
+
         $redis = function_exists('redis') ? redis() : null;
 
         if ($redis !== null) {

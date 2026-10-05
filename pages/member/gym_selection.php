@@ -22,12 +22,11 @@ function gym_selection_page(): void
                 redirect('index.php?page=gym_selection');
                 return;
             }
-            // Cleanly switch gym affiliation
-            db()->prepare('DELETE FROM gym_members WHERE user_id = ?')->execute([$user['user_id']]);
-            db()->prepare('INSERT INTO gym_members (user_id, gym_id) VALUES (?, ?)')
+            // Set active gym affiliation (preserves multi-gym affiliations)
+            db()->prepare('INSERT IGNORE INTO gym_members (user_id, gym_id) VALUES (?, ?)')
                 ->execute([$user['user_id'], $gymId]);
             $_SESSION['current_gym_id'] = $gymId;
-            flash('Successfully affiliated with ' . $targetGym['name'] . '.', 'success');
+            flash('Successfully switched active gym to ' . $targetGym['name'] . '.', 'success');
             redirect('index.php?page=dashboard');
         }
     }

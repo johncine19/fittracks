@@ -1,6 +1,9 @@
 <?php
 declare(strict_types=1);
 
+require_once __DIR__ . '/Queue.php';
+require_once __DIR__ . '/helpers.php';
+
 /**
  * Calculates a Member Engagement Score (0-100) based on:
  * - Attendance frequency (last 30 days) - 40%
@@ -665,6 +668,8 @@ function get_inactive_members(int $limit = 5, ?int $gymId = null): array
     return array_slice($atRisk, 0, $limit);
 }
 
+const AT_RISK_NOTIFICATION_TITLE = 'We miss you at the gym!';
+
 function send_at_risk_notification_job(array $payload): void
 {
     $userId = (int) ($payload['user_id'] ?? 0);
@@ -677,7 +682,7 @@ function send_at_risk_notification_job(array $payload): void
         ? $customMsg
         : 'It\'s been a few days since your last activity. Check out this week\'s classes or your new workout plan to get back on track!';
 
-    notify_user($userId, 'system', 'We miss you at the gym! ', $inAppMessage);
+    notify_user($userId, 'system', AT_RISK_NOTIFICATION_TITLE, $inAppMessage);
 
     // Send email reminder if user has a valid active email
     try {
@@ -694,9 +699,14 @@ function send_at_risk_notification_job(array $payload): void
     }
 }
 
-function process_automated_at_risk_notifications(): void
+function process_automated_at_risk_notifications(array $payload = []): void
 {
-    $pdo = db();
+    $pdo = $payload['pdo'] ?? db();
+    $lastUserId = (int) ($payload['last_user_id'] ?? 0);
+    $batchSize = (int) ($payload['batch_size'] ?? 50);
+    if ($batchSize <= 0) {
+        $batchSize = 50;
+    }
     
     // Load platform defaults
     $globalThreshold = (int) get_setting('at_risk_inactivity_days', '3');
@@ -711,23 +721,81 @@ function process_automated_at_risk_notifications(): void
         }
     } catch (Throwable $e) {}
 
-    // Fetch members with their primary gym affiliation and inactivity duration
-    $atRiskMembers = query_all(
-        'SELECT u.user_id, u.first_name, u.last_name, u.email, u.created_at, u.engagement_score,
-                COALESCE(gm.gym_id, mp.gym_id) as gym_id,
-                MAX(a.check_in_time) as last_checkin, 
-                COALESCE(DATEDIFF(CURDATE(), MAX(a.check_in_time)), DATEDIFF(CURDATE(), u.created_at)) as days_inactive
-         FROM users u
-         LEFT JOIN gym_members gm ON gm.user_id = u.user_id
-         LEFT JOIN memberships m ON m.user_id = u.user_id AND m.status = "active"
-         LEFT JOIN membership_plans mp ON mp.plan_id = m.plan_id
-         LEFT JOIN attendance a ON u.user_id = a.user_id
-         WHERE u.role = "member" AND u.status = "active"
-         GROUP BY u.user_id'
-    );
+    // Page distinct members before resolving gym affiliation and attendance.
+    // Joining raw membership/check-in rows before LIMIT can duplicate users,
+    // enqueue duplicate reminders, and make the cursor skip members.
+    $stmt = $pdo->prepare("
+        SELECT member_batch.user_id,
+               member_batch.created_at,
+               member_batch.gym_id,
+               member_batch.last_checkin,
+               COALESCE(
+                   DATEDIFF(CURDATE(), member_batch.last_checkin),
+                   DATEDIFF(CURDATE(), member_batch.created_at)
+               ) AS days_inactive
+        FROM (
+            SELECT u.user_id,
+                   u.created_at,
+                   COALESCE(
+                       (SELECT a.gym_id
+                        FROM attendance a
+                        WHERE a.user_id = u.user_id
+                          AND a.check_out_time IS NULL
+                          AND a.gym_id IS NOT NULL
+                        ORDER BY a.check_in_time DESC, a.attendance_id DESC
+                        LIMIT 1),
+                       (SELECT a.gym_id
+                        FROM attendance a
+                        WHERE a.user_id = u.user_id
+                          AND a.gym_id IS NOT NULL
+                        ORDER BY a.check_in_time DESC, a.attendance_id DESC
+                        LIMIT 1),
+                       (SELECT mp.gym_id
+                        FROM memberships m
+                        JOIN membership_plans mp ON mp.plan_id = m.plan_id
+                        WHERE m.user_id = u.user_id AND m.status = 'active'
+                        ORDER BY m.membership_id DESC
+                        LIMIT 1),
+                       (SELECT mp.gym_id
+                        FROM memberships m
+                        JOIN membership_plans mp ON mp.plan_id = m.plan_id
+                        WHERE m.user_id = u.user_id AND m.status = 'pending'
+                        ORDER BY m.membership_id DESC
+                        LIMIT 1),
+                       (SELECT gm.gym_id
+                        FROM gym_members gm
+                        WHERE gm.user_id = u.user_id
+                        ORDER BY gm.gym_id ASC
+                        LIMIT 1)
+                   ) AS gym_id,
+                   (SELECT MAX(a.check_in_time)
+                    FROM attendance a
+                    WHERE a.user_id = u.user_id) AS last_checkin
+            FROM users u
+            WHERE u.role = 'member' AND u.status = 'active' AND u.user_id > ?
+            ORDER BY u.user_id ASC
+            LIMIT ?
+        ) AS member_batch
+        ORDER BY member_batch.user_id ASC
+    ");
+    $stmt->bindValue(1, $lastUserId, PDO::PARAM_INT);
+    $stmt->bindValue(2, $batchSize, PDO::PARAM_INT);
+    $stmt->execute();
+    $atRiskMembers = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
+    if (empty($atRiskMembers)) {
+        return; // All members evaluated!
+    }
+
+    $candidates = [];
+    $seenUsers = [];
     foreach ($atRiskMembers as $member) {
         $userId = (int) $member['user_id'];
+        if (isset($seenUsers[$userId])) {
+            continue; // Ensure strict user uniqueness in batch
+        }
+        $seenUsers[$userId] = true;
+
         $daysInactive = (int) ($member['days_inactive'] ?? 0);
         if ($daysInactive < 1) {
             continue;
@@ -754,17 +822,62 @@ function process_automated_at_risk_notifications(): void
             ? (int) $gymConfig['inactivity_cooldown_days']
             : $globalCooldown;
 
-        // Check if user already received reminder within their effective cooldown window
-        $stmt = $pdo->prepare("SELECT COUNT(*) FROM notifications 
-                               WHERE user_id = ? 
-                                 AND type = 'system' 
-                                 AND title = 'We miss you at the gym!' 
-                                 AND created_at >= DATE_SUB(NOW(), INTERVAL ? DAY)");
-        $stmt->execute([$userId, $effectiveCooldown]);
-        $recentCount = (int) $stmt->fetchColumn();
+        $candidates[] = [
+            'user_id' => $userId,
+            'effective_cooldown' => $effectiveCooldown,
+        ];
+    }
 
-        if ($recentCount === 0) {
+    // Check cooldown for all candidates in this batch with a single query using idx_notif_cooldown
+    if (!empty($candidates)) {
+        $candidateIds = array_map(fn($c) => (int)$c['user_id'], $candidates);
+        $placeholders = implode(',', array_fill(0, count($candidateIds), '?'));
+
+        $notifStmt = $pdo->prepare("
+            SELECT user_id, MAX(created_at) as last_notified_at
+            FROM notifications
+            WHERE user_id IN ($placeholders)
+              AND type = 'system'
+              AND title = ?
+            GROUP BY user_id
+        ");
+        $params = $candidateIds;
+        $params[] = AT_RISK_NOTIFICATION_TITLE;
+        $notifStmt->execute($params);
+        $recentNotifs = [];
+        foreach ($notifStmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
+            $recentNotifs[(int)$row['user_id']] = strtotime((string)$row['last_notified_at']);
+        }
+
+        $now = time();
+        $dispatched = [];
+        foreach ($candidates as $c) {
+            $userId = (int) $c['user_id'];
+            if (isset($dispatched[$userId])) {
+                continue;
+            }
+            $cooldownSecs = ((int) $c['effective_cooldown']) * 86400;
+
+            if (isset($recentNotifs[$userId])) {
+                if (($now - $recentNotifs[$userId]) < $cooldownSecs) {
+                    continue; // Still within cooldown window
+                }
+            }
+
+            $dispatched[$userId] = true;
             Queue::push('send_at_risk_notification_job', ['user_id' => $userId]);
         }
+    }
+
+    $lastProcessedId = (int) end($atRiskMembers)['user_id'];
+    if (count($atRiskMembers) === $batchSize) {
+        $nextPayload = ['last_user_id' => $lastProcessedId];
+        if (isset($payload['batch_size'])) {
+            $nextPayload['batch_size'] = $batchSize;
+        }
+        if (isset($payload['pdo'])) {
+            $nextPayload['pdo'] = $payload['pdo'];
+        }
+        Queue::push('process_automated_at_risk_notifications', $nextPayload);
     }
 }

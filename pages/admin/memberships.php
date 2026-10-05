@@ -87,10 +87,15 @@ function memberships_page(): void
                     process_trainer_commission((int)$ppRow['payment_id'], (float)$ppRow['amount']);
                 }
 
-                $mInfo = db()->query('SELECT m.user_id, p.plan_name, u.email, u.first_name, u.last_name FROM memberships m JOIN membership_plans p ON p.plan_id = m.plan_id JOIN users u ON u.user_id = m.user_id WHERE m.membership_id = ' . $membershipId)->fetch();
+                $mInfo = db()->query('SELECT m.user_id, p.plan_name, p.gym_id, u.email, u.first_name, u.last_name FROM memberships m JOIN membership_plans p ON p.plan_id = m.plan_id JOIN users u ON u.user_id = m.user_id WHERE m.membership_id = ' . $membershipId)->fetch();
                 if ($mInfo) {
-                    // Cancel any other active plans for this user since they now have a new active one
-                    db()->prepare("UPDATE memberships SET status = 'cancelled' WHERE user_id = ? AND membership_id != ? AND status = 'active'")->execute([$mInfo['user_id'], $membershipId]);
+                    // Cancel older active plans for this member at THIS gym only (supports concurrent plans at different gyms)
+                    $mGymId = (int) ($mInfo['gym_id'] ?? 0);
+                    if ($mGymId > 0) {
+                        db()->prepare("UPDATE memberships m JOIN membership_plans mp ON mp.plan_id = m.plan_id SET m.status = 'cancelled' WHERE m.user_id = ? AND m.membership_id != ? AND mp.gym_id = ? AND m.status = 'active'")->execute([$mInfo['user_id'], $membershipId, $mGymId]);
+                    } else {
+                        db()->prepare("UPDATE memberships SET status = 'cancelled' WHERE user_id = ? AND membership_id != ? AND status = 'active'")->execute([$mInfo['user_id'], $membershipId]);
+                    }
 
                     notify_user((int) $mInfo['user_id'], 'system', 'Payment Received', 'Your payment for the ' . $mInfo['plan_name'] . ' membership was successful and your plan is now active!');
 
@@ -145,8 +150,12 @@ function memberships_page(): void
             $start = new DateTime($paymentDate);
             $end = (clone $start)->modify('+' . $duration . ' days')->format('Y-m-d');
 
-            // Cancel other active memberships for this member
-            db()->prepare("UPDATE memberships SET status = 'cancelled' WHERE user_id = ? AND membership_id != ? AND status = 'active'")->execute([$memberUserId, $membershipId]);
+            // Cancel other active memberships for this member at this gym
+            if ($gymId) {
+                db()->prepare("UPDATE memberships m JOIN membership_plans mp ON mp.plan_id = m.plan_id SET m.status = 'cancelled' WHERE m.user_id = ? AND m.membership_id != ? AND mp.gym_id = ? AND m.status = 'active'")->execute([$memberUserId, $membershipId, $gymId]);
+            } else {
+                db()->prepare("UPDATE memberships SET status = 'cancelled' WHERE user_id = ? AND membership_id != ? AND status = 'active'")->execute([$memberUserId, $membershipId]);
+            }
 
             db()->prepare('UPDATE memberships SET status = "active", start_date = ?, end_date = ? WHERE membership_id = ?')
                 ->execute([$start->format('Y-m-d'), $end, $membershipId]);
@@ -210,8 +219,10 @@ function memberships_page(): void
                     $end = (clone $start)->modify('+' . $duration . ' days')->format('Y-m-d');
                     $membershipStatus = ($status === 'paid') ? 'active' : 'pending';
 
-                    // Handle existing active plan for renewal or upgrade
-                    $currentActive = db()->query("SELECT m.* FROM memberships m WHERE m.user_id = $memberUserId AND m.status = 'active' ORDER BY m.end_date DESC LIMIT 1")->fetch();
+                    // Handle existing active plan for renewal or upgrade at this gym
+                    $currentActive = $gymId > 0
+                        ? db()->query("SELECT m.* FROM memberships m JOIN membership_plans mp ON mp.plan_id = m.plan_id WHERE m.user_id = $memberUserId AND mp.gym_id = $gymId AND m.status = 'active' ORDER BY m.end_date DESC LIMIT 1")->fetch()
+                        : db()->query("SELECT m.* FROM memberships m WHERE m.user_id = $memberUserId AND m.status = 'active' ORDER BY m.end_date DESC LIMIT 1")->fetch();
                     if ($currentActive) {
                         if ((int)$currentActive['plan_id'] === $planId) {
                             // Queue renewal from previous end date
@@ -259,13 +270,18 @@ function memberships_page(): void
 
             // If the payment is marked as paid, automatically activate the membership and set proper valid dates
             if ($status === 'paid') {
-                $mRow = db()->query("SELECT m.*, p.duration_days FROM memberships m JOIN membership_plans p ON p.plan_id = m.plan_id WHERE m.membership_id = $membershipId")->fetch();
+                $mRow = db()->query("SELECT m.*, p.duration_days, p.gym_id FROM memberships m JOIN membership_plans p ON p.plan_id = m.plan_id WHERE m.membership_id = $membershipId")->fetch();
                 if ($mRow && $mRow['status'] === 'pending') {
                     $dur = (int)($mRow['duration_days'] ?? 30);
                     $mStart = new DateTime($paymentDate);
                     $mEnd = (clone $mStart)->modify('+' . $dur . ' days')->format('Y-m-d');
 
-                    db()->prepare("UPDATE memberships SET status = 'cancelled' WHERE user_id = ? AND membership_id != ? AND status = 'active'")->execute([$mRow['user_id'], $membershipId]);
+                    $mGymId = (int) ($mRow['gym_id'] ?? 0);
+                    if ($mGymId > 0) {
+                        db()->prepare("UPDATE memberships m JOIN membership_plans mp ON mp.plan_id = m.plan_id SET m.status = 'cancelled' WHERE m.user_id = ? AND m.membership_id != ? AND mp.gym_id = ? AND m.status = 'active'")->execute([$mRow['user_id'], $membershipId, $mGymId]);
+                    } else {
+                        db()->prepare("UPDATE memberships SET status = 'cancelled' WHERE user_id = ? AND membership_id != ? AND status = 'active'")->execute([$mRow['user_id'], $membershipId]);
+                    }
 
                     db()->prepare('UPDATE memberships SET status = "active", start_date = ?, end_date = ? WHERE membership_id = ?')
                         ->execute([$mStart->format('Y-m-d'), $mEnd, $membershipId]);
@@ -319,11 +335,14 @@ function memberships_page(): void
         $planId = (int) post('plan_id');
         $status = post('status');
 
-        $plan = db()->query('SELECT plan_name, price FROM membership_plans WHERE plan_id = ' . $planId)->fetch();
+        $plan = db()->query('SELECT plan_name, price, gym_id FROM membership_plans WHERE plan_id = ' . $planId)->fetch();
         $finalPrice = (float) $plan['price'];
+        $planGymId = (int) ($plan['gym_id'] ?? 0);
 
-        // Handle logic for renewals and same-day upgrades
-        $currentActive = db()->query("SELECT m.*, p.price as old_price FROM memberships m JOIN membership_plans p ON p.plan_id = m.plan_id WHERE m.user_id = $memberUserId AND m.status = 'active' ORDER BY m.end_date DESC LIMIT 1")->fetch();
+        // Handle logic for renewals and same-day upgrades at this specific gym
+        $currentActive = $planGymId > 0
+            ? db()->query("SELECT m.*, p.price as old_price FROM memberships m JOIN membership_plans p ON p.plan_id = m.plan_id WHERE m.user_id = $memberUserId AND p.gym_id = $planGymId AND m.status = 'active' ORDER BY m.end_date DESC LIMIT 1")->fetch()
+            : db()->query("SELECT m.*, p.price as old_price FROM memberships m JOIN membership_plans p ON p.plan_id = m.plan_id WHERE m.user_id = $memberUserId AND m.status = 'active' ORDER BY m.end_date DESC LIMIT 1")->fetch();
         if ($currentActive) {
             if ((int)$currentActive['plan_id'] === $planId) {
                 // Renewal: Queue it
@@ -399,11 +418,13 @@ function memberships_page(): void
         $stmt->execute([$planId]);
         $plan = $stmt->fetch();
         if ($plan) {
+            $finalPrice = (float) $plan['price'];
             $start = new DateTime();
             $end = (clone $start)->modify('+' . $plan['duration_days'] . ' days')->format('Y-m-d');
-            $finalPrice = (float) $plan['price'];
-
-            $currentActive = db()->query("SELECT m.*, p.price as old_price FROM memberships m JOIN membership_plans p ON p.plan_id = m.plan_id WHERE m.user_id = {$user['user_id']} AND m.status = 'active' ORDER BY m.end_date DESC LIMIT 1")->fetch();
+            $planGymId = (int) ($plan['gym_id'] ?? 0);
+            $currentActive = $planGymId > 0
+                ? db()->query("SELECT m.*, p.price as old_price FROM memberships m JOIN membership_plans p ON p.plan_id = m.plan_id WHERE m.user_id = {$user['user_id']} AND p.gym_id = {$planGymId} AND m.status = 'active' ORDER BY m.end_date DESC LIMIT 1")->fetch()
+                : db()->query("SELECT m.*, p.price as old_price FROM memberships m JOIN membership_plans p ON p.plan_id = m.plan_id WHERE m.user_id = {$user['user_id']} AND m.status = 'active' ORDER BY m.end_date DESC LIMIT 1")->fetch();
 
             if ($currentActive) {
                 if ((int)$currentActive['plan_id'] === $planId) {
@@ -530,8 +551,7 @@ function memberships_page(): void
 
             if (!empty($plan['gym_id'])) {
                 $planGymId = (int) $plan['gym_id'];
-                db()->prepare('DELETE FROM gym_members WHERE user_id = ?')->execute([$user['user_id']]);
-                db()->prepare('INSERT INTO gym_members (user_id, gym_id) VALUES (?, ?)')
+                db()->prepare('INSERT IGNORE INTO gym_members (user_id, gym_id) VALUES (?, ?)')
                     ->execute([$user['user_id'], $planGymId]);
                 $_SESSION['current_gym_id'] = $planGymId;
             }

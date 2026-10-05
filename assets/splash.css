@@ -24,6 +24,33 @@
     overflow: hidden;
 }
 
+/* Immediate suppression for internal page navigation */
+html.ft-no-splash #ft-splash-screen {
+    display: none !important;
+    opacity: 0 !important;
+    visibility: hidden !important;
+    pointer-events: none !important;
+}
+
+/* Subtle Top Navigation Progress Bar for MPAs */
+#ft-top-progress-bar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    height: 2.5px;
+    width: 0%;
+    background: linear-gradient(90deg, #27f246, #ccff00);
+    z-index: 99999999;
+    box-shadow: 0 0 10px rgba(39, 242, 70, 0.7);
+    pointer-events: none;
+    transition: width 0.4s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.25s ease;
+    opacity: 0;
+}
+#ft-top-progress-bar.ft-progress-active {
+    opacity: 1;
+    width: 80%;
+}
+
 #ft-splash-screen.ft-splash-hidden {
     opacity: 0;
     visibility: hidden;

@@ -1237,6 +1237,41 @@ function render_header(string $title, ?array $user = null): void
                 </a>
                 <!-- Role badge (replaces non-functional role-switch select) -->
                 <div class="role-badge"><?= h(ucfirst($user['role'])) ?></div>
+                <?php
+                    $memberAffiliatedGyms = [];
+                    if ($role === 'member' && !empty($user['user_id'])) {
+                        $memberAffiliatedGyms = query_all('
+                            SELECT DISTINCT g.gym_id, g.name,
+                                   (SELECT mp.plan_name 
+                                    FROM memberships m 
+                                    JOIN membership_plans mp ON mp.plan_id = m.plan_id 
+                                    WHERE m.user_id = ? AND mp.gym_id = g.gym_id AND m.status = "active" AND m.end_date >= CURDATE() 
+                                    ORDER BY m.end_date DESC LIMIT 1) as plan_name
+                            FROM gyms g
+                            WHERE g.gym_id IN (
+                                SELECT gym_id FROM gym_members WHERE user_id = ?
+                                UNION
+                                SELECT mp.gym_id FROM memberships m JOIN membership_plans mp ON mp.plan_id = m.plan_id WHERE m.user_id = ? AND m.status = "active"
+                            )
+                            ORDER BY g.name ASC
+                        ', [(int)$user['user_id'], (int)$user['user_id'], (int)$user['user_id']]);
+                    }
+                ?>
+                <?php if (count($memberAffiliatedGyms) > 1): ?>
+                    <div class="multi-gym-switcher" style="margin: 8px 12px 6px; padding: 6px 10px; background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px;">
+                        <div style="font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--muted, #94a3b8); margin-bottom: 4px; font-weight: 700; display: flex; align-items: center; justify-content: space-between;">
+                            <span>Active Facility</span>
+                            <span style="font-size: 9px; padding: 1px 4px; border-radius: 3px; background: rgba(199,255,34,0.15); color: #c7ff22;"><?= count($memberAffiliatedGyms) ?> Gyms</span>
+                        </div>
+                        <select onchange="window.location.href='index.php?switch_active_gym=' + encodeURIComponent(this.value) + '&page=<?= h($page) ?>'" style="width: 100%; font-size: 11px; font-weight: 600; padding: 5px 6px; background: var(--panel-soft, #16181d); color: #f8fafc; border: 1px solid rgba(255,255,255,0.18); border-radius: 6px; cursor: pointer; outline: none;">
+                            <?php foreach ($memberAffiliatedGyms as $mg): ?>
+                                <option value="<?= (int)$mg['gym_id'] ?>" <?= ((int)($gym['gym_id'] ?? 0) === (int)$mg['gym_id']) ? 'selected' : '' ?>>
+                                    <?= h($mg['name']) ?><?= !empty($mg['plan_name']) ? ' • ' . h($mg['plan_name']) : '' ?>
+                                </option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+                <?php endif; ?>
                 <?php 
                     $unreadNotifsCount = $user ? unread_notification_count((int) $user['user_id']) : 0;
                     $unreadMsgsCount   = $user ? (int) scalar('SELECT COUNT(*) FROM trainer_messages WHERE recipient_id = ? AND is_read = 0', [(int)$user['user_id']]) : 0;
@@ -1481,7 +1516,7 @@ function render_header(string $title, ?array $user = null): void
                         <?php if ($user && in_array($user['role'] ?? '', ['member', 'trainer'])): ?>
                             <?php 
                             auto_checkout_past_attendance((int) $user['user_id']);
-                            $activeCheckinId = scalar('SELECT attendance_id FROM attendance WHERE user_id = ? AND check_out_time IS NULL AND DATE(check_in_time) = CURDATE() ORDER BY check_in_time DESC LIMIT 1', [$user['user_id']]); 
+                            $activeCheckinId = scalar('SELECT attendance_id FROM attendance WHERE user_id = ? AND check_out_time IS NULL AND check_in_time >= CURDATE() AND check_in_time < CURDATE() + INTERVAL 1 DAY ORDER BY check_in_time DESC LIMIT 1', [$user['user_id']]); 
                             ?>
                             <?php if ($activeCheckinId): 
                                 $activeCheckinRow = query_one('SELECT a.gym_id, g.name AS gym_name FROM attendance a LEFT JOIN gyms g ON g.gym_id = a.gym_id WHERE a.attendance_id = ?', [$activeCheckinId]);

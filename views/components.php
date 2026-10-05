@@ -551,8 +551,8 @@ function render_member_form(string $context, ?array $user = null, ?array $profil
                 padding: 10px 16px 12px 16px;
             }
             .pm-grid {
-                grid-template-columns: 1fr;
-                gap: 10px;
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+                gap: 10px 12px;
             }
             .pm-tab-bar {
                 margin-bottom: 0;
@@ -567,12 +567,20 @@ function render_member_form(string $context, ?array $user = null, ?array $profil
             .pm-field {
                 gap: 4px;
                 font-size: 11.5px;
+                min-width: 0;
             }
             .pm-field input,
             .custom-select-trigger,
             .custom-goal-trigger {
                 padding: 8px 10px;
                 font-size: 13px;
+                min-width: 0;
+            }
+            .custom-select-wrapper .custom-select-menu {
+                left: auto;
+                right: 0;
+                min-width: 170px;
+                max-width: min(240px, 85vw);
             }
         }
         /* Dynamic Goal Targets System */
@@ -1698,7 +1706,8 @@ function render_member_form(string $context, ?array $user = null, ?array $profil
         </div>
 
         <!-- Persistent Action Footer -->
-        <div class="pm-footer">
+        <div class="pm-footer" style="<?= $context === 'profile' ? 'justify-content: center;' : '' ?>">
+            <?php if ($context !== 'profile'): ?>
             <div style="display: flex; gap: 8px;">
                 <button type="button" class="btn btn-secondary" id="pmPrevBtn_<?= h($context) ?>" onclick="navProfileTab_<?= h($context) ?>(-1)" style="display: none; padding: 7px 14px; font-size: 13px;">
                     ← Back
@@ -1707,9 +1716,10 @@ function render_member_form(string $context, ?array $user = null, ?array $profil
                     Next Step →
                 </button>
             </div>
-            <div style="display: flex; align-items: center; gap: 8px;">
-                <button type="button" class="btn btn-ghost" onclick="const d = this.closest('dialog'); if (d) d.close(); const ov = this.closest('.ft-modal-overlay'); if (ov) ov.style.display = 'none'; document.body.style.overflow = '';" style="padding: 7px 14px; font-size: 13px;">Cancel</button>
-                <button type="submit" class="btn btn-primary" style="padding: 7px 20px; font-size: 13px; font-weight: 600;">
+            <?php endif; ?>
+            <div style="display: flex; align-items: center; gap: 12px; <?= $context === 'profile' ? 'width: 100%; justify-content: center;' : '' ?>">
+                <button type="button" class="btn btn-ghost" onclick="const d = this.closest('dialog'); if (d) d.close(); const ov = this.closest('.ft-modal-overlay'); if (ov) ov.style.display = 'none'; document.body.style.overflow = '';" style="padding: 8px 20px; font-size: 13.5px; font-weight: 600;">Cancel</button>
+                <button type="submit" class="btn btn-primary" style="padding: 8px 24px; font-size: 13.5px; font-weight: 600;">
                     Save Profile
                 </button>
             </div>

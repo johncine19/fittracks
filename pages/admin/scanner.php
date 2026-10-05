@@ -422,14 +422,26 @@ function scanner_page(): void
 
         $planName = null;
         if ($member['role'] === 'member') {
-            $planName = scalar('
-                SELECT mp.plan_name 
-                FROM memberships m 
-                JOIN membership_plans mp ON m.plan_id = mp.plan_id 
-                WHERE m.user_id = ? AND m.status = "active" AND m.end_date >= CURDATE()
-                ORDER BY m.end_date DESC LIMIT 1',
-                [$targetUserId]
-            );
+            if ($currentGymId) {
+                $planName = scalar('
+                    SELECT mp.plan_name 
+                    FROM memberships m 
+                    JOIN membership_plans mp ON m.plan_id = mp.plan_id 
+                    WHERE m.user_id = ? AND mp.gym_id = ? AND m.status = "active" AND m.end_date >= CURDATE()
+                    ORDER BY m.end_date DESC LIMIT 1',
+                    [$targetUserId, $currentGymId]
+                );
+            }
+            if (!$planName) {
+                $planName = scalar('
+                    SELECT mp.plan_name 
+                    FROM memberships m 
+                    JOIN membership_plans mp ON m.plan_id = mp.plan_id 
+                    WHERE m.user_id = ? AND m.status = "active" AND m.end_date >= CURDATE()
+                    ORDER BY m.end_date DESC LIMIT 1',
+                    [$targetUserId]
+                );
+            }
         }
 
         echo json_encode([
@@ -611,14 +623,26 @@ function scanner_page(): void
 
         $planName = null;
         if ($member['role'] === 'member') {
-            $planName = scalar('
-                SELECT mp.plan_name 
-                FROM memberships m 
-                JOIN membership_plans mp ON m.plan_id = mp.plan_id 
-                WHERE m.user_id = ? AND m.status = "active" AND m.end_date >= CURDATE()
-                ORDER BY m.end_date DESC LIMIT 1',
-                [$userId]
-            );
+            if ($currentGymId) {
+                $planName = scalar('
+                    SELECT mp.plan_name 
+                    FROM memberships m 
+                    JOIN membership_plans mp ON m.plan_id = mp.plan_id 
+                    WHERE m.user_id = ? AND mp.gym_id = ? AND m.status = "active" AND m.end_date >= CURDATE()
+                    ORDER BY m.end_date DESC LIMIT 1',
+                    [$userId, $currentGymId]
+                );
+            }
+            if (!$planName) {
+                $planName = scalar('
+                    SELECT mp.plan_name 
+                    FROM memberships m 
+                    JOIN membership_plans mp ON m.plan_id = mp.plan_id 
+                    WHERE m.user_id = ? AND m.status = "active" AND m.end_date >= CURDATE()
+                    ORDER BY m.end_date DESC LIMIT 1',
+                    [$userId]
+                );
+            }
         }
         
         echo json_encode([

@@ -957,7 +957,8 @@ ALTER TABLE `gym_subscription_payments`
 ALTER TABLE `notifications`
   ADD KEY `idx_notification_unread` (`user_id`,`is_read`),
   ADD KEY `idx_notif_created_read` (`is_read`,`created_at`),
-  ADD KEY `idx_notif_created` (`created_at`);
+  ADD KEY `idx_notif_created` (`created_at`),
+  ADD KEY `idx_notif_cooldown` (`user_id`, `type`, `title`, `created_at`);
 
 --
 -- Indexes for table `password_resets`

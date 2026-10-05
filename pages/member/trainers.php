@@ -52,7 +52,7 @@ function trainers_page(): void
     $currentGym = get_user_gym($user);
     $gymId = $currentGym ? (int) $currentGym['gym_id'] : 0;
     
-    $trainers = query_all('SELECT tp.trainer_id, u.user_id, u.first_name, u.last_name, u.profile_picture, tp.specialization, tp.bio, (SELECT COUNT(*) FROM attendance WHERE user_id = u.user_id AND check_out_time IS NULL AND DATE(check_in_time) = CURDATE()) as is_present FROM trainer_profiles tp JOIN users u ON u.user_id = tp.user_id WHERE u.status = "active" AND tp.gym_id = ?', [$gymId]);
+    $trainers = query_all('SELECT tp.trainer_id, u.user_id, u.first_name, u.last_name, u.profile_picture, tp.specialization, tp.bio, (SELECT COUNT(*) FROM attendance WHERE user_id = u.user_id AND check_out_time IS NULL AND check_in_time >= CURDATE() AND check_in_time < CURDATE() + INTERVAL 1 DAY) as is_present FROM trainer_profiles tp JOIN users u ON u.user_id = tp.user_id WHERE u.status = "active" AND tp.gym_id = ?', [$gymId]);
     
     $stmt = db()->prepare("
         SELECT ca.*, 

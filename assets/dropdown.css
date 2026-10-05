@@ -101,6 +101,9 @@
     top: calc(100% + 5px);
     left: 0;
     right: 0;
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
     background: #141d2c;
     border: 1px solid #2e3d52;
     border-radius: 10px;
