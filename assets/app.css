@@ -1234,12 +1234,16 @@ code {
 @media (max-width: 980px) {
     .app-frame,
     .auth,
-    .stats-row,
     .chart-row,
     .lower-row,
     .dash-grid,
     .split {
         grid-template-columns: 1fr !important;
+    }
+
+    .stats-row {
+        grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+        gap: 12px;
     }
 
     /* Mobile slide-in drawer */
