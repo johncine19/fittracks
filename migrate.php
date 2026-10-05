@@ -1,16 +1,18 @@
 <?php
+declare(strict_types=1);
+
+require __DIR__ . '/core/bootstrap.php';
+
 // Security: Restrict migration execution strictly to CLI or an authorized secret token
 $isCli = (php_sapi_name() === 'cli');
-$secretKey = getenv('MIGRATION_SECRET') ?: (defined('MIGRATION_SECRET') ? MIGRATION_SECRET : '');
-$providedKey = $_GET['secret'] ?? '';
+$secretKey = (string) (app_env('MIGRATION_SECRET') ?: (getenv('MIGRATION_SECRET') ?: ''));
+$providedKey = (string) ($_GET['secret'] ?? '');
 
-if (!$isCli && (empty($secretKey) || !hash_equals((string)$secretKey, (string)$providedKey))) {
+if (!$isCli && (empty($secretKey) || !hash_equals($secretKey, $providedKey))) {
     http_response_code(403);
     header('Content-Type: text/plain; charset=UTF-8');
     exit("Access Denied: Migrations can only be executed via the CLI (e.g. 'php migrate.php') or with a valid MIGRATION_SECRET.\n");
 }
-
-require __DIR__ . '/core/bootstrap.php';
 
 echo "<h1>Running Database Migrations...</h1>";
 echo "<ul>";
