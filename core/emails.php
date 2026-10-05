@@ -214,4 +214,72 @@ HTML;
 
         queue_email($email, $firstName, 'We miss you at the gym! - FITTRACKS', self::layout($content));
     }
+
+    public static function sendEODSummary(string $email, string $ownerName, string $gymName, array $summary, bool $immediate = false): bool
+    {
+        $subject = "Daily Settlement Summary: {$gymName} ({$summary['date_formatted']})";
+        
+        $grossFmt = '₱' . number_format((float)($summary['total_gross'] ?? 0), 2);
+        $subFmt = '₱' . number_format((float)($summary['subscriptions_revenue'] ?? 0), 2);
+        $walkFmt = '₱' . number_format((float)($summary['walkins_revenue'] ?? 0), 2);
+        $safeGymName = htmlspecialchars($gymName, ENT_QUOTES, 'UTF-8');
+        $safeOwnerName = htmlspecialchars($ownerName, ENT_QUOTES, 'UTF-8');
+
+        $content = <<<HTML
+        <div style="border-bottom: 1px solid rgba(255, 255, 255, 0.1); padding-bottom: 14px; margin-bottom: 18px;">
+            <div style="font-size: 13px; font-weight: 700; color: #c7ff22; text-transform: uppercase; letter-spacing: 0.06em;">FitTrack Business Suite</div>
+            <h2 style="margin: 8px 0 2px; font-size: 22px; color: #ffffff;">Daily Settlement (Z-Reading)</h2>
+            <div style="font-size: 13px; color: #94a3b8;">{$safeGymName} &bull; {$summary['date_formatted']}</div>
+        </div>
+
+        <div style="background: rgba(255, 255, 255, 0.04); border: 1px solid rgba(199, 255, 34, 0.2); border-radius: 8px; padding: 18px; margin-bottom: 20px; text-align: center;">
+            <div style="font-size: 12px; color: #94a3b8; text-transform: uppercase; font-weight: 700; letter-spacing: 0.05em;">Total Daily Gross Revenue</div>
+            <div style="font-size: 32px; font-weight: 900; color: #c7ff22; margin: 4px 0 2px;">{$grossFmt}</div>
+            <div style="font-size: 12px; color: #94a3b8;">{$summary['total_transactions']} processed transactions today</div>
+        </div>
+
+        <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px; font-size: 14px;">
+            <tr style="border-bottom: 1px solid rgba(255, 255, 255, 0.06);">
+                <td style="padding: 10px 0; color: #94a3b8;">Subscriptions / Memberships:</td>
+                <td style="padding: 10px 0; text-align: right; font-weight: 700; color: #ffffff;">{$subFmt} <span style="font-size: 12px; color: #94a3b8;">({$summary['subscriptions_count']} sales)</span></td>
+            </tr>
+            <tr style="border-bottom: 1px solid rgba(255, 255, 255, 0.06);">
+                <td style="padding: 10px 0; color: #94a3b8;">Walk-In Passes:</td>
+                <td style="padding: 10px 0; text-align: right; font-weight: 700; color: #ffffff;">{$walkFmt} <span style="font-size: 12px; color: #94a3b8;">({$summary['walkins_count']} passes)</span></td>
+            </tr>
+            <tr style="border-bottom: 1px solid rgba(255, 255, 255, 0.06);">
+                <td style="padding: 10px 0; color: #94a3b8;">Today's Facility Check-Ins:</td>
+                <td style="padding: 10px 0; text-align: right; font-weight: 700; color: #38bdf8;">{$summary['checkins_count']} check-ins</td>
+            </tr>
+            <tr style="border-bottom: 1px solid rgba(255, 255, 255, 0.06);">
+                <td style="padding: 10px 0; color: #94a3b8;">Memberships Expiring Tomorrow:</td>
+                <td style="padding: 10px 0; text-align: right; font-weight: 700; color: #f59e0b;">{$summary['expiring_tomorrow']} members</td>
+            </tr>
+            <tr>
+                <td style="padding: 10px 0; color: #94a3b8;">Active Enrolled Members:</td>
+                <td style="padding: 10px 0; text-align: right; font-weight: 700; color: #ffffff;">{$summary['active_members']} members</td>
+            </tr>
+        </table>
+
+        <p style="font-size: 12px; color: #64748b; border-top: 1px solid rgba(255, 255, 255, 0.08); padding-top: 14px; text-align: center; margin: 0;">
+            This executive daily settlement was automatically generated for {$safeOwnerName}.<br>
+            You can configure your daily summary preferences in Gym Profile &gt; Branding &gt; Business Settings.
+        </p>
+HTML;
+
+        $htmlBody = self::layout($content);
+
+        if ($immediate && function_exists('send_email_job')) {
+            return send_email_job([
+                'to' => $email,
+                'name' => $ownerName,
+                'subject' => $subject,
+                'body' => $htmlBody,
+            ]);
+        }
+
+        queue_email($email, $ownerName, $subject, $htmlBody);
+        return true;
+    }
 }
+

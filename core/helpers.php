@@ -330,8 +330,11 @@ function get_membership_plan_features(array $plan): array
 /**
  * Subscription Tier & Feature Entitlement Helpers
  */
-function gym_subscription_tier(?array $gym = null): string
+function gym_subscription_tier(array|int|null $gym = null): string
 {
+    if (is_int($gym)) {
+        $gym = db()->query("SELECT * FROM gyms WHERE gym_id = " . (int)$gym)->fetch(PDO::FETCH_ASSOC) ?: null;
+    }
     if (!$gym) {
         $user = current_user();
         if ($user) {
@@ -384,8 +387,11 @@ function gym_subscription_tier(?array $gym = null): string
     return 'free';
 }
 
-function gym_trial_info(?array $gym = null): array
+function gym_trial_info(array|int|null $gym = null): array
 {
+    if (is_int($gym)) {
+        $gym = db()->query("SELECT * FROM gyms WHERE gym_id = " . (int)$gym)->fetch(PDO::FETCH_ASSOC) ?: null;
+    }
     if (!$gym) {
         $user = current_user();
         if ($user) {
@@ -431,7 +437,7 @@ function gym_trial_info(?array $gym = null): array
     ];
 }
 
-function gym_member_limit(?array $gym = null): int
+function gym_member_limit(array|int|null $gym = null): int
 {
     $tier = gym_subscription_tier($gym);
     return match ($tier) {
@@ -444,7 +450,7 @@ function gym_member_limit(?array $gym = null): int
     };
 }
 
-function gym_trainer_limit(?array $gym = null): int
+function gym_trainer_limit(array|int|null $gym = null): int
 {
     $tier = gym_subscription_tier($gym);
     return match ($tier) {
@@ -513,7 +519,7 @@ function gym_can_add_member(int $gymId, ?array $gym = null): bool
     return $current < $limit;
 }
 
-function gym_has_feature(string $feature, ?array $gym = null): bool
+function gym_has_feature(string $feature, array|int|null $gym = null): bool
 {
     $tier = gym_subscription_tier($gym);
     if ($tier === 'none') {
@@ -762,7 +768,7 @@ function gym_get_eod_summary(int $gymId, ?string $date = null): array
 /**
  * Send executive End-of-Day Daily Settlement email to gym owner.
  */
-function gym_send_eod_summary_email(int $gymId, ?string $date = null): bool
+function gym_send_eod_summary_email(int $gymId, ?string $date = null, bool $immediate = false): bool
 {
     $pdo = db();
     $gym = $pdo->query('SELECT g.*, u.email AS owner_email, u.first_name, u.last_name FROM gyms g JOIN users u ON u.user_id = g.owner_user_id WHERE g.gym_id = ' . (int)$gymId)->fetch(PDO::FETCH_ASSOC);
@@ -771,63 +777,10 @@ function gym_send_eod_summary_email(int $gymId, ?string $date = null): bool
     }
 
     $summary = gym_get_eod_summary($gymId, $date);
-    $gymName = htmlspecialchars($gym['name'] ?? 'FitTrack Gym', ENT_QUOTES, 'UTF-8');
-    $ownerName = htmlspecialchars(trim(($gym['first_name'] ?? '') . ' ' . ($gym['last_name'] ?? '')), ENT_QUOTES, 'UTF-8') ?: 'Gym Owner';
+    $gymName = trim((string)($gym['name'] ?? 'FitTrack Gym'));
+    $ownerName = trim(((string)($gym['first_name'] ?? '')) . ' ' . ((string)($gym['last_name'] ?? ''))) ?: 'Gym Owner';
 
-    $subject = "Daily Settlement Summary: {$gym['name']} ({$summary['date_formatted']})";
-    
-    $grossFmt = '₱' . number_format($summary['total_gross'], 2);
-    $subFmt = '₱' . number_format($summary['subscriptions_revenue'], 2);
-    $walkFmt = '₱' . number_format($summary['walkins_revenue'], 2);
-
-    $html = <<<HTML
-    <div style="font-family:'Inter',system-ui,-apple-system,sans-serif;max-width:560px;margin:0 auto;background:#0d1117;color:#f0f6fc;padding:24px;border-radius:12px;border:1px solid #30363d;">
-        <div style="border-bottom:1px solid #30363d;padding-bottom:14px;margin-bottom:18px;">
-            <div style="display:flex;align-items:center;gap:10px;">
-                <span style="background:#84cc16;color:#0b110e;font-weight:900;font-size:13px;padding:3px 7px;border-radius:6px;">FT</span>
-                <span style="font-size:13px;font-weight:700;color:#84cc16;text-transform:uppercase;letter-spacing:0.06em;">FitTrack Business Suite</span>
-            </div>
-            <h2 style="margin:10px 0 2px;font-size:20px;color:#ffffff;">Daily Settlement (Z-Reading)</h2>
-            <div style="font-size:13px;color:#8b949e;">{$gymName} &bull; {$summary['date_formatted']}</div>
-        </div>
-
-        <div style="background:#161b22;border:1px solid #30363d;border-radius:10px;padding:16px;margin-bottom:18px;text-align:center;">
-            <div style="font-size:12px;color:#8b949e;text-transform:uppercase;font-weight:700;letter-spacing:0.05em;">Total Daily Gross Revenue</div>
-            <div style="font-size:32px;font-weight:900;color:#84cc16;margin:4px 0 2px;">{$grossFmt}</div>
-            <div style="font-size:12px;color:#8b949e;">{$summary['total_transactions']} processed transactions today</div>
-        </div>
-
-        <table style="width:100%;border-collapse:collapse;margin-bottom:18px;font-size:13.5px;">
-            <tr style="border-bottom:1px solid #21262d;">
-                <td style="padding:10px 0;color:#8b949e;">Subscriptions / Memberships:</td>
-                <td style="padding:10px 0;text-align:right;font-weight:700;color:#ffffff;">{$subFmt} <span style="font-size:12px;color:#8b949e;">({$summary['subscriptions_count']} sales)</span></td>
-            </tr>
-            <tr style="border-bottom:1px solid #21262d;">
-                <td style="padding:10px 0;color:#8b949e;">Walk-In Passes:</td>
-                <td style="padding:10px 0;text-align:right;font-weight:700;color:#ffffff;">{$walkFmt} <span style="font-size:12px;color:#8b949e;">({$summary['walkins_count']} passes)</span></td>
-            </tr>
-            <tr style="border-bottom:1px solid #21262d;">
-                <td style="padding:10px 0;color:#8b949e;">Today's Facility Check-Ins:</td>
-                <td style="padding:10px 0;text-align:right;font-weight:700;color:#38bdf8;">{$summary['checkins_count']} check-ins</td>
-            </tr>
-            <tr style="border-bottom:1px solid #21262d;">
-                <td style="padding:10px 0;color:#8b949e;">Memberships Expiring Tomorrow:</td>
-                <td style="padding:10px 0;text-align:right;font-weight:700;color:#f59e0b;">{$summary['expiring_tomorrow']} members</td>
-            </tr>
-            <tr>
-                <td style="padding:10px 0;color:#8b949e;">Active Enrolled Members:</td>
-                <td style="padding:10px 0;text-align:right;font-weight:700;color:#ffffff;">{$summary['active_members']} members</td>
-            </tr>
-        </table>
-
-        <div style="font-size:11.5px;color:#8b949e;border-top:1px solid #30363d;padding-top:12px;text-align:center;">
-            This executive daily settlement was automatically generated for {$ownerName}.<br>
-            You can configure your daily summary preferences in Gym Profile &gt; Branding &gt; Business Settings.
-        </div>
-    </div>
-HTML;
-
-    return send_email_notification($gym['owner_email'], $ownerName, $subject, $html);
+    return Emails::sendEODSummary($gym['owner_email'], $ownerName, $gymName, $summary, $immediate);
 }
 
 

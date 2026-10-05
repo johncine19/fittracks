@@ -405,7 +405,7 @@ function reports_page(): void
             echo json_encode(['success' => false, 'error' => 'Please select a specific gym.']);
             exit;
         }
-        $sent = gym_send_eod_summary_email($targetGymId);
+        $sent = gym_send_eod_summary_email($targetGymId, null, true);
         echo json_encode(['success' => $sent, 'message' => $sent ? 'Daily Settlement summary dispatched to owner email!' : 'Unable to dispatch email. Please check your SMTP settings.']);
         exit;
     }
