@@ -23,6 +23,11 @@ function app_env(string $key, mixed $default = ''): mixed
     return $val;
 }
 
+function env(string $key, mixed $default = ''): mixed
+{
+    return app_env($key, $default);
+}
+
 function get_setting(string $key, string $default = ''): string
 {
     static $cache = null;

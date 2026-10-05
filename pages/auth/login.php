@@ -353,6 +353,36 @@ function handle_login(): void
                         <p class="split-card-subtitle">Log in to your <span class="brand-highlight">FitTrack</span> account</p>
                     </div>
 
+                    <?php $googleClientId = (string) app_env('GOOGLE_CLIENT_ID', ''); ?>
+                    <?php if (!empty($googleClientId)): ?>
+                        <div class="google-auth-section" style="margin-bottom: 20px;">
+                            <div id="g_id_onload"
+                                 data-client_id="<?= htmlspecialchars($googleClientId) ?>"
+                                 data-context="signin"
+                                 data-ux_mode="popup"
+                                 data-callback="handleGoogleCredentialResponse"
+                                 data-auto_prompt="false">
+                            </div>
+                            <div style="display: flex; justify-content: center; width: 100%; min-height: 44px;">
+                                <div id="google-signin-btn" class="g_id_signin"
+                                     data-type="standard"
+                                     data-shape="rectangular"
+                                     data-theme="outline"
+                                     data-text="signin_with"
+                                     data-size="large"
+                                     data-logo_alignment="left"
+                                     data-width="360">
+                                </div>
+                            </div>
+
+                            <div class="auth-divider" style="display: flex; align-items: center; text-align: center; margin: 18px 0 14px; color: #94a3b8; font-size: 11.5px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">
+                                <span style="flex: 1; height: 1px; background: rgba(255,255,255,0.15);"></span>
+                                <span style="padding: 0 12px; color: #94a3b8;">or sign in with email</span>
+                                <span style="flex: 1; height: 1px; background: rgba(255,255,255,0.15);"></span>
+                            </div>
+                        </div>
+                    <?php endif; ?>
+
                     <form method="post" class="split-card-form" novalidate onsubmit="const btn = this.querySelector('button[type=submit]'); btn.disabled = true; btn.innerHTML = '<svg class=\'fitness-loader mini\' viewBox=\'0 0 24 24\' fill=\'none\' stroke=\'currentColor\' stroke-width=\'2\' stroke-linecap=\'round\' stroke-linejoin=\'round\' style=\'margin-right:8px;\'><line x1=\'6\' y1=\'12\' x2=\'18\' y2=\'12\'></line><rect x=\'4\' y=\'8\' width=\'2\' height=\'8\' rx=\'1\'></rect><rect x=\'18\' y=\'8\' width=\'2\' height=\'8\' rx=\'1\'></rect><rect x=\'2\' y=\'10\' width=\'2\' height=\'4\' rx=\'1\'></rect><rect x=\'20\' y=\'10\' width=\'2\' height=\'4\' rx=\'1\'></rect></svg> SIGNING IN...';">
                         <?= csrf_field() ?>
 
@@ -431,6 +461,56 @@ function handle_login(): void
             </div>
         </div>
     </div>
+    <?php if (!empty($googleClientId)): ?>
+        <script src="https://accounts.google.com/gsi/client" async defer></script>
+        <script>
+        function handleGoogleCredentialResponse(response) {
+            if (!response || !response.credential) return;
+
+            const form = document.createElement('form');
+            form.method = 'POST';
+            form.action = 'index.php?page=google_auth';
+
+            const tokenInput = document.createElement('input');
+            tokenInput.type = 'hidden';
+            tokenInput.name = 'credential';
+            tokenInput.value = response.credential;
+            form.appendChild(tokenInput);
+
+            document.body.appendChild(form);
+            form.submit();
+        }
+
+        function initGoogleLogin() {
+            if (window.google && google.accounts && google.accounts.id) {
+                google.accounts.id.initialize({
+                    client_id: <?= json_encode($googleClientId) ?>,
+                    callback: handleGoogleCredentialResponse
+                });
+                const container = document.getElementById('google-signin-btn');
+                if (container && !container.hasChildNodes()) {
+                    google.accounts.id.renderButton(container, {
+                        theme: 'outline',
+                        size: 'large',
+                        width: 360,
+                        text: 'signin_with',
+                        shape: 'rectangular',
+                        logo_alignment: 'left'
+                    });
+                }
+            }
+        }
+
+        window.addEventListener('load', initGoogleLogin);
+        const gsiTimer = setInterval(function() {
+            if (window.google && google.accounts && google.accounts.id) {
+                initGoogleLogin();
+                clearInterval(gsiTimer);
+            }
+        }, 150);
+        setTimeout(function() { clearInterval(gsiTimer); }, 5000);
+        </script>
+    <?php endif; ?>
 <?php
     render_footer();
 }

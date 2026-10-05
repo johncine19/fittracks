@@ -11,7 +11,7 @@ header('Content-Type: text/html; charset=UTF-8');
 header('X-Content-Type-Options: nosniff');
 header('X-Frame-Options: SAMEORIGIN');
 header('Referrer-Policy: strict-origin-when-cross-origin');
-header("Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline' cdn.jsdelivr.net cdnjs.cloudflare.com unpkg.com; style-src 'self' 'unsafe-inline' fonts.googleapis.com cdn.jsdelivr.net cdnjs.cloudflare.com unpkg.com; img-src 'self' data: blob: *.imagekit.io res.cloudinary.com images.unsplash.com *.unsplash.com *.openfoodfacts.org *.openfoodfacts.net *.wikimedia.org; font-src 'self' fonts.gstatic.com; connect-src 'self' cdn.jsdelivr.net *.jsdelivr.net cdnjs.cloudflare.com unpkg.com *.openfoodfacts.net *.openfoodfacts.org; frame-src 'none'; object-src 'none';");
+header("Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline' https://accounts.google.com/gsi/client https://apis.google.com cdn.jsdelivr.net cdnjs.cloudflare.com unpkg.com; style-src 'self' 'unsafe-inline' fonts.googleapis.com https://accounts.google.com/gsi/style cdn.jsdelivr.net cdnjs.cloudflare.com unpkg.com; img-src 'self' data: blob: *.imagekit.io res.cloudinary.com images.unsplash.com *.unsplash.com *.openfoodfacts.org *.openfoodfacts.net *.wikimedia.org https://*.googleusercontent.com https://ssl.gstatic.com; font-src 'self' fonts.gstatic.com; connect-src 'self' https://accounts.google.com cdn.jsdelivr.net *.jsdelivr.net cdnjs.cloudflare.com unpkg.com *.openfoodfacts.net *.openfoodfacts.org; frame-src 'self' https://accounts.google.com; object-src 'none';");
 
 require __DIR__ . '/helpers.php';
 require __DIR__ . '/../config/config.php';

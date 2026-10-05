@@ -20,6 +20,10 @@ function verify_csrf(): void
         return;
     }
 
+    if (($_GET['page'] ?? '') === 'google_auth') {
+        return;
+    }
+
     $token = $_POST['csrf_token'] ?? $_SERVER['HTTP_X_CSRF_TOKEN'] ?? $_SERVER['HTTP_X_XSRF_TOKEN'] ?? '';
     $valid = is_string($token) && $token !== '' && hash_equals($_SESSION['csrf_token'] ?? '', $token);
 

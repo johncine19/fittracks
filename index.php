@@ -175,6 +175,7 @@ try {
         'landing' => ['file' => 'pages/landing.php', 'handler' => 'landing_page'],
         'login' => ['file' => 'pages/auth/login.php', 'handler' => 'handle_login'],
         'logout' => ['file' => 'pages/auth/login.php', 'handler' => 'handle_logout'],
+        'google_auth' => ['file' => 'pages/auth/google_auth.php', 'handler' => 'handle_google_auth'],
         'register' => ['file' => 'pages/auth/register.php', 'handler' => 'handle_register'],
         'forgot_password' => ['file' => 'pages/auth/forgot_password.php', 'handler' => 'handle_forgot_password'],
         'reset_password' => ['file' => 'pages/auth/reset_password.php', 'handler' => 'handle_reset_password'],
