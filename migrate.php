@@ -61,7 +61,13 @@ try {
         "CREATE TABLE IF NOT EXISTS platform_reviews (review_id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY, user_id INT UNSIGNED NOT NULL, gym_id INT UNSIGNED DEFAULT NULL, rating TINYINT UNSIGNED NOT NULL, review TEXT DEFAULT NULL, system_experience TINYINT UNSIGNED DEFAULT NULL, features_rating TINYINT UNSIGNED DEFAULT NULL, service_rating TINYINT UNSIGNED DEFAULT NULL, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, UNIQUE KEY uq_owner_platform_review (user_id), INDEX idx_platform_rating (rating)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
         "ALTER TABLE users ADD COLUMN google_id VARCHAR(100) DEFAULT NULL AFTER user_id",
         "ALTER TABLE users ADD UNIQUE KEY uq_users_google_id (google_id)",
-        "ALTER TABLE users MODIFY COLUMN password_hash VARCHAR(255) NULL"
+        "ALTER TABLE users MODIFY COLUMN password_hash VARCHAR(255) NULL",
+        "ALTER TABLE gyms ADD COLUMN member_pass_slogan VARCHAR(100) DEFAULT 'Official Member'",
+        "ALTER TABLE gyms ADD COLUMN receipt_header_note VARCHAR(255) DEFAULT NULL",
+        "ALTER TABLE gyms ADD COLUMN receipt_footer_policy TEXT DEFAULT NULL",
+        "ALTER TABLE gyms ADD COLUMN staff_hide_financials TINYINT(1) DEFAULT 0",
+        "ALTER TABLE gyms ADD COLUMN eod_email_summary TINYINT(1) DEFAULT 1",
+        "ALTER TABLE users ADD COLUMN staff_role VARCHAR(30) DEFAULT NULL"
     ];
 
     foreach ($migrations as $sql) {

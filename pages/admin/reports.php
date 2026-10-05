@@ -1,7 +1,7 @@
 <?php
 declare(strict_types=1);
 
-function handle_export(string $type, string $format, array $data): void
+function handle_export(string $type, string $format, array $data, ?array $gym = null): void
 {
     if ($format === 'csv') {
         header('Content-Type: text/csv');
@@ -24,7 +24,7 @@ function handle_export(string $type, string $format, array $data): void
         <!DOCTYPE html>
         <html>
         <head>
-            <title><?= h(ucfirst(str_replace('_', ' ', $type))) ?> Report</title>
+            <title><?= h(ucfirst(str_replace('_', ' ', $type))) ?> Report <?= !empty($gym['name']) ? '- ' . h($gym['name']) : '' ?></title>
             <style>
                 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
                 body { font-family: 'Inter', sans-serif; padding: 40px; color: #111827; background: #fff; }
@@ -32,9 +32,11 @@ function handle_export(string $type, string $format, array $data): void
                 th, td { border: 1px solid #e5e7eb; padding: 12px 16px; text-align: left; }
                 th { background: #f9fafb; font-weight: 600; color: #374151; text-transform: uppercase; letter-spacing: 0.05em; font-size: 12px; }
                 h2 { color: #111827; margin-bottom: 5px; font-size: 24px; }
-                .report-date { color: #6b7280; font-size: 14px; margin-bottom: 30px; }
+                .report-date { color: #6b7280; font-size: 14px; margin-bottom: 24px; }
                 button { background: #111827; color: white; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-weight: 500; margin-right: 10px; }
                 button.secondary { background: #f3f4f6; color: #374151; }
+                .receipt-branding-header { display: flex; align-items: center; justify-content: space-between; border-bottom: 2px solid #e5e7eb; padding-bottom: 16px; margin-bottom: 20px; }
+                .receipt-branding-footer { margin-top: 30px; padding-top: 14px; border-top: 1px dashed #cbd5e1; font-size: 11.5px; color: #64748b; text-align: center; }
                 @media print {
                     .no-print { display: none !important; }
                     body { padding: 0; }
@@ -47,6 +49,27 @@ function handle_export(string $type, string $format, array $data): void
                 <button onclick="window.print()">Print / Save as PDF</button>
                 <button onclick="window.close()" class="secondary">Close</button>
             </div>
+
+            <?php if (!empty($gym)): ?>
+                <div class="receipt-branding-header">
+                    <div style="display: flex; align-items: center; gap: 14px;">
+                        <?php if (!empty($gym['logo_url'])): ?>
+                            <img src="<?= h(upload_url($gym['logo_url'])) ?>" alt="Logo" style="height: 48px; max-width: 120px; object-fit: contain;">
+                        <?php endif; ?>
+                        <div>
+                            <h1 style="margin: 0; font-size: 22px; font-weight: 800; color: #0f172a;"><?= h($gym['name']) ?></h1>
+                            <?php if (!empty($gym['receipt_header_note'])): ?>
+                                <div style="font-size: 12px; color: #475569; font-weight: 500; margin-top: 2px;"><?= h($gym['receipt_header_note']) ?></div>
+                            <?php endif; ?>
+                        </div>
+                    </div>
+                    <div style="text-align: right; font-size: 12px; color: #64748b;">
+                        <div style="font-weight: 700; color: #0f172a;">Official Business Report</div>
+                        <div>Generated: <?= h(date('F j, Y g:i A')) ?></div>
+                    </div>
+                </div>
+            <?php endif; ?>
+
             <h2><?= h(ucfirst(str_replace('_', ' ', $type))) ?> Report</h2>
             <div class="report-date">Generated on <?= h(date('F j, Y g:i A')) ?></div>
             <table>
@@ -71,6 +94,12 @@ function handle_export(string $type, string $format, array $data): void
                     <tr><td>No data available.</td></tr>
                 <?php endif; ?>
             </table>
+
+            <?php if (!empty($gym['receipt_footer_policy'])): ?>
+                <div class="receipt-branding-footer">
+                    <?= nl2br(h($gym['receipt_footer_policy'])) ?>
+                </div>
+            <?php endif; ?>
             <script>
                 window.onload = function() { window.print(); }
             </script>
@@ -89,6 +118,7 @@ function reports_page(): void
     }
     $pdo = db();
     $isPlatformAdmin = $user['role'] === 'platform_admin';
+    $isStaffRestricted = is_staff_financials_restricted($user);
     
     $gymId = null;
     $currentGymName = 'FitTrack Platform';
@@ -353,6 +383,33 @@ function reports_page(): void
         redirect('reports');
     }
 
+    // Handle AJAX: End-of-Day (Z-Reading) Settlement Data
+    if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && post('action') === 'get_eod_data') {
+        verify_csrf();
+        $targetGymId = $isPlatformAdmin ? (int)(post('gym_id') ?: ($selectedGymId !== 'all' ? $selectedGymId : 0)) : (int)$gymId;
+        if ($targetGymId <= 0) {
+            echo json_encode(['success' => false, 'error' => 'Please select a specific gym to generate EOD summary.']);
+            exit;
+        }
+        $eodData = gym_get_eod_summary($targetGymId);
+        $gymRow = $pdo->query('SELECT name, logo_url, brand_color, receipt_header_note, receipt_footer_policy FROM gyms WHERE gym_id = ' . (int)$targetGymId)->fetch(PDO::FETCH_ASSOC);
+        echo json_encode(['success' => true, 'data' => $eodData, 'gym' => $gymRow]);
+        exit;
+    }
+
+    // Handle AJAX: Send End-of-Day Email to Owner
+    if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && post('action') === 'send_eod_email') {
+        verify_csrf();
+        $targetGymId = $isPlatformAdmin ? (int)(post('gym_id') ?: ($selectedGymId !== 'all' ? $selectedGymId : 0)) : (int)$gymId;
+        if ($targetGymId <= 0) {
+            echo json_encode(['success' => false, 'error' => 'Please select a specific gym.']);
+            exit;
+        }
+        $sent = gym_send_eod_summary_email($targetGymId);
+        echo json_encode(['success' => $sent, 'message' => $sent ? 'Daily Settlement summary dispatched to owner email!' : 'Unable to dispatch email. Please check your SMTP settings.']);
+        exit;
+    }
+
     // Pad time series data helper
     $pad_time_series = function(array $data, string $key, string $valKey, string $tf): array {
         $padded = [];
@@ -450,7 +507,14 @@ function reports_page(): void
         $type = $_GET['type'];
         $timeframe = $_GET['timeframe'] ?? 'monthly';
         
-        if ($type === 'engagement') handle_export($type, $format, $engagementData);
+        $gymForPrint = null;
+        if (!$isPlatformAdmin && $gymId) {
+            $gymForPrint = $pdo->query('SELECT * FROM gyms WHERE gym_id = ' . (int)$gymId)->fetch(PDO::FETCH_ASSOC);
+        } elseif ($isPlatformAdmin && $selectedGymId !== 'all') {
+            $gymForPrint = $pdo->query('SELECT * FROM gyms WHERE gym_id = ' . (int)$selectedGymId)->fetch(PDO::FETCH_ASSOC);
+        }
+
+        if ($type === 'engagement') handle_export($type, $format, $engagementData, $gymForPrint);
         if ($type === 'revenue') {
             $exportRows = [];
             $key = ($timeframe === 'daily') ? 'day' : (($timeframe === 'monthly') ? 'month' : 'year');
@@ -462,10 +526,10 @@ function reports_page(): void
                     'Total Revenue (PHP)' => number_format((float)$row['revenue'], 2, '.', ''),
                 ];
             }
-            handle_export($type . '_' . $timeframe, $format, $exportRows);
+            handle_export($type . '_' . $timeframe, $format, $exportRows, $gymForPrint);
         }
-        if ($type === 'attendance') handle_export($type . '_' . $timeframe, $format, $attendance[$timeframe] ?? $attendance['daily']);
-        if ($type === 'walkin') handle_export($type . '_' . $timeframe, $format, $walkin[$timeframe] ?? $walkin['daily']);
+        if ($type === 'attendance') handle_export($type . '_' . $timeframe, $format, $attendance[$timeframe] ?? $attendance['daily'], $gymForPrint);
+        if ($type === 'walkin') handle_export($type . '_' . $timeframe, $format, $walkin[$timeframe] ?? $walkin['daily'], $gymForPrint);
         if ($type === 'trainers' && $canViewTrainers) {
             $exportRows = [];
             foreach ($trainersList as $t) {
@@ -477,7 +541,7 @@ function reports_page(): void
                     'Paid Commissions (PHP)' => number_format((float)$t['total_commissions'], 2, '.', '')
                 ];
             }
-            handle_export('trainers_commissions', $format, $exportRows);
+            handle_export('trainers_commissions', $format, $exportRows, $gymForPrint);
         }
     }
 
@@ -1775,7 +1839,9 @@ function reports_page(): void
         <div class="kpi-card">
             <div class="kpi-card-header">
                 <span class="kpi-title">Gross Revenue (This Month)</span>
-                <?php if ($curMonthGross > 0 && $momGrowth !== null): ?>
+                <?php if ($isStaffRestricted): ?>
+                    <span class="pill-badge red">🔒 Restricted</span>
+                <?php elseif ($curMonthGross > 0 && $momGrowth !== null): ?>
                     <?php if ($momGrowth > 0): ?>
                         <span class="pill-badge green">▲ +<?= number_format($momGrowth, 1) ?>% MoM</span>
                     <?php elseif ($momGrowth < 0): ?>
@@ -1787,34 +1853,46 @@ function reports_page(): void
                     <span class="pill-badge neutral">No data</span>
                 <?php endif; ?>
             </div>
-            <div class="kpi-value">₱<?= number_format($curMonthGross, 2) ?></div>
-            <div class="kpi-sub">
-                <?php if ($curMonthGross > 0 && $prevMonthGross > 0): ?>
-                    <span>vs. ₱<?= number_format($prevMonthGross, 2) ?> in <?= date('M Y', strtotime('-1 month')) ?></span>
-                <?php else: ?>
-                    <span>No transactions logged for <?= date('M Y') ?></span>
-                <?php endif; ?>
-            </div>
+            <?php if ($isStaffRestricted): ?>
+                <div class="kpi-value" style="color: var(--muted); letter-spacing: 2px;">••••••</div>
+                <div class="kpi-sub"><span>Staff Privacy active</span></div>
+            <?php else: ?>
+                <div class="kpi-value">₱<?= number_format($curMonthGross, 2) ?></div>
+                <div class="kpi-sub">
+                    <?php if ($curMonthGross > 0 && $prevMonthGross > 0): ?>
+                        <span>vs. ₱<?= number_format($prevMonthGross, 2) ?> in <?= date('M Y', strtotime('-1 month')) ?></span>
+                    <?php else: ?>
+                        <span>No transactions logged for <?= date('M Y') ?></span>
+                    <?php endif; ?>
+                </div>
+            <?php endif; ?>
         </div>
 
         <!-- 2. MRR (Active Subscriptions) -->
         <div class="kpi-card">
             <div class="kpi-card-header">
                 <span class="kpi-title">Monthly Recurring (MRR)</span>
-                <?php if ($mrr > 0): ?>
+                <?php if ($isStaffRestricted): ?>
+                    <span class="pill-badge red">🔒 Restricted</span>
+                <?php elseif ($mrr > 0): ?>
                     <span class="pill-badge green">Contracted</span>
                 <?php else: ?>
                     <span class="pill-badge neutral">0 plans</span>
                 <?php endif; ?>
             </div>
-            <div class="kpi-value">₱<?= number_format($mrr, 2) ?></div>
-            <div class="kpi-sub">
-                <?php if ($mrr > 0): ?>
-                    <span>Contracted active plan subscription value</span>
-                <?php else: ?>
-                    <span>Activate plans to build recurring subscription revenue</span>
-                <?php endif; ?>
-            </div>
+            <?php if ($isStaffRestricted): ?>
+                <div class="kpi-value" style="color: var(--muted); letter-spacing: 2px;">••••••</div>
+                <div class="kpi-sub"><span>Staff Privacy active</span></div>
+            <?php else: ?>
+                <div class="kpi-value">₱<?= number_format($mrr, 2) ?></div>
+                <div class="kpi-sub">
+                    <?php if ($mrr > 0): ?>
+                        <span>Contracted active plan subscription value</span>
+                    <?php else: ?>
+                        <span>Activate plans to build recurring subscription revenue</span>
+                    <?php endif; ?>
+                </div>
+            <?php endif; ?>
         </div>
 
         <!-- 3. Walk-In Revenue Share -->
@@ -1908,7 +1986,11 @@ function reports_page(): void
                     <h2 style="margin:0 0 4px 0; font-size: 20px;">Multi-Stream Revenue Breakdown</h2>
                     <p style="margin:0; color:var(--muted); font-size:13.5px;">Stacked comparison of recurring membership subscriptions vs. one-time walk-in passes.</p>
                 </div>
-                <div style="display: flex; gap: 8px;">
+                <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+                    <button type="button" onclick="openEODModal()" class="export-btn" style="background: rgba(132, 204, 22, 0.12); color: var(--lime); border-color: rgba(132, 204, 22, 0.35); font-weight: 700; cursor: pointer;">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+                        Daily Settlement (Z-Reading)
+                    </button>
                     <a href="index.php?page=reports&type=revenue&timeframe=monthly&export=csv" id="btn-export-revenue-csv" class="export-btn">
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
                         Export CSV
@@ -3605,6 +3687,186 @@ function reports_page(): void
             }
         });
     }
+
+    window.openEODModal = function() {
+        Swal.fire({
+            title: 'Loading Daily Settlement...',
+            text: 'Fetching real-time End-of-Day numbers',
+            allowOutsideClick: false,
+            didOpen: () => {
+                Swal.showLoading();
+                const formData = new FormData();
+                formData.append('action', 'get_eod_data');
+                formData.append('csrf_token', '<?= csrf_token() ?>');
+                <?php if ($isPlatformAdmin && $selectedGymId !== 'all'): ?>
+                    formData.append('gym_id', '<?= (int)$selectedGymId ?>');
+                <?php endif; ?>
+
+                fetch('index.php?page=reports', {
+                    method: 'POST',
+                    headers: { 'X-Requested-With': 'XMLHttpRequest' },
+                    body: formData
+                })
+                .then(r => r.json())
+                .then(res => {
+                    if (!res.success) {
+                        throw new Error(res.error || 'Failed to load settlement data.');
+                    }
+                    const d = res.data;
+                    const g = res.gym || {};
+                    const gymName = g.name || 'FitTrack Gym';
+                    const headerNote = g.receipt_header_note ? `<div style="font-size:11.5px;color:var(--muted);margin-top:2px;">${g.receipt_header_note}</div>` : '';
+                    const footerPolicy = g.receipt_footer_policy ? `<div style="margin-top:14px;padding-top:10px;border-top:1px dashed var(--line);font-size:11px;color:var(--muted);">${g.receipt_footer_policy}</div>` : '';
+
+                    Swal.fire({
+                        width: 'min(94vw, 480px)',
+                        html: `
+                            <div style="text-align:left;font-family:'Inter',system-ui,sans-serif;margin-top:4px;">
+                                <div style="display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--line);padding-bottom:12px;margin-bottom:14px;">
+                                    <div>
+                                        <div style="font-size:16px;font-weight:800;color:var(--ink);">${gymName}</div>
+                                        ${headerNote}
+                                        <div style="font-size:12px;color:var(--muted);margin-top:2px;">Daily Settlement &bull; <strong>${d.date_formatted}</strong></div>
+                                    </div>
+                                    <span style="background:rgba(132,204,22,0.12);color:var(--lime);font-size:11px;font-weight:800;padding:3px 8px;border-radius:6px;border:1px solid rgba(132,204,22,0.3);">
+                                        Z-READING
+                                    </span>
+                                </div>
+
+                                <div style="background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:14px;text-align:center;margin-bottom:14px;">
+                                    <div style="font-size:11.5px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.05em;">Total Daily Gross Revenue</div>
+                                    <div style="font-size:28px;font-weight:900;color:var(--lime);margin:4px 0 2px;">₱${d.total_gross.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</div>
+                                    <div style="font-size:11.5px;color:var(--muted);">${d.total_transactions} total transactions logged today</div>
+                                </div>
+
+                                <table style="width:100%;border-collapse:collapse;font-size:13px;line-height:1.6;margin-bottom:14px;">
+                                    <tr style="border-bottom:1px solid var(--line);">
+                                        <td style="padding:7px 0;color:var(--muted);">Memberships / Plans:</td>
+                                        <td style="padding:7px 0;text-align:right;font-weight:700;color:var(--ink);">₱${d.subscriptions_revenue.toLocaleString(undefined, {minimumFractionDigits: 2})} <span style="font-size:11.5px;color:var(--muted);">(${d.subscriptions_count})</span></td>
+                                    </tr>
+                                    <tr style="border-bottom:1px solid var(--line);">
+                                        <td style="padding:7px 0;color:var(--muted);">Walk-In Passes:</td>
+                                        <td style="padding:7px 0;text-align:right;font-weight:700;color:var(--ink);">₱${d.walkins_revenue.toLocaleString(undefined, {minimumFractionDigits: 2})} <span style="font-size:11.5px;color:var(--muted);">(${d.walkins_count})</span></td>
+                                    </tr>
+                                    <tr style="border-bottom:1px solid var(--line);">
+                                        <td style="padding:7px 0;color:var(--muted);">Facility Check-Ins:</td>
+                                        <td style="padding:7px 0;text-align:right;font-weight:700;color:#38bdf8;">${d.checkins_count} check-ins</td>
+                                    </tr>
+                                    <tr style="border-bottom:1px solid var(--line);">
+                                        <td style="padding:7px 0;color:var(--muted);">Expiring Tomorrow:</td>
+                                        <td style="padding:7px 0;text-align:right;font-weight:700;color:#f59e0b;">${d.expiring_tomorrow} members</td>
+                                    </tr>
+                                    <tr>
+                                        <td style="padding:7px 0;color:var(--muted);">Active Enrolled Members:</td>
+                                        <td style="padding:7px 0;text-align:right;font-weight:700;color:var(--ink);">${d.active_members} members</td>
+                                    </tr>
+                                </table>
+
+                                ${footerPolicy}
+
+                                <div style="display:flex;gap:8px;margin-top:16px;">
+                                    <button type="button" onclick="printEODSlip('${gymName}', '${d.date_formatted}', '${d.total_gross}', '${d.subscriptions_revenue}', '${d.subscriptions_count}', '${d.walkins_revenue}', '${d.walkins_count}', '${d.checkins_count}', '${d.expiring_tomorrow}', '${d.active_members}')" class="btn btn-secondary" style="flex:1;padding:9px;font-size:12.5px;font-weight:700;border-radius:8px;display:inline-flex;align-items:center;justify-content:center;gap:6px;cursor:pointer;">
+                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 6 2 18 2 18 9"></polyline><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path><rect x="6" y="14" width="12" height="8"></rect></svg>
+                                        Print Slip
+                                    </button>
+                                    <button type="button" onclick="sendEODEmail()" class="btn btn-primary" style="flex:1;padding:9px;font-size:12.5px;font-weight:700;border-radius:8px;display:inline-flex;align-items:center;justify-content:center;gap:6px;cursor:pointer;">
+                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+                                        Email Owner
+                                    </button>
+                                </div>
+                            </div>
+                        `,
+                        showConfirmButton: false,
+                        showCloseButton: true
+                    });
+                })
+                .catch(err => {
+                    Swal.fire('Error', err.message || 'Could not load EOD data', 'error');
+                });
+            }
+        });
+    };
+
+    window.printEODSlip = function(gym, date, total, subRev, subCnt, walkRev, walkCnt, attCnt, expCnt, activeCnt) {
+        const printWindow = window.open('', '_blank', 'width=420,height=600');
+        if (!printWindow) {
+            alert('Please allow popups to print the settlement slip.');
+            return;
+        }
+        printWindow.document.write(`
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <title>Daily Settlement - \${gym}</title>
+                <style>
+                    body { font-family: 'Courier New', Courier, monospace; width: 300px; margin: 20px auto; font-size: 13px; color: #000; }
+                    .center { text-align: center; }
+                    .bold { font-weight: bold; }
+                    .line { border-top: 1px dashed #000; margin: 10px 0; }
+                    .row { display: flex; justify-content: space-between; margin: 4px 0; }
+                </style>
+            </head>
+            <body>
+                <div class="center bold" style="font-size:16px;">\${gym}</div>
+                <div class="center">DAILY SETTLEMENT (Z-READING)</div>
+                <div class="center">\${date}</div>
+                <div class="line"></div>
+                <div class="row"><span>Subscriptions (\${subCnt}):</span><span>PHP \${parseFloat(subRev).toFixed(2)}</span></div>
+                <div class="row"><span>Walk-Ins (\${walkCnt}):</span><span>PHP \${parseFloat(walkRev).toFixed(2)}</span></div>
+                <div class="line"></div>
+                <div class="row bold" style="font-size:15px;"><span>TOTAL GROSS:</span><span>PHP \${parseFloat(total).toFixed(2)}</span></div>
+                <div class="line"></div>
+                <div class="row"><span>Facility Check-Ins:</span><span>\${attCnt}</span></div>
+                <div class="row"><span>Expiring Tomorrow:</span><span>\${expCnt}</span></div>
+                <div class="row"><span>Active Members:</span><span>\${activeCnt}</span></div>
+                <div class="line"></div>
+                <div class="center" style="font-size:11px; margin-top: 15px;">Official Audit Record &bull; FitTrack</div>
+                <script>
+                    window.onload = function() { window.print(); }
+                <\/script>
+            </body>
+            </html>
+        `);
+        printWindow.document.close();
+    };
+
+    window.sendEODEmail = function() {
+        const formData = new FormData();
+        formData.append('action', 'send_eod_email');
+        formData.append('csrf_token', '<?= csrf_token() ?>');
+        <?php if ($isPlatformAdmin && $selectedGymId !== 'all'): ?>
+            formData.append('gym_id', '<?= (int)$selectedGymId ?>');
+        <?php endif; ?>
+
+        Swal.fire({
+            title: 'Sending EOD Email...',
+            didOpen: () => {
+                Swal.showLoading();
+                fetch('index.php?page=reports', {
+                    method: 'POST',
+                    headers: { 'X-Requested-With': 'XMLHttpRequest' },
+                    body: formData
+                })
+                .then(r => r.json())
+                .then(res => {
+                    if (res.success) {
+                        Swal.fire({
+                            icon: 'success',
+                            title: 'Settlement Dispatched!',
+                            text: res.message || 'Daily summary dispatched to owner email.',
+                            timer: 2500,
+                            showConfirmButton: false
+                        });
+                    } else {
+                        Swal.fire('Notice', res.message || 'Could not dispatch email.', 'info');
+                    }
+                })
+                .catch(err => {
+                    Swal.fire('Error', err.message || 'Failed to send EOD email.', 'error');
+                });
+            }
+        });
+    };
     </script>
     <?php
     render_footer();

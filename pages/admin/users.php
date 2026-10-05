@@ -101,8 +101,15 @@ function users_page(): void
             $firstName = mb_convert_case(trim((string) post('first_name')), MB_CASE_TITLE, 'UTF-8');
             $lastName  = mb_convert_case(trim((string) post('last_name')), MB_CASE_TITLE, 'UTF-8');
 
-            $stmt = db()->prepare('INSERT INTO users (role, first_name, last_name, email, password_hash, phone, status, email_verified_at) VALUES (?, ?, ?, ?, ?, ?, "active", NOW())');
-            $stmt->execute([$roleToCreate, $firstName, $lastName, $email, password_hash($plainPassword, PASSWORD_DEFAULT), $phone ?: null]);
+            $staffRole = null;
+            if ($roleToCreate === 'trainer') {
+                $allowedStaffRoles = ['trainer', 'front_desk', 'manager'];
+                $reqStaffRole = trim((string) post('staff_role'));
+                $staffRole = in_array($reqStaffRole, $allowedStaffRoles, true) ? $reqStaffRole : 'trainer';
+            }
+
+            $stmt = db()->prepare('INSERT INTO users (role, first_name, last_name, email, password_hash, phone, status, email_verified_at, staff_role) VALUES (?, ?, ?, ?, ?, ?, "active", NOW(), ?)');
+            $stmt->execute([$roleToCreate, $firstName, $lastName, $email, password_hash($plainPassword, PASSWORD_DEFAULT), $phone ?: null, $staffRole]);
             $newUserId = (int) db()->lastInsertId();
             if ($roleToCreate === 'trainer') {
                 $trainerGymId = $isAdmin ? null : $gymId;
@@ -195,10 +202,15 @@ function users_page(): void
             }
             
             if (post('role') === 'trainer') {
+                $allowedStaffRoles = ['trainer', 'front_desk', 'manager'];
+                $reqStaffRole = trim((string) post('staff_role'));
+                $staffRole = in_array($reqStaffRole, $allowedStaffRoles, true) ? $reqStaffRole : 'trainer';
+                db()->prepare('UPDATE users SET staff_role = ? WHERE user_id = ?')->execute([$staffRole, $editUserId]);
+
                 db()->prepare('INSERT INTO trainer_profiles (user_id, specialization, bio) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE specialization = VALUES(specialization), bio = VALUES(bio)')
                     ->execute([$editUserId, post('specialization'), post('bio')]);
             }
-            audit_log($user['user_id'], 'edit', 'user', (string) $editUserId, json_encode(['email' => post('email'), 'role' => post('role'), 'password_changed' => $newPassword !== '']));
+            audit_log($user['user_id'], 'edit', 'user', (string) $editUserId, json_encode(['email' => post('email'), 'role' => post('role'), 'staff_role' => post('staff_role'), 'password_changed' => $newPassword !== '']));
             flash('User updated successfully.');
         } elseif (post('action') === 'delete_user') {
             $targetUserId = (int) post('user_id');
@@ -331,6 +343,7 @@ function users_page(): void
                 'associated_gym'   => $associatedGym,
                 'owner_gym_status' => $row['owner_gym_status'] ?? null,
                 'specialization'   => $row['specialization'] ?? 'General Trainer',
+                'staff_role'       => $row['staff_role'] ?? 'trainer',
                 'engagement_score' => (int) ($row['engagement_score'] ?? 0),
                 'joined_formatted' => date('M j, Y', strtotime($row['created_at'])),
                 'can_delete'       => (int) $row['user_id'] !== (int) $user['user_id'],
@@ -894,7 +907,14 @@ function users_page(): void
                         <label>Specialization <small style="font-weight:400">(trainer only)</small>
                             <input name="specialization" id="new_user_spec" value="<?= h($oldUser['specialization'] ?? '') ?>" placeholder="e.g. Strength & Conditioning">
                         </label>
-                        <label>Bio <small style="font-weight:400">(trainer only)</small>
+                        <label>Staff Permission Level
+                            <select name="staff_role" id="new_user_staff_role" style="width: 100%; box-sizing: border-box; padding: 8px 10px; border-radius: 6px; background: var(--bg); border: 1px solid var(--line); color: var(--ink);">
+                                <option value="trainer" <?= selected('trainer', $oldUser['staff_role'] ?? 'trainer') ?>>Fitness Trainer (Floor Staff)</option>
+                                <option value="front_desk" <?= selected('front_desk', $oldUser['staff_role'] ?? '') ?>>Front Desk / Cashier (Financials Masked)</option>
+                                <option value="manager" <?= selected('manager', $oldUser['staff_role'] ?? '') ?>>Operations Manager (Full Staff Access)</option>
+                            </select>
+                        </label>
+                        <label style="grid-column: 1 / -1;">Bio <small style="font-weight:400">(trainer only)</small>
                             <input name="bio" value="<?= h($oldUser['bio'] ?? '') ?>" placeholder="Short bio">
                         </label>
                     </div>
@@ -1026,8 +1046,14 @@ function users_page(): void
                                 </div>
                             </div>
                         </td>
-                        <td style="color:var(--muted)"><?= h($row['email']) ?></td>
-                        <td><span class="<?= $roleClass ?>"><?= h($roleDisplayName) ?></span></td>
+                        <td>
+                            <span class="<?= $roleClass ?>"><?= h($roleDisplayName) ?></span>
+                            <?php if ($row['role'] === 'trainer' && !empty($row['staff_role']) && $row['staff_role'] !== 'trainer'): ?>
+                                <span class="badge" style="font-size:10px; margin-left:4px; background:rgba(59,130,246,0.15); color:#93c5fd; border:1px solid rgba(59,130,246,0.3);">
+                                    <?= $row['staff_role'] === 'front_desk' ? 'Front Desk' : 'Manager' ?>
+                                </span>
+                            <?php endif; ?>
+                        </td>
                         <?php if ($isAdmin): ?>
                         <?php
                             $associatedGym = null;
@@ -1133,6 +1159,11 @@ function users_page(): void
                         </div>
                         <div class="user-card-badges">
                             <span class="<?= $roleClass ?>"><?= h($roleDisplayName) ?></span>
+                            <?php if ($row['role'] === 'trainer' && !empty($row['staff_role']) && $row['staff_role'] !== 'trainer'): ?>
+                                <span class="badge" style="font-size:10px; background:rgba(59,130,246,0.15); color:#93c5fd; border:1px solid rgba(59,130,246,0.3);">
+                                    <?= $row['staff_role'] === 'front_desk' ? 'Front Desk' : 'Manager' ?>
+                                </span>
+                            <?php endif; ?>
                             <span class="<?= $statusClass ?>"><?= h($row['status']) ?></span>
                         </div>
                     </div>
@@ -1388,6 +1419,13 @@ function users_page(): void
                         <label style="display:block; color: var(--muted); font-size: 14px;">Specialization <small style="font-weight:400">(trainer only)</small>
                             <input name="specialization" id="eu_spec" class="form-control" placeholder="e.g. Strength & Conditioning" style="width: 100%; box-sizing: border-box;">
                         </label>
+                        <label style="display:block; color: var(--muted); font-size: 14px;">Staff Permission Level
+                            <select name="staff_role" id="eu_staff_role" class="form-control" style="width: 100%; box-sizing: border-box;">
+                                <option value="trainer">Fitness Trainer (Floor Staff)</option>
+                                <option value="front_desk">Front Desk / Cashier (Financials Masked)</option>
+                                <option value="manager">Operations Manager (Full Staff Access)</option>
+                            </select>
+                        </label>
                         <label style="display:block; color: var(--muted); font-size: 14px;">Bio <small style="font-weight:400">(trainer only)</small>
                             <input name="bio" id="eu_bio" class="form-control" placeholder="Short bio" style="width: 100%; box-sizing: border-box;">
                         </label>
@@ -1403,6 +1441,9 @@ function users_page(): void
                 document.getElementById('eu_phone').value = u.phone || '';
                 document.getElementById('eu_role').value = u.role;
                 document.getElementById('eu_spec').value = u.specialization || '';
+                if (document.getElementById('eu_staff_role')) {
+                    document.getElementById('eu_staff_role').value = u.staff_role || 'trainer';
+                }
                 document.getElementById('eu_bio').value = u.bio || '';
                 toggleEditTrainerFields(u.role);
             },
@@ -1553,6 +1594,9 @@ function users_page(): void
             ? `<strong style="color:var(--lime);">${u.engagement_score}</strong>`
             : `<span class="muted">—</span>`;
         const rawUserJson = escapeUserHtml(JSON.stringify(u.raw_user));
+        const staffBadge = (u.role === 'trainer' && u.staff_role && u.staff_role !== 'trainer')
+            ? `<span class="badge" style="font-size:10px; margin-left:4px; background:rgba(59,130,246,0.15); color:#93c5fd; border:1px solid rgba(59,130,246,0.3);">${u.staff_role === 'front_desk' ? 'Front Desk' : 'Manager'}</span>`
+            : '';
 
         return `
         <tr class="user-table-row" data-name="${escapeUserHtml(u.full_name.toLowerCase())}" data-email="${escapeUserHtml(u.email.toLowerCase())}" data-phone="${escapeUserHtml(u.phone)}" data-role="${escapeUserHtml(u.role)}" data-id="${u.user_id}">
@@ -1566,7 +1610,7 @@ function users_page(): void
                 </div>
             </td>
             <td style="color:var(--muted)">${escapeUserHtml(u.email)}</td>
-            <td><span class="${roleClass}">${roleDisplayName}</span></td>
+            <td><span class="${roleClass}">${roleDisplayName}</span>${staffBadge}</td>
             ${IS_ADMIN ? `<td class="user-gym-td">${associatedGymHtml}</td>` : ''}
             ${CURRENT_TAB === 'trainer' ? `<td>${specHtml}</td>` : ''}
             ${CURRENT_TAB === 'member' ? `<td>${scoreHtml}</td>` : ''}
@@ -1605,6 +1649,9 @@ function users_page(): void
         const statusClass = 'badge badge-' + u.status;
         const roleDisplayName = escapeUserHtml(u.role_display);
         const rawUserJson = escapeUserHtml(JSON.stringify(u.raw_user));
+        const mobileStaffBadge = (u.role === 'trainer' && u.staff_role && u.staff_role !== 'trainer')
+            ? `<span class="badge" style="font-size:10px; background:rgba(59,130,246,0.15); color:#93c5fd; border:1px solid rgba(59,130,246,0.3);">${u.staff_role === 'front_desk' ? 'Front Desk' : 'Manager'}</span>`
+            : '';
 
         let gymMarkHtml = '';
         if (u.is_gym_owner) {
@@ -1628,6 +1675,7 @@ function users_page(): void
                 </div>
                 <div class="user-card-badges">
                     <span class="${roleClass}">${roleDisplayName}</span>
+                    ${mobileStaffBadge}
                     <span class="${statusClass}">${escapeUserHtml(u.status)}</span>
                 </div>
             </div>
