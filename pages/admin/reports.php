@@ -1399,46 +1399,11 @@ function reports_page(): void
                 color: var(--muted);
                 margin-bottom: 8px;
             }
-            .report-tabs-select-custom {
-                position: relative;
-                width: 100%;
-            }
-            .report-tab-mobile-select {
-                width: 100%;
-                appearance: none;
-                -webkit-appearance: none;
-                background: var(--surface);
-                border: 1.5px solid rgba(132, 204, 22, 0.45);
-                border-radius: 12px;
-                padding: 12px 42px 12px 14px;
-                font-size: 14.5px;
+            #mobileReportTabDropdown .fit-dropdown-trigger {
+                height: 44px;
+                font-size: 14px;
                 font-weight: 600;
-                color: var(--ink);
-                box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25);
-                cursor: pointer;
-                outline: none;
-                transition: all 0.2s ease;
-            }
-            .report-tab-mobile-select:focus {
-                border-color: var(--lime);
-                box-shadow: 0 0 0 3px rgba(132, 204, 22, 0.25);
-            }
-            .report-tabs-select-chevron {
-                position: absolute;
-                right: 14px;
-                top: 50%;
-                transform: translateY(-50%);
-                pointer-events: none;
-                color: var(--lime);
-                display: flex;
-                align-items: center;
-                justify-content: center;
-            }
-            [data-theme="light"] .report-tab-mobile-select {
-                background: #ffffff !important;
-                color: #0f172a !important;
-                border-color: rgba(101, 163, 13, 0.5) !important;
-                box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06) !important;
+                border-radius: 10px;
             }
             .report-tab-btn {
                 padding: 8px 14px;
@@ -1926,24 +1891,13 @@ function reports_page(): void
         </button>
     </div>
 
-    <!-- Mobile Tab Dropdown Selector (Visible on Mobile Only) -->
+    <!-- Mobile Tab Dropdown Selector (Visible on Mobile Only, using FitDropdown) -->
     <div class="report-tabs-mobile-wrap no-print">
-        <label for="report-tab-mobile-select" class="report-tabs-mobile-label">
+        <label class="report-tabs-mobile-label">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="21" x2="4" y2="14"></line><line x1="4" y1="10" x2="4" y2="3"></line><line x1="12" y1="21" x2="12" y2="12"></line><line x1="12" y1="8" x2="12" y2="3"></line><line x1="20" y1="21" x2="20" y2="16"></line><line x1="20" y1="12" x2="20" y2="3"></line><line x1="1" y1="14" x2="7" y2="14"></line><line x1="9" y1="8" x2="15" y2="8"></line><line x1="17" y1="16" x2="23" y2="16"></line></svg>
             <span>Report Category</span>
         </label>
-        <div class="report-tabs-select-custom">
-            <select id="report-tab-mobile-select" class="report-tab-mobile-select" onchange="showTab(this.value)">
-                <option value="revenue-tab">📊 Revenue & Financials</option>
-                <option value="attendance-tab">👥 Attendance & Peak Rush</option>
-                <option value="walkin-tab">🚶 Walk-In Traffic</option>
-                <option value="trainers-tab">⭐ Trainers & Commissions <?= (!$isPlatformAdmin && !gym_has_feature('trainer_commissions')) ? '(🔒 Pro)' : '' ?></option>
-                <option value="engagement-tab">💓 Member Engagement <?= (!$isPlatformAdmin && !gym_has_feature('engagement_tracking')) ? '(🔒 Pro)' : '' ?></option>
-            </select>
-            <div class="report-tabs-select-chevron">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
-            </div>
-        </div>
+        <div id="mobileReportTabDropdown"></div>
     </div>
 
     <!-- ==================== TAB 1: REVENUE & FINANCIALS ==================== -->
@@ -2708,9 +2662,8 @@ function reports_page(): void
                           document.querySelector(`.report-tab-btn[onclick*="${tabId}"]`);
         if (activeBtn) activeBtn.classList.add('active');
 
-        const mobSelect = document.getElementById('report-tab-mobile-select');
-        if (mobSelect && mobSelect.value !== tabId) {
-            mobSelect.value = tabId;
+        if (window.reportTabDropdown && window.reportTabDropdown.selectedItem && String(window.reportTabDropdown.selectedItem.id) !== String(tabId)) {
+            window.reportTabDropdown.select(tabId, false);
         }
 
         if (updateHistory) {
@@ -2847,6 +2800,33 @@ function reports_page(): void
         // Initial tab check from URL hash or storage
         let initialTab = window.location.hash ? window.location.hash.substring(1) : (sessionStorage.getItem('fittrack_reports_tab') || 'revenue-tab');
         if (!document.getElementById(initialTab)) initialTab = 'revenue-tab';
+
+        // Global FitDropdown for Mobile Report Navigation (clean text, no icons)
+        const reportTabItems = [
+            { id: 'revenue-tab', label: 'Revenue & Financials' },
+            { id: 'attendance-tab', label: 'Attendance & Peak Rush' },
+            { id: 'walkin-tab', label: 'Walk-In Traffic' },
+            { id: 'trainers-tab', label: 'Trainers & Commissions<?= (!$isPlatformAdmin && !gym_has_feature('trainer_commissions')) ? ' (🔒 Pro)' : '' ?>' },
+            { id: 'engagement-tab', label: 'Member Engagement<?= (!$isPlatformAdmin && !gym_has_feature('engagement_tracking')) ? ' (🔒 Pro)' : '' ?>' }
+        ];
+
+        if (typeof FitDropdown !== 'undefined' && document.getElementById('mobileReportTabDropdown')) {
+            window.reportTabDropdown = new FitDropdown({
+                container: '#mobileReportTabDropdown',
+                name: 'report_tab',
+                id: 'report_tab_select',
+                value: initialTab,
+                searchable: false,
+                zIndex: 60,
+                items: reportTabItems,
+                onChange: function(val) {
+                    if (val) {
+                        window.showTab(val);
+                    }
+                }
+            });
+        }
+
         window.showTab(initialTab, false);
 
         window.addEventListener('hashchange', function() {
