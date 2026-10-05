@@ -183,7 +183,7 @@ function gym_profile_page(): void
         }
 
         #gym-profile-form {
-            padding-bottom: 75px;
+            padding-bottom: 120px;
             width: 100%;
             box-sizing: border-box;
         }
@@ -836,31 +836,9 @@ function gym_profile_page(): void
             background-color: #ffffff;
         }
 
-        /* Branding Section Scroll Area */
+        /* Branding Section List - Clean Natural Flow */
         .branding-scroll-list {
-            max-height: 460px;
-            overflow-y: auto;
-            padding-right: 6px;
-            overscroll-behavior: contain;
-            scrollbar-width: thin;
-            scrollbar-color: var(--line, #334155) transparent;
-        }
-
-        .branding-scroll-list::-webkit-scrollbar {
-            width: 6px;
-        }
-
-        .branding-scroll-list::-webkit-scrollbar-track {
-            background: transparent;
-        }
-
-        .branding-scroll-list::-webkit-scrollbar-thumb {
-            background: var(--line, #334155);
-            border-radius: 4px;
-        }
-
-        .branding-scroll-list::-webkit-scrollbar-thumb:hover {
-            background: var(--muted, #64748b);
+            padding-bottom: 8px;
         }
 
         .branding-custom-input {
@@ -893,6 +871,20 @@ function gym_profile_page(): void
         .branding-custom-textarea:focus {
             outline: none;
             border-color: var(--lime, #84cc16);
+        }
+
+        #hex-label {
+            background: var(--panel-soft) !important;
+            color: var(--ink) !important;
+            border: 1px solid var(--line) !important;
+            border-radius: 6px;
+            padding: 2px 7px;
+            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+            font-size: 11px;
+            font-weight: 700;
+            letter-spacing: 0.5px;
+            display: inline-block;
+            vertical-align: middle;
         }
 
         /* Single Sticky Save Bar - Compact */
@@ -1799,7 +1791,7 @@ function gym_profile_page(): void
                                             <?php if (!$canCustomBrand): ?>
                                                 <span style="color: var(--muted);">Unlocked on Business Tier — personalize theme highlights</span>
                                             <?php else: ?>
-                                                <span style="color: var(--teal, #10b981); font-weight: 600;">Theme: <code id="hex-label" style="font-family: monospace; font-size: 11px;"><?= h($gym['brand_color'] ?? '#84cc16') ?></code></span>
+                                                <span style="color: var(--teal, #10b981); font-weight: 600;">Theme: <code id="hex-label"><?= h($gym['brand_color'] ?? '#84cc16') ?></code></span>
                                             <?php endif; ?>
                                         </div>
                                     </div>
