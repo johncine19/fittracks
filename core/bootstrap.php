@@ -112,9 +112,13 @@ require __DIR__ . '/email_verification.php';
 require __DIR__ . '/engagement_engine.php';
 require __DIR__ . '/food_ingredients.php';
 require __DIR__ . '/notifications.php';
+require __DIR__ . '/subscription_service.php';
+require __DIR__ . '/nutrition_service.php';
+require __DIR__ . '/review_service.php';
 require __DIR__ . '/../views/layout.php';
 require __DIR__ . '/auth.php';
 require __DIR__ . '/../views/components.php';
+require __DIR__ . '/../views/components/floating_rating_modal.php';
 
 // --- Shared (used by multiple roles) ---
 require __DIR__ . '/../pages/shared/exercise.php';

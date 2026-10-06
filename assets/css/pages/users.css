@@ -1,0 +1,389 @@
+/* User Role Badges */
+    .badge-platform_admin { background: rgba(199, 255, 34, 0.12); color: #c7ff22; border: 1px solid rgba(199, 255, 34, 0.25); }
+    .badge-gym_owner      { background: rgba(168, 85, 247, 0.12); color: #c084fc; border: 1px solid rgba(168, 85, 247, 0.25); }
+    .badge-trainer        { background: rgba(59, 130, 246, 0.12); color: #60a5fa; border: 1px solid rgba(59, 130, 246, 0.25); }
+    .badge-member         { background: rgba(20, 184, 166, 0.12); color: #2dd4bf; border: 1px solid rgba(20, 184, 166, 0.25); }
+
+    /* Gym Verification Mark */
+    .gym-verify-mark {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        vertical-align: middle;
+        user-select: none;
+        cursor: default;
+        flex-shrink: 0;
+    }
+    .gym-verify-mark.is-verified {
+        color: #22c55e;
+        margin-left: 4px;
+    }
+    .gym-verify-mark.is-unverified {
+        color: #ef4444;
+        font-weight: 800;
+        font-size: 16px;
+        line-height: 1;
+        margin-left: 3px;
+    }
+    html[data-theme="light"] .gym-verify-mark.is-verified,
+    [data-theme="light"] .gym-verify-mark.is-verified {
+        color: #16a34a;
+    }
+    html[data-theme="light"] .gym-verify-mark.is-unverified,
+    [data-theme="light"] .gym-verify-mark.is-unverified {
+        color: #dc2626;
+    }
+
+    /* Gym / Branch Column No-Wrap & Truncation */
+    .users-desktop-table table td {
+        vertical-align: middle;
+    }
+    .user-gym-td {
+        white-space: nowrap;
+    }
+    .user-gym-cell {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        white-space: nowrap;
+        max-width: 240px;
+    }
+    .user-gym-name {
+        font-weight: 500;
+        color: var(--ink);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        max-width: 180px;
+        display: inline-block;
+        vertical-align: middle;
+    }
+
+    html[data-theme="light"] .badge-platform_admin,
+    [data-theme="light"] .badge-platform_admin { background: rgba(132, 204, 22, 0.15); color: #4d7c0f; border-color: rgba(132, 204, 22, 0.35); }
+    html[data-theme="light"] .badge-gym_owner,
+    [data-theme="light"] .badge-gym_owner { background: rgba(168, 85, 247, 0.12); color: #7e22ce; border-color: rgba(168, 85, 247, 0.3); }
+    html[data-theme="light"] .badge-trainer,
+    [data-theme="light"] .badge-trainer { background: rgba(59, 130, 246, 0.12); color: #1d4ed8; border-color: rgba(59, 130, 246, 0.3); }
+    html[data-theme="light"] .badge-member,
+    [data-theme="light"] .badge-member { background: rgba(20, 184, 166, 0.12); color: #0f766e; border-color: rgba(20, 184, 166, 0.3); }
+
+    /* Desktop vs Mobile Toggle */
+    .users-desktop-table {
+        display: block;
+    }
+    .users-mobile-cards {
+        display: none;
+    }
+
+    @media (max-width: 768px) {
+        .users-desktop-table {
+            display: none !important;
+        }
+        .users-mobile-cards {
+            display: flex !important;
+            flex-direction: column;
+            gap: 12px;
+        }
+    }
+
+    /* Mobile User Card Styles */
+    .user-card-item {
+        background: color-mix(in srgb, var(--panel-soft) 45%, transparent);
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        padding: 14px 16px;
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+        transition: all 0.2s ease;
+    }
+    html[data-theme="light"] .user-card-item,
+    [data-theme="light"] .user-card-item {
+        background: #ffffff;
+        border-color: #e2e8f0;
+        box-shadow: 0 1px 4px rgba(0, 0, 0, 0.05);
+    }
+    .user-card-item:hover {
+        border-color: color-mix(in srgb, var(--lime) 30%, transparent);
+    }
+
+    .user-card-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        gap: 10px;
+        padding-bottom: 10px;
+        border-bottom: 1px solid color-mix(in srgb, var(--line) 60%, transparent);
+    }
+    .user-card-identity {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        min-width: 0;
+    }
+    .user-card-names {
+        min-width: 0;
+        overflow: hidden;
+    }
+    .user-card-fullname {
+        font-weight: 700;
+        font-size: 15px;
+        color: var(--ink);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+    .user-card-id {
+        font-size: 12px;
+        color: var(--muted);
+        font-family: ui-monospace, monospace;
+    }
+    .user-card-badges {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-end;
+        gap: 4px;
+        flex-shrink: 0;
+    }
+
+    .user-card-details {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 8px;
+        font-size: 13px;
+    }
+    .user-card-detail-item {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 8px;
+        min-width: 0;
+    }
+    .user-card-detail-label {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        color: var(--muted);
+        font-size: 12px;
+        flex-shrink: 0;
+    }
+    .user-card-detail-label svg {
+        opacity: 0.75;
+    }
+    .user-card-detail-value {
+        color: var(--ink);
+        font-weight: 500;
+        text-align: right;
+        word-break: break-all;
+        max-width: 65%;
+    }
+    .user-card-detail-value.email-value {
+        color: var(--muted);
+        font-size: 12.5px;
+    }
+
+    .user-card-actions {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        padding-top: 12px;
+        border-top: 1px solid color-mix(in srgb, var(--line) 60%, transparent);
+    }
+    .user-card-status-form {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin: 0;
+        width: 100%;
+    }
+    .user-card-status-label {
+        font-size: 12px;
+        color: var(--muted);
+        font-weight: 600;
+        white-space: nowrap;
+        flex-shrink: 0;
+    }
+    .user-card-status-form select {
+        flex: 1;
+        min-width: 0;
+        padding: 6px 10px;
+        font-size: 12.5px;
+        border-radius: 6px;
+        background: var(--bg);
+        border: 1px solid var(--line);
+        color: var(--ink);
+    }
+    .user-card-status-form button {
+        padding: 6px 14px;
+        font-size: 12px;
+        font-weight: 600;
+        border-radius: 6px;
+        flex-shrink: 0;
+    }
+    .user-card-btn-group {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        width: 100%;
+    }
+    .user-card-btn-group .btn-sm,
+    .user-card-btn-group a.btn-sm,
+    .user-card-btn-group form {
+        flex: 1;
+        min-width: 0;
+        margin: 0;
+    }
+    .user-card-btn-group .btn-sm,
+    .user-card-btn-group a.btn-sm {
+        display: inline-flex;
+        justify-content: center;
+        align-items: center;
+        gap: 5px;
+        padding: 7px 10px;
+        font-size: 12px;
+        font-weight: 600;
+        border-radius: 6px;
+        text-align: center;
+        white-space: nowrap;
+        text-decoration: none;
+        box-sizing: border-box;
+    }
+    .user-card-btn-group form {
+        display: flex;
+    }
+    .user-card-btn-group form button {
+        width: 100%;
+        padding: 7px 10px;
+        font-size: 12px;
+        font-weight: 600;
+        border-radius: 6px;
+        white-space: nowrap;
+        box-sizing: border-box;
+    }
+
+    /* ── Create User Modal: Compact 2-by-2 Layout & Mobile Tuning ── */
+    #createUserModal.modal {
+        max-width: 520px;
+        overflow: visible !important;
+    }
+    #createUserModal .modal-body {
+        overflow: visible !important;
+    }
+    #createUserModal .grid-form {
+        display: grid !important;
+        grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+        align-items: start !important;
+        gap: 12px 14px;
+    }
+    #createUserModal #trainer_fields {
+        grid-column: 1 / -1;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 12px 14px;
+    }
+
+    #createUserModal .fit-dropdown-wrap {
+        width: 100%;
+        position: relative;
+    }
+    #createUserModal .fit-dropdown-trigger {
+        height: 38px;
+        border-radius: 7px;
+        padding: 8px 10px;
+    }
+    #createUserModal .fit-dropdown-menu {
+        z-index: 999999 !important;
+    }
+
+    @media (max-width: 640px) {
+        #createUserModal.modal {
+            width: 95% !important;
+            max-width: 400px !important;
+            border-radius: 10px !important;
+            margin: auto !important;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.45) !important;
+        }
+        #createUserModal .modal-header {
+            padding: 10px 14px !important;
+        }
+        #createUserModal .modal-header h3 {
+            font-size: 15px !important;
+            font-weight: 700 !important;
+        }
+        #createUserModal .modal-close {
+            padding: 3px !important;
+        }
+        #createUserModal .modal-close svg {
+            width: 16px !important;
+            height: 16px !important;
+        }
+        #createUserModal .modal-body {
+            padding: 10px 12px 14px !important;
+        }
+        #createUserModal .grid-form {
+            grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+            gap: 7px 10px !important;
+        }
+        #createUserModal #trainer_fields {
+            gap: 7px 10px !important;
+        }
+        #createUserModal label {
+            font-size: 11px !important;
+            font-weight: 600 !important;
+            gap: 3px !important;
+            color: var(--muted) !important;
+            margin: 0 !important;
+        }
+        #createUserModal input,
+        #createUserModal select {
+            height: 33px !important;
+            padding: 5px 8px !important;
+            font-size: 12px !important;
+            border-radius: 6px !important;
+            border-width: 1px !important;
+            box-sizing: border-box !important;
+        }
+        #createUserModal .pwd-toggle-wrap input {
+            padding-right: 30px !important;
+        }
+        #createUserModal .pwd-toggle-btn {
+            right: 6px !important;
+            padding: 2px !important;
+        }
+        #createUserModal .pwd-toggle-btn svg {
+            width: 14px !important;
+            height: 14px !important;
+        }
+        #createUserModal #new_user_pass_hint {
+            font-size: 10px !important;
+            margin-top: 2px !important;
+            line-height: 1.15 !important;
+        }
+        #createUserModal #createUserSubmitBtn {
+            grid-column: 1 / -1 !important;
+            margin-top: 5px !important;
+            padding: 6px 12px !important;
+            font-size: 12.5px !important;
+            height: 35px !important;
+            font-weight: 700 !important;
+            border-radius: 6px !important;
+        }
+        #createUserModal .fit-dropdown-trigger {
+            height: 33px !important;
+            padding: 4px 8px !important;
+            font-size: 12px !important;
+            border-radius: 6px !important;
+        }
+        #createUserModal .fit-dropdown-trigger-content span {
+            font-size: 12px !important;
+        }
+        #createUserModal .fit-dropdown-chevron {
+            width: 13px !important;
+            height: 13px !important;
+        }
+        #createUserModal .fit-dropdown-item {
+            padding: 6px 8px !important;
+            font-size: 12px !important;
+        }
+    }

@@ -1,0 +1,251 @@
+/* Responsive Header Action Buttons */
+    .assignments-header-actions {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+        flex-wrap: wrap;
+    }
+
+    @media (max-width: 768px) {
+        .assignments-header-actions {
+            width: 100%;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+        }
+        .assignments-header-actions .btn-primary-action {
+            grid-column: 1 / -1;
+            width: 100%;
+            justify-content: center;
+            height: 38px;
+        }
+        .assignments-header-actions .btn-sub-action {
+            width: 100%;
+            justify-content: center;
+            height: 38px;
+        }
+    }
+
+    /* Desktop vs Mobile Toggle */
+    .assignments-desktop-table {
+        display: block;
+    }
+    .assignments-mobile-cards {
+        display: none;
+    }
+
+    @media (max-width: 768px) {
+        .assignments-desktop-table {
+            display: none !important;
+        }
+        .assignments-mobile-cards {
+            display: flex !important;
+            flex-direction: column;
+            gap: 12px;
+        }
+    }
+
+    /* Mobile Assignment Card Styles */
+    .assignment-card-item {
+        background: color-mix(in srgb, var(--panel-soft) 45%, transparent);
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        padding: 14px 16px;
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+        transition: all 0.2s ease;
+    }
+    html[data-theme="light"] .assignment-card-item,
+    [data-theme="light"] .assignment-card-item {
+        background: #ffffff;
+        border-color: #e2e8f0;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+    }
+    .assignment-card-pairing {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        padding-bottom: 10px;
+        border-bottom: 1px solid var(--line);
+    }
+    .assignment-person {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        min-width: 0;
+        flex: 1;
+    }
+    .assignment-person-info {
+        min-width: 0;
+        display: flex;
+        flex-direction: column;
+    }
+    .assignment-person-role {
+        font-size: 10.5px;
+        text-transform: uppercase;
+        font-weight: 700;
+        letter-spacing: 0.5px;
+        color: var(--muted);
+    }
+    .assignment-person-name {
+        font-size: 13px;
+        font-weight: 600;
+        color: var(--ink);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+    .assignment-card-connector {
+        color: var(--muted);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+    }
+    .assignment-card-meta {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        font-size: 12px;
+        color: var(--muted);
+        flex-wrap: wrap;
+        gap: 6px;
+    }
+    .assignment-card-actions {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+        padding-top: 4px;
+    }
+    .assignment-card-actions .btn-sm,
+    .assignment-card-actions a.btn-sm,
+    .assignment-card-actions form {
+        flex: 1;
+    }
+    .assignment-card-actions form button {
+        width: 100%;
+        justify-content: center;
+    }
+
+    /* Assignment Pagination Bar */
+    .assign-pagination-bar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        flex-wrap: wrap;
+        gap: 14px;
+        margin-top: 18px;
+        padding-top: 14px;
+        border-top: 1px solid var(--line);
+    }
+    .assign-pagination-info {
+        font-size: 13px;
+        color: var(--muted);
+    }
+    .assign-pagination-info strong {
+        color: var(--ink);
+        font-weight: 600;
+    }
+    .assign-pagination-controls {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        user-select: none;
+        flex-wrap: wrap;
+    }
+    .assign-page-btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-width: 34px;
+        height: 34px;
+        padding: 0 10px;
+        border-radius: 6px;
+        font-size: 13px;
+        font-weight: 500;
+        text-decoration: none;
+        color: var(--ink);
+        border: 1px solid var(--line);
+        background: var(--panel-soft, rgba(255, 255, 255, 0.05));
+        cursor: pointer;
+        transition: all 0.15s ease;
+    }
+    .assign-page-btn:hover:not(.disabled):not(.active) {
+        background: var(--panel);
+        border-color: var(--lime);
+        color: var(--lime);
+    }
+    .assign-page-btn.active {
+        background: var(--lime);
+        color: #000;
+        border-color: var(--lime);
+        font-weight: 700;
+        cursor: default;
+    }
+    .assign-page-btn.disabled {
+        opacity: 0.35;
+        cursor: not-allowed;
+        pointer-events: none;
+    }
+    .assign-page-ellipsis {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-width: 24px;
+        height: 34px;
+        color: var(--muted);
+        font-size: 14px;
+    }
+
+/* Group Members Modal Styles (from showGroupMembersModal) */
+.gmm-member-item {
+    padding: 10px 12px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    border-radius: 8px;
+    border-bottom: 1px solid var(--line);
+    gap: 12px;
+    transition: background 0.15s;
+}
+.gmm-member-item:last-child {
+    border-bottom: none;
+}
+.gmm-member-item:hover {
+    background: var(--panel-soft);
+}
+.gmm-member-info {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-width: 0;
+    flex: 1;
+}
+.gmm-member-controls {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-shrink: 0;
+}
+@media (max-width: 480px) {
+    .gmm-sub-text {
+        display: none !important;
+    }
+    .gmm-member-item {
+        flex-direction: column !important;
+        align-items: stretch !important;
+        gap: 8px !important;
+        padding: 10px 8px !important;
+    }
+    .gmm-member-info {
+        width: 100% !important;
+    }
+    .gmm-member-controls {
+        width: 100% !important;
+        justify-content: space-between !important;
+        padding-top: 6px !important;
+        border-top: 1px dashed color-mix(in srgb, var(--line) 70%, transparent) !important;
+    }
+}
