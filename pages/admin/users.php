@@ -634,6 +634,7 @@ function users_page(): void
                                 </div>
                             </div>
                         </td>
+                        <td style="color:var(--muted);"><?= h($row['email']) ?></td>
                         <td>
                             <span class="<?= $roleClass ?>"><?= h($roleDisplayName) ?></span>
                             <?php if ($row['role'] === 'trainer' && !empty($row['staff_role']) && $row['staff_role'] !== 'trainer'): ?>

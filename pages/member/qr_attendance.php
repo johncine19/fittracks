@@ -261,31 +261,6 @@ function qr_attendance_page(): void
     $attendanceHistory = $historyStmt->fetchAll(PDO::FETCH_ASSOC);
     $totalVisits = (int) scalar('SELECT COUNT(*) FROM attendance WHERE user_id = ?', [(int)$user['user_id']]);
 
-    // Fetch home gym & branding details for the member's digital pass
-    $memberGymId = (int)($activeAttendance['gym_id'] ?? 0);
-    if (!$memberGymId) {
-        $memberGymId = (int)($user['gym_id'] ?? 0);
-    }
-    if (!$memberGymId) {
-        $memberGymId = (int) scalar('SELECT gym_id FROM gym_members WHERE user_id = ? LIMIT 1', [(int)$user['user_id']]);
-    }
-    if (!$memberGymId && ($user['role'] ?? '') === 'trainer') {
-        $memberGymId = (int) scalar('SELECT gym_id FROM trainer_profiles WHERE user_id = ? LIMIT 1', [(int)$user['user_id']]);
-    }
-    $memberGym = null;
-    $passSlogan = 'Official Member';
-    $passBrandColor = null;
-    if ($memberGymId > 0) {
-        $gStmt = db()->prepare('SELECT gym_id, name, logo_path, brand_color, subscription_plan FROM gyms WHERE gym_id = ? LIMIT 1');
-        $gStmt->execute([$memberGymId]);
-        $memberGym = $gStmt->fetch(PDO::FETCH_ASSOC);
-        if ($memberGym) {
-            if (!empty($memberGym['brand_color']) && gym_has_feature('brand_accent_color', $memberGym)) {
-                $passBrandColor = $memberGym['brand_color'];
-            }
-        }
-    }
-
     render_header('My QR Code', $user);
     ?>
     <style>
@@ -408,35 +383,6 @@ function qr_attendance_page(): void
     <?php endif; ?>
 
     <section class="panel skeleton-content sk-display-block" style="text-align: center;">
-        <?php if ($memberGym): ?>
-            <!-- BRANDED DIGITAL MEMBER PASS (Business Tier / Custom Branding) -->
-            <div style="max-width:390px; margin:0 auto 18px; background:linear-gradient(135deg, <?= $passBrandColor ? htmlspecialchars($passBrandColor, ENT_QUOTES, 'UTF-8') . '18' : 'rgba(217, 249, 157, 0.12)' ?>, var(--panel-soft)); border:1.5px solid <?= $passBrandColor ? htmlspecialchars($passBrandColor, ENT_QUOTES, 'UTF-8') . '55' : 'color-mix(in srgb, var(--lime) 35%, var(--line))' ?>; border-radius:14px; padding:14px 16px; text-align:left; box-shadow:0 4px 18px rgba(0,0,0,0.06); position:relative; overflow:hidden;">
-                <div style="position:absolute; top:0; left:0; right:0; height:3px; background:<?= $passBrandColor ? htmlspecialchars($passBrandColor, ENT_QUOTES, 'UTF-8') : 'var(--lime)' ?>;"></div>
-                <div style="display:flex; justify-content:space-between; align-items:center; gap:10px; margin-bottom:10px;">
-                    <div style="display:flex; align-items:center; gap:10px; min-width:0;">
-                        <?php if (!empty($memberGym['logo_path']) && file_exists(dirname(__DIR__, 2) . '/' . ltrim($memberGym['logo_path'], '/'))): ?>
-                            <img src="<?= h($memberGym['logo_path']) ?>" alt="<?= h($memberGym['name']) ?>" style="width:38px; height:38px; border-radius:8px; object-fit:cover; border:1px solid var(--line); flex-shrink:0;">
-                        <?php else: ?>
-                            <div style="width:38px; height:38px; border-radius:8px; background:<?= $passBrandColor ? htmlspecialchars($passBrandColor, ENT_QUOTES, 'UTF-8') : 'var(--lime)' ?>; color:#000; font-weight:900; font-size:16px; display:flex; align-items:center; justify-content:center; flex-shrink:0;">
-                                <?= strtoupper(substr($memberGym['name'] ?: 'F', 0, 1)) ?>
-                            </div>
-                        <?php endif; ?>
-                        <div style="min-width:0;">
-                            <div style="font-size:11px; font-weight:700; color:var(--muted); text-transform:uppercase; letter-spacing:0.04em; line-height:1.2;"><?= h($memberGym['name']) ?></div>
-                            <div style="font-size:15px; font-weight:800; color:var(--ink); line-height:1.2; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;"><?= h($user['first_name'] . ' ' . $user['last_name']) ?></div>
-                        </div>
-                    </div>
-                    <span style="font-size:10px; font-weight:800; text-transform:uppercase; letter-spacing:0.05em; padding:3px 9px; border-radius:20px; background:<?= $passBrandColor ? htmlspecialchars($passBrandColor, ENT_QUOTES, 'UTF-8') : 'var(--lime)' ?>; color:<?= $passBrandColor ? '#fff' : '#000' ?>; white-space:nowrap; flex-shrink:0; box-shadow:0 2px 6px rgba(0,0,0,0.12);">
-                        <?= h($passSlogan) ?>
-                    </span>
-                </div>
-                <div style="display:flex; justify-content:space-between; align-items:center; padding-top:8px; border-top:1px dashed var(--line); font-size:11px; color:var(--muted);">
-                    <span>Pass ID: <strong style="color:var(--ink); font-family:monospace;"><?= sprintf('#FT-%05d', $user['user_id']) ?></strong></span>
-                    <span>Role: <strong style="color:var(--ink); text-transform:capitalize;"><?= h($user['role']) ?></strong></span>
-                </div>
-            </div>
-        <?php endif; ?>
-
         <div class="page-header" style="justify-content: center;">
             <div>
                 <h1><?= $activeAttendance ? 'Check-Out QR Code' : 'Dynamic QR Code' ?></h1>
