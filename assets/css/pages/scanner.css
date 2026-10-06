@@ -6,6 +6,8 @@
         max-width: 1400px;
         margin: 0 auto;
         padding-bottom: 40px;
+        width: 100%;
+        box-sizing: border-box;
     }
 
     /* Terminal Header Bar */
@@ -21,6 +23,11 @@
         border-radius: 16px;
         margin-bottom: 24px;
         backdrop-filter: blur(12px);
+        box-sizing: border-box;
+    }
+    .terminal-title-group {
+        min-width: 0;
+        max-width: 100%;
     }
     .terminal-title-group h1 {
         font-size: 1.5rem;
@@ -30,6 +37,7 @@
         display: flex;
         align-items: center;
         gap: 10px;
+        flex-wrap: wrap;
     }
     .terminal-title-group p {
         margin: 0;
@@ -84,6 +92,7 @@
         display: flex;
         align-items: center;
         gap: 10px;
+        flex-wrap: wrap;
     }
     .term-btn-icon {
         display: inline-flex;
@@ -238,6 +247,195 @@
     @media (max-width: 1024px) {
         .terminal-grid {
             grid-template-columns: 1fr;
+            gap: 16px;
+        }
+    }
+
+    @media (max-width: 768px) {
+        .scanner-page-wrap {
+            padding-bottom: 24px;
+        }
+        .terminal-top-bar {
+            padding: 14px 14px;
+            gap: 12px;
+            margin-bottom: 16px;
+            border-radius: 14px;
+        }
+        .terminal-title-group h1 {
+            font-size: 1.25rem;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+        .terminal-hud-pill {
+            font-size: 0.7rem;
+            padding: 3px 8px;
+        }
+        .terminal-title-group p {
+            font-size: 0.78rem;
+        }
+        .terminal-digital-time {
+            font-size: 1.1rem;
+        }
+        .terminal-digital-date {
+            font-size: 0.75rem;
+        }
+        .terminal-header-actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            width: 100%;
+        }
+        .terminal-offline-hud {
+            flex: 1 1 auto;
+            min-width: 0;
+            justify-content: space-between;
+            padding: 2px 5px;
+        }
+        .net-status-badge {
+            padding: 4px 8px;
+            font-size: 0.7rem;
+        }
+        .term-btn-icon {
+            height: 35px;
+            padding: 0 10px;
+            font-size: 0.78rem;
+            flex: 1 1 auto;
+            min-width: 0;
+            white-space: nowrap;
+        }
+        #term-kiosk-btn {
+            display: none !important;
+        }
+        .scanner-terminal-card {
+            padding: 14px 12px;
+            border-radius: 16px;
+        }
+        .scanner-toolbar {
+            gap: 8px;
+            margin-bottom: 12px;
+        }
+        .scanner-camera-select-wrap {
+            min-width: 0;
+            width: 100%;
+            flex: 1 1 100%;
+        }
+        .scanner-toolbar-tools {
+            width: 100%;
+            justify-content: flex-end;
+            gap: 6px;
+        }
+        .viewfinder-wrapper {
+            border-radius: 16px;
+            max-width: 100%;
+        }
+        .scanner-bottom-actions {
+            margin-top: 14px;
+            gap: 10px;
+            flex-direction: column;
+            align-items: stretch;
+        }
+        .scanner-guide-text {
+            font-size: 0.78rem;
+        }
+        .terminal-stats-row {
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+        }
+        .term-stat-box {
+            padding: 10px 8px;
+            gap: 8px;
+            border-radius: 12px;
+            min-width: 0;
+        }
+        .term-stat-icon {
+            width: 34px;
+            height: 34px;
+            font-size: 0.95rem;
+            border-radius: 10px;
+        }
+        .term-stat-num {
+            font-size: 1.25rem;
+        }
+        .term-stat-label {
+            font-size: 0.65rem;
+            line-height: 1.2;
+        }
+        .verification-card {
+            padding: 16px 14px;
+            border-radius: 16px;
+            min-height: auto;
+        }
+        .veri-member-row {
+            gap: 10px;
+            min-width: 0;
+        }
+        .veri-member-meta {
+            min-width: 0;
+            overflow: hidden;
+        }
+        .veri-member-name {
+            font-size: 1.05rem;
+        }
+        .veri-badges-row {
+            flex-wrap: wrap;
+            gap: 4px;
+        }
+        .activity-feed-card {
+            padding: 16px 14px;
+            border-radius: 16px;
+        }
+        .activity-item {
+            padding: 8px 10px;
+            gap: 8px;
+        }
+        .manual-modal-card {
+            max-width: 95vw;
+            border-radius: 16px;
+        }
+        .manual-modal-header {
+            padding: 14px 16px;
+        }
+        .manual-search-box {
+            padding: 12px 16px;
+        }
+    }
+
+    @media (max-width: 480px) {
+        .terminal-top-bar {
+            padding: 12px 10px;
+        }
+        .terminal-title-group h1 {
+            font-size: 1.15rem;
+        }
+        .terminal-header-actions {
+            gap: 6px;
+        }
+        .term-btn-icon {
+            height: 32px;
+            padding: 0 8px;
+            font-size: 0.74rem;
+        }
+        .terminal-offline-hud {
+            width: 100%;
+            flex: 1 1 100%;
+        }
+        .terminal-stats-row {
+            grid-template-columns: 1fr 1fr;
+            gap: 6px;
+        }
+        .term-stat-box {
+            padding: 8px 6px;
+            gap: 6px;
+        }
+        .term-stat-icon {
+            width: 30px;
+            height: 30px;
+        }
+        .term-stat-num {
+            font-size: 1.15rem;
+        }
+        .term-stat-label {
+            font-size: 0.62rem;
         }
     }
 
