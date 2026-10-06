@@ -360,6 +360,16 @@ function progress_page(): void
     );
     $weeklyPct = $weeklyTarget > 0 ? min(100, max(0, round(($workoutsThisWeek / $weeklyTarget) * 100))) : 0;
 
+    // --- 13 FITNESS GOALS PROGRESS & KPI CALCULATION ---
+    $goalProgress = calculate_member_goal_progress(
+        $memberId,
+        $member ?: [],
+        $rows,
+        [
+            'workouts_this_week' => $workoutsThisWeek,
+        ]
+    );
+
     // --- RECENT ACTIVITY TIMELINE ---
     $recentActivities = [];
     // Progress logs
@@ -628,6 +638,9 @@ function progress_page(): void
 
     <!-- 3. TAB PANE 1: OVERVIEW -->
     <div id="hub-pane-overview" class="hub-tab-pane active">
+        <!-- GOAL PROGRESS HERO CARD (Physiological KPIs tailored to Member's 13 Fitness Goals) -->
+        <?php render_goal_hero_card($goalProgress, $user['role'] === 'member'); ?>
+
         <!-- TOP 4 KPI CARDS -->
         <div class="hub-kpi-grid">
             <!-- 1. Weight KPI -->

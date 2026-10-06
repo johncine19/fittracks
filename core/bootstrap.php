@@ -115,6 +115,7 @@ require __DIR__ . '/notifications.php';
 require __DIR__ . '/subscription_service.php';
 require __DIR__ . '/nutrition_service.php';
 require __DIR__ . '/review_service.php';
+require __DIR__ . '/goal_service.php';
 require __DIR__ . '/../views/layout.php';
 require __DIR__ . '/auth.php';
 require __DIR__ . '/../views/components.php';
