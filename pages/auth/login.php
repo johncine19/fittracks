@@ -370,8 +370,7 @@ function handle_login(): void
                                      data-theme="outline"
                                      data-text="signin_with"
                                      data-size="large"
-                                     data-logo_alignment="left"
-                                     data-width="360">
+                                     data-logo_alignment="left">
                                 </div>
                             </div>
 
@@ -489,10 +488,13 @@ function handle_login(): void
                 });
                 const container = document.getElementById('google-signin-btn');
                 if (container && !container.hasChildNodes()) {
+                    const card = container.closest('.split-login-card');
+                    const availableWidth = card ? Math.floor(card.clientWidth - 40) : 320;
+                    const btnWidth = Math.max(200, Math.min(360, availableWidth));
                     google.accounts.id.renderButton(container, {
                         theme: 'outline',
                         size: 'large',
-                        width: 360,
+                        width: btnWidth,
                         text: 'signin_with',
                         shape: 'rectangular',
                         logo_alignment: 'left'
