@@ -12,7 +12,9 @@
         }
 
         /* 1. Header Profile Banner */
-        .member-hub-profile-card {
+        /* 1. Header Profile Banner & Global Live Animated Card */
+        .member-hub-profile-card,
+        .live-animated-banner {
             background: var(--hub-card-bg);
             border: 1px solid var(--hub-card-border);
             border-radius: 18px;
@@ -21,16 +23,106 @@
             box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
             position: relative;
             overflow: hidden;
+            transition: border-color 0.3s ease, box-shadow 0.3s ease;
         }
 
-        .member-hub-profile-card::before {
+        .member-hub-profile-card:hover,
+        .live-animated-banner:hover {
+            border-color: rgba(199, 255, 34, 0.28);
+            box-shadow: 0 8px 30px rgba(0, 0, 0, 0.16), 0 0 20px rgba(199, 255, 34, 0.06);
+        }
+
+        /* Continuous Live Flowing Laser Border */
+        .member-hub-profile-card::before,
+        .live-animated-banner::before {
             content: '';
             position: absolute;
             top: 0;
             left: 0;
             right: 0;
             height: 3px;
-            background: linear-gradient(90deg, var(--lime), #38bdf8, transparent);
+            background: linear-gradient(
+                90deg,
+                var(--lime, #c7ff22) 0%,
+                #38bdf8 25%,
+                #a855f7 50%,
+                #38bdf8 75%,
+                var(--lime, #c7ff22) 100%
+            );
+            background-size: 200% 100%;
+            animation: liveBannerBorderFlow 4.5s linear infinite;
+            filter: drop-shadow(0 0 6px rgba(199, 255, 34, 0.5));
+            z-index: 2;
+        }
+
+        /* Ambient Breathing Living Aurora Mesh (Behind Content) */
+        .member-hub-profile-card::after,
+        .live-animated-banner::after {
+            content: '';
+            position: absolute;
+            inset: 0;
+            pointer-events: none;
+            z-index: 0;
+            background: radial-gradient(
+                ellipse 70% 50% at 85% 15%,
+                rgba(199, 255, 34, 0.09),
+                transparent 70%
+            ), radial-gradient(
+                ellipse 60% 50% at 15% 85%,
+                rgba(56, 189, 248, 0.07),
+                transparent 70%
+            );
+            animation: liveBannerAmbientPulse 7s ease-in-out infinite alternate;
+            opacity: 0.85;
+            transition: opacity 0.4s ease;
+        }
+
+        .member-hub-profile-card:hover::after,
+        .live-animated-banner:hover::after {
+            opacity: 1;
+        }
+
+        [data-theme="light"] .member-hub-profile-card::after,
+        [data-theme="light"] .live-animated-banner::after {
+            background: radial-gradient(
+                ellipse 70% 50% at 85% 15%,
+                rgba(22, 163, 74, 0.07),
+                transparent 70%
+            ), radial-gradient(
+                ellipse 60% 50% at 15% 85%,
+                rgba(2, 132, 199, 0.06),
+                transparent 70%
+            );
+        }
+
+        .member-hub-profile-card > *,
+        .live-animated-banner > * {
+            position: relative;
+            z-index: 1;
+        }
+
+        @keyframes liveBannerBorderFlow {
+            0% {
+                background-position: 0% 0%;
+            }
+            100% {
+                background-position: -200% 0%;
+            }
+        }
+
+        @keyframes liveBannerAmbientPulse {
+            0% {
+                opacity: 0.45;
+                transform: scale(0.98);
+            }
+            50% {
+                opacity: 0.9;
+                transform: scale(1.02);
+            }
+            100% {
+                opacity: 0.45;
+                transform: scale(0.98);
+            }
         }
 
         .member-hub-profile-card,
@@ -1544,7 +1636,18 @@
             left: 0;
             right: 0;
             height: 3px;
-            background: linear-gradient(90deg, var(--lime, #c7ff22), #38bdf8, #a855f7);
+            background: linear-gradient(
+                90deg,
+                var(--lime, #c7ff22) 0%,
+                #38bdf8 25%,
+                #a855f7 50%,
+                #38bdf8 75%,
+                var(--lime, #c7ff22) 100%
+            );
+            background-size: 200% 100%;
+            animation: liveBannerBorderFlow 4.5s linear infinite;
+            filter: drop-shadow(0 0 6px rgba(199, 255, 34, 0.45));
+            z-index: 2;
         }
 
         .goal-hero-header {

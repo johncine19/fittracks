@@ -112,7 +112,7 @@ function profile_page(): void
     <div class="skeleton-content sk-display-block">
 
     <!-- Settings Header with Profile Hero -->
-    <div class="settings-hero">
+    <div class="settings-hero live-animated-banner">
         <div class="settings-hero-bg"></div>
         <div class="settings-hero-content">
             <div class="settings-hero-avatar">

@@ -233,7 +233,7 @@ function member_dashboard(PDO $pdo, array $user): void
     $ringOffset = round($ringCircumference - ($ringCircumference * max(0, min(100, (int)$score)) / 100), 1);
 
     // Welcome Banner
-    echo '<div class="member-welcome-banner skeleton-content sk-display-flex animate-fade-in">';
+    echo '<div class="member-welcome-banner live-animated-banner skeleton-content sk-display-flex animate-fade-in">';
     echo '<div class="member-welcome-left">';
     echo '<div class="member-welcome-title-row">';
     echo '<h2 class="member-welcome-title">Welcome back, ' . h($user['first_name']) . '!</h2>';

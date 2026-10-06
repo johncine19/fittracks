@@ -666,16 +666,80 @@
         position: relative;
         overflow: hidden;
         box-shadow: 0 8px 28px rgba(0, 0, 0, 0.25);
+        transition: border-color 0.3s ease, box-shadow 0.3s ease;
+    }
+    .member-welcome-banner:hover {
+        border-color: rgba(199, 255, 34, 0.28);
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.32), 0 0 20px rgba(199, 255, 34, 0.06);
     }
     .member-welcome-banner::before {
         content: '';
         position: absolute;
         top: 0;
         left: 0;
-        width: 100%;
+        right: 0;
         height: 3px;
-        background: linear-gradient(90deg, var(--lime) 0%, var(--teal) 60%, transparent 100%);
+        background: linear-gradient(
+            90deg,
+            var(--lime, #c7ff22) 0%,
+            #38bdf8 25%,
+            #a855f7 50%,
+            #38bdf8 75%,
+            var(--lime, #c7ff22) 100%
+        );
+        background-size: 200% 100%;
+        animation: liveBannerBorderFlow 4.5s linear infinite;
+        filter: drop-shadow(0 0 6px rgba(199, 255, 34, 0.5));
+        z-index: 2;
         pointer-events: none;
+    }
+    .member-welcome-banner::after {
+        content: '';
+        position: absolute;
+        inset: 0;
+        pointer-events: none;
+        z-index: 0;
+        background: radial-gradient(
+            ellipse 70% 50% at 85% 15%,
+            rgba(199, 255, 34, 0.09),
+            transparent 70%
+        ), radial-gradient(
+            ellipse 60% 50% at 15% 85%,
+            rgba(56, 189, 248, 0.07),
+            transparent 70%
+        );
+        animation: liveBannerAmbientPulse 7s ease-in-out infinite alternate;
+        opacity: 0.85;
+        transition: opacity 0.4s ease;
+    }
+    .member-welcome-banner:hover::after {
+        opacity: 1;
+    }
+    .member-welcome-banner > * {
+        position: relative;
+        z-index: 1;
+    }
+    @keyframes liveBannerBorderFlow {
+        0% {
+            background-position: 0% 0%;
+        }
+        100% {
+            background-position: -200% 0%;
+        }
+    }
+    @keyframes liveBannerAmbientPulse {
+        0% {
+            opacity: 0.45;
+            transform: scale(0.98);
+        }
+        50% {
+            opacity: 0.9;
+            transform: scale(1.02);
+        }
+        100% {
+            opacity: 0.45;
+            transform: scale(0.98);
+        }
     }
     .member-welcome-left {
         flex: 1 1 auto;
@@ -865,7 +929,29 @@
     }
     html[data-theme="light"] .member-welcome-banner::before,
     [data-theme="light"] .member-welcome-banner::before {
-        background: linear-gradient(90deg, #65a30d 0%, #059669 60%, transparent 100%) !important;
+        background: linear-gradient(
+            90deg,
+            #16a34a 0%,
+            #0284c7 25%,
+            #7c3aed 50%,
+            #0284c7 75%,
+            #16a34a 100%
+        ) !important;
+        background-size: 200% 100% !important;
+        animation: liveBannerBorderFlow 4.5s linear infinite !important;
+        filter: drop-shadow(0 0 6px rgba(22, 163, 74, 0.35)) !important;
+    }
+    html[data-theme="light"] .member-welcome-banner::after,
+    [data-theme="light"] .member-welcome-banner::after {
+        background: radial-gradient(
+            ellipse 70% 50% at 85% 15%,
+            rgba(22, 163, 74, 0.07),
+            transparent 70%
+        ), radial-gradient(
+            ellipse 60% 50% at 15% 85%,
+            rgba(2, 132, 199, 0.06),
+            transparent 70%
+        ) !important;
     }
     html[data-theme="light"] .member-welcome-title,
     [data-theme="light"] .member-welcome-title {

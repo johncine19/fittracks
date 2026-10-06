@@ -487,7 +487,7 @@ function progress_page(): void
     <link rel="stylesheet" href="<?= h(asset_url('css/pages/progress.css')) ?>">
 
     <!-- 1. HEADER PROFILE CARD -->
-    <section class="member-hub-profile-card">
+    <section class="member-hub-profile-card live-animated-banner">
         <div class="profile-card-inner">
             <div class="hub-header-title-group" style="min-width: 0; flex: 1 1 auto;">
                 <h1 class="profile-name-title" style="font-size: 1.45rem;">
