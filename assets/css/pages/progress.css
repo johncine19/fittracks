@@ -785,7 +785,27 @@
             margin-bottom: 18px;
         }
 
-        .metric-toggle-group,
+        .metric-toggle-group {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            background: var(--panel-soft);
+            padding: 3px;
+            border-radius: 10px;
+            border: 1px solid var(--line);
+            max-width: 100%;
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+            scrollbar-width: none;
+        }
+        .metric-toggle-group::-webkit-scrollbar {
+            display: none;
+        }
+        .metric-toggle-group .toggle-btn {
+            flex-shrink: 0;
+            white-space: nowrap;
+        }
+
         .timeframe-toggle-group {
             display: inline-flex;
             align-items: center;
@@ -794,6 +814,56 @@
             padding: 3px;
             border-radius: 10px;
             border: 1px solid var(--line);
+        }
+
+        /* Measurement Log Filter Bar */
+        .log-filter-bar {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            margin-bottom: 18px;
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+            scrollbar-width: none;
+            padding-bottom: 2px;
+        }
+        .log-filter-bar::-webkit-scrollbar {
+            display: none;
+        }
+        .log-filter-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 14px;
+            font-size: 12.5px;
+            font-weight: 700;
+            border-radius: 20px;
+            border: 1px solid var(--line);
+            background: var(--panel-soft);
+            color: var(--muted);
+            cursor: pointer;
+            transition: all 0.2s ease;
+            white-space: nowrap;
+            flex-shrink: 0;
+        }
+        .log-filter-btn:hover {
+            color: var(--ink);
+            border-color: rgba(255, 255, 255, 0.2);
+        }
+        [data-theme="light"] .log-filter-btn:hover {
+            border-color: rgba(0, 0, 0, 0.2);
+        }
+        .log-filter-btn.active {
+            background: var(--lime);
+            color: #0b1307;
+            border-color: var(--lime);
+            box-shadow: 0 2px 8px var(--hub-glow);
+        }
+        [data-theme="light"] .log-filter-btn.active {
+            background: #16a34a;
+            color: #ffffff;
+            border-color: #16a34a;
+            box-shadow: 0 2px 8px rgba(22, 163, 74, 0.2);
         }
 
         .toggle-btn {
@@ -1476,13 +1546,35 @@
                 gap: 10px;
             }
 
-            .metric-toggle-group, .timeframe-toggle-group {
+            .metric-toggle-group {
+                width: 100%;
+                display: flex;
+                justify-content: flex-start;
+                overflow-x: auto;
+                -webkit-overflow-scrolling: touch;
+                scrollbar-width: none;
+                gap: 4px;
+                padding: 3px;
+            }
+
+            .metric-toggle-group::-webkit-scrollbar {
+                display: none;
+            }
+
+            .metric-toggle-group .toggle-btn {
+                flex: 0 0 auto;
+                white-space: nowrap;
+                padding: 6px 12px;
+                font-size: 11.5px;
+            }
+
+            .timeframe-toggle-group {
                 width: 100%;
                 display: flex;
                 justify-content: space-between;
             }
 
-            .toggle-btn {
+            .timeframe-toggle-group .toggle-btn {
                 flex: 1;
                 text-align: center;
                 padding: 6px 4px;
@@ -1981,6 +2073,160 @@
         [data-theme="light"] .habit-bar-fill {
             background: #16a34a;
         }
+        .btn-adjust-targets {
+            background: rgba(199, 255, 34, 0.15) !important;
+            color: var(--lime) !important;
+            border-color: rgba(199, 255, 34, 0.35) !important;
+        }
+
+        [data-theme="light"] .btn-adjust-targets {
+            background: rgba(22, 163, 74, 0.12) !important;
+            color: #15803d !important;
+            border-color: rgba(22, 163, 74, 0.3) !important;
+        }
+
+        /* Milestone Badges Shelf */
+        .goal-milestones-shelf {
+            margin-top: 14px;
+            padding-top: 14px;
+            border-top: 1px solid var(--line);
+            width: 100%;
+            box-sizing: border-box;
+        }
+
+        .milestones-shelf-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+            gap: 8px;
+        }
+
+        .m-shelf-title {
+            display: flex;
+            align-items: center;
+            gap: 7px;
+            font-size: 11.5px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+            color: var(--muted);
+        }
+
+        .m-shelf-count {
+            font-size: 11px;
+            font-weight: 700;
+            color: var(--lime);
+            background: rgba(199, 255, 34, 0.1);
+            padding: 2px 8px;
+            border-radius: 12px;
+            border: 1px solid rgba(199, 255, 34, 0.25);
+            white-space: nowrap;
+        }
+
+        [data-theme="light"] .m-shelf-count {
+            color: #15803d;
+            background: rgba(22, 163, 74, 0.1);
+            border-color: rgba(22, 163, 74, 0.25);
+        }
+
+        .milestones-pills-scroll {
+            display: flex;
+            align-items: stretch;
+            gap: 8px;
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+            scrollbar-width: none;
+            padding-bottom: 4px;
+            width: 100%;
+            box-sizing: border-box;
+        }
+
+        .milestones-pills-scroll::-webkit-scrollbar {
+            display: none;
+        }
+
+        .milestone-pill {
+            flex: 0 0 auto;
+            display: flex;
+            align-items: center;
+            gap: 9px;
+            padding: 8px 12px;
+            border-radius: 12px;
+            background: var(--panel-soft);
+            border: 1px solid var(--line);
+            transition: all 0.2s ease;
+            cursor: default;
+            user-select: none;
+            max-width: 220px;
+        }
+
+        .milestone-pill.unlocked {
+            background: color-mix(in srgb, var(--lime) 8%, var(--panel-soft));
+            border-color: rgba(199, 255, 34, 0.35);
+            box-shadow: 0 2px 8px rgba(199, 255, 34, 0.08);
+        }
+
+        [data-theme="light"] .milestone-pill.unlocked {
+            background: rgba(22, 163, 74, 0.08);
+            border-color: rgba(22, 163, 74, 0.3);
+            box-shadow: 0 2px 8px rgba(22, 163, 74, 0.08);
+        }
+
+        .milestone-pill.locked {
+            opacity: 0.65;
+            filter: grayscale(0.5);
+        }
+
+        .m-pill-icon {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 28px;
+            height: 28px;
+            border-radius: 8px;
+            background: var(--bg);
+            color: var(--lime);
+            flex-shrink: 0;
+        }
+
+        [data-theme="light"] .m-pill-icon {
+            color: #16a34a;
+        }
+
+        .milestone-pill.locked .m-pill-icon {
+            color: var(--muted);
+        }
+
+        .m-pill-info {
+            display: flex;
+            flex-direction: column;
+            min-width: 0;
+        }
+
+        .m-pill-name {
+            font-size: 12px;
+            font-weight: 700;
+            color: var(--ink);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .m-pill-meta {
+            font-size: 10.5px;
+            font-weight: 600;
+            color: var(--muted);
+            white-space: nowrap;
+        }
+
+        .milestone-pill.unlocked .m-pill-meta {
+            color: var(--lime);
+        }
+
+        [data-theme="light"] .milestone-pill.unlocked .m-pill-meta {
+            color: #15803d;
+        }
 
         /* Mobile Responsive Overrides for Goal Hero Card - Ultra Compact */
         @media (max-width: 768px) {
@@ -2025,6 +2271,29 @@
 
             .goal-kpi-val {
                 font-size: 17px;
+            }
+
+            .milestones-pills-scroll {
+                gap: 6px;
+            }
+
+            .milestone-pill {
+                padding: 6px 10px;
+                border-radius: 10px;
+                gap: 7px;
+            }
+
+            .m-pill-icon {
+                width: 24px;
+                height: 24px;
+            }
+
+            .m-pill-name {
+                font-size: 11px;
+            }
+
+            .m-pill-meta {
+                font-size: 10px;
             }
 
             .goal-hero-footer {

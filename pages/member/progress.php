@@ -78,6 +78,62 @@ function progress_page(): void
             redirect('progress' . ($user['role'] === 'trainer' ? '&member_user_id=' . $memberId : '') . '#notes');
         }
 
+        if ($action === 'update_goal_targets') {
+            $validator = new Validator();
+            $valid = $validator->validate($_POST, [
+                'target_weight_kg'        => 'numeric|min_num:20|max_num:300',
+                'target_body_fat_percent' => 'numeric|min_num:1|max_num:70',
+                'target_waist_cm'         => 'numeric|min_num:30|max_num:200',
+                'target_arm_cm'           => 'numeric|min_num:10|max_num:100',
+                'target_chest_cm'         => 'numeric|min_num:30|max_num:200',
+                'weekly_workout_target'   => 'numeric|min_num:1|max_num:7',
+            ]);
+
+            if (!$valid) {
+                flash($validator->firstError() ?? 'Invalid target values.', 'danger');
+            } else {
+                $tWeight = post('target_weight_kg') !== '' ? (float)post('target_weight_kg') : null;
+                $tBf     = post('target_body_fat_percent') !== '' ? (float)post('target_body_fat_percent') : null;
+                $tWaist  = post('target_waist_cm') !== '' ? (float)post('target_waist_cm') : null;
+                $tArm    = post('target_arm_cm') !== '' ? (float)post('target_arm_cm') : null;
+                $tChest  = post('target_chest_cm') !== '' ? (float)post('target_chest_cm') : null;
+                $tWeekly = post('weekly_workout_target') !== '' ? (int)post('weekly_workout_target') : 3;
+
+                $newGoal = trim((string)post('primary_goal', ''));
+
+                if ($newGoal !== '') {
+                    db()->prepare('UPDATE member_profiles SET 
+                        target_weight_kg = ?,
+                        target_body_fat_percent = ?,
+                        target_waist_cm = ?,
+                        target_arm_cm = ?,
+                        target_chest_cm = ?,
+                        weekly_workout_target = ?,
+                        primary_goal = ?
+                        WHERE user_id = ?
+                    ')->execute([$tWeight, $tBf, $tWaist, $tArm, $tChest, $tWeekly, $newGoal, $memberId]);
+                } else {
+                    db()->prepare('UPDATE member_profiles SET 
+                        target_weight_kg = ?,
+                        target_body_fat_percent = ?,
+                        target_waist_cm = ?,
+                        target_arm_cm = ?,
+                        target_chest_cm = ?,
+                        weekly_workout_target = ?
+                        WHERE user_id = ?
+                    ')->execute([$tWeight, $tBf, $tWaist, $tArm, $tChest, $tWeekly, $memberId]);
+                }
+
+                if ($user['role'] === 'trainer' && (int)$user['user_id'] !== $memberId) {
+                    notify_user($memberId, 'system', 'Fitness Targets Updated', 'Your coach adjusted your fitness milestone targets.');
+                    flash('Client targets updated successfully.', 'success');
+                } else {
+                    flash('Fitness targets updated successfully.', 'success');
+                }
+            }
+            redirect('progress' . ($user['role'] === 'trainer' ? '&member_user_id=' . $memberId : ''));
+        }
+
         $validator = new Validator();
         $valid = $validator->validate($_POST, [
             'log_date'         => 'required',
@@ -464,6 +520,10 @@ function progress_page(): void
         $w = (float)$r['weight_kg'];
         $bf = !empty($r['body_fat_percent']) ? (float)$r['body_fat_percent'] : null;
         $b = ($heightCm > 0 && $w > 0) ? round($w / pow($heightCm / 100, 2), 1) : null;
+        $waist = !empty($r['waist_cm']) ? (float)$r['waist_cm'] : null;
+        $chest = !empty($r['chest_cm']) ? (float)$r['chest_cm'] : null;
+        $arm = !empty($r['arm_cm']) ? (float)$r['arm_cm'] : null;
+        $hips = !empty($r['hips_cm']) ? (float)$r['hips_cm'] : null;
 
         $dStr = $r['log_date'];
         if (($dateCounts[$dStr] ?? 0) > 1 && !empty($r['created_at'])) {
@@ -477,8 +537,38 @@ function progress_page(): void
             'label'    => $timeLabel,
             'weight'   => $w,
             'body_fat' => $bf,
-            'bmi'      => $b
+            'bmi'      => $b,
+            'waist'    => $waist,
+            'chest'    => $chest,
+            'arm'      => $arm,
+            'hips'     => $hips
         ];
+    }
+
+    // Determine goal-tailored default chart metric
+    $defaultMetric = 'weight';
+    $rawGoalText = strtolower(str_replace(['_', '-'], ' ', (string)($member['primary_goal'] ?? '')));
+    if (str_contains($rawGoalText, 'six pack') || str_contains($rawGoalText, 'reducing body fat')) {
+        $defaultMetric = 'waist';
+    } elseif (str_contains($rawGoalText, 'biceps') || str_contains($rawGoalText, 'arms')) {
+        $defaultMetric = 'arm';
+    } elseif (str_contains($rawGoalText, 'chest')) {
+        $defaultMetric = 'chest';
+    } elseif (str_contains($rawGoalText, 'v taper')) {
+        $defaultMetric = 'waist';
+    }
+
+    // If target metric has no logged values yet, fall back gracefully to weight
+    if ($defaultMetric !== 'weight') {
+        $hasMetricLogs = false;
+        foreach ($rows as $r) {
+            if ($defaultMetric === 'waist' && !empty($r['waist_cm'])) { $hasMetricLogs = true; break; }
+            if ($defaultMetric === 'arm' && !empty($r['arm_cm'])) { $hasMetricLogs = true; break; }
+            if ($defaultMetric === 'chest' && !empty($r['chest_cm'])) { $hasMetricLogs = true; break; }
+        }
+        if (!$hasMetricLogs) {
+            $defaultMetric = 'weight';
+        }
     }
 
     render_header('Member Hub & Progress', $user);
@@ -639,7 +729,7 @@ function progress_page(): void
     <!-- 3. TAB PANE 1: OVERVIEW -->
     <div id="hub-pane-overview" class="hub-tab-pane active">
         <!-- GOAL PROGRESS HERO CARD (Physiological KPIs tailored to Member's 13 Fitness Goals) -->
-        <?php render_goal_hero_card($goalProgress, $user['role'] === 'member'); ?>
+        <?php render_goal_hero_card($goalProgress, true, $user['role'] === 'trainer'); ?>
 
         <!-- TOP 4 KPI CARDS -->
         <div class="hub-kpi-grid">
@@ -908,17 +998,20 @@ function progress_page(): void
                             <p>Visual trend across key performance indicators</p>
                         </div>
 
-                        <!-- Metric Toggle -->
+                        <!-- Metric Toggle (Phase 2 Goal-Specific Metrics) -->
                         <div class="metric-toggle-group">
-                            <button type="button" class="toggle-btn active" id="m-btn-weight" onclick="setChartMetric('weight')">Weight</button>
-                            <button type="button" class="toggle-btn" id="m-btn-body_fat" onclick="setChartMetric('body_fat')">Body Fat</button>
-                            <button type="button" class="toggle-btn" id="m-btn-bmi" onclick="setChartMetric('bmi')">BMI</button>
+                            <button type="button" class="toggle-btn <?= $defaultMetric === 'weight' ? 'active' : '' ?>" id="m-btn-weight" onclick="setChartMetric('weight')">Weight</button>
+                            <button type="button" class="toggle-btn <?= $defaultMetric === 'body_fat' ? 'active' : '' ?>" id="m-btn-body_fat" onclick="setChartMetric('body_fat')">Body Fat</button>
+                            <button type="button" class="toggle-btn <?= $defaultMetric === 'waist' ? 'active' : '' ?>" id="m-btn-waist" onclick="setChartMetric('waist')">Waist</button>
+                            <button type="button" class="toggle-btn <?= $defaultMetric === 'arm' ? 'active' : '' ?>" id="m-btn-arm" onclick="setChartMetric('arm')">Arms</button>
+                            <button type="button" class="toggle-btn <?= $defaultMetric === 'chest' ? 'active' : '' ?>" id="m-btn-chest" onclick="setChartMetric('chest')">Chest</button>
+                            <button type="button" class="toggle-btn <?= $defaultMetric === 'bmi' ? 'active' : '' ?>" id="m-btn-bmi" onclick="setChartMetric('bmi')">BMI</button>
                         </div>
                     </div>
 
                     <!-- Timeframe Toggle -->
                     <div class="chart-controls-row">
-                        <span style="font-size: 12px; color: var(--muted); font-weight: 600;" id="chartActiveMetricLabel">Weight (kg) over time</span>
+                        <span style="font-size: 12px; color: var(--muted); font-weight: 600;" id="chartActiveMetricLabel">Progress over time</span>
                         <div class="timeframe-toggle-group">
                             <button type="button" class="toggle-btn" id="tf-btn-1m" onclick="setChartTimeframe('1m')">1M</button>
                             <button type="button" class="toggle-btn" id="tf-btn-3m" onclick="setChartTimeframe('3m')">3M</button>
@@ -940,6 +1033,35 @@ function progress_page(): void
                     $totalBfChange = ($firstBf !== null && $bfCurr !== null) ? round($bfCurr - $firstBf, 1) : null;
                     $firstBmi = ($firstLog && $heightCm > 0 && !empty($firstLog['weight_kg'])) ? round((float)$firstLog['weight_kg'] / pow($heightCm/100, 2), 1) : null;
                     $totalBmiChange = ($firstBmi !== null && $bmi !== null) ? round($bmi - $firstBmi, 1) : null;
+
+                    // Goal-specific circumference delta
+                    $firstWaist = ($firstLog && !empty($firstLog['waist_cm'])) ? (float)$firstLog['waist_cm'] : null;
+                    $totalWaistChange = ($firstWaist !== null && $recentWaist !== '') ? round((float)$recentWaist - $firstWaist, 1) : null;
+
+                    $firstArm = ($firstLog && !empty($firstLog['arm_cm'])) ? (float)$firstLog['arm_cm'] : null;
+                    $totalArmChange = ($firstArm !== null && $recentArm !== '') ? round((float)$recentArm - $firstArm, 1) : null;
+
+                    $firstChest = ($firstLog && !empty($firstLog['chest_cm'])) ? (float)$firstLog['chest_cm'] : null;
+                    $totalChestChange = ($firstChest !== null && $recentChest !== '') ? round((float)$recentChest - $firstChest, 1) : null;
+
+                    // Determine third box label & delta based on goal
+                    if (str_contains($rawGoalText, 'biceps') || str_contains($rawGoalText, 'arms')) {
+                        $focusDeltaLabel = 'Arm Change';
+                        $focusDeltaVal = $totalArmChange !== null ? ($totalArmChange > 0 ? '+' : '') . $totalArmChange . ' cm' : '—';
+                        $focusDeltaColor = ($totalArmChange !== null && $totalArmChange > 0) ? '#22c55e' : 'var(--ink)';
+                    } elseif (str_contains($rawGoalText, 'chest')) {
+                        $focusDeltaLabel = 'Chest Change';
+                        $focusDeltaVal = $totalChestChange !== null ? ($totalChestChange > 0 ? '+' : '') . $totalChestChange . ' cm' : '—';
+                        $focusDeltaColor = ($totalChestChange !== null && $totalChestChange > 0) ? '#22c55e' : 'var(--ink)';
+                    } elseif (str_contains($rawGoalText, 'six pack') || str_contains($rawGoalText, 'reducing body fat') || str_contains($rawGoalText, 'v taper')) {
+                        $focusDeltaLabel = 'Waist Change';
+                        $focusDeltaVal = $totalWaistChange !== null ? ($totalWaistChange > 0 ? '+' : '') . $totalWaistChange . ' cm' : '—';
+                        $focusDeltaColor = ($totalWaistChange !== null && $totalWaistChange < 0) ? '#22c55e' : 'var(--ink)';
+                    } else {
+                        $focusDeltaLabel = 'BMI Change';
+                        $focusDeltaVal = $totalBmiChange !== null ? ($totalBmiChange > 0 ? '+' : '') . $totalBmiChange : '—';
+                        $focusDeltaColor = ($totalBmiChange !== null && $totalBmiChange < 0) ? '#22c55e' : 'var(--ink)';
+                    }
                     ?>
                     <div class="chart-summary-stats">
                         <div class="summary-stat-box">
@@ -955,9 +1077,9 @@ function progress_page(): void
                             </span>
                         </div>
                         <div class="summary-stat-box">
-                            <span class="stat-label">BMI Change</span>
-                            <span class="stat-delta" style="color: <?= ($totalBmiChange !== null && $totalBmiChange < 0) ? '#22c55e' : 'var(--ink)' ?>;">
-                                <?= $totalBmiChange !== null ? ($totalBmiChange > 0 ? '+' : '') . $totalBmiChange : '—' ?>
+                            <span class="stat-label"><?= h($focusDeltaLabel) ?></span>
+                            <span class="stat-delta" style="color: <?= h($focusDeltaColor) ?>;">
+                                <?= h($focusDeltaVal) ?>
                             </span>
                         </div>
                     </div>
@@ -1170,6 +1292,25 @@ function progress_page(): void
                 </div>
             </div>
 
+            <!-- Measurement Filter Bar -->
+            <div class="log-filter-bar">
+                <button type="button" class="log-filter-btn active" data-metric-filter="all" onclick="filterProgressLogs('all')">
+                    All Logs (<?= count($rows) ?>)
+                </button>
+                <button type="button" class="log-filter-btn" data-metric-filter="waist" onclick="filterProgressLogs('waist')">
+                    Waist
+                </button>
+                <button type="button" class="log-filter-btn" data-metric-filter="arm" onclick="filterProgressLogs('arm')">
+                    Arms
+                </button>
+                <button type="button" class="log-filter-btn" data-metric-filter="chest" onclick="filterProgressLogs('chest')">
+                    Chest
+                </button>
+                <button type="button" class="log-filter-btn" data-metric-filter="body_fat" onclick="filterProgressLogs('body_fat')">
+                    Body Fat %
+                </button>
+            </div>
+
             <!-- Desktop View: Table -->
             <div class="progress-desktop-table table-wrap">
                 <table>
@@ -1188,7 +1329,10 @@ function progress_page(): void
                     <tbody>
                         <?php if ($rows): ?>
                             <?php foreach ($rows as $row): ?>
-                                <tr>
+                                <tr data-has-waist="<?= !empty($row['waist_cm']) ? '1' : '0' ?>"
+                                    data-has-arm="<?= !empty($row['arm_cm']) ? '1' : '0' ?>"
+                                    data-has-chest="<?= !empty($row['chest_cm']) ? '1' : '0' ?>"
+                                    data-has-body_fat="<?= !empty($row['body_fat_percent']) ? '1' : '0' ?>">
                                     <td><strong><?= date('M j, Y', strtotime($row['log_date'])) ?></strong></td>
                                     <td><?= !empty($row['weight_kg']) ? h(number_format((float)$row['weight_kg'], 1)) . ' kg' : '—' ?></td>
                                     <td><?= !empty($row['body_fat_percent']) ? h(number_format((float)$row['body_fat_percent'], 1)) . '%' : '—' ?></td>
@@ -1199,6 +1343,11 @@ function progress_page(): void
                                     <td><?= !empty($row['notes']) ? h($row['notes']) : '—' ?></td>
                                 </tr>
                             <?php endforeach; ?>
+                            <tr id="log-filter-empty-row" style="display: none;">
+                                <td colspan="8" style="text-align: center; padding: 36px; color: var(--muted);">
+                                    No logs found matching this measurement filter.
+                                </td>
+                            </tr>
                         <?php else: ?>
                             <tr>
                                 <td colspan="8" style="text-align: center; padding: 36px; color: var(--muted);">
@@ -1214,7 +1363,11 @@ function progress_page(): void
             <div class="progress-mobile-cards">
                 <?php if ($rows): ?>
                     <?php foreach ($rows as $row): ?>
-                        <div class="mobile-detail-card">
+                        <div class="mobile-detail-card"
+                             data-has-waist="<?= !empty($row['waist_cm']) ? '1' : '0' ?>"
+                             data-has-arm="<?= !empty($row['arm_cm']) ? '1' : '0' ?>"
+                             data-has-chest="<?= !empty($row['chest_cm']) ? '1' : '0' ?>"
+                             data-has-body_fat="<?= !empty($row['body_fat_percent']) ? '1' : '0' ?>">
                             <div class="mdc-header">
                                 <div style="display: flex; align-items: center; gap: 7px; color: var(--ink);">
                                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect width="18" height="18" x="3" y="4" rx="2" ry="2"/><line x1="16" x2="16" y1="2" y2="6"/><line x1="8" x2="8" y1="2" y2="6"/><line x1="3" x2="21" y1="10" y2="10"/></svg>
@@ -1254,6 +1407,9 @@ function progress_page(): void
                             <?php endif; ?>
                         </div>
                     <?php endforeach; ?>
+                    <div id="log-filter-empty-card" style="display: none; text-align: center; padding: 32px 16px; color: var(--muted); background: var(--bg); border-radius: 12px; border: 1px dashed var(--line);">
+                        No logs found matching this measurement filter.
+                    </div>
                 <?php else: ?>
                     <div style="text-align: center; padding: 32px 16px; color: var(--muted); background: var(--bg); border-radius: 12px; border: 1px dashed var(--line);">
                         No progress logs recorded yet.
@@ -1309,6 +1465,16 @@ function progress_page(): void
         currentUserRole: <?= json_encode($user['role']) ?>,
         memberId: <?= (int)$memberId ?>,
         rawChartData: <?= json_encode($chartDataPoints, JSON_HEX_TAG) ?>,
+        defaultMetric: <?= json_encode($defaultMetric) ?>,
+        targets: {
+            primaryGoal: <?= json_encode((string)($member['primary_goal'] ?? '')) ?>,
+            targetWeight: <?= json_encode((string)($member['target_weight_kg'] ?? '')) ?>,
+            targetBodyFat: <?= json_encode((string)($member['target_body_fat_percent'] ?? '')) ?>,
+            targetWaist: <?= json_encode((string)($member['target_waist_cm'] ?? '')) ?>,
+            targetArm: <?= json_encode((string)($member['target_arm_cm'] ?? '')) ?>,
+            targetChest: <?= json_encode((string)($member['target_chest_cm'] ?? '')) ?>,
+            weeklyWorkouts: <?= json_encode((string)($member['weekly_workout_target'] ?? '3')) ?>
+        },
         defaults: {
             gender: <?= json_encode(strtolower((string)($member['biological_sex'] ?? 'male'))) ?>,
             height: <?= json_encode((string)$heightCm) ?>,

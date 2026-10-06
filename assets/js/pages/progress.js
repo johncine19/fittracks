@@ -43,24 +43,64 @@ const rawChartData = FT_CONFIG.rawChartData || [];
     });
 
     // Chart.js Data & Logic
-    // rawChartData is initialized from FT_CONFIG above
-    let currentMetric = 'weight';
+    const METRIC_CONFIG = {
+        weight: {
+            label: 'Weight (kg)',
+            chartTitle: 'Weight (kg) over time',
+            color: '#c7ff22',
+            bgColor: 'rgba(199, 255, 34, 0.12)',
+            unit: 'kg'
+        },
+        body_fat: {
+            label: 'Body Fat (%)',
+            chartTitle: 'Body Fat (%) over time',
+            color: '#22c55e',
+            bgColor: 'rgba(34, 197, 94, 0.12)',
+            unit: '%'
+        },
+        waist: {
+            label: 'Waist (cm)',
+            chartTitle: 'Waist (cm) over time',
+            color: '#38bdf8',
+            bgColor: 'rgba(56, 189, 248, 0.12)',
+            unit: 'cm'
+        },
+        arm: {
+            label: 'Arms (cm)',
+            chartTitle: 'Arms (cm) over time',
+            color: '#a855f7',
+            bgColor: 'rgba(168, 85, 247, 0.12)',
+            unit: 'cm'
+        },
+        chest: {
+            label: 'Chest (cm)',
+            chartTitle: 'Chest (cm) over time',
+            color: '#f59e0b',
+            bgColor: 'rgba(245, 158, 11, 0.12)',
+            unit: 'cm'
+        },
+        bmi: {
+            label: 'BMI',
+            chartTitle: 'Body Mass Index (BMI) over time',
+            color: '#ec4899',
+            bgColor: 'rgba(236, 72, 153, 0.12)',
+            unit: ''
+        }
+    };
+
+    let currentMetric = FT_CONFIG.defaultMetric || 'weight';
     let currentTimeframe = 'all';
 
     function setChartMetric(metric) {
         currentMetric = metric;
-        ['weight', 'body_fat', 'bmi'].forEach(m => {
+        ['weight', 'body_fat', 'waist', 'arm', 'chest', 'bmi'].forEach(m => {
             const btn = document.getElementById('m-btn-' + m);
             if (btn) btn.classList.toggle('active', m === metric);
         });
 
-        const labelMap = {
-            'weight': 'Weight (kg) over time',
-            'body_fat': 'Body Fat (%) over time',
-            'bmi': 'Body Mass Index (BMI) over time'
-        };
+        const cfg = METRIC_CONFIG[metric] || METRIC_CONFIG.weight;
         const labelEl = document.getElementById('chartActiveMetricLabel');
-        if (labelEl) labelEl.textContent = labelMap[metric] || 'Progress over time';
+        if (labelEl) labelEl.textContent = cfg.chartTitle || 'Progress over time';
 
         renderFilteredChart();
     }
@@ -98,16 +138,18 @@ const rawChartData = FT_CONFIG.rawChartData || [];
 
         const labels = filtered.map(d => d.label);
         const dataValues = filtered.map(d => d[currentMetric]);
+        const cfg = METRIC_CONFIG[currentMetric] || METRIC_CONFIG.weight;
+        const isDark = document.documentElement.getAttribute('data-theme') !== 'light';
 
-        const metricLabels = {
-            'weight': 'Weight (kg)',
-            'body_fat': 'Body Fat (%)',
-            'bmi': 'BMI'
-        };
-
+        const ds = window.hubChartInstance.data.datasets[0];
         window.hubChartInstance.data.labels = labels;
-        window.hubChartInstance.data.datasets[0].label = metricLabels[currentMetric];
-        window.hubChartInstance.data.datasets[0].data = dataValues;
+        ds.label = cfg.label;
+        ds.data = dataValues;
+        ds.borderColor = cfg.color;
+        ds.backgroundColor = cfg.bgColor;
+        ds.pointBorderColor = cfg.color;
+        ds.pointBackgroundColor = isDark ? cfg.color : '#ffffff';
+        ds.spanGaps = true;
         window.hubChartInstance.update();
     }
 
@@ -115,30 +157,40 @@ const rawChartData = FT_CONFIG.rawChartData || [];
         const ctx = document.getElementById('hubTrendChart');
         if (!ctx) return;
 
+        const cfg = METRIC_CONFIG[currentMetric] || METRIC_CONFIG.weight;
         const isDark = document.documentElement.getAttribute('data-theme') !== 'light';
         const gridColor  = isDark ? 'rgba(255,255,255,0.06)' : '#e2e8f0';
         const tickColor  = isDark ? '#94a3b8' : '#64748b';
         const axisBorder = isDark ? 'rgba(255,255,255,0.12)' : '#cbd5e1';
 
         const labels = rawChartData.map(d => d.label);
-        const weights = rawChartData.map(d => d.weight);
+        const values = rawChartData.map(d => d[currentMetric]);
+
+        // Ensure active button and title label match currentMetric
+        ['weight', 'body_fat', 'waist', 'arm', 'chest', 'bmi'].forEach(m => {
+            const btn = document.getElementById('m-btn-' + m);
+            if (btn) btn.classList.toggle('active', m === currentMetric);
+        });
+        const labelEl = document.getElementById('chartActiveMetricLabel');
+        if (labelEl) labelEl.textContent = cfg.chartTitle || 'Progress over time';
 
         window.hubChartInstance = new Chart(ctx, {
             type: 'line',
             data: {
                 labels: labels,
                 datasets: [{
-                    label: 'Weight (kg)',
-                    data: weights,
-                    borderColor: '#c7ff22',
-                    backgroundColor: 'rgba(199, 255, 34, 0.12)',
+                    label: cfg.label,
+                    data: values,
+                    borderColor: cfg.color,
+                    backgroundColor: cfg.bgColor,
                     borderWidth: 2.8,
                     pointRadius: 4.5,
-                    pointBackgroundColor: isDark ? '#c7ff22' : '#ffffff',
-                    pointBorderColor: '#c7ff22',
+                    pointBackgroundColor: isDark ? cfg.color : '#ffffff',
+                    pointBorderColor: cfg.color,
                     pointBorderWidth: 2,
                     tension: 0.35,
-                    fill: true
+                    fill: true,
+                    spanGaps: true
                 }]
             },
             options: {
@@ -156,7 +208,10 @@ const rawChartData = FT_CONFIG.rawChartData || [];
                         boxPadding: 4,
                         callbacks: {
                             label: function(context) {
-                                return context.dataset.label + ': ' + context.parsed.y;
+                                const val = context.parsed.y;
+                                if (val === null || val === undefined) return 'No entry';
+                                const activeCfg = METRIC_CONFIG[currentMetric] || METRIC_CONFIG.weight;
+                                return activeCfg.label + ': ' + val + (activeCfg.unit ? ' ' + activeCfg.unit : '');
                             }
                         }
                     }
@@ -175,6 +230,52 @@ const rawChartData = FT_CONFIG.rawChartData || [];
                 }
             }
         });
+    }
+
+    // Historical Progress Logs Filter Logic
+    function filterProgressLogs(filterType) {
+        // 1. Update filter buttons active state
+        document.querySelectorAll('.log-filter-btn').forEach(btn => {
+            btn.classList.toggle('active', btn.getAttribute('data-metric-filter') === filterType);
+        });
+
+        // 2. Filter desktop table rows
+        const tableRows = document.querySelectorAll('.progress-desktop-table tbody tr:not(#log-filter-empty-row)');
+        let visibleRowsCount = 0;
+        tableRows.forEach(row => {
+            let show = false;
+            if (filterType === 'all') {
+                show = true;
+            } else {
+                show = row.getAttribute('data-has-' + filterType) === '1';
+            }
+            row.style.display = show ? '' : 'none';
+            if (show) visibleRowsCount++;
+        });
+
+        const emptyRow = document.getElementById('log-filter-empty-row');
+        if (emptyRow) {
+            emptyRow.style.display = (visibleRowsCount === 0 && tableRows.length > 0) ? '' : 'none';
+        }
+
+        // 3. Filter mobile cards
+        const cards = document.querySelectorAll('.progress-mobile-cards .mobile-detail-card');
+        let visibleCardsCount = 0;
+        cards.forEach(card => {
+            let show = false;
+            if (filterType === 'all') {
+                show = true;
+            } else {
+                show = card.getAttribute('data-has-' + filterType) === '1';
+            }
+            card.style.display = show ? '' : 'none';
+            if (show) visibleCardsCount++;
+        });
+
+        const emptyCard = document.getElementById('log-filter-empty-card');
+        if (emptyCard) {
+            emptyCard.style.display = (visibleCardsCount === 0 && cards.length > 0) ? '' : 'none';
+        }
     }
 
     // Modal: Note submission
@@ -202,6 +303,95 @@ const rawChartData = FT_CONFIG.rawChartData || [];
                     Swal.showValidationMessage('Please write a note.');
                     return false;
                 }
+                f.submit();
+            }
+        });
+    }
+
+    // Modal: Target Metrics & Goal Adjustment (Phase 3: Member & Trainer Alignment)
+    function openTargetMetricsModal() {
+        const targets = FT_CONFIG.targets || {};
+        const isTrainer = FT_CURRENT_USER_ROLE === 'trainer';
+
+        const goalOptions = [
+            { val: 'Building a visible six-pack', label: 'Visible Six-Pack (Abs)' },
+            { val: 'Growing larger biceps and arms', label: 'Larger Biceps & Arms' },
+            { val: 'Developing a wide chest', label: 'Developing a Wide Chest' },
+            { val: 'Sculpting a V-tapered back', label: 'V-Tapered Back' },
+            { val: 'Shaping the lower body', label: 'Lower Body & Legs' },
+            { val: 'Gaining lean body mass', label: 'Lean Body Mass' },
+            { val: 'Reaching body recomposition', label: 'Body Recomposition' },
+            { val: 'increasing_strength', label: 'Increasing Maximum Strength' },
+            { val: 'building_muscle', label: 'Building Muscle' },
+            { val: 'losing_weight', label: 'Losing Weight' },
+            { val: 'reducing_body_fat', label: 'Reducing Body Fat' },
+            { val: 'improving_endurance', label: 'Improving Endurance' },
+            { val: 'casual', label: 'Casual / Flexible Lifestyle' },
+        ];
+
+        let goalSelectHtml = goalOptions.map(g => {
+            const isSel = targets.primaryGoal === g.val ? 'selected' : '';
+            return `<option value="${g.val}" ${isSel}>${g.label}</option>`;
+        }).join('');
+
+        Swal.fire({
+            title: isTrainer ? 'Adjust Client Target Metrics' : 'Adjust Fitness Targets',
+            width: '600px',
+            html: `
+                <form id="targetMetricsForm" method="post" style="text-align: left; margin-top: 10px;">
+                    <input type="hidden" name="csrf_token" value="${FT_CSRF_TOKEN}">
+                    <input type="hidden" name="action" value="update_goal_targets">
+                    ${isTrainer ? `<input type="hidden" name="member_user_id" value="${FT_MEMBER_ID}">` : ''}
+
+                    <div style="margin-bottom: 14px;">
+                        <label style="display:block; color:var(--muted); font-size:12px; font-weight:700; margin-bottom:5px; text-transform:uppercase; letter-spacing:0.03em;">Primary Fitness Goal</label>
+                        <select name="primary_goal" class="form-control" style="width:100%; box-sizing:border-box; border-radius:8px; height:42px; background:var(--panel-soft); color:var(--ink); border:1px solid var(--line); font-weight:600; padding:0 12px;">
+                            ${goalSelectHtml}
+                        </select>
+                    </div>
+
+                    <div style="display:grid; grid-template-columns: 1fr 1fr; gap:12px; margin-bottom:12px;">
+                        <div>
+                            <label style="display:block; color:var(--muted); font-size:12px; font-weight:700; margin-bottom:4px;">Target Weight (kg)</label>
+                            <input type="number" step="0.1" name="target_weight_kg" value="${targets.targetWeight || ''}" class="form-control" placeholder="e.g. 75.0" style="width:100%; box-sizing:border-box; border-radius:8px; height:40px; background:var(--panel-soft); color:var(--ink); border:1px solid var(--line); padding:0 10px;">
+                        </div>
+                        <div>
+                            <label style="display:block; color:var(--muted); font-size:12px; font-weight:700; margin-bottom:4px;">Target Body Fat (%)</label>
+                            <input type="number" step="0.1" name="target_body_fat_percent" value="${targets.targetBodyFat || ''}" class="form-control" placeholder="e.g. 15.0" style="width:100%; box-sizing:border-box; border-radius:8px; height:40px; background:var(--panel-soft); color:var(--ink); border:1px solid var(--line); padding:0 10px;">
+                        </div>
+                    </div>
+
+                    <div style="display:grid; grid-template-columns: 1fr 1fr; gap:12px; margin-bottom:12px;">
+                        <div>
+                            <label style="display:block; color:var(--muted); font-size:12px; font-weight:700; margin-bottom:4px;">Target Waist (cm)</label>
+                            <input type="number" step="0.5" name="target_waist_cm" value="${targets.targetWaist || ''}" class="form-control" placeholder="e.g. 80.0" style="width:100%; box-sizing:border-box; border-radius:8px; height:40px; background:var(--panel-soft); color:var(--ink); border:1px solid var(--line); padding:0 10px;">
+                        </div>
+                        <div>
+                            <label style="display:block; color:var(--muted); font-size:12px; font-weight:700; margin-bottom:4px;">Target Arm (cm)</label>
+                            <input type="number" step="0.5" name="target_arm_cm" value="${targets.targetArm || ''}" class="form-control" placeholder="e.g. 38.0" style="width:100%; box-sizing:border-box; border-radius:8px; height:40px; background:var(--panel-soft); color:var(--ink); border:1px solid var(--line); padding:0 10px;">
+                        </div>
+                    </div>
+
+                    <div style="display:grid; grid-template-columns: 1fr 1fr; gap:12px; margin-bottom:12px;">
+                        <div>
+                            <label style="display:block; color:var(--muted); font-size:12px; font-weight:700; margin-bottom:4px;">Target Chest (cm)</label>
+                            <input type="number" step="0.5" name="target_chest_cm" value="${targets.targetChest || ''}" class="form-control" placeholder="e.g. 102.0" style="width:100%; box-sizing:border-box; border-radius:8px; height:40px; background:var(--panel-soft); color:var(--ink); border:1px solid var(--line); padding:0 10px;">
+                        </div>
+                        <div>
+                            <label style="display:block; color:var(--muted); font-size:12px; font-weight:700; margin-bottom:4px;">Weekly Workouts Target</label>
+                            <input type="number" min="1" max="7" name="weekly_workout_target" value="${targets.weeklyWorkouts || '3'}" class="form-control" placeholder="3" style="width:100%; box-sizing:border-box; border-radius:8px; height:40px; background:var(--panel-soft); color:var(--ink); border:1px solid var(--line); padding:0 10px;">
+                        </div>
+                    </div>
+                </form>
+            `,
+            showCancelButton: true,
+            confirmButtonText: 'Save Targets',
+            confirmButtonColor: 'var(--lime-dark)',
+            cancelButtonColor: 'var(--line)',
+            background: 'var(--bg)',
+            color: 'var(--ink)',
+            preConfirm: () => {
+                const f = document.getElementById('targetMetricsForm');
                 f.submit();
             }
         });
@@ -372,45 +562,58 @@ const rawChartData = FT_CONFIG.rawChartData || [];
                     ${FT_CURRENT_USER_ROLE === 'trainer' ? `<input type="hidden" name="member_user_id" value="${FT_MEMBER_ID}">` : ''}
                     
                     <div style="display:flex;gap:12px;">
-                        <label style="display:block; flex:1; color: var(--muted); font-size: 13px;">Date *
+                        <div style="flex:1; display:flex; flex-direction:column; min-width:0;">
+                            <label style="color: var(--muted); font-size: 13px; font-weight:600; margin-bottom:5px; display:block;">Date *</label>
                             <input name="log_date" type="date" class="form-control" required value="${defaultDate}" style="width: 100%; box-sizing: border-box;">
-                        </label>
-                        <label style="display:block; flex:1; color: var(--muted); font-size: 13px;">Weight (kg) *
+                        </div>
+                        <div style="flex:1; display:flex; flex-direction:column; min-width:0;">
+                            <label style="color: var(--muted); font-size: 13px; font-weight:600; margin-bottom:5px; display:block;">Weight (kg) *</label>
                             <input name="weight_kg" type="number" step="0.01" class="form-control" placeholder="e.g. 74.0" value="${defaultWeight}" required style="width: 100%; box-sizing: border-box;">
-                        </label>
+                        </div>
                     </div>
                     
-                    <div style="display:flex;gap:12px;">
-                        <label style="display:block; flex:1; color: var(--muted); font-size: 13px;">
-                            Body Fat % <a href="#" onclick="calculateBodyFat(event)" style="float:right; color:var(--lime); text-decoration:none; font-weight:700;">Calculate</a>
+                    <div style="display:flex;gap:12px;align-items:flex-end;">
+                        <div style="flex:1; display:flex; flex-direction:column; min-width:0;">
+                            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:5px; min-height:18px;">
+                                <label style="color: var(--muted); font-size: 13px; font-weight:600; margin:0; white-space:nowrap;">Body Fat %</label>
+                                <a href="#" onclick="calculateBodyFat(event)" style="color:var(--lime); text-decoration:none; font-weight:700; font-size:11px; white-space:nowrap; margin-left:6px;">Calculate</a>
+                            </div>
                             <input name="body_fat_percent" type="number" step="0.01" class="form-control" placeholder="optional" value="${defaultBf}" style="width: 100%; box-sizing: border-box;">
-                        </label>
-                        <label style="display:block; flex:1; color: var(--muted); font-size: 13px;">Neck (cm)
+                        </div>
+                        <div style="flex:1; display:flex; flex-direction:column; min-width:0;">
+                            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:5px; min-height:18px;">
+                                <label style="color: var(--muted); font-size: 13px; font-weight:600; margin:0; white-space:nowrap;">Neck (cm)</label>
+                            </div>
                             <input name="neck_cm" type="number" step="0.01" class="form-control" placeholder="optional" value="${defaultNeck}" style="width: 100%; box-sizing: border-box;">
-                        </label>
+                        </div>
                     </div>
                     
                     <div style="display:flex;gap:12px;">
-                        <label style="display:block; flex:1; color: var(--muted); font-size: 13px;">Chest (cm)
+                        <div style="flex:1; display:flex; flex-direction:column; min-width:0;">
+                            <label style="color: var(--muted); font-size: 13px; font-weight:600; margin-bottom:5px; display:block;">Chest (cm)</label>
                             <input name="chest_cm" type="number" step="0.01" class="form-control" placeholder="optional" value="${defaultChest}" style="width: 100%; box-sizing: border-box;">
-                        </label>
-                        <label style="display:block; flex:1; color: var(--muted); font-size: 13px;">Waist (cm)
+                        </div>
+                        <div style="flex:1; display:flex; flex-direction:column; min-width:0;">
+                            <label style="color: var(--muted); font-size: 13px; font-weight:600; margin-bottom:5px; display:block;">Waist (cm)</label>
                             <input name="waist_cm" type="number" step="0.01" class="form-control" placeholder="optional" value="${defaultWaist}" style="width: 100%; box-sizing: border-box;">
-                        </label>
+                        </div>
                     </div>
                     
                     <div style="display:flex;gap:12px;">
-                        <label style="display:block; flex:1; color: var(--muted); font-size: 13px;">Arms (cm)
+                        <div style="flex:1; display:flex; flex-direction:column; min-width:0;">
+                            <label style="color: var(--muted); font-size: 13px; font-weight:600; margin-bottom:5px; display:block;">Arms (cm)</label>
                             <input name="arm_cm" type="number" step="0.01" class="form-control" placeholder="optional" value="${defaultArm}" style="width: 100%; box-sizing: border-box;">
-                        </label>
-                        <label style="display:block; flex:1; color: var(--muted); font-size: 13px;">Hips (cm)
+                        </div>
+                        <div style="flex:1; display:flex; flex-direction:column; min-width:0;">
+                            <label style="color: var(--muted); font-size: 13px; font-weight:600; margin-bottom:5px; display:block;">Hips (cm)</label>
                             <input name="hips_cm" type="number" step="0.01" class="form-control" placeholder="optional" value="${defaultHips}" style="width: 100%; box-sizing: border-box;">
-                        </label>
+                        </div>
                     </div>
                     
-                    <label style="display:block; color: var(--muted); font-size: 13px;">Notes
+                    <div style="display:flex; flex-direction:column; min-width:0;">
+                        <label style="color: var(--muted); font-size: 13px; font-weight:600; margin-bottom:5px; display:block;">Notes</label>
                         <input name="notes" class="form-control" placeholder="Any workout or energy notes" value="${defaultNotes}" style="width: 100%; box-sizing: border-box;">
-                    </label>
+                    </div>
                 </form>
             `,
             showCancelButton: true,

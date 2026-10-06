@@ -582,18 +582,227 @@ function calculate_member_goal_progress(int $memberId, array $profile, array $pr
             break;
     }
 
+    // Phase 3: Evaluate and attach goal milestones
+    $result['milestones'] = evaluate_and_award_goal_milestones($memberId, $profile, $progressLogs);
+
     return $result;
+}
+
+/**
+ * Returns complete catalogue of milestone definitions
+ */
+function get_all_goal_milestone_definitions(): array
+{
+    return [
+        'first_log' => [
+            'name' => 'Journey Begun',
+            'desc' => 'Logged initial baseline body measurements',
+            'icon' => '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15"/></svg>',
+        ],
+        'waist_trimmer' => [
+            'name' => 'Waist Sculptor',
+            'desc' => 'Reduced waist circumference by ≥ 3.0 cm',
+            'icon' => '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="4"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>',
+        ],
+        'lean_warrior' => [
+            'name' => 'Lean Machine',
+            'desc' => 'Reduced body fat percentage by ≥ 2.5%',
+            'icon' => '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z"/></svg>',
+        ],
+        'arm_builder' => [
+            'name' => 'Arm Builder',
+            'desc' => 'Gained ≥ 1.5 cm on arm circumference',
+            'icon' => '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M6 5v14M18 5v14M6 12h12M3 8v8M21 8v8"/></svg>',
+        ],
+        'chest_sculptor' => [
+            'name' => 'Chest Armor',
+            'desc' => 'Gained ≥ 2.0 cm on chest circumference',
+            'icon' => '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>',
+        ],
+        'weight_goal_met' => [
+            'name' => 'Target Achieved',
+            'desc' => 'Reached or passed target body weight',
+            'icon' => '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/></svg>',
+        ],
+        'consistency_streak' => [
+            'name' => 'Habit Master',
+            'desc' => 'Consistent logging across 4+ unique weeks',
+            'icon' => '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>',
+        ]
+    ];
+}
+
+/**
+ * Evaluates and awards goal milestone badges into member_badges, returning structured milestone items.
+ */
+function evaluate_and_award_goal_milestones(int $memberId, array $profile, array $progressLogs = []): array
+{
+    if ($memberId <= 0) {
+        return [];
+    }
+
+    $defs = get_all_goal_milestone_definitions();
+    $pdo = db();
+
+    // 1. Gather baseline and latest values
+    $latest = !empty($progressLogs) ? $progressLogs[0] : null;
+    $earliest = !empty($progressLogs) ? $progressLogs[count($progressLogs) - 1] : null;
+
+    $currWeight = $latest && !empty($latest['weight_kg']) ? (float)$latest['weight_kg'] : (float)($profile['weight_kg'] ?? 0);
+    $baseWeight = $earliest && !empty($earliest['weight_kg']) ? (float)$earliest['weight_kg'] : (float)($profile['weight_kg'] ?? 0);
+    $targetWeight = !empty($profile['target_weight_kg']) ? (float)$profile['target_weight_kg'] : null;
+
+    $currWaist = $latest && !empty($latest['waist_cm']) ? (float)$latest['waist_cm'] : (float)($profile['waist_cm'] ?? 0);
+    $baseWaist = $earliest && !empty($earliest['waist_cm']) ? (float)$earliest['waist_cm'] : (float)($profile['waist_cm'] ?? 0);
+
+    $currBf = $latest && !empty($latest['body_fat_percent']) ? (float)$latest['body_fat_percent'] : null;
+    $baseBf = $earliest && !empty($earliest['body_fat_percent']) ? (float)$earliest['body_fat_percent'] : null;
+
+    $currArm = $latest && !empty($latest['arm_cm']) ? (float)$latest['arm_cm'] : (float)($profile['arm_cm'] ?? 0);
+    $baseArm = $earliest && !empty($earliest['arm_cm']) ? (float)$earliest['arm_cm'] : (float)($profile['arm_cm'] ?? 0);
+
+    $currChest = $latest && !empty($latest['chest_cm']) ? (float)$latest['chest_cm'] : (float)($profile['chest_cm'] ?? 0);
+    $baseChest = $earliest && !empty($earliest['chest_cm']) ? (float)$earliest['chest_cm'] : (float)($profile['chest_cm'] ?? 0);
+
+    // Week streak calculation: distinct calendar weeks in progress logs
+    $logWeeks = [];
+    foreach ($progressLogs as $pl) {
+        if (!empty($pl['log_date'])) {
+            $logWeeks[date('Y-W', strtotime($pl['log_date']))] = true;
+        }
+    }
+    $totalWeeksLogged = count($logWeeks);
+
+    // 2. Evaluate criteria for each milestone
+    $qualifies = [];
+
+    // Milestone 1: Journey Begun
+    $qualifies['first_log'] = [
+        'met' => count($progressLogs) >= 1,
+        'label' => count($progressLogs) >= 1 ? 'Logged' : '0 / 1 log',
+        'pct' => count($progressLogs) >= 1 ? 100 : 0
+    ];
+
+    // Milestone 2: Waist Sculptor (drop >= 3.0 cm)
+    $waistDrop = ($baseWaist > 0 && $currWaist > 0) ? round($baseWaist - $currWaist, 1) : 0.0;
+    $qualifies['waist_trimmer'] = [
+        'met' => $waistDrop >= 3.0,
+        'label' => max(0, $waistDrop) . ' / 3.0 cm',
+        'pct' => (int)min(100, max(0, round(($waistDrop / 3.0) * 100)))
+    ];
+
+    // Milestone 3: Lean Machine (drop >= 2.5% body fat)
+    $bfDrop = ($baseBf !== null && $currBf !== null) ? round($baseBf - $currBf, 1) : 0.0;
+    $qualifies['lean_warrior'] = [
+        'met' => $bfDrop >= 2.5,
+        'label' => max(0, $bfDrop) . ' / 2.5%',
+        'pct' => (int)min(100, max(0, round(($bfDrop / 2.5) * 100)))
+    ];
+
+    // Milestone 4: Arm Builder (gain >= 1.5 cm)
+    $armGain = ($baseArm > 0 && $currArm > 0) ? round($currArm - $baseArm, 1) : 0.0;
+    $qualifies['arm_builder'] = [
+        'met' => $armGain >= 1.5,
+        'label' => max(0, $armGain) . ' / 1.5 cm',
+        'pct' => (int)min(100, max(0, round(($armGain / 1.5) * 100)))
+    ];
+
+    // Milestone 5: Chest Armor (gain >= 2.0 cm)
+    $chestGain = ($baseChest > 0 && $currChest > 0) ? round($currChest - $baseChest, 1) : 0.0;
+    $qualifies['chest_sculptor'] = [
+        'met' => $chestGain >= 2.0,
+        'label' => max(0, $chestGain) . ' / 2.0 cm',
+        'pct' => (int)min(100, max(0, round(($chestGain / 2.0) * 100)))
+    ];
+
+    // Milestone 6: Target Achieved
+    $weightMet = false;
+    $weightProgressPct = 0;
+    if ($targetWeight > 0 && $baseWeight > 0 && $currWeight > 0) {
+        if ($targetWeight <= $baseWeight) { // weight loss
+            $weightMet = $currWeight <= $targetWeight;
+            $totalNeed = $baseWeight - $targetWeight;
+            $done = $baseWeight - $currWeight;
+            $weightProgressPct = $totalNeed > 0 ? (int)min(100, max(0, round(($done / $totalNeed) * 100))) : 0;
+        } else { // weight gain
+            $weightMet = $currWeight >= $targetWeight;
+            $totalNeed = $targetWeight - $baseWeight;
+            $done = $currWeight - $baseWeight;
+            $weightProgressPct = $totalNeed > 0 ? (int)min(100, max(0, round(($done / $totalNeed) * 100))) : 0;
+        }
+    }
+    $qualifies['weight_goal_met'] = [
+        'met' => $weightMet,
+        'label' => $targetWeight ? ($weightMet ? 'Achieved!' : $currWeight . ' / ' . $targetWeight . ' kg') : 'Target not set',
+        'pct' => $weightMet ? 100 : $weightProgressPct
+    ];
+
+    // Milestone 7: Habit Master (4+ unique weeks)
+    $qualifies['consistency_streak'] = [
+        'met' => $totalWeeksLogged >= 4,
+        'label' => min(4, $totalWeeksLogged) . ' / 4 wks',
+        'pct' => (int)min(100, round(($totalWeeksLogged / 4) * 100))
+    ];
+
+    // 3. Persist newly met milestones into member_badges
+    $badgesToInsert = [];
+    foreach ($qualifies as $key => $status) {
+        if ($status['met']) {
+            $badgesToInsert[] = 'milestone_' . $key;
+        }
+    }
+
+    if (!empty($badgesToInsert)) {
+        $placeholders = [];
+        $params = [];
+        foreach ($badgesToInsert as $bt) {
+            $placeholders[] = '(?, ?)';
+            $params[] = $memberId;
+            $params[] = $bt;
+        }
+        $sql = 'INSERT IGNORE INTO member_badges (user_id, badge_type) VALUES ' . implode(', ', $placeholders);
+        $pdo->prepare($sql)->execute($params);
+    }
+
+    // 4. Query current user's unlocked badges
+    $stmt = $pdo->prepare('SELECT badge_type, unlocked_at FROM member_badges WHERE user_id = ? AND badge_type LIKE "milestone_%"');
+    $stmt->execute([$memberId]);
+    $unlockedMap = [];
+    foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
+        $cleanKey = str_replace('milestone_', '', $row['badge_type']);
+        $unlockedMap[$cleanKey] = date('M j, Y', strtotime($row['unlocked_at']));
+    }
+
+    // 5. Build final structured milestones list
+    $milestones = [];
+    foreach ($defs as $key => $d) {
+        $isUnlocked = isset($unlockedMap[$key]) || ($qualifies[$key]['met'] ?? false);
+        $unlockedAt = $unlockedMap[$key] ?? ($isUnlocked ? date('M j, Y') : null);
+        $milestones[] = [
+            'key' => $key,
+            'name' => $d['name'],
+            'desc' => $d['desc'],
+            'icon' => $d['icon'],
+            'unlocked' => $isUnlocked,
+            'unlocked_at' => $unlockedAt,
+            'progress_label' => $qualifies[$key]['label'] ?? 'In progress',
+            'progress_pct' => $isUnlocked ? 100 : ($qualifies[$key]['pct'] ?? 0)
+        ];
+    }
+
+    return $milestones;
 }
 
 /**
  * Renders the modern Goal Hero Card HTML component.
  * Lean, modular, zero-redundant CSS/JS, and fully responsive for mobile screens.
  */
-function render_goal_hero_card(array $goalProgress, bool $canEdit = true): void
+function render_goal_hero_card(array $goalProgress, bool $canEdit = true, bool $isTrainer = false): void
 {
     $status = $goalProgress['status'] ?? ['label' => 'Active', 'icon' => '🟢', 'badge_cls' => 'goal-status-ontrack'];
     $metrics = $goalProgress['metrics'] ?? [];
     $habits = $goalProgress['habits'] ?? [];
+    $milestones = $goalProgress['milestones'] ?? [];
     $weeklyPct = (int)($habits['weekly_pct'] ?? 0);
     $workoutsDone = (int)($habits['workouts_done'] ?? 0);
     $workoutsTarget = (int)($habits['workouts_target'] ?? 3);
@@ -617,10 +826,16 @@ function render_goal_hero_card(array $goalProgress, bool $canEdit = true): void
                     <span><?= h($status['label'] ?? 'On Track') ?></span>
                 </div>
                 <?php if ($canEdit): ?>
-                    <button type="button" class="btn-change-goal" onclick="if(typeof openProfileModal === 'function'){ openProfileModal('goal'); } else { window.location.href='index.php?page=profile#goal'; }" title="Adjust or change target goal">
-                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-                        <span>Change Goal</span>
+                    <button type="button" class="btn-change-goal btn-adjust-targets" onclick="openTargetMetricsModal()" title="<?= $isTrainer ? 'Adjust client targets' : 'Adjust target metrics' ?>">
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="12" cy="12" r="10"/><path d="m4.93 4.93 4.24 4.24"/><path d="m14.83 9.17 4.24-4.24"/><path d="m14.83 14.83 4.24 4.24"/><path d="m9.17 14.83-4.24 4.24"/></svg>
+                        <span><?= $isTrainer ? 'Adjust Targets' : 'Set Targets' ?></span>
                     </button>
+                    <?php if (!$isTrainer): ?>
+                        <button type="button" class="btn-change-goal" onclick="if(typeof openProfileModal === 'function'){ openProfileModal('goal'); } else { window.location.href='index.php?page=profile#goal'; }" title="Change goal">
+                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                            <span>Change Goal</span>
+                        </button>
+                    <?php endif; ?>
                 <?php endif; ?>
             </div>
         </div>
@@ -657,6 +872,30 @@ function render_goal_hero_card(array $goalProgress, bool $canEdit = true): void
                         <?php endif; ?>
                     </div>
                 <?php endforeach; ?>
+            </div>
+        <?php endif; ?>
+
+        <!-- Milestone Badges Shelf -->
+        <?php if (!empty($milestones)): ?>
+            <div class="goal-milestones-shelf">
+                <div class="milestones-shelf-header">
+                    <div class="m-shelf-title">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" style="color: var(--lime);"><circle cx="12" cy="8" r="6"/><path d="M15.477 12.89 17 22l-5-3-5 3 1.523-9.11"/></svg>
+                        <span>Goal Milestones & Achievements</span>
+                    </div>
+                    <span class="m-shelf-count"><?= (int)count(array_filter($milestones, fn($m) => $m['unlocked'])) ?> / <?= count($milestones) ?> Unlocked</span>
+                </div>
+                <div class="milestones-pills-scroll">
+                    <?php foreach ($milestones as $ms): ?>
+                        <div class="milestone-pill <?= $ms['unlocked'] ? 'unlocked' : 'locked' ?>" title="<?= h($ms['desc']) . ($ms['unlocked'] ? ' • Unlocked ' . h($ms['unlocked_at']) : ' • ' . h($ms['progress_label'])) ?>">
+                            <span class="m-pill-icon"><?= $ms['icon'] ?></span>
+                            <div class="m-pill-info">
+                                <span class="m-pill-name"><?= h($ms['name']) ?></span>
+                                <span class="m-pill-meta"><?= $ms['unlocked'] ? 'Unlocked' : h($ms['progress_label']) ?></span>
+                            </div>
+                        </div>
+                    <?php endforeach; ?>
+                </div>
             </div>
         <?php endif; ?>
 

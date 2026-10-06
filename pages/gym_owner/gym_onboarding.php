@@ -106,26 +106,50 @@ function gym_onboarding_page(): void
                     $fireSafetyFilename = FileUpload::storeFireSafetyCert($_FILES['fire_safety_cert'], (int)$user['user_id']);
                 }
 
-                $stmt = $pdo->prepare('INSERT INTO gyms (
-                    owner_user_id, name, address, contact_info,
-                    permit_url, id_url, business_permit_url, valid_id_url,
-                    valid_id_type, barangay_clearance_url, fire_safety_cert_url, fb_page_url,
-                    status
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, "pending")');
-                $stmt->execute([
+                // Check available columns in gyms table to support both schemas gracefully
+                static $gymColumns = null;
+                if ($gymColumns === null) {
+                    try {
+                        $gymColumns = $pdo->query('SHOW COLUMNS FROM gyms')->fetchAll(PDO::FETCH_COLUMN);
+                    } catch (Throwable) {
+                        $gymColumns = [];
+                    }
+                }
+
+                $fields = [
+                    'owner_user_id', 'name', 'address', 'contact_info',
+                    'business_permit_url', 'valid_id_url', 'valid_id_type',
+                    'barangay_clearance_url', 'fire_safety_cert_url', 'fb_page_url', 'status'
+                ];
+                $placeholders = ['?', '?', '?', '?', '?', '?', '?', '?', '?', '?', '"pending"'];
+                $params = [
                     $user['user_id'],
                     $gymName,
                     $gymAddress,
                     $gymContact,
                     $permitFilename,
                     $validIdFilename,
-                    $permitFilename,
-                    $validIdFilename,
                     $validIdType,
                     $brgyFilename,
                     $fireSafetyFilename,
                     $fbPageUrl
-                ]);
+                ];
+
+                // Legacy column compatibility if present in table
+                if (in_array('permit_url', $gymColumns, true)) {
+                    $fields[] = 'permit_url';
+                    $placeholders[] = '?';
+                    $params[] = $permitFilename;
+                }
+                if (in_array('id_url', $gymColumns, true)) {
+                    $fields[] = 'id_url';
+                    $placeholders[] = '?';
+                    $params[] = $validIdFilename;
+                }
+
+                $insertSql = 'INSERT INTO gyms (' . implode(', ', $fields) . ') VALUES (' . implode(', ', $placeholders) . ')';
+                $stmt = $pdo->prepare($insertSql);
+                $stmt->execute($params);
 
                 audit_log($user['user_id'], 'submit_application', 'gym_owner', (string)$user['user_id']);
                 
