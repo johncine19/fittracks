@@ -735,23 +735,38 @@ function qr_attendance_page(): void
         let quickSelectHtml = '';
         if (equipList.length > 0 && !isTrainer) {
             quickSelectHtml = `
-                <div style="background: color-mix(in srgb, var(--panel-soft) 40%, var(--panel)); border: 1px solid var(--line); border-radius: 10px; padding: 9px 11px; margin: 6px 0; text-align: left;">
-                    <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom: 5px;">
+                <div style="background: color-mix(in srgb, var(--panel-soft) 40%, var(--panel)); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; margin: 6px 0; text-align: left;">
+                    <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom: 6px;">
                         <span style="font-size: 10.5px; font-weight: 800; color: var(--lime); text-transform: uppercase; letter-spacing: 0.04em;">Quick-Claim Machine</span>
                         <span id="quick-equip-live-count" style="font-size: 10.5px; color: var(--muted); font-weight: 600;">${equipList.length} available</span>
                     </div>
 
-                    <div style="position:relative; margin-bottom: 6px;">
-                        <input type="text" id="quick-search-equip" placeholder="Type to filter (e.g. Bench, Treadmill)..." style="width:100%; box-sizing:border-box; padding:6px 26px 6px 26px; border-radius:7px; background:var(--panel); border:1px solid var(--line); color:var(--ink); font-size:11.5px; outline:none;" autocomplete="off">
-                        <svg style="position:absolute; left:8px; top:50%; transform:translateY(-50%); color:var(--muted); pointer-events:none;" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-                        <button type="button" id="quick-search-clear" style="display:none; position:absolute; right:7px; top:50%; transform:translateY(-50%); background:none; border:none; color:var(--muted); cursor:pointer; font-size:11px; line-height:1; padding:2px;">✕</button>
+                    <div style="position:relative; margin-bottom: 8px;">
+                        <input type="text" id="quick-search-equip" placeholder="Type to filter (e.g. Bench, Treadmill)..." style="width:100%; box-sizing:border-box; padding:7px 28px 7px 28px; border-radius:7px; background:var(--panel); border:1px solid var(--line); color:var(--ink); font-size:12px; outline:none;" autocomplete="off">
+                        <svg style="position:absolute; left:9px; top:50%; transform:translateY(-50%); color:var(--muted); pointer-events:none;" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                        <button type="button" id="quick-search-clear" style="display:none; position:absolute; right:8px; top:50%; transform:translateY(-50%); background:none; border:none; color:var(--muted); cursor:pointer; font-size:12px; line-height:1; padding:2px;">✕</button>
                     </div>
 
-                    <div style="display: flex; gap: 6px;">
-                        <select id="quick-checkin-equip-id" style="flex: 1; min-width: 0; padding: 6px 8px; border-radius: 7px; background: var(--panel); border: 1px solid var(--line); color: var(--ink); font-size: 11.5px; outline: none; cursor: pointer;">
-                        </select>
-                        <button type="button" id="btn-quick-claim" style="padding: 6px 12px; border-radius: 7px; background: var(--lime); color: #000; font-weight: 800; font-size: 11.5px; border: none; cursor: pointer; white-space: nowrap;">
-                            Claim &amp; Start
+                    <div style="display: flex; flex-direction: column; gap: 8px;">
+                        <!-- Custom Mobile-Optimized Dropdown -->
+                        <div id="custom-equip-dropdown" style="position: relative; width: 100%;">
+                            <input type="hidden" id="quick-checkin-equip-id" value="">
+                            
+                            <button type="button" id="quick-equip-trigger" style="width: 100%; box-sizing: border-box; display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 8.5px 12px; border-radius: 8px; background: var(--panel); border: 1.5px solid var(--line); color: var(--ink); font-size: 12px; cursor: pointer; text-align: left; transition: all 0.2s ease;">
+                                <div style="display:flex; align-items:center; gap:7px; min-width:0; overflow:hidden;">
+                                    <span style="font-size:13px; opacity:0.85;">🏋️</span>
+                                    <span id="quick-equip-trigger-text" style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--muted); font-weight: 500;">-- Choose an available machine (${equipList.length}) --</span>
+                                </div>
+                                <svg id="quick-equip-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="flex-shrink:0; transition: transform 0.2s ease;"><polyline points="6 9 12 15 18 9"/></svg>
+                            </button>
+
+                            <div id="quick-equip-menu" style="display: none; position: absolute; top: calc(100% + 5px); left: 0; right: 0; max-height: 200px; overflow-y: auto; background: var(--panel, #121721); border: 1px solid var(--line); border-radius: 9px; box-shadow: 0 10px 28px rgba(0,0,0,0.5); z-index: 99999; padding: 4px; box-sizing: border-box; -webkit-overflow-scrolling: touch;">
+                            </div>
+                        </div>
+
+                        <button type="button" id="btn-quick-claim" style="width: 100%; padding: 9px 14px; border-radius: 8px; background: var(--lime); color: #000; font-weight: 800; font-size: 12px; border: none; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 6px; box-shadow: 0 2px 8px rgba(132, 204, 22, 0.2); transition: opacity 0.15s;">
+                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+                            <span>Claim &amp; Start Station</span>
                         </button>
                     </div>
                 </div>
@@ -812,15 +827,90 @@ function qr_attendance_page(): void
                 const rawEquipList = Array.isArray(data.equipment_list) ? data.equipment_list : [];
                 const searchInput = document.getElementById('quick-search-equip');
                 const searchClear = document.getElementById('quick-search-clear');
-                const equipSel = document.getElementById('quick-checkin-equip-id');
+                const hiddenInput = document.getElementById('quick-checkin-equip-id');
+                const triggerBtn = document.getElementById('quick-equip-trigger');
+                const triggerText = document.getElementById('quick-equip-trigger-text');
+                const chevron = document.getElementById('quick-equip-chevron');
+                const menu = document.getElementById('quick-equip-menu');
                 const liveCount = document.getElementById('quick-equip-live-count');
                 const catChips = document.querySelectorAll('.quick-cat-filter');
                 const claimBtn = document.getElementById('btn-quick-claim');
 
                 let activeCategory = '';
 
+                function cleanUnitNumber(val) {
+                    if (!val) return '';
+                    return String(val).replace(/^#+/, '').trim();
+                }
+
+                function closeMenu() {
+                    if (menu) menu.style.display = 'none';
+                    if (chevron) chevron.style.transform = 'rotate(0deg)';
+                }
+
+                function openMenu() {
+                    if (menu) menu.style.display = 'block';
+                    if (chevron) chevron.style.transform = 'rotate(180deg)';
+                }
+
+                function toggleMenu() {
+                    if (!menu) return;
+                    if (menu.style.display === 'block') {
+                        closeMenu();
+                    } else {
+                        openMenu();
+                    }
+                }
+
+                if (triggerBtn) {
+                    triggerBtn.addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        toggleMenu();
+                    });
+                }
+
+                // Close menu when clicking outside
+                document.addEventListener('click', (e) => {
+                    if (menu && menu.style.display === 'block') {
+                        const drop = document.getElementById('custom-equip-dropdown');
+                        if (drop && !drop.contains(e.target)) {
+                            closeMenu();
+                        }
+                    }
+                });
+
+                function selectItem(id, name, unit, cat) {
+                    if (hiddenInput) hiddenInput.value = id;
+                    if (triggerText) {
+                        const unitBadge = unit ? ` #${unit}` : '';
+                        triggerText.innerHTML = `<strong style="color:var(--ink); font-weight:800;">${escapeHtml(name)}${unitBadge}</strong> <span style="font-size:10.5px; color:var(--lime); font-weight:600; margin-left:4px;">(${escapeHtml(cat)})</span>`;
+                    }
+                    if (triggerBtn) {
+                        triggerBtn.style.borderColor = 'var(--lime)';
+                        triggerBtn.style.background = 'color-mix(in srgb, var(--lime) 8%, var(--panel))';
+                    }
+                    closeMenu();
+                    updateItemHighlight();
+                }
+
+                function updateItemHighlight() {
+                    if (!menu || !hiddenInput) return;
+                    const curId = hiddenInput.value;
+                    menu.querySelectorAll('.custom-equip-opt').forEach(opt => {
+                        const isMatch = opt.getAttribute('data-id') === curId;
+                        opt.style.background = isMatch ? 'color-mix(in srgb, var(--lime) 15%, transparent)' : 'transparent';
+                        opt.style.borderColor = isMatch ? 'var(--lime)' : 'transparent';
+                        const badge = opt.querySelector('.custom-equip-select-badge');
+                        if (badge) {
+                            badge.textContent = isMatch ? '✓ Selected' : 'Select';
+                            badge.style.background = isMatch ? 'var(--lime)' : 'color-mix(in srgb, var(--lime) 15%, transparent)';
+                            badge.style.color = isMatch ? '#000' : 'var(--lime)';
+                        }
+                    });
+                }
+
                 function updateOptions() {
-                    if (!equipSel) return;
+                    if (!menu) return;
                     const q = (searchInput ? searchInput.value : '').toLowerCase().trim();
 
                     const filtered = rawEquipList.filter(eq => {
@@ -841,29 +931,61 @@ function qr_attendance_page(): void
                         byCat[cat].push(eq);
                     });
 
-                    let optsHtml = '';
+                    let itemsHtml = '';
                     if (filtered.length === 0) {
-                        optsHtml = `<option value="" disabled selected>No available machines matching ${q ? '"' + escapeHtml(q) + '"' : 'filter'}</option>`;
+                        itemsHtml = `<div style="padding: 14px 10px; text-align: center; color: var(--muted); font-size: 11.5px;">No available machines matching ${q ? '"' + escapeHtml(q) + '"' : 'filter'}</div>`;
                     } else {
-                        const defaultPrompt = filtered.length === 1
-                            ? '-- Ready to claim (1 match) --'
-                            : `-- Choose an available machine (${filtered.length}) --`;
-                        optsHtml = `<option value="">${defaultPrompt}</option>`;
-
                         for (const [catName, items] of Object.entries(byCat)) {
-                            optsHtml += `<optgroup label="${escapeHtml(catName)} (${items.length})" style="background:var(--panel); color:var(--lime); font-weight:700;">`;
+                            itemsHtml += `
+                                <div style="padding: 6px 9px 3px; font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.05em; color: var(--lime); display: flex; justify-content: space-between; border-bottom: 1px solid rgba(255,255,255,0.06); margin: 3px 0 2px;">
+                                    <span>${escapeHtml(catName)}</span>
+                                    <span style="opacity:0.75;">(${items.length})</span>
+                                </div>
+                            `;
                             items.forEach(eq => {
-                                const unitStr = eq.unit_number ? ` #${escapeHtml(eq.unit_number)}` : '';
-                                optsHtml += `<option value="${eq.equipment_id}" style="background:var(--panel); color:var(--ink); font-weight:400;">${escapeHtml(eq.name)}${unitStr} • ${escapeHtml(eq.category)}</option>`;
+                                const unit = cleanUnitNumber(eq.unit_number);
+                                const isSel = (hiddenInput && hiddenInput.value === String(eq.equipment_id));
+                                itemsHtml += `
+                                    <div class="custom-equip-opt" data-id="${eq.equipment_id}" data-name="${escapeHtml(eq.name)}" data-unit="${escapeHtml(unit)}" data-cat="${escapeHtml(eq.category || '')}" style="padding: 7px 10px; margin-bottom: 2px; border-radius: 6px; display: flex; align-items: center; justify-content: space-between; gap: 8px; cursor: pointer; transition: all 0.15s; background: ${isSel ? 'color-mix(in srgb, var(--lime) 15%, transparent)' : 'transparent'}; border: 1px solid ${isSel ? 'var(--lime)' : 'transparent'};">
+                                        <div style="display:flex; align-items:center; gap:6px; min-width:0;">
+                                            <span style="font-weight: 700; color: var(--ink); font-size: 12px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${escapeHtml(eq.name)}</span>
+                                            ${unit ? `<span style="font-size: 10px; font-weight: 800; padding: 1px 5px; border-radius: 4px; background: rgba(148,163,184,0.18); color: var(--ink); flex-shrink:0;">#${unit}</span>` : ''}
+                                        </div>
+                                        <span class="custom-equip-select-badge" style="font-size: 9.5px; font-weight: 800; color: ${isSel ? '#000' : 'var(--lime)'}; background: ${isSel ? 'var(--lime)' : 'color-mix(in srgb, var(--lime) 15%, transparent)'}; padding: 2px 7px; border-radius: 4px; flex-shrink:0; text-transform:uppercase;">${isSel ? '✓ Selected' : 'Select'}</span>
+                                    </div>
+                                `;
                             });
-                            optsHtml += `</optgroup>`;
                         }
                     }
 
-                    equipSel.innerHTML = optsHtml;
+                    menu.innerHTML = itemsHtml;
 
-                    if (filtered.length === 1) {
-                        equipSel.value = filtered[0].equipment_id;
+                    // Re-bind option click listeners
+                    menu.querySelectorAll('.custom-equip-opt').forEach(opt => {
+                        opt.addEventListener('click', (e) => {
+                            e.stopPropagation();
+                            selectItem(
+                                opt.getAttribute('data-id'),
+                                opt.getAttribute('data-name'),
+                                opt.getAttribute('data-unit'),
+                                opt.getAttribute('data-cat')
+                            );
+                        });
+                        opt.addEventListener('mouseenter', () => {
+                            if (hiddenInput && hiddenInput.value !== opt.getAttribute('data-id')) {
+                                opt.style.background = 'var(--panel-soft)';
+                            }
+                        });
+                        opt.addEventListener('mouseleave', () => {
+                            if (hiddenInput && hiddenInput.value !== opt.getAttribute('data-id')) {
+                                opt.style.background = 'transparent';
+                            }
+                        });
+                    });
+
+                    if (filtered.length === 1 && !hiddenInput.value) {
+                        const sole = filtered[0];
+                        selectItem(sole.equipment_id, sole.name, cleanUnitNumber(sole.unit_number), sole.category || '');
                     }
 
                     if (liveCount) {
@@ -876,6 +998,11 @@ function qr_attendance_page(): void
 
                     if (searchClear) {
                         searchClear.style.display = q ? 'block' : 'none';
+                    }
+
+                    // If user is actively typing, open menu so results are instantly selectable
+                    if (q && menu.style.display !== 'block') {
+                        openMenu();
                     }
                 }
 
@@ -945,12 +1072,12 @@ function qr_attendance_page(): void
 
                 if (claimBtn) {
                     claimBtn.addEventListener('click', async () => {
-                        const equipId = equipSel ? equipSel.value : null;
+                        const equipId = (hiddenInput && hiddenInput.value) ? hiddenInput.value : (document.getElementById('quick-checkin-equip-id')?.value || '');
                         if (!equipId) {
                             Swal.fire({
                                 icon: 'info',
                                 title: 'Select a Machine',
-                                text: 'Please choose an available machine from the dropdown or search for one.',
+                                text: 'Please choose an available machine from the list or search for one.',
                                 background: 'var(--panel)',
                                 color: 'var(--ink)',
                                 confirmButtonColor: 'var(--lime)'

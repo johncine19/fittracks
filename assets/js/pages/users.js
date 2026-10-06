@@ -35,7 +35,7 @@ if (FT_USERS_CONFIG.hasOldUser) {
         const spec = document.getElementById('eu_spec');
         if (!tf || !spec) return;
         if (role === 'trainer') {
-            tf.style.display = 'flex';
+            tf.style.display = 'grid';
             spec.required = true;
         } else {
             tf.style.display = 'none';
@@ -158,20 +158,41 @@ if (FT_USERS_CONFIG.hasOldUser) {
     function editUser(u) {
         Swal.fire({
             title: 'Edit User',
+            customClass: {
+                popup: 'edit-user-swal-modal'
+            },
+            width: '540px',
+            showCloseButton: true,
             html: `
-                <form id="editUserForm" method="post" style="text-align: left; display: flex; flex-direction: column; gap: 12px; margin-top: 15px;">
+                <form id="editUserForm" method="post" class="edit-user-grid-form">
                     <input type="hidden" name="csrf_token" value="${CURRENT_CSRF_TOKEN}">
                     <input type="hidden" name="action" value="edit_user">
                     <input type="hidden" name="user_id" id="eu_id">
                     <input type="hidden" name="admin_password" id="eu_admin_pass">
-                    <div style="display:flex;gap:12px;">
-                        <label style="display:block; flex:1; color: var(--muted); font-size: 14px;">First name * <input name="first_name" id="eu_fn" class="form-control" required autocapitalize="words" style="width: 100%; box-sizing: border-box; text-transform: capitalize;" onblur="this.value = this.value.trim().replace(/\b\w/g, l => l.toUpperCase())"></label>
-                        <label style="display:block; flex:1; color: var(--muted); font-size: 14px;">Last name * <input name="last_name" id="eu_ln" class="form-control" required autocapitalize="words" style="width: 100%; box-sizing: border-box; text-transform: capitalize;" onblur="this.value = this.value.trim().replace(/\b\w/g, l => l.toUpperCase())"></label>
-                    </div>
-                    <label style="display:block; color: var(--muted); font-size: 14px;">Email * <input type="email" name="email" id="eu_email" class="form-control" required style="width: 100%; box-sizing: border-box; text-transform: lowercase;" oninput="this.value = this.value.toLowerCase()" onblur="this.value = this.value.trim().toLowerCase()"></label>
-                    <label style="display:block; color: var(--muted); font-size: 14px;">Mobile Number * <input type="tel" name="phone" id="eu_phone" class="form-control" pattern="[0-9]{11}" maxlength="11" title="Please enter exactly 11 digits" placeholder="09123456789" required style="width: 100%; box-sizing: border-box;"></label>
-                    <label style="display:block; color: var(--muted); font-size: 14px;">Role *
-                        <select name="role" id="eu_role" class="form-control" style="width: 100%; box-sizing: border-box;" onchange="toggleEditTrainerFields(this.value)">
+
+                    <label class="eu-field">
+                        <span class="eu-label">First name *</span>
+                        <input name="first_name" id="eu_fn" class="form-control" required autocapitalize="words" style="text-transform: capitalize;" onblur="this.value = this.value.trim().replace(/\\b\\w/g, l => l.toUpperCase())">
+                    </label>
+
+                    <label class="eu-field">
+                        <span class="eu-label">Last name *</span>
+                        <input name="last_name" id="eu_ln" class="form-control" required autocapitalize="words" style="text-transform: capitalize;" onblur="this.value = this.value.trim().replace(/\\b\\w/g, l => l.toUpperCase())">
+                    </label>
+
+                    <label class="eu-field eu-field-email">
+                        <span class="eu-label">Email *</span>
+                        <input type="email" name="email" id="eu_email" class="form-control" required style="text-transform: lowercase;" oninput="this.value = this.value.toLowerCase()" onblur="this.value = this.value.trim().toLowerCase()">
+                    </label>
+
+                    <label class="eu-field eu-field-phone">
+                        <span class="eu-label">Mobile Number *</span>
+                        <input type="tel" name="phone" id="eu_phone" class="form-control" pattern="[0-9]{11}" maxlength="11" title="Please enter exactly 11 digits" placeholder="09123456789" required oninput="this.value=this.value.replace(/[^0-9]/g,'').slice(0,11)">
+                    </label>
+
+                    <label class="eu-field eu-field-role">
+                        <span class="eu-label">Role *</span>
+                        <select name="role" id="eu_role" class="form-control" onchange="toggleEditTrainerFields(this.value)">
                             ${IS_ADMIN ? `
                                 <option value="gym_owner">Gym Owner</option>
                             ` : ''}
@@ -179,22 +200,37 @@ if (FT_USERS_CONFIG.hasOldUser) {
                             <option value="member">Member</option>
                         </select>
                     </label>
-                    <div id="eu_trainer_fields" style="display: none; flex-direction: column; gap: 12px;">
-                        <label style="display:block; color: var(--muted); font-size: 14px;">Specialization <small style="font-weight:400">(trainer only)</small>
-                            <input name="specialization" id="eu_spec" class="form-control" placeholder="e.g. Strength & Conditioning" style="width: 100%; box-sizing: border-box;">
+
+                    <label class="eu-field eu-field-pass">
+                        <span class="eu-label">New Password <small style="font-weight:400;color:var(--muted);">(blank = keep)</small></span>
+                        <div style="position:relative; width:100%;">
+                            <input type="password" name="new_password" id="eu_pass" class="form-control" style="padding-right:32px;" autocomplete="new-password" placeholder="Leave blank to keep">
+                            <button type="button" onclick="const p=document.getElementById('eu_pass');const isP=p.type==='password';p.type=isP?'text':'password';this.querySelector('svg').style.opacity=isP?'1':'0.5';" style="position:absolute;right:8px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;padding:2px;color:var(--ink);display:flex;align-items:center;" title="Toggle visibility" tabindex="-1">
+                                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="opacity:0.5;"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                            </button>
+                        </div>
+                    </label>
+
+                    <div id="eu_trainer_fields" class="eu-trainer-fields" style="display: none;">
+                        <label class="eu-field">
+                            <span class="eu-label">Specialization <small style="font-weight:400;">(trainer only)</small></span>
+                            <input name="specialization" id="eu_spec" class="form-control" placeholder="e.g. Strength & Conditioning">
                         </label>
-                        <label style="display:block; color: var(--muted); font-size: 14px;">Staff Permission Level
-                            <select name="staff_role" id="eu_staff_role" class="form-control" style="width: 100%; box-sizing: border-box;">
+
+                        <label class="eu-field">
+                            <span class="eu-label">Staff Permission Level</span>
+                            <select name="staff_role" id="eu_staff_role" class="form-control">
                                 <option value="trainer">Fitness Trainer (Floor Staff)</option>
                                 <option value="front_desk">Front Desk / Cashier (Financials Masked)</option>
                                 <option value="manager">Operations Manager (Full Staff Access)</option>
                             </select>
                         </label>
-                        <label style="display:block; color: var(--muted); font-size: 14px;">Bio <small style="font-weight:400">(trainer only)</small>
-                            <input name="bio" id="eu_bio" class="form-control" placeholder="Short bio" style="width: 100%; box-sizing: border-box;">
+
+                        <label class="eu-field eu-field-full">
+                            <span class="eu-label">Bio <small style="font-weight:400;">(trainer only)</small></span>
+                            <input name="bio" id="eu_bio" class="form-control" placeholder="Short bio">
                         </label>
                     </div>
-                    <label style="display:block; color: var(--muted); font-size: 14px;">New Password <small>(leave blank to keep current)</small> <input type="password" name="new_password" id="eu_pass" class="form-control" style="width: 100%; box-sizing: border-box;"></label>
                 </form>
             `,
             didOpen: () => {
