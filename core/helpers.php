@@ -28,6 +28,18 @@ function env(string $key, mixed $default = ''): mixed
     return app_env($key, $default);
 }
 
+/**
+ * Public URL for a file under /assets with a cache-busting version param.
+ * Example: asset_url('css/pages/reports.css') => "assets/css/pages/reports.css?v=1728181234"
+ */
+function asset_url(string $path): string
+{
+    $path = ltrim($path, '/');
+    $file = __DIR__ . '/../assets/' . $path;
+    $version = is_file($file) ? filemtime($file) : 1;
+    return 'assets/' . $path . '?v=' . $version;
+}
+
 function get_setting(string $key, string $default = ''): string
 {
     static $cache = null;
@@ -578,8 +590,6 @@ function gym_has_feature(string $feature, array|int|null $gym = null): bool
 
         // Business only (Multi-Branch, Full Compliance, Custom Branding, EOD, Staff Privacy)
         'custom_branding' => 'business',
-        'branded_receipts' => 'business',
-        'digital_pass_customization' => 'business',
         'staff_permissions' => 'business',
         'eod_summary' => 'business',
         'audit_logs' => 'business',

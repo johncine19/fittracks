@@ -6,3 +6,6 @@
 !/storage/logs/.gitkeep
 .DS_Store
 assets/images/desktop.ini
+
+# Local AI-agent worktrees (duplicate copies of the project)
+/.kilo/

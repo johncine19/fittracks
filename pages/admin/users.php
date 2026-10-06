@@ -2028,8 +2028,9 @@ function users_page(): void
             searchable: false,
             zIndex: 100,
             items: roleItems,
-            onChange: function(val, item) {
-                toggleTrainerFields(val);
+            onChange: function(item) {
+                // FitDropdown passes the selected item object ({id, label}), not the id string
+                toggleTrainerFields((item && typeof item === 'object') ? item.id : item);
             }
         });
         toggleTrainerFields(initialRole);

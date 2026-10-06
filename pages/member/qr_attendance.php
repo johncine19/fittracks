@@ -276,14 +276,10 @@ function qr_attendance_page(): void
     $passSlogan = 'Official Member';
     $passBrandColor = null;
     if ($memberGymId > 0) {
-        $gStmt = db()->prepare('SELECT gym_id, name, logo_path, brand_color, member_pass_slogan, subscription_plan FROM gyms WHERE gym_id = ? LIMIT 1');
+        $gStmt = db()->prepare('SELECT gym_id, name, logo_path, brand_color, subscription_plan FROM gyms WHERE gym_id = ? LIMIT 1');
         $gStmt->execute([$memberGymId]);
         $memberGym = $gStmt->fetch(PDO::FETCH_ASSOC);
         if ($memberGym) {
-            $hasPassCustomization = gym_has_feature('digital_pass_customization', $memberGym);
-            if ($hasPassCustomization && !empty($memberGym['member_pass_slogan'])) {
-                $passSlogan = $memberGym['member_pass_slogan'];
-            }
             if (!empty($memberGym['brand_color']) && gym_has_feature('brand_accent_color', $memberGym)) {
                 $passBrandColor = $memberGym['brand_color'];
             }

@@ -62,9 +62,6 @@ try {
         "ALTER TABLE users ADD COLUMN google_id VARCHAR(100) DEFAULT NULL AFTER user_id",
         "ALTER TABLE users ADD UNIQUE KEY uq_users_google_id (google_id)",
         "ALTER TABLE users MODIFY COLUMN password_hash VARCHAR(255) NULL",
-        "ALTER TABLE gyms ADD COLUMN member_pass_slogan VARCHAR(100) DEFAULT 'Official Member'",
-        "ALTER TABLE gyms ADD COLUMN receipt_header_note VARCHAR(255) DEFAULT NULL",
-        "ALTER TABLE gyms ADD COLUMN receipt_footer_policy TEXT DEFAULT NULL",
         "ALTER TABLE gyms ADD COLUMN staff_hide_financials TINYINT(1) DEFAULT 0",
         "ALTER TABLE gyms ADD COLUMN eod_email_summary TINYINT(1) DEFAULT 1",
         "ALTER TABLE users ADD COLUMN staff_role VARCHAR(30) DEFAULT NULL"

@@ -48,16 +48,10 @@ function gym_profile_page(): void
             if ($brandColor !== '' && !preg_match('/^#[0-9A-Fa-f]{6}$/', $brandColor)) {
                 $brandColor = null;
             }
-            $memberPassSlogan = trim((string) post('member_pass_slogan')) ?: 'Official Member';
-            $receiptHeaderNote = trim((string) post('receipt_header_note')) ?: null;
-            $receiptFooterPolicy = trim((string) post('receipt_footer_policy')) ?: null;
             $staffHideFinancials = isset($_POST['staff_hide_financials']) ? 1 : 0;
             $eodEmailSummary = isset($_POST['eod_email_summary']) ? 1 : 0;
         } else {
             $brandColor = $gym['brand_color'] ?? null;
-            $memberPassSlogan = $gym['member_pass_slogan'] ?? 'Official Member';
-            $receiptHeaderNote = $gym['receipt_header_note'] ?? null;
-            $receiptFooterPolicy = $gym['receipt_footer_policy'] ?? null;
             $staffHideFinancials = (int)($gym['staff_hide_financials'] ?? 0);
             $eodEmailSummary = (int)($gym['eod_email_summary'] ?? 1);
         }
@@ -140,8 +134,8 @@ function gym_profile_page(): void
         }
 
         if ($name && $address && $contact) {
-            $pdo->prepare('UPDATE gyms SET name = ?, address = ?, contact_info = ?, walk_in_fee = ?, inactivity_threshold_days = ?, inactivity_cooldown_days = ?, auto_inactivity_alerts = ?, business_permit_url = ?, barangay_clearance_url = ?, fire_safety_cert_url = ?, logo_url = ?, brand_color = ?, member_pass_slogan = ?, receipt_header_note = ?, receipt_footer_policy = ?, staff_hide_financials = ?, eod_email_summary = ? WHERE gym_id = ?')
-                ->execute([$name, $address, $contact, $walkInFee, $inactivityThreshold, $inactivityCooldown, $autoInactivityAlerts, $permitUrl, $brgyUrl, $fireSafetyUrl, $logoUrl, $brandColor, $memberPassSlogan, $receiptHeaderNote, $receiptFooterPolicy, $staffHideFinancials, $eodEmailSummary, $gym['gym_id']]);
+            $pdo->prepare('UPDATE gyms SET name = ?, address = ?, contact_info = ?, walk_in_fee = ?, inactivity_threshold_days = ?, inactivity_cooldown_days = ?, auto_inactivity_alerts = ?, business_permit_url = ?, barangay_clearance_url = ?, fire_safety_cert_url = ?, logo_url = ?, brand_color = ?, staff_hide_financials = ?, eod_email_summary = ? WHERE gym_id = ?')
+                ->execute([$name, $address, $contact, $walkInFee, $inactivityThreshold, $inactivityCooldown, $autoInactivityAlerts, $permitUrl, $brgyUrl, $fireSafetyUrl, $logoUrl, $brandColor, $staffHideFinancials, $eodEmailSummary, $gym['gym_id']]);
             flash('Gym settings updated successfully.', 'success');
             redirect('gym_profile');
         } else {
@@ -1821,91 +1815,7 @@ function gym_profile_page(): void
                                 </div>
                             </div>
 
-                            <!-- Item 3: Digital Member Pass Slogan / Card Header -->
-                            <div class="overview-doc-item is-stacked-field">
-                                <div class="overview-doc-left">
-                                    <div class="overview-doc-icon" style="background: rgba(14, 165, 233, 0.12); color: #38bdf8;">
-                                        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="16" rx="3"/><line x1="7" y1="9" x2="13" y2="9"/><line x1="7" y1="13" x2="11" y2="13"/><circle cx="17" cy="11" r="2"/></svg>
-                                    </div>
-                                    <div class="overview-doc-info">
-                                        <div class="overview-doc-name">Digital Member Pass Title</div>
-                                        <div class="overview-doc-status">
-                                            <?php if (!$canCustomBrand): ?>
-                                                <span style="color: var(--muted);">Unlocked on Business Tier — custom title on member QR cards</span>
-                                            <?php else: ?>
-                                                <span style="color: var(--muted);">Displays on member QR check-in badges (e.g. VIP Access, Gold Member)</span>
-                                            <?php endif; ?>
-                                        </div>
-                                    </div>
-                                </div>
-                                <div class="overview-doc-right">
-                                    <?php if (!$canCustomBrand): ?>
-                                        <a href="index.php?page=gym_subscription" class="tier-pill" style="text-decoration: none; font-size: 11px; padding: 4px 10px;">
-                                            Business Plan
-                                        </a>
-                                    <?php else: ?>
-                                        <input type="text" name="member_pass_slogan" class="branding-custom-input" value="<?= h($gym['member_pass_slogan'] ?? 'Official Member') ?>" placeholder="e.g. VIP Access, Elite Member">
-                                    <?php endif; ?>
-                                </div>
-                            </div>
-
-                            <!-- Item 4: Official Receipt Header & Tax / TIN Info -->
-                            <div class="overview-doc-item is-stacked-field">
-                                <div class="overview-doc-left">
-                                    <div class="overview-doc-icon" style="background: rgba(245, 158, 11, 0.12); color: #f59e0b;">
-                                        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
-                                    </div>
-                                    <div class="overview-doc-info">
-                                        <div class="overview-doc-name">Official Receipt Header &amp; TIN</div>
-                                        <div class="overview-doc-status">
-                                            <?php if (!$canCustomBrand): ?>
-                                                <span style="color: var(--muted);">Unlocked on Business Tier — add Tax / BIR / Permit details to printed receipts</span>
-                                            <?php else: ?>
-                                                <span style="color: var(--muted);">Appears beneath gym name on payment slips &amp; PDFs</span>
-                                            <?php endif; ?>
-                                        </div>
-                                    </div>
-                                </div>
-                                <div class="overview-doc-right">
-                                    <?php if (!$canCustomBrand): ?>
-                                        <a href="index.php?page=gym_subscription" class="tier-pill" style="text-decoration: none; font-size: 11px; padding: 4px 10px;">
-                                            Business Plan
-                                        </a>
-                                    <?php else: ?>
-                                        <input type="text" name="receipt_header_note" class="branding-custom-input" value="<?= h($gym['receipt_header_note'] ?? '') ?>" placeholder="e.g. TIN: 123-456-789 | BIR Permit #0012">
-                                    <?php endif; ?>
-                                </div>
-                            </div>
-
-                            <!-- Item 5: Official Receipt Footer Policy & Terms -->
-                            <div class="overview-doc-item is-stacked-field">
-                                <div class="overview-doc-left">
-                                    <div class="overview-doc-icon" style="background: rgba(168, 85, 247, 0.12); color: #a855f7;">
-                                        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
-                                    </div>
-                                    <div class="overview-doc-info">
-                                        <div class="overview-doc-name">Receipt Policy &amp; Terms Note</div>
-                                        <div class="overview-doc-status">
-                                            <?php if (!$canCustomBrand): ?>
-                                                <span style="color: var(--muted);">Unlocked on Business Tier — custom refund &amp; membership rules on receipts</span>
-                                            <?php else: ?>
-                                                <span style="color: var(--muted);">e.g. Strictly non-refundable. Valid for 30 days.</span>
-                                            <?php endif; ?>
-                                        </div>
-                                    </div>
-                                </div>
-                                <div class="overview-doc-right">
-                                    <?php if (!$canCustomBrand): ?>
-                                        <a href="index.php?page=gym_subscription" class="tier-pill" style="text-decoration: none; font-size: 11px; padding: 4px 10px;">
-                                            Business Plan
-                                        </a>
-                                    <?php else: ?>
-                                        <textarea name="receipt_footer_policy" class="branding-custom-textarea" rows="2" placeholder="e.g. Strictly non-refundable and non-transferable. Valid for 30 days."><?= h($gym['receipt_footer_policy'] ?? '') ?></textarea>
-                                    <?php endif; ?>
-                                </div>
-                            </div>
-
-                            <!-- Item 6: Automated Midnight EOD Revenue Digest -->
+                            <!-- Item 3: Automated Midnight EOD Revenue Digest -->
                             <div class="overview-doc-item">
                                 <div class="overview-doc-left">
                                     <div class="overview-doc-icon" style="background: rgba(16, 185, 129, 0.12); color: #10b981;">
@@ -1936,7 +1846,7 @@ function gym_profile_page(): void
                                 </div>
                             </div>
 
-                            <!-- Item 7: Staff Financial Privacy Mode -->
+                            <!-- Item 4: Staff Financial Privacy Mode -->
                             <div class="overview-doc-item">
                                 <div class="overview-doc-left">
                                     <div class="overview-doc-icon" style="background: rgba(244, 63, 94, 0.12); color: #f43f5e;">
