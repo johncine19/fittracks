@@ -128,6 +128,51 @@ HTML;
         queue_email($email, $name, 'Payment Confirmation - FITTRACKS', self::layout($content));
     }
 
+    public static function sendGymSubscriptionReceipt(
+        string $email,
+        string $ownerName,
+        string $gymName,
+        string $planName,
+        string $billingCycle,
+        float $amount,
+        string $receiptNumber,
+        string $paymentId,
+        string $startDate,
+        string $endDate
+    ): bool {
+        $safeOwnerName = htmlspecialchars($ownerName, ENT_QUOTES, 'UTF-8');
+        $safeGymName = htmlspecialchars($gymName, ENT_QUOTES, 'UTF-8');
+        $safePlanName = htmlspecialchars($planName, ENT_QUOTES, 'UTF-8');
+        $safeReceipt = htmlspecialchars($receiptNumber, ENT_QUOTES, 'UTF-8');
+        $safePaymentId = htmlspecialchars($paymentId, ENT_QUOTES, 'UTF-8');
+        $cycleLabel = $billingCycle === 'yearly' ? 'Yearly' : 'Monthly';
+        $formattedAmount = '&#8369;' . number_format($amount, 2);
+        $subscriptionUrl = app_base_url() . '?page=gym_subscription';
+
+        $content = <<<HTML
+        <p>Hi <strong>{$safeOwnerName}</strong>,</p>
+        <p>Your payment was confirmed and the <strong>{$safePlanName}</strong> plan for <strong>{$safeGymName}</strong> is now active.</p>
+        <table style="width:100%; border-collapse:collapse; margin:22px 0; font-size:14px;">
+            <tr><td style="padding:9px 0; color:#94a3b8;">Amount paid</td><td style="padding:9px 0; text-align:right; color:#fff; font-weight:700;">{$formattedAmount}</td></tr>
+            <tr><td style="padding:9px 0; color:#94a3b8;">Billing cycle</td><td style="padding:9px 0; text-align:right; color:#fff;">{$cycleLabel}</td></tr>
+            <tr><td style="padding:9px 0; color:#94a3b8;">Subscription period</td><td style="padding:9px 0; text-align:right; color:#fff;">{$startDate} to {$endDate}</td></tr>
+            <tr><td style="padding:9px 0; color:#94a3b8;">Receipt number</td><td style="padding:9px 0; text-align:right; color:#c7ff22; font-weight:700;">{$safeReceipt}</td></tr>
+            <tr><td style="padding:9px 0; color:#94a3b8;">Xendit payment ID</td><td style="padding:9px 0; text-align:right; color:#fff;">{$safePaymentId}</td></tr>
+        </table>
+        <p style="text-align:center; margin:28px 0;">
+            <a href="{$subscriptionUrl}" class="btn">View Subscription</a>
+        </p>
+        <p style="font-size:14px; color:#94a3b8;">Keep this email as your payment receipt.</p>
+HTML;
+
+        return send_email_job([
+            'to' => $email,
+            'name' => $ownerName,
+            'subject' => 'Subscription Payment Receipt - FITTRACKS',
+            'body' => self::layout($content),
+        ]);
+    }
+
     public static function sendNewGymApplication(string $gymName, string $ownerName): void
     {
         $appUrl = app_base_url() . '?page=gym_applications';

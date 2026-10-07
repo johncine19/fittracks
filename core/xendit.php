@@ -156,7 +156,11 @@ function handle_xendit_subscription_webhook(): void
 
     $pdo = db();
     try {
-        $lookup = $pdo->prepare('SELECT * FROM gym_subscription_payments WHERE xendit_session_id = ? LIMIT 1');
+        $lookup = $pdo->prepare('SELECT p.*, u.email AS owner_email, u.first_name AS owner_first_name, u.last_name AS owner_last_name, g.name AS gym_name
+            FROM gym_subscription_payments p
+            JOIN users u ON u.user_id = p.owner_user_id
+            JOIN gyms g ON g.gym_id = p.gym_id
+            WHERE p.xendit_session_id = ? LIMIT 1');
         $lookup->execute([$sessionId]);
         $payment = $lookup->fetch(PDO::FETCH_ASSOC);
         if (!$payment) {
@@ -265,6 +269,26 @@ function handle_xendit_subscription_webhook(): void
             'Subscription Activated',
             "Your {$lockedPayment['plan_name']} plan (" . ($lockedPayment['billing_cycle'] === 'yearly' ? 'Annual' : 'Monthly') . ") is active until " . date('M j, Y', strtotime($endDate)) . ". Receipt: {$receiptNumber}."
         );
+
+        try {
+            $emailSent = Emails::sendGymSubscriptionReceipt(
+                (string)$payment['owner_email'],
+                trim((string)$payment['owner_first_name'] . ' ' . (string)$payment['owner_last_name']),
+                (string)$payment['gym_name'],
+                (string)$lockedPayment['plan_name'],
+                (string)$lockedPayment['billing_cycle'],
+                (float)$lockedPayment['amount'],
+                $receiptNumber,
+                $paymentId,
+                $startDate,
+                $endDate
+            );
+            if (!$emailSent) {
+                error_log('Xendit subscription receipt email could not be sent.');
+            }
+        } catch (Throwable $emailError) {
+            error_log('Could not queue Xendit subscription receipt email: ' . $emailError->getMessage());
+        }
 
         http_response_code(200);
         echo json_encode(['success' => true]);
