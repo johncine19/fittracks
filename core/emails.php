@@ -57,7 +57,7 @@ final class Emails
 HTML;
     }
 
-    public static function sendVerification(string $email, string $firstName, string $token): void
+    public static function sendVerification(string $email, string $firstName, string $token): bool
     {
         $link = app_base_url() . '?page=verify_email&token=' . urlencode($token);
         
@@ -67,11 +67,17 @@ HTML;
         <p style="text-align: center; margin: 30px 0;">
             <a href="{$link}" class="btn">Verify Email Address</a>
         </p>
+        <p>After verification, you will be signed in automatically and taken to member profile setup. You do not need to return to the sign-in page.</p>
         <p>This link will expire in 24 hours.</p>
         <p style="font-size: 14px; color: #94a3b8; margin-top: 30px;">If you didn't create an account, you can safely ignore this email.</p>
 HTML;
 
-        queue_email($email, $firstName, 'Verify your FITTRACKS email address', self::layout($content));
+        return send_email_job([
+            'to' => $email,
+            'name' => $firstName,
+            'subject' => 'Verify your FITTRACKS email address',
+            'body' => self::layout($content),
+        ]);
     }
 
     public static function sendPasswordReset(string $email, string $firstName, string $token): void
@@ -282,4 +288,3 @@ HTML;
         return true;
     }
 }
-

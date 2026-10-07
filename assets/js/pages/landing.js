@@ -33,6 +33,40 @@ const landingPlansData = FT_LANDING_CONFIG.plansData || {};
                 }
             }, { passive: true });
 
+            // Highlight the landing section currently nearest the top of the viewport.
+            const sectionNavLinks = Array.from(document.querySelectorAll(
+                '.nav-menu .nav-link[href^="#"], .mobile-drawer .mobile-drawer-link[href^="#"]'
+            ));
+            const sectionNavTargets = Array.from(new Set(sectionNavLinks
+                .map(link => document.getElementById(link.getAttribute('href').slice(1)))
+                .filter(Boolean)))
+                .sort((a, b) => a.getBoundingClientRect().top - b.getBoundingClientRect().top);
+
+            function updateActiveSectionLink() {
+                if (!sectionNavTargets.length) return;
+                const activationLine = Math.min(180, window.innerHeight * 0.3);
+                let activeSection = null;
+
+                sectionNavTargets.forEach(section => {
+                    if (section.getBoundingClientRect().top <= activationLine) activeSection = section;
+                });
+
+                if (window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 2) {
+                    activeSection = sectionNavTargets[sectionNavTargets.length - 1];
+                }
+
+                sectionNavLinks.forEach(link => {
+                    const isActive = activeSection && link.getAttribute('href') === `#${activeSection.id}`;
+                    link.classList.toggle('active', Boolean(isActive));
+                    if (isActive) link.setAttribute('aria-current', 'location');
+                    else link.removeAttribute('aria-current');
+                });
+            }
+
+            window.addEventListener('scroll', updateActiveSectionLink, { passive: true });
+            window.addEventListener('resize', updateActiveSectionLink, { passive: true });
+            updateActiveSectionLink();
+
             // 3. Mobile Menu Toggle & Body Scroll Lock
             const mobileBtn = document.getElementById('mobileMenuBtn');
             const mobileDrawer = document.getElementById('mobileDrawer');

@@ -231,8 +231,9 @@ function landing_page(): void
 
                 <div class="nav-actions">
                     <a href="index.php?page=login" class="nav-auth-link">Log In</a>
+                    <a href="index.php?page=register" class="nav-auth-link">Join as Member</a>
                     <a href="javascript:void(0)" onclick="openDemoModal()" class="nav-demo-link">Request Demo</a>
-                    <a href="index.php?page=register&role=gym_owner" class="btn btn-lime btn-sm">Register Gym</a>
+                    <a href="index.php?page=gym_register" class="btn btn-lime btn-sm">Register Gym</a>
                 </div>
 
                 <button class="mobile-toggle" id="mobileMenuBtn" aria-label="Toggle Navigation">
@@ -249,8 +250,9 @@ function landing_page(): void
             <a href="#pricing" class="mobile-drawer-link" onclick="closeMobileMenu()">Pricing</a>
             <a href="#faq" class="mobile-drawer-link" onclick="closeMobileMenu()">FAQ</a>
             <a href="index.php?page=login" class="mobile-drawer-link" onclick="closeMobileMenu()">Log In</a>
+            <a href="index.php?page=register" class="mobile-drawer-link" onclick="closeMobileMenu()">Join as Member</a>
             <a href="javascript:void(0)" class="mobile-drawer-link" onclick="closeMobileMenu(); openDemoModal();">Request Demo Walkthrough</a>
-            <a href="index.php?page=register&role=gym_owner" class="btn btn-lime mobile-drawer-cta" onclick="closeMobileMenu()">Register Your Gym</a>
+            <a href="index.php?page=gym_register" class="btn btn-lime mobile-drawer-cta" onclick="closeMobileMenu()">Register Your Gym</a>
         </div>
 
         <!-- Ambient Lighting Glow Orbs -->
@@ -300,7 +302,7 @@ function landing_page(): void
 
                         <div class="hero-cta-block">
                             <div class="hero-ctas">
-                                <a href="index.php?page=register&role=gym_owner" class="btn btn-lime btn-lg">
+                                <a href="index.php?page=gym_register" class="btn btn-lime btn-lg">
                                     <span>Start your gym setup</span>
                                     <?= landing_icon('arrow-right', 'btn-svg') ?>
                                 </a>
@@ -1156,7 +1158,7 @@ function landing_page(): void
                                 <div class="platform-metric-lbl">Service &amp; Support</div>
                             </div>
                         </div>
-                        <a href="index.php?page=register&role=gym_owner" class="btn btn-lime btn-sm platform-banner-btn">
+                        <a href="index.php?page=gym_register" class="btn btn-lime btn-sm platform-banner-btn">
                             Register Gym &rarr;
                         </a>
                     </div>
@@ -1181,7 +1183,7 @@ function landing_page(): void
                         </div>
                     </div>
                     <div class="platform-banner-actions">
-                        <a href="index.php?page=register&role=gym_owner" class="btn btn-lime btn-sm platform-banner-btn">
+                        <a href="index.php?page=gym_register" class="btn btn-lime btn-sm platform-banner-btn">
                             Join as Gym Partner &rarr;
                         </a>
                     </div>
@@ -1279,7 +1281,7 @@ function landing_page(): void
                         FitTrack only displays real, verified feedback submitted by registered gym owners from their management portal. When our partners submit reviews, they will be showcased here.
                     </p>
                     <div style="display: flex; gap: 12px; justify-content: center; flex-wrap: wrap;">
-                        <a href="index.php?page=register&role=gym_owner" class="btn btn-lime btn-sm" style="text-decoration: none; padding: 8px 18px; font-size: 13px;">
+                        <a href="index.php?page=gym_register" class="btn btn-lime btn-sm" style="text-decoration: none; padding: 8px 18px; font-size: 13px;">
                             Register Gym &rarr;
                         </a>
                         <a href="index.php?page=login" class="btn btn-secondary btn-sm" style="text-decoration: none; padding: 8px 18px; font-size: 13px; background: rgba(255,255,255,0.05); color: #fff; border: 1px solid rgba(255,255,255,0.12);">
@@ -1396,7 +1398,7 @@ function landing_page(): void
                         </div>
                     </div>
                     <div class="trial-highlight-right">
-                        <a href="index.php?page=register&role=gym_owner" class="btn btn-lime btn-lg">
+                        <a href="index.php?page=gym_register" class="btn btn-lime btn-lg">
                             <span>Start 14-Day Free Trial</span>
                             <?= landing_icon('arrow-right', 'btn-svg') ?>
                         </a>
@@ -1478,12 +1480,12 @@ function landing_page(): void
                         </div>
 
                         <div class="plan-card-actions">
-                            <a href="index.php?page=register&role=gym_owner&plan=<?= h($pKey) ?>" class="btn <?= $isPop ? 'btn-lime' : 'btn-outline' ?> btn-lg plan-card-trial-btn" style="width: 100%;">
+                            <a href="index.php?page=gym_register&plan=<?= h($pKey) ?>" class="btn <?= $isPop ? 'btn-lime' : 'btn-outline' ?> btn-lg plan-card-trial-btn" style="width: 100%;">
                                 Start 14-Day Free Trial
                             </a>
                             <div class="plan-card-subnote">14-Day Trial Included &bull; Upgrade Anytime</div>
                             <div class="plan-card-skip-trial">
-                                <a href="index.php?page=register&role=gym_owner&plan=<?= h($pKey) ?>&intent=subscribe" class="skip-trial-link" title="Skip trial and subscribe directly">
+                                <a href="index.php?page=gym_register&plan=<?= h($pKey) ?>&intent=subscribe" class="skip-trial-link" title="Skip trial and subscribe directly">
                                     <span>Skip trial &amp; subscribe now</span>
                                     <span class="skip-trial-arrow">&rarr;</span>
                                 </a>
@@ -1535,7 +1537,7 @@ function landing_page(): void
                         Manage your gym, members, trainers, payments, and engagement with FitTrack.
                     </p>
                     <div class="cta-btn-group">
-                        <a href="index.php?page=register&role=gym_owner" class="btn btn-lime btn-lg">
+                        <a href="index.php?page=gym_register" class="btn btn-lime btn-lg">
                             <span>Register Your Gym</span>
                             <?= landing_icon('arrow-right', 'btn-svg') ?>
                         </a>
@@ -1607,7 +1609,8 @@ function landing_page(): void
                         <h4 class="footer-col-title">Account</h4>
                         <ul class="footer-links">
                             <li><a href="index.php?page=login" class="footer-link">Log In</a></li>
-                            <li><a href="index.php?page=register&role=gym_owner" class="footer-link">Register Gym</a></li>
+                            <li><a href="index.php?page=register" class="footer-link">Join as Member</a></li>
+                            <li><a href="index.php?page=gym_register" class="footer-link">Register Gym</a></li>
                             <li><a href="javascript:void(0)" onclick="openDemoModal()" class="footer-link">Request Demo</a>
                             </li>
                         </ul>
@@ -1825,15 +1828,15 @@ function landing_page(): void
 
                 <div class="distribution-modal-footer">
                     <div class="dist-footer-ctas">
-                        <a href="index.php?page=register&role=gym_owner&plan=starter" class="btn btn-outline btn-sm">
+                        <a href="index.php?page=gym_register&plan=starter" class="btn btn-outline btn-sm">
                             <span class="btn-text-full">Get <?= h($starterPlan['name']) ?> (<?= h($starterPlan['price_label']) ?>)</span>
                             <span class="btn-text-mobile">Starter (<?= h($starterPlan['price_label']) ?>)</span>
                         </a>
-                        <a href="index.php?page=register&role=gym_owner&plan=professional" class="btn btn-lime btn-sm">
+                        <a href="index.php?page=gym_register&plan=professional" class="btn btn-lime btn-sm">
                             <span class="btn-text-full">Get <?= h($proPlan['name']) ?> (<?= h($proPlan['price_label']) ?>)</span>
                             <span class="btn-text-mobile">★ Pro (<?= h($proPlan['price_label']) ?>)</span>
                         </a>
-                        <a href="index.php?page=register&role=gym_owner&plan=business" class="btn btn-outline btn-sm">
+                        <a href="index.php?page=gym_register&plan=business" class="btn btn-outline btn-sm">
                             <span class="btn-text-full">Get <?= h($businessPlan['name']) ?> (<?= h($businessPlan['price_label']) ?>)</span>
                             <span class="btn-text-mobile">Business (<?= h($businessPlan['price_label']) ?>)</span>
                         </a>

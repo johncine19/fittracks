@@ -2,11 +2,17 @@
 
 declare(strict_types=1);
 
-function handle_google_auth(): void
+function handle_google_gym_auth(): void
 {
+    handle_google_auth('gym_owner');
+}
+
+function handle_google_auth(?string $requiredRole = null): void
+{
+    $entryPage = $requiredRole === 'gym_owner' ? 'gym_register' : 'login';
     if ($_SERVER['REQUEST_METHOD'] !== 'POST' || empty($_POST['credential'])) {
         flash('Invalid Google authentication request.', 'danger');
-        redirect('login');
+        redirect($entryPage);
     }
 
     $idToken = trim((string) $_POST['credential']);
@@ -14,7 +20,7 @@ function handle_google_auth(): void
 
     if (empty($expectedClientId)) {
         flash('Google authentication is not properly configured on this server.', 'danger');
-        redirect('login');
+        redirect($entryPage);
     }
 
     // Call Google's tokeninfo API to verify token validity and signature
@@ -37,20 +43,20 @@ function handle_google_auth(): void
     if ($response === false || $httpCode !== 200) {
         error_log('Google Auth verification failed. HTTP: ' . $httpCode . ' Error: ' . $curlError . ' Response: ' . (string) $response);
         flash('Failed to verify Google account credentials. Please try again.', 'danger');
-        redirect('login');
+        redirect($entryPage);
     }
 
     $payload = json_decode((string) $response, true);
     if (!is_array($payload) || empty($payload['sub']) || empty($payload['email'])) {
         flash('Invalid account payload received from Google.', 'danger');
-        redirect('login');
+        redirect($entryPage);
     }
 
     // Verify token audience matches our Google Client ID
     if (empty($payload['aud']) || $payload['aud'] !== $expectedClientId) {
         error_log('Google Auth AUD mismatch. Expected: ' . $expectedClientId . ', Got: ' . ($payload['aud'] ?? 'none'));
         flash('Security check failed: Google client ID mismatch.', 'danger');
-        redirect('login');
+        redirect($entryPage);
     }
 
     $googleId = (string) $payload['sub'];
@@ -70,6 +76,11 @@ function handle_google_auth(): void
         $user = $stmt->fetch();
 
         if ($user) {
+            if ($requiredRole !== null && ($user['role'] ?? '') !== $requiredRole) {
+                flash('This Google account is already registered with a different FitTrack account type. Use that account or register with another Google account.', 'danger');
+                redirect($entryPage);
+            }
+
             // Link existing account with Google and mark email as verified
             $update = db()->prepare('
                 UPDATE users 
@@ -86,13 +97,19 @@ function handle_google_auth(): void
         }
     }
 
-    // 3. If account does not exist, create a new member
+    if ($user && $requiredRole !== null && ($user['role'] ?? '') !== $requiredRole) {
+        flash('This Google account is already registered with a different FitTrack account type. Use that account or register with another Google account.', 'danger');
+        redirect($entryPage);
+    }
+
+    // 3. If account does not exist, create the account type required by this signup route.
     if (!$user) {
+        $newUserRole = $requiredRole === 'gym_owner' ? 'gym_owner' : 'member';
         $insert = db()->prepare('
             INSERT INTO users (google_id, role, first_name, last_name, email, password_hash, status, email_verified_at, created_at)
-            VALUES (?, "member", ?, ?, ?, NULL, "active", NOW(), NOW())
+            VALUES (?, ?, ?, ?, ?, NULL, "active", NOW(), NOW())
         ');
-        $insert->execute([$googleId, $firstName, $lastName, $email]);
+        $insert->execute([$googleId, $newUserRole, $firstName, $lastName, $email]);
         $newUserId = (int) db()->lastInsertId();
 
         $stmt = db()->prepare('SELECT * FROM users WHERE user_id = ?');
@@ -102,13 +119,13 @@ function handle_google_auth(): void
 
     if (!$user) {
         flash('Unable to sign in with Google. Please try again.', 'danger');
-        redirect('login');
+        redirect($entryPage);
     }
 
     // 4. Verify account status
     if ($user['status'] === 'suspended' || $user['status'] === 'inactive') {
         flash('Your account has been deactivated or suspended. Please contact support.', 'danger');
-        redirect('login');
+        redirect($entryPage);
     }
 
     // 5. Establish authenticated session

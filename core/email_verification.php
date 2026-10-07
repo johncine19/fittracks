@@ -4,12 +4,9 @@ declare(strict_types=1);
 /**
  * Email verification for self-registered accounts.
  *
- * Deliberately "soft": a new member account works immediately after
- * registration (no login block), but an unverified member sees a
- * persistent reminder banner (see views/layout.php) with a link to verify
- * and a resend option, until they click the emailed link. This avoids
- * breaking the existing registration UX or blocking access if outgoing
- * mail is briefly unavailable, while still nudging real verification.
+ * New member accounts must verify their email before signing in. When the
+ * emailed link is used, verify_email_page() signs the member in and sends
+ * them directly to profile setup.
  *
  * Accounts created directly by an admin (pages/admin/users.php) are
  * marked verified at creation time, since the admin is vouching for the
@@ -32,8 +29,7 @@ function create_email_verification_token(int $userId): string
  */
 function send_verification_email(string $email, string $firstName, string $token): bool
 {
-    Emails::sendVerification($email, $firstName, $token);
-    return true;
+    return Emails::sendVerification($email, $firstName, $token);
 }
 
 function app_base_url(): string

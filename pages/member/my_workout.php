@@ -45,6 +45,13 @@ function my_workout_page(): void
     // Timezone and Month Setup
     $today = date('Y-m-d');
     $currentMonthStr = date('Y-m');
+    $accountCreatedDate = !empty($user['created_at'])
+        ? date('Y-m-d', strtotime((string) $user['created_at']))
+        : $today;
+    $planStartDate = !empty($plan['start_date'])
+        ? substr((string) $plan['start_date'], 0, 10)
+        : $accountCreatedDate;
+    $workoutStartDate = max($accountCreatedDate, $planStartDate);
 
     $monthParam = (string) ($_GET['month'] ?? $currentMonthStr);
     if (!preg_match('/^\d{4}-\d{2}$/', $monthParam)) {
@@ -126,7 +133,9 @@ function my_workout_page(): void
         $isPast = ($dateStr < $today);
         $isFuture = ($dateStr > $today);
 
-        $scheduled = $exercisesByDow[$dow] ?? [];
+        // A recurring weekly schedule should not create missed workouts before
+        // the member joined or before their current plan became active.
+        $scheduled = $dateStr < $workoutStartDate ? [] : ($exercisesByDow[$dow] ?? []);
         $scheduledCount = count($scheduled);
         $hasWorkout = $scheduledCount > 0;
 

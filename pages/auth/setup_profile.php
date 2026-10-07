@@ -95,6 +95,13 @@ function setup_profile_page(): void
             background: #ffffff;
             color: #0f172a;
         }
+        .split-login-frame.profile-mode .split-input-wrap input[type="number"] {
+            border: 1px solid #111111;
+        }
+        .split-login-frame.profile-mode .split-input-wrap input[type="number"]:focus {
+            border-color: #84cc16;
+            box-shadow: 0 0 0 3px rgba(132, 204, 22, 0.18);
+        }
         .sex-select-grid {
             display: grid;
             grid-template-columns: 1fr 1fr;

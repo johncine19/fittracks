@@ -76,7 +76,7 @@ function verify_email_page(): void
                 flash('Email verified successfully! Please complete your gym profile to submit your application.', 'success');
                 redirect('gym_onboarding');
             } elseif ($verifiedUser['role'] === 'member') {
-                flash('Email verified successfully! Welcome to FitTrack.', 'success');
+                flash('Email verified successfully! Let’s complete your member profile.', 'success');
                 redirect('setup_profile');
             } else {
                 flash('Email verified successfully! Welcome to FitTrack.', 'success');

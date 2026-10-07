@@ -20,7 +20,7 @@ function verify_csrf(): void
         return;
     }
 
-    if (($_GET['page'] ?? '') === 'google_auth') {
+    if (in_array($_GET['page'] ?? '', ['google_auth', 'google_gym_auth'], true)) {
         return;
     }
 

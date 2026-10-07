@@ -531,7 +531,8 @@
 
                     let occupancyHtml = '';
                     if (status === 'in_use') {
-                        const occupant = eq.current_user_display ? escapeHtml(eq.current_user_display) : 'A member';
+                        const isMySession = Number(eq.current_session_user_id) === Number(window.MEMBER_EQUIPMENT_CONFIG?.userId);
+                        const occupant = isMySession ? 'You' : (eq.current_user_display ? escapeHtml(eq.current_user_display) : 'A member');
                         let elapsedMins = parseInt(eq.session_elapsed_mins || 0);
                         if (!elapsedMins && eq.session_start_ts) {
                             elapsedMins = Math.max(0, Math.floor((Math.floor(Date.now() / 1000) - parseInt(eq.session_start_ts)) / 60));
@@ -546,6 +547,9 @@
                             <span>ℹ️ Probably in use by ${occupant}. (Workout finish times vary — join queue to be next in line)</span>
                         </div>
                     `;
+                        if (isMySession) {
+                            occupancyHtml = occupancyHtml.replace(/Probably in use by You\.[^<]*/, 'You are using this equipment. Please finish your session when you are done.');
+                        }
                     } else if (status === 'available') {
                         if (isReservedForOther) {
                             const resName = eq.notified_user_display ? escapeHtml(eq.notified_user_display) : 'Queued member';

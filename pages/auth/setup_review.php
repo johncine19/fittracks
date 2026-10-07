@@ -509,10 +509,11 @@ function setup_review_page(): void
         }
 
         .review-stat-box {
-            background: #f8fafc;
-            border: 1px solid #e2e8f0;
-            border-radius: 10px;
-            padding: 10px 12px;
+            background: transparent !important;
+            border: 0 !important;
+            border-bottom: 1px solid #e2e8f0 !important;
+            border-radius: 0;
+            padding: 8px 4px 10px;
             display: flex;
             flex-direction: column;
             gap: 3px;

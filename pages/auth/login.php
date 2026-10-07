@@ -229,6 +229,9 @@ function handle_login(): void
     $pendingVerify = isset($_SESSION['pending_verify_uid']);
     render_header('Sign in');
     ?>
+    <style>
+        .split-login-frame .split-input-wrap input { border: 1px solid #111; }
+    </style>
     <div class="split-login-viewport">
         <div class="split-login-frame">
             <!-- Left Hero Showcase -->
@@ -354,34 +357,6 @@ function handle_login(): void
                     </div>
 
                     <?php $googleClientId = (string) app_env('GOOGLE_CLIENT_ID', ''); ?>
-                    <?php if (!empty($googleClientId)): ?>
-                        <div class="google-auth-section" style="margin-bottom: 20px;">
-                            <div id="g_id_onload"
-                                 data-client_id="<?= htmlspecialchars($googleClientId) ?>"
-                                 data-context="signin"
-                                 data-ux_mode="popup"
-                                 data-callback="handleGoogleCredentialResponse"
-                                 data-auto_prompt="false">
-                            </div>
-                            <div style="display: flex; justify-content: center; width: 100%; min-height: 44px;">
-                                <div id="google-signin-btn" class="g_id_signin"
-                                     data-type="standard"
-                                     data-shape="rectangular"
-                                     data-theme="outline"
-                                     data-text="signin_with"
-                                     data-size="large"
-                                     data-logo_alignment="left">
-                                </div>
-                            </div>
-
-                            <div class="auth-divider" style="display: flex; align-items: center; text-align: center; margin: 18px 0 14px; color: #94a3b8; font-size: 11.5px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">
-                                <span style="flex: 1; height: 1px; background: rgba(255,255,255,0.15);"></span>
-                                <span style="padding: 0 12px; color: #94a3b8;">or sign in with email</span>
-                                <span style="flex: 1; height: 1px; background: rgba(255,255,255,0.15);"></span>
-                            </div>
-                        </div>
-                    <?php endif; ?>
-
                     <form method="post" class="split-card-form" novalidate onsubmit="const btn = this.querySelector('button[type=submit]'); btn.disabled = true; btn.innerHTML = '<svg class=\'fitness-loader mini\' viewBox=\'0 0 24 24\' fill=\'none\' stroke=\'currentColor\' stroke-width=\'2\' stroke-linecap=\'round\' stroke-linejoin=\'round\' style=\'margin-right:8px;\'><line x1=\'6\' y1=\'12\' x2=\'18\' y2=\'12\'></line><rect x=\'4\' y=\'8\' width=\'2\' height=\'8\' rx=\'1\'></rect><rect x=\'18\' y=\'8\' width=\'2\' height=\'8\' rx=\'1\'></rect><rect x=\'2\' y=\'10\' width=\'2\' height=\'4\' rx=\'1\'></rect><rect x=\'20\' y=\'10\' width=\'2\' height=\'4\' rx=\'1\'></rect></svg> SIGNING IN...';">
                         <?= csrf_field() ?>
 
@@ -427,6 +402,26 @@ function handle_login(): void
                                 <polyline points="12 5 19 12 12 19"></polyline>
                             </svg>
                         </button>
+
+                        <?php if (!empty($googleClientId)): ?>
+                            <div class="google-auth-section" style="width: 100%; margin: 2px 0 4px;">
+                                <div id="g_id_onload"
+                                     data-client_id="<?= htmlspecialchars($googleClientId) ?>"
+                                     data-context="signin"
+                                     data-ux_mode="popup"
+                                     data-callback="handleGoogleCredentialResponse"
+                                     data-auto_prompt="false">
+                                </div>
+                                <div class="auth-divider" style="display: flex; align-items: center; text-align: center; margin: 14px 0 10px; color: #64748b; font-size: 11.5px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">
+                                    <span style="flex: 1; height: 1px; background: rgba(15,23,42,0.14);"></span>
+                                    <span style="padding: 0 12px; color: #64748b;">or sign in with Google</span>
+                                    <span style="flex: 1; height: 1px; background: rgba(15,23,42,0.14);"></span>
+                                </div>
+                                <div style="display: flex; justify-content: center; width: 100%; min-height: 44px;">
+                                    <div id="google-signin-btn" style="display: flex; justify-content: center; width: 100%;"></div>
+                                </div>
+                            </div>
+                        <?php endif; ?>
 
                         <div class="split-card-footer">
                             <div>Don't have an account? <a href="index.php?page=register" class="signup-link">Sign up here</a></div>
@@ -488,9 +483,8 @@ function handle_login(): void
                 });
                 const container = document.getElementById('google-signin-btn');
                 if (container && !container.hasChildNodes()) {
-                    const card = container.closest('.split-login-card');
-                    const availableWidth = card ? Math.floor(card.clientWidth - 40) : 320;
-                    const btnWidth = Math.max(200, Math.min(360, availableWidth));
+                    const loginButton = container.closest('form')?.querySelector('.split-submit-btn');
+                    const btnWidth = loginButton ? Math.floor(loginButton.getBoundingClientRect().width) : 320;
                     google.accounts.id.renderButton(container, {
                         theme: 'outline',
                         size: 'large',

@@ -2659,7 +2659,7 @@ function render_current_workout(int $memberUserId, bool $dashboardMode = false, 
                     if ($isDone) {
                         echo '        <span class="workout-done-badge"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg> Done</span>';
                     } else {
-                        echo '        <button type="button" class="btn-mark-complete" onclick="completeExercise(' . $plan['plan_id'] . ', ' . $ex['exercise_id'] . ')"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg> Complete</button>';
+                        echo '        <a href="index.php?page=my_workout" class="btn-mark-complete" style="text-decoration:none;"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg> Complete</a>';
                     }
                     echo '      </div>';
                     echo '    </div>';
@@ -3498,60 +3498,6 @@ function render_current_workout(int $memberUserId, bool $dashboardMode = false, 
         if (!$rows) {
             echo '<p class="muted">No exercises assigned to this plan yet.</p>';
         }
-    }
-
-    if ($dashboardMode) {
-        $csrfToken = csrf_token();
-        echo <<<HTML
-        <script>
-        function completeExercise(planId, exerciseId) {
-            Swal.fire({
-                title: 'Completed already?',
-                text: "Are you sure you want to mark this exercise as finished?",
-                icon: 'question',
-                showCancelButton: true,
-                confirmButtonColor: 'var(--lime-dark)',
-                cancelButtonColor: 'var(--line)',
-                confirmButtonText: 'Yes, I crushed it!',
-                cancelButtonText: 'No',
-                background: 'var(--bg)',
-                color: 'var(--ink)'
-            }).then((result) => {
-                if (result.isConfirmed) {
-                    fetch('index.php?page=complete_exercise', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                        body: 'plan_id=' + planId + '&exercise_id=' + exerciseId + '&csrf_token=' + encodeURIComponent('{$csrfToken}')
-                    })
-                    .then(r => r.json())
-                    .then(data => {
-                        if (data.success) {
-                            if (data.tier_upgraded) {
-                                Swal.fire({
-                                    title: 'Level Up!',
-                                    text: 'You have been promoted to ' + data.tier_upgraded.new_tier_name + '!',
-                                    icon: 'success',
-                                    background: 'var(--bg)',
-                                    color: 'var(--ink)'
-                                }).then(() => {
-                                    window.location.reload();
-                                });
-                            } else {
-                                window.location.reload();
-                            }
-                        } else {
-                            Swal.fire('Error', data.message, 'error');
-                        }
-                    })
-                    .catch(err => {
-                        console.error(err);
-                        Swal.fire('Error', 'Failed to complete exercise.', 'error');
-                    });
-                }
-            });
-        }
-        </script>
-HTML;
     }
 
     echo '</section>';
@@ -4553,4 +4499,3 @@ function render_skeleton_banner(): void
     echo '<div class="sk sk-rect banner" style="margin-bottom:24px"></div>';
     echo '</div>';
 }
-

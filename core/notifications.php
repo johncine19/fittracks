@@ -120,7 +120,7 @@ function send_email_job(array $payload): bool
 
         return $mail->send();
     } catch (Throwable $e) {
-        error_log("Failed sending queued email to {$to}: " . $e->getMessage());
+        error_log("Failed sending email to {$to}: " . $e->getMessage());
         return false;
     }
 }
