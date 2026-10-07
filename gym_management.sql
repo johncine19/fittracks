@@ -375,13 +375,16 @@ CREATE TABLE `gym_subscription_payments` (
   `plan_name` varchar(50) NOT NULL,
   `amount` decimal(10,2) NOT NULL,
   `billing_cycle` enum('monthly','yearly') NOT NULL DEFAULT 'monthly',
-  `payment_method` enum('gcash','card','bank_transfer','cash') NOT NULL DEFAULT 'gcash',
+  `payment_method` enum('gcash','card','bank_transfer','cash','online') NOT NULL DEFAULT 'gcash',
   `status` enum('paid','pending','failed') NOT NULL DEFAULT 'paid',
   `receipt_number` varchar(50) DEFAULT NULL,
   `payment_date` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `start_date` date NOT NULL,
   `end_date` date NOT NULL,
-  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP
+  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `xendit_reference_id` varchar(64) DEFAULT NULL,
+  `xendit_session_id` varchar(64) DEFAULT NULL,
+  `xendit_payment_id` varchar(64) DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 -- --------------------------------------------------------
@@ -918,7 +921,9 @@ ALTER TABLE `member_profiles`
 --
 ALTER TABLE `gym_subscription_payments`
   ADD KEY `fk_sub_gym` (`gym_id`),
-  ADD KEY `fk_sub_owner` (`owner_user_id`);
+  ADD KEY `fk_sub_owner` (`owner_user_id`),
+  ADD UNIQUE KEY `uq_sub_xendit_reference` (`xendit_reference_id`),
+  ADD UNIQUE KEY `uq_sub_xendit_session` (`xendit_session_id`);
 
 --
 -- Indexes for table `notifications`

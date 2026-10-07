@@ -32,8 +32,6 @@ function gym_subscription_page(): void
         if ($billingCycle !== 'yearly') {
             $billingCycle = 'monthly';
         }
-        $paymentMethod = trim((string) post('payment_method')) ?: 'gcash';
-
         if (!isset($plans[$selectedKey])) {
             flash('Please select a valid subscription plan.', 'danger');
             redirect('gym_subscription');
@@ -41,25 +39,21 @@ function gym_subscription_page(): void
 
         $plan = $plans[$selectedKey];
         $planName = $plan['name'];
-        if ($billingCycle === 'yearly') {
-            $amount = (float)($plan['annual_price'] ?? round($plan['price'] * 10, 2));
-            $startDate = date('Y-m-d');
-            $endDate = date('Y-m-d', strtotime('+1 year'));
-        } else {
-            $amount = (float) $plan['price'];
-            $startDate = date('Y-m-d');
-            $endDate = date('Y-m-d', strtotime('+1 month'));
-        }
-        $receiptNumber = 'SUB-' . date('Ymd') . '-' . strtoupper(substr(bin2hex(random_bytes(4)), 0, 6));
+        $amount = $billingCycle === 'yearly'
+            ? (float)($plan['annual_price'] ?? round($plan['price'] * 10, 2))
+            : (float)$plan['price'];
+        $paymentRowId = null;
 
         try {
-            $pdo->beginTransaction();
-
-            // 1. Record subscription payment
+            if ((string)app_env('XENDIT_SECRET_KEY') === '') {
+                throw new RuntimeException('Xendit is not configured.');
+            }
+            $referenceId = 'FTSUB-' . strtoupper(bin2hex(random_bytes(16)));
+            $periodEnd = $billingCycle === 'yearly' ? '+1 year' : '+1 month';
             $stmt = $pdo->prepare('
                 INSERT INTO gym_subscription_payments 
-                (gym_id, owner_user_id, plan_name, amount, billing_cycle, payment_method, status, receipt_number, payment_date, start_date, end_date)
-                VALUES (?, ?, ?, ?, ?, ?, "paid", ?, NOW(), ?, ?)
+                (gym_id, owner_user_id, plan_name, amount, billing_cycle, payment_method, status, receipt_number, start_date, end_date, xendit_reference_id)
+                VALUES (?, ?, ?, ?, ?, "online", "pending", NULL, ?, ?, ?)
             ');
             $stmt->execute([
                 $gym['gym_id'],
@@ -67,56 +61,43 @@ function gym_subscription_page(): void
                 $planName,
                 $amount,
                 $billingCycle,
-                $paymentMethod,
-                $receiptNumber,
-                $startDate,
-                $endDate,
+                date('Y-m-d'),
+                date('Y-m-d', strtotime($periodEnd)),
+                $referenceId,
             ]);
+            $paymentRowId = (int)$pdo->lastInsertId();
 
-            // 2. Update gym subscription status and renewal date
-            $updateStmt = $pdo->prepare('
-                UPDATE gyms 
-                SET subscription_plan = ?, 
-                    subscription_status = "active", 
-                    subscription_renewal_date = ? 
-                WHERE gym_id = ?
-            ');
-            $updateStmt->execute([
-                $planName,
-                $endDate,
-                $gym['gym_id'],
-            ]);
+            $checkout = xendit_create_checkout_session([
+                'xendit_reference_id' => $referenceId,
+                'amount' => $amount,
+                'plan_name' => $planName,
+                'billing_cycle' => $billingCycle,
+            ], $user, (string)$gym['name']);
+            $pdo->prepare('UPDATE gym_subscription_payments SET xendit_session_id = ? WHERE id = ? AND status = "pending"')
+                ->execute([$checkout['payment_session_id'], $paymentRowId]);
 
-            $pdo->commit();
-
-            // 3. Notifications & Audit Log
-            audit_log(
-                (int)$user['user_id'],
-                'subscribe_plan',
-                'gym_subscription',
-                (string)$gym['gym_id'],
-                json_encode(['plan' => $planName, 'billing_cycle' => $billingCycle, 'amount' => $amount, 'receipt' => $receiptNumber])
-            );
-
-            notify_admins(
-                'system',
-                'New Subscription Payment',
-                "{$gym['name']} subscribed to the {$planName} Plan (" . money($amount) . " / " . ($billingCycle === 'yearly' ? 'Yearly' : 'Monthly') . ") via " . strtoupper($paymentMethod) . "."
-            );
-
-            notify_user(
-                (int)$user['user_id'],
-                'system',
-                'Subscription Activated',
-                "Your {$planName} plan (" . ($billingCycle === 'yearly' ? 'Annual' : 'Monthly') . ") is now active until " . date('M j, Y', strtotime($endDate)) . ". Receipt: {$receiptNumber}."
-            );
-
-            flash("Your {$planName} (" . ($billingCycle === 'yearly' ? 'Annual' : 'Monthly') . ") subscription has been activated! Welcome to your gym dashboard.", 'success');
-            redirect('dashboard');
-            return;
+            header('Location: ' . $checkout['payment_link_url'], true, 303);
+            exit;
         } catch (Throwable $e) {
-            $pdo->rollBack();
-            flash('Failed to process subscription: ' . $e->getMessage(), 'danger');
+            if ($paymentRowId !== null) {
+                $pdo->prepare('UPDATE gym_subscription_payments SET status = "failed" WHERE id = ? AND status = "pending"')
+                    ->execute([$paymentRowId]);
+            }
+            error_log('Could not start gym subscription checkout: ' . $e->getMessage());
+            flash('We could not start secure checkout. Please try again or contact support.', 'danger');
+        }
+    }
+
+    if (isset($_GET['checkout'], $_GET['ref']) && in_array($_GET['checkout'], ['returned', 'cancelled'], true)) {
+        $statusStmt = $pdo->prepare('SELECT status FROM gym_subscription_payments WHERE xendit_reference_id = ? AND gym_id = ? AND owner_user_id = ? LIMIT 1');
+        $statusStmt->execute([(string)$_GET['ref'], (int)$gym['gym_id'], (int)$user['user_id']]);
+        $checkoutStatus = $statusStmt->fetchColumn();
+        if ($checkoutStatus === 'paid') {
+            flash('Payment confirmed. Your subscription is active.', 'success');
+        } elseif ($checkoutStatus === 'pending') {
+            flash('Checkout returned. We are waiting for Xendit to confirm your payment; this page will not activate the plan until confirmation arrives.', 'info');
+        } elseif ($_GET['checkout'] === 'cancelled') {
+            flash('Checkout was cancelled. Your plan was not changed.', 'warning');
         }
     }
 
@@ -527,42 +508,16 @@ function gym_subscription_page(): void
                 <input type="hidden" name="plan_key" id="form-plan-key" value="">
                 <input type="hidden" name="billing_cycle" id="form-billing-cycle" value="monthly">
 
-                <label style="display:block; font-size:12px; font-weight:700; letter-spacing:0.5px; color:var(--muted, #94a3b8); margin-bottom:10px;">
-                    SELECT PAYMENT METHOD
-                </label>
-
-                <div style="display:flex; flex-direction:column; gap:10px; margin-bottom:24px;">
-                    <label style="display:flex; align-items:center; gap:12px; padding:12px 16px; border-radius:8px; border:1px solid rgba(255,255,255,0.08); background:rgba(255,255,255,0.02); cursor:pointer;">
-                        <input type="radio" name="payment_method" value="gcash" checked style="accent-color:var(--lime, #22c55e);">
-                        <span style="font-weight:600; color:#fff;">GCash</span>
-                        <span style="margin-left:auto; font-size:12px; color:var(--muted, #94a3b8);">E-Wallet</span>
-                    </label>
-
-                    <label style="display:flex; align-items:center; gap:12px; padding:12px 16px; border-radius:8px; border:1px solid rgba(255,255,255,0.08); background:rgba(255,255,255,0.02); cursor:pointer;">
-                        <input type="radio" name="payment_method" value="card" style="accent-color:var(--lime, #22c55e);">
-                        <span style="font-weight:600; color:#fff;">Debit / Credit Card</span>
-                        <span style="margin-left:auto; font-size:12px; color:var(--muted, #94a3b8);">Visa / Mastercard</span>
-                    </label>
-
-                    <label style="display:flex; align-items:center; gap:12px; padding:12px 16px; border-radius:8px; border:1px solid rgba(255,255,255,0.08); background:rgba(255,255,255,0.02); cursor:pointer;">
-                        <input type="radio" name="payment_method" value="bank_transfer" style="accent-color:var(--lime, #22c55e);">
-                        <span style="font-weight:600; color:#fff;">Bank Transfer</span>
-                        <span style="margin-left:auto; font-size:12px; color:var(--muted, #94a3b8);">BDO / BPI / UnionBank</span>
-                    </label>
-
-                    <label style="display:flex; align-items:center; gap:12px; padding:12px 16px; border-radius:8px; border:1px solid rgba(255,255,255,0.08); background:rgba(255,255,255,0.02); cursor:pointer;">
-                        <input type="radio" name="payment_method" value="cash" style="accent-color:var(--lime, #22c55e);">
-                        <span style="font-weight:600; color:#fff;">Cash / Over-the-Counter</span>
-                        <span style="margin-left:auto; font-size:12px; color:var(--muted, #94a3b8);">Platform Office</span>
-                    </label>
-                </div>
+                <p style="margin:0 0 22px; padding:14px; border-radius:10px; background:rgba(255,255,255,0.05); color:var(--muted, #cbd5e1); font-size:14px; line-height:1.5;">
+                    Continue to Xendit's secure checkout to choose an available payment method. Your subscription activates after Xendit confirms payment.
+                </p>
 
                 <div style="display:flex; gap:12px;">
                     <button type="button" onclick="closePaymentModal()" style="flex:1; padding:12px; border-radius:8px; background:rgba(255,255,255,0.05); color:#fff; border:1px solid rgba(255,255,255,0.1); font-weight:600; cursor:pointer;">
                         Cancel
                     </button>
-                    <button type="submit" style="flex:2; padding:12px; border-radius:8px; background:var(--lime, #22c55e); color:#000; border:none; font-weight:700; cursor:pointer;" onclick="this.disabled=true; this.innerHTML='Activating...'; this.form.submit();">
-                        Confirm & Activate
+                    <button type="submit" style="flex:2; padding:12px; border-radius:8px; background:var(--lime, #22c55e); color:#000; border:none; font-weight:700; cursor:pointer;">
+                        Continue to Xendit Checkout
                     </button>
                 </div>
             </form>

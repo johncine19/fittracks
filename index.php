@@ -4,7 +4,10 @@ declare(strict_types=1);
 require __DIR__ . '/core/bootstrap.php';
 
 try {
-    verify_csrf();
+    // Xendit calls this public callback directly; it is authenticated with its callback token.
+    if (($_GET['page'] ?? '') !== 'xendit_webhook') {
+        verify_csrf();
+    }
 
     // --- Global Actions ---
     if (isset($_POST['self_checkout'])) {
@@ -191,6 +194,7 @@ try {
         'gym_pending' => ['file' => 'pages/gym_owner/gym_pending.php', 'handler' => 'gym_pending_page'],
         'gym_rejected' => ['file' => 'pages/gym_owner/gym_rejected.php', 'handler' => 'gym_rejected_page'],
         'gym_subscription' => ['file' => 'pages/gym_owner/gym_subscription.php', 'handler' => 'gym_subscription_page'],
+        'xendit_webhook' => ['file' => 'pages/shared/xendit_webhook.php', 'handler' => 'xendit_webhook_page'],
 
         'notification_action' => ['file' => 'pages/shared/notifications.php', 'handler' => 'handle_notification_actions'],
         'notification_click'  => ['file' => 'pages/shared/notifications.php', 'handler' => 'handle_notification_click'],
