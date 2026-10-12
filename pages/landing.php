@@ -185,11 +185,11 @@ function landing_page(): void
         <link rel="canonical" href="https://fitworks.tech/">
 
         <!-- Favicon & Mobile Touch Icons for Google Search & Browsers -->
-        <link rel="icon" type="image/x-icon" href="/assets/images/favicon.ico">
-        <link rel="icon" type="image/png" sizes="48x48" href="/assets/images/favicon-48x48.png">
-        <link rel="icon" type="image/png" sizes="192x192" href="/assets/images/favicon.png">
-        <link rel="icon" type="image/svg+xml" href="/assets/images/fittracks-icon.svg">
-        <link rel="apple-touch-icon" href="/assets/images/favicon.png">
+        <link rel="icon" type="image/x-icon" href="assets/images/favicon.ico">
+        <link rel="icon" type="image/png" sizes="48x48" href="assets/images/favicon-48x48.png">
+        <link rel="icon" type="image/png" sizes="192x192" href="assets/images/favicon.png">
+        <link rel="icon" type="image/svg+xml" href="assets/images/fittracks-icon.svg">
+        <link rel="apple-touch-icon" href="assets/images/favicon.png">
 
         <!-- Open Graph / Facebook / LinkedIn / WhatsApp -->
         <meta property="og:type" content="website">
