@@ -284,9 +284,9 @@ function landing_page(): void
                 </ul>
 
                 <div class="nav-actions">
-                    <a href="index.php?page=login" class="nav-auth-link">Log In</a>
                     <a href="index.php?page=register" class="nav-auth-link">Join as Member</a>
                     <a href="javascript:void(0)" onclick="openDemoModal()" class="nav-demo-link">Request Demo</a>
+                    <a href="index.php?page=login" class="btn btn-secondary btn-sm">Log In</a>
                     <a href="index.php?page=gym_register" class="btn btn-lime btn-sm">Register Gym</a>
                 </div>
 
@@ -322,7 +322,7 @@ function landing_page(): void
             <!-- Parallax: hero photo drifts slower than the page -->
             <div class="parallax-layer hero-bg" data-parallax="0.3" data-parallax-origin="top" aria-hidden="true"></div>
             <div class="container">
-                <div class="hero-grid">
+                <div class="hero-grid hero-grid-centered">
                     <!-- Left Side: Brand Narrative & Feature Pills Floating directly on Background -->
                     <div class="hero-left">
                         <div class="hero-brand-header">
@@ -367,119 +367,6 @@ function landing_page(): void
                                     <span class="cue-check"><?= landing_icon('check', 'check-svg') ?></span>
                                     Free Tier fallback anytime
                                 </span>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Right Side: Realistic Laptop Device Showcase with Auto-Slide & Hover Arrows -->
-                    <div class="hero-right">
-                        <div class="hero-laptop-container" id="heroLaptopContainer" data-parallax="-0.07" data-parallax-origin="top" data-parallax-sm="0" data-parallax-max="70">
-                            <div class="hero-laptop-frame">
-                                <div class="hero-laptop-bezel">
-                                    <div class="hero-laptop-camera"></div>
-                                    <div class="hero-laptop-screen">
-                                        <!-- Top Browser Chrome Bar -->
-                                        <div class="hero-laptop-browser">
-                                            <div class="browser-dots">
-                                                <span class="dot dot-red"></span>
-                                                <span class="dot dot-yellow"></span>
-                                                <span class="dot dot-green"></span>
-                                            </div>
-                                            <div class="hero-laptop-url">
-                                                <?= landing_icon('shield', 'url-shield-icon') ?>
-                                                <span id="heroLaptopUrl">fittrack.app/admin/dashboard</span>
-                                            </div>
-                                            <div class="hero-laptop-live-badge">
-                                                <span class="pulse-dot"></span> LIVE ENGINE
-                                            </div>
-                                        </div>
-
-                                        <!-- Laptop Viewport Content & Image Slides -->
-                                        <div class="hero-laptop-viewport" id="heroLaptopViewport">
-                                            <!-- Subtle Hover Prev/Next Arrows -->
-                                            <button class="hero-slider-arrow prev" onclick="changeHeroLaptopSlide(-1)"
-                                                aria-label="Previous Feature">
-                                                <?= landing_icon('arrow-left', 'arrow-icon-svg') ?>
-                                            </button>
-                                            <button class="hero-slider-arrow next" onclick="changeHeroLaptopSlide(1)"
-                                                aria-label="Next Feature">
-                                                <?= landing_icon('arrow-right', 'arrow-icon-svg') ?>
-                                            </button>
-
-                                            <!-- Image Slide 0: Gym Operations Dashboard -->
-                                            <div class="hero-laptop-slide active" data-url="fittrack.app/admin/dashboard"
-                                                data-label="Gym Operations Dashboard">
-                                                <img src="assets/landing/slide_dashboard.png"
-                                                    alt="FitTrack Live Gym Operations Dashboard" loading="eager">
-                                            </div>
-
-                                            <!-- Image Slide 1: Member Roster -->
-                                            <div class="hero-laptop-slide" data-url="fittrack.app/admin/members"
-                                                data-label="Member Management Roster">
-                                                <img src="assets/landing/slide_members.png"
-                                                    alt="FitTrack Active Member Directory" loading="lazy">
-                                            </div>
-
-                                            <!-- Image Slide 2: QR Turnstile Attendance -->
-                                            <div class="hero-laptop-slide" data-url="fittrack.app/admin/attendance"
-                                                data-label="Dynamic QR Turnstile Stream">
-                                                <img src="assets/landing/slide_attendance.png"
-                                                    alt="FitTrack Turnstile Gate Verification" loading="lazy">
-                                            </div>
-
-                                            <!-- Image Slide 3: Payment Ledger & Invoices -->
-                                            <div class="hero-laptop-slide" data-url="fittrack.app/admin/payments"
-                                                data-label="Payment Ledger & Invoices">
-                                                <img src="assets/landing/slide_payments.png"
-                                                    alt="FitTrack Payment Transactions & Invoices" loading="lazy">
-                                            </div>
-
-                                            <!-- Image Slide 4: Equipment Inventory -->
-                                            <div class="hero-laptop-slide" data-url="fittrack.app/admin/equipment"
-                                                data-label="Equipment Inventory & Maintenance">
-                                                <img src="assets/landing/slide_equipment.png"
-                                                    alt="FitTrack Equipment Inventory" loading="lazy">
-                                            </div>
-
-                                            <!-- Image Slide 5: Membership Plans -->
-                                            <div class="hero-laptop-slide" data-url="fittrack.app/admin/plans"
-                                                data-label="Membership Tier Configurations">
-                                                <img src="assets/landing/slide_plans.png"
-                                                    alt="FitTrack Membership Plan Configuration" loading="lazy">
-                                            </div>
-
-                                            <!-- Image Slide 6: Trainer & Workout Management -->
-                                            <div class="hero-laptop-slide" data-url="fittrack.app/admin/trainers"
-                                                data-label="Trainer & Workout Coaching">
-                                                <img src="assets/landing/slide_trainers.png"
-                                                    alt="FitTrack Trainer Management & Workloads" loading="lazy">
-                                            </div>
-                                        </div>
-
-                                        <!-- Feature Label Overlay -->
-                                        <div class="hero-feature-label-overlay" id="heroFeatureOverlay">
-                                            <span class="hflo-pulse"></span>
-                                            <span class="hflo-text">Gym Operations Dashboard</span>
-                                        </div>
-                                    </div>
-
-                                    <!-- Laptop Base & Hinge -->
-                                    <div class="hero-laptop-hinge"></div>
-                                    <div class="hero-laptop-base">
-                                        <div class="hero-laptop-notch"></div>
-                                    </div>
-                                </div>
-
-                                <!-- Laptop Navigation Dots -->
-                                <div class="hero-laptop-dots" id="heroLaptopDots">
-                                    <span class="hero-dot active" onclick="goToHeroLaptopSlide(0)"></span>
-                                    <span class="hero-dot" onclick="goToHeroLaptopSlide(1)"></span>
-                                    <span class="hero-dot" onclick="goToHeroLaptopSlide(2)"></span>
-                                    <span class="hero-dot" onclick="goToHeroLaptopSlide(3)"></span>
-                                    <span class="hero-dot" onclick="goToHeroLaptopSlide(4)"></span>
-                                    <span class="hero-dot" onclick="goToHeroLaptopSlide(5)"></span>
-                                    <span class="hero-dot" onclick="goToHeroLaptopSlide(6)"></span>
-                                </div>
                             </div>
                         </div>
                     </div>
