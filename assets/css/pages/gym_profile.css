@@ -836,6 +836,10 @@
             background: color-mix(in srgb, var(--panel-soft) 40%, transparent);
         }
 
+        #modal-gallery .custom-modal-footer {
+            justify-content: center;
+        }
+
         .modern-dropzone {
             border: 2px dashed var(--line);
             border-radius: 10px;
