@@ -3,6 +3,8 @@
  * Extracted from reports.php
  */
     const chartsData = window.REPORTS_CONFIG?.chartsData || {};
+    let platformSaaSChartInstance = null;
+    let platformSaaSMixChartInstance = null;
     let revenueChartInstance = null;
     let revenueMixChartInstance = null;
     let attendanceChartInstance = null;
@@ -42,7 +44,10 @@
 
         // Trigger chart resizes for smooth un-hidden rendering
         setTimeout(() => {
-            if (tabId === 'revenue-tab') {
+            if (tabId === 'platform-saas-tab') {
+                if (platformSaaSChartInstance) platformSaaSChartInstance.resize();
+                if (platformSaaSMixChartInstance) platformSaaSMixChartInstance.resize();
+            } else if (tabId === 'revenue-tab') {
                 if (revenueChartInstance) revenueChartInstance.resize();
                 if (revenueMixChartInstance) revenueMixChartInstance.resize();
             } else if (tabId === 'attendance-tab') {
@@ -164,18 +169,80 @@
     };
 
     document.addEventListener('DOMContentLoaded', function() {
-        // Initial tab check from URL hash or storage
-        let initialTab = window.location.hash ? window.location.hash.substring(1) : (sessionStorage.getItem('fittrack_reports_tab') || 'revenue-tab');
-        if (!document.getElementById(initialTab)) initialTab = 'revenue-tab';
+        // Initial tab check: prefer active tab button defined by current scope, fallback to hash if valid
+        const activeTabBtn = document.querySelector('.report-tab-btn.active');
+        const defaultTab = activeTabBtn ? (activeTabBtn.dataset.tab || 'revenue-tab') : (document.getElementById('platform-saas-tab') ? 'platform-saas-tab' : 'revenue-tab');
+        let initialTab = window.location.hash ? window.location.hash.substring(1) : defaultTab;
+        if (!document.getElementById(initialTab)) {
+            initialTab = defaultTab;
+        }
 
-        // Global FitDropdown for Mobile Report Navigation (clean text, no icons)
-        const reportTabItems = [
-            { id: 'revenue-tab', label: 'Revenue & Financials' },
-            { id: 'attendance-tab', label: 'Attendance & Peak Rush' },
-            { id: 'walkin-tab', label: 'Walk-In Traffic' },
-            { id: 'trainers-tab', label: window.REPORTS_CONFIG?.tabs?.trainersLabel || 'Trainers & Commissions' },
-            { id: 'engagement-tab', label: window.REPORTS_CONFIG?.tabs?.engagementLabel || 'Member Engagement' }
-        ];
+        // Global FitDropdown for Platform Admin Gym Scope (with Hybrid Live Search)
+        if (typeof FitDropdown !== 'undefined' && document.getElementById('gymScopeDropdownContainer') && window.REPORTS_CONFIG?.gymScopeItems?.length) {
+            let gymSearchTimer = null;
+            const initialScopeItems = window.REPORTS_CONFIG.gymScopeItems;
+
+            window.gymScopeDropdown = new FitDropdown({
+                container: '#gymScopeDropdownContainer',
+                name: 'gym_id',
+                id: 'gymScopeSelect',
+                value: String(window.REPORTS_CONFIG.gymScopeId || 'platform'),
+                searchable: true,
+                searchPlaceholder: 'Search gym partner or facility...',
+                zIndex: 80,
+                items: initialScopeItems,
+                onSearch: function(q, updateBadge, setResults) {
+                    clearTimeout(gymSearchTimer);
+                    const query = q.trim();
+
+                    if (!query) {
+                        updateBadge('');
+                        setResults(initialScopeItems);
+                        return;
+                    }
+
+                    // Hybrid Live Search:
+                    // 1. Client-side instant filter is executed immediately by FitDropdown
+                    // 2. Debounced asynchronous search queries live database across all partner gyms
+                    updateBadge('Searching...');
+                    gymSearchTimer = setTimeout(() => {
+                        fetch('index.php?page=reports&action=search_gyms&q=' + encodeURIComponent(query))
+                            .then(res => res.json())
+                            .then(data => {
+                                if (data && data.success && Array.isArray(data.results)) {
+                                    updateBadge(data.count + (data.count === 1 ? ' gym' : ' gyms'));
+                                    setResults(data.results);
+                                } else {
+                                    updateBadge('');
+                                }
+                            })
+                            .catch(err => {
+                                console.warn('[FitDropdown] Gym search error:', err);
+                                updateBadge('');
+                            });
+                    }, 200);
+                },
+                onChange: function(item) {
+                    const id = (item && typeof item === 'object') ? item.id : item;
+                    if (id && String(id) !== String(window.REPORTS_CONFIG.gymScopeId)) {
+                        window.location.href = 'index.php?page=reports&gym_id=' + encodeURIComponent(id);
+                    }
+                }
+            });
+        }
+
+        // Global FitDropdown for Mobile Report Navigation: derive cleanly from the active tab buttons rendered for this scope
+        const reportTabItems = [];
+        document.querySelectorAll('.report-tabs .report-tab-btn').forEach(btn => {
+            const tabId = btn.getAttribute('data-tab');
+            if (tabId && document.getElementById(tabId)) {
+                // Clone button to strip SVG icons and extract clean text
+                const clone = btn.cloneNode(true);
+                clone.querySelectorAll('svg').forEach(s => s.remove());
+                const label = clone.textContent.trim().replace(/\s+/g, ' ');
+                reportTabItems.push({ id: tabId, label: label });
+            }
+        });
 
         if (typeof FitDropdown !== 'undefined' && document.getElementById('mobileReportTabDropdown')) {
             window.reportTabDropdown = new FitDropdown({
@@ -260,6 +327,102 @@
             Chart.defaults.color = initialColors.textColor;
             Chart.defaults.borderColor = initialColors.gridColor;
             
+            // 0. Platform SaaS Revenue Bar Chart & Plan Tier Mix
+            const saasCanvas = document.getElementById('platformSaaSChart');
+            if (saasCanvas && chartsData.platform_saas) {
+                const saasData = chartsData.platform_saas;
+                platformSaaSChartInstance = new Chart(saasCanvas, {
+                    type: 'bar',
+                    data: {
+                        labels: saasData.labels,
+                        datasets: [{
+                            label: 'Platform SaaS Revenue',
+                            data: saasData.values,
+                            backgroundColor: initialColors.isLight ? '#4d7c0f' : '#84cc16',
+                            hoverBackgroundColor: initialColors.isLight ? '#3f6212' : '#a3e635',
+                            borderRadius: 6,
+                            barPercentage: 0.55
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        scales: {
+                            x: {
+                                grid: { display: false },
+                                border: { color: initialColors.axisLineColor, width: 1.5 },
+                                ticks: { color: initialColors.textColor, font: initialColors.tickFont }
+                            },
+                            y: {
+                                beginAtZero: true,
+                                suggestedMin: 0,
+                                grid: { color: initialColors.gridColor },
+                                border: { color: initialColors.axisLineColor, width: 1.5 },
+                                ticks: {
+                                    color: initialColors.textColor,
+                                    font: initialColors.tickFont,
+                                    callback: function(val) {
+                                        return '₱' + Number(val).toLocaleString();
+                                    }
+                                }
+                            }
+                        },
+                        plugins: {
+                            legend: { display: false },
+                            tooltip: {
+                                backgroundColor: initialColors.tooltipBg,
+                                titleColor: initialColors.tooltipTitle,
+                                padding: 12,
+                                cornerRadius: 8,
+                                callbacks: {
+                                    label: function(ctx) {
+                                        return ' SaaS Revenue: ₱' + Number(ctx.parsed.y).toLocaleString(undefined, {minimumFractionDigits: 2});
+                                    }
+                                }
+                            }
+                        }
+                    }
+                });
+            }
+
+            const saasMixCanvas = document.getElementById('platformSaaSMixChart');
+            if (saasMixCanvas && chartsData.platform_saas) {
+                const saasData = chartsData.platform_saas;
+                const tierColors = ['#38bdf8', '#a855f7', '#f59e0b', '#84cc16'];
+                platformSaaSMixChartInstance = new Chart(saasMixCanvas, {
+                    type: 'doughnut',
+                    data: {
+                        labels: saasData.plan_labels,
+                        datasets: [{
+                            data: saasData.plan_values,
+                            backgroundColor: tierColors.slice(0, saasData.plan_labels.length),
+                            borderWidth: 0,
+                            hoverOffset: 6
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        cutout: '70%',
+                        plugins: {
+                            legend: { display: false },
+                            tooltip: {
+                                backgroundColor: initialColors.tooltipBg,
+                                titleColor: initialColors.tooltipTitle,
+                                padding: 12,
+                                callbacks: {
+                                    label: function(ctx) {
+                                        const tot = ctx.dataset.data.reduce((a, b) => a + b, 0);
+                                        const pct = tot > 0 ? ((ctx.parsed / tot) * 100).toFixed(1) : '0.0';
+                                        return ' ' + ctx.label + ': ₱' + Number(ctx.parsed).toLocaleString(undefined, {minimumFractionDigits: 2}) + ' (' + pct + '%)';
+                                    }
+                                }
+                            }
+                        }
+                    }
+                });
+            }
+
             // 1. Revenue Stacked Bar Chart
             const revCanvas = document.getElementById('revenueChart');
             if (revCanvas) {
@@ -683,6 +846,12 @@
                 Chart.defaults.color = tc.textColor;
                 Chart.defaults.borderColor = tc.gridColor;
 
+                // Update Platform SaaS Bar
+                if (platformSaaSChartInstance && platformSaaSChartInstance.data.datasets.length) {
+                    platformSaaSChartInstance.data.datasets[0].backgroundColor = tc.isLight ? '#4d7c0f' : '#84cc16';
+                    platformSaaSChartInstance.data.datasets[0].hoverBackgroundColor = tc.isLight ? '#3f6212' : '#a3e635';
+                }
+
                 // Update Revenue Bar
                 if (revenueChartInstance && revenueChartInstance.data.datasets.length >= 2) {
                     revenueChartInstance.data.datasets[0].backgroundColor = tc.revenue.subs;
@@ -741,6 +910,8 @@
                 }
 
                 const list = [
+                    platformSaaSChartInstance,
+                    platformSaaSMixChartInstance,
                     revenueChartInstance,
                     revenueMixChartInstance,
                     attendanceChartInstance,
@@ -1003,11 +1174,26 @@
                     const g = res.gym || {};
                     const gymName = g.name || 'FitTrack Gym';
 
+                    const dismissEODModal = () => {
+                        Swal.close();
+                        setTimeout(() => {
+                            const activeContainer = document.querySelector('.swal2-container');
+                            if (activeContainer) {
+                                activeContainer.remove();
+                                document.body.classList.remove('swal2-shown', 'swal2-height-auto');
+                            }
+                        }, 120);
+                    };
+                    window.dismissEODModal = dismissEODModal;
+
                     Swal.fire({
                         width: 'min(94vw, 480px)',
+                        customClass: {
+                            popup: 'eod-settlement-modal'
+                        },
                         html: `
                             <div style="text-align:left;font-family:'Inter',system-ui,sans-serif;margin-top:4px;">
-                                <div style="display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--line);padding-bottom:12px;margin-bottom:14px;">
+                                <div style="display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--line);padding-bottom:12px;margin-bottom:14px;padding-right:42px;">
                                     <div>
                                         <div style="font-size:16px;font-weight:800;color:var(--ink);">${gymName}</div>
                                         <div style="font-size:12px;color:var(--muted);margin-top:2px;">Daily Settlement &bull; <strong>${d.date_formatted}</strong></div>
@@ -1059,7 +1245,20 @@
                             </div>
                         `,
                         showConfirmButton: false,
-                        showCloseButton: true
+                        showCloseButton: true,
+                        allowOutsideClick: true,
+                        allowEscapeKey: true,
+                        didOpen: (popup) => {
+                            const closeBtn = popup.querySelector('.swal2-close');
+                            if (closeBtn) {
+                                closeBtn.setAttribute('title', 'Close settlement report');
+                                closeBtn.onclick = (e) => {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    dismissEODModal();
+                                };
+                            }
+                        }
                     });
                 })
                 .catch(err => {
@@ -1069,17 +1268,37 @@
         });
     };
 
+    // Global capture listener to ensure any swal2-close click always reliably closes the modal
+    document.addEventListener('click', function(e) {
+        const closeBtn = e.target && e.target.closest && e.target.closest('.swal2-close');
+        if (closeBtn) {
+            e.preventDefault();
+            e.stopPropagation();
+            if (typeof window.dismissEODModal === 'function') {
+                window.dismissEODModal();
+            } else if (typeof Swal !== 'undefined' && typeof Swal.close === 'function') {
+                Swal.close();
+            }
+        }
+    }, true);
+
     window.printEODSlip = function(gym, date, total, subRev, subCnt, walkRev, walkCnt, attCnt, expCnt, activeCnt) {
         const printWindow = window.open('', '_blank', 'width=420,height=600');
         if (!printWindow) {
             alert('Please allow popups to print the settlement slip.');
             return;
         }
+        const escapePrintText = value => String(value ?? '').replace(/[&<>"']/g, char => ({
+            '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+        })[char]);
+        const gymName = escapePrintText(gym);
+        const reportDate = escapePrintText(date);
+        const money = value => (Number.parseFloat(value) || 0).toFixed(2);
         printWindow.document.write(`
             <!DOCTYPE html>
             <html>
             <head>
-                <title>Daily Settlement - \${gym}</title>
+                <title>Daily Settlement - ${gymName}</title>
                 <style>
                     body { font-family: 'Courier New', Courier, monospace; width: 300px; margin: 20px auto; font-size: 13px; color: #000; }
                     .center { text-align: center; }
@@ -1089,18 +1308,18 @@
                 </style>
             </head>
             <body>
-                <div class="center bold" style="font-size:16px;">\${gym}</div>
+                <div class="center bold" style="font-size:16px;">${gymName}</div>
                 <div class="center">DAILY SETTLEMENT (Z-READING)</div>
-                <div class="center">\${date}</div>
+                <div class="center">${reportDate}</div>
                 <div class="line"></div>
-                <div class="row"><span>Subscriptions (\${subCnt}):</span><span>PHP \${parseFloat(subRev).toFixed(2)}</span></div>
-                <div class="row"><span>Walk-Ins (\${walkCnt}):</span><span>PHP \${parseFloat(walkRev).toFixed(2)}</span></div>
+                <div class="row"><span>Subscriptions (${Number(subCnt) || 0}):</span><span>PHP ${money(subRev)}</span></div>
+                <div class="row"><span>Walk-Ins (${Number(walkCnt) || 0}):</span><span>PHP ${money(walkRev)}</span></div>
                 <div class="line"></div>
-                <div class="row bold" style="font-size:15px;"><span>TOTAL GROSS:</span><span>PHP \${parseFloat(total).toFixed(2)}</span></div>
+                <div class="row bold" style="font-size:15px;"><span>TOTAL GROSS:</span><span>PHP ${money(total)}</span></div>
                 <div class="line"></div>
-                <div class="row"><span>Facility Check-Ins:</span><span>\${attCnt}</span></div>
-                <div class="row"><span>Expiring Tomorrow:</span><span>\${expCnt}</span></div>
-                <div class="row"><span>Active Members:</span><span>\${activeCnt}</span></div>
+                <div class="row"><span>Facility Check-Ins:</span><span>${Number(attCnt) || 0}</span></div>
+                <div class="row"><span>Expiring Tomorrow:</span><span>${Number(expCnt) || 0}</span></div>
+                <div class="row"><span>Active Members:</span><span>${Number(activeCnt) || 0}</span></div>
                 <div class="line"></div>
                 <div class="center" style="font-size:11px; margin-top: 15px;">Official Audit Record &bull; FitTrack</div>
                 <script>

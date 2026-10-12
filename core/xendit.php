@@ -57,7 +57,13 @@ function xendit_api_request(string $method, string $path, ?array $body = null, a
     return $response;
 }
 
-function xendit_create_checkout_session(array $payment, array $owner, string $gymName): array
+function xendit_create_checkout_session(
+    array $payment,
+    array $customer,
+    string $merchantName,
+    ?string $forUserId = null,
+    string $returnPage = 'gym_subscription'
+): array
 {
     $referenceId = (string) ($payment['xendit_reference_id'] ?? '');
     $amount = round((float) ($payment['amount'] ?? 0), 2);
@@ -66,7 +72,7 @@ function xendit_create_checkout_session(array $payment, array $owner, string $gy
     }
 
     $billingCycle = (string) ($payment['billing_cycle'] ?? 'monthly');
-    $description = 'FitTrack ' . (string) ($payment['plan_name'] ?? 'subscription') . ' plan for ' . $gymName
+    $description = 'FitTrack ' . (string) ($payment['plan_name'] ?? 'subscription') . ' plan for ' . $merchantName
         . ' (' . ($billingCycle === 'yearly' ? 'annual' : 'monthly') . ')';
     $payload = [
         'reference_id' => $referenceId,
@@ -82,12 +88,12 @@ function xendit_create_checkout_session(array $payment, array $owner, string $gy
     $appUrl = app_base_url();
     if (str_starts_with(strtolower($appUrl), 'https://')) {
         $successUrl = $appUrl . '?' . http_build_query([
-            'page' => 'gym_subscription',
+            'page' => $returnPage,
             'checkout' => 'returned',
             'ref' => $referenceId,
         ]);
         $cancelUrl = $appUrl . '?' . http_build_query([
-            'page' => 'gym_subscription',
+            'page' => $returnPage,
             'checkout' => 'cancelled',
             'ref' => $referenceId,
         ]);
@@ -95,7 +101,19 @@ function xendit_create_checkout_session(array $payment, array $owner, string $gy
         $payload['cancel_return_url'] = $cancelUrl;
     }
 
-    $session = xendit_api_request('POST', '/sessions', $payload);
+    $requestHeaders = $forUserId !== null ? ['for-user-id: ' . $forUserId] : [];
+    if (!empty($customer['email'])) {
+        $payload['customer'] = [
+            'reference_id' => 'member-' . (int)($customer['user_id'] ?? 0),
+            'type' => 'INDIVIDUAL',
+            'email' => (string)$customer['email'],
+            'individual_detail' => [
+                'given_names' => preg_replace('/[^\p{L}\p{N} .\-]/u', '', (string)($customer['first_name'] ?? 'Member')) ?: 'Member',
+                'surname' => preg_replace('/[^\p{L}\p{N} .\-]/u', '', (string)($customer['last_name'] ?? '')),
+            ],
+        ];
+    }
+    $session = xendit_api_request('POST', '/sessions', $payload, $requestHeaders);
     $sessionId = trim((string) ($session['payment_session_id'] ?? ''));
     $checkoutUrl = trim((string) ($session['payment_link_url'] ?? ''));
     $checkoutHost = strtolower((string) parse_url($checkoutUrl, PHP_URL_HOST));
@@ -164,6 +182,20 @@ function handle_xendit_subscription_webhook(): void
         $lookup->execute([$sessionId]);
         $payment = $lookup->fetch(PDO::FETCH_ASSOC);
         if (!$payment) {
+            $memberLookup = $pdo->prepare('SELECT p.*, m.user_id AS member_user_id, m.start_date AS membership_start_date, m.end_date AS membership_end_date, mp.plan_name, mp.gym_id, u.email AS member_email, u.first_name AS member_first_name, u.last_name AS member_last_name, g.name AS gym_name, g.owner_user_id, owner.email AS owner_email, owner.first_name AS owner_first_name, owner.last_name AS owner_last_name, g.xendit_subaccount_id
+                FROM payments p
+                JOIN memberships m ON m.membership_id = p.membership_id
+                JOIN membership_plans mp ON mp.plan_id = m.plan_id
+                JOIN users u ON u.user_id = m.user_id
+                JOIN gyms g ON g.gym_id = mp.gym_id
+                JOIN users owner ON owner.user_id = g.owner_user_id
+                WHERE p.xendit_session_id = ? LIMIT 1');
+            $memberLookup->execute([$sessionId]);
+            $memberPayment = $memberLookup->fetch(PDO::FETCH_ASSOC);
+            if ($memberPayment) {
+                xendit_handle_membership_payment_webhook($pdo, $memberPayment, $event, $data, $sessionId);
+                return;
+            }
             error_log('Xendit webhook referenced an unknown subscription session.');
             http_response_code(200);
             echo json_encode(['success' => true, 'ignored' => true]);
@@ -300,6 +332,138 @@ function handle_xendit_subscription_webhook(): void
         http_response_code(500);
         echo json_encode(['success' => false, 'message' => 'Webhook processing failed.']);
     }
+}
+
+function xendit_handle_membership_payment_webhook(PDO $pdo, array $payment, string $event, array $data, string $sessionId): void
+{
+    if ($payment['status'] === 'paid') {
+        http_response_code(200);
+        echo json_encode(['success' => true, 'duplicate' => true]);
+        return;
+    }
+
+    if ($event === 'payment_session.expired') {
+        $pdo->prepare('UPDATE payments SET status = "overdue" WHERE payment_id = ? AND status = "pending"')
+            ->execute([(int)$payment['payment_id']]);
+        $pdo->prepare('UPDATE memberships SET status = "cancelled" WHERE membership_id = ? AND status = "pending"')
+            ->execute([(int)$payment['membership_id']]);
+        http_response_code(200);
+        echo json_encode(['success' => true]);
+        return;
+    }
+
+    $referenceId = trim((string)($data['reference_id'] ?? ''));
+    $subaccountId = trim((string)($payment['xendit_subaccount_id'] ?? ''));
+    if ($referenceId === '' || !hash_equals((string)$payment['xendit_reference_id'], $referenceId) || $subaccountId === '') {
+        throw new RuntimeException('Xendit membership payment details did not match the pending payment.');
+    }
+
+    $verifiedSession = xendit_api_request(
+        'GET',
+        '/sessions/' . rawurlencode($sessionId),
+        null,
+        ['for-user-id: ' . $subaccountId]
+    );
+    if ((string)($verifiedSession['status'] ?? '') !== 'COMPLETED'
+        || (string)($verifiedSession['payment_session_id'] ?? '') !== $sessionId
+        || (string)($verifiedSession['reference_id'] ?? '') !== $referenceId
+        || strtoupper((string)($verifiedSession['currency'] ?? '')) !== 'PHP'
+        || round((float)($verifiedSession['amount'] ?? -1), 2) !== round((float)$payment['amount'], 2)) {
+        throw new RuntimeException('Xendit membership payment status or amount did not match.');
+    }
+
+    $xenditPaymentId = trim((string)($data['payment_id'] ?? $verifiedSession['payment_id'] ?? ''));
+    if ($xenditPaymentId === '') {
+        throw new RuntimeException('Xendit did not include a completed membership payment ID.');
+    }
+
+    $pdo->beginTransaction();
+    $lockPayment = $pdo->prepare('SELECT * FROM payments WHERE payment_id = ? FOR UPDATE');
+    $lockPayment->execute([(int)$payment['payment_id']]);
+    $lockedPayment = $lockPayment->fetch(PDO::FETCH_ASSOC);
+    if (!$lockedPayment || $lockedPayment['status'] !== 'pending') {
+        $pdo->commit();
+        http_response_code(200);
+        echo json_encode(['success' => true, 'duplicate' => true]);
+        return;
+    }
+
+    $membershipStmt = $pdo->prepare('SELECT * FROM memberships WHERE membership_id = ? FOR UPDATE');
+    $membershipStmt->execute([(int)$lockedPayment['membership_id']]);
+    $membership = $membershipStmt->fetch(PDO::FETCH_ASSOC);
+    if (!$membership) {
+        throw new RuntimeException('The pending membership no longer exists.');
+    }
+
+    if ($membership['status'] === 'pending') {
+        $pdo->prepare('UPDATE memberships SET status = "cancelled" WHERE user_id = ? AND membership_id <> ? AND status = "active" AND plan_id IN (SELECT plan_id FROM membership_plans WHERE gym_id = ?)')
+            ->execute([(int)$payment['member_user_id'], (int)$membership['membership_id'], (int)$payment['gym_id']]);
+        $pdo->prepare('UPDATE memberships SET status = "active" WHERE membership_id = ?')
+            ->execute([(int)$membership['membership_id']]);
+    }
+    $pdo->prepare('INSERT IGNORE INTO gym_members (gym_id, user_id) VALUES (?, ?)')
+        ->execute([(int)$payment['gym_id'], (int)$payment['member_user_id']]);
+
+    $receiptNumber = 'MEM-' . date('Ymd') . '-' . strtoupper(substr(bin2hex(random_bytes(4)), 0, 6));
+    $pdo->prepare('UPDATE payments SET status = "paid", payment_method = "online", payment_date = CURDATE(), receipt_number = ?, xendit_payment_id = ? WHERE payment_id = ? AND status = "pending"')
+        ->execute([$receiptNumber, $xenditPaymentId, (int)$lockedPayment['payment_id']]);
+    $pdo->commit();
+
+    try {
+        process_trainer_commission((int)$lockedPayment['payment_id'], (float)$lockedPayment['amount']);
+    } catch (Throwable $e) {
+        error_log('Could not process Xendit member payment commission: ' . $e->getMessage());
+    }
+
+    try {
+        notify_user((int)$payment['member_user_id'], 'system', 'Membership Payment Confirmed', 'Payment confirmed for ' . $payment['plan_name'] . ' at ' . $payment['gym_name'] . '. Receipt: ' . $receiptNumber . '.');
+        notify_user((int)$payment['owner_user_id'], 'system', 'Member Payment Received', $payment['member_first_name'] . ' ' . $payment['member_last_name'] . ' paid ' . money((float)$payment['amount']) . ' for ' . $payment['plan_name'] . '. Receipt: ' . $receiptNumber . '.');
+    } catch (Throwable $notificationError) {
+        error_log('Could not create Xendit membership payment notifications: ' . $notificationError->getMessage());
+    }
+
+    try {
+        $memberEmailSent = Emails::sendMembershipPaymentReceipt(
+            (string)$payment['member_email'],
+            trim((string)$payment['member_first_name'] . ' ' . (string)$payment['member_last_name']),
+            (string)$payment['gym_name'],
+            (string)$payment['plan_name'],
+            (float)$payment['amount'],
+            $receiptNumber,
+            $xenditPaymentId,
+            (string)$payment['membership_start_date'],
+            (string)$payment['membership_end_date']
+        );
+        $ownerEmailSent = Emails::sendGymMemberPaymentNotice(
+            (string)$payment['owner_email'],
+            trim((string)$payment['owner_first_name'] . ' ' . (string)$payment['owner_last_name']),
+            (string)$payment['gym_name'],
+            trim((string)$payment['member_first_name'] . ' ' . (string)$payment['member_last_name']),
+            (string)$payment['plan_name'],
+            (float)$payment['amount'],
+            $receiptNumber,
+            $xenditPaymentId
+        );
+        if (!$memberEmailSent || !$ownerEmailSent) {
+            error_log('One or more Xendit membership payment emails could not be sent.');
+        }
+    } catch (Throwable $emailError) {
+        error_log('Could not send Xendit membership payment emails: ' . $emailError->getMessage());
+    }
+
+    try {
+        audit_log((int)$payment['member_user_id'], 'membership_payment', 'payment', (string)$lockedPayment['payment_id'], json_encode([
+            'gym_id' => (int)$payment['gym_id'],
+            'amount' => (float)$payment['amount'],
+            'receipt' => $receiptNumber,
+            'provider' => 'xendit',
+        ]));
+    } catch (Throwable $auditError) {
+        error_log('Could not audit Xendit membership payment: ' . $auditError->getMessage());
+    }
+
+    http_response_code(200);
+    echo json_encode(['success' => true]);
 }
 
 function xendit_add_billing_period(DateTimeImmutable $start, string $billingCycle): DateTimeImmutable

@@ -7,6 +7,7 @@ function view_gym_page(): void
     $pdo = db();
     
     $gymId = (int) ($_GET['gym_id'] ?? 0);
+    $fromGymSelection = ($user['role'] === 'member' && ($_GET['from'] ?? '') === 'gym_selection');
     if (!$gymId) {
         flash('Invalid gym ID.', 'danger');
         redirect('dashboard');
@@ -81,6 +82,10 @@ function view_gym_page(): void
     $stmtImages = $pdo->prepare('SELECT image_url FROM gym_images WHERE gym_id = ? ORDER BY created_at DESC LIMIT 6');
     $stmtImages->execute([$gymId]);
     $images = $stmtImages->fetchAll(PDO::FETCH_COLUMN);
+    $publicHeroImage = $gym['cover_image_url'] ?? null;
+    if (!$publicHeroImage && $fromGymSelection && !empty($images[0])) {
+        $publicHeroImage = $images[0];
+    }
 
     $brandColor = !empty($gym['brand_color']) ? $gym['brand_color'] : 'var(--lime)';
 
@@ -94,14 +99,24 @@ function view_gym_page(): void
     </style>
     <link rel="stylesheet" href="<?= h(asset_url('css/pages/view_gym.css')) ?>">
 
-    <div class="gym-showcase-container animate-fade-in">
+    <div class="gym-showcase-container animate-fade-in <?= $fromGymSelection ? 'gym-selection-showcase' : '' ?>">
         <!-- Hero Banner Card -->
         <div class="gym-hero-card">
+            <?php if ($publicHeroImage): ?>
+                <div class="gym-hero-cover" aria-hidden="true"><img src="<?= h(upload_url($publicHeroImage)) ?>" alt=""></div>
+            <?php endif; ?>
+            <?php if ($fromGymSelection): ?>
+                <a href="index.php?page=gym_selection" class="gym-selection-back-link">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg>
+                    <span>Back to gyms</span>
+                </a>
+                <div class="gym-selection-kicker">Discover this gym</div>
+            <?php endif; ?>
             <div class="gym-hero-top">
                 <div class="gym-hero-profile">
                     <div class="gym-avatar-box">
                         <?php if (!empty($gym['logo_url'])): ?>
-                            <img src="<?= h($gym['logo_url']) ?>" alt="<?= h($gym['name']) ?>" style="width:100%;height:100%;object-fit:cover;border-radius:inherit;">
+                            <img src="<?= h(upload_url($gym['logo_url'])) ?>" alt="<?= h($gym['name']) ?>" style="width:100%;height:100%;object-fit:contain;border-radius:inherit;">
                         <?php else: ?>
                             <?= h(strtoupper(substr($gym['name'], 0, 2))) ?>
                         <?php endif; ?>
@@ -141,21 +156,24 @@ function view_gym_page(): void
                                 </span>
                             <?php endif; ?>
                         </div>
+                        <?php if (!empty($gym['public_description'])): ?>
+                            <p class="gym-public-description"><?= nl2br(h($gym['public_description'])) ?></p>
+                        <?php endif; ?>
                     </div>
                 </div>
 
                 <div class="gym-hero-actions">
-                    <a href="index.php?page=dashboard#explore" class="btn-action-back">
+                    <a href="<?= $fromGymSelection ? 'index.php?page=gym_selection' : 'index.php?page=dashboard#explore' ?>" class="btn-action-back">
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg>
-                        <span>Back to Dashboard</span>
+                        <span><?= $fromGymSelection ? 'Back to gyms' : 'Back to Dashboard' ?></span>
                     </a>
                     <?php if ($user['role'] === 'member' && !$isAffiliatedWithThisGym): ?>
                         <form method="post" action="index.php?page=gym_selection" style="margin: 0;">
                             <?= csrf_field() ?>
                             <input type="hidden" name="action" value="select_gym">
                             <input type="hidden" name="gym_id" value="<?= $gymId ?>">
-                            <button type="submit" class="btn-action-primary" onclick="return confirm('Switch your affiliated gym to <?= h($gym['name']) ?>?')">
-                                <span>Affiliate with Gym</span>
+                            <button type="submit" class="btn-action-primary" <?= $fromGymSelection ? '' : 'onclick="return confirm(\'Switch your affiliated gym to '.h(addslashes($gym['name'])).'?\')"' ?>>
+                                <span><?= $fromGymSelection ? 'Choose this gym' : 'Affiliate with Gym' ?></span>
                                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg>
                             </button>
                         </form>
@@ -568,6 +586,21 @@ function view_gym_page(): void
             <?php endif; ?>
         </div>
     </div>
+
+    <?php if ($fromGymSelection && $user['role'] === 'member' && !$isAffiliatedWithThisGym): ?>
+        <div class="gym-selection-sticky-action">
+            <div class="gym-selection-sticky-copy">
+                <strong><?= h($gym['name']) ?></strong>
+                <span>Ready to make this your gym?</span>
+            </div>
+            <form method="post" action="index.php?page=gym_selection">
+                <?= csrf_field() ?>
+                <input type="hidden" name="action" value="select_gym">
+                <input type="hidden" name="gym_id" value="<?= $gymId ?>">
+                <button type="submit" class="btn-action-primary">Choose this gym <span aria-hidden="true">→</span></button>
+            </form>
+        </div>
+    <?php endif; ?>
 
     <script src="<?= h(asset_url('js/pages/view_gym.js')) ?>"></script>
 

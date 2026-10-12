@@ -199,10 +199,14 @@ const FT_CSRF_TOKEN = (window.TRAINER_PAGE_CONFIG && window.TRAINER_PAGE_CONFIG.
                 // Re-evaluate script tags so that tab switching and custom select functions run
                 const scripts = bodyEl.querySelectorAll('script');
                 scripts.forEach(oldScript => {
-                    const newScript = document.createElement('script');
-                    Array.from(oldScript.attributes).forEach(attr => newScript.setAttribute(attr.name, attr.value));
-                    newScript.appendChild(document.createTextNode(oldScript.innerHTML));
-                    oldScript.parentNode.replaceChild(newScript, oldScript);
+                    try {
+                        const newScript = document.createElement('script');
+                        Array.from(oldScript.attributes).forEach(attr => newScript.setAttribute(attr.name, attr.value));
+                        newScript.appendChild(document.createTextNode(oldScript.innerHTML));
+                        oldScript.parentNode.replaceChild(newScript, oldScript);
+                    } catch (scriptErr) {
+                        console.warn('Assessment script execution notice:', scriptErr);
+                    }
                 });
 
                 // Intercept form submission for smooth in-modal saving

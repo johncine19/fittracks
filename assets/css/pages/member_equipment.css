@@ -679,6 +679,28 @@
             white-space: nowrap;
         }
 
+        @media (max-width: 600px) {
+            .remote-mode-banner {
+                align-items: stretch !important;
+                flex-direction: column !important;
+                gap: 12px !important;
+                padding: 14px !important;
+            }
+
+            .remote-mode-copy {
+                align-items: flex-start !important;
+                min-width: 0;
+            }
+
+            .remote-mode-copy > div {
+                min-width: 0;
+            }
+
+            .remote-mode-action {
+                align-self: center;
+            }
+        }
+
         @media (max-width: 768px) {
             .equip-action-strip {
                 display: grid !important;

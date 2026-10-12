@@ -9,13 +9,36 @@ function memberships_page(): void
 {
     $user = require_roles(['platform_admin', 'gym_owner', 'member']);
 
+    if ($user['role'] === 'member' && isset($_GET['checkout'], $_GET['ref']) && in_array($_GET['checkout'], ['returned', 'cancelled'], true)) {
+        $checkoutStmt = db()->prepare('SELECT p.status FROM payments p JOIN memberships m ON m.membership_id = p.membership_id WHERE p.xendit_reference_id = ? AND m.user_id = ? LIMIT 1');
+        $checkoutStmt->execute([(string)$_GET['ref'], (int)$user['user_id']]);
+        $checkoutStatus = $checkoutStmt->fetchColumn();
+        if ($checkoutStatus === 'paid') {
+            flash('Payment confirmed. Your membership is active.', 'success');
+        } elseif ($_GET['checkout'] === 'cancelled') {
+            flash('Checkout was cancelled. Your membership was not activated.', 'warning');
+        } elseif ($checkoutStatus === 'pending') {
+            flash('We are waiting for Xendit to confirm your payment. Your membership activates after confirmation.', 'info');
+        } elseif ($checkoutStatus === 'overdue') {
+            flash('That checkout has expired. You can start a new payment from your membership plans.', 'warning');
+        }
+    }
+
     if ($user['role'] === 'member' && !isset($_POST['subscribe_plan_id'])) {
         $isGymMember = db()->prepare('SELECT 1 FROM gym_members WHERE user_id = ?');
         $isGymMember->execute([$user['user_id']]);
         if (!$isGymMember->fetchColumn()) {
-            $hasPlanGym = (int) scalar('SELECT mp.gym_id FROM memberships m JOIN membership_plans mp ON mp.plan_id = m.plan_id WHERE m.user_id = ? ORDER BY m.membership_id DESC LIMIT 1', [$user['user_id']]);
+            $hasPlanGym = (int) scalar('SELECT mp.gym_id FROM memberships m JOIN membership_plans mp ON mp.plan_id = m.plan_id WHERE m.user_id = ? AND m.status = "active" ORDER BY m.membership_id DESC LIMIT 1', [$user['user_id']]);
             if ($hasPlanGym > 0) {
                 db()->prepare('INSERT IGNORE INTO gym_members (user_id, gym_id) VALUES (?, ?)')->execute([$user['user_id'], $hasPlanGym]);
+            } elseif (!empty($_GET['ref']) && in_array((string)($_GET['checkout'] ?? ''), ['returned', 'cancelled'], true)) {
+                $pendingGymId = (int)scalar('SELECT mp.gym_id FROM payments p JOIN memberships m ON m.membership_id = p.membership_id JOIN membership_plans mp ON mp.plan_id = m.plan_id WHERE p.xendit_reference_id = ? AND m.user_id = ? AND p.status IN ("pending", "overdue") LIMIT 1', [(string)$_GET['ref'], (int)$user['user_id']]);
+                if ($pendingGymId > 0) {
+                    $_SESSION['current_gym_id'] = $pendingGymId;
+                } else {
+                    flash('Please select a gym first to view this page.', 'warning');
+                    redirect('gym_selection');
+                }
             } else {
                 flash('Please select a gym first to view this page.', 'warning');
                 redirect('gym_selection');
@@ -412,9 +435,12 @@ function memberships_page(): void
 
     if ($user['role'] === 'member' && $_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['subscribe_plan_id'])) {
         $planId = (int) post('subscribe_plan_id');
-        $paymentMethod = post('payment_method') === 'gcash' ? 'gcash' : 'cash';
+        $paymentMethod = post('payment_method') === 'xendit' ? 'xendit' : 'cash';
 
-        $stmt = db()->prepare('SELECT * FROM membership_plans WHERE plan_id = ?');
+        $stmt = db()->prepare('SELECT mp.*, g.name AS gym_name, g.owner_user_id, g.xendit_subaccount_id
+            FROM membership_plans mp
+            JOIN gyms g ON g.gym_id = mp.gym_id
+            WHERE mp.plan_id = ? AND mp.is_active = 1');
         $stmt->execute([$planId]);
         $plan = $stmt->fetch();
         if ($plan) {
@@ -442,108 +468,56 @@ function memberships_page(): void
                 }
             }
 
-            // GCash Placeholder Intercept
-            if ($paymentMethod === 'gcash' && !isset($_POST['gcash_simulated'])) {
-?>
-                <!DOCTYPE html>
-                <html lang="en">
+            if ($paymentMethod === 'xendit') {
+                $subaccountId = trim((string)($plan['xendit_subaccount_id'] ?? ''));
+                if ((string)app_env('XENDIT_SECRET_KEY') === '' || $subaccountId === '') {
+                    flash('Online payment is not configured for this gym yet. Please contact the gym owner.', 'warning');
+                    redirect('gym_selection');
+                }
 
-                <head>
-                    <meta charset="UTF-8">
-                    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-                    <title>GCash Payment Simulation</title>
-                    <style>
-                        body {
-                            font-family: 'Inter', sans-serif;
-                            background-color: #0f1115;
-                            color: #fff;
-                            display: flex;
-                            align-items: center;
-                            justify-content: center;
-                            height: 100vh;
-                            margin: 0;
-                        }
+                $referenceId = 'FTMEM-' . strtoupper(bin2hex(random_bytes(16)));
+                $paymentId = null;
+                $membershipId = null;
+                $pdo = db();
+                try {
+                    $pdo->beginTransaction();
+                    $pdo->prepare('INSERT INTO memberships (user_id, plan_id, start_date, end_date, status) VALUES (?, ?, ?, ?, "pending")')
+                        ->execute([(int)$user['user_id'], $planId, $start->format('Y-m-d'), $end]);
+                    $membershipId = (int)$pdo->lastInsertId();
+                    $pdo->prepare('INSERT INTO payments (membership_id, amount, payment_date, payment_method, status, receipt_number, xendit_reference_id) VALUES (?, ?, CURDATE(), "online", "pending", NULL, ?)')
+                        ->execute([$membershipId, $finalPrice, $referenceId]);
+                    $paymentId = (int)$pdo->lastInsertId();
+                    $pdo->commit();
+                    $_SESSION['current_gym_id'] = $planGymId;
 
-                        .payment-container {
-                            max-width: 400px;
-                            width: 100%;
-                            background: #16181d;
-                            border: 1px solid #ccff00;
-                            border-radius: 12px;
-                            padding: 30px;
-                            text-align: center;
-                            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
-                        }
-
-                        .summary {
-                            background: rgba(255, 255, 255, 0.05);
-                            padding: 15px;
-                            border-radius: 8px;
-                            margin-bottom: 25px;
-                            text-align: left;
-                        }
-
-                        .btn-primary {
-                            width: 100%;
-                            padding: 12px;
-                            font-size: 1.1rem;
-                            background: #007DFE;
-                            color: white;
-                            border: none;
-                            border-radius: 6px;
-                            cursor: pointer;
-                            font-weight: bold;
-                        }
-
-                        .btn-primary:hover {
-                            background: #0066d6;
-                        }
-
-                        a {
-                            color: #8892b0;
-                            text-decoration: underline;
-                            font-size: 0.9rem;
-                        }
-                    </style>
-                </head>
-
-                <body>
-                    <div class="payment-container">
-                        <img src="https://getpaymongo.com/assets/images/paymongo-logo.svg" alt="PayMongo" style="height: 30px; margin-bottom: 20px; filter: brightness(0) invert(1);">
-                        <h2 style="color: #ccff00; margin-top: 0;">GCash Payment</h2>
-                        <p style="color: #8892b0; margin-bottom: 30px;">This is a simulated PayMongo checkout for demonstration purposes.</p>
-
-                        <div class="summary">
-                            <div style="display: flex; justify-content: space-between; margin-bottom: 10px;">
-                                <span style="color: #8892b0;">Plan:</span>
-                                <span style="font-weight: bold;"><?= h($plan['plan_name']) ?></span>
-                            </div>
-                            <div style="display: flex; justify-content: space-between;">
-                                <span style="color: #8892b0;">Total Amount:</span>
-                                <span style="color: #ccff00; font-weight: bold; font-size: 1.2rem;"><?= h(money($finalPrice)) ?></span>
-                            </div>
-                        </div>
-
-                        <form method="post" action="index.php?page=memberships">
-                            <?= csrf_field() ?>
-                            <input type="hidden" name="subscribe_plan_id" value="<?= $planId ?>">
-                            <input type="hidden" name="payment_method" value="gcash">
-                            <input type="hidden" name="gcash_simulated" value="1">
-                            <button type="submit" class="btn-primary">Simulate Successful Payment</button>
-                        </form>
-                        <div style="margin-top: 15px;">
-                            <a href="index.php?page=gym_selection">Cancel</a>
-                        </div>
-                    </div>
-                </body>
-
-                </html>
-    <?php
-                exit;
+                    $checkout = xendit_create_checkout_session([
+                        'xendit_reference_id' => $referenceId,
+                        'amount' => $finalPrice,
+                        'plan_name' => $plan['plan_name'],
+                        'billing_cycle' => 'monthly',
+                    ], $user, (string)$plan['gym_name'], $subaccountId, 'memberships');
+                    $pdo->prepare('UPDATE payments SET xendit_session_id = ? WHERE payment_id = ? AND status = "pending"')
+                        ->execute([$checkout['payment_session_id'], $paymentId]);
+                    header('Location: ' . $checkout['payment_link_url'], true, 303);
+                    exit;
+                } catch (Throwable $e) {
+                    if ($pdo->inTransaction()) {
+                        $pdo->rollBack();
+                    }
+                    if ($paymentId !== null) {
+                        $pdo->prepare('UPDATE payments SET status = "overdue" WHERE payment_id = ? AND status = "pending"')->execute([$paymentId]);
+                    }
+                    if ($membershipId !== null) {
+                        $pdo->prepare('UPDATE memberships SET status = "cancelled" WHERE membership_id = ? AND status = "pending"')->execute([$membershipId]);
+                    }
+                    error_log('Could not start Xendit member checkout: ' . $e->getMessage());
+                    flash('We could not start secure checkout. Please try again or contact the gym.', 'danger');
+                    redirect('memberships');
+                }
             }
 
-            $paymentStatus = ($paymentMethod === 'gcash') ? 'paid' : 'pending';
-            $membershipStatus = ($paymentMethod === 'gcash') ? 'active' : 'pending';
+            $paymentStatus = 'pending';
+            $membershipStatus = 'pending';
 
             db()->prepare('INSERT INTO memberships (user_id, plan_id, start_date, end_date, status) VALUES (?, ?, ?, ?, ?)')
                 ->execute([$user['user_id'], $planId, $start->format('Y-m-d'), $end, $membershipStatus]);
@@ -557,10 +531,6 @@ function memberships_page(): void
             }
 
             $receipt = 'REQ-' . date('Ymd') . '-' . random_int(1000, 9999);
-            if ($paymentStatus === 'paid') {
-                $receipt = 'GCASH-' . date('Ymd') . '-' . random_int(100000, 999999);
-            }
-
             db()->prepare('INSERT INTO payments (membership_id, amount, payment_date, payment_method, status, receipt_number) VALUES (?, ?, ?, ?, ?, ?)')
                 ->execute([$membershipId, $finalPrice, $start->format('Y-m-d'), $paymentMethod, $paymentStatus, $receipt]);
             $paymentId = (int) db()->lastInsertId();
@@ -575,18 +545,8 @@ function memberships_page(): void
                 notify_user($ownerUserId, 'system', 'New Subscription', $user['first_name'] . ' ' . $user['last_name'] . ' requested a ' . $plan['plan_name'] . ' membership. Payment method: ' . strtoupper($paymentMethod) . '. Status: ' . strtoupper($paymentStatus) . '.');
             }
 
-            if ($paymentMethod === 'gcash') {
-                flash('GCash Payment Successful! You are now subscribed.', 'success');
-            } else {
-                flash('Subscription requested. Please proceed with payment at the front desk.');
-            }
-
-            // Auto redirect to dashboard if paid successfully
-            if ($paymentMethod === 'gcash') {
-                redirect('dashboard');
-            } else {
-                redirect('memberships');
-            }
+            flash('Membership requested. Please proceed with payment at the front desk.');
+            redirect('memberships');
         }
     }
 
@@ -601,16 +561,21 @@ function memberships_page(): void
         $where = 'WHERE m.user_id = ' . (int) $user['user_id'];
         $memberGymId = (int) scalar('SELECT gym_id FROM gym_members WHERE user_id = ? ORDER BY created_at DESC LIMIT 1', [$user['user_id']]);
         if (!$memberGymId) {
-            $memberGymId = (int) scalar('SELECT mp.gym_id FROM memberships m JOIN membership_plans mp ON mp.plan_id = m.plan_id WHERE m.user_id = ? ORDER BY m.membership_id DESC LIMIT 1', [$user['user_id']]);
+            $memberGymId = (int) scalar('SELECT mp.gym_id FROM memberships m JOIN membership_plans mp ON mp.plan_id = m.plan_id WHERE m.user_id = ? AND m.status = "active" ORDER BY m.membership_id DESC LIMIT 1', [$user['user_id']]);
             if ($memberGymId > 0) {
                 db()->prepare('INSERT IGNORE INTO gym_members (user_id, gym_id) VALUES (?, ?)')->execute([$user['user_id'], $memberGymId]);
+            } elseif (!empty($_SESSION['current_gym_id']) && !empty($_GET['ref']) && in_array((string)($_GET['checkout'] ?? ''), ['returned', 'cancelled'], true)) {
+                $memberGymId = (int) scalar('SELECT mp.gym_id FROM payments p JOIN memberships m ON m.membership_id = p.membership_id JOIN membership_plans mp ON mp.plan_id = m.plan_id WHERE p.xendit_reference_id = ? AND m.user_id = ? AND p.status IN ("pending", "overdue") AND mp.gym_id = ? LIMIT 1', [(string)$_GET['ref'], (int)$user['user_id'], (int)$_SESSION['current_gym_id']]);
             }
         }
         if ($memberGymId > 0) {
             $gymName = (string) scalar('SELECT name FROM gyms WHERE gym_id = ?', [$memberGymId]);
             $plans = db()->query('SELECT mp.*, g.name AS gym_name FROM membership_plans mp LEFT JOIN gyms g ON g.gym_id = mp.gym_id WHERE mp.is_active = 1 AND mp.gym_id = ' . $memberGymId . ' ORDER BY mp.price')->fetchAll();
+            $memberXenditEnabled = (string)app_env('XENDIT_SECRET_KEY') !== ''
+                && (string)scalar('SELECT xendit_subaccount_id FROM gyms WHERE gym_id = ?', [$memberGymId]) !== '';
         } else {
             $plans = [];
+            $memberXenditEnabled = false;
         }
     } else {
         $where = 'WHERE 1=0'; // Platform admin doesn't use this page
@@ -1446,11 +1411,11 @@ function memberships_page(): void
         today: <?= json_encode(date("Y-m-d")) ?>,
         initialMembers: <?= json_encode($initialMembersData ?? [], JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP) ?>,
         plans: <?= json_encode($plansData ?? [], JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP) ?>,
-        memberships: <?= json_encode($membershipsData ?? [], JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP) ?>
+        memberships: <?= json_encode($membershipsData ?? [], JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP) ?>,
+        xenditEnabled: <?= !empty($memberXenditEnabled) ? 'true' : 'false' ?>
     };
     </script>
     <script src="<?= h(asset_url("js/pages/memberships.js")) ?>"></script>
 <?php
     render_footer();
 }
-

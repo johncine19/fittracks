@@ -17,12 +17,18 @@ function announcements_page(): void
             if ($title && $content && in_array($target, ['all', 'gym_owners', 'trainers', 'members'], true)) {
                 $pdo->prepare('INSERT INTO announcements (title, content, target_audience, created_by) VALUES (?, ?, ?, ?)')
                     ->execute([$title, $content, $target, $user['user_id']]);
+                $announcementId = (int) $pdo->lastInsertId();
                 
-                // Notify targeted users
-                $where = $target === 'all' ? '1=1' : 'role = ' . $pdo->quote(rtrim($target, 's')); // gym_owners -> gym_owner
-                $usersToNotify = $pdo->query("SELECT user_id FROM users WHERE status = 'active' AND $where")->fetchAll(PDO::FETCH_COLUMN);
+                // Notify targeted users (exclude platform admins because they are the creators broadcasting to users)
+                $roleFilter = $target === 'all'
+                    ? "role IN ('gym_owner', 'trainer', 'member')"
+                    : 'role = ' . $pdo->quote(rtrim($target, 's')); // gym_owners -> gym_owner
+                $stmtNotify = $pdo->prepare("SELECT user_id FROM users WHERE status = 'active' AND role != 'platform_admin' AND user_id != ? AND $roleFilter");
+                $stmtNotify->execute([(int) $user['user_id']]);
+                $usersToNotify = $stmtNotify->fetchAll(PDO::FETCH_COLUMN);
+                $preview = mb_substr($content, 0, 100) . (mb_strlen($content) > 100 ? '...' : '');
                 foreach ($usersToNotify as $uid) {
-                    notify_user((int)$uid, 'system', 'New Announcement: ' . $title, mb_substr($content, 0, 100) . (mb_strlen($content) > 100 ? '...' : ''));
+                    notify_user((int)$uid, 'system', 'New Announcement: ' . $title, $preview, $announcementId);
                 }
                 
                 flash('Announcement published successfully.', 'success');
@@ -32,6 +38,8 @@ function announcements_page(): void
         } elseif ($action === 'delete') {
             $id = (int) post('announcement_id');
             $pdo->prepare('DELETE FROM announcements WHERE announcement_id = ?')->execute([$id]);
+            // Also clean up any system notifications associated with this announcement
+            $pdo->prepare('DELETE FROM notifications WHERE reference_id = ? AND type = "system" AND title LIKE "New Announcement:%"')->execute([$id]);
             flash('Announcement deleted.', 'success');
         }
         redirect('announcements');

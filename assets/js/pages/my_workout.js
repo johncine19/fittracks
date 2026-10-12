@@ -11,7 +11,6 @@ const CSRF_TOKEN = FT_WORKOUT_CONFIG.csrfToken || (document.querySelector('meta[
 const CALENDAR_DATA = FT_WORKOUT_CONFIG.calendarData || {};
 let selectedDate = FT_WORKOUT_CONFIG.initialSelectedDate || '';
 
-
                 // Live player state
                 let liveExercises = [];
                 let currentExIndex = 0;
@@ -330,35 +329,47 @@ let selectedDate = FT_WORKOUT_CONFIG.initialSelectedDate || '';
                     }
 
                     const modal = document.getElementById('workout-player-modal');
-                    modal.style.display = 'flex';
-                    requestAnimationFrame(() => {
+                    if (modal) {
+                        modal.style.display = 'flex';
                         modal.classList.add('is-active');
-                    });
+                    }
                     document.body.style.overflow = 'hidden';
 
-                    // Suppress any floating background ratings while workout player is active
-                    const ratingModal = document.getElementById('ft-floating-rating-modal');
-                    if (ratingModal) ratingModal.style.display = 'none';
+                    try {
+                        // Suppress any floating background ratings while workout player is active
+                        const ratingModal = document.getElementById('ft-floating-rating-modal');
+                        if (ratingModal) ratingModal.style.display = 'none';
 
-                    currentExIndex = 0;
-                    currentSet = 1;
-                    tierUpgradedData = null;
+                        currentExIndex = 0;
+                        currentSet = 1;
+                        tierUpgradedData = null;
 
-                    // Initialize workout chronograph
-                    if (!workoutStopwatchInterval) {
-                        workoutElapsedSeconds = 0;
-                        const elapsedEl = document.getElementById('player-elapsed-time');
-                        if (elapsedEl) elapsedEl.innerText = '00:00';
-                        workoutStopwatchInterval = setInterval(() => {
-                            workoutElapsedSeconds++;
-                            if (elapsedEl) elapsedEl.innerText = formatElapsed(workoutElapsedSeconds);
-                        }, 1000);
+                        // Initialize workout chronograph
+                        if (!workoutStopwatchInterval) {
+                            workoutElapsedSeconds = 0;
+                            const elapsedEl = document.getElementById('player-elapsed-time');
+                            if (elapsedEl) elapsedEl.innerText = '00:00';
+                            workoutStopwatchInterval = setInterval(() => {
+                                workoutElapsedSeconds++;
+                                if (elapsedEl) elapsedEl.innerText = formatElapsed(workoutElapsedSeconds);
+                            }, 1000);
+                        }
+
+                        // Pre-warm audio context
+                        try {
+                            getPlayerAudioContext();
+                        } catch (e) {}
+
+                        renderLiveExercise();
+                    } catch (err) {
+                        console.error('Error starting live workout:', err);
+                        cleanupPlayerModal();
+                        Swal.fire({
+                            icon: 'error',
+                            title: 'Unable to start workout',
+                            text: err.message || 'An error occurred while launching the live workout player.'
+                        });
                     }
-
-                    // Pre-warm audio context
-                    getPlayerAudioContext();
-
-                    renderLiveExercise();
                 }
 
                 function closeLiveWorkout() {
@@ -413,16 +424,16 @@ let selectedDate = FT_WORKOUT_CONFIG.initialSelectedDate || '';
                     const totalSets = Math.max(1, parseInt(ex.sets, 10) || 1);
                     for (let s = 1; s <= totalSets; s++) {
                         let chipClass = 'set-chip';
-                        let badgeIcon = `${s}`;
+                        let badgeIcon = '○';
                         let statusText = `Set ${s}`;
                         if (s < activeSet) {
                             chipClass += ' completed';
                             badgeIcon = '✓';
-                            statusText = `Set ${s} Done`;
+                            statusText = `Set ${s}`;
                         } else if (s === activeSet) {
                             chipClass += ' active';
                             badgeIcon = '⚡';
-                            statusText = `Set ${s} Active`;
+                            statusText = `Set ${s}`;
                         }
                         html += `
                             <div class="${chipClass}">
@@ -459,10 +470,6 @@ let selectedDate = FT_WORKOUT_CONFIG.initialSelectedDate || '';
                     const metricContainer = document.getElementById('player-metric-tags');
                     let metricsHtml = `
                         <div class="player-metric-chip highlight-lime">
-                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-                            <span>${totalSets} Sets</span>
-                        </div>
-                        <div class="player-metric-chip">
                             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
                             <span>${escapeHtml(ex.reps)} Reps</span>
                         </div>
@@ -512,9 +519,9 @@ let selectedDate = FT_WORKOUT_CONFIG.initialSelectedDate || '';
                     // Primary Button Text
                     const btnText = document.getElementById('btn-complete-set-text');
                     if (currentSet < totalSets) {
-                        btnText.innerText = `Complete Set ${currentSet} of ${totalSets} ✓`;
+                        btnText.innerText = `Complete Set ${currentSet} of ${totalSets}`;
                     } else {
-                        btnText.innerText = `Finish Exercise & Save ✓`;
+                        btnText.innerText = `Finish Exercise & Save`;
                     }
 
                     // Navigation Sub-buttons
@@ -524,6 +531,7 @@ let selectedDate = FT_WORKOUT_CONFIG.initialSelectedDate || '';
                     }
 
                     // Media loader
+                    const animationContainer = document.getElementById('player-animation-container');
                     const videoEl = document.getElementById('player-animation-video');
                     const imgEl = document.getElementById('player-animation-img');
                     const fallbackDiv = document.getElementById('player-animation-fallback');
@@ -698,7 +706,7 @@ let selectedDate = FT_WORKOUT_CONFIG.initialSelectedDate || '';
                         .catch(err => {
                             console.error(err);
                             btn.disabled = false;
-                            btnText.innerText = 'Finish Exercise & Save ✓';
+                            btnText.innerText = 'Finish Exercise & Save';
                             Swal.fire('Error', 'Network issue recording exercise completion.', 'error');
                         });
                     }

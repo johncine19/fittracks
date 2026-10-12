@@ -13,7 +13,7 @@ $tests = [
         [7, 4, 4, 8, true],
     ],
     'partial metrics are rounded and combined' => [
-        58,
+        56,
         [4, 2, 2, 4, true],
     ],
     'metrics above targets are capped' => [

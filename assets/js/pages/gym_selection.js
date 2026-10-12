@@ -314,6 +314,7 @@ const FT_CSRF_TOKEN = FT_CONFIG.csrfToken || (document.querySelector('meta[name=
         if (planCount > 0) {
             html += `<div class="gym-plans-grid">`;
             gym.plans.forEach(p => {
+                const xenditEnabled = gym.xendit_enabled === true || gym.xendit_enabled === 1;
                 const isHighlighted = p.plan_id === highlightedPlanId && gym.plans.length > 1;
                 const perDay = parseFloat(p.price) / Math.max(1, parseInt(p.duration_days, 10));
                 const features = p.features && p.features.length > 0
@@ -351,8 +352,8 @@ const FT_CSRF_TOKEN = FT_CONFIG.csrfToken || (document.querySelector('meta[name=
                             <input type="hidden" name="csrf_token" value="${FT_CSRF_TOKEN}">
                             <input type="hidden" name="action" value="subscribe">
                             <input type="hidden" name="subscribe_plan_id" value="${p.plan_id}">
-                            <input type="hidden" name="payment_method" value="gcash">
-                            <button type="submit" class="btn btn-primary" style="width: 100%;">Subscribe</button>
+                            <input type="hidden" name="payment_method" value="xendit">
+                            <button type="submit" class="btn btn-primary" style="width: 100%;" ${xenditEnabled ? '' : 'disabled'}>${xenditEnabled ? 'Subscribe with Xendit' : 'Online checkout unavailable'}</button>
                         </form>
                     </div>
                 `;
@@ -536,6 +537,10 @@ const FT_CSRF_TOKEN = FT_CONFIG.csrfToken || (document.querySelector('meta[name=
 
     function openGymModal(index) {
         const gym = gymData[index];
+        if (window.matchMedia('(max-width: 768px)').matches) {
+            window.location.href = 'index.php?page=view_gym&gym_id=' + encodeURIComponent(gym.gym_id) + '&from=gym_selection';
+            return;
+        }
         modalBody.innerHTML = buildModalHtml(gym);
         wireModalInteractions();
 

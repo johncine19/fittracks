@@ -61,6 +61,7 @@
             }
 
             this.items = (Array.isArray(this.options.items) ? this.options.items : []).map(i => this._normalizeItem(i));
+            this.initialItems = this.items.slice();
             this.selectedItem = null;
             this.activeIndex = -1;
             this.isOpen = false;
@@ -89,7 +90,8 @@
                 id: item.id !== undefined ? item.id : item.value,
                 label: item.label !== undefined ? item.label : (item.name !== undefined ? item.name : ''),
                 subtitle: item.subtitle !== undefined ? item.subtitle : (item.email !== undefined ? item.email : ''),
-                price: item.price !== undefined ? item.price : (item.formatted_price !== undefined ? item.formatted_price : '')
+                price: item.price !== undefined ? item.price : (item.formatted_price !== undefined ? item.formatted_price : ''),
+                isHeader: Boolean(item.isHeader || item.header)
             });
         }
 
@@ -250,8 +252,17 @@
 
         _renderList(query = '') {
             const q = query.trim().toLowerCase();
-            const filtered = this.items.filter(item => {
+            const filtered = this.items.filter((item, index, arr) => {
                 if (!q) return true;
+                if (item.isHeader) {
+                    for (let i = index + 1; i < arr.length; i++) {
+                        if (arr[i].isHeader) break;
+                        const match = (arr[i].label && arr[i].label.toLowerCase().includes(q)) ||
+                                      (arr[i].subtitle && arr[i].subtitle.toLowerCase().includes(q));
+                        if (match) return true;
+                    }
+                    return false;
+                }
                 const matchLabel = item.label && item.label.toLowerCase().includes(q);
                 const matchSub = item.subtitle && item.subtitle.toLowerCase().includes(q);
                 const matchEmail = item.email && item.email.toLowerCase().includes(q);
@@ -264,6 +275,14 @@
             }
 
             this.list.innerHTML = filtered.map(item => {
+                if (item.isHeader) {
+                    return `
+                        <div class="fit-dropdown-header" role="presentation">
+                            ${safeEscape(item.label)}
+                        </div>
+                    `;
+                }
+
                 const isSelected = this.selectedItem && String(this.selectedItem.id) === String(item.id);
                 
                 let iconHtml = '';
@@ -320,13 +339,17 @@
         open() {
             FitDropdown.closeAll();
             this.isOpen = true;
-            this.wrap.style.zIndex = '90';
+            this.wrap.style.zIndex = '99999';
             this.trigger.classList.add('open');
             this.trigger.setAttribute('aria-expanded', 'true');
             this.menu.style.display = 'block';
 
             if (this.searchInput) {
                 this.searchInput.value = '';
+                if (this.searchBadge) this.searchBadge.textContent = '';
+                if (this.initialItems && this.initialItems.length > 0) {
+                    this.items = this.initialItems.slice();
+                }
                 this._renderList('');
                 setTimeout(() => this.searchInput.focus(), 50);
             } else {
@@ -349,7 +372,7 @@
                 this.selectedItem = null;
                 this.input.value = '';
             } else {
-                const found = this.items.find(item => String(item.id) === String(id));
+                const found = this.items.find(item => !item.isHeader && String(item.id) === String(id));
                 if (found) {
                     this.selectedItem = found;
                     this.input.value = found.id;
@@ -378,6 +401,7 @@
 
         setItems(newItems) {
             this.items = (Array.isArray(newItems) ? newItems : []).map(i => this._normalizeItem(i));
+            this.initialItems = this.items.slice();
             if (this.selectedItem) {
                 const stillExists = this.items.find(item => String(item.id) === String(this.selectedItem.id));
                 if (!stillExists) {

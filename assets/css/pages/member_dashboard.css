@@ -2427,3 +2427,86 @@
         border-color: #86efac !important;
         color: #166534 !important;
     }
+
+    /* Leaderboard Member Tier Badges */
+    .leader-tier-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        padding: 2px 8px;
+        border-radius: 12px;
+        font-size: 11px;
+        font-weight: 700;
+        letter-spacing: 0.02em;
+        line-height: 1.25;
+        white-space: nowrap;
+    }
+    .leader-tier-1 {
+        background: rgba(148, 163, 184, 0.12);
+        color: #cbd5e1;
+        border: 1px solid rgba(148, 163, 184, 0.25);
+    }
+    .leader-tier-2 {
+        background: rgba(56, 189, 248, 0.12);
+        color: #38bdf8;
+        border: 1px solid rgba(56, 189, 248, 0.25);
+    }
+    .leader-tier-3 {
+        background: rgba(245, 158, 11, 0.12);
+        color: #fbbf24;
+        border: 1px solid rgba(245, 158, 11, 0.25);
+    }
+    .leader-tier-4 {
+        background: rgba(226, 232, 240, 0.12);
+        color: #e2e8f0;
+        border: 1px solid rgba(226, 232, 240, 0.25);
+    }
+    .leader-tier-5 {
+        background: rgba(234, 179, 8, 0.15);
+        color: #facc15;
+        border: 1px solid rgba(234, 179, 8, 0.3);
+    }
+    .leader-tier-6 {
+        background: rgba(168, 85, 247, 0.15);
+        color: #c084fc;
+        border: 1px solid rgba(168, 85, 247, 0.3);
+    }
+
+    /* Light Theme overrides for Leaderboard Tier Badges */
+    html[data-theme="light"] .leader-tier-1,
+    [data-theme="light"] .leader-tier-1 {
+        background: #f1f5f9 !important;
+        color: #475569 !important;
+        border-color: #cbd5e1 !important;
+    }
+    html[data-theme="light"] .leader-tier-2,
+    [data-theme="light"] .leader-tier-2 {
+        background: #e0f2fe !important;
+        color: #0369a1 !important;
+        border-color: #bae6fd !important;
+    }
+    html[data-theme="light"] .leader-tier-3,
+    [data-theme="light"] .leader-tier-3 {
+        background: #fef3c7 !important;
+        color: #b45309 !important;
+        border-color: #fde68a !important;
+    }
+    html[data-theme="light"] .leader-tier-4,
+    [data-theme="light"] .leader-tier-4 {
+        background: #f1f5f9 !important;
+        color: #334155 !important;
+        border-color: #94a3b8 !important;
+    }
+    html[data-theme="light"] .leader-tier-5,
+    [data-theme="light"] .leader-tier-5 {
+        background: #fef9c3 !important;
+        color: #854d0e !important;
+        border-color: #fef08a !important;
+    }
+    html[data-theme="light"] .leader-tier-6,
+    [data-theme="light"] .leader-tier-6 {
+        background: #f3e8ff !important;
+        color: #7e22ce !important;
+        border-color: #e9d5ff !important;
+    }
+

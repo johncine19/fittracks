@@ -112,8 +112,8 @@ function profile_page(): void
     <div class="skeleton-content sk-display-block">
 
     <!-- Settings Header with Profile Hero -->
-    <div class="settings-hero live-animated-banner">
-        <div class="settings-hero-bg"></div>
+    <div class="settings-hero live-animated-banner<?= ($user['role'] === 'gym_owner' && !empty($ownerGym['cover_image_url'])) ? ' has-gym-cover' : '' ?>">
+        <div class="settings-hero-bg<?= ($user['role'] === 'gym_owner' && !empty($ownerGym['cover_image_url'])) ? ' has-gym-cover' : '' ?>"<?php if ($user['role'] === 'gym_owner' && !empty($ownerGym['cover_image_url'])): ?> style="background-image: linear-gradient(90deg, rgba(7, 10, 15, 0.88) 0%, rgba(7, 10, 15, 0.64) 48%, rgba(7, 10, 15, 0.42) 100%), url('<?= h(upload_url($ownerGym['cover_image_url'])) ?>');"<?php endif; ?>></div>
         <div class="settings-hero-content">
             <div class="settings-hero-avatar">
                 <?php if (!empty($user['profile_picture'])): ?>

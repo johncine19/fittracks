@@ -342,6 +342,8 @@ CREATE TABLE `gyms` (
   `fire_safety_cert_url` varchar(255) DEFAULT NULL,
   `fb_page_url` varchar(255) DEFAULT NULL,
   `logo_url` varchar(255) DEFAULT NULL,
+  `cover_image_url` varchar(255) DEFAULT NULL,
+  `public_description` text DEFAULT NULL,
   `brand_color` varchar(20) DEFAULT '#c7ff22',
   `walk_in_fee` decimal(10,2) NOT NULL DEFAULT 100.00,
   `inactivity_threshold_days` int unsigned DEFAULT NULL,
@@ -350,9 +352,20 @@ CREATE TABLE `gyms` (
   `subscription_plan` varchar(50) DEFAULT NULL,
   `subscription_status` varchar(20) DEFAULT 'inactive',
   `subscription_renewal_date` date DEFAULT NULL,
+  `xendit_subaccount_id` varchar(64) DEFAULT NULL,
   `status` enum('pending','approved','rejected','suspended') NOT NULL DEFAULT 'pending',
   `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+-- Track automated daily settlement emails to prevent duplicate sends.
+CREATE TABLE `gym_eod_email_log` (
+  `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  `gym_id` int UNSIGNED NOT NULL,
+  `report_date` date NOT NULL,
+  `status` varchar(16) NOT NULL DEFAULT 'queued',
+  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY `uq_gym_eod_email_date` (`gym_id`, `report_date`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 --
@@ -408,8 +421,8 @@ CREATE TABLE `platform_subscription_plans` (
 
 INSERT INTO `platform_subscription_plans` (`id`, `plan_key`, `name`, `price`, `annual_price`, `description`, `features`, `is_popular`, `is_active`) VALUES
 (1, 'starter', 'Starter', 599.00, 5990.00, 'Best for small, solo, or boutique gyms.', 'Up to 100 Active Members\nSolo Gym Owner Model (0 Trainers)\nWalk-in Management & Daily Pass\nDynamic QR Check-in & Scanner\nMembership Plans & GCash / Online Pay\nBasic Expiration Reminders (7-Day Notice)\nBasic Financial Reports & CSV Export\nBasic Activity History', 0, 1),
-(2, 'professional', 'Professional', 999.00, 9990.00, 'Best for growing commercial gyms with staff.', 'Up to 500 Active Members\nPersonal Trainers & Client Assignments\nTrainer Commission Tracking & Payouts\nWorkout Plans & Exercise Library\nClass Scheduling & Online Booking with Waitlists\nAutomated Multi-Stage Renewal Reminders (30d/14d/7d/1d)\nMember Engagement Scoring & Churn Risk Alerts\nAdvanced Analytics & Financial Growth Trends\nStaff Activity Logs', 1, 1),
-(3, 'business', 'Business', 1999.00, 19990.00, 'For multi-branch & large-scale fitness centers.', 'Unlimited Active Members\nMulti-Branch Management & Centralized Dashboard\nConsolidated Cross-Branch Financial Reporting\nFull Compliance Security Audit Trail (IPs, Diffs)\nCustom App Brand Color & White-Label Theme\nDedicated Account Manager & Priority Support', 0, 1);
+(2, 'professional', 'Professional', 999.00, 9990.00, 'Best for growing commercial gyms with staff.', 'Up to 500 Active Members\nPersonal Trainers & Client Assignments\nTrainer Commission Tracking & Payouts\nWorkout Plans & Exercise Library\nClass Scheduling & Online Booking with Waitlists\nAutomated Multi-Stage Renewal Reminders (30d/14d/7d/1d)\nMember Engagement Scoring & Inactivity Alerts\nAdvanced Analytics & Financial Growth Trends\nStaff Activity Logs', 1, 1),
+(3, 'business', 'Business', 1999.00, 19990.00, 'For high-volume gyms that need room to grow.', 'Unlimited Active Members\nUnlimited Trainers\nAll Professional features, including classes, trainer tools, and advanced reports\nCustom Gym Brand Color\nEnd-of-Day Summary Emails\nStaff Financial Visibility Controls', 0, 1);
 
 -- --------------------------------------------------------
 
@@ -481,6 +494,17 @@ CREATE TABLE `member_profiles` (
   `target_arm_cm` decimal(5,2) DEFAULT NULL,
   `target_chest_cm` decimal(5,2) DEFAULT NULL,
   `target_waist_cm` decimal(5,2) DEFAULT NULL,
+  `target_exercise` varchar(100) DEFAULT NULL,
+  `current_strength_max_kg` decimal(5,2) DEFAULT NULL,
+  `target_strength_max_kg` decimal(5,2) DEFAULT NULL,
+  `endurance_activity` varchar(50) DEFAULT NULL,
+  `current_endurance_distance_km` decimal(5,2) DEFAULT NULL,
+  `current_endurance_time_mins` int DEFAULT NULL,
+  `target_endurance_distance_km` decimal(5,2) DEFAULT NULL,
+  `target_endurance_time_mins` int DEFAULT NULL,
+  `weekly_workout_target` tinyint UNSIGNED DEFAULT NULL,
+  `preferred_duration_mins` smallint UNSIGNED DEFAULT 45,
+  `trainer_assessment_notes` text DEFAULT NULL,
   `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   `fitness_tier` int DEFAULT '1',
@@ -554,7 +578,10 @@ CREATE TABLE `payments` (
   `status` enum('paid','pending','overdue','refunded') NOT NULL DEFAULT 'pending',
   `receipt_number` varchar(30) DEFAULT NULL,
   `processed_by` int UNSIGNED DEFAULT NULL,
-  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP
+  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `xendit_reference_id` varchar(64) DEFAULT NULL,
+  `xendit_session_id` varchar(64) DEFAULT NULL,
+  `xendit_payment_id` varchar(64) DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 -- --------------------------------------------------------
@@ -600,11 +627,11 @@ CREATE TABLE `system_settings` (
 INSERT INTO `system_settings` (`setting_key`, `setting_value`, `description`, `updated_by`, `updated_at`) VALUES
 ('at_risk_inactivity_days', '3', 'Days of inactivity before sending at-risk notification', NULL, '2026-07-09 02:03:35'),
 ('at_risk_notification_cooldown', '14', 'Cooldown in days between consecutive at-risk notifications', NULL, '2026-07-09 02:03:36'),
-('engagement_weight_attendance', '40', 'Weight (%) of attendance in the engagement score', NULL, '2026-07-01 08:23:45'),
+('engagement_weight_attendance', '10', 'Weight (%) of attendance in the engagement score', NULL, '2026-07-01 08:23:45'),
 ('engagement_weight_classes', '20', 'Weight (%) of class bookings in the engagement score', NULL, '2026-07-09 01:47:49'),
 ('engagement_weight_consistency', '20', 'Weight (%) of weekly consistency in the engagement score', NULL, '2026-07-01 08:23:45'),
 ('engagement_weight_progress', '10', 'Weight (%) of progress logs in the engagement score', NULL, '2026-07-01 08:23:45'),
-('engagement_weight_workouts', '10', 'Weight (%) of daily completed workouts in the engagement score', NULL, '2026-07-09 01:47:49'),
+('engagement_weight_workouts', '40', 'Weight (%) of daily completed workouts in the engagement score', NULL, '2026-07-09 01:47:49'),
 ('last_at_risk_scan_date', '2026-07-14', NULL, NULL, '2026-07-14 02:05:10'),
 ('last_at_risk_settings_update', '2000-01-01 00:00:00', 'Timestamp when at-risk settings were last modified (15-day cooldown)', NULL, '2026-07-09 02:03:36');
 
@@ -944,7 +971,9 @@ ALTER TABLE `payments`
   ADD UNIQUE KEY `receipt_number` (`receipt_number`),
   ADD KEY `fk_payment_membership` (`membership_id`),
   ADD KEY `fk_payment_staff` (`processed_by`),
-  ADD KEY `idx_payments_status` (`status`);
+  ADD KEY `idx_payments_status` (`status`),
+  ADD UNIQUE KEY `uq_payment_xendit_reference` (`xendit_reference_id`),
+  ADD UNIQUE KEY `uq_payment_xendit_session` (`xendit_session_id`);
 
 --
 -- Indexes for table `progress_logs`

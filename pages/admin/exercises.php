@@ -182,16 +182,42 @@ function exercises_page(): void
         .ex-card:hover { border-color: rgba(255,255,255,0.15); transform: translateY(-2px); box-shadow: 0 8px 24px rgba(0,0,0,0.2); }
         .ex-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 280px), 1fr)); gap: 16px; }
         .ex-pill { display: inline-block; padding: 4px 10px; border-radius: 12px; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; }
-        .ex-pill.category { background: rgba(66,219,165,0.1); color: #42dba5; }
-        .ex-pill.muscle { background: rgba(199,255,34,0.1); color: var(--lime); }
+        .ex-pill.category { background: rgba(56,189,248,0.12); color: #38bdf8; }
+        .ex-pill.muscle { background: rgba(234,88,12,0.12); color: var(--orange, #ea580c); }
+        .exercises-banner {
+            background: linear-gradient(135deg, rgba(234, 88, 12, 0.08) 0%, rgba(255, 255, 255, 0.02) 100%);
+            border: 1px solid rgba(234, 88, 12, 0.22);
+            border-left: 4px solid var(--orange, #ea580c);
+            border-radius: 16px;
+            padding: 24px 28px;
+            margin-bottom: 24px;
+            box-shadow: 0 4px 24px rgba(0,0,0,0.08);
+            backdrop-filter: blur(16px);
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            flex-wrap: wrap;
+            gap: 16px;
+        }
+        [data-theme="light"] .exercises-banner {
+            background: linear-gradient(135deg, #ffffff 0%, #fff7ed 100%);
+            border: 1px solid #fed7aa;
+            border-left: 4px solid var(--orange, #ea580c);
+            box-shadow: 0 4px 18px rgba(15, 23, 42, 0.05);
+        }
+        [data-theme="dark"] .exercises-banner {
+            background: linear-gradient(135deg, rgba(26, 30, 40, 0.95) 0%, rgba(16, 19, 27, 0.95) 100%);
+            border: 1px solid var(--line);
+            border-left: 4px solid var(--orange, #ea580c);
+        }
     </style>
 
     <div>
         <!-- Glassmorphic Banner -->
-        <div class="animate-fade-in" style="background: linear-gradient(135deg, rgba(66,219,165,0.1) 0%, rgba(199,255,34,0.05) 100%); border: 1px solid rgba(66,219,165,0.2); border-radius: 16px; padding: 28px 32px; margin-bottom: 24px; box-shadow: 0 4px 24px rgba(0,0,0,0.1); backdrop-filter: blur(16px); display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 16px;">
+        <div class="exercises-banner animate-fade-in">
             <div>
-                <h1 style="margin: 0; font-size: 26px; color: var(--ink); display: flex; align-items: center; gap: 12px;">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#42dba5" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18.36 6.64a9 9 0 1 1-12.73 0"/><line x1="12" y1="2" x2="12" y2="12"/></svg>
+                <h1 style="margin: 0; font-size: 26px; color: var(--ink); display: flex; align-items: center; gap: 12px; font-weight: 800;">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="var(--orange, #ea580c)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18.36 6.64a9 9 0 1 1-12.73 0"/><line x1="12" y1="2" x2="12" y2="12"/></svg>
                     Exercises Database
                 </h1>
                 <p style="margin: 8px 0 0 0; color: var(--muted); font-size: 15px; max-width: 600px;">
@@ -199,7 +225,7 @@ function exercises_page(): void
                 </p>
             </div>
             <div style="display:flex; gap:12px;">
-                <button type="button" onclick="openNewExerciseModal()" style="background: var(--lime); border: none; color: var(--bg); padding: 10px 16px; border-radius: 8px; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 8px; transition: opacity 0.2s;">
+                <button type="button" onclick="openNewExerciseModal()" style="background: var(--orange, #ea580c); border: none; color: #ffffff; padding: 10px 16px; border-radius: 8px; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 8px; transition: opacity 0.2s;">
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
                     New Exercise
                 </button>

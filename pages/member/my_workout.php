@@ -437,22 +437,6 @@ function my_workout_page(): void
                         <!-- Exercise Title -->
                         <h2 id="player-exercise-name" class="player-exercise-title">Exercise Name</h2>
 
-                        <!-- Metric Badges Row -->
-                        <div id="player-metric-tags" class="player-metric-chips-row">
-                            <!-- Populated dynamically -->
-                        </div>
-
-                        <!-- Notes Callout (if any) -->
-                        <div id="player-exercise-notes" class="player-notes-callout" style="display: none;"></div>
-
-                        <!-- Interactive Set Progression Tracker -->
-                        <div class="player-sets-section">
-                            <div class="player-section-label">Set Progression</div>
-                            <div id="player-sets-chips" class="player-sets-chips-container">
-                                <!-- Dynamic set chips -->
-                            </div>
-                        </div>
-
                         <!-- Video / Animation Demo Stage -->
                         <div id="player-animation-container" class="player-stage-box">
                             <div class="player-stage-badge">
@@ -469,6 +453,22 @@ function my_workout_page(): void
                                 </div>
                                 <strong>Standard Form &amp; Technique</strong>
                                 <span>Focus on smooth tempo, full range of motion, and breathing.</span>
+                            </div>
+                        </div>
+
+                        <!-- Metric Badges Row -->
+                        <div id="player-metric-tags" class="player-metric-chips-row">
+                            <!-- Populated dynamically -->
+                        </div>
+
+                        <!-- Notes Callout (if any) -->
+                        <div id="player-exercise-notes" class="player-notes-callout" style="display: none;"></div>
+
+                        <!-- Interactive Set Progression Tracker -->
+                        <div class="player-sets-section">
+                            <div class="player-section-label">Set Progression</div>
+                            <div id="player-sets-chips" class="player-sets-chips-container">
+                                <!-- Dynamic set chips -->
                             </div>
                         </div>
 

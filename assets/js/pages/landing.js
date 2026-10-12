@@ -600,6 +600,26 @@ const landingPlansData = FT_LANDING_CONFIG.plansData || {};
                         }
                     });
                 }, 100);
+
+                // On phones, bring the onboarding cards in from alternating sides.
+                const stepCards = document.querySelectorAll('.steps-grid .step-card');
+                const mobileSteps = window.matchMedia('(max-width: 767px)');
+                if (stepCards.length && mobileSteps.matches && 'IntersectionObserver' in window) {
+                    const stepObserver = new IntersectionObserver((entries) => {
+                        entries.forEach(entry => {
+                            if (!entry.isIntersecting) return;
+                            entry.target.classList.add('step-card-visible');
+                            stepObserver.unobserve(entry.target);
+                        });
+                    }, { threshold: 0.18, rootMargin: '0px 0px -8% 0px' });
+
+                    stepCards.forEach((card, index) => {
+                        card.classList.add('step-card-scroll-reveal');
+                        card.classList.toggle('step-card-from-right', index % 2 === 0);
+                        card.classList.toggle('step-card-from-left', index % 2 === 1);
+                        stepObserver.observe(card);
+                    });
+                }
             }
 
             if (document.readyState === 'loading') {
@@ -745,5 +765,193 @@ const landingPlansData = FT_LANDING_CONFIG.plansData || {};
                     document.addEventListener('DOMContentLoaded', initBackToTop);
                 } else {
                     initBackToTop();
+                }
+            })();
+
+
+            // ── 9. Parallax Scrolling Engine ────────────────────────────────────
+            // Drives every element tagged with [data-parallax]. Attributes:
+            //   data-parallax="0.3"          speed. + = slower than page (background), − = faster (foreground)
+            //   data-parallax-origin="top"   measure from the top of the page (hero) instead of viewport centre
+            //   data-parallax-sm="0.1"       speed at <= 1024px (default: half of desktop; 0 = off)
+            //   data-parallax-scale="1.2"    scale applied with the movement (for photos inside a frame)
+            //   data-parallax-max="300"      travel limit in px for non-layer elements
+            // Layers (.parallax-layer) and scaled photos are clamped automatically so the
+            // oversized element can never reveal an empty edge, whatever the screen size.
+            (() => {
+                const COMPACT_QUERY = '(max-width: 1024px)';
+                const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
+                const compactMq = window.matchMedia(COMPACT_QUERY);
+
+                const items = [];
+                const visible = new Set();
+                let viewportH = window.innerHeight;
+                let rafPending = false;
+                let running = false;
+
+                function buildItem(el) {
+                    const speed = parseFloat(el.dataset.parallax);
+                    if (!Number.isFinite(speed) || !el.parentElement) return null;
+                    const sm = parseFloat(el.dataset.parallaxSm);
+                    return {
+                        el,
+                        parent: el.parentElement,
+                        speed,
+                        speedCompact: Number.isFinite(sm) ? sm : speed * 0.5,
+                        origin: el.dataset.parallaxOrigin === 'top' ? 'top' : 'center',
+                        scale: parseFloat(el.dataset.parallaxScale) || 1,
+                        maxTravel: parseFloat(el.dataset.parallaxMax) || 300,
+                        isLayer: el.classList.contains('parallax-layer'),
+                        min: -Infinity,
+                        max: Infinity,
+                        applied: false
+                    };
+                }
+
+                // Work out how far each element may travel before an edge would show.
+                function measure() {
+                    viewportH = window.innerHeight;
+                    items.forEach(it => {
+                        const elH = it.el.offsetHeight;
+                        const parentH = it.parent.offsetHeight;
+                        if (it.scale !== 1) {
+                            const extra = Math.max(0, (elH * it.scale - parentH) / 2);
+                            it.min = -extra;
+                            it.max = extra;
+                        } else if (it.isLayer) {
+                            const extra = Math.max(0, elH - parentH);
+                            if (it.origin === 'top') {
+                                // Layer is anchored to the top and overhangs the bottom only.
+                                it.min = 0;
+                                it.max = extra;
+                            } else {
+                                it.min = -extra / 2;
+                                it.max = extra / 2;
+                            }
+                        } else {
+                            it.min = -it.maxTravel;
+                            it.max = it.maxTravel;
+                        }
+                    });
+                }
+
+                function clearItem(it) {
+                    if (it.applied) {
+                        it.el.style.transform = '';
+                        it.applied = false;
+                    }
+                }
+
+                function render() {
+                    rafPending = false;
+                    if (!running) return;
+                    const compact = compactMq.matches;
+                    const scrollY = window.pageYOffset || document.documentElement.scrollTop || 0;
+
+                    // Read pass first, then write pass, to avoid layout thrashing.
+                    const updates = [];
+                    visible.forEach(it => {
+                        const speed = compact ? it.speedCompact : it.speed;
+                        if (!speed) { clearItem(it); return; }
+
+                        let y;
+                        if (it.origin === 'top') {
+                            y = scrollY * speed;
+                        } else {
+                            const rect = it.parent.getBoundingClientRect();
+                            const distanceFromCentre = rect.top + rect.height / 2 - viewportH / 2;
+                            y = -distanceFromCentre * speed;
+                        }
+                        y = Math.min(it.max, Math.max(it.min, y));
+                        updates.push([it, y]);
+                    });
+
+                    updates.forEach(([it, y]) => {
+                        const scale = it.scale !== 1 ? ` scale(${it.scale})` : '';
+                        it.el.style.transform = `translate3d(0, ${y.toFixed(1)}px, 0)${scale}`;
+                        it.applied = true;
+                    });
+                }
+
+                function requestRender() {
+                    if (rafPending || !running) return;
+                    rafPending = true;
+                    window.requestAnimationFrame(render);
+                }
+
+                function onResize() {
+                    measure();
+                    requestRender();
+                }
+
+                function start() {
+                    if (running) return;
+                    running = true;
+                    measure();
+                    window.addEventListener('scroll', requestRender, { passive: true });
+                    window.addEventListener('resize', onResize, { passive: true });
+                    window.addEventListener('orientationchange', onResize, { passive: true });
+                    requestRender();
+                }
+
+                function stop() {
+                    if (!running) return;
+                    running = false;
+                    window.removeEventListener('scroll', requestRender);
+                    window.removeEventListener('resize', onResize);
+                    window.removeEventListener('orientationchange', onResize);
+                    items.forEach(clearItem);
+                }
+
+                function syncWithMotionPreference() {
+                    if (reduceMotion.matches) stop(); else start();
+                }
+
+                function init() {
+                    document.querySelectorAll('[data-parallax]').forEach(el => {
+                        const it = buildItem(el);
+                        if (it) items.push(it);
+                    });
+                    if (!items.length) return;
+
+                    // Only animate what is on (or just off) screen.
+                    if ('IntersectionObserver' in window) {
+                        const io = new IntersectionObserver(entries => {
+                            entries.forEach(entry => {
+                                const matches = items.filter(i => i.parent === entry.target);
+                                matches.forEach(m => {
+                                    if (entry.isIntersecting) visible.add(m); else visible.delete(m);
+                                });
+                            });
+                            requestRender();
+                        }, { rootMargin: '25% 0px 25% 0px' });
+                        new Set(items.map(i => i.parent)).forEach(p => io.observe(p));
+                    } else {
+                        items.forEach(i => visible.add(i));
+                    }
+
+                    // Re-measure whenever content changes height (fonts, images, accordions, tabs).
+                    if ('ResizeObserver' in window) {
+                        const ro = new ResizeObserver(() => { measure(); requestRender(); });
+                        items.forEach(i => { ro.observe(i.parent); });
+                    }
+                    window.addEventListener('load', onResize);
+                    if (document.fonts && document.fonts.ready) document.fonts.ready.then(onResize);
+
+                    // React to the user toggling reduced-motion or rotating / resizing across the breakpoint.
+                    const onMotionChange = () => syncWithMotionPreference();
+                    if (reduceMotion.addEventListener) reduceMotion.addEventListener('change', onMotionChange);
+                    else if (reduceMotion.addListener) reduceMotion.addListener(onMotionChange);
+                    const onCompactChange = () => { items.forEach(clearItem); requestRender(); };
+                    if (compactMq.addEventListener) compactMq.addEventListener('change', onCompactChange);
+                    else if (compactMq.addListener) compactMq.addListener(onCompactChange);
+
+                    syncWithMotionPreference();
+                }
+
+                if (document.readyState === 'loading') {
+                    document.addEventListener('DOMContentLoaded', init);
+                } else {
+                    init();
                 }
             })();

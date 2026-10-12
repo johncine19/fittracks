@@ -60,7 +60,7 @@ function platform_admin_dashboard(PDO $pdo, array $user): void
     $platformRatingStats = get_platform_rating_stats();
 ?>
     <?php render_skeleton_stats(5); ?>
-    <section class="dash-grid stats-row platform-admin-stats skeleton-content sk-display-grid" style="grid-template-columns: repeat(5, minmax(0, 1fr));">
+    <section class="dash-grid stats-row platform-admin-stats skeleton-content sk-display-grid">
         <?php 
         $iconMembers = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>';
         $iconRevenue = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 21V3h7.5a4.5 4.5 0 1 1 0 9H7" /><line x1="4" y1="8" x2="17" y2="8" /><line x1="4" y1="12" x2="17" y2="12" /></svg>';

@@ -36,6 +36,18 @@ function progress_page(): void
         [$memberId]
     );
 
+    if ($user['role'] === 'trainer') {
+        $coachProfileId = (int) scalar('SELECT trainer_id FROM trainer_profiles WHERE user_id = ? LIMIT 1', [$user['user_id']]);
+        $isAssignedToThisTrainer = (bool) scalar(
+            'SELECT 1 FROM trainer_assignments WHERE trainer_id = ? AND member_user_id = ? AND status = "active" LIMIT 1',
+            [$coachProfileId, $memberId]
+        );
+        if (!$isAssignedToThisTrainer) {
+            flash('You can only review progress for clients actively assigned to you.', 'danger');
+            redirect('trainer_members');
+        }
+    }
+
     if (!$member && $user['role'] === 'trainer') {
         render_header('Member Progress', $user);
         echo '<div class="panel" style="text-align:center; padding: 48px 24px;">

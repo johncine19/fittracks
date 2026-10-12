@@ -38,7 +38,7 @@ The admin dashboard charts use Chart.js loaded from CDN in `views/layout.php`, w
 - Hierarchical Inactive Member & Churn Automation Engine (`core/engagement_engine.php`, `cron.php`) with Platform Admin defaults and Gym Owner custom threshold/cooldown/toggle settings.
 - Nutrition & Food Lookup APIs (`pages/member/food_lookup.php`): CalorieNinjas NLP search (`CALORIENINJAS_API_KEY`) and Open Food Facts barcode/product search with 1-click gym library import.
 - Real-Time Equipment Queue API & Anti-Abuse Attendance Gate (`pages/shared/equipment_api.php`, `pages/member/equipment.php`, `pages/member/qr_attendance.php`): Strict attendance-gated machine usage and waitlists to eliminate remote phantom bookings, entrance check-in quick-claim selector, "probably-in-use" active workout transparency notes, real-time polling, session countdown timers, waitlist positions, audio chime alerts, and automated session/queue release on gym check-out.
-- Mathematical Member Engagement Engine (`core/engagement_engine.php`): Multi-factor weighted score (attendance, classes, consistency, workouts, progress) classifying members as Highly Engaged, Moderately Engaged, or At-Risk.
+- Mathematical Member Engagement Engine (`core/engagement_engine.php`): Multi-factor weighted score (attendance, classes, consistency, workouts, progress) classifying members as Highly Engaged, Moderately Engaged, or At-Risk, with Tier-Adaptive Missions that dynamically scale goals based on member fitness tier.
 
 ---
 
@@ -96,6 +96,27 @@ The admin dashboard charts use Chart.js loaded from CDN in `views/layout.php`, w
   - Implemented `release_user_equipment_on_checkout()`: whenever a member scans out, performs self-checkout, or is checked out by staff, any active equipment sessions they forgot to end are automatically finalized, and any waitlist queues they were holding are cancelled.
   - `reconcile_equipment_states()` automatically detects and releases stale sessions and advances the queue to the next waiting member on every poll.
 
+### 6. Tier-Adaptive Missions & Gamified Engagement Progression
+- **Tier-Adaptive Mission Targets (`core/helpers.php` & `core/engagement_engine.php`)**:
+  - Replaced flat, one-size-fits-all mission targets with `get_tier_mission_targets($tier)`, automatically scaling monthly goals based on the member's current fitness tier.
+  - **Progressive Target Calibration**:
+    - **Tier 1 (Newbie)**: 4 gym visits/month (~1x/wk), 2 group classes, 3 active weeks, 4 workout days. Eliminates beginner friction and habit intimidation.
+    - **Tier 2 (Iron Recruit)**: 6 gym visits/month (~1.5x/wk), 3 group classes, 4 active weeks, 6 workout days.
+    - **Tier 3 (Bronze Beast)**: 8 gym visits/month (~2x/wk), 4 group classes, 4 active weeks, 8 workout days.
+    - **Tier 4 (Silver Spartan)**: 10 gym visits/month (~2.5x/wk), 4 group classes, 4 active weeks, 10 workout days.
+    - **Tier 5 (Gold Gladiator)**: 12 gym visits/month (~3x/wk), 4 group classes, 4 active weeks, 12 workout days.
+    - **Tier 6 (Apex Legend)**: 14 gym visits/month (~3–4x/wk), 4 group classes, 4 active weeks, 14 workout days.
+  - **Unified Scoring Arithmetic (`engagement_score_from_metrics`)**: Synchronized real-time dashboard missions and background batch calculations (`calculate_engagement_scores_batch`) to compute proportional points using each member's tier targets.
+  - **Dynamic Dashboard Missions HUD (`pages/member/dashboard.php`)**: Added dynamic description text reflecting current tier requirements and added a contextual tier target badge pill (`Missions [★ Newbie Targets]`).
+
+### 7. Leaderboard Member Tier Badges & Milestone Badge Restoration
+- **Gym Leaderboard Tier Badges (`pages/member/dashboard.php`, `assets/css/pages/member_dashboard.css`)**:
+  - Enhanced the top-5 gym leaderboard to join `member_profiles.fitness_tier` and render tier badges beside each member's name (`#1 Yu Y. [★ Newbie Tier] 48 pts`).
+  - Added dedicated CSS classes (`.leader-tier-badge`, `.leader-tier-1` through `.leader-tier-6`) with tailored color schemes for each tier and complete light-theme overrides for high-contrast visibility.
+- **Goal Milestone Badge Restoration (`pages/member/dashboard.php`)**:
+  - Resolved an issue where fitness progress badges awarded by `core/goal_service.php` were rendering as `"Unknown"` on the member dashboard.
+  - Added full definitions, vector SVG icons, and descriptions for all milestone badges (`milestone_first_log` [Journey Begun], `milestone_waist_trimmer` [Waist Sculptor], `milestone_weight_goal_met` [Target Achieved], `milestone_lean_warrior`, `milestone_arm_builder`, `milestone_chest_sculptor`, and `milestone_consistency_streak`).
+
 ---
 
 ## Docker Architecture: Why It Is Crucial
@@ -128,18 +149,18 @@ FitTracks manages asynchronous background workflows through `cron.php`, `core/Qu
 
 ### 1. Automated Member Engagement Scoring (0–100 Engine)
 In `core/engagement_engine.php`, FitTracks evaluates member health using a composite engagement algorithm factoring in:
-- 30-day attendance frequency (40%)
+- 30-day attendance frequency (10%)
 - Class booking and attendance (20%)
 - Consistency across active weeks (20%)
-- Completed workout exercises (10%)
+- Completed workout exercise days (40%)
 - Body progress & weight logs (10%)
 
 Running these multi-table aggregations synchronously on every page load would freeze database performance as gym membership scales. `cron.php` schedules `recompute_all_engagement_scores_batch` in the background, keeping user web requests instantaneous (~50ms).
 
-### 2. Automated Churn Prevention & At-Risk Retention
+### 2. Rule-Based Inactivity Alerts
 FitTracks continuously categorizes members into tiers: **Highly Engaged**, **Moderately Engaged**, and **At-Risk**.
 - When `cron.php` runs `process_automated_at_risk_notifications`:
-  1. It identifies members who haven't visited in several days and whose engagement score is dropping.
+  1. It identifies members who have not checked in for the configured number of days. This alert rule is separate from engagement score categories.
   2. It automatically dispatches in-app push notifications and personalized re-engagement emails (*"We miss you at the gym! Check out this week's classes..."*).
 - This operates automatically without requiring gym staff to manually check spreadsheets or remember to follow up.
 
@@ -190,11 +211,18 @@ For platforms like Render without background OS daemons, schedule a single unifi
 - **URL**: `https://<your-app>.onrender.com/cron.php?key=fittracks_secret_cron_2026`
 - **Schedule**: Daily at `12:00:00 AM`
 - **Timezone**: `Asia/Manila` (PHT / UTC+8)
+- **End-of-Day Summary Emails**: At midnight, the cron queues a settlement email for the **previous Philippine calendar day**. This gives the attendance auto-checkout time to close any open sessions first.
+- Emails are sent to the owner of each approved gym whose subscription includes the Business `eod_summary` feature and whose **Midnight Daily Settlement Email** setting is enabled in Gym Profile. The setting defaults to on for eligible gyms.
+- Zero-activity days are included. The message reports zero revenue/check-ins alongside member counts and memberships expiring the following day, so the owner still gets a daily operational snapshot.
+- A unique `(gym_id, report_date)` record in `gym_eod_email_log` prevents repeat queueing if the cron endpoint runs more than once for the same day. Queued email delivery uses the normal background email worker.
+- **Database setup**: Existing installations must create `gym_eod_email_log` before running the updated cron. Apply the migration through `migrate.php` or run `database/migrations/create_gym_eod_email_log.php` once.
 - **Execution Order Handled Automatically by `cron.php`**:
   1. Auto check-out unclosed attendance from yesterday (`23:59:59` timestamp).
-  2. Smart tiered notification cleanup (30-day read, 60-day unread/system).
-  3. Recompute member engagement scores and points.
-  4. Dispatch automated at-risk member notifications and emails.
+  2. Queue the previous day's End-of-Day summary emails for eligible gyms.
+  3. Smart tiered notification cleanup (30-day read, 60-day unread/system).
+  4. Expire lapsed gym subscriptions.
+  5. Recompute member engagement scores and points.
+  6. Dispatch automated at-risk member notifications and emails.
 
 ---
 
@@ -252,4 +280,3 @@ To prevent front-desk queues, lost attendance, and downtime, FitTracks includes 
 | **Sudden Brownout / Outage** | Front desk laptop or battery-backed PC continues running. Status badge turns to `⚡ OFFLINE MODE`. | Continue scanning member QR codes or using Manual Entry as normal. |
 | **During Blackout** | Scans display `OFFLINE CHECK-IN / CHECK-OUT CONFIRMED`, increment local counters, and queue in IndexedDB. | Allow member entry immediately. No paper logging required. |
 | **Power / Internet Restores** | System automatically detects reconnection and pushes batch to `action=sync_offline_batch`. | A confirmation toast appears: *"⚡ Back Online! Synced X offline record(s)"*. All records are live. |
-

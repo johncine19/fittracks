@@ -1,0 +1,22 @@
+# FitTrack (fitworks.tech)
+
+> FitTrack is an all-in-one commercial gym operations and membership management platform built for gym owners, trainers, and fitness members.
+
+## Core Features
+- **Dynamic QR Code Attendance:** High-speed, contact-free check-ins and walk-in daily pass management with live occupancy tracking.
+- **Membership & Billing Automation:** Tiered subscriptions, GCash & online payment integrations (Xendit), automated expiry notices (30d/14d/7d/1d).
+- **Personal Trainer Suite:** Client workout routine builders, diet & macro planners, assessment tracking, and automated commission calculations.
+- **Facility & Equipment Management:** QR equipment reporting, maintenance logging, and real-time equipment status.
+- **Class Scheduling:** Group class booking with automated waitlists and capacity limits.
+- **Business Intelligence & Analytics:** Financial growth charts, retention rates, inactive member alerts, and exportable CSV reports.
+
+## Pricing Plans (PHP)
+- **Starter (₱599/month):** Single-location studios, up to 100 members, QR scanner, walk-ins, basic billing.
+- **Professional (₱999/month):** Growing commercial gyms, up to 500 members, unlimited trainers, commissions, class scheduling, workouts.
+- **Business (₱1,999/month):** High-volume facilities, unlimited members, custom branding, end-of-day summary reports.
+
+## Public Endpoints
+- Homepage: https://fitworks.tech/
+- Gym Registration: https://fitworks.tech/index.php?page=gym_register
+- Member Registration: https://fitworks.tech/index.php?page=register
+- Login Portal: https://fitworks.tech/index.php?page=login

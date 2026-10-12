@@ -1347,3 +1347,151 @@
                 border-radius: 14px;
             }
         }
+
+        .public-branding-editor {
+            display: grid;
+            gap: 10px;
+            padding: 14px;
+            border: 1px solid var(--line);
+            border-radius: 12px;
+            background: color-mix(in srgb, var(--panel-soft) 42%, transparent);
+        }
+
+        .public-branding-heading {
+            display: grid;
+            gap: 4px;
+        }
+
+        .public-branding-fields {
+            display: grid;
+            grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
+            align-items: start;
+            gap: 18px;
+        }
+
+        .public-cover-column,
+        .public-description-column {
+            display: grid;
+            align-content: start;
+            gap: 9px;
+            min-width: 0;
+            padding: 12px;
+            border: 1px solid var(--line);
+            border-radius: 10px;
+            background: color-mix(in srgb, var(--panel) 72%, transparent);
+        }
+
+        .public-branding-upgrade {
+            justify-self: start;
+        }
+
+        .public-cover-preview {
+            width: 100%;
+            height: 140px;
+            box-sizing: border-box;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+            border: 1px solid var(--line);
+            border-radius: 10px;
+            background: linear-gradient(135deg, color-mix(in srgb, var(--lime) 12%, var(--panel)), var(--panel-soft));
+            color: var(--muted);
+            font-size: 12px;
+        }
+
+        .public-cover-preview img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .public-cover-upload {
+            justify-self: start;
+            cursor: pointer;
+        }
+
+        .public-cover-upload input {
+            display: none;
+        }
+
+        .public-description-label {
+            margin: 0;
+        }
+
+        .public-description-input {
+            width: 100%;
+            max-width: 100%;
+            min-height: 0;
+            height: 140px;
+            padding: 9px 11px;
+            box-sizing: border-box;
+            resize: vertical;
+            border: 1px solid var(--line);
+            border-radius: 9px;
+            background: var(--panel);
+            color: var(--ink);
+            font: inherit;
+            font-size: 13px;
+            line-height: 1.5;
+        }
+
+        .public-description-input:focus {
+            outline: 2px solid color-mix(in srgb, var(--lime) 45%, transparent);
+            border-color: var(--lime);
+        }
+
+        @media (max-width: 600px) {
+            .overview-doc-item.is-accent-theme {
+                height: auto !important;
+                min-height: 0 !important;
+                flex-direction: column !important;
+                align-items: stretch !important;
+                justify-content: flex-start !important;
+                gap: 8px !important;
+            }
+
+            .overview-doc-item.is-accent-theme .overview-doc-left,
+            .overview-doc-item.is-accent-theme .overview-doc-right {
+                width: 100% !important;
+                min-width: 0 !important;
+            }
+
+            .overview-doc-item.is-accent-theme .overview-doc-right > div {
+                width: 100%;
+                flex-wrap: wrap;
+                justify-content: flex-start;
+            }
+
+            .overview-doc-item.is-accent-theme .color-swatch-grid {
+                flex: 1 1 190px;
+                gap: 9px;
+            }
+
+            .public-branding-editor {
+                min-width: 0;
+                padding: 14px;
+            }
+
+            .public-branding-fields {
+                grid-template-columns: minmax(0, 1fr);
+                gap: 14px;
+            }
+
+            .public-cover-preview {
+                width: 100%;
+                height: auto;
+                aspect-ratio: 16 / 6;
+            }
+
+            .public-description-input {
+                height: auto;
+                min-height: 96px;
+            }
+
+            .public-cover-upload {
+                width: fit-content;
+                max-width: 100%;
+                box-sizing: border-box;
+            }
+        }

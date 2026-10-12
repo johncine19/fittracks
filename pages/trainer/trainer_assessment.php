@@ -39,7 +39,16 @@ function trainer_assessment_page(): void
     $memberData->execute([$memberUserId]);
     $memberUser = $memberData->fetch();
 
+    $profile = member_profile($memberUserId);
+    if (!$profile) {
+        $profile = ['biological_sex' => 'male', 'activity_level' => 'sedentary', 'primary_goal' => 'general_health', 'fitness_tier' => 1];
+    }
+
     if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+        // Keep these member-managed profile values unchanged, even if a request is altered.
+        $_POST['age'] = $profile['age'] ?? '';
+        $_POST['biological_sex'] = $profile['biological_sex'] ?? 'male';
+
         $validator = new Validator();
         $valid = $validator->validate($_POST, [
             'height_cm' => 'numeric|min_num:100|max_num:250',
@@ -86,18 +95,8 @@ function trainer_assessment_page(): void
         }
     }
 
-    $profile = member_profile($memberUserId);
-    if (!$profile) {
-        $profile = ['biological_sex' => 'male', 'activity_level' => 'sedentary', 'primary_goal' => 'general_health', 'fitness_tier' => 1];
-    }
-
     if (isset($_GET['modal'])) {
-        ?>
-        <div style="margin-bottom: 14px; font-size: 12.5px; color: var(--muted); line-height: 1.45;">
-            Update the physical profile for this member. Changes will affect their generated workouts and allow you to track their progress.
-        </div>
-        <?php
-        render_member_form('profile', $memberUser, $profile);
+        render_member_form('profile', $memberUser, $profile, ['is_trainer_assessment' => true]);
         exit;
     }
 
@@ -112,7 +111,7 @@ function trainer_assessment_page(): void
         <p class="muted">Update the physical profile for this member. Changes will affect their generated workouts and allow you to track their progress.</p>
         
         <div style="margin-top: 20px;">
-            <?php render_member_form('profile', $memberUser, $profile); ?>
+            <?php render_member_form('profile', $memberUser, $profile, ['is_trainer_assessment' => true]); ?>
         </div>
     </section>
 <?php

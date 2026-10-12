@@ -95,6 +95,22 @@
             transparent 70%
         ) !important;
     }
+    html[data-theme="light"] .settings-hero.has-gym-cover .settings-hero-name,
+    [data-theme="light"] .settings-hero.has-gym-cover .settings-hero-name,
+    html[data-theme="light"] .settings-hero.has-gym-cover .settings-hero-contact,
+    [data-theme="light"] .settings-hero.has-gym-cover .settings-hero-contact,
+    html[data-theme="light"] .settings-hero.has-gym-cover .settings-hero-contact svg,
+    [data-theme="light"] .settings-hero.has-gym-cover .settings-hero-contact svg {
+        color: #fff !important;
+        stroke: currentColor;
+        text-shadow: 0 1px 4px rgba(0, 0, 0, 0.8);
+    }
+    html[data-theme="light"] .settings-hero.has-gym-cover .settings-hero-role,
+    [data-theme="light"] .settings-hero.has-gym-cover .settings-hero-role {
+        color: #fff !important;
+        background: rgba(15, 23, 42, 0.78) !important;
+        border: 1px solid rgba(255, 255, 255, 0.24);
+    }
     @keyframes liveBannerBorderFlow {
         0% {
             background-position: 0% 0%;
@@ -125,6 +141,11 @@
             color-mix(in srgb, var(--teal) 8%, var(--bg)),
             var(--bg));
         z-index: 0;
+    }
+    .settings-hero-bg.has-gym-cover {
+        background-position: center;
+        background-size: cover;
+        background-repeat: no-repeat;
     }
     .settings-hero-content {
         position: relative;

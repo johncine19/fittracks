@@ -194,13 +194,13 @@
                             </label>
                             
                             <div style="display:flex; flex-direction:column; gap:10px;">
-                                <label style="display:flex; align-items:center; gap:12px; padding:12px 14px; border-radius:10px; border:1px solid var(--line); background:rgba(128,128,128,0.05); cursor:pointer;">
-                                    <input type="radio" name="payment_method" value="gcash" checked style="accent-color:var(--lime, #22c55e); width:18px; height:18px;">
+                                <label style="display:flex; align-items:center; gap:12px; padding:12px 14px; border-radius:10px; border:1px solid var(--line); background:rgba(128,128,128,0.05); cursor:${window.MEMBERSHIPS_CONFIG?.xenditEnabled ? 'pointer' : 'not-allowed'}; opacity:${window.MEMBERSHIPS_CONFIG?.xenditEnabled ? '1' : '.55'};">
+                                    <input type="radio" name="payment_method" value="xendit" ${window.MEMBERSHIPS_CONFIG?.xenditEnabled ? 'checked' : 'disabled'} style="accent-color:var(--lime, #22c55e); width:18px; height:18px;">
                                     <div style="flex:1;">
-                                        <div style="font-weight:700; font-size:14px; color:var(--ink);">GCash</div>
-                                        <div style="font-size:12px; color:var(--muted);">Instant activation via e-wallet</div>
+                                        <div style="font-weight:700; font-size:14px; color:var(--ink);">Pay online with Xendit</div>
+                                        <div style="font-size:12px; color:var(--muted);">Secure checkout; activates after payment confirmation</div>
                                     </div>
-                                    <span style="font-size:11px; font-weight:700; background:rgba(34,197,94,0.15); color:var(--lime,#22c55e); padding:3px 8px; border-radius:6px;">Instant</span>
+                                    <span style="font-size:11px; font-weight:700; background:rgba(34,197,94,0.15); color:var(--lime,#22c55e); padding:3px 8px; border-radius:6px;">Xendit</span>
                                 </label>
                                 
                                 <label style="display:flex; align-items:center; gap:12px; padding:12px 14px; border-radius:10px; border:1px solid var(--line); background:rgba(128,128,128,0.05); cursor:pointer;">
@@ -212,6 +212,7 @@
                                     <span style="font-size:11px; font-weight:700; background:rgba(148,163,184,0.15); color:var(--muted); padding:3px 8px; border-radius:6px;">Front Desk</span>
                                 </label>
                             </div>
+                            ${window.MEMBERSHIPS_CONFIG?.xenditEnabled ? '' : '<div style="font-size:12px;color:var(--muted);">Online payment is not configured for this gym yet. Please contact the gym owner.</div>'}
                             
                             <div style="font-size: 12.5px; color: var(--muted); margin-top: 4px; line-height: 1.4; padding: 10px 12px; background: rgba(128,128,128,0.06); border-radius: 8px;">
                                 ${isCurrent 
@@ -812,4 +813,3 @@ document.addEventListener('keydown', function(e) {
         toggleMembershipsFab(false);
     }
 });
-

@@ -252,32 +252,96 @@ function get_fitness_tier_name(int $tier): string {
     };
 }
 
-function check_and_upgrade_tier(int $userId, int $planId): ?array {
+/**
+ * Returns tier-adaptive mission targets for a given fitness tier.
+ * Higher tiers have increased targets reflecting their habit maturity.
+ *
+ * @return array{attendance: int, classes: int, consistency: int, workouts: int, progress: int}
+ */
+function get_tier_mission_targets(int $tier): array {
+    return match ($tier) {
+        1 => [ // Tier 1: Newbie (Starter habit formation)
+            'attendance'  => 4,  // 4 visits/month (~1x/week)
+            'classes'     => 2,  // 2 classes/month
+            'consistency' => 3,  // 3 active weeks/month
+            'workouts'    => 4,  // 4 workout days/month
+            'progress'    => 1,  // 1 progress update (60 days)
+        ],
+        2 => [ // Tier 2: Iron Recruit (5+ exercises completed)
+            'attendance'  => 6,  // 6 visits/month (~1.5x/week)
+            'classes'     => 3,  // 3 classes/month
+            'consistency' => 4,  // 4 active weeks/month
+            'workouts'    => 6,  // 6 workout days/month
+            'progress'    => 1,
+        ],
+        3 => [ // Tier 3: Bronze Beast (25+ exercises completed)
+            'attendance'  => 8,  // 8 visits/month (~2x/week)
+            'classes'     => 4,  // 4 classes/month
+            'consistency' => 4,
+            'workouts'    => 8,
+            'progress'    => 1,
+        ],
+        4 => [ // Tier 4: Silver Spartan (75+ exercises completed)
+            'attendance'  => 10, // 10 visits/month (~2.5x/week)
+            'classes'     => 4,
+            'consistency' => 4,
+            'workouts'    => 10,
+            'progress'    => 1,
+        ],
+        5 => [ // Tier 5: Gold Gladiator (175+ exercises completed)
+            'attendance'  => 12, // 12 visits/month (~3x/week)
+            'classes'     => 4,
+            'consistency' => 4,
+            'workouts'    => 12,
+            'progress'    => 1,
+        ],
+        default => [ // Tier 6: Apex Legend (350+ exercises completed)
+            'attendance'  => 14, // 14 visits/month (~3-4x/week)
+            'classes'     => 4,
+            'consistency' => 4,
+            'workouts'    => 14,
+            'progress'    => 1,
+        ],
+    };
+}
+
+function check_and_upgrade_tier(int $userId, int $planId = 0): ?array {
     $pdo = db();
     $stmt = $pdo->prepare('SELECT COUNT(*) FROM exercise_completions WHERE user_id = ?');
     $stmt->execute([$userId]);
     $totalCompleted = (int) $stmt->fetchColumn();
-    
-    $stmt = $pdo->prepare('SELECT COUNT(*) FROM training_plan_exercises WHERE plan_id = ?');
-    $stmt->execute([$planId]);
-    $exercisesPerWeek = (int) $stmt->fetchColumn();
-    if ($exercisesPerWeek === 0) return null;
-    
-    $completedWeeks = (int) floor($totalCompleted / $exercisesPerWeek);
+
+    // Fast Starter Milestones:
+    // Tier 1: Newbie (0-4 exercises)
+    // Tier 2: Iron Recruit (5+ exercises - day 1-2 quick win)
+    // Tier 3: Bronze Beast (25+ exercises - ~2-3 weeks)
+    // Tier 4: Silver Spartan (75+ exercises - ~2 months)
+    // Tier 5: Gold Gladiator (175+ exercises - ~4-5 months)
+    // Tier 6: Apex Legend (350+ exercises - ~9-12 months)
     $newTier = 1;
-    if ($completedWeeks >= 52) $newTier = 6;
-    elseif ($completedWeeks >= 24) $newTier = 5;
-    elseif ($completedWeeks >= 12) $newTier = 4;
-    elseif ($completedWeeks >= 4) $newTier = 3;
-    elseif ($completedWeeks >= 1) $newTier = 2;
-    
+    if ($totalCompleted >= 350) $newTier = 6;
+    elseif ($totalCompleted >= 175) $newTier = 5;
+    elseif ($totalCompleted >= 75) $newTier = 4;
+    elseif ($totalCompleted >= 25) $newTier = 3;
+    elseif ($totalCompleted >= 5) $newTier = 2;
+
+    // Completed weeks as progress tracker (approx. 20 exercises per week)
+    $planExercises = 0;
+    if ($planId > 0) {
+        $stmtPlan = $pdo->prepare('SELECT COUNT(*) FROM training_plan_exercises WHERE plan_id = ?');
+        $stmtPlan->execute([$planId]);
+        $planExercises = (int) $stmtPlan->fetchColumn();
+    }
+    $exercisesPerWeek = $planExercises > 0 ? $planExercises : 20;
+    $completedWeeks = (int) floor($totalCompleted / $exercisesPerWeek);
+
     $stmt = $pdo->prepare('SELECT fitness_tier, completed_weeks FROM member_profiles WHERE user_id = ?');
     $stmt->execute([$userId]);
     $profile = $stmt->fetch();
-    
+
     if ($profile && ((int)$profile['fitness_tier'] !== $newTier || (int)$profile['completed_weeks'] !== $completedWeeks)) {
         $pdo->prepare('UPDATE member_profiles SET fitness_tier = ?, completed_weeks = ? WHERE user_id = ?')->execute([$newTier, $completedWeeks, $userId]);
-        if ($profile['fitness_tier'] < $newTier) {
+        if ((int)$profile['fitness_tier'] < $newTier) {
             return ['old_tier' => (int)$profile['fitness_tier'], 'new_tier' => $newTier, 'new_tier_name' => get_fitness_tier_name($newTier)];
         }
     }
@@ -988,6 +1052,64 @@ function release_user_equipment_on_checkout(int $userId, ?int $gymId = null): vo
     } catch (Throwable $e) {
         error_log('release_user_equipment_on_checkout error: ' . $e->getMessage());
     }
+}
+
+/**
+ * Automatically synchronizes trainer assignment end dates with member membership plan expiration dates.
+ * - Extends active assignments if member renewed their membership.
+ * - Ends assignments when a member has no remaining active plan.
+ */
+function sync_trainer_assignments_with_memberships(?int $memberUserId = null): array
+{
+    $pdo = db();
+    $extended = 0;
+    $ended = 0;
+
+    try {
+        $userCondition = $memberUserId !== null ? ' AND ca.member_user_id = ' . (int)$memberUserId : '';
+
+        // 1. Extend active assignments to match renewed/current active plan expiration dates
+        $extendSql = "UPDATE trainer_assignments ca
+                      SET ca.ended_date = (
+                          SELECT MAX(m.end_date) 
+                          FROM memberships m 
+                          WHERE m.user_id = ca.member_user_id 
+                            AND m.status = 'active' 
+                            AND m.end_date >= CURDATE()
+                      )
+                      WHERE ca.status = 'active'
+                        AND EXISTS (
+                          SELECT 1 
+                          FROM memberships m2 
+                          WHERE m2.user_id = ca.member_user_id 
+                            AND m2.status = 'active' 
+                            AND m2.end_date >= CURDATE()
+                            AND (ca.ended_date IS NULL OR m2.end_date > ca.ended_date)
+                        )" . $userCondition;
+        $extended = (int) $pdo->exec($extendSql);
+
+        // 2. Automatically end active assignments if the member has no active membership plan
+        $endSql = "UPDATE trainer_assignments ca
+                   SET ca.status = 'ended',
+                       ca.ended_date = COALESCE(
+                           ca.ended_date,
+                           (SELECT MAX(m.end_date) FROM memberships m WHERE m.user_id = ca.member_user_id),
+                           CURDATE()
+                       )
+                   WHERE ca.status = 'active'
+                     AND NOT EXISTS (
+                       SELECT 1 
+                       FROM memberships m_active 
+                       WHERE m_active.user_id = ca.member_user_id 
+                         AND m_active.status = 'active' 
+                         AND m_active.end_date >= CURDATE()
+                     )" . $userCondition;
+        $ended = (int) $pdo->exec($endSql);
+    } catch (Throwable $e) {
+        error_log('sync_trainer_assignments_with_memberships error: ' . $e->getMessage());
+    }
+
+    return ['extended' => $extended, 'ended' => $ended];
 }
 
 // Rating & Review Service moved to core/review_service.php

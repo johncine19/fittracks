@@ -620,7 +620,6 @@ function users_page(): void
                 </thead>
                 <tbody id="userTableBody">
                 <?php foreach ($rows as $row):
-                    $roleClass = 'badge badge-' . $row['role'];
                     $statusClass = 'badge badge-' . $row['status'];
                     $roleDisplayName = ucwords(str_replace('_', ' ', $row['role']));
                 ?>
@@ -636,9 +635,9 @@ function users_page(): void
                         </td>
                         <td style="color:var(--muted);"><?= h($row['email']) ?></td>
                         <td>
-                            <span class="<?= $roleClass ?>"><?= h($roleDisplayName) ?></span>
+                            <span class="user-role-text"><?= h($roleDisplayName) ?></span>
                             <?php if ($row['role'] === 'trainer' && !empty($row['staff_role']) && $row['staff_role'] !== 'trainer'): ?>
-                                <span class="badge" style="font-size:10px; margin-left:4px; background:rgba(59,130,246,0.15); color:#93c5fd; border:1px solid rgba(59,130,246,0.3);">
+                                <span class="user-staff-role-text">
                                     <?= $row['staff_role'] === 'front_desk' ? 'Front Desk' : 'Manager' ?>
                                 </span>
                             <?php endif; ?>
@@ -701,7 +700,7 @@ function users_page(): void
                                     <button type="submit" class="btn-sm btn-ghost">Update</button>
                                 </form>
                                 <button type="button" class="btn btn-secondary btn-edit-user" data-user="<?= htmlspecialchars(json_encode($row), ENT_QUOTES, 'UTF-8') ?>" style="padding:4px 8px;font-size:12px;margin-left:8px;">Edit</button>
-                                <?php if ($row['role'] === 'member'): ?>
+                                <?php if (!$isAdmin && $row['role'] === 'member'): ?>
                                     <a href="index.php?page=diet_builder&member_user_id=<?= (int)$row['user_id'] ?>&ref=users" class="btn btn-secondary" style="padding:4px 8px;font-size:12px;text-decoration:none;display:inline-flex;align-items:center;gap:4px;" title="Manage Diet Plan">
                                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
                                         Diet Plan
@@ -728,7 +727,6 @@ function users_page(): void
         <!-- Mobile Card-List View (< 768px: Zero Horizontal Scroll) -->
         <div id="userMobileCards" class="users-mobile-cards" style="<?= empty($rows) ? 'display: none;' : '' ?>">
             <?php foreach ($rows as $row):
-                $roleClass = 'badge badge-' . $row['role'];
                 $statusClass = 'badge badge-' . $row['status'];
                 $roleDisplayName = ucwords(str_replace('_', ' ', $row['role']));
                 
@@ -747,9 +745,9 @@ function users_page(): void
                             </div>
                         </div>
                         <div class="user-card-badges">
-                            <span class="<?= $roleClass ?>"><?= h($roleDisplayName) ?></span>
+                            <span class="user-role-text"><?= h($roleDisplayName) ?></span>
                             <?php if ($row['role'] === 'trainer' && !empty($row['staff_role']) && $row['staff_role'] !== 'trainer'): ?>
-                                <span class="badge" style="font-size:10px; background:rgba(59,130,246,0.15); color:#93c5fd; border:1px solid rgba(59,130,246,0.3);">
+                                <span class="user-staff-role-text">
                                     <?= $row['staff_role'] === 'front_desk' ? 'Front Desk' : 'Manager' ?>
                                 </span>
                             <?php endif; ?>
@@ -828,7 +826,7 @@ function users_page(): void
                                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
                                 Edit
                             </button>
-                            <?php if ($row['role'] === 'member'): ?>
+                            <?php if (!$isAdmin && $row['role'] === 'member'): ?>
                                 <a href="index.php?page=diet_builder&member_user_id=<?= (int)$row['user_id'] ?>&ref=users" class="btn btn-secondary btn-sm" title="Manage Diet Plan">
                                     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
                                     Diet

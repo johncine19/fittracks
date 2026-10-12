@@ -347,8 +347,8 @@ function trainer_assignments_page(): void
                 $already = scalar('SELECT 1 FROM trainer_assignments WHERE group_id = ? AND member_user_id = ? AND status = "active"', [$groupId, $mid]);
                 if ($already) continue;
 
-                $hasActivePlan = (bool) scalar("SELECT 1 FROM memberships WHERE user_id = ? AND status = 'active' AND end_date >= CURDATE()", [$mid]);
-                $endedDate = $hasActivePlan ? null : $assignedDate;
+                $planEndDate = scalar("SELECT MAX(end_date) FROM memberships WHERE user_id = ? AND status = 'active' AND end_date >= CURDATE()", [$mid]);
+                $endedDate = $planEndDate ?: $assignedDate;
 
                 db()->prepare('INSERT INTO trainer_assignments (group_id, trainer_id, member_user_id, assigned_date, ended_date, activity_title, status, assigned_by) VALUES (?, ?, ?, ?, ?, ?, "active", ?)')
                     ->execute([$groupId, $trainerId, $mid, $assignedDate, $endedDate, $activityTitle, $user['user_id']]);
@@ -448,8 +448,8 @@ function trainer_assignments_page(): void
 
             $createdCount = 0;
             foreach ($memberIds as $mid) {
-                $hasActivePlan = (bool) scalar("SELECT 1 FROM memberships WHERE user_id = ? AND status = 'active' AND end_date >= CURDATE()", [$mid]);
-                $endedDate = $hasActivePlan ? null : $assignedDate;
+                $planEndDate = scalar("SELECT MAX(end_date) FROM memberships WHERE user_id = ? AND status = 'active' AND end_date >= CURDATE()", [$mid]);
+                $endedDate = $planEndDate ?: $assignedDate;
 
                 db()->prepare('INSERT INTO trainer_assignments (group_id, trainer_id, member_user_id, assigned_date, ended_date, activity_title, status, assigned_by) VALUES (?, ?, ?, ?, ?, ?, "active", ?)')
                     ->execute([$groupId, $trainerId, $mid, $assignedDate, $endedDate, $finalTitle, $user['user_id']]);
@@ -470,21 +470,18 @@ function trainer_assignments_page(): void
         redirect('trainer_assignments');
     }
 
-    // Automatically end trainer assignments if the member's active membership has expired
-    db()->query('UPDATE trainer_assignments ca
-                 JOIN memberships m ON m.user_id = ca.member_user_id
-                 SET ca.status = "ended", ca.ended_date = m.end_date
-                 WHERE ca.status = "active" AND m.end_date < CURDATE()');
+    // Automatically sync trainer assignments with active member plans (extend on renewal, end on expiration)
+    sync_trainer_assignments_with_memberships();
 
     if ($user['role'] === 'platform_admin') {
         $coaches = db()->query('SELECT cp.trainer_id, CONCAT(u.first_name, " ", u.last_name, " - ", COALESCE(cp.specialization, "trainer")) AS name FROM trainer_profiles cp JOIN users u ON u.user_id = cp.user_id WHERE u.status = "active" ORDER BY u.first_name')->fetchAll();
-        $members = db()->query('SELECT u.user_id, CONCAT(u.first_name, " ", u.last_name, IF(EXISTS(SELECT 1 FROM memberships m WHERE m.user_id = u.user_id AND m.status = "active" AND m.end_date >= CURDATE()), " (Has Plan)", " (No Plan - 1 Day)")) AS name FROM users u WHERE u.role = "member" AND u.status = "active" ORDER BY u.first_name')->fetchAll();
+        $members = db()->query('SELECT u.user_id, CONCAT(u.first_name, " ", u.last_name, IF(EXISTS(SELECT 1 FROM memberships m WHERE m.user_id = u.user_id AND m.status = "active" AND m.end_date >= CURDATE()), " (Has Plan)", " (No Plan - 1 Day)")) AS name, (SELECT MAX(m.end_date) FROM memberships m WHERE m.user_id = u.user_id AND m.status = "active" AND m.end_date >= CURDATE()) AS plan_end_date FROM users u WHERE u.role = "member" AND u.status = "active" ORDER BY u.first_name')->fetchAll();
         $allGymMembers = $members;
         $rows = db()->query('SELECT ca.*, (SELECT end_date FROM memberships WHERE user_id = ca.member_user_id AND end_date >= CURDATE() ORDER BY end_date DESC LIMIT 1) as membership_end_date, CONCAT(cu.first_name, " ", cu.last_name) AS trainer, CONCAT(mu.first_name, " ", mu.last_name) AS member, cu.first_name AS coach_fn, cu.last_name AS coach_ln, cu.profile_picture AS coach_picture, cp.specialization, mu.first_name AS member_fn, mu.last_name AS member_ln, mu.profile_picture AS member_picture FROM trainer_assignments ca JOIN trainer_profiles cp ON cp.trainer_id = ca.trainer_id JOIN users cu ON cu.user_id = cp.user_id JOIN users mu ON mu.user_id = ca.member_user_id ORDER BY CASE ca.status WHEN "active" THEN 1 WHEN "pending_admin" THEN 2 WHEN "pending_trainer" THEN 3 WHEN "ended" THEN 4 WHEN "rejected" THEN 5 ELSE 6 END, ca.assigned_date DESC')->fetchAll();
     } else {
         $coaches = db()->query('SELECT cp.trainer_id, CONCAT(u.first_name, " ", u.last_name, " - ", COALESCE(cp.specialization, "trainer")) AS name FROM trainer_profiles cp JOIN users u ON u.user_id = cp.user_id WHERE u.status = "active" AND cp.gym_id = ' . $gymId . ' ORDER BY u.first_name')->fetchAll();
         // Members who have active plan at this gym
-        $members = db()->query('SELECT DISTINCT u.user_id, CONCAT(u.first_name, " ", u.last_name, " (Has Plan)") AS name FROM users u JOIN memberships m ON m.user_id = u.user_id JOIN membership_plans mp ON mp.plan_id = m.plan_id WHERE u.role = "member" AND u.status = "active" AND m.status="active" AND m.end_date >= CURDATE() AND mp.gym_id = ' . $gymId . ' ORDER BY name')->fetchAll();
+        $members = db()->query('SELECT DISTINCT u.user_id, CONCAT(u.first_name, " ", u.last_name, " (Has Plan)") AS name, (SELECT MAX(m.end_date) FROM memberships m JOIN membership_plans mp2 ON mp2.plan_id = m.plan_id WHERE m.user_id = u.user_id AND m.status = "active" AND m.end_date >= CURDATE() AND mp2.gym_id = ' . $gymId . ') AS plan_end_date FROM users u JOIN memberships m ON m.user_id = u.user_id JOIN membership_plans mp ON mp.plan_id = m.plan_id WHERE u.role = "member" AND u.status = "active" AND m.status="active" AND m.end_date >= CURDATE() AND mp.gym_id = ' . $gymId . ' ORDER BY name')->fetchAll();
         // All members in this gym for direct diet plan access
         $allGymMembers = db()->query('
             SELECT DISTINCT u.user_id, CONCAT(u.first_name, " ", u.last_name) AS name 
@@ -732,9 +729,21 @@ function trainer_assignments_page(): void
                             <?php endif; ?>
                         </td>
                         <td>
-                            <div><?= h(date('M j, Y', strtotime($group['assigned_date']))) ?></div>
-                            <?php if ($group['ended_date']): ?>
-                                <div style="font-size: 11px; color: var(--muted);">Ended: <?= h(date('M j, Y', strtotime($group['ended_date']))) ?></div>
+                            <div style="font-weight: 600; color: var(--ink);"><?= h(date('M j, Y', strtotime($group['assigned_date']))) ?></div>
+                            <?php if ($group['status'] === 'active'): ?>
+                                <?php if (!$group['is_group'] && !empty($group['ended_date'])): ?>
+                                    <div style="font-size: 11px; margin-top: 2px;">
+                                        <span style="color: #22c55e; font-weight: 600;">Expires:</span> <span style="color: var(--muted);"><?= h(date('M j, Y', strtotime($group['ended_date']))) ?></span>
+                                    </div>
+                                <?php elseif ($group['is_group']): ?>
+                                    <div style="font-size: 10.5px; color: var(--muted); margin-top: 2px;">
+                                        Syncs with member plans
+                                    </div>
+                                <?php endif; ?>
+                            <?php elseif ($group['status'] === 'ended' && !empty($group['ended_date'])): ?>
+                                <div style="font-size: 11px; color: var(--muted); margin-top: 2px;">
+                                    Ended: <?= h(date('M j, Y', strtotime($group['ended_date']))) ?>
+                                </div>
                             <?php endif; ?>
                         </td>
                         <td>
@@ -800,7 +809,18 @@ function trainer_assignments_page(): void
                 <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 8px;">
                     <div>
                         <h4 style="margin: 0 0 4px; font-size: 15px; font-weight: 700; color: var(--ink);"><?= h($group['activity_title']) ?></h4>
-                        <div style="font-size: 11.5px; color: var(--muted);"><?= h(date('M j, Y', strtotime($group['assigned_date']))) ?></div>
+                        <div style="font-size: 11.5px; color: var(--muted); display: flex; align-items: center; gap: 5px; flex-wrap: wrap;">
+                            <span><?= h(date('M j, Y', strtotime($group['assigned_date']))) ?></span>
+                            <?php if ($group['status'] === 'active'): ?>
+                                <?php if (!$group['is_group'] && !empty($group['ended_date'])): ?>
+                                    <span>•</span> <span style="color: #22c55e; font-weight: 600;">Exp: <?= h(date('M j, Y', strtotime($group['ended_date']))) ?></span>
+                                <?php elseif ($group['is_group']): ?>
+                                    <span>•</span> <span>Syncs with plans</span>
+                                <?php endif; ?>
+                            <?php elseif ($group['status'] === 'ended' && !empty($group['ended_date'])): ?>
+                                <span>•</span> <span>Ended: <?= h(date('M j, Y', strtotime($group['ended_date']))) ?></span>
+                            <?php endif; ?>
+                        </div>
                     </div>
                     <span class="badge badge-<?= str_replace(' ', '_', $group['status']) ?>"><?= h($group['status']) ?></span>
                 </div>
@@ -911,11 +931,13 @@ function trainer_assignments_page(): void
         $hasPlan = str_contains($m['name'], '(Has Plan)');
         $uid = (int) $m['user_id'];
         $activeWith = isset($mainOtherAssignMap[$uid]) ? implode(', ', array_unique($mainOtherAssignMap[$uid])) : null;
+        $planEndDate = !empty($m['plan_end_date']) ? date('M j, Y', strtotime($m['plan_end_date'])) : null;
         return [
             'id' => $uid,
             'name' => $m['name'],
             'initials' => $initials ?: 'M',
             'has_plan' => $hasPlan,
+            'plan_end_date' => $planEndDate,
             'active_trainer' => $activeWith ? "Coach {$activeWith}" : null
         ];
     }, $members));

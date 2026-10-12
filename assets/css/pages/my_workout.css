@@ -396,7 +396,7 @@
             justify-content: center;
             gap: 12px;
             cursor: pointer;
-            box-shadow: 0 8px 24px rgba(39, 242, 70, 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.4);
+            box-shadow: 0 8px 24px color-mix(in srgb, var(--lime) 30%, transparent), inset 0 1px 0 rgba(255, 255, 255, 0.4);
             transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
             width: 100%;
             position: relative;
@@ -405,7 +405,7 @@
         }
         .btn-live-workout:hover {
             transform: translateY(-2px);
-            box-shadow: 0 12px 30px rgba(39, 242, 70, 0.38), inset 0 1px 0 rgba(255, 255, 255, 0.5);
+            box-shadow: 0 12px 30px color-mix(in srgb, var(--lime) 42%, transparent), inset 0 1px 0 rgba(255, 255, 255, 0.5);
             filter: brightness(1.05);
         }
         .btn-live-workout:active {
@@ -606,24 +606,28 @@
             background: rgba(6, 9, 14, 0.88);
             backdrop-filter: blur(24px);
             -webkit-backdrop-filter: blur(24px);
-            display: none;
+            display: none !important;
             align-items: center;
             justify-content: center;
             padding: 20px;
             box-sizing: border-box;
             opacity: 0;
+            pointer-events: none !important;
             transition: opacity 0.25s ease;
         }
         .workout-player-modal.is-active {
-            opacity: 1;
+            display: flex !important;
+            opacity: 1 !important;
+            pointer-events: auto !important;
         }
         .swal2-container {
             z-index: 20000000 !important;
         }
         .player-container {
             width: 100%;
-            max-width: 620px;
-            max-height: 94vh;
+            max-width: 580px;
+            height: auto !important;
+            max-height: 92vh !important;
             background: var(--panel, #121820);
             border: 1px solid var(--line, rgba(255, 255, 255, 0.12));
             border-radius: 24px;
@@ -714,12 +718,13 @@
 
         /* Scrollable Body */
         .player-scrollable-body {
-            flex: 1;
+            flex: 0 1 auto;
+            min-height: 0;
             overflow-y: auto;
-            padding: 20px 24px;
+            padding: 16px 20px 18px;
             display: flex;
             flex-direction: column;
-            gap: 16px;
+            gap: 12px;
             -webkit-overflow-scrolling: touch;
         }
         .player-meta-strip {
@@ -758,19 +763,21 @@
         .player-metric-chips-row {
             display: flex;
             flex-wrap: wrap;
-            gap: 8px;
+            align-items: center;
+            gap: 6px;
         }
         .player-metric-chip {
             display: inline-flex;
             align-items: center;
-            gap: 6px;
+            gap: 5px;
             background: var(--bg);
             border: 1px solid var(--line);
-            padding: 6px 12px;
+            padding: 5px 11px;
             border-radius: 8px;
-            font-size: 13px;
+            font-size: 12.5px;
             font-weight: 600;
             color: var(--ink);
+            line-height: 1.2;
         }
         .player-metric-chip.highlight-lime {
             border-color: color-mix(in srgb, var(--lime) 40%, transparent);
@@ -783,11 +790,11 @@
             color: #f59e0b;
         }
         .player-notes-callout {
-            background: rgba(255, 255, 255, 0.03);
+            background: color-mix(in srgb, var(--lime) 6%, transparent);
             border-left: 3px solid var(--lime);
-            padding: 10px 14px;
+            padding: 9px 13px;
             border-radius: 4px 10px 10px 4px;
-            font-size: 13px;
+            font-size: 12.5px;
             color: var(--muted);
             font-style: italic;
             line-height: 1.4;
@@ -798,39 +805,40 @@
             background: var(--bg);
             border: 1px solid var(--line);
             border-radius: 14px;
-            padding: 12px 14px;
+            padding: 10px 12px;
         }
         .player-section-label {
-            font-size: 11px;
-            font-weight: 700;
+            font-size: 10.5px;
+            font-weight: 800;
             text-transform: uppercase;
-            letter-spacing: 0.06em;
+            letter-spacing: 0.07em;
             color: var(--muted);
-            margin-bottom: 8px;
+            margin-bottom: 7px;
         }
         .player-sets-chips-container {
             display: flex;
-            gap: 8px;
+            gap: 6px;
             overflow-x: auto;
             padding-bottom: 2px;
             -webkit-overflow-scrolling: touch;
         }
         .set-chip {
             flex: 1;
-            min-width: 82px;
+            min-width: 68px;
             background: var(--panel);
             border: 1px solid var(--line);
-            border-radius: 10px;
-            padding: 8px 10px;
-            text-align: center;
-            display: flex;
-            flex-direction: column;
+            border-radius: 9px;
+            padding: 6px 10px;
+            display: inline-flex;
+            flex-direction: row;
             align-items: center;
-            gap: 3px;
+            justify-content: center;
+            gap: 5px;
             font-size: 12px;
             font-weight: 700;
             color: var(--muted);
             transition: all 0.2s ease;
+            white-space: nowrap;
         }
         .set-chip.completed {
             background: rgba(45, 240, 165, 0.12);
@@ -841,11 +849,10 @@
             background: color-mix(in srgb, var(--lime) 18%, transparent);
             border-color: var(--lime);
             color: var(--ink);
-            box-shadow: 0 0 16px color-mix(in srgb, var(--lime) 25%, transparent);
-            transform: translateY(-1px);
+            box-shadow: 0 0 12px color-mix(in srgb, var(--lime) 20%, transparent);
         }
         .set-chip .set-badge-icon {
-            font-size: 13px;
+            font-size: 12px;
             line-height: 1;
         }
         .set-chip .set-label-text {
@@ -859,18 +866,18 @@
             width: 100%;
             border-radius: 16px;
             overflow: hidden;
-            background: var(--panel-soft, #f1f5f9);
+            background: #090b10;
             border: 1px solid var(--line);
             position: relative;
-            min-height: 120px;
+            min-height: 140px;
             display: flex;
             align-items: center;
             justify-content: center;
             transition: all 0.25s ease;
         }
         .player-stage-box.has-media {
-            min-height: 190px;
-            max-height: 250px;
+            min-height: 180px;
+            max-height: 230px;
             background: #090b10;
         }
         .player-stage-badge {
@@ -878,23 +885,27 @@
             top: 10px;
             left: 10px;
             z-index: 2;
-            background: var(--panel, #ffffff);
-            border: 1px solid var(--line);
-            color: var(--muted);
+            background: rgba(15, 23, 42, 0.85);
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            color: #e2e8f0;
             font-size: 11px;
             font-weight: 700;
             padding: 4px 10px;
-            border-radius: 6px;
+            border-radius: 20px;
             display: inline-flex;
             align-items: center;
-            gap: 6px;
+            gap: 5px;
             letter-spacing: 0.04em;
-            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
         }
         .player-stage-media {
             width: 100%;
-            max-height: 250px;
+            height: 100%;
+            max-height: 230px;
             object-fit: contain;
+            border-radius: 14px;
         }
         .player-stage-fallback {
             display: flex;
@@ -995,7 +1006,7 @@
             stroke-dasharray: 276.46;
             stroke-dashoffset: 0;
             transition: stroke-dashoffset 0.9s linear, stroke 0.3s ease;
-            filter: drop-shadow(0 0 6px rgba(39, 242, 70, 0.5));
+            filter: drop-shadow(0 0 6px color-mix(in srgb, var(--lime) 50%, transparent));
         }
         .timer-inner-content {
             display: flex;
@@ -1212,16 +1223,18 @@
             gap: 10px;
         }
         .player-sub-btn {
-            background: transparent;
+            flex: 1;
+            background: var(--panel-soft, rgba(255, 255, 255, 0.04));
             border: 1px solid var(--line);
             color: var(--muted);
-            padding: 8px 14px;
-            border-radius: 9px;
+            padding: 8px 12px;
+            border-radius: 10px;
             font-size: 12.5px;
             font-weight: 600;
             cursor: pointer !important;
             display: inline-flex;
             align-items: center;
+            justify-content: center;
             gap: 6px;
             transition: all 0.15s ease;
             position: relative;
@@ -1331,44 +1344,129 @@
         /* Mobile Viewport Optimization (<= 768px) */
         @media (max-width: 768px) {
             .workout-player-modal {
-                padding: 0 !important;
-                background: var(--bg) !important;
+                padding: max(10px, env(safe-area-inset-top)) 10px max(10px, env(safe-area-inset-bottom)) 10px !important;
+                background: rgba(6, 9, 14, 0.92) !important;
+                backdrop-filter: blur(20px) !important;
+                -webkit-backdrop-filter: blur(20px) !important;
+                position: fixed !important;
+                inset: 0 !important;
+                width: 100% !important;
+                height: 100% !important;
+                height: 100dvh !important;
+                display: none !important;
+                pointer-events: none !important;
+                opacity: 0 !important;
+                align-items: center !important;
+                justify-content: center !important;
+                overflow: hidden !important;
+                box-sizing: border-box !important;
+            }
+            .workout-player-modal.is-active {
+                display: flex !important;
+                pointer-events: auto !important;
+                opacity: 1 !important;
             }
             .player-container {
-                max-width: 100vw !important;
-                width: 100vw !important;
-                height: 100dvh !important;
-                max-height: 100dvh !important;
-                border-radius: 0 !important;
-                border: none !important;
-                box-shadow: none !important;
+                max-width: 520px !important;
+                width: 100% !important;
+                height: auto !important;
+                max-height: calc(100dvh - 20px) !important;
+                border-radius: 20px !important;
+                border: 1px solid var(--line) !important;
+                box-shadow: 0 20px 50px rgba(0, 0, 0, 0.6) !important;
+                display: flex !important;
+                flex-direction: column !important;
+                overflow: hidden !important;
             }
             .player-top-bar {
-                padding: max(10px, env(safe-area-inset-top)) 16px 10px 16px !important;
+                padding: 12px 16px !important;
+                flex-shrink: 0 !important;
             }
             .player-scrollable-body {
-                padding: 14px 16px 16px 16px !important;
-                gap: 14px !important;
+                flex: 0 1 auto !important;
+                min-height: 0 !important;
+                overflow-y: auto !important;
+                -webkit-overflow-scrolling: touch !important;
+                overscroll-behavior: contain !important;
+                padding: 12px 16px 16px 16px !important;
+                gap: 11px !important;
+            }
+            .player-meta-strip {
+                gap: 8px !important;
+            }
+            .player-pill {
+                font-size: 11px !important;
+                padding: 3px 8px !important;
+            }
+            .player-status-tag {
+                font-size: 12px !important;
             }
             .player-exercise-title {
-                font-size: 21px !important;
+                font-size: 20px !important;
+                line-height: 1.2 !important;
             }
             .player-stage-box {
-                min-height: 160px !important;
-                max-height: 200px !important;
+                min-height: 140px !important;
+                max-height: 185px !important;
+                border-radius: 14px !important;
+            }
+            .player-stage-media {
+                max-height: 185px !important;
+            }
+            .player-metric-chips-row {
+                gap: 6px !important;
+            }
+            .player-metric-chip {
+                padding: 4px 9px !important;
+                font-size: 11.5px !important;
+            }
+            .player-notes-callout {
+                padding: 7px 11px !important;
+                font-size: 12px !important;
+            }
+            .player-sets-section {
+                padding: 9px 10px !important;
+                border-radius: 12px !important;
+            }
+            .player-section-label {
+                font-size: 10px !important;
+                margin-bottom: 6px !important;
+            }
+            .player-sets-chips-container {
+                gap: 6px !important;
+            }
+            .set-chip {
+                min-width: 62px !important;
+                padding: 6px 8px !important;
+                font-size: 11.5px !important;
+                border-radius: 8px !important;
             }
             .player-circular-timer {
-                width: 150px !important;
-                height: 150px !important;
+                width: 140px !important;
+                height: 140px !important;
             }
             .timer-digits {
-                font-size: 42px !important;
+                font-size: 38px !important;
             }
             .player-bottom-dock {
+                flex-shrink: 0 !important;
                 padding: 10px 16px max(14px, env(safe-area-inset-bottom)) 16px !important;
+                gap: 8px !important;
+                background: var(--panel) !important;
+                border-top: 1px solid var(--line) !important;
+                box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.35) !important;
             }
             .player-btn-primary {
-                padding: 14px 18px !important;
-                font-size: 15.5px !important;
+                padding: 13px 16px !important;
+                font-size: 15px !important;
+                border-radius: 12px !important;
+            }
+            .player-sub-actions-row {
+                gap: 8px !important;
+            }
+            .player-sub-btn {
+                padding: 8px 10px !important;
+                font-size: 12px !important;
+                border-radius: 9px !important;
             }
         }

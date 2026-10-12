@@ -50,10 +50,13 @@ function gym_profile_page(): void
             }
             $staffHideFinancials = isset($_POST['staff_hide_financials']) ? 1 : 0;
             $eodEmailSummary = isset($_POST['eod_email_summary']) ? 1 : 0;
+            $publicDescription = trim((string) post('public_description'));
+            $publicDescription = mb_substr($publicDescription, 0, 1000);
         } else {
             $brandColor = $gym['brand_color'] ?? null;
             $staffHideFinancials = (int)($gym['staff_hide_financials'] ?? 0);
             $eodEmailSummary = (int)($gym['eod_email_summary'] ?? 1);
+            $publicDescription = $gym['public_description'] ?? null;
         }
 
         // Business Permit
@@ -100,6 +103,20 @@ function gym_profile_page(): void
             }
         }
 
+        // Public gym profile cover image (Business branding feature)
+        $coverImageUrl = $gym['cover_image_url'] ?? null;
+        if ($canCustomBrand && isset($_FILES['cover_image']) && $_FILES['cover_image']['error'] === UPLOAD_ERR_OK) {
+            try {
+                $uploadedCover = FileUpload::storeGymCoverImage($_FILES['cover_image'], (int)$gym['gym_id']);
+                if ($coverImageUrl) {
+                    FileUpload::deleteGymGalleryImage($coverImageUrl);
+                }
+                $coverImageUrl = $uploadedCover;
+            } catch (RuntimeException $e) {
+                flash('Cover image upload failed: ' . $e->getMessage(), 'danger');
+            }
+        }
+
         // Gallery Uploads
         if (isset($_FILES['gallery_images']) && is_array($_FILES['gallery_images']['tmp_name'])) {
             $currentGalleryCount = (int)$pdo->query('SELECT COUNT(*) FROM gym_images WHERE gym_id = ' . (int)$gym['gym_id'])->fetchColumn();
@@ -134,8 +151,8 @@ function gym_profile_page(): void
         }
 
         if ($name && $address && $contact) {
-            $pdo->prepare('UPDATE gyms SET name = ?, address = ?, contact_info = ?, walk_in_fee = ?, inactivity_threshold_days = ?, inactivity_cooldown_days = ?, auto_inactivity_alerts = ?, business_permit_url = ?, barangay_clearance_url = ?, fire_safety_cert_url = ?, logo_url = ?, brand_color = ?, staff_hide_financials = ?, eod_email_summary = ? WHERE gym_id = ?')
-                ->execute([$name, $address, $contact, $walkInFee, $inactivityThreshold, $inactivityCooldown, $autoInactivityAlerts, $permitUrl, $brgyUrl, $fireSafetyUrl, $logoUrl, $brandColor, $staffHideFinancials, $eodEmailSummary, $gym['gym_id']]);
+            $pdo->prepare('UPDATE gyms SET name = ?, address = ?, contact_info = ?, walk_in_fee = ?, inactivity_threshold_days = ?, inactivity_cooldown_days = ?, auto_inactivity_alerts = ?, business_permit_url = ?, barangay_clearance_url = ?, fire_safety_cert_url = ?, logo_url = ?, cover_image_url = ?, public_description = ?, brand_color = ?, staff_hide_financials = ?, eod_email_summary = ? WHERE gym_id = ?')
+                ->execute([$name, $address, $contact, $walkInFee, $inactivityThreshold, $inactivityCooldown, $autoInactivityAlerts, $permitUrl, $brgyUrl, $fireSafetyUrl, $logoUrl, $coverImageUrl, $publicDescription, $brandColor, $staffHideFinancials, $eodEmailSummary, $gym['gym_id']]);
             flash('Gym settings updated successfully.', 'success');
             redirect('gym_profile');
         } else {
@@ -424,7 +441,7 @@ function gym_profile_page(): void
                             </div>
 
                             <!-- Item 2: Accent Theme Color -->
-                            <div class="overview-doc-item">
+                            <div class="overview-doc-item is-accent-theme">
                                 <div class="overview-doc-left">
                                     <div class="overview-doc-icon is-theme">
                                         <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 2a7 7 0 0 0 7 7c0 2-2 3-2 3s.5 1 .5 2a3.5 3.5 0 0 1-5 3.2"/></svg>
@@ -450,7 +467,7 @@ function gym_profile_page(): void
                                             <input type="color" name="brand_color" id="brand_color_picker" value="<?= h($gym['brand_color'] ?? '#84cc16') ?>" style="width: 32px; height: 28px; padding: 0; cursor: pointer; border-radius: 6px; border: 1px solid var(--line); background: transparent; flex-shrink: 0;">
                                             <div class="color-swatch-grid" style="margin: 0;">
                                                 <?php 
-                                                    $presets = ['#84cc16', '#7c5cfc', '#10b981', '#3b82f6'];
+                                                    $presets = ['#84cc16', '#7c5cfc', '#10b981', '#3b82f6', '#f97316', '#ec4899', '#14b8a6', '#f43f5e'];
                                                     $currentColor = $gym['brand_color'] ?? '#84cc16';
                                                     foreach ($presets as $hex):
                                                         $isActive = strtolower($currentColor) === strtolower($hex);
@@ -463,6 +480,39 @@ function gym_profile_page(): void
                                         </div>
                                     <?php endif; ?>
                                 </div>
+                            </div>
+
+                            <div class="public-branding-editor">
+                                <div class="public-branding-heading">
+                                    <div class="overview-doc-name">Public Gym Page</div>
+                                    <span class="field-hint">Add a cover photo and a short introduction to help members recognize your gym.</span>
+                                </div>
+                                <?php if (!$canCustomBrand): ?>
+                                    <a href="index.php?page=gym_subscription" class="tier-pill public-branding-upgrade">Available on Business</a>
+                                <?php else: ?>
+                                    <div class="public-branding-fields">
+                                        <div class="public-cover-column">
+                                            <label class="field-label public-description-label" for="cover-image-input">Cover photo</label>
+                                            <div class="public-cover-preview" id="public-cover-preview">
+                                                <?php if (!empty($gym['cover_image_url'])): ?>
+                                                    <img id="public-cover-preview-img" src="<?= h(upload_url($gym['cover_image_url'])) ?>" alt="Current gym cover image">
+                                                <?php else: ?>
+                                                    <img id="public-cover-preview-img" src="" alt="Cover image preview" hidden>
+                                                    <span id="public-cover-placeholder">Your cover photo preview</span>
+                                                <?php endif; ?>
+                                            </div>
+                                            <label class="public-cover-upload btn btn-secondary">
+                                                <span>Choose Cover Image</span>
+                                                <input type="file" name="cover_image" id="cover-image-input" accept="image/jpeg,image/png,image/webp,image/gif">
+                                            </label>
+                                        </div>
+                                        <div class="public-description-column">
+                                            <label class="field-label public-description-label" for="public-description-input">Public description</label>
+                                            <textarea name="public_description" id="public-description-input" class="public-description-input" rows="4" maxlength="1000" placeholder="Tell members what makes your gym special."><?= h($gym['public_description'] ?? '') ?></textarea>
+                                            <span class="field-hint">Up to 1,000 characters. This appears on your public gym page.</span>
+                                        </div>
+                                    </div>
+                                <?php endif; ?>
                             </div>
 
                             <!-- Item 3: Automated Midnight EOD Revenue Digest -->

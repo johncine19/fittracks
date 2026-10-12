@@ -41,6 +41,14 @@ function workout_builder_page(): void
     $trainerId = ensure_coach_profile((int)$user['user_id']);
     $trainerProfile = $pdo->query('SELECT gym_id FROM trainer_profiles WHERE trainer_id = ' . $trainerId)->fetch();
     
+    if ($user['role'] === 'trainer') {
+        $isAssigned = (bool) scalar('SELECT 1 FROM trainer_assignments WHERE trainer_id = ? AND member_user_id = ? AND status = "active"', [$trainerId, $memberId]);
+        if (!$isAssigned) {
+            flash('You can only design workout plans for clients actively assigned to you.', 'danger');
+            redirect('trainer_members');
+        }
+    }
+
     if ($user['role'] === 'gym_owner') {
         $trainerGymId = (int) (scalar('SELECT gym_id FROM gyms WHERE owner_user_id = ?', [$user['user_id']]) ?? 0);
     } else {
@@ -573,9 +581,9 @@ function workout_builder_page(): void
                 $tmplGoal = $tmpl['primary_goal'] ?? $tmpl['goal'] ?? 'general_health';
             ?>
                 <div class="template-card-choice" onclick="selectTemplate('<?= $key ?>', '<?= addslashes(h($tmplTitle)) ?>')">
-                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
-                        <strong style="color: var(--lime); font-size: 15px;"><?= h($tmplTitle) ?></strong>
-                        <span class="builder-badge builder-badge-stat"><?= $tmplDays ?> Days/Wk</span>
+                    <div class="template-card-heading">
+                        <strong class="template-card-title"><?= h($tmplTitle) ?></strong>
+                        <span class="builder-badge builder-badge-stat template-card-days"><?= $tmplDays ?> Days/Wk</span>
                     </div>
                     <div style="font-size: 12px; color: var(--muted); margin-bottom: 6px;">
                         <?= h($tmplDesc) ?>

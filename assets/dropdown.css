@@ -100,23 +100,24 @@
     position: absolute;
     top: calc(100% + 5px);
     left: 0;
-    right: 0;
-    width: 100%;
-    max-width: 100%;
+    min-width: 100%;
+    width: max-content;
+    max-width: min(380px, 92vw);
     box-sizing: border-box;
-    background: #141d2c;
-    border: 1px solid #2e3d52;
+    background: #0f172a !important; /* Solid opaque dark surface - no transparency */
+    opacity: 1 !important;
+    border: 1px solid #334155;
     border-radius: 10px;
-    box-shadow: 0 16px 36px rgba(0, 0, 0, 0.65), 0 4px 12px rgba(0, 0, 0, 0.4);
+    box-shadow: 0 18px 40px rgba(0, 0, 0, 0.8), 0 6px 16px rgba(0, 0, 0, 0.6);
     z-index: 99999;
     overflow: hidden;
     text-align: left;
 }
 
 [data-theme="light"] .fit-dropdown-menu {
-    background: #ffffff;
+    background: #ffffff !important;
     border-color: #cbd5e1;
-    box-shadow: 0 16px 36px rgba(0, 0, 0, 0.12), 0 4px 12px rgba(0, 0, 0, 0.08);
+    box-shadow: 0 16px 36px rgba(0, 0, 0, 0.16), 0 4px 12px rgba(0, 0, 0, 0.08);
 }
 
 /* Search Header inside Dropdown */
@@ -187,9 +188,22 @@
     top: 50%;
     transform: translateY(-50%);
     font-size: 11px;
-    font-weight: 600;
-    color: var(--muted);
+    font-weight: 700;
+    color: var(--lime, #84cc16);
+    background: rgba(132, 204, 22, 0.12);
+    padding: 2px 7px;
+    border-radius: 10px;
     pointer-events: none;
+    line-height: 1.2;
+}
+
+.fit-dropdown-search-badge:empty {
+    display: none;
+}
+
+[data-theme="light"] .fit-dropdown-search-badge {
+    color: #16a34a;
+    background: rgba(22, 163, 74, 0.12);
 }
 
 /* Scrollable Options List */
@@ -224,6 +238,31 @@
 
 [data-theme="light"] .fit-dropdown-list::-webkit-scrollbar-thumb {
     background: #cbd5e1;
+}
+
+/* Section header inside dropdown list (e.g. optgroups) */
+.fit-dropdown-header {
+    padding: 8px 12px 4px 12px;
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--muted, #94a3b8);
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+    margin-top: 5px;
+    user-select: none;
+    pointer-events: none;
+}
+
+.fit-dropdown-header:first-child {
+    border-top: none;
+    margin-top: 0;
+    padding-top: 4px;
+}
+
+[data-theme="light"] .fit-dropdown-header {
+    color: #64748b;
+    border-top-color: #e2e8f0;
 }
 
 /* Individual Dropdown Item */

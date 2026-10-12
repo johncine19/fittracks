@@ -55,14 +55,21 @@ function platform_subscription_plans_page(): void
                 <h1>Subscription Plans & Pricing</h1>
                 <p>Edit monthly and annual pricing, descriptions, and feature bullet points offered to gym owners.</p>
             </div>
-            <a href="index.php?page=gym_subscription" target="_blank" class="btn btn-secondary plan-preview-link">
-                <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
-                Preview Gym Owner View
-            </a>
         </div>
 
         <div class="plans-editor-grid">
-            <?php foreach ($plans as $plan): 
+            <?php foreach ($plans as $plan):
+                if ($plan['plan_key'] === 'business' && str_contains((string)$plan['features'], 'Multi-Branch Management & Centralized Dashboard')) {
+                    $plan['description'] = 'For high-volume gyms that need room to grow.';
+                    $plan['features'] = implode("\n", [
+                        'Unlimited Active Members',
+                        'Unlimited Trainers',
+                        'All Professional features, including classes, trainer tools, and advanced reports',
+                        'Custom Gym Brand Color',
+                        'End-of-Day Summary Emails',
+                        'Staff Financial Visibility Controls',
+                    ]);
+                }
                 $isPop = (bool)$plan['is_popular'];
                 $annPrice = !empty($plan['annual_price']) ? (float)$plan['annual_price'] : round((float)$plan['price'] * 10, 2);
             ?>

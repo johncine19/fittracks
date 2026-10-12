@@ -58,8 +58,8 @@ function member_equipment_page(): void
         </div>
 
         <!-- CHECK-IN STATUS BANNER (shown when not checked into the gym) -->
-        <div id="checkin-gate-alert" style="<?= $isCheckedIn ? 'display: none;' : 'display: flex;' ?> align-items: center; justify-content: space-between; gap: 14px; background: rgba(245, 158, 11, 0.1); border: 1px solid rgba(245, 158, 11, 0.3); border-radius: 12px; padding: 14px 18px; margin-bottom: 20px; flex-wrap: wrap;">
-            <div style="display: flex; align-items: center; gap: 12px;">
+        <div id="checkin-gate-alert" class="remote-mode-banner" style="<?= $isCheckedIn ? 'display: none;' : 'display: flex;' ?> align-items: center; justify-content: space-between; gap: 14px; background: rgba(245, 158, 11, 0.1); border: 1px solid rgba(245, 158, 11, 0.3); border-radius: 12px; padding: 14px 18px; margin-bottom: 20px; flex-wrap: wrap;">
+            <div class="remote-mode-copy" style="display: flex; align-items: center; gap: 12px;">
                 <span style="display: flex; align-items: center; justify-content: center; width: 36px; height: 36px; border-radius: 50%; background: rgba(245, 158, 11, 0.2); color: #d97706; flex-shrink: 0;">
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
                 </span>
@@ -70,7 +70,7 @@ function member_equipment_page(): void
                     </p>
                 </div>
             </div>
-            <a href="index.php?page=qr_attendance" class="btn btn-lime" style="padding: 8px 16px; border-radius: 8px; font-size: 13px; text-decoration: none; white-space: nowrap; display: inline-flex; align-items: center; gap: 6px;">
+            <a href="index.php?page=qr_attendance" class="btn btn-lime remote-mode-action" style="padding: 8px 16px; border-radius: 8px; font-size: 13px; text-decoration: none; white-space: nowrap; display: inline-flex; align-items: center; gap: 6px;">
                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
                 Check In via QR
             </a>

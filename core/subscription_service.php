@@ -50,7 +50,7 @@ function get_platform_subscription_plans(): array
                     'Workout Plans & Exercise Library',
                     'Class Scheduling & Online Booking with Waitlists',
                     'Automated Multi-Stage Renewal Reminders (30d/14d/7d/1d)',
-                    'Member Engagement Scoring & Churn Risk Alerts',
+                    'Member Engagement Scoring & Inactivity Alerts',
                     'Advanced Analytics & Financial Growth Trends',
                     'Staff Activity Logs',
                 ],
@@ -61,26 +61,55 @@ function get_platform_subscription_plans(): array
                 'price_label' => '₱1,999',
                 'annual_price' => 19990,
                 'annual_price_label' => '₱19,990',
-                'desc' => 'For multi-branch & large-scale fitness centers.',
+                'desc' => 'For high-volume gyms that need room to grow.',
                 'popular' => false,
                 'features' => [
                     'Unlimited Active Members',
-                    'Multi-Branch Management & Centralized Dashboard',
-                    'Consolidated Cross-Branch Financial Reporting',
-                    'Full Compliance Security Audit Trail (IPs, Diffs)',
-                    'Custom App Brand Color & White-Label Theme',
-                    'Dedicated Account Manager & Priority Support',
+                    'Unlimited Trainers',
+                    'All Professional features, including classes, trainer tools, and advanced reports',
+                    'Custom Gym Brand Color',
+                    'End-of-Day Summary Emails',
+                    'Staff Financial Visibility Controls',
                 ],
             ],
         ];
     }
 
     $plans = [];
+    $legacyBusinessBenefits = [
+        'Multi-Branch Management & Centralized Dashboard',
+        'Consolidated Cross-Branch Financial Reporting',
+        'Full Compliance Security Audit Trail (IPs, Diffs)',
+        'Custom App Brand Color & White-Label Theme',
+        'Dedicated Account Manager & Priority Support',
+    ];
+    $businessBenefits = [
+        'Unlimited Active Members',
+        'Unlimited Trainers',
+        'All Professional features, including classes, trainer tools, and advanced reports',
+        'Custom Gym Brand Color',
+        'End-of-Day Summary Emails',
+        'Staff Financial Visibility Controls',
+    ];
+
     foreach ($rows as $row) {
         $features = array_values(array_filter(array_map('trim', explode("\n", (string)$row['features']))));
+        if (($row['plan_key'] ?? '') === 'business' && array_intersect($legacyBusinessBenefits, $features)) {
+            $features = $businessBenefits;
+        }
+        // Keep existing installations' persisted plan copy aligned with the rule-based feature wording.
+        $features = array_map(static fn(string $feature): string => str_replace(
+            ['Member Engagement Scoring & Churn Risk Alerts', 'Member Engagement & Churn Risk Alerts'],
+            ['Member Engagement Scoring & Inactivity Alerts', 'Member Engagement Scores & Inactivity Alerts'],
+            $feature
+        ), $features);
         $monthlyPrice = (float)$row['price'];
         $annualPrice = !empty($row['annual_price']) ? (float)$row['annual_price'] : round($monthlyPrice * 10, 2);
         $annualSavings = max(0, ($monthlyPrice * 12) - $annualPrice);
+        $description = (string)$row['description'];
+        if (($row['plan_key'] ?? '') === 'business' && str_contains(strtolower($description), 'multi-branch')) {
+            $description = 'For high-volume gyms that need room to grow.';
+        }
 
         $plans[$row['plan_key']] = [
             'id' => (int)$row['id'],
@@ -92,10 +121,10 @@ function get_platform_subscription_plans(): array
             'annual_price_label' => '₱' . number_format($annualPrice),
             'annual_savings' => $annualSavings,
             'annual_savings_label' => '₱' . number_format($annualSavings),
-            'desc' => $row['description'],
+            'desc' => $description,
             'popular' => (bool)$row['is_popular'],
             'features' => $features,
-            'raw_features' => $row['features'],
+            'raw_features' => implode("\n", $features),
         ];
     }
     return $plans;
@@ -527,18 +556,20 @@ function gym_get_eod_summary(int $gymId, ?string $date = null): array
 
     // 1. Membership Payments Today
     $subStmt = $pdo->prepare('
-        SELECT COUNT(*) AS txn_count, COALESCE(SUM(amount), 0) AS total_revenue
-        FROM payments
-        WHERE gym_id = ? AND status = "paid" AND DATE(payment_date) = ?
+        SELECT COUNT(*) AS txn_count, COALESCE(SUM(p.amount), 0) AS total_revenue
+        FROM payments p
+        JOIN memberships m ON m.membership_id = p.membership_id
+        JOIN membership_plans mp ON mp.plan_id = m.plan_id
+        WHERE mp.gym_id = ? AND p.status = "paid" AND DATE(p.payment_date) = ?
     ');
     $subStmt->execute([$gymId, $targetDate]);
     $subData = $subStmt->fetch(PDO::FETCH_ASSOC) ?: ['txn_count' => 0, 'total_revenue' => 0];
 
     // 2. Walk-in Passes Today
     $walkStmt = $pdo->prepare('
-        SELECT COUNT(*) AS txn_count, COALESCE(SUM(walk_in_fee), 0) AS total_revenue
+        SELECT COUNT(*) AS txn_count, COALESCE(SUM(amount_paid), 0) AS total_revenue
         FROM walk_in_transactions
-        WHERE gym_id = ? AND DATE(created_at) = ?
+        WHERE gym_id = ? AND DATE(visit_date) = ?
     ');
     $walkStmt->execute([$gymId, $targetDate]);
     $walkData = $walkStmt->fetch(PDO::FETCH_ASSOC) ?: ['txn_count' => 0, 'total_revenue' => 0];
@@ -555,8 +586,9 @@ function gym_get_eod_summary(int $gymId, ?string $date = null): array
     // 4. Memberships Expiring Tomorrow
     $expStmt = $pdo->prepare('
         SELECT COUNT(*) AS expiring_count
-        FROM memberships
-        WHERE gym_id = ? AND status = "active" AND DATE(end_date) = ?
+        FROM memberships m
+        JOIN membership_plans mp ON mp.plan_id = m.plan_id
+        WHERE mp.gym_id = ? AND m.status = "active" AND DATE(m.end_date) = ?
     ');
     $expStmt->execute([$gymId, $nextDate]);
     $expiringCount = (int) ($expStmt->fetchColumn() ?: 0);
@@ -600,6 +632,59 @@ function gym_send_eod_summary_email(int $gymId, ?string $date = null, bool $imme
     return Emails::sendEODSummary($gym['owner_email'], $ownerName, $gymName, $summary, $immediate);
 }
 
+/** Queue one EOD email for each eligible gym for the requested local report date. */
+function gym_queue_automated_eod_summaries(?string $date = null): array
+{
+    $pdo = db();
+    $reportDate = $date ? date('Y-m-d', strtotime($date)) : date('Y-m-d', strtotime('yesterday'));
+    $result = ['queued' => 0, 'already_queued' => 0, 'disabled_or_ineligible' => 0, 'failed' => 0];
+    $gyms = $pdo->query("SELECT * FROM gyms WHERE status = 'approved' AND COALESCE(eod_email_summary, 1) = 1 ORDER BY gym_id")->fetchAll(PDO::FETCH_ASSOC);
+    $claim = $pdo->prepare("INSERT IGNORE INTO gym_eod_email_log (gym_id, report_date, status) VALUES (?, ?, 'queued')");
+    $release = $pdo->prepare('DELETE FROM gym_eod_email_log WHERE gym_id = ? AND report_date = ? AND status = \'queued\'');
 
+    foreach ($gyms as $gym) {
+        if (!gym_has_feature('eod_summary', $gym)) {
+            $result['disabled_or_ineligible']++;
+            continue;
+        }
 
+        $gymId = (int)$gym['gym_id'];
+        $claim->execute([$gymId, $reportDate]);
+        if ($claim->rowCount() === 0) {
+            $result['already_queued']++;
+            continue;
+        }
 
+        try {
+            if (gym_send_eod_summary_email($gymId, $reportDate, false)) {
+                $result['queued']++;
+            } else {
+                $release->execute([$gymId, $reportDate]);
+                $result['failed']++;
+            }
+        } catch (Throwable $e) {
+            $release->execute([$gymId, $reportDate]);
+            error_log('Failed to queue EOD summary for gym ' . $gymId . ': ' . $e->getMessage());
+            $result['failed']++;
+        }
+    }
+
+    return $result;
+}
+
+/**
+ * Automatically update expired gym subscription statuses in the database.
+ * Changes 'active' or 'trialing' to 'expired' if subscription_renewal_date < CURDATE().
+ */
+function auto_expire_lapsed_gym_subscriptions(): int
+{
+    $pdo = db();
+    try {
+        $stmt = $pdo->prepare("UPDATE gyms SET subscription_status = 'expired' WHERE status = 'approved' AND subscription_status IN ('active', 'trialing') AND subscription_renewal_date IS NOT NULL AND subscription_renewal_date < CURDATE()");
+        $stmt->execute();
+        return (int) $stmt->rowCount();
+    } catch (Throwable $e) {
+        error_log('Error in auto_expire_lapsed_gym_subscriptions: ' . $e->getMessage());
+        return 0;
+    }
+}

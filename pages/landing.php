@@ -159,15 +159,15 @@ function landing_page(): void
         'price_label' => '₱999',
         'desc' => 'Designed for growing commercial gyms with full coaching staff.',
         'popular' => true,
-        'features' => ['Up to 500 Active Members', 'Personal Trainers & Client Assignments (Unlimited)', 'Trainer Commission Tracking & Payouts', 'Workout Plans & Exercise Library', 'Class Scheduling & Online Booking with Waitlists', 'Automated Multi-Stage Renewal Reminders (30d/14d/7d/1d)', 'Member Engagement Scoring & Churn Risk Alerts', 'Advanced Analytics & Financial Growth Trends', 'Staff Activity Logs']
+        'features' => ['Up to 500 Active Members', 'Personal Trainers & Client Assignments (Unlimited)', 'Trainer Commission Tracking & Payouts', 'Workout Plans & Exercise Library', 'Class Scheduling & Online Booking with Waitlists', 'Automated Multi-Stage Renewal Reminders (30d/14d/7d/1d)', 'Member Engagement Scoring & Inactivity Alerts', 'Advanced Analytics & Financial Growth Trends', 'Staff Activity Logs']
     ];
     $businessPlan = $platformPlans['business'] ?? [
         'name' => 'Business',
         'price' => 1999,
         'price_label' => '₱1,999',
-        'desc' => 'For multi-branch & large-scale fitness centers.',
+        'desc' => 'For high-volume gyms that need room to grow.',
         'popular' => false,
-        'features' => ['Unlimited Active Members', 'Multi-Branch Management & Centralized Dashboard', 'Consolidated Cross-Branch Financial Reporting', 'Full Compliance Security Audit Trail (IPs, Diffs)', 'Custom App Brand Color & White-Label Theme', 'Dedicated Account Manager & Priority Support']
+        'features' => ['Unlimited Active Members', 'Unlimited Trainers', 'All Professional features, including classes, trainer tools, and advanced reports', 'Custom Gym Brand Color', 'End-of-Day Summary Emails', 'Staff Financial Visibility Controls']
     ];
     ?>
     <!doctype html>
@@ -179,6 +179,60 @@ function landing_page(): void
         <title>FitTrack — Manage. Engage. Grow. Commercial Gym Operations Platform</title>
         <meta name="description"
             content="FitTrack helps gyms streamline operations, monitor member engagement, QR attendance, billing, and drive results.">
+        <meta name="robots" content="index, follow">
+
+        <!-- Canonical URL -->
+        <link rel="canonical" href="https://fitworks.tech/">
+
+        <!-- Open Graph / Facebook / LinkedIn / WhatsApp -->
+        <meta property="og:type" content="website">
+        <meta property="og:url" content="https://fitworks.tech/">
+        <meta property="og:title" content="FitTrack — Commercial Gym Operations &amp; Membership Platform">
+        <meta property="og:description"
+            content="FitTrack helps gyms streamline operations, monitor member engagement, QR attendance, billing, and drive results.">
+        <meta property="og:image" content="https://fitworks.tech/assets/landing/gym-management.png">
+        <meta property="og:site_name" content="FitTrack">
+
+        <!-- Twitter / X -->
+        <meta name="twitter:card" content="summary_large_image">
+        <meta name="twitter:url" content="https://fitworks.tech/">
+        <meta name="twitter:title" content="FitTrack — Commercial Gym Operations &amp; Membership Platform">
+        <meta name="twitter:description"
+            content="FitTrack helps gyms streamline operations, monitor member engagement, QR attendance, billing, and drive results.">
+        <meta name="twitter:image" content="https://fitworks.tech/assets/landing/gym-management.png">
+
+        <!-- Schema.org Structured Data -->
+        <script type="application/ld+json">
+        {
+            "@context": "https://schema.org",
+            "@type": "SoftwareApplication",
+            "name": "FitTrack",
+            "applicationCategory": "BusinessApplication",
+            "operatingSystem": "Web",
+            "description": "FitTrack helps gyms streamline operations, monitor member engagement, QR attendance, billing, and drive results.",
+            "url": "https://fitworks.tech/",
+            "offers": [
+                {
+                    "@type": "Offer",
+                    "name": "Starter",
+                    "price": "599",
+                    "priceCurrency": "PHP"
+                },
+                {
+                    "@type": "Offer",
+                    "name": "Professional",
+                    "price": "999",
+                    "priceCurrency": "PHP"
+                },
+                {
+                    "@type": "Offer",
+                    "name": "Business",
+                    "price": "1999",
+                    "priceCurrency": "PHP"
+                }
+            ]
+        }
+        </script>
 
         <link rel="preconnect" href="https://fonts.googleapis.com">
         <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -236,9 +290,12 @@ function landing_page(): void
                     <a href="index.php?page=gym_register" class="btn btn-lime btn-sm">Register Gym</a>
                 </div>
 
-                <button class="mobile-toggle" id="mobileMenuBtn" aria-label="Toggle Navigation">
-                    <?= landing_icon('menu', 'mobile-toggle-icon') ?>
-                </button>
+                <div class="nav-mobile-actions">
+                    <a href="index.php?page=login" class="mobile-nav-login-btn">Log In</a>
+                    <button class="mobile-toggle" id="mobileMenuBtn" aria-label="Toggle Navigation">
+                        <?= landing_icon('menu', 'mobile-toggle-icon') ?>
+                    </button>
+                </div>
             </div>
         </nav>
 
@@ -249,7 +306,6 @@ function landing_page(): void
             <a href="#testimonials" class="mobile-drawer-link" onclick="closeMobileMenu()">Testimonials</a>
             <a href="#pricing" class="mobile-drawer-link" onclick="closeMobileMenu()">Pricing</a>
             <a href="#faq" class="mobile-drawer-link" onclick="closeMobileMenu()">FAQ</a>
-            <a href="index.php?page=login" class="mobile-drawer-link" onclick="closeMobileMenu()">Log In</a>
             <a href="index.php?page=register" class="mobile-drawer-link" onclick="closeMobileMenu()">Join as Member</a>
             <a href="javascript:void(0)" class="mobile-drawer-link" onclick="closeMobileMenu(); openDemoModal();">Request Demo Walkthrough</a>
             <a href="index.php?page=gym_register" class="btn btn-lime mobile-drawer-cta" onclick="closeMobileMenu()">Register Your Gym</a>
@@ -263,30 +319,15 @@ function landing_page(): void
        02. HERO SECTION — FULL-BLEED GYM BACKGROUND WITH FLOATING ENGINE
        ========================================================================== -->
         <header class="hero-section reveal-on-scroll">
+            <!-- Parallax: hero photo drifts slower than the page -->
+            <div class="parallax-layer hero-bg" data-parallax="0.3" data-parallax-origin="top" aria-hidden="true"></div>
             <div class="container">
                 <div class="hero-grid">
                     <!-- Left Side: Brand Narrative & Feature Pills Floating directly on Background -->
                     <div class="hero-left">
-                        <?php if ($platformStats['total_reviews'] > 0): ?>
-                            <a href="#testimonials" class="hero-rating-badge">
-                                <span class="hero-rating-stars">
-                                    <?= render_star_rating((float)$platformStats['avg_rating'], 13, false) ?>
-                                </span>
-                                <span class="hero-rating-score"><?= number_format($platformStats['avg_rating'], 1) ?>/5</span>
-                                <span class="hero-rating-sep">&bull;</span>
-                                <span class="hero-rating-text"><span class="hero-rating-by">Rated by </span><?= $platformStats['total_reviews'] ?> Verified Gym <?= $platformStats['total_reviews'] === 1 ? 'Owner' : 'Owners' ?></span>
-                                <span class="hero-rating-arrow">&rarr;</span>
-                            </a>
-                        <?php else: ?>
-                            <div class="hero-rating-badge">
-                                <span class="hero-rating-dot"></span>
-                                <span class="hero-rating-score">Built around the daily work of a gym</span>
-                            </div>
-                        <?php endif; ?>
                         <div class="hero-brand-header">
                             <h1 class="hero-title">
-                                Your gym runs on people.
-                                <span class="title-highlight">Keep the whole team in sync.</span>
+                                All-in-one software to                                <span class="title-highlight">grow your gym.</span>
                             </h1>
                             <p class="hero-subtitle">
                                 From the front desk to the training floor, FitTrack brings check-ins, memberships,
@@ -332,7 +373,7 @@ function landing_page(): void
 
                     <!-- Right Side: Realistic Laptop Device Showcase with Auto-Slide & Hover Arrows -->
                     <div class="hero-right">
-                        <div class="hero-laptop-container" id="heroLaptopContainer">
+                        <div class="hero-laptop-container" id="heroLaptopContainer" data-parallax="-0.07" data-parallax-origin="top" data-parallax-sm="0" data-parallax-max="70">
                             <div class="hero-laptop-frame">
                                 <div class="hero-laptop-bezel">
                                     <div class="hero-laptop-camera"></div>
@@ -581,7 +622,11 @@ function landing_page(): void
         <!-- ==========================================================================
        06. CORE FEATURES
        ========================================================================== -->
-        <section class="features-section reveal-on-scroll" id="features">
+        <section class="has-parallax-orbs features-section reveal-on-scroll" id="features">
+            <div class="parallax-orbs" aria-hidden="true">
+                <span class="parallax-orb orb-lime" data-parallax="0.22"></span>
+                <span class="parallax-orb orb-sky" data-parallax="-0.12"></span>
+            </div>
             <div class="container">
                 <div class="section-header">
                     <span class="section-label">Platform Capabilities</span>
@@ -697,7 +742,7 @@ function landing_page(): void
                         </ul>
                     </div>
                     <div class="feature-media-frame">
-                        <img src="assets/landing/gym_member.png" alt="Member Training" class="feature-media-photo">
+                        <img src="assets/landing/gym_member.png" alt="Member Training" class="feature-media-photo" data-parallax="0.1" data-parallax-scale="1.2" data-parallax-sm="0">
                         <div class="feature-media-ui-overlay">
                             <div class="media-ui-title">MEMBER STATUS</div>
                             <div class="media-ui-val">Active Annual Membership • Verified</div>
@@ -731,7 +776,7 @@ function landing_page(): void
                     </div>
                     <div class="feature-media-frame">
                         <img src="assets/landing/gym_qr_scan.png" alt="Dynamic QR Turnstile Entrance"
-                            class="feature-media-photo">
+                            class="feature-media-photo" data-parallax="0.1" data-parallax-scale="1.2" data-parallax-sm="0">
                         <div class="feature-media-ui-overlay">
                             <div class="media-ui-title">DYNAMIC QR SCANNER</div>
                             <div class="media-ui-val">QR Code Verified — Turnstile Unlocked (08:42 AM)</div>
@@ -764,7 +809,7 @@ function landing_page(): void
                         </ul>
                     </div>
                     <div class="feature-media-frame">
-                        <img src="assets/landing/gym_trainer.png" alt="Trainer Guidance" class="feature-media-photo">
+                        <img src="assets/landing/gym_trainer.png" alt="Trainer Guidance" class="feature-media-photo" data-parallax="0.1" data-parallax-scale="1.2" data-parallax-sm="0">
                         <div class="feature-media-ui-overlay">
                             <div class="media-ui-title">COACHING DASHBOARD</div>
                             <div class="media-ui-val">12 Active Clients Assigned • 98% Program Compliance</div>
@@ -792,13 +837,13 @@ function landing_page(): void
                             </li>
                             <li class="feature-bullet-item">
                                 <span class="bullet-check"><?= landing_icon('check', 'check-svg') ?></span>
-                                Predictive member churn risk alerts
+                                Rule-based inactivity alerts
                             </li>
                         </ul>
                     </div>
                     <div class="feature-media-frame">
                         <img src="assets/landing/gym_analytics_tablet.png" alt="Gym Operations Analytics Tablet"
-                            class="feature-media-photo">
+                            class="feature-media-photo" data-parallax="0.1" data-parallax-scale="1.2" data-parallax-sm="0">
                         <div class="feature-media-ui-overlay">
                             <div class="media-ui-title">OPERATIONS CONTROL</div>
                             <div class="media-ui-val">Live Facility Analytics • 100% System Synchronization</div>
@@ -824,6 +869,7 @@ function landing_page(): void
        08. PRODUCT SHOWCASE — LAPTOP MOCKUP CAROUSEL
        ========================================================================== -->
         <section class="showcase-section reveal-on-scroll" id="live-operations">
+            <div class="parallax-layer showcase-bg" data-parallax="0.16" aria-hidden="true"></div>
             <div class="container">
                 <div class="section-header">
                     <span class="section-label">Live Gym Operations</span>
@@ -950,16 +996,7 @@ function landing_page(): void
                         <button class="laptop-dot" onclick="goToLaptopSlide(6)" aria-label="Trainers"></button>
                     </div>
 
-                    <!-- Slide Labels Row -->
-                    <div class="laptop-slide-labels">
-                        <button class="lsl-btn active" onclick="goToLaptopSlide(0)">Dashboard</button>
-                        <button class="lsl-btn" onclick="goToLaptopSlide(1)">Members</button>
-                        <button class="lsl-btn" onclick="goToLaptopSlide(2)">Attendance</button>
-                        <button class="lsl-btn" onclick="goToLaptopSlide(3)">Payments</button>
-                        <button class="lsl-btn" onclick="goToLaptopSlide(4)">Equipment</button>
-                        <button class="lsl-btn" onclick="goToLaptopSlide(5)">Plans</button>
-                        <button class="lsl-btn" onclick="goToLaptopSlide(6)">Trainers</button>
-                    </div>
+
                 </div>
             </div>
         </section>
@@ -967,7 +1004,11 @@ function landing_page(): void
         <!-- ==========================================================================
        09. HOW FITTRACK WORKS
        ========================================================================== -->
-        <section class="how-section reveal-on-scroll" id="how-it-works">
+        <section class="has-parallax-orbs how-section reveal-on-scroll" id="how-it-works">
+            <div class="parallax-orbs" aria-hidden="true">
+                <span class="parallax-orb orb-lime" data-parallax="0.22"></span>
+                <span class="parallax-orb orb-sky" data-parallax="-0.12"></span>
+            </div>
             <div class="container">
                 <div class="section-header">
                     <span class="section-label">Simple Onboarding</span>
@@ -999,7 +1040,7 @@ function landing_page(): void
                     <div class="step-card">
                         <div class="step-num">04</div>
                         <h3 class="step-title">Monitor Engagement</h3>
-                        <p class="step-desc">Track member attendance trends and receive automatic churn risk notifications.
+                        <p class="step-desc">Track member attendance trends and receive automatic inactivity alerts.
                         </p>
                     </div>
                 </div>
@@ -1009,7 +1050,11 @@ function landing_page(): void
         <!-- ==========================================================================
        10. USER EXPERIENCE BY USER TYPE
        ========================================================================== -->
-        <section class="users-section reveal-on-scroll">
+        <section class="has-parallax-orbs users-section reveal-on-scroll">
+            <div class="parallax-orbs" aria-hidden="true">
+                <span class="parallax-orb orb-lime" data-parallax="0.22"></span>
+                <span class="parallax-orb orb-sky" data-parallax="-0.12"></span>
+            </div>
             <div class="container">
                 <div class="section-header">
                     <span class="section-label">Tailored Interfaces</span>
@@ -1330,7 +1375,7 @@ function landing_page(): void
                             <span class="faq-icon">+</span>
                         </button>
                         <div class="faq-answer">
-                            <p>Unlike generic gym software, FitTrack combines real-time QR turnstile gate verification, automated churn-risk prediction algorithms, equipment inventory maintenance, and dedicated trainer coaching workflows into a unified, dark-mode commercial platform.</p>
+                            <p>Unlike generic gym software, FitTrack combines real-time QR turnstile gate verification, rule-based member engagement scoring and inactivity alerts, equipment inventory maintenance, and dedicated trainer coaching workflows into a unified, dark-mode commercial platform.</p>
                         </div>
                     </div>
 
@@ -1340,7 +1385,7 @@ function landing_page(): void
                             <span class="faq-icon">+</span>
                         </button>
                         <div class="faq-answer">
-                            <p>FitTrack’s Predictive Engagement Engine monitors attendance frequency and workout consistency. If a member hasn't checked in for 7–14 days compared to their baseline, the system automatically flags them on your admin dashboard and triggers re-engagement alerts.</p>
+                            <p>FitTrack uses a configurable, rule-based engagement score based on attendance, class participation, weekly consistency, completed workouts, and progress updates. Separately, inactivity alerts can notify staff when a member has gone without a check-in for the configured number of days. These tools highlight activity patterns for staff to review; they do not predict whether a member will cancel.</p>
                         </div>
                     </div>
 
@@ -1370,7 +1415,11 @@ function landing_page(): void
         <!-- ==========================================================================
        12. PRICING
        ========================================================================== -->
-        <section class="pricing-section reveal-on-scroll" id="pricing">
+        <section class="has-parallax-orbs pricing-section reveal-on-scroll" id="pricing">
+            <div class="parallax-orbs" aria-hidden="true">
+                <span class="parallax-orb orb-lime" data-parallax="0.22"></span>
+                <span class="parallax-orb orb-sky" data-parallax="-0.12"></span>
+            </div>
             <div class="container">
                 <div class="section-header">
                     <span class="section-label">Risk-Free Commercial Onboarding</span>
@@ -1532,6 +1581,7 @@ function landing_page(): void
         <section class="cta-section reveal-on-scroll">
             <div class="container">
                 <div class="cta-box">
+                    <div class="parallax-layer cta-bg" data-parallax="0.14" aria-hidden="true"></div>
                     <h2 class="cta-title">Ready to bring your gym operations together?</h2>
                     <p class="cta-desc">
                         Manage your gym, members, trainers, payments, and engagement with FitTrack.
@@ -1592,7 +1642,7 @@ function landing_page(): void
                             <li><a href="#features" class="footer-link">Member Management</a></li>
                             <li><a href="#features" class="footer-link">Dynamic QR Access</a></li>
                             <li><a href="#features" class="footer-link">Trainer Coaching</a></li>
-                            <li><a href="#features" class="footer-link">Engagement Engine</a></li>
+                            <li><a href="#features" class="footer-link">Engagement Monitoring</a></li>
                         </ul>
                     </div>
 
@@ -1704,13 +1754,19 @@ function landing_page(): void
                                     <td><strong>Target Facility Scale</strong></td>
                                     <td><span class="dist-pill muted">Boutique / Solo</span></td>
                                     <td class="col-popular"><span class="dist-pill lime">Growing Commercial</span></td>
-                                    <td><span class="dist-pill purple">Multi-Branch / Enterprise</span></td>
+                                    <td><span class="dist-pill purple">High-Volume Gym</span></td>
                                 </tr>
                                 <tr>
                                     <td><strong>Active Member Capacity</strong></td>
                                     <td><span class="dist-text-highlight">Up to 100 Members</span></td>
                                     <td class="col-popular"><span class="dist-text-lime">Up to 500 Members</span></td>
                                     <td><span class="dist-text-purple">Unlimited Members</span></td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Trainer Capacity</strong></td>
+                                    <td><span class="status-locked">Locked</span></td>
+                                    <td class="col-popular"><span class="dist-text-lime">Unlimited Trainers</span></td>
+                                    <td><span class="dist-text-purple">Unlimited Trainers</span></td>
                                 </tr>
 
                                 <!-- Category 2 -->
@@ -1767,7 +1823,7 @@ function landing_page(): void
                                     <td>Class Scheduling & Member Bookings</td>
                                     <td><span class="dist-pill muted">Basic Schedule</span></td>
                                     <td class="col-popular"><span class="status-access">✓ Full Booking + Waitlists</span></td>
-                                    <td><span class="status-access">✓ Multi-Branch Booking</span></td>
+                                    <td><span class="status-access">✓ Full Booking + Waitlists</span></td>
                                 </tr>
 
                                 <!-- Category 5 -->
@@ -1778,13 +1834,13 @@ function landing_page(): void
                                     <td>Automated Renewal Reminders</td>
                                     <td><span class="dist-pill muted">7-Day Alert</span></td>
                                     <td class="col-popular"><span class="dist-pill sky">Automated (30d/14d/7d/1d)</span></td>
-                                    <td><span class="dist-pill purple">Custom Workflows</span></td>
+                                    <td><span class="dist-pill purple">Automated (30d/14d/7d/1d)</span></td>
                                 </tr>
                                 <tr>
-                                    <td>Member Engagement & Churn Risk Alerts</td>
+                                    <td>Member Engagement Scores & Inactivity Alerts</td>
                                     <td><span class="status-locked">🔒 Locked</span></td>
-                                    <td class="col-popular"><span class="status-access">✓ Churn Risk Alerts</span></td>
-                                    <td><span class="status-access">✓ Predictive Risk AI</span></td>
+                                    <td class="col-popular"><span class="status-access">✓ Engagement Scores & Inactivity Alerts</span></td>
+                                    <td><span class="status-access">✓ Engagement Scores & Inactivity Alerts</span></td>
                                 </tr>
 
                                 <!-- Category 6 -->
@@ -1795,28 +1851,28 @@ function landing_page(): void
                                     <td>Dashboard Analytics & Operational KPIs</td>
                                     <td><span class="dist-pill muted">Basic KPIs</span></td>
                                     <td class="col-popular"><span class="dist-pill sky">Advanced Charts & Trends</span></td>
-                                    <td><span class="dist-pill purple">Branch Comparisons</span></td>
+                                    <td><span class="dist-pill purple">Advanced Charts & Trends</span></td>
                                 </tr>
                                 <tr>
                                     <td>Financial Reports & Data CSV Export</td>
                                     <td><span class="dist-pill muted">Summary Export</span></td>
                                     <td class="col-popular"><span class="dist-pill sky">Advanced Trends & CSV</span></td>
-                                    <td><span class="dist-pill purple">Consolidated Multi-Branch</span></td>
+                                    <td><span class="dist-pill purple">Advanced Trends & CSV</span></td>
                                 </tr>
                                 <tr>
-                                    <td>Activity & Security Audit History</td>
-                                    <td><span class="dist-pill muted">Basic Activity Log</span></td>
-                                    <td class="col-popular"><span class="dist-pill muted">Staff Action History</span></td>
-                                    <td><span class="status-access">✓ Full Immutable Trail</span></td>
+                                    <td>End-of-Day Summary Emails</td>
+                                    <td><span class="status-locked">Locked</span></td>
+                                    <td class="col-popular"><span class="status-locked">Locked</span></td>
+                                    <td><span class="status-access">✓ Available</span></td>
                                 </tr>
                                 <tr>
-                                    <td>Custom App Brand Accent & Theme</td>
+                                    <td>Custom Gym Brand Color</td>
                                     <td><span class="status-locked">🔒 Locked</span></td>
                                     <td class="col-popular"><span class="status-locked">🔒 Locked</span></td>
                                     <td><span class="status-access">✓ Full Access</span></td>
                                 </tr>
                                 <tr>
-                                    <td>Multi-Branch Centralized Portal</td>
+                                    <td>Staff Financial Visibility Controls</td>
                                     <td><span class="status-locked">🔒 Locked</span></td>
                                     <td class="col-popular"><span class="status-locked">🔒 Locked</span></td>
                                     <td><span class="status-access">✓ Full Access</span></td>

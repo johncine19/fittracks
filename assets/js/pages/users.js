@@ -367,7 +367,6 @@ if (FT_USERS_CONFIG.hasOldUser) {
     }
 
     function renderDesktopRow(u, csrfToken) {
-        const roleClass = 'badge badge-' + u.role;
         const statusClass = 'badge badge-' + u.status;
         const roleDisplayName = escapeUserHtml(u.role_display);
 
@@ -392,7 +391,7 @@ if (FT_USERS_CONFIG.hasOldUser) {
             : `<span class="muted">—</span>`;
         const rawUserJson = escapeUserHtml(JSON.stringify(u.raw_user));
         const staffBadge = (u.role === 'trainer' && u.staff_role && u.staff_role !== 'trainer')
-            ? `<span class="badge" style="font-size:10px; margin-left:4px; background:rgba(59,130,246,0.15); color:#93c5fd; border:1px solid rgba(59,130,246,0.3);">${u.staff_role === 'front_desk' ? 'Front Desk' : 'Manager'}</span>`
+            ? `<span class="user-staff-role-text">${u.staff_role === 'front_desk' ? 'Front Desk' : 'Manager'}</span>`
             : '';
 
         return `
@@ -407,7 +406,7 @@ if (FT_USERS_CONFIG.hasOldUser) {
                 </div>
             </td>
             <td style="color:var(--muted)">${escapeUserHtml(u.email)}</td>
-            <td><span class="${roleClass}">${roleDisplayName}</span>${staffBadge}</td>
+            <td><span class="user-role-text">${roleDisplayName}</span>${staffBadge}</td>
             ${IS_ADMIN ? `<td class="user-gym-td">${associatedGymHtml}</td>` : ''}
             ${CURRENT_TAB === 'trainer' ? `<td>${specHtml}</td>` : ''}
             ${CURRENT_TAB === 'member' ? `<td>${scoreHtml}</td>` : ''}
@@ -426,7 +425,7 @@ if (FT_USERS_CONFIG.hasOldUser) {
                         <button type="submit" class="btn-sm btn-ghost">Update</button>
                     </form>
                     <button type="button" class="btn btn-secondary btn-edit-user" data-user="${rawUserJson}" style="padding:4px 8px;font-size:12px;margin-left:8px;">Edit</button>
-                    ${u.is_member ? `
+                    ${!IS_ADMIN && u.is_member ? `
                         <a href="index.php?page=diet_builder&member_user_id=${u.user_id}&ref=users" class="btn btn-secondary" style="padding:4px 8px;font-size:12px;text-decoration:none;display:inline-flex;align-items:center;gap:4px;" title="Manage Diet Plan">
                             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
                             Diet Plan
@@ -442,12 +441,11 @@ if (FT_USERS_CONFIG.hasOldUser) {
     }
 
     function renderMobileCard(u, csrfToken) {
-        const roleClass = 'badge badge-' + u.role;
         const statusClass = 'badge badge-' + u.status;
         const roleDisplayName = escapeUserHtml(u.role_display);
         const rawUserJson = escapeUserHtml(JSON.stringify(u.raw_user));
         const mobileStaffBadge = (u.role === 'trainer' && u.staff_role && u.staff_role !== 'trainer')
-            ? `<span class="badge" style="font-size:10px; background:rgba(59,130,246,0.15); color:#93c5fd; border:1px solid rgba(59,130,246,0.3);">${u.staff_role === 'front_desk' ? 'Front Desk' : 'Manager'}</span>`
+            ? `<span class="user-staff-role-text">${u.staff_role === 'front_desk' ? 'Front Desk' : 'Manager'}</span>`
             : '';
 
         let gymMarkHtml = '';
@@ -471,7 +469,7 @@ if (FT_USERS_CONFIG.hasOldUser) {
                     </div>
                 </div>
                 <div class="user-card-badges">
-                    <span class="${roleClass}">${roleDisplayName}</span>
+                    <span class="user-role-text">${roleDisplayName}</span>
                     ${mobileStaffBadge}
                     <span class="${statusClass}">${escapeUserHtml(u.status)}</span>
                 </div>
@@ -546,7 +544,7 @@ if (FT_USERS_CONFIG.hasOldUser) {
                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
                         Edit
                     </button>
-                    ${u.is_member ? `
+                    ${!IS_ADMIN && u.is_member ? `
                         <a href="index.php?page=diet_builder&member_user_id=${u.user_id}&ref=users" class="btn btn-secondary btn-sm" title="Manage Diet Plan">
                             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
                             Diet

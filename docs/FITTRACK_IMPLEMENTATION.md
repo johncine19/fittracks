@@ -108,7 +108,7 @@ Per the document, this is computed from three inputs:
 - **Gym Owner Control**: Configurable in **Gym Profile** (`pages/admin/gym_profile.php`).
 - **Auto-Detection**: The scanner terminal and walk-in entry forms dynamically detect the gym's configured walk-in fee and pre-fill payment dialogs automatically.
 
-### 7.3 Hierarchical Inactive Member Notifications & Churn Prevention
+### 7.3 Hierarchical Inactive Member Notifications
 To balance platform standardization with gym owner autonomy, the system uses a 2-tier hierarchical configuration:
 
 | Layer | Location | Key Settings | Behavior |

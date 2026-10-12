@@ -304,6 +304,7 @@ video {
     font-size: 0.9375rem;
     color: var(--text-muted);
     font-weight: 500;
+    white-space: nowrap;
 }
 
 .nav-link:hover {
@@ -330,6 +331,7 @@ video {
     display: flex;
     align-items: center;
     gap: 1rem;
+    flex-shrink: 0;
 }
 
 .nav-auth-link {
@@ -337,6 +339,7 @@ video {
     font-weight: 600;
     color: var(--text-muted);
     padding: 0.5rem 0.75rem;
+    white-space: nowrap;
 }
 
 .nav-auth-link:hover {
@@ -355,20 +358,88 @@ video {
     text-decoration: none;
     display: inline-flex;
     align-items: center;
+    white-space: nowrap;
 }
 
 .nav-demo-link:hover {
     color: var(--text-bright);
 }
 
+/* Medium Desktop Responsive Scaling (1025px - 1240px) */
+@media (max-width: 1240px) and (min-width: 1025px) {
+    .nav-menu {
+        gap: clamp(0.75rem, 1.2vw, 1.35rem);
+    }
+    .nav-actions {
+        gap: clamp(0.4rem, 0.8vw, 0.75rem);
+    }
+    .nav-link {
+        font-size: 0.875rem;
+    }
+    .nav-auth-link,
+    .nav-demo-link {
+        font-size: 0.875rem;
+        padding: 0.35rem 0.5rem;
+    }
+    .brand-tagline {
+        display: none;
+    }
+    .nav-actions .btn-sm {
+        padding: 0.45rem 0.85rem;
+        font-size: 0.85rem;
+        white-space: nowrap;
+    }
+}
+
+.nav-mobile-actions {
+    display: none;
+    align-items: center;
+    gap: 0.65rem;
+    flex-shrink: 0;
+}
+
+.mobile-nav-login-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0.42rem 0.95rem;
+    font-size: 0.85rem;
+    font-weight: 700;
+    color: var(--text-bright);
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 8px;
+    text-decoration: none;
+    line-height: 1.2;
+    transition: all var(--transition-fast);
+    white-space: nowrap;
+}
+
+.mobile-nav-login-btn:hover,
+.mobile-nav-login-btn:active {
+    color: var(--accent);
+    border-color: var(--accent);
+    background: rgba(132, 204, 22, 0.12);
+}
+
 .mobile-toggle {
     display: none;
-    background: none;
-    border: none;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 8px;
     color: var(--text-main);
     font-size: 1.6rem;
     cursor: pointer;
-    padding: 0.5rem;
+    padding: 0.42rem 0.55rem;
+    align-items: center;
+    justify-content: center;
+    transition: all var(--transition-fast);
+}
+
+.mobile-toggle:hover,
+.mobile-toggle:active {
+    background: rgba(255, 255, 255, 0.1);
+    border-color: rgba(255, 255, 255, 0.35);
 }
 
 /* Mobile Drawer - Streamlined, sleek SaaS dropdown */
@@ -1485,7 +1556,30 @@ video {
     line-height: 1.55;
 }
 
-/* ==========================================================================
+/* Mobile onboarding cards reveal from alternating sides as they enter view. */
+@media (max-width: 767px) and (prefers-reduced-motion: no-preference) {
+    .steps-grid .step-card.step-card-scroll-reveal {
+        opacity: 0;
+        transition: opacity 2200ms ease, transform 2200ms cubic-bezier(0.16, 1, 0.3, 1);
+        will-change: opacity, transform;
+    }
+
+    .steps-grid .step-card.step-card-from-right {
+        transform: translate3d(100px, 0, 0);
+    }
+
+    .steps-grid .step-card.step-card-from-left {
+        transform: translate3d(-100px, 0, 0);
+    }
+
+    .steps-grid .step-card.step-card-scroll-reveal.step-card-visible {
+        opacity: 1;
+        transform: translate3d(0, 0, 0);
+        will-change: auto;
+    }
+}
+
+/* ========================================================================== 
    10. USER TYPES EXPERIENCE
    ========================================================================== */
 .users-section {
@@ -3495,6 +3589,30 @@ video {
         display: none !important;
     }
 
+    .saas-nav {
+        height: 68px;
+    }
+
+    .saas-nav .nav-menu,
+    .saas-nav .nav-actions {
+        display: none !important;
+    }
+
+    .nav-mobile-actions {
+        display: flex !important;
+    }
+
+    .mobile-toggle {
+        display: flex !important;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .mobile-drawer {
+        top: 68px;
+        max-height: calc(100dvh - 68px);
+    }
+
     .hero-section {
         padding-top: 105px;
         padding-bottom: 50px;
@@ -3633,6 +3751,10 @@ video {
     .saas-nav .nav-menu,
     .saas-nav .nav-actions {
         display: none !important;
+    }
+
+    .nav-mobile-actions {
+        display: flex !important;
     }
 
     .mobile-toggle {
@@ -6381,11 +6503,20 @@ video {
 @media (max-width: 768px) {
     .pricing-grid {
         align-items: stretch !important;
+        gap: 1rem !important;
+        padding-left: 1rem !important;
+        padding-right: 1rem !important;
+        scroll-padding-left: 1rem !important;
+        scroll-padding-right: 1rem !important;
     }
 
     .pricing-card {
+        flex: 0 0 calc(100vw - 2rem) !important;
+        width: calc(100vw - 2rem) !important;
+        max-width: calc(100vw - 2rem) !important;
         align-self: stretch;
         height: auto;
+        scroll-snap-align: start !important;
     }
 
     .plan-card-actions {
@@ -6432,5 +6563,194 @@ video {
 
     .skip-trial-link {
         text-align: center;
+    }
+}
+
+
+/* ==========================================================================
+   PARALLAX SCROLLING
+   --------------------------------------------------------------------------
+   Depth planes (driven by the parallax engine at the bottom of landing.js):
+     • Background photos   → move SLOWER than the page   (hero, showcase, CTA)
+     • Hero laptop mockup  → moves slightly FASTER       (desktop only)
+     • Soft glow orbs      → drift at their own pace     (features, how, users, pricing)
+     • Feature photos      → drift inside their frames   (desktop only)
+
+   Photos are no longer CSS backgrounds on the section itself. Each one is a
+   oversized `.parallax-layer` child, and the dark readability overlay is a
+   static ::before on the section so text contrast never changes while the
+   photo moves underneath it.
+
+   Responsive rules: effect strength is halved at <= 1024px and the
+   desktop-only effects switch off. Touch devices use transforms (never
+   background-attachment: fixed, which breaks on iOS).
+   prefers-reduced-motion turns everything off.
+   ========================================================================== */
+
+.parallax-layer {
+    position: absolute;
+    left: 0;
+    right: 0;
+    z-index: 0;
+    pointer-events: none;
+    background-repeat: no-repeat;
+    background-size: cover;
+    background-position: center;
+    will-change: transform;
+    transform: translate3d(0, 0, 0);
+    backface-visibility: hidden;
+    -webkit-backface-visibility: hidden;
+}
+
+/* ── Hero ───────────────────────────────────────────────────────────────── */
+.hero-section {
+    background: var(--bg-dark);
+    isolation: isolate;
+}
+
+/* Extra height at the bottom gives the photo room to lag behind the scroll. */
+.hero-bg {
+    top: 0;
+    bottom: -32%;
+    background-image: url('landing/hero_gym.png');
+    background-position: center 54%;
+}
+
+.hero-section::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    pointer-events: none;
+    background:
+        linear-gradient(90deg, rgba(6, 9, 11, .96) 0%, rgba(6, 9, 11, .84) 42%, rgba(6, 9, 11, .40) 100%),
+        linear-gradient(0deg, rgba(6, 9, 11, .82), transparent 44%);
+}
+
+.hero-section > .container {
+    position: relative;
+    z-index: 2;
+}
+
+@media (max-width: 1024px) {
+    .hero-section::before {
+        background: linear-gradient(180deg, rgba(6, 9, 11, .72), rgba(6, 9, 11, .9));
+    }
+}
+
+/* ── Product showcase ───────────────────────────────────────────────────── */
+.showcase-section {
+    position: relative;
+    overflow: hidden;
+    isolation: isolate;
+    background: var(--bg-dark);
+}
+
+.showcase-bg {
+    top: -18%;
+    bottom: -18%;
+    background-image: url('landing/gym_equipment.png');
+}
+
+/* Darker at the edges so it blends into neighbouring sections, lighter in the
+   middle so the photo (and its parallax) is actually visible. */
+.showcase-section::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    pointer-events: none;
+    background: linear-gradient(180deg,
+        rgba(8, 10, 12, .96) 0%,
+        rgba(8, 10, 12, .80) 30%,
+        rgba(8, 10, 12, .80) 70%,
+        rgba(8, 10, 12, .96) 100%);
+}
+
+.showcase-section > .container {
+    position: relative;
+    z-index: 2;
+}
+
+/* ── Final call-to-action ───────────────────────────────────────────────── */
+.cta-box {
+    position: relative;
+    overflow: hidden;
+    isolation: isolate;
+    background: var(--bg-card);
+}
+
+.cta-bg {
+    top: -25%;
+    bottom: -25%;
+    background-image: url('landing/hero_gym.png');
+}
+
+.cta-box::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    pointer-events: none;
+    background: linear-gradient(135deg, rgba(14, 17, 23, .80) 0%, rgba(21, 25, 34, .90) 100%);
+}
+
+.cta-box > *:not(.parallax-layer) {
+    position: relative;
+    z-index: 2;
+}
+
+/* ── Soft depth orbs ────────────────────────────────────────────────────── */
+.has-parallax-orbs {
+    position: relative;
+}
+
+.has-parallax-orbs > .container {
+    position: relative;
+    z-index: 1;
+}
+
+/* The wrapper clips the orbs so they can never cause sideways scrolling. */
+.parallax-orbs {
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    overflow: hidden;
+    pointer-events: none;
+}
+
+.parallax-orb {
+    position: absolute;
+    display: block;
+    width: clamp(260px, 42vw, 560px);
+    aspect-ratio: 1 / 1;
+    border-radius: 50%;
+    will-change: transform;
+}
+
+.orb-lime {
+    top: 6%;
+    left: -14%;
+    background: radial-gradient(circle, rgba(132, 204, 22, .14) 0%, rgba(132, 204, 22, 0) 68%);
+}
+
+.orb-sky {
+    bottom: 4%;
+    right: -16%;
+    background: radial-gradient(circle, rgba(56, 189, 248, .10) 0%, rgba(56, 189, 248, 0) 68%);
+}
+
+/* ── Feature photos drifting inside their frames ────────────────────────── */
+.feature-media-photo[data-parallax] {
+    will-change: transform;
+}
+
+/* ── Accessibility: no motion for people who ask for none ───────────────── */
+@media (prefers-reduced-motion: reduce) {
+    [data-parallax],
+    .parallax-layer,
+    .parallax-orb {
+        transform: none !important;
+        will-change: auto !important;
     }
 }

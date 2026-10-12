@@ -275,6 +275,29 @@
                 });
             }
 
+            const coverInput = document.getElementById('cover-image-input');
+            const coverPreview = document.getElementById('public-cover-preview-img');
+            const coverPlaceholder = document.getElementById('public-cover-placeholder');
+            if (coverInput && coverPreview) {
+                coverInput.addEventListener('change', function() {
+                    const file = this.files && this.files[0];
+                    if (!file) return;
+                    if (file.size > 10 * 1024 * 1024) {
+                        Swal.fire('File Too Large', 'Please select a cover image under 10MB.', 'warning');
+                        this.value = '';
+                        return;
+                    }
+                    const reader = new FileReader();
+                    reader.onload = function(event) {
+                        coverPreview.src = event.target.result;
+                        coverPreview.hidden = false;
+                        if (coverPlaceholder) coverPlaceholder.hidden = true;
+                    };
+                    reader.readAsDataURL(file);
+                    markDirty();
+                });
+            }
+
             function setupDragDrop(zone, input) {
                 if (!zone || !input) return;
                 ['dragenter', 'dragover'].forEach(eventName => {

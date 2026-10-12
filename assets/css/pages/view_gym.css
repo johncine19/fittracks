@@ -28,6 +28,31 @@
         opacity: 0.9;
         box-shadow: 0 0 14px color-mix(in srgb, var(--gym-brand, #84cc16) 45%, transparent);
     }
+    .gym-hero-card::before {
+        z-index: 2;
+    }
+    .gym-hero-cover {
+        position: absolute;
+        inset: 0;
+        z-index: 0;
+        overflow: hidden;
+    }
+    .gym-hero-cover::after {
+        content: '';
+        position: absolute;
+        inset: 0;
+        background: linear-gradient(90deg, rgba(7, 10, 14, 0.93), rgba(7, 10, 14, 0.68) 58%, rgba(7, 10, 14, 0.35));
+    }
+    .gym-hero-cover img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        object-position: center;
+    }
+    .gym-hero-card > :not(.gym-hero-cover) {
+        position: relative;
+        z-index: 1;
+    }
     .gym-hero-top {
         display: flex;
         justify-content: space-between;
@@ -104,6 +129,14 @@
         font-size: 13px;
         color: var(--muted);
         margin-top: 6px;
+    }
+    .gym-public-description {
+        max-width: 680px;
+        margin: 12px 0 0;
+        color: rgba(255, 255, 255, 0.82);
+        font-size: 14px;
+        line-height: 1.6;
+        white-space: normal;
     }
     .gym-meta-item {
         display: inline-flex;
@@ -1178,5 +1211,196 @@
         .gym-hero-profile {
             flex-direction: column;
             align-items: flex-start;
+        }
+    }
+
+    /* Editorial layout used when a member opens a gym from selection. */
+    .gym-selection-showcase {
+        max-width: 1040px;
+        margin-left: auto;
+        margin-right: auto;
+    }
+    .gym-selection-showcase .gym-hero-card {
+        min-height: 300px;
+        display: flex;
+        flex-direction: column;
+        justify-content: flex-end;
+        background-color: #10151b;
+        background-image: linear-gradient(90deg, rgba(7, 10, 14, 0.94) 0%, rgba(7, 10, 14, 0.78) 52%, rgba(7, 10, 14, 0.34) 100%), var(--gym-cover-image, none);
+        background-size: cover;
+        background-position: center;
+        border-color: color-mix(in srgb, var(--gym-brand) 35%, transparent);
+        padding: 26px 30px;
+    }
+    .gym-selection-showcase .gym-hero-card::before {
+        height: 3px;
+    }
+    .gym-selection-back-link {
+        position: absolute;
+        top: 20px;
+        left: 24px;
+        z-index: 2;
+        display: inline-flex;
+        align-items: center;
+        gap: 7px;
+        color: rgba(255, 255, 255, 0.82);
+        text-decoration: none;
+        font-size: 13px;
+        font-weight: 650;
+    }
+    .gym-selection-back-link:hover {
+        color: var(--gym-brand);
+    }
+    .gym-selection-kicker {
+        color: var(--gym-brand);
+        font-size: 11px;
+        font-weight: 800;
+        letter-spacing: 0.18em;
+        text-transform: uppercase;
+        margin: 4px 0 12px;
+    }
+    .gym-selection-showcase .gym-hero-profile {
+        align-items: flex-end;
+    }
+    .gym-selection-showcase .gym-avatar-box {
+        width: 72px;
+        height: 72px;
+        border-radius: 18px;
+        background: rgba(12, 16, 20, 0.76);
+        backdrop-filter: blur(8px);
+    }
+    .gym-selection-showcase .gym-hero-title {
+        font-size: clamp(30px, 4vw, 46px);
+        letter-spacing: -0.035em;
+    }
+    .gym-selection-showcase .gym-hero-meta-row {
+        color: rgba(255, 255, 255, 0.76);
+    }
+    .gym-selection-showcase .gym-panel-box {
+        background: transparent;
+        border: 0;
+        border-top: 1px solid var(--line);
+        border-radius: 0;
+        box-shadow: none;
+        padding: 24px 4px;
+    }
+    .gym-selection-showcase .gym-panel-box:hover {
+        border-color: var(--line);
+    }
+    .gym-selection-showcase .gym-section-title {
+        font-size: 20px;
+    }
+    .gym-selection-showcase .gym-plan-card {
+        border-radius: 12px;
+    }
+    .gym-selection-sticky-action {
+        display: none;
+    }
+
+    [data-theme="light"] .gym-selection-showcase .gym-hero-card {
+        background-color: #10151b !important;
+        background-image: linear-gradient(90deg, rgba(7, 10, 14, 0.94) 0%, rgba(7, 10, 14, 0.78) 52%, rgba(7, 10, 14, 0.34) 100%), var(--gym-cover-image, none) !important;
+        border-color: color-mix(in srgb, var(--gym-brand) 35%, transparent) !important;
+    }
+    [data-theme="light"] .gym-selection-showcase .gym-panel-box {
+        background: transparent !important;
+        border: 0 !important;
+        border-top: 1px solid #e2e8f0 !important;
+        border-radius: 0 !important;
+        box-shadow: none !important;
+    }
+    [data-theme="light"] .gym-hero-card .gym-public-description {
+        color: var(--muted);
+    }
+    [data-theme="light"] .gym-hero-card:has(.gym-hero-cover) .gym-public-description {
+        color: rgba(255, 255, 255, 0.84);
+    }
+    [data-theme="light"] .gym-selection-showcase .gym-public-description {
+        color: rgba(255, 255, 255, 0.84);
+    }
+
+    @media (max-width: 768px) {
+        .gym-selection-showcase {
+            padding-bottom: 84px;
+        }
+        .gym-selection-showcase .gym-hero-card {
+            min-height: 290px;
+            padding: 24px 18px 20px;
+            background-position: center;
+        }
+        .gym-selection-showcase .gym-hero-profile {
+            align-items: flex-start;
+        }
+        .gym-selection-showcase .gym-hero-actions form {
+            display: none;
+        }
+        .gym-selection-back-link {
+            top: 17px;
+            left: 17px;
+        }
+        .gym-selection-kicker {
+            margin-top: 28px;
+        }
+        .gym-selection-showcase .gym-hero-title {
+            font-size: 30px;
+        }
+        .gym-selection-showcase .gym-panel-box {
+            padding: 21px 0;
+        }
+        .gym-selection-sticky-action {
+            position: fixed;
+            z-index: 100;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 14px;
+            padding: 12px 16px calc(12px + env(safe-area-inset-bottom));
+            background: color-mix(in srgb, var(--panel) 94%, transparent);
+            border-top: 1px solid var(--line);
+            backdrop-filter: blur(16px);
+        }
+        .gym-selection-sticky-copy {
+            display: flex;
+            flex-direction: column;
+            gap: 3px;
+            min-width: 0;
+        }
+        .gym-selection-sticky-copy strong {
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            color: var(--ink);
+            font-size: 13px;
+        }
+        .gym-selection-sticky-copy span {
+            color: var(--muted);
+            font-size: 11px;
+        }
+        .gym-selection-sticky-action form {
+            flex: 0 0 auto;
+            margin: 0;
+        }
+        .gym-selection-sticky-action .btn-action-primary {
+            min-height: 42px;
+            padding: 0 15px;
+            white-space: nowrap;
+        }
+    }
+
+    @media (max-width: 400px) {
+        .gym-selection-sticky-copy span {
+            display: none;
+        }
+        .gym-selection-sticky-action {
+            gap: 8px;
+            padding-left: 12px;
+            padding-right: 12px;
+        }
+        .gym-selection-sticky-action .btn-action-primary {
+            padding: 0 11px;
+            font-size: 12px;
         }
     }

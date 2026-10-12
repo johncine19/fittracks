@@ -112,6 +112,79 @@ function reports_page(): void
     $isPlatformAdmin = $user['role'] === 'platform_admin';
     $isStaffRestricted = is_staff_financials_restricted($user);
     
+    // AJAX Hybrid Live Search Endpoint for Gym Partners
+    if (($_GET['action'] ?? post('action')) === 'search_gyms') {
+        if (ob_get_level()) ob_clean();
+        header('Content-Type: application/json');
+
+        if (!$isPlatformAdmin) {
+            echo json_encode(['success' => false, 'error' => 'Unauthorized']);
+            exit;
+        }
+
+        $q = trim((string)($_GET['q'] ?? post('q') ?? ''));
+
+        // System scope options
+        $systemItems = [
+            ['id' => 'platform', 'label' => 'FitTrack Platform (SaaS Revenue)'],
+            ['id' => 'all', 'label' => 'All Gyms (Global Ecosystem)']
+        ];
+
+        $matchedSystem = [];
+        if ($q === '') {
+            $matchedSystem = $systemItems;
+        } else {
+            foreach ($systemItems as $sys) {
+                if (stripos($sys['label'], $q) !== false) {
+                    $matchedSystem[] = $sys;
+                }
+            }
+        }
+
+        // Search approved partner gyms
+        $sql = "SELECT gym_id, name, location FROM gyms WHERE status = 'approved'";
+        $params = [];
+        if ($q !== '') {
+            $sql .= " AND (name LIKE ? OR location LIKE ?)";
+            $pattern = '%' . $q . '%';
+            $params[] = $pattern;
+            $params[] = $pattern;
+        }
+        $sql .= " ORDER BY name ASC LIMIT 100";
+
+        $stmt = $pdo->prepare($sql);
+        $stmt->execute($params);
+        $gymRows = $stmt->fetchAll();
+
+        $results = [];
+        foreach ($matchedSystem as $sys) {
+            $results[] = $sys;
+        }
+
+        if (!empty($gymRows)) {
+            $headerLabel = ($q !== '') ? 'Matching Gym Facilities (' . count($gymRows) . ')' : 'Partner Gym Facilities';
+            $results[] = [
+                'id' => '',
+                'label' => $headerLabel,
+                'isHeader' => true
+            ];
+            foreach ($gymRows as $g) {
+                $results[] = [
+                    'id' => (string)$g['gym_id'],
+                    'label' => (string)$g['name'],
+                    'subtitle' => !empty($g['location']) ? (string)$g['location'] : ''
+                ];
+            }
+        }
+
+        echo json_encode([
+            'success' => true,
+            'count' => count($gymRows),
+            'results' => $results
+        ]);
+        exit;
+    }
+
     $gymId = null;
     $currentGymName = 'FitTrack Platform';
     if (!$isPlatformAdmin) {
@@ -121,24 +194,66 @@ function reports_page(): void
         }
     }
 
-    $selectedGymId = 'all';
+    $selectedGymId = 'platform';
     $approvedGyms = [];
     if ($isPlatformAdmin) {
         $approvedGyms = query_all("SELECT gym_id, name FROM gyms WHERE status = 'approved' ORDER BY name");
-        if (isset($_GET['gym_id']) && $_GET['gym_id'] !== 'all') {
-            $selectedGymId = (int)$_GET['gym_id'];
-            foreach ($approvedGyms as $g) {
-                if ((int)$g['gym_id'] === $selectedGymId) {
-                    $currentGymName = $g['name'];
-                    break;
+        if (isset($_GET['gym_id'])) {
+            $rawScope = trim((string)$_GET['gym_id']);
+            if ($rawScope === 'all') {
+                $selectedGymId = 'all';
+                $currentGymName = 'All Partner Gyms';
+            } elseif ($rawScope === 'platform') {
+                $selectedGymId = 'platform';
+                $currentGymName = 'FitTrack Platform';
+            } else {
+                $selectedGymId = (int)$rawScope;
+                foreach ($approvedGyms as $g) {
+                    if ((int)$g['gym_id'] === $selectedGymId) {
+                        $currentGymName = $g['name'];
+                        break;
+                    }
                 }
+            }
+        } else {
+            $selectedGymId = 'platform';
+            $currentGymName = 'FitTrack Platform';
+        }
+    }
+
+    $isPlatformScope = $isPlatformAdmin && ($selectedGymId === 'platform');
+    $isGlobalScope   = $isPlatformAdmin && ($selectedGymId === 'all');
+    $isGymSpecific   = !$isPlatformScope && !$isGlobalScope;
+
+    // Prepare Gym Scope items for FitDropdown
+    $gymScopeDropdownItems = [];
+    if ($isPlatformAdmin) {
+        $gymScopeDropdownItems[] = [
+            'id' => 'platform',
+            'label' => 'FitTrack Platform (SaaS Revenue)'
+        ];
+        $gymScopeDropdownItems[] = [
+            'id' => 'all',
+            'label' => 'All Gyms (Global Ecosystem)'
+        ];
+        if (!empty($approvedGyms)) {
+            $gymScopeDropdownItems[] = [
+                'id' => '',
+                'label' => 'Partner Gym Facilities',
+                'isHeader' => true
+            ];
+            foreach ($approvedGyms as $g) {
+                $gymScopeDropdownItems[] = [
+                    'id' => (string)$g['gym_id'],
+                    'label' => $g['name']
+                ];
             }
         }
     }
 
     // Build SQL condition filters
     if ($isPlatformAdmin) {
-        if ($selectedGymId !== 'all') {
+        if ($isGymSpecific) {
             $subRevCondition = 'SELECT DATE(p.payment_date) AS day, DATE_FORMAT(p.payment_date, "%Y-%m") AS month, YEAR(p.payment_date) AS year, p.amount AS revenue 
                 FROM payments p
                 JOIN memberships m ON m.membership_id = p.membership_id
@@ -148,7 +263,8 @@ function reports_page(): void
                 FROM walk_in_transactions WHERE gym_id = ' . (int)$selectedGymId;
             $attendanceCondition = 'SELECT check_in_time, DATE(check_in_time) AS day, DATE_FORMAT(check_in_time, "%Y-%m") AS month, YEAR(check_in_time) AS year FROM attendance WHERE gym_id = ' . (int)$selectedGymId;
             $walkinCondition = 'SELECT DATE(visit_date) AS day, DATE_FORMAT(visit_date, "%Y-%m") AS month, YEAR(visit_date) AS year, amount_paid FROM walk_in_transactions WHERE gym_id = ' . (int)$selectedGymId;
-            $members = query_all('SELECT DISTINCT u.user_id, u.first_name, u.last_name, u.email, u.profile_picture 
+            $members = query_all('SELECT DISTINCT u.user_id, u.first_name, u.last_name, u.email, u.profile_picture,
+                COALESCE((SELECT g.name FROM gyms g WHERE g.gym_id = ' . (int)$selectedGymId . '), "FitTrack") AS gym_name
                 FROM users u 
                 LEFT JOIN gym_members gm ON gm.user_id = u.user_id 
                 LEFT JOIN memberships m ON m.user_id = u.user_id AND m.status = "active" 
@@ -166,7 +282,9 @@ function reports_page(): void
                 FROM walk_in_transactions';
             $attendanceCondition = 'SELECT check_in_time, DATE(check_in_time) AS day, DATE_FORMAT(check_in_time, "%Y-%m") AS month, YEAR(check_in_time) AS year FROM attendance';
             $walkinCondition = 'SELECT DATE(visit_date) AS day, DATE_FORMAT(visit_date, "%Y-%m") AS month, YEAR(visit_date) AS year, amount_paid FROM walk_in_transactions';
-            $members = query_all('SELECT user_id, first_name, last_name, email, profile_picture FROM users WHERE role = "member" AND status = "active"');
+            $members = query_all('SELECT DISTINCT u.user_id, u.first_name, u.last_name, u.email, u.profile_picture,
+                COALESCE((SELECT g.name FROM gym_members gm JOIN gyms g ON g.gym_id = gm.gym_id WHERE gm.user_id = u.user_id LIMIT 1), "Independent") AS gym_name
+                FROM users u WHERE u.role = "member" AND u.status = "active"');
             $activeMembersCount = count($members);
             $mrr = (float) scalar('SELECT COALESCE(SUM(mp.price), 0) FROM memberships m JOIN membership_plans mp ON mp.plan_id = m.plan_id WHERE m.status = "active"');
             $attGymFilter = '1=1';
@@ -182,7 +300,8 @@ function reports_page(): void
             FROM walk_in_transactions WHERE gym_id = ' . (int)$gymId;
         $attendanceCondition = 'SELECT check_in_time, DATE(check_in_time) AS day, DATE_FORMAT(check_in_time, "%Y-%m") AS month, YEAR(check_in_time) AS year FROM attendance WHERE (gym_id = ' . (int)$gymId . ' OR (gym_id IS NULL AND recorded_by = ' . (int)$user['user_id'] . '))';
         $walkinCondition = 'SELECT DATE(visit_date) AS day, DATE_FORMAT(visit_date, "%Y-%m") AS month, YEAR(visit_date) AS year, amount_paid FROM walk_in_transactions WHERE gym_id = ' . (int)$gymId;
-        $members = query_all('SELECT DISTINCT u.user_id, u.first_name, u.last_name, u.email, u.profile_picture 
+        $members = query_all('SELECT DISTINCT u.user_id, u.first_name, u.last_name, u.email, u.profile_picture,
+            COALESCE((SELECT g.name FROM gyms g WHERE g.gym_id = ' . (int)$gymId . '), "FitTrack") AS gym_name
             FROM users u 
             LEFT JOIN gym_members gm ON gm.user_id = u.user_id 
             LEFT JOIN memberships m ON m.user_id = u.user_id AND m.status = "active" 
@@ -198,6 +317,88 @@ function reports_page(): void
     // Executive Financial KPIs (Current Month vs Previous Month)
     $curMonth = date('Y-m');
     $prevMonth = date('Y-m', strtotime('-1 month'));
+
+    // Global SaaS Metrics & Partner Gym Leaderboard
+    $platformSaaSRevenueCurMonth = 0.0;
+    $platformSaaSRevenuePrevMonth = 0.0;
+    $platformSaaSAllTime = 0.0;
+    $platformSaaSMomGrowth = null;
+    $totalApprovedGymsCount = 0;
+    $activeSubscribedGymsCount = 0;
+    $arpg = 0.0;
+    $gymsLeaderboard = [];
+    $saasRawMonthly = [];
+    $saasPlanMix = [];
+    $saasLedger = [];
+
+    if ($isPlatformAdmin) {
+        $saasGymFilter = $isGymSpecific ? 'AND sp.gym_id = ' . (int)$selectedGymId : '';
+
+        $platformSaaSRevenueCurMonth = (float) scalar(
+            "SELECT COALESCE(SUM(amount), 0) FROM gym_subscription_payments sp WHERE sp.status = 'paid' AND sp.payment_date >= DATE_FORMAT(CURDATE(), '%Y-%m-01') $saasGymFilter"
+        );
+        $platformSaaSRevenuePrevMonth = (float) scalar(
+            "SELECT COALESCE(SUM(amount), 0) FROM gym_subscription_payments sp WHERE sp.status = 'paid' AND DATE_FORMAT(sp.payment_date, '%Y-%m') = DATE_FORMAT(DATE_SUB(CURDATE(), INTERVAL 1 MONTH), '%Y-%m') $saasGymFilter"
+        );
+        $platformSaaSAllTime = (float) scalar(
+            "SELECT COALESCE(SUM(amount), 0) FROM gym_subscription_payments sp WHERE sp.status = 'paid' $saasGymFilter"
+        );
+        if ($platformSaaSRevenuePrevMonth > 0) {
+            $platformSaaSMomGrowth = round((($platformSaaSRevenueCurMonth - $platformSaaSRevenuePrevMonth) / $platformSaaSRevenuePrevMonth) * 100, 1);
+        } elseif ($platformSaaSRevenueCurMonth > 0) {
+            $platformSaaSMomGrowth = 100.0;
+        }
+
+        $activeSubscribedGymsCount = (int) scalar("SELECT COUNT(DISTINCT sp.gym_id) FROM gym_subscription_payments sp WHERE sp.status = 'paid' AND sp.end_date >= CURDATE() $saasGymFilter");
+        if ($activeSubscribedGymsCount === 0 && !$isGymSpecific) {
+            $activeSubscribedGymsCount = (int) scalar("SELECT COUNT(*) FROM gyms WHERE status = 'approved' AND subscription_plan IS NOT NULL AND subscription_plan != ''");
+        }
+        $arpg = $activeSubscribedGymsCount > 0 ? round($platformSaaSRevenueCurMonth / $activeSubscribedGymsCount, 2) : 0.0;
+
+        $totalApprovedGymsCount = (int) scalar("SELECT COUNT(*) FROM gyms WHERE status = 'approved'");
+
+        $saasRawMonthly = query_all("SELECT DATE_FORMAT(sp.payment_date, '%Y-%m') AS month, SUM(sp.amount) AS revenue, COUNT(*) AS transactions FROM gym_subscription_payments sp WHERE sp.status = 'paid' $saasGymFilter GROUP BY month ORDER BY month DESC LIMIT 12");
+        $saasPlanMix = query_all("SELECT sp.plan_name, COUNT(*) AS count, COALESCE(SUM(sp.amount), 0) AS revenue FROM gym_subscription_payments sp WHERE sp.status = 'paid' $saasGymFilter GROUP BY sp.plan_name ORDER BY revenue DESC");
+        
+        $saasLedger = query_all("
+            SELECT sp.id, sp.gym_id, sp.owner_user_id, sp.plan_name, sp.amount, sp.billing_cycle, sp.payment_method, sp.status, sp.receipt_number, sp.payment_date, sp.start_date, sp.end_date,
+                   g.name AS gym_name, g.logo_url, u.first_name, u.last_name, u.email
+            FROM gym_subscription_payments sp
+            JOIN gyms g ON g.gym_id = sp.gym_id
+            JOIN users u ON u.user_id = sp.owner_user_id
+            WHERE sp.status = 'paid' $saasGymFilter
+            ORDER BY sp.payment_date DESC LIMIT 50
+        ");
+
+        if ($isGlobalScope || $isPlatformScope) {
+            $gymsLeaderboard = query_all("
+                SELECT g.gym_id, g.name, g.address, g.logo_url, g.brand_color, g.subscription_plan, g.subscription_status,
+                       u.first_name AS owner_first_name, u.last_name AS owner_last_name, u.email AS owner_email,
+                       (SELECT COUNT(DISTINCT gm.user_id) 
+                        FROM gym_members gm 
+                        JOIN users mu ON mu.user_id = gm.user_id 
+                        WHERE gm.gym_id = g.gym_id AND mu.status = 'active') AS active_members,
+                       (SELECT COUNT(*) 
+                        FROM attendance a 
+                        WHERE a.gym_id = g.gym_id AND DATE_FORMAT(a.check_in_time, '%Y-%m') = ?) AS monthly_checkins,
+                       (
+                           COALESCE((SELECT SUM(p.amount) 
+                                     FROM payments p 
+                                     JOIN memberships m ON m.membership_id = p.membership_id 
+                                     JOIN membership_plans mp ON mp.plan_id = m.plan_id 
+                                     WHERE p.status = 'paid' AND mp.gym_id = g.gym_id AND DATE_FORMAT(p.payment_date, '%Y-%m') = ?), 0)
+                           +
+                           COALESCE((SELECT SUM(w.amount_paid) 
+                                     FROM walk_in_transactions w 
+                                     WHERE w.gym_id = g.gym_id AND DATE_FORMAT(w.visit_date, '%Y-%m') = ?), 0)
+                       ) AS monthly_gmv
+                FROM gyms g
+                LEFT JOIN users u ON u.user_id = g.owner_user_id
+                WHERE g.status = 'approved'
+                ORDER BY monthly_gmv DESC, active_members DESC
+            ", [$curMonth, $curMonth, $curMonth]);
+        }
+    }
 
     $curMonthSub = (float) scalar("SELECT COALESCE(SUM(revenue), 0) FROM ($subRevCondition) AS s WHERE s.month = ?", [$curMonth]);
     $curMonthWalk = (float) scalar("SELECT COALESCE(SUM(revenue), 0) FROM ($walkRevCondition) AS w WHERE w.month = ?", [$curMonth]);
@@ -297,18 +498,20 @@ function reports_page(): void
         }
     }
 
-    // Trainer Performance & Commission Leaderboard (Pro / Business feature)
-    $canViewTrainers = $isPlatformAdmin || gym_has_feature('trainer_commissions');
+    // Trainer Performance & Commission Leaderboard (Gym Owner Pro / Business feature only)
+    $canViewTrainers = !$isPlatformAdmin && gym_has_feature('trainer_commissions');
     $trainersList = [];
     $trainerStats = ['total_trainers' => 0, 'total_active_clients' => 0, 'total_paid_commissions' => 0.0];
     if ($canViewTrainers) {
         $trainersList = query_all("
             SELECT tp.trainer_id, tp.specialization, tp.bio,
                    u.user_id, u.first_name, u.last_name, u.email, u.profile_picture,
+                   COALESCE(g.name, 'Independent') AS gym_name,
                    (SELECT COUNT(*) FROM trainer_assignments ta WHERE ta.trainer_id = tp.trainer_id AND ta.status = 'active') as active_clients,
                    (SELECT COALESCE(SUM(tc.amount), 0) FROM trainer_commissions tc WHERE tc.trainer_id = tp.trainer_id AND tc.status = 'paid') as total_commissions
             FROM trainer_profiles tp
             JOIN users u ON u.user_id = tp.user_id
+            LEFT JOIN gyms g ON g.gym_id = tp.gym_id
             $trainerGymFilter
             ORDER BY total_commissions DESC, active_clients DESC
         ");
@@ -319,15 +522,17 @@ function reports_page(): void
         }
     }
 
-    // Engagement Analytics
+    // Engagement Analytics (Gym Owner Pro / Business feature only)
     $categories = ['Highly Engaged' => 0, 'Moderately Engaged' => 0, 'At-Risk' => 0];
     $memberLists = ['Highly Engaged' => [], 'Moderately Engaged' => [], 'At-Risk' => []];
-    foreach ($members as $m) {
-        $score = get_cached_engagement_score((int) $m['user_id']);
-        $cat = get_engagement_category($score);
-        $categories[$cat]++;
-        $m['score'] = $score;
-        $memberLists[$cat][] = $m;
+    if (!$isPlatformAdmin) {
+        foreach ($members as $m) {
+            $score = get_cached_engagement_score((int) $m['user_id']);
+            $cat = get_engagement_category($score);
+            $categories[$cat]++;
+            $m['score'] = $score;
+            $memberLists[$cat][] = $m;
+        }
     }
     
     $engagementData = [
@@ -377,28 +582,38 @@ function reports_page(): void
 
     // Handle AJAX: End-of-Day (Z-Reading) Settlement Data
     if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && post('action') === 'get_eod_data') {
+        header('Content-Type: application/json');
         verify_csrf();
-        $targetGymId = $isPlatformAdmin ? (int)(post('gym_id') ?: ($selectedGymId !== 'all' ? $selectedGymId : 0)) : (int)$gymId;
-        if ($targetGymId <= 0) {
-            echo json_encode(['success' => false, 'error' => 'Please select a specific gym to generate EOD summary.']);
-            exit;
+        try {
+            $targetGymId = $isPlatformAdmin ? (int)(post('gym_id') ?: ($selectedGymId !== 'all' ? $selectedGymId : 0)) : (int)$gymId;
+            if ($targetGymId <= 0) {
+                echo json_encode(['success' => false, 'error' => 'Please select a specific gym to generate EOD summary.']);
+                exit;
+            }
+            $eodData = gym_get_eod_summary($targetGymId);
+            $gymRow = $pdo->query('SELECT name, logo_url, brand_color FROM gyms WHERE gym_id = ' . (int)$targetGymId)->fetch(PDO::FETCH_ASSOC);
+            echo json_encode(['success' => true, 'data' => $eodData, 'gym' => $gymRow]);
+        } catch (Throwable $e) {
+            echo json_encode(['success' => false, 'error' => 'Unable to compute settlement summary: ' . $e->getMessage()]);
         }
-        $eodData = gym_get_eod_summary($targetGymId);
-        $gymRow = $pdo->query('SELECT name, logo_url, brand_color FROM gyms WHERE gym_id = ' . (int)$targetGymId)->fetch(PDO::FETCH_ASSOC);
-        echo json_encode(['success' => true, 'data' => $eodData, 'gym' => $gymRow]);
         exit;
     }
 
     // Handle AJAX: Send End-of-Day Email to Owner
     if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && post('action') === 'send_eod_email') {
+        header('Content-Type: application/json');
         verify_csrf();
-        $targetGymId = $isPlatformAdmin ? (int)(post('gym_id') ?: ($selectedGymId !== 'all' ? $selectedGymId : 0)) : (int)$gymId;
-        if ($targetGymId <= 0) {
-            echo json_encode(['success' => false, 'error' => 'Please select a specific gym.']);
-            exit;
+        try {
+            $targetGymId = $isPlatformAdmin ? (int)(post('gym_id') ?: ($selectedGymId !== 'all' ? $selectedGymId : 0)) : (int)$gymId;
+            if ($targetGymId <= 0) {
+                echo json_encode(['success' => false, 'error' => 'Please select a specific gym.']);
+                exit;
+            }
+            $sent = gym_send_eod_summary_email($targetGymId, null, true);
+            echo json_encode(['success' => $sent, 'message' => $sent ? 'Daily Settlement summary dispatched to owner email!' : 'Unable to dispatch email. Please check your SMTP settings.']);
+        } catch (Throwable $e) {
+            echo json_encode(['success' => false, 'error' => 'Failed to dispatch email: ' . $e->getMessage()]);
         }
-        $sent = gym_send_eod_summary_email($targetGymId, null, true);
-        echo json_encode(['success' => $sent, 'message' => $sent ? 'Daily Settlement summary dispatched to owner email!' : 'Unable to dispatch email. Please check your SMTP settings.']);
         exit;
     }
 
@@ -506,7 +721,42 @@ function reports_page(): void
             $gymForPrint = $pdo->query('SELECT * FROM gyms WHERE gym_id = ' . (int)$selectedGymId)->fetch(PDO::FETCH_ASSOC);
         }
 
-        if ($type === 'engagement') handle_export($type, $format, $engagementData, $gymForPrint);
+        if ($type === 'gyms' && $isGlobalScope) {
+            $exportRows = [];
+            foreach ($gymsLeaderboard as $idx => $g) {
+                $exportRows[] = [
+                    'Rank' => $idx + 1,
+                    'Gym Name' => $g['name'],
+                    'Owner' => $g['owner_first_name'] . ' ' . $g['owner_last_name'],
+                    'Email' => $g['owner_email'],
+                    'Plan Tier' => $g['subscription_plan'] ?: 'Starter',
+                    'Active Members' => (int)$g['active_members'],
+                    'Monthly Check-Ins' => (int)$g['monthly_checkins'],
+                    'Monthly GMV (PHP)' => number_format((float)$g['monthly_gmv'], 2, '.', '')
+                ];
+            }
+            handle_export('gym_network_leaderboard', $format, $exportRows, null);
+        }
+        if ($type === 'platform_saas' && $isPlatformAdmin) {
+            $exportRows = [];
+            foreach ($saasLedger as $row) {
+                $exportRows[] = [
+                    'Receipt #' => $row['receipt_number'] ?: ('SUB-' . $row['id']),
+                    'Payment Date' => date('Y-m-d H:i', strtotime($row['payment_date'])),
+                    'Gym Name' => $row['gym_name'],
+                    'Owner' => $row['first_name'] . ' ' . $row['last_name'],
+                    'Owner Email' => $row['email'],
+                    'Plan Tier' => $row['plan_name'],
+                    'Billing Cycle' => ucfirst((string)$row['billing_cycle']),
+                    'Payment Method' => strtoupper((string)$row['payment_method']),
+                    'Amount (PHP)' => number_format((float)$row['amount'], 2, '.', ''),
+                    'Active Period' => $row['start_date'] . ' to ' . $row['end_date'],
+                    'Status' => ucfirst((string)$row['status'])
+                ];
+            }
+            handle_export('platform_saas_revenue', $format, $exportRows, $gymForPrint);
+        }
+        if ($type === 'engagement' && !$isPlatformAdmin) handle_export($type, $format, $engagementData, $gymForPrint);
         if ($type === 'revenue') {
             $exportRows = [];
             $key = ($timeframe === 'daily') ? 'day' : (($timeframe === 'monthly') ? 'month' : 'year');
@@ -525,13 +775,17 @@ function reports_page(): void
         if ($type === 'trainers' && $canViewTrainers) {
             $exportRows = [];
             foreach ($trainersList as $t) {
-                $exportRows[] = [
+                $row = [
                     'Trainer' => $t['first_name'] . ' ' . $t['last_name'],
                     'Email' => $t['email'],
-                    'Specialization' => $t['specialization'] ?: 'General',
-                    'Active Trainees' => (int)$t['active_clients'],
-                    'Paid Commissions (PHP)' => number_format((float)$t['total_commissions'], 2, '.', '')
                 ];
+                if ($isGlobalScope) {
+                    $row['Gym Facility'] = $t['gym_name'] ?? 'Independent';
+                }
+                $row['Specialization'] = $t['specialization'] ?: 'General';
+                $row['Active Trainees'] = (int)$t['active_clients'];
+                $row['Paid Commissions (PHP)'] = number_format((float)$t['total_commissions'], 2, '.', '');
+                $exportRows[] = $row;
             }
             handle_export('trainers_commissions', $format, $exportRows, $gymForPrint);
         }
@@ -586,6 +840,41 @@ function reports_page(): void
             'total' => array_sum(array_column($wRev, 'visits'))
         ];
     }
+
+    if ($isPlatformAdmin) {
+        $monthStart = (new DateTime('first day of this month'))->modify('-5 months');
+        $mMap = [];
+        foreach ($saasRawMonthly as $r) {
+            $mMap[$r['month']] = (float)$r['revenue'];
+        }
+        $saasLabels = [];
+        $saasValues = [];
+        for ($i = 0; $i < 6; $i++) {
+            $m = (clone $monthStart)->modify('+' . $i . ' months');
+            $k = $m->format('Y-m');
+            $saasLabels[] = $m->format('M Y');
+            $saasValues[] = $mMap[$k] ?? 0.0;
+        }
+
+        $saasPlanLabels = [];
+        $saasPlanValues = [];
+        foreach ($saasPlanMix as $p) {
+            $saasPlanLabels[] = $p['plan_name'];
+            $saasPlanValues[] = (float)$p['revenue'];
+        }
+        if (empty($saasPlanLabels)) {
+            $saasPlanLabels = ['Starter', 'Professional', 'Business'];
+            $saasPlanValues = [0, 0, 0];
+        }
+
+        $chartsData['platform_saas'] = [
+            'labels' => $saasLabels,
+            'values' => $saasValues,
+            'plan_labels' => $saasPlanLabels,
+            'plan_values' => $saasPlanValues,
+            'total' => array_sum($saasValues)
+        ];
+    }
     $chartsDataJson = json_encode($chartsData);
 
     render_header('Reports & Analytics', $user);
@@ -596,165 +885,367 @@ function reports_page(): void
     <div class="animate-fade-in reports-hero-banner">
         <div>
             <div class="reports-hero-badges">
-                <span class="pill-badge green" style="text-transform: uppercase; letter-spacing: 0.06em;">Professional Analytics</span>
-                <span class="pill-badge neutral" style="color: var(--ink); border-color: rgba(255,255,255,0.15);"><?= h($currentGymName) ?></span>
+                <?php if ($isPlatformScope): ?>
+                    <span class="pill-badge lime" style="color: var(--lime); border-color: rgba(132,204,22,0.3);">FitTrack Platform (SaaS Revenue)</span>
+                <?php elseif ($isGlobalScope): ?>
+                    <span class="pill-badge blue" style="color: #38bdf8; border-color: rgba(56,189,248,0.3);">All Gyms (Global Ecosystem)</span>
+                <?php else: ?>
+                    <span class="pill-badge neutral" style="color: var(--ink); border-color: rgba(255,255,255,0.15);"><?= h($currentGymName) ?></span>
+                <?php endif; ?>
             </div>
             <h1 class="reports-hero-title">
                 <svg viewBox="0 0 24 24" fill="none" stroke="var(--lime)" stroke-width="2"><path d="M21.21 15.89A10 10 0 1 1 8 2.83"></path><path d="M22 12A10 10 0 0 0 12 2v10z"></path></svg>
-                <?= $isPlatformAdmin ? 'Platform Financials & Global Analytics' : 'Gym Financials & Attendance Intelligence' ?>
+                <?php if ($isPlatformScope): ?>
+                    Platform Software Subscriptions & SaaS Financials
+                <?php elseif ($isGlobalScope): ?>
+                    Global Gym Network GMV & Ecosystem Analytics
+                <?php else: ?>
+                    <?= $isPlatformAdmin ? 'Gym Facility Audit: ' . h($currentGymName) : 'Gym Financials & Attendance Intelligence' ?>
+                <?php endif; ?>
             </h1>
             <p class="reports-hero-desc">
-                <?= $isPlatformAdmin ? 'Consolidated multi-stream revenues, check-in rush distribution, and member retention benchmarks across all partner gyms.' : 'Multi-stream revenue tracking, peak rush foot-traffic intelligence, and trainer performance rankings.' ?>
+                <?php if ($isPlatformScope): ?>
+                    Software subscription licensing revenue collected directly from gym owners, tier breakdown, and partner recurring plans.
+                <?php elseif ($isGlobalScope): ?>
+                    Consolidated multi-stream revenues, walk-in day passes, check-in rush distribution, and member retention benchmarks across all partner gyms.
+                <?php else: ?>
+                    Multi-stream revenue tracking, peak rush foot-traffic intelligence, and member attendance patterns for <?= h($currentGymName) ?>.
+                <?php endif; ?>
             </p>
         </div>
         
-        <?php if ($isPlatformAdmin && !empty($approvedGyms)): ?>
+        <?php if ($isPlatformAdmin): ?>
             <div class="no-print reports-hero-scope">
-                <label for="gym-filter" style="color: var(--muted); font-size: 13px; white-space: nowrap;">Gym Scope:</label>
-                <select id="gym-filter" onchange="window.location.href='index.php?page=reports&gym_id='+this.value;" style="background: var(--surface); color: var(--ink); border: 1px solid var(--line); padding: 7px 12px; border-radius: 6px; font-size: 13px; min-width: 180px;">
-                    <option value="all" <?= $selectedGymId === 'all' ? 'selected' : '' ?>>All Gyms (Global Platform)</option>
-                    <?php foreach ($approvedGyms as $g): ?>
-                        <option value="<?= $g['gym_id'] ?>" <?= $selectedGymId === (int)$g['gym_id'] ? 'selected' : '' ?>><?= h($g['name']) ?></option>
-                    <?php endforeach; ?>
-                </select>
+                <label for="gymScopeSelect" style="color: var(--muted); font-size: 13px; white-space: nowrap; font-weight: 600;">Gym Scope:</label>
+                <div id="gymScopeDropdownContainer" class="reports-gym-scope-dropdown-wrap">
+                    <noscript>
+                        <select onchange="window.location.href='index.php?page=reports&gym_id='+this.value;" style="background: var(--surface); color: var(--ink); border: 1px solid var(--line); padding: 8px 14px; border-radius: 8px; font-size: 13.5px; min-width: 230px; cursor: pointer; font-weight: 500;">
+                            <option value="platform" <?= $selectedGymId === 'platform' ? 'selected' : '' ?>>FitTrack Platform (SaaS Revenue)</option>
+                            <option value="all" <?= $selectedGymId === 'all' ? 'selected' : '' ?>>All Gyms (Global Ecosystem)</option>
+                            <?php if (!empty($approvedGyms)): ?>
+                                <optgroup label="Partner Gym Facilities">
+                                    <?php foreach ($approvedGyms as $g): ?>
+                                        <option value="<?= $g['gym_id'] ?>" <?= (is_numeric($selectedGymId) && (int)$selectedGymId === (int)$g['gym_id']) ? 'selected' : '' ?>><?= h($g['name']) ?></option>
+                                    <?php endforeach; ?>
+                                </optgroup>
+                            <?php endif; ?>
+                        </select>
+                    </noscript>
+                </div>
             </div>
         <?php endif; ?>
     </div>
 
+    <?php if ($isPlatformAdmin && $isGymSpecific): ?>
+        <!-- Platform Admin Audit Mode Inspection Banner -->
+        <div class="audit-banner animate-fade-in no-print">
+            <div class="audit-banner-content">
+                <span class="pill-badge purple" style="font-weight: 800; letter-spacing: 0.05em;">AUDIT MODE</span>
+                <div class="audit-banner-text">
+                    Currently inspecting facility reports for <strong><?= h($currentGymName) ?></strong>
+                </div>
+            </div>
+            <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+                <a href="index.php?page=reports&gym_id=platform" class="audit-banner-exit-btn">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"></polyline></svg>
+                    Platform SaaS View
+                </a>
+                <a href="index.php?page=reports&gym_id=all" class="audit-banner-exit-btn" style="background: rgba(255,255,255,0.06); border-color: rgba(255,255,255,0.15);">
+                    All Gyms View
+                </a>
+            </div>
+        </div>
+    <?php endif; ?>
+
     <!-- Executive Financial KPI Summary Cards (Unified, Non-Arbitrary Glassmorphism) -->
     <div class="kpi-grid">
-        <!-- 1. Gross Revenue -->
-        <div class="kpi-card">
-            <div class="kpi-card-header">
-                <span class="kpi-title">Gross Revenue (This Month)</span>
-                <?php if ($isStaffRestricted): ?>
-                    <span class="pill-badge red">🔒 Restricted</span>
-                <?php elseif ($curMonthGross > 0 && $momGrowth !== null): ?>
-                    <?php if ($momGrowth > 0): ?>
-                        <span class="pill-badge green">▲ +<?= number_format($momGrowth, 1) ?>% MoM</span>
-                    <?php elseif ($momGrowth < 0): ?>
-                        <span class="pill-badge red">▼ <?= number_format($momGrowth, 1) ?>% MoM</span>
+        <?php if ($isPlatformScope): ?>
+            <!-- PLATFORM SAAS SCOPE CARDS -->
+            <!-- 1. SaaS Platform Revenue -->
+            <div class="kpi-card">
+                <div class="kpi-card-header">
+                    <span class="kpi-title">FitTracks SaaS Revenue</span>
+                    <?php if ($platformSaaSRevenueCurMonth > 0 && $platformSaaSMomGrowth !== null): ?>
+                        <?php if ($platformSaaSMomGrowth > 0): ?>
+                            <span class="pill-badge green">▲ +<?= number_format($platformSaaSMomGrowth, 1) ?>% MoM</span>
+                        <?php elseif ($platformSaaSMomGrowth < 0): ?>
+                            <span class="pill-badge red">▼ <?= number_format($platformSaaSMomGrowth, 1) ?>% MoM</span>
+                        <?php else: ?>
+                            <span class="pill-badge neutral">0.0% MoM</span>
+                        <?php endif; ?>
                     <?php else: ?>
-                        <span class="pill-badge neutral">0.0% MoM</span>
+                        <span class="pill-badge neutral">This Month</span>
                     <?php endif; ?>
-                <?php else: ?>
-                    <span class="pill-badge neutral">No data</span>
-                <?php endif; ?>
+                </div>
+                <div class="kpi-value">₱<?= number_format($platformSaaSRevenueCurMonth, 2) ?></div>
+                <div class="kpi-sub">
+                    <?php if ($platformSaaSRevenueCurMonth > 0 && $platformSaaSRevenuePrevMonth > 0): ?>
+                        <span>vs. ₱<?= number_format($platformSaaSRevenuePrevMonth, 2) ?> in <?= date('M Y', strtotime('-1 month')) ?></span>
+                    <?php else: ?>
+                        <span>Monthly platform license fees collected from gym owners</span>
+                    <?php endif; ?>
+                </div>
             </div>
-            <?php if ($isStaffRestricted): ?>
-                <div class="kpi-value" style="color: var(--muted); letter-spacing: 2px;">••••••</div>
-                <div class="kpi-sub"><span>Staff Privacy active</span></div>
-            <?php else: ?>
+
+            <!-- 2. All-Time SaaS Revenue Collected -->
+            <div class="kpi-card">
+                <div class="kpi-card-header">
+                    <span class="kpi-title">All-Time SaaS Collected</span>
+                    <span class="pill-badge green">Cumulative</span>
+                </div>
+                <div class="kpi-value">₱<?= number_format($platformSaaSAllTime, 2) ?></div>
+                <div class="kpi-sub">
+                    <span>Total historical software subscription licensing revenue</span>
+                </div>
+            </div>
+
+            <!-- 3. Subscribed Partner Gyms -->
+            <div class="kpi-card">
+                <div class="kpi-card-header">
+                    <span class="kpi-title">Subscribed Partner Gyms</span>
+                    <span class="pill-badge blue"><?= $activeSubscribedGymsCount ?> / <?= $totalApprovedGymsCount ?> Active</span>
+                </div>
+                <div class="kpi-value"><?= number_format($activeSubscribedGymsCount) ?> Gyms</div>
+                <div class="kpi-sub">
+                    <span>Partner fitness facilities on active paid subscription plans</span>
+                </div>
+            </div>
+
+            <!-- 4. Avg SaaS Yield Per Gym (ARPG) -->
+            <div class="kpi-card">
+                <div class="kpi-card-header">
+                    <span class="kpi-title">Avg Revenue Per Gym (ARPG)</span>
+                    <span class="pill-badge neutral">Yield</span>
+                </div>
+                <div class="kpi-value">₱<?= number_format($arpg, 2) ?></div>
+                <div class="kpi-sub">
+                    <span>Average monthly software billing rate per subscribed gym</span>
+                </div>
+            </div>
+
+        <?php elseif ($isGlobalScope): ?>
+            <!-- GLOBAL GYM NETWORK ECOSYSTEM CARDS (GMV & Operations across all gyms) -->
+            <!-- 1. Network GMV Volume -->
+            <div class="kpi-card">
+                <div class="kpi-card-header">
+                    <span class="kpi-title">Network GMV Volume</span>
+                    <span class="pill-badge blue">All Gyms</span>
+                </div>
                 <div class="kpi-value">₱<?= number_format($curMonthGross, 2) ?></div>
-                <div class="kpi-sub">
-                    <?php if ($curMonthGross > 0 && $prevMonthGross > 0): ?>
-                        <span>vs. ₱<?= number_format($prevMonthGross, 2) ?> in <?= date('M Y', strtotime('-1 month')) ?></span>
+                <div class="split-bar-wrap" title="Green: Subscriptions, Blue: Walk-Ins">
+                    <?php if ($curMonthGross > 0): ?>
+                        <div class="split-bar-sub" style="width: <?= max(5, $subSharePct) ?>%;"></div>
+                        <div class="split-bar-walk" style="width: <?= max(5, $walkinSharePct) ?>%;"></div>
                     <?php else: ?>
-                        <span>No transactions logged for <?= date('M Y') ?></span>
+                        <div style="width: 0%;"></div>
                     <?php endif; ?>
                 </div>
-            <?php endif; ?>
-        </div>
-
-        <!-- 2. MRR (Active Subscriptions) -->
-        <div class="kpi-card">
-            <div class="kpi-card-header">
-                <span class="kpi-title">Monthly Recurring (MRR)</span>
-                <?php if ($isStaffRestricted): ?>
-                    <span class="pill-badge red">🔒 Restricted</span>
-                <?php elseif ($mrr > 0): ?>
-                    <span class="pill-badge green">Contracted</span>
-                <?php else: ?>
-                    <span class="pill-badge neutral">0 plans</span>
-                <?php endif; ?>
-            </div>
-            <?php if ($isStaffRestricted): ?>
-                <div class="kpi-value" style="color: var(--muted); letter-spacing: 2px;">••••••</div>
-                <div class="kpi-sub"><span>Staff Privacy active</span></div>
-            <?php else: ?>
-                <div class="kpi-value">₱<?= number_format($mrr, 2) ?></div>
-                <div class="kpi-sub">
-                    <?php if ($mrr > 0): ?>
-                        <span>Contracted active plan subscription value</span>
-                    <?php else: ?>
-                        <span>Activate plans to build recurring subscription revenue</span>
-                    <?php endif; ?>
-                </div>
-            <?php endif; ?>
-        </div>
-
-        <!-- 3. Walk-In Revenue Share -->
-        <div class="kpi-card">
-            <div class="kpi-card-header">
-                <span class="kpi-title">Walk-In vs Subscriptions</span>
-                <?php if ($curMonthGross > 0): ?>
-                    <span class="pill-badge blue"><?= $walkinSharePct ?>% Walk-In</span>
-                <?php else: ?>
-                    <span class="pill-badge neutral">No passes</span>
-                <?php endif; ?>
-            </div>
-            <div class="kpi-value">₱<?= number_format($curMonthWalk, 2) ?></div>
-            <div class="split-bar-wrap" title="Green: Subscriptions, Blue: Walk-Ins">
-                <?php if ($curMonthGross > 0): ?>
-                    <div class="split-bar-sub" style="width: <?= max(5, $subSharePct) ?>%;"></div>
-                    <div class="split-bar-walk" style="width: <?= max(5, $walkinSharePct) ?>%;"></div>
-                <?php else: ?>
-                    <div style="width: 0%;"></div>
-                <?php endif; ?>
-            </div>
-            <div class="kpi-sub" style="justify-content: space-between;">
-                <?php if ($curMonthGross > 0): ?>
+                <div class="kpi-sub" style="justify-content: space-between;">
                     <span style="color: #84cc16;">Subs: ₱<?= number_format($curMonthSub, 0) ?></span>
                     <span style="color: #38bdf8;">Passes: ₱<?= number_format($curMonthWalk, 0) ?></span>
-                <?php else: ?>
-                    <span>No subscriptions or day passes recorded yet</span>
-                <?php endif; ?>
+                </div>
             </div>
-        </div>
 
-        <!-- 4. Average Revenue Per Member (ARPU) -->
-        <div class="kpi-card">
-            <div class="kpi-card-header">
-                <span class="kpi-title">Avg Revenue Per Member</span>
-                <?php if ($activeMembersCount > 0): ?>
-                    <span class="pill-badge green"><?= $activeMembersCount ?> Active</span>
+            <!-- 2. Active Partner Gyms -->
+            <div class="kpi-card">
+                <div class="kpi-card-header">
+                    <span class="kpi-title">Active Partner Gyms</span>
+                    <span class="pill-badge green">Network</span>
+                </div>
+                <div class="kpi-value"><?= $totalApprovedGymsCount ?> Gyms</div>
+                <div class="kpi-sub">
+                    <span>Verified fitness centers operating on FitTracks</span>
+                </div>
+            </div>
+
+            <!-- 3. Network Active Members -->
+            <div class="kpi-card">
+                <div class="kpi-card-header">
+                    <span class="kpi-title">Network Active Members</span>
+                    <span class="pill-badge green"><?= number_format($activeMembersCount) ?> Active</span>
+                </div>
+                <div class="kpi-value"><?= number_format($activeMembersCount) ?></div>
+                <div class="kpi-sub">
+                    <span>Athletes across gyms</span>
+                </div>
+            </div>
+
+            <!-- 4. Network Average Yield (ARPU) -->
+            <div class="kpi-card">
+                <div class="kpi-card-header">
+                    <span class="kpi-title">Network Avg Yield (ARPU)</span>
+                    <span class="pill-badge neutral">Ecosystem</span>
+                </div>
+                <div class="kpi-value">₱<?= number_format($arpu, 2) ?></div>
+                <div class="kpi-sub">
+                    <span>Consolidated monthly yield across active members</span>
+                </div>
+            </div>
+        <?php else: ?>
+            <!-- GYM SPECIFIC OPERATIONAL CARDS (Gym Owner or Platform Admin Inspecting a Gym) -->
+            <!-- 1. Gross Revenue -->
+            <div class="kpi-card">
+                <div class="kpi-card-header">
+                    <span class="kpi-title">Gross Revenue (This Month)</span>
+                    <?php if ($isStaffRestricted): ?>
+                        <span class="pill-badge red">🔒 Restricted</span>
+                    <?php elseif ($curMonthGross > 0 && $momGrowth !== null): ?>
+                        <?php if ($momGrowth > 0): ?>
+                            <span class="pill-badge green">▲ +<?= number_format($momGrowth, 1) ?>% MoM</span>
+                        <?php elseif ($momGrowth < 0): ?>
+                            <span class="pill-badge red">▼ <?= number_format($momGrowth, 1) ?>% MoM</span>
+                        <?php else: ?>
+                            <span class="pill-badge neutral">0.0% MoM</span>
+                        <?php endif; ?>
+                    <?php else: ?>
+                        <span class="pill-badge neutral">No data</span>
+                    <?php endif; ?>
+                </div>
+                <?php if ($isStaffRestricted): ?>
+                    <div class="kpi-value" style="color: var(--muted); letter-spacing: 2px;">••••••</div>
+                    <div class="kpi-sub"><span>Staff Privacy active</span></div>
                 <?php else: ?>
-                    <span class="pill-badge neutral">0 members</span>
+                    <div class="kpi-value">₱<?= number_format($curMonthGross, 2) ?></div>
+                    <div class="kpi-sub">
+                        <?php if ($curMonthGross > 0 && $prevMonthGross > 0): ?>
+                            <span>vs. ₱<?= number_format($prevMonthGross, 2) ?> in <?= date('M Y', strtotime('-1 month')) ?></span>
+                        <?php else: ?>
+                            <span>No transactions logged for <?= date('M Y') ?></span>
+                        <?php endif; ?>
+                    </div>
                 <?php endif; ?>
             </div>
-            <div class="kpi-value"><?= $activeMembersCount > 0 ? '₱' . number_format($arpu, 2) : '—' ?></div>
-            <div class="kpi-sub">
-                <?php if ($activeMembersCount > 0): ?>
-                    <span>Average monthly yield across active members</span>
+
+            <!-- 2. MRR (Active Subscriptions) -->
+            <div class="kpi-card">
+                <div class="kpi-card-header">
+                    <span class="kpi-title">Monthly Recurring (MRR)</span>
+                    <?php if ($isStaffRestricted): ?>
+                        <span class="pill-badge red">🔒 Restricted</span>
+                    <?php elseif ($mrr > 0): ?>
+                        <span class="pill-badge green">Contracted</span>
+                    <?php else: ?>
+                        <span class="pill-badge neutral">0 plans</span>
+                    <?php endif; ?>
+                </div>
+                <?php if ($isStaffRestricted): ?>
+                    <div class="kpi-value" style="color: var(--muted); letter-spacing: 2px;">••••••</div>
+                    <div class="kpi-sub"><span>Staff Privacy active</span></div>
                 <?php else: ?>
-                    <span>Enrolled members will calculate average yield</span>
+                    <div class="kpi-value">₱<?= number_format($mrr, 2) ?></div>
+                    <div class="kpi-sub">
+                        <?php if ($mrr > 0): ?>
+                            <span>Contracted active plan subscription value</span>
+                        <?php else: ?>
+                            <span>Activate plans to build recurring subscription revenue</span>
+                        <?php endif; ?>
+                    </div>
                 <?php endif; ?>
             </div>
-        </div>
+
+            <!-- 3. Walk-In Revenue Share -->
+            <div class="kpi-card">
+                <div class="kpi-card-header">
+                    <span class="kpi-title">Walk-In vs Subscriptions</span>
+                    <?php if ($curMonthGross > 0): ?>
+                        <span class="pill-badge blue"><?= $walkinSharePct ?>% Walk-In</span>
+                    <?php else: ?>
+                        <span class="pill-badge neutral">No passes</span>
+                    <?php endif; ?>
+                </div>
+                <div class="kpi-value">₱<?= number_format($curMonthWalk, 2) ?></div>
+                <div class="split-bar-wrap" title="Green: Subscriptions, Blue: Walk-Ins">
+                    <?php if ($curMonthGross > 0): ?>
+                        <div class="split-bar-sub" style="width: <?= max(5, $subSharePct) ?>%;"></div>
+                        <div class="split-bar-walk" style="width: <?= max(5, $walkinSharePct) ?>%;"></div>
+                    <?php else: ?>
+                        <div style="width: 0%;"></div>
+                    <?php endif; ?>
+                </div>
+                <div class="kpi-sub" style="justify-content: space-between;">
+                    <?php if ($curMonthGross > 0): ?>
+                        <span style="color: #84cc16;">Subs: ₱<?= number_format($curMonthSub, 0) ?></span>
+                        <span style="color: #38bdf8;">Passes: ₱<?= number_format($curMonthWalk, 0) ?></span>
+                    <?php else: ?>
+                        <span>No subscriptions or day passes recorded yet</span>
+                    <?php endif; ?>
+                </div>
+            </div>
+
+            <!-- 4. Average Revenue Per Member (ARPU) -->
+            <div class="kpi-card">
+                <div class="kpi-card-header">
+                    <span class="kpi-title">Avg Revenue Per Member</span>
+                    <?php if ($activeMembersCount > 0): ?>
+                        <span class="pill-badge green"><?= $activeMembersCount ?> Active</span>
+                    <?php else: ?>
+                        <span class="pill-badge neutral">0 members</span>
+                    <?php endif; ?>
+                </div>
+                <div class="kpi-value"><?= $activeMembersCount > 0 ? '₱' . number_format($arpu, 2) : '—' ?></div>
+                <div class="kpi-sub">
+                    <?php if ($activeMembersCount > 0): ?>
+                        <span>Average monthly yield across active members</span>
+                    <?php else: ?>
+                        <span>Enrolled members will calculate average yield</span>
+                    <?php endif; ?>
+                </div>
+            </div>
+        <?php endif; ?>
     </div>
 
     <!-- Navigation Tabs with URL Hash Support -->
     <div class="report-tabs no-print" role="tablist">
-        <button class="report-tab-btn active" data-tab="revenue-tab" onclick="showTab('revenue-tab')">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 19v-14h3.5a4.5 4.5 0 1 1 0 9h-3.5"></path><path d="M6 8h12"></path><path d="M6 11h12"></path></svg>
-            Revenue & Financials
-        </button>
-        <button class="report-tab-btn" data-tab="attendance-tab" onclick="showTab('attendance-tab')">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
-            Attendance & Peak Rush
-        </button>
-        <button class="report-tab-btn" data-tab="walkin-tab" onclick="showTab('walkin-tab')">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"></path><polyline points="13 2 13 9 20 9"></polyline></svg>
-            Walk-In Traffic
-        </button>
-        <button class="report-tab-btn" data-tab="trainers-tab" onclick="showTab('trainers-tab')">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg>
-            Trainers & Commissions <?= (!$isPlatformAdmin && !gym_has_feature('trainer_commissions')) ? '<span style="font-size:10px; color:#f87171; font-weight:700;">🔒 Pro</span>' : '' ?>
-        </button>
-        <button class="report-tab-btn" data-tab="engagement-tab" onclick="showTab('engagement-tab')">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"></path></svg>
-            Member Engagement <?= (!$isPlatformAdmin && !gym_has_feature('engagement_tracking')) ? '<span style="font-size:10px; color:#f87171; font-weight:700;">🔒 Pro</span>' : '' ?>
-        </button>
+        <?php if ($isPlatformScope): ?>
+            <button class="report-tab-btn active" data-tab="platform-saas-tab" onclick="showTab('platform-saas-tab')">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2L2 7l10 5 10-5-10-5z"></path><path d="M2 17l10 5 10-5"></path><path d="M2 12l10 5 10-5"></path></svg>
+                Platform SaaS Revenue
+            </button>
+            <button class="report-tab-btn" data-tab="gyms-tab" onclick="showTab('gyms-tab')">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 21h18"></path><path d="M5 21V7l8-4v18"></path><path d="M19 21V11l-6-3"></path><path d="M9 9v.01"></path><path d="M9 12v.01"></path><path d="M9 15v.01"></path><path d="M9 18v.01"></path></svg>
+                Gym Network Leaderboard
+            </button>
+        <?php elseif ($isGlobalScope): ?>
+            <button class="report-tab-btn active" data-tab="revenue-tab" onclick="showTab('revenue-tab')">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 19v-14h3.5a4.5 4.5 0 1 1 0 9h-3.5"></path><path d="M6 8h12"></path><path d="M6 11h12"></path></svg>
+                Gym Network Revenue
+            </button>
+            <button class="report-tab-btn" data-tab="gyms-tab" onclick="showTab('gyms-tab')">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 21h18"></path><path d="M5 21V7l8-4v18"></path><path d="M19 21V11l-6-3"></path><path d="M9 9v.01"></path><path d="M9 12v.01"></path><path d="M9 15v.01"></path><path d="M9 18v.01"></path></svg>
+                Gym Network Leaderboard
+            </button>
+            <button class="report-tab-btn" data-tab="attendance-tab" onclick="showTab('attendance-tab')">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
+                Attendance & Peak Rush
+            </button>
+            <button class="report-tab-btn" data-tab="walkin-tab" onclick="showTab('walkin-tab')">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"></path><polyline points="13 2 13 9 20 9"></polyline></svg>
+                Walk-In Traffic
+            </button>
+        <?php else: ?>
+            <button class="report-tab-btn active" data-tab="revenue-tab" onclick="showTab('revenue-tab')">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 19v-14h3.5a4.5 4.5 0 1 1 0 9h-3.5"></path><path d="M6 8h12"></path><path d="M6 11h12"></path></svg>
+                Revenue & Financials
+            </button>
+            <button class="report-tab-btn" data-tab="attendance-tab" onclick="showTab('attendance-tab')">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
+                Attendance & Peak Rush
+            </button>
+            <button class="report-tab-btn" data-tab="walkin-tab" onclick="showTab('walkin-tab')">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"></path><polyline points="13 2 13 9 20 9"></polyline></svg>
+                Walk-In Traffic
+            </button>
+            <?php if (!$isPlatformAdmin): ?>
+            <button class="report-tab-btn" data-tab="trainers-tab" onclick="showTab('trainers-tab')">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg>
+                Trainers & Commissions <?= !gym_has_feature('trainer_commissions') ? '<span style="font-size:10px; color:#f87171; font-weight:700;">🔒 Pro</span>' : '' ?>
+            </button>
+            <button class="report-tab-btn" data-tab="engagement-tab" onclick="showTab('engagement-tab')">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"></path></svg>
+                Member Engagement <?= !gym_has_feature('engagement_tracking') ? '<span style="font-size:10px; color:#f87171; font-weight:700;">🔒 Pro</span>' : '' ?>
+            </button>
+            <?php endif; ?>
+        <?php endif; ?>
     </div>
 
     <!-- Mobile Tab Dropdown Selector (Visible on Mobile Only, using FitDropdown) -->
@@ -766,6 +1257,225 @@ function reports_page(): void
         <div id="mobileReportTabDropdown"></div>
     </div>
 
+    <?php if ($isPlatformScope): ?>
+    <!-- ==================== TAB 0: PLATFORM SAAS REVENUE ==================== -->
+    <div id="platform-saas-tab" class="tab-content animate-fade-in" style="display:block;">
+        <div class="panel report-panel" style="border-radius: 16px; padding: 26px; margin-bottom: 24px;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 22px; flex-wrap: wrap; gap: 14px;">
+                <div>
+                    <h2 style="margin:0 0 4px 0; font-size: 20px;">FitTrack Platform Subscription Revenue</h2>
+                    <p style="margin:0; color:var(--muted); font-size:13.5px;">
+                        Recurring SaaS software licenses collected directly from gym owners across the platform.
+                    </p>
+                </div>
+                <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+                    <a href="index.php?page=reports&type=platform_saas<?= $isGymSpecific ? '&gym_id=' . (int)$selectedGymId : '' ?>&export=csv" class="export-btn" style="background: var(--surface); color: var(--ink); border-color: var(--line);">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+                        Export CSV
+                    </a>
+                    <a href="index.php?page=reports&type=platform_saas<?= $isGymSpecific ? '&gym_id=' . (int)$selectedGymId : '' ?>&export=print" target="_blank" class="export-btn" style="background: var(--surface); color: var(--ink); border-color: var(--line);">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 6 2 18 2 18 9"></polyline><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path><rect x="6" y="14" width="12" height="8"></rect></svg>
+                        Print / PDF
+                    </a>
+                </div>
+            </div>
+
+            <!-- SaaS Charts Grid -->
+            <div class="dash-grid" style="grid-template-columns: 2fr 1fr; gap: 20px; margin-bottom: 24px;" id="platform-saas-charts-grid">
+                <!-- SaaS Revenue Trend -->
+                <div class="report-card-box" style="padding: 20px;">
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 16px;">
+                        <div>
+                            <h3 style="margin:0 0 2px 0; font-size: 15px; font-weight: 800;">Platform SaaS Revenue Trend</h3>
+                            <p style="margin:0; font-size: 12px; color:var(--muted);">Monthly subscription fees collected from gym owners (last 6 months)</p>
+                        </div>
+                    </div>
+                    <div class="chart-canvas" style="height: 280px; position: relative;">
+                        <canvas id="platformSaaSChart"></canvas>
+                    </div>
+                </div>
+
+                <!-- Plan Tier Mix -->
+                <div class="report-card-box" style="padding: 20px;">
+                    <h3 style="margin:0 0 2px 0; font-size: 15px; font-weight: 800;">SaaS Tier Distribution</h3>
+                    <p style="margin:0 0 16px 0; font-size: 12px; color:var(--muted);">Revenue share by subscription tier</p>
+                    <div class="chart-canvas" style="height: 200px; position: relative;">
+                        <canvas id="platformSaaSMixChart"></canvas>
+                    </div>
+                    <div style="margin-top: 14px; display: flex; flex-direction: column; gap: 6px; font-size: 12px;">
+                        <?php if (empty($saasPlanMix)): ?>
+                            <div style="color: var(--muted); padding: 8px 0; text-align: center;">No tier revenue recorded.</div>
+                        <?php else: ?>
+                            <?php foreach ($saasPlanMix as $idx => $p): 
+                                $badgeColor = match(strtolower((string)$p['plan_name'])) {
+                                    'starter' => '#38bdf8',
+                                    'professional', 'pro' => '#a855f7',
+                                    'business', 'enterprise' => '#f59e0b',
+                                    default => '#84cc16'
+                                };
+                            ?>
+                                <div style="display:flex; justify-content:space-between; align-items:center; padding: 4px 0; border-bottom: 1px solid var(--line);">
+                                    <span style="display:inline-flex; align-items:center; gap: 6px;">
+                                        <span style="width: 8px; height: 8px; border-radius: 50%; background: <?= $badgeColor ?>;"></span>
+                                        <strong><?= h($p['plan_name']) ?></strong> (<?= (int)$p['count'] ?>)
+                                    </span>
+                                    <span style="font-weight: 700; color: var(--ink);">₱<?= number_format((float)$p['revenue'], 2) ?></span>
+                                </div>
+                            <?php endforeach; ?>
+                        <?php endif; ?>
+                    </div>
+                </div>
+            </div>
+
+            <!-- SaaS Payment Transactions Ledger Table -->
+            <div style="margin-top: 28px;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; flex-wrap: wrap; gap: 10px;">
+                    <div>
+                        <h3 style="margin: 0 0 2px 0; font-size: 16px; font-weight: 800;">Gym Subscription Payments Ledger</h3>
+                        <p style="margin: 0; font-size: 12.5px; color: var(--muted);">Direct audit trail of software plan collections from gym owners.</p>
+                    </div>
+                    <span class="pill-badge neutral" style="font-size: 11px; font-weight: 700;">
+                        <?= count($saasLedger) ?> logged transactions
+                    </span>
+                </div>
+
+                <!-- Desktop Ledger Table (>= 768px) -->
+                <div class="ledger-desktop-table" style="overflow-x: auto; border: 1px solid var(--line); border-radius: 10px; background: var(--surface);">
+                    <table style="width: 100%; border-collapse: collapse; font-size: 13px; text-align: left;">
+                        <thead>
+                            <tr style="border-bottom: 1px solid var(--line); background: rgba(255,255,255,0.02);">
+                                <th style="padding: 12px 14px; font-weight: 700; color: var(--muted); font-size: 11.5px; text-transform: uppercase;">Receipt / Ref</th>
+                                <th style="padding: 12px 14px; font-weight: 700; color: var(--muted); font-size: 11.5px; text-transform: uppercase;">Gym & Owner</th>
+                                <th style="padding: 12px 14px; font-weight: 700; color: var(--muted); font-size: 11.5px; text-transform: uppercase;">SaaS Plan Tier</th>
+                                <th style="padding: 12px 14px; font-weight: 700; color: var(--muted); font-size: 11.5px; text-transform: uppercase;">Cycle</th>
+                                <th style="padding: 12px 14px; font-weight: 700; color: var(--muted); font-size: 11.5px; text-transform: uppercase; text-align: right;">Amount</th>
+                                <th style="padding: 12px 14px; font-weight: 700; color: var(--muted); font-size: 11.5px; text-transform: uppercase;">Method</th>
+                                <th style="padding: 12px 14px; font-weight: 700; color: var(--muted); font-size: 11.5px; text-transform: uppercase;">Payment Date</th>
+                                <th style="padding: 12px 14px; font-weight: 700; color: var(--muted); font-size: 11.5px; text-transform: uppercase; text-align: center;">Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <?php if (empty($saasLedger)): ?>
+                                <tr>
+                                    <td colspan="8" style="padding: 32px; text-align: center; color: var(--muted);">
+                                        No subscription payments recorded for this scope.
+                                    </td>
+                                </tr>
+                            <?php else: ?>
+                                <?php foreach ($saasLedger as $tx): 
+                                    $planBadgeColor = match(strtolower((string)$tx['plan_name'])) {
+                                        'starter' => 'background: rgba(56, 189, 248, 0.12); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.3);',
+                                        'professional', 'pro' => 'background: rgba(168, 85, 247, 0.12); color: #a855f7; border: 1px solid rgba(168, 85, 247, 0.3);',
+                                        'business', 'enterprise' => 'background: rgba(245, 158, 11, 0.12); color: #f59e0b; border: 1px solid rgba(245, 158, 11, 0.3);',
+                                        default => 'background: rgba(132, 204, 22, 0.12); color: var(--lime); border: 1px solid rgba(132, 204, 22, 0.3);'
+                                    };
+                                ?>
+                                    <tr style="border-bottom: 1px solid var(--line);">
+                                        <td style="padding: 12px 14px; font-family: monospace; font-size: 12px; color: var(--muted);">
+                                            <?= h($tx['receipt_number'] ?: ('SUB-' . $tx['id'])) ?>
+                                        </td>
+                                        <td style="padding: 12px 14px;">
+                                            <div style="font-weight: 700; color: var(--ink);"><?= h($tx['gym_name']) ?></div>
+                                            <div style="font-size: 11.5px; color: var(--muted);">
+                                                <?= h($tx['first_name'] . ' ' . $tx['last_name']) ?> &bull; <?= h($tx['email']) ?>
+                                            </div>
+                                        </td>
+                                        <td style="padding: 12px 14px;">
+                                            <span style="display:inline-block; padding: 2px 8px; border-radius: 6px; font-size: 11px; font-weight: 800; <?= $planBadgeColor ?>">
+                                                <?= h($tx['plan_name']) ?>
+                                            </span>
+                                        </td>
+                                        <td style="padding: 12px 14px; color: var(--muted); text-transform: capitalize;">
+                                            <?= h($tx['billing_cycle']) ?>
+                                        </td>
+                                        <td style="padding: 12px 14px; text-align: right; font-weight: 800; color: var(--lime);">
+                                            ₱<?= number_format((float)$tx['amount'], 2) ?>
+                                        </td>
+                                        <td style="padding: 12px 14px; color: var(--muted); text-transform: uppercase; font-size: 11.5px; font-weight: 700;">
+                                            <?= h($tx['payment_method']) ?>
+                                        </td>
+                                        <td style="padding: 12px 14px; color: var(--muted); font-size: 12px;">
+                                            <div><?= date('M j, Y g:i A', strtotime($tx['payment_date'])) ?></div>
+                                            <div style="font-size: 11px; color: var(--muted); opacity: 0.8;">Covered until <?= date('M j, Y', strtotime($tx['end_date'])) ?></div>
+                                        </td>
+                                        <td style="padding: 12px 14px; text-align: center;">
+                                            <span class="pill-badge green" style="font-size: 11px; font-weight: 800;">
+                                                Paid
+                                            </span>
+                                        </td>
+                                    </tr>
+                                <?php endforeach; ?>
+                            <?php endif; ?>
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Mobile Ledger Card List (< 768px: Zero Horizontal Scroll) -->
+                <div class="ledger-mobile-cards">
+                    <?php if (empty($saasLedger)): ?>
+                        <div style="padding: 28px; text-align: center; color: var(--muted); background: var(--surface); border: 1px solid var(--line); border-radius: 12px; font-size: 13px;">
+                            No subscription payments recorded for this scope.
+                        </div>
+                    <?php else: ?>
+                        <?php foreach ($saasLedger as $tx): 
+                            $planBadgeColor = match(strtolower((string)$tx['plan_name'])) {
+                                'starter' => 'background: rgba(56, 189, 248, 0.12); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.3);',
+                                'professional', 'pro' => 'background: rgba(168, 85, 247, 0.12); color: #a855f7; border: 1px solid rgba(168, 85, 247, 0.3);',
+                                'business', 'enterprise' => 'background: rgba(245, 158, 11, 0.12); color: #f59e0b; border: 1px solid rgba(245, 158, 11, 0.3);',
+                                default => 'background: rgba(132, 204, 22, 0.12); color: var(--lime); border: 1px solid rgba(132, 204, 22, 0.3);'
+                            };
+                        ?>
+                            <div class="ledger-mobile-card">
+                                <div class="ledger-card-header">
+                                    <div style="min-width: 0;">
+                                        <div class="ledger-card-gym"><?= h($tx['gym_name']) ?></div>
+                                        <div class="ledger-card-owner">
+                                            <?= h($tx['first_name'] . ' ' . $tx['last_name']) ?> &bull; <?= h($tx['email']) ?>
+                                        </div>
+                                    </div>
+                                    <div style="text-align: right; flex-shrink: 0;">
+                                        <div class="ledger-card-amount">₱<?= number_format((float)$tx['amount'], 2) ?></div>
+                                        <span class="pill-badge" style="<?= $planBadgeColor ?> font-size: 10.5px; padding: 2px 7px; font-weight: 800;">
+                                            <?= h($tx['plan_name']) ?>
+                                        </span>
+                                    </div>
+                                </div>
+                                <div class="ledger-card-body">
+                                    <div class="ledger-detail-item">
+                                        <span class="ledger-detail-label">Receipt / Ref</span>
+                                        <span class="ledger-detail-val" style="font-family: monospace; font-size: 11.5px;"><?= h($tx['receipt_number'] ?: ('SUB-' . $tx['id'])) ?></span>
+                                    </div>
+                                    <div class="ledger-detail-item">
+                                        <span class="ledger-detail-label">Billing Cycle</span>
+                                        <span class="ledger-detail-val" style="text-transform: capitalize;"><?= h($tx['billing_cycle']) ?></span>
+                                    </div>
+                                    <div class="ledger-detail-item">
+                                        <span class="ledger-detail-label">Payment Method</span>
+                                        <span class="ledger-detail-val" style="text-transform: uppercase; font-weight: 700;"><?= h($tx['payment_method']) ?></span>
+                                    </div>
+                                    <div class="ledger-detail-item">
+                                        <span class="ledger-detail-label">Status</span>
+                                        <span class="ledger-detail-val"><span class="pill-badge green" style="font-size: 10.5px; padding: 2px 7px;">Paid</span></span>
+                                    </div>
+                                    <div class="ledger-detail-item">
+                                        <span class="ledger-detail-label">Payment Date</span>
+                                        <span class="ledger-detail-val"><?= date('M j, Y g:i A', strtotime($tx['payment_date'])) ?></span>
+                                    </div>
+                                    <div class="ledger-detail-item">
+                                        <span class="ledger-detail-label">Coverage Period</span>
+                                        <span class="ledger-detail-val" style="color: var(--muted); font-size: 11.5px;">Covered until <?= date('M j, Y', strtotime($tx['end_date'])) ?></span>
+                                    </div>
+                                </div>
+                            </div>
+                        <?php endforeach; ?>
+                    <?php endif; ?>
+                </div>
+            </div>
+        </div>
+    </div>
+    <?php endif; ?>
+
+    <?php if (!$isPlatformScope): ?>
     <!-- ==================== TAB 1: REVENUE & FINANCIALS ==================== -->
     <div id="revenue-tab" class="tab-content animate-fade-in">
         <div class="panel report-panel" style="border-radius: 16px; padding: 26px;">
@@ -775,10 +1485,12 @@ function reports_page(): void
                     <p style="margin:0; color:var(--muted); font-size:13.5px;">Stacked comparison of recurring membership subscriptions vs. one-time walk-in passes.</p>
                 </div>
                 <div style="display: flex; gap: 8px; flex-wrap: wrap;">
-                    <button type="button" onclick="openEODModal()" class="export-btn" style="background: rgba(132, 204, 22, 0.12); color: var(--lime); border-color: rgba(132, 204, 22, 0.35); font-weight: 700; cursor: pointer;">
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
-                        Daily Settlement (Z-Reading)
-                    </button>
+                    <?php if ($isGymSpecific): ?>
+                        <button type="button" onclick="openEODModal()" class="export-btn" style="background: rgba(132, 204, 22, 0.12); color: var(--lime); border-color: rgba(132, 204, 22, 0.35); font-weight: 700; cursor: pointer;">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+                            Daily Settlement (Z-Reading)
+                        </button>
+                    <?php endif; ?>
                     <a href="index.php?page=reports&type=revenue&timeframe=monthly&export=csv" id="btn-export-revenue-csv" class="export-btn">
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
                         Export CSV
@@ -843,10 +1555,10 @@ function reports_page(): void
                     </div>
                 </div>
 
-                <!-- Revenue Mix Donut & Sticky Table -->
+                <!-- Revenue Mix Donut -->
                 <div>
                     <!-- Donut Card with Empty State Placeholder -->
-                    <div class="report-card-box" style="margin-bottom: 20px;">
+                    <div class="report-card-box">
                         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; flex-wrap: wrap; gap: 8px;">
                             <h4 style="margin: 0; font-size: 13.5px; color: var(--ink); text-transform: uppercase; letter-spacing: 0.05em;">Revenue Mix</h4>
                             <span class="pill-badge neutral" id="mix-total-badge">
@@ -883,67 +1595,200 @@ function reports_page(): void
                             </div>
                         </div>
                     </div>
-
-                    <!-- Detailed Sticky Table with Clean Empty State Fallback -->
-                    <div class="table-wrap" style="max-height: 320px; overflow-y: auto; border: 1px solid var(--line); border-radius: 12px; background: var(--surface);">
-                        <?php foreach (['daily', 'monthly', 'yearly'] as $tf): 
-                            $key = ($tf === 'daily') ? 'day' : (($tf === 'monthly') ? 'month' : 'year');
-                            $maxVal = $revenueTotals[$tf]['max'];
-                            $hasTableData = $revenueTotals[$tf]['total'] > 0;
-                        ?>
-                            <div id="revenue-table-<?= $tf ?>" style="display: <?= $tf === 'monthly' ? 'block' : 'none' ?>;">
-                                <table class="rich-table">
-                                    <thead>
-                                        <tr>
-                                            <th><?= ucfirst($key) ?></th>
-                                            <th style="text-align: right; color: #84cc16;">Subs</th>
-                                            <th style="text-align: right; color: #38bdf8;">Walk-In</th>
-                                            <th style="text-align: right;">Total</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        <?php if ($hasTableData): ?>
-                                            <?php foreach ($revenue[$tf] as $r): 
-                                                $isRecord = ($maxVal > 0 && (float)$r['revenue'] === $maxVal);
-                                            ?>
-                                                <tr>
-                                                    <td style="font-weight: 600; white-space: nowrap;">
-                                                        <?= h($r[$key]) ?>
-                                                        <?php if ($isRecord): ?>
-                                                            <span class="peak-tag">★ Peak</span>
-                                                        <?php endif; ?>
-                                                    </td>
-                                                    <td style="text-align: right; color: #84cc16;">₱<?= number_format((float)$r['subscriptions'], 2) ?></td>
-                                                    <td style="text-align: right; color: #38bdf8;">₱<?= number_format((float)$r['walkins'], 2) ?></td>
-                                                    <td style="text-align: right; font-weight: 700; color: var(--ink);">₱<?= number_format((float)$r['revenue'], 2) ?></td>
-                                                </tr>
-                                            <?php endforeach; ?>
-                                        <?php else: ?>
-                                            <tr>
-                                                <td colspan="4" style="text-align: center; padding: 36px 16px; color: var(--muted);">
-                                                    <div style="font-weight: 600; color: var(--ink); margin-bottom: 4px;">No Transactions in this Window</div>
-                                                    <span>Sales by <?= $key ?> will be itemized here automatically.</span>
-                                                </td>
-                                            </tr>
-                                        <?php endif; ?>
-                                    </tbody>
-                                    <tfoot>
-                                        <tr>
-                                            <td>Totals:</td>
-                                            <td style="text-align: right; color: #84cc16;">₱<?= number_format($revenueTotals[$tf]['subs'], 2) ?></td>
-                                            <td style="text-align: right; color: #38bdf8;">₱<?= number_format($revenueTotals[$tf]['walk'], 2) ?></td>
-                                            <td style="text-align: right; color: var(--ink);">₱<?= number_format($revenueTotals[$tf]['total'], 2) ?></td>
-                                        </tr>
-                                    </tfoot>
-                                </table>
-                            </div>
-                        <?php endforeach; ?>
-                    </div>
                 </div>
             </div>
         </div>
     </div>
+    <?php endif; ?>
 
+    <?php if ($isGlobalScope || $isPlatformScope): ?>
+    <!-- ==================== TAB: GYM NETWORK LEADERBOARD ==================== -->
+    <div id="gyms-tab" class="tab-content animate-fade-in" style="display: none;">
+        <div class="panel report-panel" style="border-radius: 16px; padding: 26px;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 22px; flex-wrap: wrap; gap: 14px;">
+                <div>
+                    <h2 style="margin:0 0 4px 0; font-size: 20px;">Partner Gym Network Leaderboard</h2>
+                    <p style="margin:0; color:var(--muted); font-size:13.5px;">Comparative performance rankings, operational foot traffic, and gross transacted revenue across all partner gyms.</p>
+                </div>
+                <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+                    <a href="index.php?page=reports&type=gyms&export=csv" class="export-btn">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+                        Export CSV
+                    </a>
+                    <a href="index.php?page=reports&type=gyms&export=print" target="_blank" class="export-btn">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 6 2 18 2 18 9"></polyline><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path><rect x="6" y="14" width="12" height="8"></rect></svg>
+                        Print / PDF
+                    </a>
+                </div>
+            </div>
+
+            <!-- Quick Metrics Overview -->
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-bottom: 24px;">
+                <div style="background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 18px;">
+                    <span style="color: var(--muted); font-size: 12px; font-weight: 600; text-transform: uppercase;">Partner Gyms</span>
+                    <div style="font-size: 26px; font-weight: 800; color: var(--ink); margin-top: 4px;"><?= count($gymsLeaderboard) ?></div>
+                </div>
+                <div style="background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 18px;">
+                    <span style="color: var(--muted); font-size: 12px; font-weight: 600; text-transform: uppercase;">Network Enrolled Members</span>
+                    <div style="font-size: 26px; font-weight: 800; color: #84cc16; margin-top: 4px;">
+                        <?= number_format(array_sum(array_column($gymsLeaderboard, 'active_members'))) ?>
+                    </div>
+                </div>
+                <div style="background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 18px;">
+                    <span style="color: var(--muted); font-size: 12px; font-weight: 600; text-transform: uppercase;">Network Monthly Check-Ins</span>
+                    <div style="font-size: 26px; font-weight: 800; color: #38bdf8; margin-top: 4px;">
+                        <?= number_format(array_sum(array_column($gymsLeaderboard, 'monthly_checkins'))) ?>
+                    </div>
+                </div>
+                <div style="background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 18px;">
+                    <span style="color: var(--muted); font-size: 12px; font-weight: 600; text-transform: uppercase;">Total Transacted GMV (<?= date('M Y') ?>)</span>
+                    <div style="font-size: 26px; font-weight: 800; color: #fbbf24; margin-top: 4px;">
+                        ₱<?= number_format(array_sum(array_column($gymsLeaderboard, 'monthly_gmv')), 2) ?>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Leaderboard Table (Desktop) -->
+            <div class="trainers-desktop-table table-wrap" style="border: 1px solid var(--line); border-radius: 12px; overflow-x: auto; -webkit-overflow-scrolling: touch; background: var(--surface);">
+                <table class="trainer-leaderboard-table">
+                    <thead>
+                        <tr class="table-head-row" style="border-bottom: 1px solid var(--line);">
+                            <th style="padding: 12px 18px; text-align: left; font-size: 12px; min-width: 230px;">Rank & Gym Facility</th>
+                            <th style="padding: 12px 18px; text-align: left; font-size: 12px; min-width: 170px;">Owner</th>
+                            <th style="padding: 12px 18px; text-align: center; font-size: 12px; min-width: 120px;">Plan Tier</th>
+                            <th style="padding: 12px 18px; text-align: center; font-size: 12px; min-width: 120px;">Active Members</th>
+                            <th style="padding: 12px 18px; text-align: center; font-size: 12px; min-width: 120px;">Monthly Check-Ins</th>
+                            <th style="padding: 12px 18px; text-align: right; font-size: 12px; min-width: 160px;">Monthly GMV</th>
+                            <th style="padding: 12px 18px; text-align: center; font-size: 12px; min-width: 130px;">Action</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <?php if (empty($gymsLeaderboard)): ?>
+                            <tr>
+                                <td colspan="7" style="text-align: center; padding: 36px 20px; color: var(--muted);">
+                                    <div style="font-weight: 600; color: var(--ink); margin-bottom: 4px;">No Partner Gyms Found</div>
+                                    <span style="font-size: 12.5px;">Approved gyms will populate the comparative platform network leaderboard.</span>
+                                </td>
+                            </tr>
+                        <?php else: ?>
+                            <?php foreach ($gymsLeaderboard as $idx => $g): ?>
+                                <tr style="border-bottom: 1px solid rgba(255,255,255,0.03); transition: background 0.15s;">
+                                    <td style="padding: 14px 18px;">
+                                        <div style="display: flex; align-items: center; gap: 12px;">
+                                            <span style="font-weight: 800; font-size: 14px; width: 22px; color: <?= $idx === 0 ? '#fbbf24' : ($idx === 1 ? '#94a3b8' : ($idx === 2 ? '#b45309' : 'var(--muted)')) ?>;">
+                                                #<?= $idx + 1 ?>
+                                            </span>
+                                            <?php if (!empty($g['logo_url'])): ?>
+                                                <img src="<?= h(upload_url($g['logo_url'])) ?>" alt="Logo" style="width: 36px; height: 36px; border-radius: 8px; object-fit: cover; border: 1px solid var(--line);">
+                                            <?php else: ?>
+                                                <div style="width: 36px; height: 36px; border-radius: 8px; background: rgba(132, 204, 22, 0.15); color: var(--lime); display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 14px; border: 1px solid rgba(132, 204, 22, 0.3);">
+                                                    <?= strtoupper(substr($g['name'] ?? 'G', 0, 1)) ?>
+                                                </div>
+                                            <?php endif; ?>
+                                            <div>
+                                                <strong style="color: var(--ink); font-size: 14px; display: block;"><?= h($g['name']) ?></strong>
+                                                <span style="color: var(--muted); font-size: 12px;"><?= h($g['address'] ?: 'No address specified') ?></span>
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td style="padding: 14px 18px;">
+                                        <div style="font-size: 13px; font-weight: 600; color: var(--ink);">
+                                            <?= h($g['owner_first_name'] . ' ' . $g['owner_last_name']) ?>
+                                        </div>
+                                        <div style="font-size: 12px; color: var(--muted);">
+                                            <?= h($g['owner_email']) ?>
+                                        </div>
+                                    </td>
+                                    <td style="padding: 14px 18px; text-align: center;">
+                                        <span class="pill-badge <?= strtolower($g['subscription_plan'] ?? '') === 'professional' ? 'purple' : 'neutral' ?>" style="font-size: 11px;">
+                                            <?= h($g['subscription_plan'] ?: 'Starter') ?>
+                                        </span>
+                                    </td>
+                                    <td style="padding: 14px 18px; text-align: center;">
+                                        <span class="pill-badge green" style="font-size: 12px; padding: 4px 10px;">
+                                            <?= (int)$g['active_members'] ?> Active
+                                        </span>
+                                    </td>
+                                    <td style="padding: 14px 18px; text-align: center; font-weight: 600; color: var(--ink); font-size: 13px;">
+                                        <?= (int)$g['monthly_checkins'] ?>
+                                    </td>
+                                    <td style="padding: 14px 18px; text-align: right; font-weight: 700; color: #84cc16; font-size: 14.5px;">
+                                        ₱<?= number_format((float)$g['monthly_gmv'], 2) ?>
+                                    </td>
+                                    <td style="padding: 14px 18px; text-align: center;">
+                                        <a href="index.php?page=reports&gym_id=<?= (int)$g['gym_id'] ?>" class="btn" style="padding: 6px 14px; font-size: 12px; background: rgba(132, 204, 22, 0.12); border: 1px solid rgba(132, 204, 22, 0.3); color: var(--lime); border-radius: 6px; text-decoration: none; font-weight: 600; white-space: nowrap; display: inline-flex; align-items: center; gap: 4px;">
+                                            Inspect Reports &rarr;
+                                        </a>
+                                    </td>
+                                </tr>
+                            <?php endforeach; ?>
+                        <?php endif; ?>
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Leaderboard Mobile Cards (< 768px: Zero Horizontal Scroll) -->
+            <div class="trainers-mobile-cards">
+                <?php if (empty($gymsLeaderboard)): ?>
+                    <div class="trainer-card-empty">
+                        <div style="font-weight: 600; color: var(--ink); margin-bottom: 4px;">No Partner Gyms Found</div>
+                        <span style="font-size: 12.5px; color: var(--muted);">Approved partner gyms will appear here.</span>
+                    </div>
+                <?php else: ?>
+                    <?php foreach ($gymsLeaderboard as $idx => $g): ?>
+                        <div class="trainer-mobile-card">
+                            <div class="trainer-card-header">
+                                <div class="trainer-card-profile">
+                                    <span class="trainer-card-rank" style="color: <?= $idx === 0 ? '#fbbf24' : ($idx === 1 ? '#94a3b8' : ($idx === 2 ? '#b45309' : 'var(--muted)')) ?>;">
+                                        #<?= $idx + 1 ?>
+                                    </span>
+                                    <?php if (!empty($g['logo_url'])): ?>
+                                        <img src="<?= h(upload_url($g['logo_url'])) ?>" alt="Logo" style="width: 36px; height: 36px; border-radius: 8px; object-fit: cover; border: 1px solid var(--line);">
+                                    <?php else: ?>
+                                        <div style="width: 36px; height: 36px; border-radius: 8px; background: rgba(132, 204, 22, 0.15); color: var(--lime); display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 14px; border: 1px solid rgba(132, 204, 22, 0.3);">
+                                            <?= strtoupper(substr($g['name'] ?? 'G', 0, 1)) ?>
+                                        </div>
+                                    <?php endif; ?>
+                                    <div class="trainer-card-identity">
+                                        <strong class="trainer-card-name"><?= h($g['name']) ?></strong>
+                                        <span class="trainer-card-email"><?= h($g['owner_first_name'] . ' ' . $g['owner_last_name']) ?></span>
+                                    </div>
+                                </div>
+                                <span class="pill-badge <?= strtolower($g['subscription_plan'] ?? '') === 'professional' ? 'purple' : 'neutral' ?>" style="font-size: 11px; padding: 3px 9px; font-weight: 700; flex-shrink: 0;">
+                                    <?= h($g['subscription_plan'] ?: 'Starter') ?>
+                                </span>
+                            </div>
+
+                            <div class="trainer-card-details">
+                                <div class="trainer-card-detail-item">
+                                    <span class="detail-label">Active Members</span>
+                                    <span class="detail-val" style="color: #84cc16; font-weight: 700;"><?= (int)$g['active_members'] ?></span>
+                                </div>
+                                <div class="trainer-card-detail-item">
+                                    <span class="detail-label">Monthly Check-Ins</span>
+                                    <span class="detail-val"><?= (int)$g['monthly_checkins'] ?></span>
+                                </div>
+                                <div class="trainer-card-detail-item" style="grid-column: span 2;">
+                                    <span class="detail-label">Monthly Transacted GMV</span>
+                                    <span class="detail-val commission-amount">₱<?= number_format((float)$g['monthly_gmv'], 2) ?></span>
+                                </div>
+                            </div>
+
+                            <div class="trainer-card-footer">
+                                <a href="index.php?page=reports&gym_id=<?= (int)$g['gym_id'] ?>" class="btn-trainer-details" style="background: rgba(132, 204, 22, 0.12); color: var(--lime); border-color: rgba(132, 204, 22, 0.3);">
+                                    <span>Inspect Gym Reports</span>
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"></path><path d="M12 5l7 7-7 7"></path></svg>
+                                </a>
+                            </div>
+                        </div>
+                    <?php endforeach; ?>
+                <?php endif; ?>
+            </div>
+        </div>
+    </div>
+    <?php endif; ?>
+
+    <?php if (!$isPlatformScope): ?>
     <!-- ==================== TAB 2: ATTENDANCE & PEAK RUSH ==================== -->
     <div id="attendance-tab" class="tab-content animate-fade-in" style="display: none;">
         <div class="panel report-panel" style="border-radius: 16px; padding: 26px;">
@@ -1211,7 +2056,9 @@ function reports_page(): void
             </div>
         </div>
     </div>
+    <?php endif; ?>
 
+    <?php if (!$isPlatformAdmin): ?>
     <!-- ==================== TAB 4: TRAINERS & COMMISSIONS ==================== -->
     <div id="trainers-tab" class="tab-content animate-fade-in" style="display: none;">
         <div class="panel" style="border-radius: 16px; padding: 26px;">
@@ -1275,6 +2122,9 @@ function reports_page(): void
                         <thead>
                             <tr class="table-head-row" style="border-bottom: 1px solid var(--line);">
                                 <th style="padding: 12px 18px; text-align: left; font-size: 12px; min-width: 220px;">Rank & Trainer</th>
+                                <?php if ($isGlobalScope): ?>
+                                    <th style="padding: 12px 18px; text-align: left; font-size: 12px; min-width: 150px;">Gym Facility</th>
+                                <?php endif; ?>
                                 <th style="padding: 12px 18px; text-align: left; font-size: 12px; min-width: 170px;">Specialization</th>
                                 <th style="padding: 12px 18px; text-align: center; font-size: 12px; min-width: 120px;">Active Clients</th>
                                 <th style="padding: 12px 18px; text-align: right; font-size: 12px; min-width: 160px;">Total Paid Commissions</th>
@@ -1284,7 +2134,7 @@ function reports_page(): void
                         <tbody>
                             <?php if (empty($trainersList)): ?>
                                 <tr>
-                                    <td colspan="5" style="text-align: center; padding: 36px 20px; color: var(--muted);">
+                                    <td colspan="<?= $isGlobalScope ? 6 : 5 ?>" style="text-align: center; padding: 36px 20px; color: var(--muted);">
                                         <div style="font-weight: 600; color: var(--ink); margin-bottom: 4px;">No Trainers Registered Yet</div>
                                         <span style="font-size: 12.5px;">Add personal trainers to your staff to begin tracking client assignments and automated commission payouts.</span>
                                     </td>
@@ -1304,6 +2154,13 @@ function reports_page(): void
                                                 </div>
                                             </div>
                                         </td>
+                                        <?php if ($isGlobalScope): ?>
+                                            <td style="padding: 14px 18px;">
+                                                <span class="pill-badge neutral" style="font-size: 11px;">
+                                                    <?= h($t['gym_name'] ?: 'Independent') ?>
+                                                </span>
+                                            </td>
+                                        <?php endif; ?>
                                         <td style="padding: 14px 18px; color: var(--muted); font-size: 13.5px;">
                                             <?= h($t['specialization'] ?: 'Strength & Conditioning') ?>
                                         </td>
@@ -1354,6 +2211,12 @@ function reports_page(): void
                                 </div>
 
                                 <div class="trainer-card-details">
+                                    <?php if ($isGlobalScope): ?>
+                                        <div class="trainer-card-detail-item" style="grid-column: span 2;">
+                                            <span class="detail-label">Gym Facility</span>
+                                            <span class="detail-val" style="color: var(--lime); font-weight: 600;"><?= h($t['gym_name'] ?: 'Independent') ?></span>
+                                        </div>
+                                    <?php endif; ?>
                                     <div class="trainer-card-detail-item">
                                         <span class="detail-label">Specialization</span>
                                         <span class="detail-val"><?= h($t['specialization'] ?: 'Strength & Conditioning') ?></span>
@@ -1383,8 +2246,8 @@ function reports_page(): void
         <div class="panel" style="border-radius: 16px; padding: 26px;">
             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 24px; flex-wrap: wrap; gap: 14px;">
                 <div>
-                    <h2 style="margin:0 0 4px 0; font-size: 20px;">Member Engagement & Churn Risk</h2>
-                    <p style="margin:0; color:var(--muted); font-size:13.5px;">Predictive retention scoring identifying at-risk members before they churn.</p>
+                    <h2 style="margin:0 0 4px 0; font-size: 20px;">Member Engagement & Inactivity Alerts</h2>
+                    <p style="margin:0; color:var(--muted); font-size:13.5px;">Rule-based scores summarize recent member activity; inactivity alerts help staff follow up.</p>
                 </div>
                 <?php if ($isPlatformAdmin || gym_has_feature('engagement_tracking')): ?>
                 <div style="display: flex; gap: 8px;">
@@ -1407,7 +2270,7 @@ function reports_page(): void
                     </div>
                     <h3 style="font-size: 20px; font-weight: 700; color: var(--ink); margin: 0 0 8px;">Member Engagement Scoring is a Professional Feature</h3>
                     <p style="color: var(--muted); font-size: 14px; max-width: 540px; margin: 0 auto 24px; line-height: 1.5;">
-                        Upgrade to the <strong>Professional Plan (₱999/mo)</strong> to unlock automated member churn risk alerts, engagement score categories (High, Medium, At-Risk), and attendance consistency tracking.
+                        Upgrade to the <strong>Professional Plan (₱999/mo)</strong> to unlock rule-based member engagement scores, inactivity alerts, and attendance consistency tracking.
                     </p>
                     <a href="index.php?page=gym_subscription" class="btn" style="background: var(--lime); color: #0b110e; font-weight: 800; padding: 12px 28px; border-radius: 8px; text-decoration: none; display: inline-block;">
                         Upgrade to Professional (₱999/mo)
@@ -1470,7 +2333,12 @@ function reports_page(): void
                                                 <?= render_avatar($m) ?>
                                                 <div class="engagement-member-info">
                                                     <strong class="engagement-member-name"><?= h($m['first_name'] . ' ' . $m['last_name']) ?></strong>
-                                                    <span class="engagement-member-email"><?= h($m['email']) ?></span>
+                                                    <span class="engagement-member-email">
+                                                        <?= h($m['email']) ?>
+                                                        <?php if ($isGlobalScope && !empty($m['gym_name'])): ?>
+                                                            • <span style="color: var(--lime); font-weight: 600;"><?= h($m['gym_name']) ?></span>
+                                                        <?php endif; ?>
+                                                    </span>
                                                 </div>
                                             </div>
                                             <div class="engagement-member-meta">
@@ -1502,12 +2370,15 @@ function reports_page(): void
             <?php endif; ?>
         </div>
     </div>
+    <?php endif; ?>
 
     <!-- Chart.js & Tab Controller Logic -->
     <script>
     window.REPORTS_CONFIG = {
         csrfToken: <?= json_encode(csrf_token()) ?>,
-        selectedGymId: <?= ($isPlatformAdmin && $selectedGymId !== 'all') ? (int)$selectedGymId : 'null' ?>,
+        selectedGymId: <?= ($isPlatformAdmin && $selectedGymId !== 'all' && $selectedGymId !== 'platform') ? (int)$selectedGymId : 'null' ?>,
+        gymScopeId: <?= json_encode((string)$selectedGymId) ?>,
+        gymScopeItems: <?= json_encode($gymScopeDropdownItems ?? [], JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP) ?>,
         chartsData: <?= $chartsDataJson ?>,
         engagement: {
             labels: <?= $engagementLabels ?>,

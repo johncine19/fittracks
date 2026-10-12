@@ -548,6 +548,37 @@ final class FileUpload
         return $filename;
     }
 
+    /** Stores a public gym cover image, optimized for a wide hero banner. */
+    public static function storeGymCoverImage(array $file, int $gymId): string
+    {
+        self::validate($file);
+
+        $tempDir = sys_get_temp_dir() . '/';
+        $filename = 'gym_' . $gymId . '_cover_' . bin2hex(random_bytes(8)) . '.webp';
+        $destPath = $tempDir . $filename;
+
+        if (!self::processAndStoreImage($file['tmp_name'], $destPath, 2200, 1100, 82)) {
+            throw new RuntimeException('Could not process the gym cover image.');
+        }
+
+        $cloudinaryUrl = self::uploadToCloudinary($destPath, 'image/webp', 'fittracks_gym_covers');
+        if ($cloudinaryUrl) {
+            @unlink($destPath);
+            return $cloudinaryUrl;
+        }
+
+        $uploadDir = __DIR__ . '/../assets/uploads/';
+        if (!is_dir($uploadDir)) {
+            mkdir($uploadDir, 0775, true);
+        }
+        if (!rename($destPath, $uploadDir . $filename)) {
+            @unlink($destPath);
+            throw new RuntimeException('Could not save the gym cover image.');
+        }
+
+        return $filename;
+    }
+
     /**
      * Deletes an asset from Cloudinary by its full URL or public_id.
      */

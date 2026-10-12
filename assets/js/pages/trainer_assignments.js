@@ -126,6 +126,10 @@ const ftCurrentDate = FT_CFG.currentDate || new Date().toISOString().split('T')[
                     <div>
                         <label style="display:block; color: var(--muted); font-size: 13.5px; margin-bottom: 6px; font-weight: 500;">Assigned date *</label>
                         <input type="date" name="assigned_date" class="form-control" value="${ftCurrentDate}" style="width: 100%; box-sizing: border-box; background-color: var(--panel); color: var(--ink); border: 1px solid var(--line); padding: 10px 12px; border-radius: 8px; font-size: 13.5px; color-scheme: dark light;" required>
+                        <div style="margin-top: 8px; padding: 8px 12px; background: rgba(56, 189, 248, 0.08); border: 1px solid rgba(56, 189, 248, 0.25); border-radius: 8px; font-size: 11.5px; color: #0284c7; display: flex; align-items: center; gap: 8px; line-height: 1.4;">
+                            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="flex-shrink:0;"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+                            <span><strong>Auto Expiration:</strong> Assignment end date automatically syncs with each member's active plan expiration date and extends automatically upon renewal.</span>
+                        </div>
                     </div>
                 </form>
             `,
@@ -299,8 +303,8 @@ const ftCurrentDate = FT_CFG.currentDate || new Date().toISOString().split('T')[
                                             ` : ''}
                                         </div>
                                     </div>
-                                    <span style="font-size: 11px; color: ${m.has_plan ? '#22c55e' : 'var(--muted)'}; font-weight: 600; flex-shrink: 0; margin-left: 8px;">
-                                        ${m.has_plan ? 'Active Plan' : '1 Day'}
+                                    <span style="font-size: 11px; color: ${m.has_plan ? '#22c55e' : 'var(--muted)'}; font-weight: 600; flex-shrink: 0; margin-left: 8px; text-align: right;">
+                                        ${m.has_plan ? (m.plan_end_date ? `<span style="display:block;">Active Plan</span><span style="font-size:10px; color:var(--muted); font-weight:500;">Exp: ${m.plan_end_date}</span>` : 'Active Plan') : '1 Day'}
                                     </span>
                                 </div>
                             `;

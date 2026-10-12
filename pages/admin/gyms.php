@@ -34,14 +34,16 @@ function gyms_page(): void
             }
             $subStatus = trim((string) post('subscription_status')) ?: 'inactive';
             $renewalDate = trim((string) post('subscription_renewal_date')) ?: null;
+            $xenditSubaccountId = trim((string)post('xendit_subaccount_id'));
+            $xenditSubaccountId = $xenditSubaccountId !== '' ? $xenditSubaccountId : null;
             $recordPayment = (post('record_payment') === '1');
             $amount = (float) post('amount');
             $paymentMethod = trim((string) post('payment_method')) ?: 'cash';
 
             $pdo->beginTransaction();
 
-            $pdo->prepare('UPDATE gyms SET subscription_plan = ?, subscription_status = ?, subscription_renewal_date = ? WHERE gym_id = ?')
-                ->execute([$plan, $subStatus, $renewalDate, $gymId]);
+            $pdo->prepare('UPDATE gyms SET subscription_plan = ?, subscription_status = ?, subscription_renewal_date = ?, xendit_subaccount_id = ? WHERE gym_id = ?')
+                ->execute([$plan, $subStatus, $renewalDate, $xenditSubaccountId, $gymId]);
 
             $ownerId = (int) $pdo->query('SELECT owner_user_id FROM gyms WHERE gym_id = ' . $gymId)->fetchColumn();
             $gymName = (string) $pdo->query('SELECT name FROM gyms WHERE gym_id = ' . $gymId)->fetchColumn();
@@ -87,6 +89,9 @@ function gyms_page(): void
         }
         redirect('gyms');
     }
+
+    // Auto-sync any expired subscriptions immediately so records and view stay accurate
+    auto_expire_lapsed_gym_subscriptions();
 
     $gyms = $pdo->query('
         SELECT g.*, u.first_name, u.last_name, u.email 
@@ -301,13 +306,17 @@ function gyms_page(): void
                         $subPlan = $gym['subscription_plan'] ?: 'None';
                         $subStatus = $gym['subscription_status'] ?: 'inactive';
                         $renewal = !empty($gym['subscription_renewal_date']) ? date('M j, Y', strtotime($gym['subscription_renewal_date'])) : '—';
+                        $isRenewalPassed = !empty($gym['subscription_renewal_date']) && strtotime($gym['subscription_renewal_date']) < strtotime('today');
+                        if ($isRenewalPassed && in_array(strtolower($subStatus), ['active', 'trialing'], true)) {
+                            $subStatus = 'expired';
+                        }
                         $planBadgeStyle = match(strtolower($subPlan)) {
                             'starter' => 'background: rgba(59, 130, 246, 0.15); color: #60a5fa;',
                             'professional' => 'background: rgba(34, 197, 94, 0.15); color: var(--lime);',
                             'business' => 'background: rgba(168, 85, 247, 0.15); color: #c084fc;',
                             default => 'background: rgba(148, 163, 184, 0.1); color: var(--muted);'
                         };
-                        $statusBadgeClass = match($subStatus) {
+                        $statusBadgeClass = match(strtolower($subStatus)) {
                             'active' => 'badge-active',
                             'expired' => 'badge-inactive',
                             default => 'badge-pending'
@@ -347,14 +356,14 @@ function gyms_page(): void
                                     <button type="button" 
                                             class="btn-sm btn-primary" 
                                             style="padding: 4px 10px; font-size: 12px; font-weight: 700;"
-                                            onclick="openEditSubModal(
-                                                <?= (int)$gym['gym_id'] ?>, 
-                                                '<?= h(addslashes($gym['name'])) ?>', 
-                                                '<?= h(addslashes($gym['first_name'] . ' ' . $gym['last_name'])) ?>', 
-                                                '<?= h($gym['subscription_plan'] ?? '') ?>', 
-                                                '<?= h($gym['subscription_status'] ?? 'inactive') ?>', 
-                                                '<?= h($gym['subscription_renewal_date'] ?? '') ?>'
-                                            )">
+                                            data-gym-id="<?= (int)$gym['gym_id'] ?>"
+                                            data-gym-name="<?= h($gym['name']) ?>"
+                                            data-owner-name="<?= h($gym['first_name'] . ' ' . $gym['last_name']) ?>"
+                                            data-plan="<?= h($gym['subscription_plan'] ?? '') ?>"
+                                            data-status="<?= h($subStatus) ?>"
+                                            data-renewal="<?= h($gym['subscription_renewal_date'] ?? '') ?>"
+                                            data-xendit-account="<?= h((string)($gym['xendit_subaccount_id'] ?? '')) ?>"
+                                            onclick="handleEditSubClick(this)">
                                         Edit Sub
                                     </button>
 
@@ -394,13 +403,17 @@ function gyms_page(): void
                 $subPlan = $gym['subscription_plan'] ?: 'None';
                 $subStatus = $gym['subscription_status'] ?: 'inactive';
                 $renewal = !empty($gym['subscription_renewal_date']) ? date('M j, Y', strtotime($gym['subscription_renewal_date'])) : '—';
+                $isRenewalPassed = !empty($gym['subscription_renewal_date']) && strtotime($gym['subscription_renewal_date']) < strtotime('today');
+                if ($isRenewalPassed && in_array(strtolower($subStatus), ['active', 'trialing'], true)) {
+                    $subStatus = 'expired';
+                }
                 $planBadgeStyle = match(strtolower($subPlan)) {
                     'starter' => 'background: rgba(59, 130, 246, 0.15); color: #60a5fa;',
                     'professional' => 'background: rgba(34, 197, 94, 0.15); color: var(--lime);',
                     'business' => 'background: rgba(168, 85, 247, 0.15); color: #c084fc;',
                     default => 'background: rgba(148, 163, 184, 0.1); color: var(--muted);'
                 };
-                $statusBadgeClass = match($subStatus) {
+                $statusBadgeClass = match(strtolower($subStatus)) {
                     'active' => 'badge-active',
                     'expired' => 'badge-inactive',
                     default => 'badge-pending'
@@ -481,14 +494,14 @@ function gyms_page(): void
                     <div class="gym-card-actions">
                         <button type="button" 
                                 class="btn-sm btn-primary" 
-                                onclick="openEditSubModal(
-                                    <?= (int)$gym['gym_id'] ?>, 
-                                    '<?= h(addslashes($gym['name'])) ?>', 
-                                    '<?= h(addslashes($gym['first_name'] . ' ' . $gym['last_name'])) ?>', 
-                                    '<?= h($gym['subscription_plan'] ?? '') ?>', 
-                                    '<?= h($gym['subscription_status'] ?? 'inactive') ?>', 
-                                    '<?= h($gym['subscription_renewal_date'] ?? '') ?>'
-                                )">
+                                data-gym-id="<?= (int)$gym['gym_id'] ?>"
+                                data-gym-name="<?= h($gym['name']) ?>"
+                                data-owner-name="<?= h($gym['first_name'] . ' ' . $gym['last_name']) ?>"
+                                data-plan="<?= h($gym['subscription_plan'] ?? '') ?>"
+                                data-status="<?= h($subStatus) ?>"
+                                data-renewal="<?= h($gym['subscription_renewal_date'] ?? '') ?>"
+                                data-xendit-account="<?= h((string)($gym['xendit_subaccount_id'] ?? '')) ?>"
+                                onclick="handleEditSubClick(this)">
                             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
                             Edit Sub
                         </button>
@@ -542,6 +555,7 @@ function gyms_page(): void
         <input type="hidden" name="record_payment" id="modal-sub-record-payment" value="0">
         <input type="hidden" name="amount" id="modal-sub-amount" value="0">
         <input type="hidden" name="payment_method" id="modal-sub-method" value="cash">
+        <input type="hidden" name="xendit_subaccount_id" id="modal-sub-xendit-account" value="">
     </form>
 
     <script>
@@ -550,8 +564,24 @@ function gyms_page(): void
     for (const [k, p] of Object.entries(platformPlans)) {
         planPrices[p.name] = p.price;
     }
+    planPrices['Free Trial'] = 0;
 
-    function openEditSubModal(gymId, gymName, ownerName, currentPlan, currentStatus, currentRenewal) {
+    function handleEditSubClick(btn) {
+        if (!btn) return;
+        const gymId = parseInt(btn.getAttribute('data-gym-id') || '0', 10);
+        const gymName = btn.getAttribute('data-gym-name') || '';
+        const ownerName = btn.getAttribute('data-owner-name') || '';
+        const currentPlan = btn.getAttribute('data-plan') || '';
+        const currentStatus = btn.getAttribute('data-status') || 'inactive';
+        const currentRenewal = btn.getAttribute('data-renewal') || '';
+        const currentXenditAccount = btn.getAttribute('data-xendit-account') || '';
+        openEditSubModal(gymId, gymName, ownerName, currentPlan, currentStatus, currentRenewal, currentXenditAccount);
+    }
+
+    function openEditSubModal(gymId, gymName, ownerName, currentPlan, currentStatus, currentRenewal, currentXenditAccount) {
+        currentPlan = currentPlan || '';
+        currentStatus = currentStatus || 'inactive';
+
         // Default renewal date to 1 month from now if empty
         let defaultRenewal = currentRenewal;
         if (!defaultRenewal) {
@@ -560,21 +590,26 @@ function gyms_page(): void
             defaultRenewal = d.toISOString().split('T')[0];
         }
 
-        const currentPrice = planPrices[currentPlan] || (platformPlans['professional'] ? platformPlans['professional'].price : 999);
+        const safePlanLower = currentPlan.toLowerCase();
+        const currentPrice = planPrices[currentPlan] !== undefined ? planPrices[currentPlan] : (platformPlans['professional'] ? platformPlans['professional'].price : 999);
+        const safeXenditAccount = String(currentXenditAccount || '').replace(/[&<>\"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;',"'":'&#39;'}[c]));
 
         let planOptions = '';
         for (const [k, p] of Object.entries(platformPlans)) {
-            const isSelected = (currentPlan.toLowerCase() === p.name.toLowerCase() || currentPlan.toLowerCase() === k.toLowerCase());
+            const isSelected = (safePlanLower === p.name.toLowerCase() || safePlanLower === k.toLowerCase());
             planOptions += `<option value="${p.name}" ${isSelected ? 'selected' : ''}>${p.name} Plan (${p.price_label} / mo${p.popular ? ' - Most Popular' : ''})</option>`;
         }
-        planOptions += `<option value="None" ${!currentPlan || currentPlan.toLowerCase() === 'none' ? 'selected' : ''}>None / Unsubscribed</option>`;
+        if (safePlanLower.includes('trial')) {
+            planOptions = `<option value="Free Trial" selected>Free Trial</option>` + planOptions;
+        }
+        planOptions += `<option value="None" ${!currentPlan || safePlanLower === 'none' ? 'selected' : ''}>None / Unsubscribed</option>`;
 
         Swal.fire({
             title: 'Edit Gym Subscription',
             html: `
                 <div style="text-align: left; display: flex; flex-direction: column; gap: 14px; margin-top: 10px;">
-                    <div style="padding: 10px 14px; border-radius: 8px; background: rgba(255,255,255,0.03); border: 1px solid var(--line);">
-                        <div style="font-size: 14px; font-weight: 700; color: #fff;">${gymName}</div>
+                    <div style="padding: 10px 14px; border-radius: 8px; background: color-mix(in srgb, var(--panel-soft) 50%, transparent); border: 1px solid var(--line);">
+                        <div style="font-size: 14px; font-weight: 700; color: var(--ink);">${gymName}</div>
                         <div style="font-size: 12px; color: var(--muted);">Owner: ${ownerName}</div>
                     </div>
 
@@ -582,6 +617,11 @@ function gyms_page(): void
                         <select id="swal-sub-plan" class="form-control" style="width: 100%; box-sizing: border-box; margin-top: 4px;" onchange="onPlanChange(this.value)">
                             ${planOptions}
                         </select>
+                    </label>
+
+                    <label style="display:block; font-size:13px; color:var(--muted);">XenPlatform sub-account User ID
+                        <input id="swal-xendit-account" class="form-control" style="width:100%; box-sizing:border-box; margin-top:4px;" value="${safeXenditAccount}" placeholder="Leave blank until the gym sub-account is verified">
+                        <small style="display:block; margin-top:4px;">Members can pay online only after this gym has a verified XenPlatform sub-account.</small>
                     </label>
 
                     <div style="display: flex; gap: 12px;">
@@ -601,7 +641,7 @@ function gyms_page(): void
                     </div>
 
                     <div style="padding: 12px; border-radius: 8px; background: rgba(34, 197, 94, 0.04); border: 1px dashed rgba(34, 197, 94, 0.25);">
-                        <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 13px; font-weight: 600; color: #fff;">
+                        <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 13px; font-weight: 600; color: var(--ink);">
                             <input type="checkbox" id="swal-record-payment" style="accent-color: var(--lime);" onchange="togglePaymentFields(this.checked)">
                             <span>Record as Paid Subscription in Ledger</span>
                         </label>
@@ -640,6 +680,7 @@ function gyms_page(): void
                 const recordPay = document.getElementById('swal-record-payment').checked;
                 const amount = document.getElementById('swal-sub-amount').value;
                 const method = document.getElementById('swal-sub-method').value;
+                const xenditAccount = document.getElementById('swal-xendit-account').value.trim();
 
                 document.getElementById('modal-sub-gym-id').value = gymId;
                 document.getElementById('modal-sub-plan').value = plan;
@@ -648,6 +689,7 @@ function gyms_page(): void
                 document.getElementById('modal-sub-record-payment').value = recordPay ? '1' : '0';
                 document.getElementById('modal-sub-amount').value = amount || '0';
                 document.getElementById('modal-sub-method').value = method;
+                document.getElementById('modal-sub-xendit-account').value = xenditAccount;
 
                 document.getElementById('edit-sub-form').submit();
             }

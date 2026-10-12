@@ -64,6 +64,7 @@ try {
         "ALTER TABLE users MODIFY COLUMN password_hash VARCHAR(255) NULL",
         "ALTER TABLE gyms ADD COLUMN staff_hide_financials TINYINT(1) DEFAULT 0",
         "ALTER TABLE gyms ADD COLUMN eod_email_summary TINYINT(1) DEFAULT 1",
+        "CREATE TABLE IF NOT EXISTS gym_eod_email_log (id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY, gym_id INT UNSIGNED NOT NULL, report_date DATE NOT NULL, status VARCHAR(16) NOT NULL DEFAULT 'queued', created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP, UNIQUE KEY uq_gym_eod_email_date (gym_id, report_date)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
         "ALTER TABLE users ADD COLUMN staff_role VARCHAR(30) DEFAULT NULL"
     ];
 

@@ -351,35 +351,35 @@ const rawChartData = FT_CONFIG.rawChartData || [];
                     </div>
 
                     <div style="display:grid; grid-template-columns: 1fr 1fr; gap:12px; margin-bottom:12px;">
-                        <div>
-                            <label style="display:block; color:var(--muted); font-size:12px; font-weight:700; margin-bottom:4px;">Target Weight (kg)</label>
-                            <input type="number" step="0.1" name="target_weight_kg" value="${targets.targetWeight || ''}" class="form-control" placeholder="e.g. 75.0" style="width:100%; box-sizing:border-box; border-radius:8px; height:40px; background:var(--panel-soft); color:var(--ink); border:1px solid var(--line); padding:0 10px;">
+                        <div style="display:flex; flex-direction:column; justify-content:flex-end;">
+                            <label style="display:block; color:var(--muted); font-size:12px; font-weight:700; margin-bottom:4px; line-height:1.2;">Target Weight (kg)</label>
+                            <input type="number" step="0.1" name="target_weight_kg" value="${targets.targetWeight || ''}" class="form-control" placeholder="e.g. 75.0" style="width:100%; box-sizing:border-box; border-radius:8px; height:40px; background:var(--panel-soft); color:var(--ink); border:1px solid var(--line); padding:0 10px; margin-top:auto;">
                         </div>
-                        <div>
-                            <label style="display:block; color:var(--muted); font-size:12px; font-weight:700; margin-bottom:4px;">Target Body Fat (%)</label>
-                            <input type="number" step="0.1" name="target_body_fat_percent" value="${targets.targetBodyFat || ''}" class="form-control" placeholder="e.g. 15.0" style="width:100%; box-sizing:border-box; border-radius:8px; height:40px; background:var(--panel-soft); color:var(--ink); border:1px solid var(--line); padding:0 10px;">
-                        </div>
-                    </div>
-
-                    <div style="display:grid; grid-template-columns: 1fr 1fr; gap:12px; margin-bottom:12px;">
-                        <div>
-                            <label style="display:block; color:var(--muted); font-size:12px; font-weight:700; margin-bottom:4px;">Target Waist (cm)</label>
-                            <input type="number" step="0.5" name="target_waist_cm" value="${targets.targetWaist || ''}" class="form-control" placeholder="e.g. 80.0" style="width:100%; box-sizing:border-box; border-radius:8px; height:40px; background:var(--panel-soft); color:var(--ink); border:1px solid var(--line); padding:0 10px;">
-                        </div>
-                        <div>
-                            <label style="display:block; color:var(--muted); font-size:12px; font-weight:700; margin-bottom:4px;">Target Arm (cm)</label>
-                            <input type="number" step="0.5" name="target_arm_cm" value="${targets.targetArm || ''}" class="form-control" placeholder="e.g. 38.0" style="width:100%; box-sizing:border-box; border-radius:8px; height:40px; background:var(--panel-soft); color:var(--ink); border:1px solid var(--line); padding:0 10px;">
+                        <div style="display:flex; flex-direction:column; justify-content:flex-end;">
+                            <label style="display:block; color:var(--muted); font-size:12px; font-weight:700; margin-bottom:4px; line-height:1.2;">Target Body Fat (%)</label>
+                            <input type="number" step="0.1" name="target_body_fat_percent" value="${targets.targetBodyFat || ''}" class="form-control" placeholder="e.g. 15.0" style="width:100%; box-sizing:border-box; border-radius:8px; height:40px; background:var(--panel-soft); color:var(--ink); border:1px solid var(--line); padding:0 10px; margin-top:auto;">
                         </div>
                     </div>
 
                     <div style="display:grid; grid-template-columns: 1fr 1fr; gap:12px; margin-bottom:12px;">
-                        <div>
-                            <label style="display:block; color:var(--muted); font-size:12px; font-weight:700; margin-bottom:4px;">Target Chest (cm)</label>
-                            <input type="number" step="0.5" name="target_chest_cm" value="${targets.targetChest || ''}" class="form-control" placeholder="e.g. 102.0" style="width:100%; box-sizing:border-box; border-radius:8px; height:40px; background:var(--panel-soft); color:var(--ink); border:1px solid var(--line); padding:0 10px;">
+                        <div style="display:flex; flex-direction:column; justify-content:flex-end;">
+                            <label style="display:block; color:var(--muted); font-size:12px; font-weight:700; margin-bottom:4px; line-height:1.2;">Target Waist (cm)</label>
+                            <input type="number" step="0.5" name="target_waist_cm" value="${targets.targetWaist || ''}" class="form-control" placeholder="e.g. 80.0" style="width:100%; box-sizing:border-box; border-radius:8px; height:40px; background:var(--panel-soft); color:var(--ink); border:1px solid var(--line); padding:0 10px; margin-top:auto;">
                         </div>
-                        <div>
-                            <label style="display:block; color:var(--muted); font-size:12px; font-weight:700; margin-bottom:4px;">Weekly Workouts Target</label>
-                            <input type="number" min="1" max="7" name="weekly_workout_target" value="${targets.weeklyWorkouts || '3'}" class="form-control" placeholder="3" style="width:100%; box-sizing:border-box; border-radius:8px; height:40px; background:var(--panel-soft); color:var(--ink); border:1px solid var(--line); padding:0 10px;">
+                        <div style="display:flex; flex-direction:column; justify-content:flex-end;">
+                            <label style="display:block; color:var(--muted); font-size:12px; font-weight:700; margin-bottom:4px; line-height:1.2;">Target Arm (cm)</label>
+                            <input type="number" step="0.5" name="target_arm_cm" value="${targets.targetArm || ''}" class="form-control" placeholder="e.g. 38.0" style="width:100%; box-sizing:border-box; border-radius:8px; height:40px; background:var(--panel-soft); color:var(--ink); border:1px solid var(--line); padding:0 10px; margin-top:auto;">
+                        </div>
+                    </div>
+
+                    <div style="display:grid; grid-template-columns: 1fr 1fr; gap:12px; margin-bottom:12px;">
+                        <div style="display:flex; flex-direction:column; justify-content:flex-end;">
+                            <label style="display:block; color:var(--muted); font-size:12px; font-weight:700; margin-bottom:4px; line-height:1.2;">Target Chest (cm)</label>
+                            <input type="number" step="0.5" name="target_chest_cm" value="${targets.targetChest || ''}" class="form-control" placeholder="e.g. 102.0" style="width:100%; box-sizing:border-box; border-radius:8px; height:40px; background:var(--panel-soft); color:var(--ink); border:1px solid var(--line); padding:0 10px; margin-top:auto;">
+                        </div>
+                        <div style="display:flex; flex-direction:column; justify-content:flex-end;">
+                            <label style="display:block; color:var(--muted); font-size:12px; font-weight:700; margin-bottom:4px; line-height:1.2;">Weekly Workouts</label>
+                            <input type="number" min="1" max="7" name="weekly_workout_target" value="${targets.weeklyWorkouts || '3'}" class="form-control" placeholder="3" style="width:100%; box-sizing:border-box; border-radius:8px; height:40px; background:var(--panel-soft); color:var(--ink); border:1px solid var(--line); padding:0 10px; margin-top:auto;">
                         </div>
                     </div>
                 </form>

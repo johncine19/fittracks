@@ -14,6 +14,16 @@ function notify_user(int $userId, string $type, string $title, string $message, 
         return;
     }
 
+    // Platform admins should not receive announcement notifications as they are the creators
+    if (str_starts_with($title, 'New Announcement:')) {
+        try {
+            $recipientRole = scalar('SELECT role FROM users WHERE user_id = ?', [$userId]);
+            if ($recipientRole === 'platform_admin') {
+                return;
+            }
+        } catch (Throwable) {}
+    }
+
     try {
 
         db()->prepare('INSERT INTO notifications (user_id, type, title, message, reference_id) VALUES (?, ?, ?, ?, ?)')
@@ -157,7 +167,9 @@ function notify_admins_email(string $subject, string $body): void
 function unread_notification_count(int $userId): int
 {
     try {
-        return (int) scalar('SELECT COUNT(*) FROM notifications WHERE user_id = ? AND is_read = 0', [$userId]);
+        $userRole = scalar('SELECT role FROM users WHERE user_id = ?', [$userId]);
+        $filter = ($userRole === 'platform_admin') ? " AND title NOT LIKE 'New Announcement:%'" : "";
+        return (int) scalar("SELECT COUNT(*) FROM notifications WHERE user_id = ? AND is_read = 0{$filter}", [$userId]);
     } catch (Throwable) {
         return 0;
     }
@@ -166,7 +178,9 @@ function unread_notification_count(int $userId): int
 function get_notification_count(int $userId): int
 {
     try {
-        return (int) scalar('SELECT COUNT(*) FROM notifications WHERE user_id = ?', [$userId]);
+        $userRole = scalar('SELECT role FROM users WHERE user_id = ?', [$userId]);
+        $filter = ($userRole === 'platform_admin') ? " AND title NOT LIKE 'New Announcement:%'" : "";
+        return (int) scalar("SELECT COUNT(*) FROM notifications WHERE user_id = ?{$filter}", [$userId]);
     } catch (Throwable) {
         return 0;
     }
@@ -175,8 +189,10 @@ function get_notification_count(int $userId): int
 function get_notifications(int $userId, int $limit = 8, int $offset = 0): array
 {
     try {
+        $userRole = scalar('SELECT role FROM users WHERE user_id = ?', [$userId]);
+        $filter = ($userRole === 'platform_admin') ? " AND title NOT LIKE 'New Announcement:%'" : "";
         return query_all(
-            'SELECT * FROM notifications WHERE user_id = ? ORDER BY created_at DESC LIMIT ' . (int)$limit . ' OFFSET ' . (int)$offset,
+            "SELECT * FROM notifications WHERE user_id = ?{$filter} ORDER BY created_at DESC LIMIT " . (int)$limit . " OFFSET " . (int)$offset,
             [$userId]
         );
     } catch (Throwable) {

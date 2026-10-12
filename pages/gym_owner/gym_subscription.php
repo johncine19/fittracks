@@ -271,9 +271,6 @@ function gym_subscription_page(): void
                         ← Back to Dashboard
                     </a>
                 <?php endif; ?>
-                <a href="index.php?page=logout" style="color: #94a3b8; text-decoration: none; font-size: 14px; transition: color 0.2s;" onmouseover="this.style.color='#ef4444'" onmouseout="this.style.color='#94a3b8'">
-                    Sign Out
-                </a>
             </div>
         </section>
     </div>
@@ -350,13 +347,19 @@ function gym_subscription_page(): void
                                 <td><strong>Target Facility Scale</strong></td>
                                 <td><span class="dist-pill muted">Boutique / Solo</span></td>
                                 <td class="col-popular"><span class="dist-pill lime">Growing Commercial</span></td>
-                                <td><span class="dist-pill purple">Multi-Branch / Enterprise</span></td>
+                                <td><span class="dist-pill purple">High-Volume Gym</span></td>
                             </tr>
                             <tr>
                                 <td><strong>Active Member Capacity</strong></td>
                                 <td><span class="dist-text-highlight">Up to 100 Members</span></td>
                                 <td class="col-popular"><span class="dist-text-lime">Up to 500 Members</span></td>
                                 <td><span class="dist-text-purple">Unlimited Members</span></td>
+                            </tr>
+                            <tr>
+                                <td><strong>Trainer Capacity</strong></td>
+                                <td><span class="status-locked">Locked</span></td>
+                                <td class="col-popular"><span class="dist-text-lime">Unlimited Trainers</span></td>
+                                <td><span class="dist-text-purple">Unlimited Trainers</span></td>
                             </tr>
 
                             <!-- Category 2 -->
@@ -413,7 +416,7 @@ function gym_subscription_page(): void
                                 <td>Class Scheduling & Member Bookings</td>
                                 <td><span class="dist-pill muted">Basic Schedule</span></td>
                                 <td class="col-popular"><span class="status-access">✓ Full Booking + Waitlists</span></td>
-                                <td><span class="status-access">✓ Multi-Branch Booking</span></td>
+                                <td><span class="status-access">✓ Full Booking + Waitlists</span></td>
                             </tr>
 
                             <!-- Category 5 -->
@@ -424,13 +427,13 @@ function gym_subscription_page(): void
                                 <td>Automated Renewal Reminders</td>
                                 <td><span class="dist-pill muted">7-Day Alert</span></td>
                                 <td class="col-popular"><span class="dist-pill sky">Automated (30d/14d/7d/1d)</span></td>
-                                <td><span class="dist-pill purple">Custom Workflows</span></td>
+                                <td><span class="dist-pill purple">Automated (30d/14d/7d/1d)</span></td>
                             </tr>
                             <tr>
-                                <td>Member Engagement & Churn Risk Alerts</td>
+                                <td>Member Engagement Scores & Inactivity Alerts</td>
                                 <td><span class="status-locked">🔒 Locked</span></td>
-                                <td class="col-popular"><span class="status-access">✓ Churn Risk Alerts</span></td>
-                                <td><span class="status-access">✓ Predictive Risk AI</span></td>
+                                <td class="col-popular"><span class="status-access">✓ Engagement Scores & Inactivity Alerts</span></td>
+                                <td><span class="status-access">✓ Engagement Scores & Inactivity Alerts</span></td>
                             </tr>
 
                             <!-- Category 6 -->
@@ -441,28 +444,28 @@ function gym_subscription_page(): void
                                 <td>Dashboard Analytics & Operational KPIs</td>
                                 <td><span class="dist-pill muted">Basic KPIs</span></td>
                                 <td class="col-popular"><span class="dist-pill sky">Advanced Charts & Trends</span></td>
-                                <td><span class="dist-pill purple">Branch Comparisons</span></td>
+                                <td><span class="dist-pill purple">Advanced Charts & Trends</span></td>
                             </tr>
                             <tr>
                                 <td>Financial Reports & Data CSV Export</td>
                                 <td><span class="dist-pill muted">Summary Export</span></td>
                                 <td class="col-popular"><span class="dist-pill sky">Advanced Trends & CSV</span></td>
-                                <td><span class="dist-pill purple">Consolidated Multi-Branch</span></td>
+                                <td><span class="dist-pill purple">Advanced Trends & CSV</span></td>
                             </tr>
                             <tr>
-                                <td>Activity & Security Audit History</td>
-                                <td><span class="dist-pill muted">Basic Activity Log</span></td>
-                                <td class="col-popular"><span class="dist-pill muted">Staff Action History</span></td>
-                                <td><span class="status-access">✓ Full Immutable Trail</span></td>
+                                <td>End-of-Day Summary Emails</td>
+                                <td><span class="status-locked">Locked</span></td>
+                                <td class="col-popular"><span class="status-locked">Locked</span></td>
+                                <td><span class="status-access">✓ Available</span></td>
                             </tr>
                             <tr>
-                                <td>Custom App Brand Accent & Theme</td>
+                                <td>Custom Gym Brand Color</td>
                                 <td><span class="status-locked">🔒 Locked</span></td>
                                 <td class="col-popular"><span class="status-locked">🔒 Locked</span></td>
                                 <td><span class="status-access">✓ Full Access</span></td>
                             </tr>
                             <tr>
-                                <td>Multi-Branch Centralized Portal</td>
+                                <td>Staff Financial Visibility Controls</td>
                                 <td><span class="status-locked">🔒 Locked</span></td>
                                 <td class="col-popular"><span class="status-locked">🔒 Locked</span></td>
                                 <td><span class="status-access">✓ Full Access</span></td>

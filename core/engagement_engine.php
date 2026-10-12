@@ -6,11 +6,11 @@ require_once __DIR__ . '/helpers.php';
 
 /**
  * Calculates a Member Engagement Score (0-100) based on:
- * - Attendance frequency (last 30 days) - 40%
- * - Class participation (last 30 days) - 30%
- * - Consistency (days active / total days) - 20%
- * - Fitness progress updates (last 60 days) - 10%
- * - Daily Completed Workout (last 30 days) - 10%
+ * - Attendance frequency (last 30 days) - 40% default weight
+ * - Class participation (last 30 days) - 20% default weight
+ * - Consistency (active weeks in last 30 days) - 20% default weight
+ * - Completed workout days (last 30 days) - 10% default weight
+ * - Fitness progress updates (last 60 days) - 10% default weight
  */
 /**
  * Converts the aggregated activity metrics into the engagement score.
@@ -24,18 +24,22 @@ function engagement_score_from_metrics(
     int $activeWeeks,
     int $workoutDays,
     bool $hasProgress,
-    array $weights = []
+    array $weights = [],
+    int $attendanceTarget = 7,
+    int $classTarget = 4,
+    int $consistencyTarget = 4,
+    int $workoutTarget = 8
 ): int {
-    $wAttendance = (int) ($weights['attendance'] ?? 40);
+    $wAttendance = (int) ($weights['attendance'] ?? 10);
     $wClasses = (int) ($weights['classes'] ?? 20);
     $wConsistency = (int) ($weights['consistency'] ?? 20);
-    $wWorkouts = (int) ($weights['workouts'] ?? 10);
+    $wWorkouts = (int) ($weights['workouts'] ?? 40);
     $wProgress = (int) ($weights['progress'] ?? 10);
 
-    $attendanceScore = (int) round(min($wAttendance, ($attendanceCount / 7) * $wAttendance));
-    $classScore = (int) round(min($wClasses, ($classCount / 4) * $wClasses));
-    $consistencyScore = (int) round(min($wConsistency, ($activeWeeks / 4) * $wConsistency));
-    $workoutScore = (int) round(min($wWorkouts, ($workoutDays / 8) * $wWorkouts));
+    $attendanceScore = (int) round(min($wAttendance, ($attendanceCount / max(1, $attendanceTarget)) * $wAttendance));
+    $classScore = (int) round(min($wClasses, ($classCount / max(1, $classTarget)) * $wClasses));
+    $consistencyScore = (int) round(min($wConsistency, ($activeWeeks / max(1, $consistencyTarget)) * $wConsistency));
+    $workoutScore = (int) round(min($wWorkouts, ($workoutDays / max(1, $workoutTarget)) * $wWorkouts));
     $progressScore = $hasProgress ? $wProgress : 0;
 
     return $attendanceScore + $classScore + $consistencyScore + $workoutScore + $progressScore;
@@ -57,10 +61,10 @@ function calculate_engagement_scores_batch(array $userIds): array
 
     $pdo = db();
 
-    $wAttendance = (int) get_setting('engagement_weight_attendance', '40');
+    $wAttendance = (int) get_setting('engagement_weight_attendance', '10');
     $wClasses = (int) get_setting('engagement_weight_classes', '20');
     $wConsistency = (int) get_setting('engagement_weight_consistency', '20');
-    $wWorkouts = (int) get_setting('engagement_weight_workouts', '10');
+    $wWorkouts = (int) get_setting('engagement_weight_workouts', '40');
     $wProgress = (int) get_setting('engagement_weight_progress', '10');
 
     $inPlaceholders = implode(',', array_fill(0, count($userIds), '?'));
@@ -146,6 +150,18 @@ function calculate_engagement_scores_batch(array $userIds): array
     $earlyStmt->execute($userIds);
     $earlyBirds = array_fill_keys(array_map('intval', $earlyStmt->fetchAll(PDO::FETCH_COLUMN)), true);
 
+    // 7. Tier lookup for adaptive scoring targets
+    $tierStmt = $pdo->prepare("
+        SELECT user_id, COALESCE(fitness_tier, 1) as fitness_tier
+        FROM member_profiles
+        WHERE user_id IN ($inPlaceholders)
+    ");
+    $tierStmt->execute($userIds);
+    $tierData = [];
+    foreach ($tierStmt->fetchAll(PDO::FETCH_ASSOC) as $r) {
+        $tierData[(int)$r['user_id']] = (int)$r['fitness_tier'];
+    }
+
     // Compute scores and identify badge eligibility
     $scores = [];
     $badgesToInsert = [];
@@ -156,6 +172,8 @@ function calculate_engagement_scores_batch(array $userIds): array
         $clsCount = (int) ($classData[$userId] ?? 0);
         $wktDays  = (int) ($workoutData[$userId] ?? 0);
         $prgCount = (int) ($progressData[$userId] ?? 0);
+        $userTier = (int) ($tierData[$userId] ?? 1);
+        $targets  = get_tier_mission_targets($userTier);
 
         $totalScore = engagement_score_from_metrics(
             $attCount,
@@ -169,7 +187,11 @@ function calculate_engagement_scores_batch(array $userIds): array
                 'consistency' => $wConsistency,
                 'workouts' => $wWorkouts,
                 'progress' => $wProgress,
-            ]
+            ],
+            $targets['attendance'],
+            $targets['classes'],
+            $targets['consistency'],
+            $targets['workouts']
         );
         $scores[$userId] = $totalScore;
 
@@ -260,39 +282,43 @@ function check_and_award_badges(int $userId, int $score): void
  */
 function get_engagement_missions(int $userId): array
 {
-    $wAttendance = (int) get_setting('engagement_weight_attendance', '40');
+    $wAttendance = (int) get_setting('engagement_weight_attendance', '10');
     $wClasses = (int) get_setting('engagement_weight_classes', '20');
     $wConsistency = (int) get_setting('engagement_weight_consistency', '20');
-    $wWorkouts = (int) get_setting('engagement_weight_workouts', '10');
+    $wWorkouts = (int) get_setting('engagement_weight_workouts', '40');
     $wProgress = (int) get_setting('engagement_weight_progress', '10');
+
+    // Retrieve user tier for adaptive targets
+    $tier = (int) (scalar('SELECT fitness_tier FROM member_profiles WHERE user_id = ?', [$userId]) ?: 1);
+    $targets = get_tier_mission_targets($tier);
 
     // Attendance
     $attendanceCount = (int) scalar('SELECT COUNT(*) FROM attendance WHERE user_id = ? AND check_in_time >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)', [$userId]);
-    $attendanceTarget = 7;
+    $attendanceTarget = $targets['attendance'];
     $attendanceCurrent = min($attendanceCount, $attendanceTarget);
-    $attendanceEarned = (int) round(min($wAttendance, ($attendanceCount / $attendanceTarget) * $wAttendance));
+    $attendanceEarned = (int) round(min($wAttendance, ($attendanceCount / max(1, $attendanceTarget)) * $wAttendance));
 
     // Classes
     $classCount = (int) scalar('SELECT COUNT(*) FROM class_bookings WHERE user_id = ? AND booking_status = "attended" AND booked_at >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)', [$userId]);
-    $classTarget = 4;
+    $classTarget = $targets['classes'];
     $classCurrent = min($classCount, $classTarget);
-    $classEarned = (int) round(min($wClasses, ($classCount / $classTarget) * $wClasses));
+    $classEarned = (int) round(min($wClasses, ($classCount / max(1, $classTarget)) * $wClasses));
 
     // Consistency
     $activeWeeks = (int) scalar('SELECT COUNT(DISTINCT WEEK(check_in_time)) FROM attendance WHERE user_id = ? AND check_in_time >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)', [$userId]);
-    $consistencyTarget = 4;
+    $consistencyTarget = $targets['consistency'];
     $consistencyCurrent = min($activeWeeks, $consistencyTarget);
-    $consistencyEarned = (int) round(min($wConsistency, ($activeWeeks / $consistencyTarget) * $wConsistency));
+    $consistencyEarned = (int) round(min($wConsistency, ($activeWeeks / max(1, $consistencyTarget)) * $wConsistency));
 
     // Workouts
     $workoutDays = (int) scalar('SELECT COUNT(DISTINCT completed_date) FROM exercise_completions WHERE user_id = ? AND completed_date >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)', [$userId]);
-    $workoutTarget = 8;
+    $workoutTarget = $targets['workouts'];
     $workoutCurrent = min($workoutDays, $workoutTarget);
-    $workoutEarned = (int) round(min($wWorkouts, ($workoutDays / $workoutTarget) * $wWorkouts));
+    $workoutEarned = (int) round(min($wWorkouts, ($workoutDays / max(1, $workoutTarget)) * $wWorkouts));
 
     // Progress
     $progressCount = (int) scalar('SELECT COUNT(*) FROM progress_logs WHERE user_id = ? AND log_date >= DATE_SUB(CURDATE(), INTERVAL 60 DAY)', [$userId]);
-    $progressTarget = 1;
+    $progressTarget = $targets['progress'];
     $progressCurrent = min($progressCount, $progressTarget);
     $progressEarned = $progressCount > 0 ? $wProgress : 0;
 
@@ -300,7 +326,7 @@ function get_engagement_missions(int $userId): array
         [
             'icon' => '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 4v16"/><path d="M10 4v16"/><path d="M6 12h4"/><path d="M14 4v16"/><path d="M18 4v16"/><path d="M14 12h4"/></svg>',
             'title' => 'Check in to the gym',
-            'description' => 'Visit the gym 7 times this month',
+            'description' => "Visit the gym {$attendanceTarget} times this month",
             'current' => $attendanceCurrent,
             'target' => $attendanceTarget,
             'maxPoints' => $wAttendance,
@@ -310,7 +336,7 @@ function get_engagement_missions(int $userId): array
         [
             'icon' => '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>',
             'title' => 'Attend group classes',
-            'description' => 'Join 4 classes this month',
+            'description' => "Join {$classTarget} classes this month",
             'current' => $classCurrent,
             'target' => $classTarget,
             'maxPoints' => $wClasses,
@@ -320,7 +346,7 @@ function get_engagement_missions(int $userId): array
         [
             'icon' => '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z"/></svg>',
             'title' => 'Keep your weekly streak',
-            'description' => 'Be active in 4 different weeks',
+            'description' => "Be active in {$consistencyTarget} different weeks",
             'current' => $consistencyCurrent,
             'target' => $consistencyTarget,
             'maxPoints' => $wConsistency,
@@ -330,7 +356,7 @@ function get_engagement_missions(int $userId): array
         [
             'icon' => '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>',
             'title' => 'Complete daily workouts',
-            'description' => 'Finish workouts on 8 different days',
+            'description' => "Finish workouts on {$workoutTarget} different days",
             'current' => $workoutCurrent,
             'target' => $workoutTarget,
             'maxPoints' => $wWorkouts,

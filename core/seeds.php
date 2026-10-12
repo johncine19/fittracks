@@ -110,7 +110,7 @@ function seed_ratings_if_empty(): void
                     'system_experience' => 4,
                     'features_rating' => 5,
                     'service_rating' => 5,
-                    'review' => "FitTrack gave us total visibility over attendance trends. The churn risk alerts helped us re-engage 70% of inactive members before their memberships lapsed."
+                    'review' => "FitTrack gave us total visibility over attendance trends. The inactivity alerts helped us follow up with members whose attendance had dropped."
                 ],
                 [
                     'rating' => 5,
@@ -175,4 +175,3 @@ function seed_ratings_if_empty(): void
         error_log('seed_ratings_if_empty error: ' . $e->getMessage());
     }
 }
-

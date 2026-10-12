@@ -1,6 +1,8 @@
 <?php
 declare(strict_types=1);
 
+require_once __DIR__ . '/../../core/gym_selection_service.php';
+
 function gym_selection_page(): void
 {
     define('AUTH_PAGE', true);
@@ -37,37 +39,7 @@ function gym_selection_page(): void
         WHERE status = 'approved'
     ")->fetchAll();
 
-    $gymData = [];
-    foreach ($gyms as $gym) {
-        if (gym_subscription_tier($gym) === 'none') {
-            continue;
-        }
-        $classes = db()->prepare('SELECT * FROM classes WHERE gym_id = ? ORDER BY class_name ASC');
-        $classes->execute([$gym['gym_id']]);
-        $gym['classes'] = $classes->fetchAll();
-
-        $plans = db()->prepare('
-            SELECT * FROM membership_plans 
-            WHERE gym_id = :gym_id AND is_active = 1
-            ORDER BY price ASC
-        ');
-        $plans->execute(['gym_id' => $gym['gym_id']]);
-        $rawPlans = $plans->fetchAll(PDO::FETCH_ASSOC);
-        foreach ($rawPlans as &$p) {
-            $p['features'] = get_membership_plan_features($p);
-            $p['is_popular'] = !empty($p['is_popular']);
-        }
-        unset($p);
-        $gym['plans'] = $rawPlans;
-
-        $images = db()->prepare('SELECT image_url FROM gym_images WHERE gym_id = ? ORDER BY created_at DESC LIMIT 10');
-        $images->execute([$gym['gym_id']]);
-        $gym['images'] = $images->fetchAll(PDO::FETCH_COLUMN);
-
-        $gym['rating_stats'] = get_gym_rating_stats((int)$gym['gym_id']);
-
-        $gymData[] = $gym;
-    }
+    $gymData = load_gym_selection_data($gyms);
 
     $profile = member_profile((int) $user['user_id']);
     $userGoal = strtolower($profile['primary_goal'] ?? '');

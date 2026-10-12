@@ -29,8 +29,9 @@ function render_simple_table(array $rows, array $columns): string
     return ob_get_clean();
 }
 
-function render_member_form(string $context, ?array $user = null, ?array $profile = null): void
+function render_member_form(string $context, ?array $user = null, ?array $profile = null, array $options = []): void
 {
+    $isTrainerAssessment = !empty($options['is_trainer_assessment']) || ($context === 'trainer_assessment');
     ?>
     <style>
         .pm-tab-bar-wrap {
@@ -122,7 +123,7 @@ function render_member_form(string $context, ?array $user = null, ?array $profil
             font-size: 12.5px;
             font-weight: 600;
             color: var(--ink);
-            white-space: nowrap;
+            white-space: normal;
             line-height: 1.25;
             margin-bottom: 2px;
         }
@@ -154,10 +155,25 @@ function render_member_form(string $context, ?array $user = null, ?array $profil
             padding-right: 32px;
             cursor: pointer;
         }
-        .pm-field input:focus, .pm-field select:focus {
+        .pm-field input:focus, .pm-field select:focus, .pm-field textarea:focus, .pm-textarea:focus {
             border-color: var(--lime);
             outline: none;
             box-shadow: 0 0 0 3px rgba(199, 255, 34, 0.18);
+        }
+        .pm-field textarea, .pm-textarea {
+            width: 100%;
+            box-sizing: border-box;
+            background: var(--panel);
+            border: 1.5px solid var(--line);
+            color: var(--ink);
+            border-radius: 8px;
+            padding: 9px 12px;
+            font-size: 13px;
+            font-family: inherit;
+            transition: border-color 0.15s, box-shadow 0.15s;
+            resize: vertical;
+            min-height: 74px;
+            line-height: 1.45;
         }
 
         /* Modal Dialog Container & Scrolling Fix */
@@ -518,63 +534,84 @@ function render_member_form(string $context, ?array $user = null, ?array $profil
             z-index: 30;
             box-shadow: 0 -8px 20px rgba(0, 0, 0, 0.35);
         }
-        @media (max-width: 520px) {
+        @media (max-width: 540px) {
             #physicalProfileModal[open],
             #reviewEditModal[open] {
                 width: 95% !important;
                 max-width: 95% !important;
-                max-height: 94vh !important;
-                max-height: 94dvh !important;
+                max-height: min(80vh, 80dvh) !important;
                 margin: auto;
                 border-radius: 12px;
             }
             #physicalProfileModal .modal-header,
             #reviewEditModal .modal-header {
-                padding: 12px 16px;
+                padding: 10px 14px;
             }
             #physicalProfileModal .modal-header h3,
             #reviewEditModal .modal-header h3 {
-                font-size: 16px;
+                font-size: 15px;
             }
             #physicalProfileModal .modal-body,
             #reviewEditModal .modal-body {
-                padding: 0 16px !important;
+                padding: 0 14px !important;
             }
             .pm-tab-bar-wrap {
-                margin: 0 -16px 12px -16px;
-                padding: 10px 16px 8px 16px;
+                margin: 0 -14px 8px -14px;
+                padding: 6px 14px 6px 14px;
             }
             #physicalProfileModal .pm-footer,
             #reviewEditModal .pm-footer {
-                margin-left: -16px;
-                margin-right: -16px;
-                padding: 10px 16px 12px 16px;
+                margin-left: -14px;
+                margin-right: -14px;
+                padding: 8px 14px 10px 14px;
             }
             .pm-grid {
                 grid-template-columns: repeat(2, minmax(0, 1fr));
-                gap: 10px 12px;
+                gap: 8px 10px;
             }
             .pm-tab-bar {
                 margin-bottom: 0;
-                gap: 4px;
+                gap: 3px;
+                padding: 3px;
             }
             .pm-tab-btn {
-                padding: 7px 8px;
+                padding: 6px 6px;
+                font-size: 11px;
             }
             .pm-tab-btn span.tab-title {
                 display: none;
             }
             .pm-field {
-                gap: 4px;
-                font-size: 11.5px;
+                gap: 3px;
+                font-size: 11px;
                 min-width: 0;
             }
             .pm-field input,
             .custom-select-trigger,
             .custom-goal-trigger {
-                padding: 8px 10px;
-                font-size: 13px;
+                padding: 7px 9px;
+                font-size: 12px;
+                min-height: 36px;
                 min-width: 0;
+            }
+            .pm-field .custom-select-trigger[id^="sexTrigger_"] {
+                height: 36px;
+                padding: 4px 9px;
+            }
+            .pm-field .custom-select-trigger[id^="sexTrigger_"] .custom-select-trigger-icon {
+                width: 20px;
+                height: 20px;
+            }
+            .pm-field textarea,
+            .pm-textarea {
+                padding: 7px 9px;
+                font-size: 12px;
+                min-height: 52px;
+            }
+            .pm-field-hint {
+                font-size: 10px;
+                margin-top: 2px;
+                line-height: 1.25;
             }
             .custom-select-wrapper .custom-select-menu {
                 left: auto;
@@ -806,10 +843,71 @@ function render_member_form(string $context, ?array $user = null, ?array $profil
                 gap: 8px;
             }
         }
+        .pm-trainer-safety-banner {
+            background: rgba(249, 115, 22, 0.07);
+            border: 1px solid rgba(249, 115, 22, 0.25);
+            border-left: 3.5px solid #ea580c;
+            border-radius: 8px;
+            padding: 8px 12px;
+            margin-bottom: 12px;
+            display: flex;
+            align-items: center;
+            gap: 9px;
+            font-size: 11.5px;
+            line-height: 1.4;
+        }
+        .pm-trainer-safety-banner .banner-icon {
+            color: #ea580c;
+            flex-shrink: 0;
+        }
+        .pm-trainer-safety-banner .banner-content {
+            flex: 1;
+            min-width: 0;
+        }
+        .pm-trainer-safety-banner .banner-title {
+            font-weight: 700;
+            color: var(--ink, #0f172a);
+            margin-right: 4px;
+        }
+        .pm-trainer-safety-banner .banner-desc {
+            color: var(--muted, #475569);
+        }
+        [data-theme="light"] .pm-trainer-safety-banner {
+            background: #fff7ed;
+            border: 1px solid #fed7aa;
+            border-left: 3.5px solid #ea580c;
+        }
+        [data-theme="light"] .pm-trainer-safety-banner .banner-title {
+            color: #9a3412;
+        }
+        [data-theme="light"] .pm-trainer-safety-banner .banner-desc {
+            color: #7c2d12;
+        }
+        [data-theme="dark"] .pm-trainer-safety-banner {
+            background: rgba(234, 88, 12, 0.08);
+            border: 1px solid rgba(234, 88, 12, 0.25);
+            border-left: 3.5px solid #ea580c;
+        }
+        [data-theme="dark"] .pm-trainer-safety-banner .banner-title {
+            color: #fed7aa;
+        }
+        [data-theme="dark"] .pm-trainer-safety-banner .banner-desc {
+            color: #cbd5e1;
+        }
     </style>
 
     <form method="post" class="pm-form" id="physicalProfileForm_<?= h($context) ?>" onsubmit="return handleProfileFormSubmit_<?= h($context) ?>(this, event);">
         <?= csrf_field() ?>
+
+        <?php if ($isTrainerAssessment): ?>
+            <div class="pm-trainer-safety-banner">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" class="banner-icon"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+                <div class="banner-content">
+                    <span class="banner-title">Clinical Assessment:</span>
+                    <span class="banner-desc">Biometrics sync with workout builder. Member dietary disclosures are protected.</span>
+                </div>
+            </div>
+        <?php endif; ?>
 
         <!-- Segmented Tab Header -->
         <div class="pm-tab-bar-wrap">
@@ -862,6 +960,7 @@ function render_member_form(string $context, ?array $user = null, ?array $profil
                 <label class="pm-field">Age
                     <input name="age" type="number" min="16" max="120"
                            class="<?= isset($errors['age']) ? 'input-error' : '' ?>"
+                           <?= $isTrainerAssessment ? 'readonly aria-readonly="true"' : '' ?>
                            value="<?= h($profile['age'] ?? '') ?>">
                 </label>
                 <?php
@@ -875,12 +974,15 @@ function render_member_form(string $context, ?array $user = null, ?array $profil
                 <div class="pm-field">
                     <label for="sexTrigger_<?= h($context) ?>">Biological sex</label>
                     <div class="custom-select-wrapper" id="sexDropdown_<?= h($context) ?>">
-                        <select name="biological_sex" id="sexSelect_<?= h($context) ?>" class="custom-select-native" onchange="document.getElementById('hipContainer_<?= h($context) ?>').style.display = this.value === 'female' ? 'flex' : 'none';" <?= $context !== 'profile' ? 'required' : '' ?>>
+                        <select <?= $isTrainerAssessment ? 'disabled' : 'name="biological_sex"' ?> id="sexSelect_<?= h($context) ?>" class="custom-select-native" onchange="document.getElementById('hipContainer_<?= h($context) ?>').style.display = this.value === 'female' ? 'flex' : 'none';" <?= $context !== 'profile' ? 'required' : '' ?>>
                             <option value="male" <?= selected('male', $currentSex) ?>>Male</option>
                             <option value="female" <?= selected('female', $currentSex) ?>>Female</option>
                         </select>
+                        <?php if ($isTrainerAssessment): ?>
+                            <input type="hidden" name="biological_sex" value="<?= h($currentSex) ?>">
+                        <?php endif; ?>
 
-                        <button type="button" class="custom-select-trigger" id="sexTrigger_<?= h($context) ?>" onclick="toggleCustomDropdown('sexDropdown_<?= h($context) ?>', event)" aria-haspopup="listbox" aria-expanded="false">
+                        <button type="button" class="custom-select-trigger" id="sexTrigger_<?= h($context) ?>" <?= $isTrainerAssessment ? 'disabled aria-disabled="true"' : 'onclick="toggleCustomDropdown(\'sexDropdown_' . h($context) . '\', event)" aria-haspopup="listbox"' ?> aria-expanded="false">
                             <span class="custom-select-trigger-content">
                                 <span class="custom-select-trigger-icon">
                                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
@@ -892,6 +994,7 @@ function render_member_form(string $context, ?array $user = null, ?array $profil
                             </svg>
                         </button>
 
+                        <?php if (!$isTrainerAssessment): ?>
                         <div class="custom-select-menu" role="listbox">
                             <div class="custom-select-list">
                                 <?php foreach ($sexOptions as $val => $opt): 
@@ -912,6 +1015,7 @@ function render_member_form(string $context, ?array $user = null, ?array $profil
                                 <?php endforeach; ?>
                             </div>
                         </div>
+                        <?php endif; ?>
                     </div>
                 </div>
                 <label class="pm-field">Neck (cm)
@@ -1116,34 +1220,6 @@ function render_member_form(string $context, ?array $user = null, ?array $profil
                 </div>
             </div>
 
-            <!-- 2. Dynamic Goal Description Card -->
-            <div class="pm-goal-desc-card full-span" id="goalDescCard_<?= h($context) ?>">
-                <span class="pm-goal-desc-icon" id="goalDescIcon_<?= h($context) ?>">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>
-                </span>
-                <span class="pm-goal-desc-text" id="goalDescText_<?= h($context) ?>">Focus on improving your primary fitness metrics.</span>
-            </div>
-
-            <!-- 3. Goal Impact & Plan Calibration Summary Card -->
-            <div class="full-span" style="background: color-mix(in srgb, var(--lime) 8%, var(--panel-soft)); border: 1.5px solid color-mix(in srgb, var(--lime) 25%, var(--line)); border-radius: 12px; padding: 14px 16px; margin-top: 10px;">
-                <div style="display: flex; align-items: flex-start; gap: 10px;">
-                    <div style="width: 32px; height: 32px; border-radius: 8px; background: color-mix(in srgb, var(--lime) 18%, transparent); color: var(--lime); display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
-                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>
-                    </div>
-                    <div style="flex: 1;">
-                        <div style="font-size: 13.5px; font-weight: 700; color: var(--ink); margin-bottom: 3px;">Workout &amp; Nutrition Calibration</div>
-                        <p style="font-size: 12px; color: var(--muted); line-height: 1.45; margin: 0;">
-                            Your primary fitness goal defines your baseline training split, exercise selection, and recommended caloric targets. Specific milestones (weight, body fat, waist, compound lift PRs, and cardio benchmarks) are configured in the dedicated <strong>Targets</strong> tab.
-                        </p>
-                    </div>
-                </div>
-                <div style="display: flex; justify-content: flex-end; margin-top: 12px;">
-                    <button type="button" class="btn btn-secondary" onclick="switchProfileTab_<?= h($context) ?>('targets')" style="font-size: 12px; padding: 6px 14px; border-radius: 8px; display: inline-flex; align-items: center; gap: 6px; font-weight: 600;">
-                        <span>Go to Target Milestones</span>
-                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
-                    </button>
-                </div>
-            </div>
         </div>
 
     <!-- TAB 3: TARGETS (The Five Targets) -->
@@ -1505,48 +1581,66 @@ function render_member_form(string $context, ?array $user = null, ?array $profil
                 $currentDiet = $profile['dietary_restrictions'] ?? 'none';
                 $selectedDietLabel = $dietOptions[$currentDiet]['label'] ?? 'None';
                 ?>
-                <div class="pm-field">
-                    <label for="dietTrigger_<?= h($context) ?>">Dietary Restrictions</label>
-                    <div class="custom-select-wrapper" id="dietDropdown_<?= h($context) ?>">
-                        <select name="dietary_restrictions" id="dietSelect_<?= h($context) ?>" class="custom-select-native" required>
-                            <?php foreach ($dietOptions as $diet => $opt): ?>
-                                <option value="<?= h($diet) ?>" <?= selected($diet, $currentDiet) ?>><?= h($opt['label']) ?></option>
-                            <?php endforeach; ?>
-                        </select>
-
-                        <button type="button" class="custom-select-trigger" id="dietTrigger_<?= h($context) ?>" onclick="toggleCustomDropdown('dietDropdown_<?= h($context) ?>', event)" aria-haspopup="listbox" aria-expanded="false">
-                            <span class="custom-select-trigger-content">
-                                <span class="custom-select-trigger-icon">
-                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8h1a4 4 0 0 1 0 8h-1"/><path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z"/><line x1="6" y1="1" x2="6" y2="4"/><line x1="10" y1="1" x2="10" y2="4"/><line x1="14" y1="1" x2="14" y2="4"/></svg>
-                                </span>
-                                <span class="custom-select-trigger-text" id="dietTriggerText_<?= h($context) ?>"><?= h($selectedDietLabel) ?></span>
-                            </span>
-                            <svg class="custom-select-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-                                <polyline points="6 9 12 15 18 9"></polyline>
-                            </svg>
-                        </button>
-
-                        <div class="custom-select-menu" role="listbox">
-                            <div class="custom-select-list">
-                                <?php foreach ($dietOptions as $val => $opt): 
-                                    $isSelected = ($val === $currentDiet);
-                                ?>
-                                    <div class="custom-select-item <?= $isSelected ? 'selected' : '' ?>"
-                                         data-value="<?= h($val) ?>"
-                                         data-label="<?= h($opt['label']) ?>"
-                                         role="option"
-                                         aria-selected="<?= $isSelected ? 'true' : 'false' ?>"
-                                         onclick="selectCustomOption('dietDropdown_<?= h($context) ?>', 'dietSelect_<?= h($context) ?>', '<?= h(addslashes($val)) ?>', '<?= h(addslashes($opt['label'])) ?>')">
-                                        <div class="custom-select-item-details">
-                                            <span class="custom-select-item-title"><?= h($opt['label']) ?></span>
-                                            <span class="custom-select-item-desc"><?= h($opt['desc']) ?></span>
-                                        </div>
-                                        <span class="custom-select-check"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span>
-                                    </div>
+                <div class="pm-field <?= $isTrainerAssessment ? 'full-span' : '' ?>">
+                    <label for="dietTrigger_<?= h($context) ?>">
+                        <span style="display: inline-flex; align-items: center; gap: 6px;">
+                            <?php if ($isTrainerAssessment): ?>
+                                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" style="color: #f59e0b;"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+                            <?php endif; ?>
+                            Dietary Restrictions / Allergies
+                        </span>
+                    </label>
+                    <?php if ($isTrainerAssessment): ?>
+                        <div class="pm-read-only-badge" style="border-left: 3.5px solid #f59e0b; background: var(--panel-soft); border-color: var(--line); display: flex; align-items: center; justify-content: space-between; padding: 8px 12px; min-height: 38px; gap: 8px; flex-wrap: wrap;">
+                            <span class="val" style="font-size: 13.5px; font-weight: 600; color: var(--ink);"><?= h($selectedDietLabel) ?></span>
+                            <span class="unit" style="background: rgba(245, 158, 11, 0.15); color: #d97706; border: 1px solid rgba(245, 158, 11, 0.35); font-size: 10px; font-weight: 700; text-transform: uppercase; white-space: nowrap; padding: 2px 7px; border-radius: 4px;">Protected</span>
+                        </div>
+                        <input type="hidden" name="dietary_restrictions" value="<?= h($currentDiet) ?>">
+                        <span class="pm-field-hint" style="color: var(--muted);">
+                            Locked during trainer assessment for safety compliance.
+                        </span>
+                    <?php else: ?>
+                        <div class="custom-select-wrapper" id="dietDropdown_<?= h($context) ?>">
+                            <select name="dietary_restrictions" id="dietSelect_<?= h($context) ?>" class="custom-select-native" required>
+                                <?php foreach ($dietOptions as $diet => $opt): ?>
+                                    <option value="<?= h($diet) ?>" <?= selected($diet, $currentDiet) ?>><?= h($opt['label']) ?></option>
                                 <?php endforeach; ?>
+                            </select>
+
+                            <button type="button" class="custom-select-trigger" id="dietTrigger_<?= h($context) ?>" onclick="toggleCustomDropdown('dietDropdown_<?= h($context) ?>', event)" aria-haspopup="listbox" aria-expanded="false">
+                                <span class="custom-select-trigger-content">
+                                    <span class="custom-select-trigger-icon">
+                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8h1a4 4 0 0 1 0 8h-1"/><path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z"/><line x1="6" y1="1" x2="6" y2="4"/><line x1="10" y1="1" x2="10" y2="4"/><line x1="14" y1="1" x2="14" y2="4"/></svg>
+                                    </span>
+                                    <span class="custom-select-trigger-text" id="dietTriggerText_<?= h($context) ?>"><?= h($selectedDietLabel) ?></span>
+                                </span>
+                                <svg class="custom-select-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                                    <polyline points="6 9 12 15 18 9"></polyline>
+                                </svg>
+                            </button>
+
+                            <div class="custom-select-menu" role="listbox">
+                                <div class="custom-select-list">
+                                    <?php foreach ($dietOptions as $val => $opt): 
+                                        $isSelected = ($val === $currentDiet);
+                                    ?>
+                                        <div class="custom-select-item <?= $isSelected ? 'selected' : '' ?>"
+                                             data-value="<?= h($val) ?>"
+                                             data-label="<?= h($opt['label']) ?>"
+                                             role="option"
+                                             aria-selected="<?= $isSelected ? 'true' : 'false' ?>"
+                                             onclick="selectCustomOption('dietDropdown_<?= h($context) ?>', 'dietSelect_<?= h($context) ?>', '<?= h(addslashes($val)) ?>', '<?= h(addslashes($opt['label'])) ?>')">
+                                            <div class="custom-select-item-details">
+                                                <span class="custom-select-item-title"><?= h($opt['label']) ?></span>
+                                                <span class="custom-select-item-desc"><?= h($opt['desc']) ?></span>
+                                            </div>
+                                            <span class="custom-select-check"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span>
+                                        </div>
+                                    <?php endforeach; ?>
+                                </div>
                             </div>
                         </div>
-                    </div>
+                    <?php endif; ?>
                 </div>
 
                 <!-- Experience Level Custom Dropdown -->
@@ -1702,6 +1796,20 @@ function render_member_form(string $context, ?array $user = null, ?array $profil
                         </div>
                     </div>
                 </div>
+
+                <?php if ($isTrainerAssessment): ?>
+                    <div class="pm-field full-span" style="margin-top: 6px;">
+                        <label for="trainer_assessment_notes_<?= h($context) ?>" style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 6px;">
+                            <span style="display: inline-flex; align-items: center; gap: 6px;">
+                                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color: var(--primary, #ea580c); flex-shrink: 0;"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                                Trainer Assessment Notes
+                            </span>
+                            <span style="font-size: 9.5px; font-weight: 700; color: var(--primary, #ea580c); background: color-mix(in srgb, var(--primary, #ea580c) 14%, transparent); border: 1px solid color-mix(in srgb, var(--primary, #ea580c) 30%, transparent); padding: 2px 6px; border-radius: 4px; text-transform: uppercase; white-space: nowrap; flex-shrink: 0;">Trainer Only</span>
+                        </label>
+                        <textarea name="trainer_assessment_notes" id="trainer_assessment_notes_<?= h($context) ?>" rows="2" class="pm-textarea" style="min-height: 56px;" placeholder="E.g., Client mobility notes, posture observations, training directives..."><?= h($profile['trainer_assessment_notes'] ?? '') ?></textarea>
+                        <span class="pm-field-hint" style="color: var(--muted);">Private coaching observations stored in member records to guide workout and nutrition planning.</span>
+                    </div>
+                <?php endif; ?>
             </div>
         </div>
 
@@ -1839,8 +1947,8 @@ function render_member_form(string $context, ?array $user = null, ?array $profil
         return 'general_fitness';
     }
 
-    const USER_WEIGHT_<?= h($context) ?> = <?= (float)$userWeight ?>;
-    const USER_BF_EST_<?= h($context) ?> = <?= (float)$currentBfEst ?>;
+    var USER_WEIGHT_<?= h($context) ?> = <?= (float)$userWeight ?>;
+    var USER_BF_EST_<?= h($context) ?> = <?= (float)$currentBfEst ?>;
 
     function syncTargetWeight_<?= h($context) ?>(val) {
         const canonical = document.getElementById('canonicalTargetWeight_<?= h($context) ?>');
@@ -2583,9 +2691,6 @@ function render_current_workout(int $memberUserId, bool $dashboardMode = false, 
             // REST DAY
             echo '<div class="workout-rest-card">';
             echo '  <div class="workout-rest-body">';
-            echo '    <div class="workout-rest-icon-wrap">';
-            echo '      <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="m4.93 4.93 4.24 4.24"/><path d="m14.83 9.17 4.24-4.24"/><path d="m14.83 14.83 4.24 4.24"/><path d="m9.17 14.83-4.24 4.24"/><circle cx="12" cy="12" r="4"/></svg>';
-            echo '    </div>';
             echo '    <div class="workout-rest-content">';
             echo '      <div class="workout-rest-header-row">';
             echo '        <h4 class="workout-rest-title">Active Recovery &amp; Rest Day</h4>';
@@ -4305,7 +4410,8 @@ function render_registration_form(): void
  */
 function render_skeleton_stats(int $count = 4): void
 {
-    echo '<div class="skeleton-wrapper"><section class="dash-grid stats-row">';
+    $extraClass = ($count === 5) ? ' platform-admin-stats' : '';
+    echo '<div class="skeleton-wrapper"><section class="dash-grid stats-row' . $extraClass . '">';
     for ($i = 0; $i < $count; $i++) {
         echo '<div class="sk-card sk-rect stat sk">';
         echo '<div class="sk sk-text short" style="margin-bottom:18px"></div>';

@@ -1,0 +1,45 @@
+# FitTracks Robots.txt
+User-agent: *
+
+# Allow public landing and registration
+Allow: /
+Allow: /assets/
+Allow: /index.php?page=landing
+Allow: /index.php?page=gym_register
+Allow: /index.php?page=register
+Allow: /index.php?page=login
+
+# Disallow private application areas & internal scripts
+Disallow: /core/
+Disallow: /database/
+Disallow: /storage/
+Disallow: /config/
+Disallow: /tests/
+Disallow: /scratch/
+Disallow: /cron.php
+Disallow: /migrate.php
+Disallow: /health.php
+
+# Disallow private user/admin dashboards and actions
+Disallow: /*?page=dashboard*
+Disallow: /*?page=users*
+Disallow: /*?page=trainer_*
+Disallow: /*?page=plans*
+Disallow: /*?page=memberships*
+Disallow: /*?page=payments*
+Disallow: /*?page=commissions*
+Disallow: /*?page=classes*
+Disallow: /*?page=attendance*
+Disallow: /*?page=profile*
+Disallow: /*?page=my_*
+Disallow: /*?page=diet*
+Disallow: /*?page=reports*
+Disallow: /*?page=walk_ins*
+Disallow: /*?page=qr_attendance*
+Disallow: /*?page=scanner*
+Disallow: /*?page=audit_logs*
+Disallow: /*?page=gym_applications*
+Disallow: /*?page=settings*
+
+# Sitemap location
+Sitemap: https://fitworks.tech/sitemap.xml

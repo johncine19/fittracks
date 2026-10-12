@@ -460,7 +460,7 @@ function trainer_members_page(): void
 
     <!-- Trainer Client Fitness Assessment Modal Overlay -->
     <div class="ft-modal-overlay" id="trainerAssessmentModal" style="display: none;" onclick="if (event.target === this) closeTrainerAssessmentModal();">
-        <div class="ft-modal-box" style="max-width: 620px; max-height: 90vh;">
+        <div class="ft-modal-box trainer-assessment-modal-box">
             <div class="ft-modal-header">
                 <div>
                     <h3 class="ft-modal-title" id="trainerAssessmentModalTitle">Fitness Assessment</h3>
@@ -470,7 +470,7 @@ function trainer_members_page(): void
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
                 </button>
             </div>
-            <div class="ft-modal-body" id="trainerAssessmentModalBody" style="padding: 18px 22px;">
+            <div class="ft-modal-body" id="trainerAssessmentModalBody">
                 <!-- Dynamic Content Loaded via AJAX -->
             </div>
         </div>

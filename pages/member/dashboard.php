@@ -635,7 +635,7 @@ function member_dashboard(PDO $pdo, array $user): void
     <div id="panel-missions" class="member-tab-panel">
         <?php
         $gymId = $user['gym_id'] ?? scalar('SELECT gym_id FROM gym_members WHERE user_id = ? LIMIT 1', [$user['user_id']]);
-        $stmtLeaders = $pdo->prepare('SELECT u.user_id, u.first_name, u.last_name, u.engagement_score FROM users u JOIN gym_members gm ON u.user_id = gm.user_id WHERE u.role = "member" AND gm.gym_id = ? AND u.status = "active" ORDER BY u.engagement_score DESC LIMIT 5');
+        $stmtLeaders = $pdo->prepare('SELECT u.user_id, u.first_name, u.last_name, u.engagement_score, COALESCE(mp.fitness_tier, 1) AS fitness_tier FROM users u JOIN gym_members gm ON u.user_id = gm.user_id LEFT JOIN member_profiles mp ON u.user_id = mp.user_id WHERE u.role = "member" AND gm.gym_id = ? AND u.status = "active" ORDER BY u.engagement_score DESC LIMIT 5');
         $stmtLeaders->execute([$gymId]);
         $topLeaders = $stmtLeaders->fetchAll(PDO::FETCH_ASSOC);
 
@@ -659,12 +659,21 @@ function member_dashboard(PDO $pdo, array $user): void
                         $isMe = ((int)$leader['user_id'] === (int)$user['user_id']);
                         $bg = $isMe ? 'color-mix(in srgb, var(--lime) 12%, transparent)' : 'color-mix(in srgb, var(--panel-soft) 40%, transparent)';
                         $border = $isMe ? '1px solid color-mix(in srgb, var(--lime) 40%, transparent)' : '1px solid var(--line)';
-                        echo '<div style="display: flex; align-items: center; justify-content: space-between; padding: 11px 14px; background: '.$bg.'; border: '.$border.'; border-radius: 10px; margin-bottom: 8px; transition: all 0.2s ease;">';
-                        echo '<div style="display: flex; align-items: center; gap: 12px;">';
-                        echo '<span style="font-weight: 800; color: '.($rank <= 3 ? 'var(--lime)' : 'var(--muted)').'; width: 22px; font-size: 13px;">#'.$rank.'</span>';
-                        echo '<span style="font-weight: 600; color: var(--ink); font-size: 13.5px;">'.h($leader['first_name'].' '.mb_substr($leader['last_name'], 0, 1)).'. '.($isMe ? '<small style="color:var(--lime);font-size:11px;font-weight:700;">(You)</small>' : '').'</span>';
+                        $tierNum = (int)($leader['fitness_tier'] ?? 1);
+                        $tierLabel = get_fitness_tier_name($tierNum);
+
+                        echo '<div style="display: flex; align-items: center; justify-content: space-between; padding: 11px 14px; background: '.$bg.'; border: '.$border.'; border-radius: 10px; margin-bottom: 8px; transition: all 0.2s ease; gap: 10px;">';
+                        echo '<div style="display: flex; align-items: center; gap: 12px; min-width: 0; flex: 1;">';
+                        echo '<span style="font-weight: 800; color: '.($rank <= 3 ? 'var(--lime)' : 'var(--muted)').'; width: 22px; font-size: 13px; flex-shrink: 0;">#'.$rank.'</span>';
+                        echo '<div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap; min-width: 0;">';
+                        echo '<span style="font-weight: 600; color: var(--ink); font-size: 13.5px; white-space: nowrap;">'.h($leader['first_name'].' '.mb_substr($leader['last_name'], 0, 1)).'. '.($isMe ? '<small style="color:var(--lime);font-size:11px;font-weight:700;">(You)</small>' : '').'</span>';
+                        echo '<span class="leader-tier-badge leader-tier-'.$tierNum.'" title="Fitness Tier '.$tierNum.': '.h($tierLabel).'">';
+                        echo '<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="opacity:0.85;"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>';
+                        echo h($tierLabel).' Tier';
+                        echo '</span>';
                         echo '</div>';
-                        echo '<span style="font-weight: 800; color: var(--lime); font-size: 14px;">'.$leader['engagement_score'].' <small style="font-size:11px;font-weight:500;color:var(--muted)">pts</small></span>';
+                        echo '</div>';
+                        echo '<span style="font-weight: 800; color: var(--lime); font-size: 14px; flex-shrink: 0; white-space: nowrap;">'.$leader['engagement_score'].' <small style="font-size:11px;font-weight:500;color:var(--muted)">pts</small></span>';
                         echo '</div>';
                         $rank++;
                     }
@@ -696,6 +705,41 @@ function member_dashboard(PDO $pdo, array $user): void
                         'icon' => '<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color:var(--lime); display:inline-block;"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>',
                         'name' => 'Century Club',
                         'desc' => 'Reached 100 Engagement Score'
+                    ],
+                    'milestone_first_log' => [
+                        'icon' => '<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color:var(--lime); display:inline-block;"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15"/></svg>',
+                        'name' => 'Journey Begun',
+                        'desc' => 'Logged initial baseline body measurements'
+                    ],
+                    'milestone_waist_trimmer' => [
+                        'icon' => '<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color:var(--lime); display:inline-block;"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="4"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>',
+                        'name' => 'Waist Sculptor',
+                        'desc' => 'Reduced waist circumference by ≥ 3.0 cm'
+                    ],
+                    'milestone_lean_warrior' => [
+                        'icon' => '<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color:var(--lime); display:inline-block;"><path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z"/></svg>',
+                        'name' => 'Lean Machine',
+                        'desc' => 'Reduced body fat percentage by ≥ 2.5%'
+                    ],
+                    'milestone_arm_builder' => [
+                        'icon' => '<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color:var(--lime); display:inline-block;"><path d="M6 5v14M18 5v14M6 12h12M3 8v8M21 8v8"/></svg>',
+                        'name' => 'Arm Builder',
+                        'desc' => 'Gained ≥ 1.5 cm on arm circumference'
+                    ],
+                    'milestone_chest_sculptor' => [
+                        'icon' => '<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color:var(--lime); display:inline-block;"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>',
+                        'name' => 'Chest Armor',
+                        'desc' => 'Gained ≥ 2.0 cm on chest circumference'
+                    ],
+                    'milestone_weight_goal_met' => [
+                        'icon' => '<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color:var(--lime); display:inline-block;"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/></svg>',
+                        'name' => 'Target Achieved',
+                        'desc' => 'Reached or passed target body weight'
+                    ],
+                    'milestone_consistency_streak' => [
+                        'icon' => '<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color:var(--lime); display:inline-block;"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>',
+                        'name' => 'Habit Master',
+                        'desc' => 'Consistent logging across 4+ unique weeks'
                     ]
                 ];
 
@@ -731,8 +775,9 @@ function member_dashboard(PDO $pdo, array $user): void
         <div id="missions-section" class="skeleton-content animate-fade-in delay-1" style="margin-bottom: 24px;">
             <section class="panel missions-panel-card" style="padding: 0; overflow: hidden;">
                 <div style="padding: 20px 24px 16px; border-bottom: 1px solid var(--line); display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
-                    <div style="display: flex; align-items: center; gap: 10px;">
+                    <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
                         <h2 style="margin: 0; font-size: 18px; color: var(--ink);">Missions</h2>
+                        <span class="leader-tier-badge leader-tier-<?= $tier ?>" title="Mission targets adapt to your <?= h($tierName) ?> Tier"><?= h($tierName) ?> Targets</span>
                         <span style="font-size: 12px; background: color-mix(in srgb, var(--lime) 15%, transparent); color: var(--lime); padding: 3px 10px; border-radius: 12px; font-weight: 600;"><?= $completedCount ?>/<?= $totalMissions ?> Complete</span>
                     </div>
                     <span style="font-size: 13px; color: var(--muted);">Complete missions to boost your Engagement Score!</span>
@@ -905,10 +950,10 @@ function member_dashboard(PDO $pdo, array $user): void
     <script src="<?= h(asset_url('js/pages/member_dashboard.js')) ?>"></script>
 
     <?php
-    $wAtt = (int) get_setting('engagement_weight_attendance', '40');
+    $wAtt = (int) get_setting('engagement_weight_attendance', '10');
     $wCls = (int) get_setting('engagement_weight_classes', '20');
     $wCon = (int) get_setting('engagement_weight_consistency', '20');
-    $wWrk = (int) get_setting('engagement_weight_workouts', '10');
+    $wWrk = (int) get_setting('engagement_weight_workouts', '40');
     $wPrg = (int) get_setting('engagement_weight_progress', '10');
     $high = (int) get_setting('engagement_threshold_high', '75');
     $mod = (int) get_setting('engagement_threshold_moderate', '40');
@@ -931,10 +976,10 @@ function member_dashboard(PDO $pdo, array $user): void
                 Your Engagement Score measures how actively you use FITTRACKS over the last 30-60 days. It updates automatically based on your habits!
             </p>
             <ul style="color:var(--muted); font-size:14px; line-height:1.6; margin-bottom:24px; padding-left:20px;">
-                <li><strong>{$wAtt}% Attendance:</strong> Check into the gym regularly (up to 7 visits / 30 days).</li>
-                <li><strong>{$wCls}% Classes:</strong> Participate in group fitness classes (up to 4 classes / 30 days).</li>
-                <li><strong>{$wCon}% Consistency:</strong> Stay active every week. We look at your weekly streaks!</li>
-                <li><strong>{$wWrk}% Daily Completed Workout:</strong> Complete your scheduled exercises (up to 8 days / 30 days).</li>
+                <li><strong>{$wAtt}% Attendance:</strong> Check into the gym regularly (scaled by tier: 4 visits for Newbies up to 14 for Apex Legends / 30 days).</li>
+                <li><strong>{$wCls}% Classes:</strong> Participate in group fitness classes (2–4 classes / 30 days).</li>
+                <li><strong>{$wCon}% Consistency:</strong> Stay active across multiple weeks (3–4 active weeks / 30 days).</li>
+                <li><strong>{$wWrk}% Daily Completed Workout:</strong> Complete scheduled exercises on workout days (4–14 days / 30 days).</li>
                 <li><strong>{$wPrg}% Progress:</strong> Log your workout progress at least once every 60 days.</li>
             </ul>
             
@@ -952,15 +997,15 @@ function member_dashboard(PDO $pdo, array $user): void
                 Fitness Tiers
             </h3>
             <p style="color:var(--muted); font-size:14px; margin-bottom:16px; line-height:1.6;">
-                Tiers represent your lifetime workout experience! They are completely based on completing your assigned workout plans. Every time you log all exercises in a week's plan, you earn a "Completed Week".
+                Tiers represent your lifetime workout consistency and milestones! Complete exercises in your workout plan to rank up:
             </p>
             <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; font-size:13px;">
-                <div style="background:rgba(255,255,255,0.03); padding:10px; border-radius:8px;"><strong>Tier 1:</strong> Newbie <em>(&lt; 1 week)</em></div>
-                <div style="background:rgba(255,255,255,0.03); padding:10px; border-radius:8px;"><strong>Tier 2:</strong> Iron Recruit <em>(1+ weeks)</em></div>
-                <div style="background:rgba(255,255,255,0.03); padding:10px; border-radius:8px;"><strong>Tier 3:</strong> Bronze Beast <em>(4+ weeks)</em></div>
-                <div style="background:rgba(255,255,255,0.03); padding:10px; border-radius:8px;"><strong>Tier 4:</strong> Silver Spartan <em>(12+ weeks)</em></div>
-                <div style="background:rgba(255,255,255,0.03); padding:10px; border-radius:8px; border:1px solid rgba(199,255,34,0.3);"><strong>Tier 5:</strong> Gold Gladiator <em>(24+ weeks)</em></div>
-                <div style="background:rgba(124,92,252,0.1); padding:10px; border-radius:8px; border:1px solid rgba(124,92,252,0.3); color:var(--accent, #7c5cfc); font-weight:bold;"><strong>Tier 6:</strong> Apex Legend</div>
+                <div style="background:color-mix(in srgb, var(--panel-soft) 50%, transparent); padding:10px; border-radius:8px; border:1px solid var(--line);"><strong>Tier 1:</strong> Newbie <em>(0–4 exercises)</em></div>
+                <div style="background:color-mix(in srgb, var(--panel-soft) 50%, transparent); padding:10px; border-radius:8px; border:1px solid var(--line);"><strong>Tier 2:</strong> Iron Recruit <em>(5+ exercises)</em></div>
+                <div style="background:color-mix(in srgb, var(--panel-soft) 50%, transparent); padding:10px; border-radius:8px; border:1px solid var(--line);"><strong>Tier 3:</strong> Bronze Beast <em>(25+ exercises)</em></div>
+                <div style="background:color-mix(in srgb, var(--panel-soft) 50%, transparent); padding:10px; border-radius:8px; border:1px solid var(--line);"><strong>Tier 4:</strong> Silver Spartan <em>(75+ exercises)</em></div>
+                <div style="background:color-mix(in srgb, var(--panel-soft) 50%, transparent); padding:10px; border-radius:8px; border:1px solid rgba(199,255,34,0.3);"><strong>Tier 5:</strong> Gold Gladiator <em>(175+ exercises)</em></div>
+                <div style="background:color-mix(in srgb, var(--accent, #7c5cfc) 12%, transparent); padding:10px; border-radius:8px; border:1px solid rgba(124,92,252,0.3); color:var(--accent, #7c5cfc); font-weight:bold;"><strong>Tier 6:</strong> Apex Legend <em>(350+ exercises)</em></div>
             </div>
         </div>
         <div style="padding:16px 24px; border-top:1px solid rgba(255,255,255,0.05); text-align:right;">

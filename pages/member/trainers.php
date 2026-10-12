@@ -83,39 +83,191 @@ function trainers_page(): void
             </div>
         </div>
 
+        <style>
+        .active-assignment-card {
+            background: var(--surface);
+            border: 1px solid var(--lime);
+            border-radius: 14px;
+            padding: 16px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 16px;
+            box-shadow: 0 4px 20px rgba(132, 204, 22, 0.08);
+            transition: all 0.2s ease;
+        }
+        .active-assignment-content {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            flex: 1;
+            min-width: 0;
+        }
+        .active-assignment-avatar {
+            flex-shrink: 0;
+        }
+        .active-assignment-details {
+            flex: 1;
+            min-width: 0;
+        }
+        .active-assignment-header {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+        .active-assignment-title {
+            margin: 0;
+            font-size: 16px;
+            font-weight: 700;
+            color: var(--ink);
+            letter-spacing: -0.01em;
+        }
+        .active-assignment-badges {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            flex-shrink: 0;
+        }
+        .badge-label-short {
+            display: none;
+        }
+        .badge-label-long {
+            display: inline;
+        }
+        .badge-group {
+            background: rgba(132, 204, 22, 0.12);
+            color: var(--lime);
+            border: 1px solid rgba(132, 204, 22, 0.25);
+            font-size: 11px;
+            font-weight: 700;
+            padding: 2px 8px;
+            border-radius: 12px;
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+        }
+        .active-assignment-meta {
+            margin: 4px 0 0;
+            font-size: 13px;
+            color: var(--muted);
+            line-height: 1.4;
+        }
+        .active-assignment-actions {
+            display: flex;
+            align-items: center;
+            flex-shrink: 0;
+        }
+        .btn-message-trainer {
+            text-decoration: none;
+            padding: 9px 16px;
+            font-size: 13px;
+            font-weight: 600;
+            background: var(--panel-soft, rgba(255, 255, 255, 0.04));
+            border: 1px solid var(--line);
+            border-radius: 8px;
+            display: inline-flex;
+            align-items: center;
+            gap: 7px;
+            color: var(--ink);
+            transition: all 0.18s ease;
+            white-space: nowrap;
+        }
+        .btn-message-trainer:hover {
+            background: rgba(132, 204, 22, 0.1);
+            border-color: var(--lime);
+            color: var(--lime);
+        }
+
+        /* Mobile Viewport Optimization (<= 640px) */
+        @media (max-width: 640px) {
+            .active-assignment-card {
+                flex-direction: column;
+                align-items: stretch;
+                padding: 14px 16px;
+                gap: 12px;
+            }
+            .active-assignment-content {
+                align-items: flex-start;
+                gap: 12px;
+            }
+            .active-assignment-avatar {
+                margin-top: 2px;
+            }
+            .active-assignment-header {
+                justify-content: space-between;
+                align-items: center;
+                gap: 8px;
+                flex-wrap: nowrap;
+            }
+            .active-assignment-title {
+                font-size: 15px;
+                white-space: nowrap;
+                overflow: hidden;
+                text-overflow: ellipsis;
+            }
+            .badge-label-long {
+                display: none;
+            }
+            .badge-label-short {
+                display: inline;
+            }
+            .active-assignment-meta {
+                font-size: 12px;
+                margin-top: 3px;
+                line-height: 1.45;
+            }
+            .active-assignment-actions {
+                width: 100%;
+            }
+            .btn-message-trainer {
+                width: 100%;
+                justify-content: center;
+                padding: 10px 14px;
+                font-size: 13.5px;
+                border-radius: 8px;
+            }
+        }
+        </style>
+
         <?php if ($activeAssignments): ?>
             <div style="margin-top: 15px; margin-bottom: 24px; display: flex; flex-direction: column; gap: 12px;">
                 <?php foreach ($activeAssignments as $assign): 
                     $cData = ['first_name' => $assign['coach_fn'], 'last_name' => $assign['coach_ln'], 'profile_picture' => $assign['coach_picture']];
                     $isGroup = !empty($assign['group_id']) && (int)$assign['group_members_count'] > 1;
                 ?>
-                    <div style="background: var(--surface); border: 1px solid var(--lime); border-radius: 12px; padding: 18px 20px; display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 16px; box-shadow: 0 4px 20px rgba(132, 204, 22, 0.08);">
-                        <div style="display: flex; align-items: center; gap: 14px;">
-                            <?= render_avatar($cData, 'medium') ?>
-                            <div>
-                                <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
-                                    <h3 style="margin: 0; font-size: 16px; font-weight: 700; color: var(--ink);">
+                    <div class="active-assignment-card">
+                        <div class="active-assignment-content">
+                            <div class="active-assignment-avatar">
+                                <?= render_avatar($cData, 'medium') ?>
+                            </div>
+                            <div class="active-assignment-details">
+                                <div class="active-assignment-header">
+                                    <h3 class="active-assignment-title">
                                         <?= h($assign['activity_title'] ?: 'Trainer Assignment') ?>
                                     </h3>
-                                    <span class="badge badge-<?= str_replace(' ', '_', $assign['status']) ?>">
-                                        <?= $assign['status'] === 'active' ? 'Active Assignment' : h(ucwords(str_replace('_', ' ', $assign['status']))) ?>
-                                    </span>
-                                    <?php if ($isGroup): ?>
-                                        <span class="badge" style="background: rgba(132, 204, 22, 0.12); color: var(--lime); border: 1px solid rgba(132, 204, 22, 0.25); font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 12px; display: inline-flex; align-items: center; gap: 4px;">
-                                            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
-                                            Group Activity (<?= (int)$assign['group_members_count'] ?> Members)
+                                    <div class="active-assignment-badges">
+                                        <span class="badge badge-<?= str_replace(' ', '_', $assign['status']) ?>">
+                                            <span class="badge-label-long"><?= $assign['status'] === 'active' ? 'Active Assignment' : h(ucwords(str_replace('_', ' ', $assign['status']))) ?></span>
+                                            <span class="badge-label-short"><?= $assign['status'] === 'active' ? 'Active' : h(ucwords(str_replace('_', ' ', $assign['status']))) ?></span>
                                         </span>
-                                    <?php endif; ?>
+                                        <?php if ($isGroup): ?>
+                                            <span class="badge badge-group">
+                                                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+                                                <span>Group (<?= (int)$assign['group_members_count'] ?>)</span>
+                                            </span>
+                                        <?php endif; ?>
+                                    </div>
                                 </div>
-                                <p style="margin: 4px 0 0; font-size: 13px; color: var(--muted);">
+                                <p class="active-assignment-meta">
                                     Coach <strong style="color: var(--ink);"><?= h($assign['coach_fn'] . ' ' . $assign['coach_ln']) ?></strong> &bull; <?= h($assign['specialization'] ?: 'General Fitness') ?> &bull; Assigned <?= date('M j, Y', strtotime($assign['assigned_date'])) ?>
                                 </p>
                             </div>
                         </div>
-                        <div style="display: flex; gap: 8px; align-items: center;">
-                            <a href="index.php?page=messages" class="btn-sm btn-ghost" style="text-decoration: none; padding: 8px 14px; font-weight: 600; border: 1px solid var(--line); border-radius: 6px; display: inline-flex; align-items: center; gap: 6px; color: var(--ink);">
+                        <div class="active-assignment-actions">
+                            <a href="index.php?page=messages" class="btn-message-trainer">
                                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
-                                Message Trainer
+                                <span>Message Trainer</span>
                             </a>
                         </div>
                     </div>

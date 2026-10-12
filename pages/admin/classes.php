@@ -141,18 +141,30 @@ function classes_page(): void
         .class-card:hover { border-color: rgba(255,255,255,0.15); transform: translateY(-2px); box-shadow: 0 8px 24px rgba(0,0,0,0.2); }
         .cc-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr)); gap: 16px; }
         .classes-banner {
-            background: linear-gradient(135deg, rgba(199,255,34,0.1) 0%, rgba(66,219,165,0.05) 100%);
-            border: 1px solid rgba(199,255,34,0.2);
+            background: linear-gradient(135deg, rgba(234, 88, 12, 0.08) 0%, rgba(255, 255, 255, 0.02) 100%);
+            border: 1px solid rgba(234, 88, 12, 0.22);
+            border-left: 4px solid var(--orange, #ea580c);
             border-radius: 16px;
             padding: 24px 28px;
             margin-bottom: 24px;
-            box-shadow: 0 4px 24px rgba(0,0,0,0.1);
+            box-shadow: 0 4px 24px rgba(0,0,0,0.08);
             backdrop-filter: blur(16px);
             display: flex;
             justify-content: space-between;
             align-items: flex-start;
             flex-wrap: wrap;
             gap: 16px;
+        }
+        [data-theme="light"] .classes-banner {
+            background: linear-gradient(135deg, #ffffff 0%, #fff7ed 100%);
+            border: 1px solid #fed7aa;
+            border-left: 4px solid var(--orange, #ea580c);
+            box-shadow: 0 4px 18px rgba(15, 23, 42, 0.05);
+        }
+        [data-theme="dark"] .classes-banner {
+            background: linear-gradient(135deg, rgba(26, 30, 40, 0.95) 0%, rgba(16, 19, 27, 0.95) 100%);
+            border: 1px solid var(--line);
+            border-left: 4px solid var(--orange, #ea580c);
         }
         .classes-banner-title {
             margin: 0;
@@ -161,11 +173,13 @@ function classes_page(): void
             display: flex;
             align-items: center;
             gap: 12px;
+            font-weight: 800;
         }
         .classes-banner-icon {
             width: 28px;
             height: 28px;
             flex-shrink: 0;
+            color: var(--orange, #ea580c);
         }
         .classes-banner-desc {
             margin: 8px 0 0 0;
@@ -184,19 +198,27 @@ function classes_page(): void
             color: var(--ink);
             padding: 10px 16px;
             border-radius: 8px;
-            font-weight: 500;
+            font-weight: 600;
             cursor: pointer;
             display: inline-flex;
             align-items: center;
             gap: 8px;
             font-size: 14px;
             white-space: nowrap;
-            transition: background 0.2s;
+            transition: all 0.2s;
+        }
+        .classes-banner-btn-secondary:hover {
+            border-color: var(--orange, #ea580c);
+            color: var(--orange, #ea580c);
+        }
+        [data-theme="light"] .classes-banner-btn-secondary {
+            background: #ffffff;
+            border-color: #cbd5e1;
         }
         .classes-banner-btn-primary {
-            background: var(--lime);
+            background: var(--orange, #ea580c);
             border: none;
-            color: var(--bg);
+            color: #ffffff;
             padding: 10px 16px;
             border-radius: 8px;
             font-weight: 600;
@@ -207,6 +229,9 @@ function classes_page(): void
             font-size: 14px;
             white-space: nowrap;
             transition: opacity 0.2s;
+        }
+        .classes-banner-btn-primary:hover {
+            opacity: 0.9;
         }
         /* Modals in Classes & Schedules */
         dialog#scheduleModal.modal,
@@ -243,7 +268,7 @@ function classes_page(): void
         #classModal .form-control {
             width: 100%;
             box-sizing: border-box;
-            background: var(--panel-soft);
+            background: var(--panel) !important;
             border: 1px solid var(--line);
             border-radius: 8px;
             color: var(--ink);
@@ -257,6 +282,83 @@ function classes_page(): void
         #scheduleModal input.form-control,
         #classModal input.form-control {
             height: 38px;
+        }
+        .schedule-select-wrap {
+            position: relative;
+            width: 100%;
+            min-width: 0;
+        }
+        .schedule-native-select {
+            display: none !important;
+        }
+        .schedule-select-trigger {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+            width: 100%;
+            min-width: 0;
+            height: 38px;
+            padding: 8px 12px;
+            border: 1px solid var(--line);
+            border-radius: 8px;
+            background: var(--panel);
+            color: var(--ink);
+            font: inherit;
+            font-size: 13.5px;
+            text-align: left;
+            cursor: pointer;
+        }
+        .schedule-select-trigger:hover,
+        .schedule-select-trigger:focus,
+        .schedule-select-trigger:active {
+            background: var(--panel) !important;
+            outline: none;
+        }
+        .schedule-select-trigger:focus-visible {
+            box-shadow: 0 0 0 2px color-mix(in srgb, var(--primary, #ea580c) 22%, transparent);
+        }
+        .schedule-select-value {
+            min-width: 0;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .schedule-select-menu {
+            display: none;
+            position: absolute;
+            z-index: 50;
+            top: calc(100% + 4px);
+            left: 0;
+            right: 0;
+            max-height: min(180px, 32vh);
+            overflow-y: auto;
+            overscroll-behavior: contain;
+            border: 1px solid var(--line);
+            border-radius: 8px;
+            background: var(--panel);
+            box-shadow: 0 8px 22px rgba(0,0,0,.25);
+        }
+        .schedule-select-wrap.is-open .schedule-select-menu { display: block; }
+        .schedule-select-wrap.opens-up .schedule-select-menu {
+            top: auto;
+            bottom: calc(100% + 4px);
+        }
+        .schedule-select-option {
+            display: block;
+            width: 100%;
+            padding: 9px 12px;
+            border: 0;
+            background: transparent;
+            color: var(--ink);
+            font: inherit;
+            font-size: 13px;
+            text-align: left;
+            cursor: pointer;
+        }
+        .schedule-select-option:hover,
+        .schedule-select-option[aria-selected="true"] {
+            background: color-mix(in srgb, var(--primary, #ea580c) 7%, var(--panel));
         }
         #classModal textarea.form-control {
             height: 60px;
@@ -428,7 +530,7 @@ function classes_page(): void
         <div class="classes-banner animate-fade-in">
             <div>
                 <h1 class="classes-banner-title">
-                    <svg class="classes-banner-icon" xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="var(--lime)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+                    <svg class="classes-banner-icon" xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
                     Classes & Schedules
                 </h1>
                 <p class="classes-banner-desc">
@@ -507,7 +609,7 @@ function classes_page(): void
                                         <div style="font-size:14px; color:var(--ink);"><?= h(date('M j, Y', strtotime($s['start_datetime']))) ?></div>
                                         <div style="font-size:12px; color:var(--muted);"><?= h(date('g:i A', strtotime($s['start_datetime']))) ?> - <?= h(date('g:i A', strtotime($s['end_datetime']))) ?></div>
                                     </td>
-                                    <td><span style="background:rgba(199,255,34,0.1); color:var(--lime); padding:4px 10px; border-radius:12px; font-weight:700; font-size:13px;"><?= (int) $s['booked'] ?></span></td>
+                                    <td><span style="background:rgba(234,88,12,0.12); color:var(--orange, #ea580c); padding:4px 10px; border-radius:12px; font-weight:700; font-size:13px;"><?= (int) $s['booked'] ?></span></td>
                                     <td>
                                         <button onclick="editSchedule(<?= htmlspecialchars(json_encode($s)) ?>)" class="btn btn-secondary" style="padding:6px 10px; font-size:12px; border:none; background:rgba(255,255,255,0.05);">Edit</button>
                                         <form method="post" style="display:inline;" onsubmit="return confirm('Delete this schedule?');">
@@ -567,7 +669,7 @@ function classes_page(): void
                 <?= csrf_field() ?>
                 <input type="hidden" name="action" value="schedule">
                 <label>Class Type
-                    <select name="class_id" class="form-control" required>
+                    <select name="class_id" class="form-control schedule-class-select" required>
                         <option value="">-- Select Class --</option>
                         <?php foreach ($classes as $class): ?>
                             <option value="<?= (int) $class['class_id'] ?>"><?= h($class['class_name']) ?></option>
@@ -576,8 +678,8 @@ function classes_page(): void
                 </label>
                 <label>Room / Location <input type="text" name="room_location" class="form-control" placeholder="e.g. Studio A"></label>
                 <div class="schedule-datetime-grid">
-                    <label>Start Date/Time <input type="datetime-local" name="start_datetime" class="form-control" required></label>
-                    <label>End Date/Time <input type="datetime-local" name="end_datetime" class="form-control" required></label>
+                    <label>Start Date/Time <input type="datetime-local" lang="en-US" name="start_datetime" class="form-control" required></label>
+                    <label>End Date/Time <input type="datetime-local" lang="en-US" name="end_datetime" class="form-control" required></label>
                 </div>
                 <button type="submit" class="btn btn-primary classes-modal-submit">Save Schedule</button>
             </form>
@@ -585,6 +687,101 @@ function classes_page(): void
     </dialog>
 
     <script>
+    function enhanceScheduleSelect(select) {
+        if (!select || select.dataset.enhanced === 'true') return;
+        select.dataset.enhanced = 'true';
+        const wasRequired = select.required;
+        select.required = false;
+        const wrapper = document.createElement('div');
+        wrapper.className = 'schedule-select-wrap';
+        select.parentNode.insertBefore(wrapper, select);
+        wrapper.appendChild(select);
+        select.classList.add('schedule-native-select');
+        select.tabIndex = -1;
+        select.setAttribute('aria-hidden', 'true');
+
+        const trigger = document.createElement('button');
+        trigger.type = 'button';
+        trigger.className = 'schedule-select-trigger';
+        trigger.setAttribute('role', 'combobox');
+        trigger.setAttribute('aria-haspopup', 'listbox');
+        trigger.setAttribute('aria-expanded', 'false');
+        if (wasRequired) trigger.setAttribute('aria-required', 'true');
+        trigger.innerHTML = '<span class="schedule-select-value"></span><span aria-hidden="true">⌄</span>';
+        wrapper.appendChild(trigger);
+
+        const menu = document.createElement('div');
+        menu.className = 'schedule-select-menu';
+        menu.setAttribute('role', 'listbox');
+        Array.from(select.options).forEach((option) => {
+            const item = document.createElement('button');
+            item.type = 'button';
+            item.className = 'schedule-select-option';
+            item.textContent = option.textContent;
+            item.dataset.value = option.value;
+            item.setAttribute('role', 'option');
+            item.setAttribute('aria-selected', option.selected ? 'true' : 'false');
+            item.addEventListener('click', () => {
+                select.value = option.value;
+                trigger.querySelector('.schedule-select-value').textContent = option.textContent;
+                trigger.removeAttribute('aria-invalid');
+                menu.querySelectorAll('.schedule-select-option').forEach((entry) => {
+                    entry.setAttribute('aria-selected', entry.dataset.value === option.value ? 'true' : 'false');
+                });
+                select.dispatchEvent(new Event('change', { bubbles: true }));
+                wrapper.classList.remove('is-open', 'opens-up');
+                trigger.setAttribute('aria-expanded', 'false');
+            });
+            menu.appendChild(item);
+        });
+        wrapper.appendChild(menu);
+        trigger.querySelector('.schedule-select-value').textContent = select.options[select.selectedIndex]?.textContent || '';
+
+        trigger.addEventListener('click', () => {
+            const shouldOpen = !wrapper.classList.contains('is-open');
+            const scope = wrapper.closest('dialog, .swal2-popup') || document;
+            scope.querySelectorAll('.schedule-select-wrap.is-open').forEach((open) => {
+                open.classList.remove('is-open', 'opens-up');
+                open.querySelector('.schedule-select-trigger').setAttribute('aria-expanded', 'false');
+            });
+            if (!shouldOpen) return;
+            const clippingBox = wrapper.closest('dialog') || wrapper.closest('.swal2-html-container') || scope;
+            const box = clippingBox.getBoundingClientRect();
+            const triggerBox = trigger.getBoundingClientRect();
+            const below = box.bottom - triggerBox.bottom;
+            const above = triggerBox.top - box.top;
+            const opensUp = below < 180 && above > below;
+            wrapper.classList.toggle('opens-up', opensUp);
+            menu.style.maxHeight = String(Math.max(96, Math.min(180, (opensUp ? above : below) - 8))) + 'px';
+            wrapper.classList.add('is-open');
+            trigger.setAttribute('aria-expanded', 'true');
+        });
+
+        const form = select.closest('form');
+        if (wasRequired && form && !form.dataset.scheduleSelectValidation) {
+            form.dataset.scheduleSelectValidation = 'true';
+            form.addEventListener('submit', (event) => {
+                const requiredSelect = form.querySelector('select.schedule-native-select[aria-hidden="true"]');
+                if (requiredSelect && !requiredSelect.value) {
+                    event.preventDefault();
+                    const requiredTrigger = requiredSelect.parentElement.querySelector('.schedule-select-trigger');
+                    requiredTrigger.setAttribute('aria-invalid', 'true');
+                    requiredTrigger.focus();
+                }
+            });
+        }
+
+        const closeOnOutsideClick = (event) => {
+            if (event.target.closest('.schedule-select-wrap')) return;
+            wrapper.classList.remove('is-open', 'opens-up');
+            trigger.setAttribute('aria-expanded', 'false');
+        };
+        const scope = wrapper.closest('dialog, .swal2-popup');
+        if (scope) scope.addEventListener('click', closeOnOutsideClick);
+    }
+
+    document.querySelectorAll('#scheduleModal select.schedule-class-select').forEach(enhanceScheduleSelect);
+
     function switchClassTab(tab) {
         document.querySelectorAll('.class-tab-btn').forEach(btn => btn.classList.remove('active'));
         document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
@@ -654,13 +851,14 @@ function classes_page(): void
                         </select>
                     </label>
                     <label style="display:block; color: var(--muted); font-size: 14px;">Room / Location <input name="room_location" id="es_loc" class="form-control" style="width: 100%; box-sizing: border-box;"></label>
-                    <label style="display:block; color: var(--muted); font-size: 14px;">Start * <input name="start_datetime" id="es_start" type="datetime-local" class="form-control" required style="width: 100%; box-sizing: border-box;"></label>
-                    <label style="display:block; color: var(--muted); font-size: 14px;">End * <input name="end_datetime" id="es_end" type="datetime-local" class="form-control" required style="width: 100%; box-sizing: border-box;"></label>
+                    <label style="display:block; color: var(--muted); font-size: 14px;">Start * <input name="start_datetime" id="es_start" type="datetime-local" lang="en-US" class="form-control" required style="width: 100%; box-sizing: border-box;"></label>
+                    <label style="display:block; color: var(--muted); font-size: 14px;">End * <input name="end_datetime" id="es_end" type="datetime-local" lang="en-US" class="form-control" required style="width: 100%; box-sizing: border-box;"></label>
                 </form>
             `,
             didOpen: () => {
                 document.getElementById('es_id').value = s.schedule_id;
                 document.getElementById('es_class').value = s.class_id;
+                enhanceScheduleSelect(document.getElementById('es_class'));
                 document.getElementById('es_loc').value = s.room_location || '';
                 // format datetime-local
                 document.getElementById('es_start').value = s.start_datetime.substring(0,16);
