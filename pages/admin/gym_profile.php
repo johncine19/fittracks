@@ -171,7 +171,7 @@ function gym_profile_page(): void
             $pdo->prepare('DELETE FROM gym_images WHERE id = ?')->execute([$imageId]);
             flash('Photo deleted from gallery successfully.', 'success');
         }
-        redirect('gym_profile');
+        redirect('gym_profile?open_gallery=1');
     }
 
     $galleryImages = $pdo->query('SELECT * FROM gym_images WHERE gym_id = ' . (int)$gym['gym_id'] . ' ORDER BY created_at DESC')->fetchAll();

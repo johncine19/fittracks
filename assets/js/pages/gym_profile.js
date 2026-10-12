@@ -228,6 +228,13 @@
             } catch (e) {}
             switchSettingsTab(activeTab);
 
+            if (new URLSearchParams(window.location.search).get('open_gallery') === '1') {
+                openCustomModal('modal-gallery');
+                const cleanUrl = new URL(window.location.href);
+                cleanUrl.searchParams.delete('open_gallery');
+                window.history.replaceState({}, '', cleanUrl);
+            }
+
             const form = document.getElementById('gym-profile-form');
             const unsavedDot = document.getElementById('unsaved-indicator');
             const saveStatus = document.getElementById('save-bar-status');
