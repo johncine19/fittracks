@@ -45,7 +45,7 @@ function profile_page(): void
             $homeGymName = $homeGym['name'];
         }
     }
-    
+
     $allGyms = ($is_member && !$currentGymId)
         ? query_all('SELECT gym_id, name FROM gyms WHERE status = "approved" ORDER BY name ASC')
         : [];
@@ -111,1196 +111,1371 @@ function profile_page(): void
     <?php render_skeleton_profile(); ?>
     <div class="skeleton-content sk-display-block">
 
-    <!-- Settings Header with Profile Hero -->
-    <div class="settings-hero live-animated-banner<?= ($user['role'] === 'gym_owner' && !empty($ownerGym['cover_image_url'])) ? ' has-gym-cover' : '' ?>">
-        <div class="settings-hero-bg<?= ($user['role'] === 'gym_owner' && !empty($ownerGym['cover_image_url'])) ? ' has-gym-cover' : '' ?>"<?php if ($user['role'] === 'gym_owner' && !empty($ownerGym['cover_image_url'])): ?> style="background-image: linear-gradient(90deg, rgba(7, 10, 15, 0.88) 0%, rgba(7, 10, 15, 0.64) 48%, rgba(7, 10, 15, 0.42) 100%), url('<?= h(upload_url($ownerGym['cover_image_url'])) ?>');"<?php endif; ?>></div>
-        <div class="settings-hero-content">
-            <div class="settings-hero-avatar">
-                <?php if (!empty($user['profile_picture'])): ?>
-                    <img src="<?= h(upload_url($user['profile_picture'])) ?>" alt="Profile picture" loading="lazy" decoding="async">
-                <?php else: ?>
-                    <span class="settings-hero-initials"><?= h(initials($user)) ?></span>
-                <?php endif; ?>
-                <button type="button" class="settings-avatar-edit" onclick="document.getElementById('accountModal').showModal()" title="Edit profile">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg>
-                </button>
-            </div>
-            <div class="settings-hero-info">
-                <h1 class="settings-hero-name"><?= h($user['first_name'] . ' ' . $user['last_name']) ?></h1>
-                <div class="settings-hero-meta">
-                    <span class="settings-hero-role"><?= h(ucfirst($user['role'])) ?></span>
-                    <?php if ($is_member && $homeGymName !== 'None'): ?>
-                        <span class="settings-hero-dot">·</span>
-                        <span class="settings-hero-gym"><?= h($homeGymName) ?></span>
+        <!-- Settings Header with Profile Hero -->
+        <div class="settings-hero live-animated-banner<?= ($user['role'] === 'gym_owner' && !empty($ownerGym['cover_image_url'])) ? ' has-gym-cover' : '' ?>">
+            <div class="settings-hero-bg<?= ($user['role'] === 'gym_owner' && !empty($ownerGym['cover_image_url'])) ? ' has-gym-cover' : '' ?>" <?php if ($user['role'] === 'gym_owner' && !empty($ownerGym['cover_image_url'])): ?> style="background-image: linear-gradient(90deg, rgba(7, 10, 15, 0.88) 0%, rgba(7, 10, 15, 0.64) 48%, rgba(7, 10, 15, 0.42) 100%), url('<?= h(upload_url($ownerGym['cover_image_url'])) ?>');" <?php endif; ?>></div>
+            <div class="settings-hero-content">
+                <div class="settings-hero-avatar">
+                    <?php if (!empty($user['profile_picture'])): ?>
+                        <img src="<?= h(upload_url($user['profile_picture'])) ?>" alt="Profile picture" loading="lazy" decoding="async">
+                    <?php else: ?>
+                        <span class="settings-hero-initials"><?= h(initials($user)) ?></span>
                     <?php endif; ?>
+                    <button type="button" class="settings-avatar-edit" onclick="document.getElementById('accountModal').showModal()" title="Edit profile">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
+                        </svg>
+                    </button>
                 </div>
-                <div class="settings-hero-contact">
-                    <span><svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg> <?= h($user['email']) ?></span>
-                    <?php if (!empty($user['phone'])): ?>
-                        <span><svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg> <?= h($user['phone']) ?></span>
-                    <?php endif; ?>
+                <div class="settings-hero-info">
+                    <h1 class="settings-hero-name"><?= h($user['first_name'] . ' ' . $user['last_name']) ?></h1>
+                    <div class="settings-hero-meta">
+                        <span class="settings-hero-role"><?= h(ucfirst($user['role'])) ?></span>
+                        <?php if ($is_member && $homeGymName !== 'None'): ?>
+                            <span class="settings-hero-dot">·</span>
+                            <span class="settings-hero-gym"><?= h($homeGymName) ?></span>
+                        <?php endif; ?>
+                    </div>
+                    <div class="settings-hero-contact">
+                        <span><svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <rect width="20" height="16" x="2" y="4" rx="2" />
+                                <path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7" />
+                            </svg> <?= h($user['email']) ?></span>
+                        <?php if (!empty($user['phone'])): ?>
+                            <span><svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z" />
+                                </svg> <?= h($user['phone']) ?></span>
+                        <?php endif; ?>
+                    </div>
                 </div>
             </div>
         </div>
-    </div>
 
-    <!-- Tab Navigation -->
-    <nav class="settings-tabs" id="settingsTabs">
-        <button class="settings-tab active" data-tab="account">
-            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-            Account
-        </button>
-        <?php if ($is_member): ?>
-        <button class="settings-tab" data-tab="physical">
-            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
-            Physical Profile
-        </button>
-        <button class="settings-tab" data-tab="gym">
-            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg>
-            Gym Affiliation
-        </button>
-        <?php endif; ?>
-        <?php if ($user['role'] === 'platform_admin'): ?>
-        <button class="settings-tab" data-tab="platform_settings">
-            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
-            Platform Settings
-        </button>
-        <button class="settings-tab" data-tab="platform_feedback">
-            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
-            Feedback
-        </button>
-        <?php endif; ?>
-        <?php if ($user['role'] === 'gym_owner'): ?>
-        <button class="settings-tab" data-tab="subscription">
-            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="14" x="2" y="5" rx="2"/><line x1="2" x2="22" y1="10" y2="10"/></svg>
-            Subscription & Billing
-        </button>
-        <?php endif; ?>
-        <button class="settings-tab" data-tab="preferences">
-            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
-            Preferences
-        </button>
-        <?php if (in_array(($user['role'] ?? ''), ['gym_owner', 'admin'], true)): ?>
-        <button class="settings-tab" data-tab="ratings_feedback">
-            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
-            Rating &amp; Feedback
-        </button>
-        <?php endif; ?>
-    </nav>
-
-    <!-- Tab: Account -->
-    <div class="settings-panel active" data-panel="account">
-        <div class="settings-section">
-            <div class="settings-section-header">
-                <div>
-                    <h2 class="settings-section-title">Account Details</h2>
-                    <p class="settings-section-desc">Manage your personal information and login credentials.</p>
-                </div>
-                <button type="button" class="settings-edit-btn" onclick="document.getElementById('accountModal').showModal()">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg>
-                    Edit
+        <!-- Tab Navigation -->
+        <nav class="settings-tabs" id="settingsTabs">
+            <button class="settings-tab active" data-tab="account">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+                    <circle cx="12" cy="7" r="4" />
+                </svg>
+                Account
+            </button>
+            <?php if ($is_member): ?>
+                <button class="settings-tab" data-tab="physical">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
+                    </svg>
+                    Physical Profile
                 </button>
-            </div>
-            
-            <div class="settings-info-grid">
-                <div class="settings-info-row">
-                    <div class="settings-info-icon">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-                    </div>
-                    <div class="settings-info-content">
-                        <span class="settings-info-label">Full Name</span>
-                        <span class="settings-info-value"><?= h($user['first_name'] . ' ' . $user['last_name']) ?></span>
-                    </div>
-                </div>
-                <div class="settings-info-row">
-                    <div class="settings-info-icon">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg>
-                    </div>
-                    <div class="settings-info-content">
-                        <span class="settings-info-label">Email Address</span>
-                        <span class="settings-info-value"><?= h($user['email']) ?></span>
-                    </div>
-                </div>
-                <div class="settings-info-row">
-                    <div class="settings-info-icon">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
-                    </div>
-                    <div class="settings-info-content">
-                        <span class="settings-info-label">Phone Number</span>
-                        <span class="settings-info-value"><?= h($user['phone'] ?? 'Not set') ?></span>
-                    </div>
-                </div>
-                <div class="settings-info-row">
-                    <div class="settings-info-icon">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-                    </div>
-                    <div class="settings-info-content">
-                        <span class="settings-info-label">Password</span>
-                        <span class="settings-info-value">••••••••</span>
-                    </div>
-                </div>
-                <div class="settings-info-row">
-                    <div class="settings-info-icon">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" x2="19" y1="8" y2="14"/><line x1="22" x2="16" y1="11" y2="11"/></svg>
-                    </div>
-                    <div class="settings-info-content">
-                        <span class="settings-info-label">Account Type</span>
-                        <span class="settings-info-value"><?= h(ucfirst($user['role'])) ?></span>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Tab: Physical Profile -->
-    <?php if ($is_member): ?>
-    <div class="settings-panel" data-panel="physical">
-        <div class="settings-section">
-            <div class="settings-section-header">
-                <div>
-                    <h2 class="settings-section-title">Physical Profile</h2>
-                    <p class="settings-section-desc">Keeping your physical profile up to date helps generate accurate workout & diet plans.</p>
-                </div>
-                <button type="button" class="settings-edit-btn" onclick="document.getElementById('physicalProfileModal').showModal()">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg>
-                    Edit
+                <button class="settings-tab" data-tab="gym">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <polygon points="12 2 2 7 12 12 22 7 12 2" />
+                        <polyline points="2 17 12 22 22 17" />
+                        <polyline points="2 12 12 17 22 12" />
+                    </svg>
+                    Gym Affiliation
                 </button>
-            </div>
-
-            <!-- Body Measurements -->
-            <h3 class="settings-group-title">
-                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-                Body Measurements
-            </h3>
-            <div class="settings-stat-grid">
-                <div class="settings-stat-card">
-                    <div class="settings-stat-icon" style="background: color-mix(in srgb, var(--teal) 15%, transparent); color: var(--teal);">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h0M12 4h0M12 12h0M4 8l2.5 2L4 12M20 8l-2.5 2L20 12"/></svg>
-                    </div>
-                    <div class="settings-stat-body">
-                        <span class="settings-stat-label">Height</span>
-                        <span class="settings-stat-value"><?= h($profile['height_cm'] ?? '—') ?> <small>cm</small></span>
-                    </div>
-                </div>
-                <div class="settings-stat-card">
-                    <div class="settings-stat-icon" style="background: color-mix(in srgb, var(--orange) 15%, transparent); color: var(--orange);">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
-                    </div>
-                    <div class="settings-stat-body">
-                        <span class="settings-stat-label">Weight</span>
-                        <span class="settings-stat-value"><?= h($profile['weight_kg'] ?? '—') ?> <small>kg</small></span>
-                    </div>
-                </div>
-                <div class="settings-stat-card">
-                    <div class="settings-stat-icon" style="background: color-mix(in srgb, var(--lime) 15%, transparent); color: var(--lime);">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="4" rx="2" ry="2"/><line x1="16" x2="16" y1="2" y2="6"/><line x1="8" x2="8" y1="2" y2="6"/><line x1="3" x2="21" y1="10" y2="10"/></svg>
-                    </div>
-                    <div class="settings-stat-body">
-                        <span class="settings-stat-label">Age</span>
-                        <span class="settings-stat-value"><?= h($profile['age'] ?? '—') ?> <small>yrs</small></span>
-                    </div>
-                </div>
-                <div class="settings-stat-card">
-                    <div class="settings-stat-icon" style="background: color-mix(in srgb, #a78bfa 15%, transparent); color: #a78bfa;">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-                    </div>
-                    <div class="settings-stat-body">
-                        <span class="settings-stat-label">Sex</span>
-                        <span class="settings-stat-value"><?= h(ucwords($profile['biological_sex'] ?? '—')) ?></span>
-                    </div>
-                </div>
-                <div class="settings-stat-card">
-                    <div class="settings-stat-icon" style="background: color-mix(in srgb, #60a5fa 15%, transparent); color: #60a5fa;">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" x2="22" y1="12" y2="12"/></svg>
-                    </div>
-                    <div class="settings-stat-body">
-                        <span class="settings-stat-label">Neck</span>
-                        <span class="settings-stat-value"><?= !empty($profile['neck_cm']) ? h($profile['neck_cm']) . ' <small>cm</small>' : '—' ?></span>
-                    </div>
-                </div>
-                <div class="settings-stat-card">
-                    <div class="settings-stat-icon" style="background: color-mix(in srgb, #f472b6 15%, transparent); color: #f472b6;">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 18 0 9 9 0 0 0-18 0"/><path d="M12 8v8"/></svg>
-                    </div>
-                    <div class="settings-stat-body">
-                        <span class="settings-stat-label">Waist</span>
-                        <span class="settings-stat-value"><?= !empty($profile['waist_cm']) ? h($profile['waist_cm']) . ' <small>cm</small>' : '—' ?></span>
-                    </div>
-                </div>
-                <?php if (!empty($profile['chest_cm'])): ?>
-                <div class="settings-stat-card">
-                    <div class="settings-stat-icon" style="background: color-mix(in srgb, #60a5fa 15%, transparent); color: #60a5fa;">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" x2="22" y1="12" y2="12"/></svg>
-                    </div>
-                    <div class="settings-stat-body">
-                        <span class="settings-stat-label">Chest</span>
-                        <span class="settings-stat-value"><?= h(number_format((float)$profile['chest_cm'], 1)) ?> <small>cm</small></span>
-                    </div>
-                </div>
-                <?php endif; ?>
-                <?php if (!empty($profile['arm_cm'])): ?>
-                <div class="settings-stat-card">
-                    <div class="settings-stat-icon" style="background: color-mix(in srgb, #a78bfa 15%, transparent); color: #a78bfa;">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8h1a4 4 0 0 1 0 8h-1"/><path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z"/></svg>
-                    </div>
-                    <div class="settings-stat-body">
-                        <span class="settings-stat-label">Arm</span>
-                        <span class="settings-stat-value"><?= h(number_format((float)$profile['arm_cm'], 1)) ?> <small>cm</small></span>
-                    </div>
-                </div>
-                <?php endif; ?>
-                <?php if (($profile['biological_sex'] ?? '') === 'female'): ?>
-                <div class="settings-stat-card">
-                    <div class="settings-stat-icon" style="background: color-mix(in srgb, #fb923c 15%, transparent); color: #fb923c;">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 18 0 9 9 0 0 0-18 0"/><path d="M12 8v8"/></svg>
-                    </div>
-                    <div class="settings-stat-body">
-                        <span class="settings-stat-label">Hip</span>
-                        <span class="settings-stat-value"><?= !empty($profile['hip_cm']) ? h($profile['hip_cm']) . ' <small>cm</small>' : '—' ?></span>
-                    </div>
-                </div>
-                <?php endif; ?>
-            </div>
-
-            <!-- Fitness Goals -->
-            <h3 class="settings-group-title" style="margin-top: 2rem;">
-                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
-                Fitness Goals
-            </h3>
-            <div class="settings-stat-grid">
-                <div class="settings-stat-card">
-                    <div class="settings-stat-icon" style="background: color-mix(in srgb, var(--lime) 15%, transparent); color: var(--lime);">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
-                    </div>
-                    <div class="settings-stat-body">
-                        <span class="settings-stat-label">Activity Level</span>
-                        <span class="settings-stat-value"><?= h(ucwords(str_replace('_', ' ', $profile['activity_level'] ?? '—'))) ?></span>
-                    </div>
-                </div>
-                <div class="settings-stat-card">
-                    <div class="settings-stat-icon" style="background: color-mix(in srgb, var(--teal) 15%, transparent); color: var(--teal);">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/></svg>
-                    </div>
-                    <div class="settings-stat-body">
-                        <span class="settings-stat-label">Primary Goal</span>
-                        <span class="settings-stat-value"><?= h(ucwords(str_replace('_', ' ', $profile['primary_goal'] ?? '—'))) ?></span>
-                    </div>
-                </div>
-                <div class="settings-stat-card">
-                    <div class="settings-stat-icon" style="background: color-mix(in srgb, var(--orange) 15%, transparent); color: var(--orange);">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8h1a4 4 0 0 1 0 8h-1"/><path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z"/><line x1="6" x2="6" y1="1" y2="4"/><line x1="10" x2="10" y1="1" y2="4"/><line x1="14" x2="14" y1="1" y2="4"/></svg>
-                    </div>
-                    <div class="settings-stat-body">
-                        <span class="settings-stat-label">Dietary Preference</span>
-                        <span class="settings-stat-value"><?= h(ucwords(str_replace('-', ' ', $profile['dietary_restrictions'] ?? 'None'))) ?></span>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Targets & Objectives -->
-            <?php 
-            $hasAnyTarget = !empty($profile['target_strength_max_kg']) || 
-                            !empty($profile['target_weight_kg']) || 
-                            !empty($profile['target_body_fat_percent']) || 
-                            !empty($profile['weekly_workout_target']) || 
-                            !empty($profile['target_endurance_distance_km']) || 
-                            !empty($profile['target_endurance_time_mins']) || 
-                            !empty($profile['target_arm_cm']) || 
-                            !empty($profile['target_chest_cm']) || 
-                            !empty($profile['target_waist_cm']);
-            if ($hasAnyTarget):
-            ?>
-            <h3 class="settings-group-title" style="margin-top: 2rem;">
-                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>
-                Targets & Objectives
-            </h3>
-            <div class="settings-stat-grid">
-                <?php if (!empty($profile['target_strength_max_kg'])): 
-                    $stEx = $profile['target_exercise'] ?? 'Bench Press';
-                ?>
-                <div class="settings-stat-card">
-                    <div class="settings-stat-icon" style="background: color-mix(in srgb, var(--lime) 15%, transparent); color: var(--lime);">
-                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6.5 6.5 11 11"/><path d="m21 21-1-1"/><path d="m3 3 1 1"/><path d="m18 22 4-4"/><path d="m2 6 4-4"/><path d="m3 10 7-7"/><path d="m14 21 7-7"/></svg>
-                    </div>
-                    <div class="settings-stat-body">
-                        <span class="settings-stat-label">Strength Target (<?= h($stEx) ?>)</span>
-                        <span class="settings-stat-value"><?= h(number_format((float)$profile['target_strength_max_kg'], 1)) ?> <small>kg PR</small></span>
-                        <?php if (!empty($profile['current_strength_max_kg'])): ?>
-                            <span class="settings-stat-hint" style="font-size: 11px; color: var(--muted);">Current: <?= h(number_format((float)$profile['current_strength_max_kg'], 1)) ?> kg</span>
-                        <?php endif; ?>
-                    </div>
-                </div>
-                <?php endif; ?>
-
-                <?php if (!empty($profile['target_weight_kg'])): ?>
-                <div class="settings-stat-card">
-                    <div class="settings-stat-icon" style="background: color-mix(in srgb, var(--orange) 15%, transparent); color: var(--orange);">
-                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
-                    </div>
-                    <div class="settings-stat-body">
-                        <span class="settings-stat-label">Target Weight</span>
-                        <span class="settings-stat-value"><?= h(number_format((float)$profile['target_weight_kg'], 1)) ?> <small>kg</small></span>
-                        <?php if (!empty($profile['weight_kg'])): 
-                            $diff = (float)$profile['target_weight_kg'] - (float)$profile['weight_kg'];
-                        ?>
-                            <span class="settings-stat-hint" style="font-size: 11px; color: var(--muted);"><?= $diff > 0 ? '+' : '' ?><?= number_format($diff, 1) ?> kg from current</span>
-                        <?php endif; ?>
-                    </div>
-                </div>
-                <?php endif; ?>
-
-                <?php if (!empty($profile['target_body_fat_percent'])): ?>
-                <div class="settings-stat-card">
-                    <div class="settings-stat-icon" style="background: color-mix(in srgb, #f43f5e 15%, transparent); color: #f43f5e;">
-                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z"/></svg>
-                    </div>
-                    <div class="settings-stat-body">
-                        <span class="settings-stat-label">Target Body Fat</span>
-                        <span class="settings-stat-value"><?= h(number_format((float)$profile['target_body_fat_percent'], 1)) ?> <small>%</small></span>
-                    </div>
-                </div>
-                <?php endif; ?>
-
-                <?php if (!empty($profile['weekly_workout_target'])): ?>
-                <div class="settings-stat-card">
-                    <div class="settings-stat-icon" style="background: color-mix(in srgb, var(--lime) 15%, transparent); color: var(--lime);">
-                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="4" rx="2" ry="2"/><line x1="16" x2="16" y1="2" y2="6"/><line x1="8" x2="8" y1="2" y2="6"/><line x1="3" x2="21" y1="10" y2="10"/></svg>
-                    </div>
-                    <div class="settings-stat-body">
-                        <span class="settings-stat-label">Workout Frequency</span>
-                        <span class="settings-stat-value"><?= (int)$profile['weekly_workout_target'] ?> <small>days / wk</small></span>
-                    </div>
-                </div>
-                <?php endif; ?>
-
-                <?php if (!empty($profile['preferred_duration_mins'])): ?>
-                <div class="settings-stat-card">
-                    <div class="settings-stat-icon" style="background: color-mix(in srgb, var(--lime) 15%, transparent); color: var(--lime);">
-                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-                    </div>
-                    <div class="settings-stat-body">
-                        <span class="settings-stat-label">Session Duration</span>
-                        <span class="settings-stat-value"><?= (int)$profile['preferred_duration_mins'] ?> <small>mins</small></span>
-                    </div>
-                </div>
-                <?php endif; ?>
-
-                <?php if (!empty($profile['target_endurance_distance_km']) || !empty($profile['target_endurance_time_mins'])): 
-                    $act = $profile['endurance_activity'] ?? 'Running';
-                ?>
-                <div class="settings-stat-card">
-                    <div class="settings-stat-icon" style="background: color-mix(in srgb, var(--teal) 15%, transparent); color: var(--teal);">
-                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
-                    </div>
-                    <div class="settings-stat-body">
-                        <span class="settings-stat-label">Endurance (<?= h($act) ?>)</span>
-                        <span class="settings-stat-value">
-                            <?= !empty($profile['target_endurance_distance_km']) ? h(number_format((float)$profile['target_endurance_distance_km'], 1)) . ' <small>km</small>' : '' ?>
-                            <?= (!empty($profile['target_endurance_distance_km']) && !empty($profile['target_endurance_time_mins'])) ? ' / ' : '' ?>
-                            <?= !empty($profile['target_endurance_time_mins']) ? h($profile['target_endurance_time_mins']) . ' <small>min</small>' : '' ?>
-                        </span>
-                    </div>
-                </div>
-                <?php endif; ?>
-
-                <?php if (!empty($profile['target_arm_cm'])): ?>
-                <div class="settings-stat-card">
-                    <div class="settings-stat-icon" style="background: color-mix(in srgb, #a78bfa 15%, transparent); color: #a78bfa;">
-                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8h1a4 4 0 0 1 0 8h-1"/><path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z"/></svg>
-                    </div>
-                    <div class="settings-stat-body">
-                        <span class="settings-stat-label">Target Arm Size</span>
-                        <span class="settings-stat-value"><?= h(number_format((float)$profile['target_arm_cm'], 1)) ?> <small>cm</small></span>
-                    </div>
-                </div>
-                <?php endif; ?>
-
-                <?php if (!empty($profile['target_chest_cm'])): ?>
-                <div class="settings-stat-card">
-                    <div class="settings-stat-icon" style="background: color-mix(in srgb, #60a5fa 15%, transparent); color: #60a5fa;">
-                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" x2="22" y1="12" y2="12"/></svg>
-                    </div>
-                    <div class="settings-stat-body">
-                        <span class="settings-stat-label">Target Chest Size</span>
-                        <span class="settings-stat-value"><?= h(number_format((float)$profile['target_chest_cm'], 1)) ?> <small>cm</small></span>
-                    </div>
-                </div>
-                <?php endif; ?>
-
-                <?php if (!empty($profile['target_waist_cm'])): ?>
-                <div class="settings-stat-card">
-                    <div class="settings-stat-icon" style="background: color-mix(in srgb, #f472b6 15%, transparent); color: #f472b6;">
-                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 18 0 9 9 0 0 0-18 0"/><path d="M12 8v8"/></svg>
-                    </div>
-                    <div class="settings-stat-body">
-                        <span class="settings-stat-label">Target Waist Size</span>
-                        <span class="settings-stat-value"><?= h(number_format((float)$profile['target_waist_cm'], 1)) ?> <small>cm</small></span>
-                    </div>
-                </div>
-                <?php endif; ?>
-            </div>
             <?php endif; ?>
-        </div>
-    </div>
-    <?php endif; ?>
-
-    <!-- Tab: Gym Affiliation -->
-    <?php if ($is_member): ?>
-    <div class="settings-panel" data-panel="gym">
-        <div class="settings-section">
-            <div class="settings-section-header">
-                <div>
-                    <h2 class="settings-section-title">Gym Affiliation</h2>
-                    <p class="settings-section-desc">
-                        <?php if ($currentGymId): ?>
-                            View your active gym membership details.
-                        <?php else: ?>
-                            Set your home gym to access trainers, classes, and plans.
-                        <?php endif; ?>
-                    </p>
-                </div>
-            </div>
-
-            <!-- Current Gym Card -->
-            <div class="settings-gym-card <?= $currentGymId ? 'has-membership' : 'no-membership' ?>">
-                <div class="settings-gym-card-accent"></div>
-                <div class="settings-gym-card-body">
-                    <div class="settings-gym-card-icon">
-                        <?php if ($currentGymId || $homeGymId): ?>
-                            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg>
-                        <?php else: ?>
-                            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="8" y2="16"/><line x1="8" x2="16" y1="12" y2="12"/></svg>
-                        <?php endif; ?>
-                    </div>
-                    <div class="settings-gym-card-info">
-                        <span class="settings-gym-card-label"><?= $currentGymId ? 'Active Membership' : 'Home Gym' ?></span>
-                        <span class="settings-gym-card-name"><?= h($currentGymId ? $currentGymName : $homeGymName) ?></span>
-                        <?php if ($currentGymId && $membershipInfo): ?>
-                            <div class="settings-gym-card-details">
-                                <span class="settings-gym-badge active">
-                                    <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
-                                    Active
-                                </span>
-                                <span class="settings-gym-plan"><?= h($membershipInfo['plan_name']) ?></span>
-                                <?php if ($membershipInfo['days_remaining'] > 0): ?>
-                                    <span class="settings-gym-days"><?= (int)$membershipInfo['days_remaining'] ?> days remaining</span>
-                                <?php endif; ?>
-                            </div>
-                        <?php elseif (!$currentGymId): ?>
-                            <div class="settings-gym-card-details">
-                                <span class="settings-gym-badge inactive">No Active Plan</span>
-                            </div>
-                        <?php endif; ?>
-                    </div>
-                </div>
-            </div>
-
-            <?php if (!$currentGymId): ?>
-                <!-- Switch Home Gym -->
-                <div class="settings-homegym-form-wrapper">
-                    <h3 class="settings-group-title" style="margin-top:1.5rem;">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
-                        Switch Home Gym
-                    </h3>
-                    <p class="muted" style="font-size:13px;margin-bottom:12px;">
-                        Since you don't have an active membership, you can freely switch your affiliation. Your historical data stays with your profile.
-                    </p>
-                    <form method="post" class="form" style="margin-bottom:0;" onsubmit="const val = this.querySelector('input[name=new_gym_id]')?.value || this.querySelector('select[name=new_gym_id]')?.value; if(!val){ if (typeof Swal !== 'undefined') { Swal.fire({ icon: 'warning', title: 'Select Gym', text: 'Please choose a gym first.', confirmButtonColor: 'var(--lime-dark)' }); } else { alert('Please choose a gym first.'); } return false; } const btn = this.querySelector('button[type=submit]'); btn.disabled = true; btn.textContent = 'Updating...';">
-                        <?= csrf_field() ?>
-                        <input type="hidden" name="switch_home_gym" value="1">
-                        <div class="settings-select-wrapper">
-                            <label class="settings-select-label">New Home Gym</label>
-                            <div id="switchHomeGymDropdownWrap"></div>
-                            <noscript>
-                                <select name="new_gym_id" class="settings-select" required>
-                                    <option value="">Choose a gym...</option>
-                                    <?php foreach ($allGyms as $g): if ($homeGymId && (int)$g['gym_id'] === $homeGymId) continue; ?>
-                                        <option value="<?= (int) $g['gym_id'] ?>"><?= h($g['name']) ?></option>
-                                    <?php endforeach; ?>
-                                </select>
-                            </noscript>
-                        </div>
-                        <button type="submit" class="settings-action-btn primary" style="margin-top:12px;">
-                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
-                            Set Home Gym
-                        </button>
-                    </form>
-                </div>
+            <?php if ($user['role'] === 'platform_admin'): ?>
+                <button class="settings-tab" data-tab="platform_settings">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="12" cy="12" r="3" />
+                        <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+                    </svg>
+                    Platform Settings
+                </button>
+                <button class="settings-tab" data-tab="platform_feedback">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+                    </svg>
+                    Feedback
+                </button>
             <?php endif; ?>
-        </div>
-    </div>
-    <?php endif; ?>
+            <?php if ($user['role'] === 'gym_owner'): ?>
+                <button class="settings-tab" data-tab="subscription">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <rect width="20" height="14" x="2" y="5" rx="2" />
+                        <line x1="2" x2="22" y1="10" y2="10" />
+                    </svg>
+                    Subscription & Billing
+                </button>
+            <?php endif; ?>
+            <button class="settings-tab" data-tab="preferences">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M12 20h9" />
+                    <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" />
+                </svg>
+                Preferences
+            </button>
+            <?php if (in_array(($user['role'] ?? ''), ['gym_owner', 'admin'], true)): ?>
+                <button class="settings-tab" data-tab="ratings_feedback">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+                    </svg>
+                    Rating &amp; Feedback
+                </button>
+            <?php endif; ?>
+        </nav>
 
-    <?php if ($user['role'] === 'platform_admin'): ?>
-    <!-- Tab: Platform Settings -->
-    <div class="settings-panel" data-panel="platform_settings">
-        <div class="settings-section">
-            <div class="settings-section-header">
-                <div>
-                    <h2 class="settings-section-title">Platform Settings</h2>
-                    <p class="settings-section-desc">Manage global platform configurations, support contact, and registration availability.</p>
-                </div>
-            </div>
-
-            <div class="platform-settings-cards">
-                <article class="platform-settings-card">
-                    <div class="platform-settings-card-mark" aria-hidden="true">01</div>
-                    <div class="platform-settings-card-copy">
-                        <span class="platform-settings-eyebrow">CORE CONFIGURATION</span>
-                        <h3>General platform</h3>
-                        <p>Manage your platform identity, support contact, and new account registration.</p>
-                    </div>
-                    <button type="button" class="platform-settings-open" onclick="document.getElementById('generalPlatformSettingsModal').showModal()">Configure <span aria-hidden="true">&rarr;</span></button>
-                </article>
-                <article class="platform-settings-card">
-                    <div class="platform-settings-card-mark" aria-hidden="true">02</div>
-                    <div class="platform-settings-card-copy">
-                        <span class="platform-settings-eyebrow">MEMBER ENGAGEMENT</span>
-                        <h3>Inactive member reminders</h3>
-                        <p>Set when members are flagged inactive and the wait between reminder messages.</p>
-                    </div>
-                    <button type="button" class="platform-settings-open" onclick="document.getElementById('inactiveMemberSettingsModal').showModal()">Configure <span aria-hidden="true">&rarr;</span></button>
-                </article>
-            </div>
-
-            <dialog id="generalPlatformSettingsModal" class="modal platform-settings-modal" onclick="if (event.target === this) this.close();">
-                <div class="modal-header">
-                    <div><span class="platform-settings-eyebrow">CORE CONFIGURATION</span><h3>General platform</h3></div>
-                    <button type="button" class="modal-close" onclick="this.closest('dialog').close()" aria-label="Close">&times;</button>
-                </div>
-                <div class="modal-body">
-                    <form method="post" class="form grid-form platform-settings-form">
-                        <?= csrf_field() ?>
-                        <input type="hidden" name="update_platform_settings" value="1">
-                        <label>Platform Name<input type="text" name="platform_name" value="<?= h($sysSettings['platform_name']['setting_value'] ?? 'FITTRACKS') ?>" required></label>
-                        <label>Support Contact Email<input type="email" name="contact_email" value="<?= h($sysSettings['contact_email']['setting_value'] ?? 'support@fittracks.com') ?>" required></label>
-                        <label class="platform-settings-full">New account registration
-                            <select name="registration_enabled">
-                                <option value="1" <?= ($sysSettings['registration_enabled']['setting_value'] ?? '1') === '1' ? 'selected' : '' ?>>Open - new gyms and members can register</option>
-                                <option value="0" <?= ($sysSettings['registration_enabled']['setting_value'] ?? '1') === '0' ? 'selected' : '' ?>>Closed - pause new registrations</option>
-                            </select>
-                        </label>
-                        <div class="platform-settings-modal-actions">
-                            <button type="button" class="platform-settings-cancel" onclick="this.closest('dialog').close()">Cancel</button>
-                            <button type="submit" class="btn-primary">Save changes</button>
-                        </div>
-                    </form>
-                </div>
-            </dialog>
-
-            <dialog id="inactiveMemberSettingsModal" class="modal platform-settings-modal" onclick="if (event.target === this) this.close();">
-                <div class="modal-header">
-                    <div><span class="platform-settings-eyebrow">MEMBER ENGAGEMENT</span><h3>Inactive member reminders</h3></div>
-                    <button type="button" class="modal-close" onclick="this.closest('dialog').close()" aria-label="Close">&times;</button>
-                </div>
-                <div class="modal-body">
-                    <form method="post" class="form grid-form platform-settings-form">
-                        <?= csrf_field() ?>
-                        <input type="hidden" name="update_platform_settings" value="1">
-                        <label>Inactivity threshold (days)
-                            <input type="number" min="1" max="90" name="at_risk_inactivity_days" value="<?= h($sysSettings['at_risk_inactivity_days']['setting_value'] ?? '3') ?>" required>
-                            <span class="platform-settings-help">Days without a check-in before a member is flagged as inactive.</span>
-                        </label>
-                        <label>Reminder cooldown (days)
-                            <input type="number" min="1" max="180" name="at_risk_notification_cooldown" value="<?= h($sysSettings['at_risk_notification_cooldown']['setting_value'] ?? '14') ?>" required>
-                            <span class="platform-settings-help">Minimum wait before sending another reminder to the same member.</span>
-                        </label>
-                        <div class="platform-settings-modal-actions">
-                            <button type="button" class="platform-settings-cancel" onclick="this.closest('dialog').close()">Cancel</button>
-                            <button type="submit" class="btn-primary">Save changes</button>
-                        </div>
-                    </form>
-                </div>
-            </dialog>
-
-        </div>
-    </div>
-    <?php endif; ?>
-
-    <?php if ($user['role'] === 'platform_admin'): ?>
-    <!-- Tab: Platform Feedback -->
-    <div class="settings-panel" data-panel="platform_feedback">
-        <div class="settings-section">
-            <div class="settings-section-header" style="margin-top:2rem;">
-                <div>
-                    <h2 class="settings-section-title">Commercial Gym Owner Feedback</h2>
-                    <p class="settings-section-desc">Live ratings submitted by gym operators regarding system usability, features, and platform services.</p>
-                </div>
-                <a href="index.php?page=landing#testimonials" target="_blank" rel="noopener" class="btn btn-secondary" style="font-size:12px; padding:5px 12px; text-decoration:none;">View Live on Landing Page &rarr;</a>
-            </div>
-            <div class="platform-rating-summary">
-                <div class="platform-rating-overall">
-                    <div class="platform-rating-number"><?= number_format($platformRatingStats['avg_rating'], 1) ?></div>
+        <!-- Tab: Account -->
+        <div class="settings-panel active" data-panel="account">
+            <div class="settings-section">
+                <div class="settings-section-header">
                     <div>
-                        <div class="platform-rating-title"><?= render_star_rating((float)$platformRatingStats['avg_rating'], 16, false) ?><strong>Overall Platform Score</strong></div>
-                        <span style="font-size:12px; color:var(--muted);">Based on <?= (int)$platformRatingStats['total_reviews'] ?> verified reviews from approved gym owners</span>
+                        <h2 class="settings-section-title">Account Details</h2>
+                        <p class="settings-section-desc">Manage your personal information and login credentials.</p>
                     </div>
-                </div>
-                <div class="platform-rating-metrics">
-                    <?php foreach (['System UX' => 'avg_system', 'Features' => 'avg_features', 'Service Quality' => 'avg_service'] as $label => $key): ?>
-                        <div style="text-align:center; padding:0 10px;"><div style="font-size:17px; font-weight:800; color:var(--lime);"><?= number_format($platformRatingStats[$key], 1) ?>★</div><div style="font-size:11px; color:var(--muted); text-transform:uppercase;"><?= h($label) ?></div></div>
-                    <?php endforeach; ?>
-                </div>
-            </div>
-            <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(min(320px, 100%), 1fr)); gap:14px;">
-                <?php foreach ($recentPlatformFeedback as $pf): ?>
-                    <div style="background:rgba(255,255,255,0.02); border:1px solid rgba(255,255,255,0.04); border-radius:10px; padding:14px; display:flex; flex-direction:column; justify-content:space-between;">
-                        <div>
-                            <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:8px;"><div><strong style="font-size:13.5px; display:block; color:#fff;"><?= h($pf['gym_name'] ?? 'Commercial Gym') ?></strong><small style="font-size:11.5px; color:var(--muted);"><?= h(($pf['first_name'] ?? '') . ' ' . ($pf['last_name'] ?? '')) ?> (Owner)</small></div><?= render_star_rating((float)$pf['rating'], 14, false) ?></div>
-                            <?php if (!empty($pf['review'])): ?><p style="font-size:12.5px; line-height:1.45; color:rgba(255,255,255,0.85); margin:0 0 10px; font-style:italic;">&ldquo;<?= h($pf['review']) ?>&rdquo;</p><?php endif; ?>
-                        </div>
-                        <div style="display:flex; justify-content:space-between; align-items:center; font-size:11px; color:var(--muted); border-top:1px solid rgba(255,255,255,0.04); padding-top:8px; margin-top:6px;"><div style="display:flex; gap:8px;"><span>UX: <b style="color:var(--lime);"><?= (int)($pf['system_experience'] ?? 5) ?>★</b></span><span>Feat: <b style="color:var(--lime);"><?= (int)($pf['features_rating'] ?? 5) ?>★</b></span><span>Serv: <b style="color:var(--lime);"><?= (int)($pf['service_rating'] ?? 5) ?>★</b></span></div><time><?= h(date('M d, Y', strtotime($pf['created_at']))) ?></time></div>
-                    </div>
-                <?php endforeach; ?>
-                <?php if (!$recentPlatformFeedback): ?><p class="muted" style="grid-column:1/-1; text-align:center; padding:20px;">No platform reviews submitted yet.</p><?php endif; ?>
-            </div>
-        </div>
-    </div>
-    <?php endif; ?>
-
-    <?php if ($user['role'] === 'gym_owner' && $ownerGym): 
-        $ownerGymId = (int)$ownerGym['gym_id'];
-        $subPlan = $ownerGym['subscription_plan'] ?: 'No Active Plan';
-        $subStatus = $ownerGym['subscription_status'] ?: 'inactive';
-        $subRenewal = !empty($ownerGym['subscription_renewal_date']) ? date('M j, Y', strtotime($ownerGym['subscription_renewal_date'])) : 'N/A';
-        
-        $allPlatformPlans = get_platform_subscription_plans();
-        $matchedPlan = null;
-        foreach ($allPlatformPlans as $p) {
-            if (strtolower($p['name']) === strtolower((string)$subPlan) || strtolower($p['key']) === strtolower((string)$subPlan)) {
-                $matchedPlan = $p;
-                break;
-            }
-        }
-
-        $badgeBg = 'rgba(255, 255, 255, 0.08)';
-        $badgeColor = 'var(--ink)';
-        $badgeText = ucfirst((string)$subStatus);
-        $subCta = 'Choose Subscription';
-
-        if ($ownerTrialInfo['is_trial_active']) {
-            $badgeBg = 'rgba(132, 204, 22, 0.15)';
-            $badgeColor = 'var(--lime, #84cc16)';
-            $badgeText = 'Free Trial (' . $ownerTrialInfo['days_left'] . 'd left)';
-            $subCta = 'Upgrade Plan';
-        } elseif ($subStatus === 'active') {
-            $badgeBg = 'color-mix(in srgb, var(--teal) 15%, transparent)';
-            $badgeColor = 'var(--teal)';
-            $badgeText = 'Active Paid';
-            $subCta = 'Manage Subscription';
-        } elseif ($ownerTrialInfo['is_free']) {
-            $badgeBg = 'rgba(255, 255, 255, 0.08)';
-            $badgeColor = 'var(--muted)';
-            $badgeText = 'Free Tier (Limited)';
-            $subCta = 'Upgrade to Unlock Full Features';
-        }
-
-        $memberLimit = gym_member_limit($ownerGym);
-        $activeMemberCount = $ownerGymId ? gym_active_member_count($ownerGymId) : 0;
-        $usagePercent = ($memberLimit > 0 && $memberLimit !== PHP_INT_MAX) 
-            ? min(100, round(($activeMemberCount / $memberLimit) * 100)) 
-            : null;
-        $trainerLimit = gym_trainer_limit($ownerGym);
-        $activeTrainerCount = $ownerGymId ? gym_active_trainer_count($ownerGymId) : 0;
-    ?>
-    <!-- Tab: Subscription & Billing -->
-    <div class="settings-panel" data-panel="subscription">
-        <div class="settings-section">
-            <div class="settings-section-header">
-                <div>
-                    <h2 class="settings-section-title">Subscription & Platform Fees</h2>
-                    <p class="settings-section-desc">Manage your commercial subscription, member/trainer limits, and platform fee breakdown.</p>
-                </div>
-                <a href="index.php?page=gym_subscription" class="btn btn-primary" style="padding: 8px 18px; border-radius: 10px; font-weight: 700; text-decoration: none; font-size: 13px; display: inline-flex; align-items: center; gap: 6px;">
-                    <span><?= h($subCta) ?></span>
-                    <span>&rarr;</span>
-                </a>
-            </div>
-
-            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 20px; margin-top: 10px;">
-                <!-- Card 1: Subscription & Plan -->
-                <div style="border-radius: 14px; border: 1px solid var(--line); background: color-mix(in srgb, var(--panel-soft) 60%, transparent); padding: 22px; display: flex; flex-direction: column;">
-                    <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px; gap: 10px;">
-                        <div>
-                            <span style="font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); font-weight: 700;">Current Plan</span>
-                            <h3 style="margin: 4px 0 0; font-size: 1.25rem; font-weight: 800; color: var(--ink);">
-                                <?php if ($ownerTrialInfo['is_trial_active']): ?>
-                                    Free Trial (50 Members &bull; 2 Trainers)
-                                <?php elseif ($ownerTrialInfo['is_free']): ?>
-                                    Free Tier
-                                <?php else: ?>
-                                    <?= h($subPlan) ?><?= $subPlan !== 'No Active Plan' ? ' Plan' : '' ?>
-                                <?php endif; ?>
-                            </h3>
-                        </div>
-                        <span class="badge" style="background: <?= $badgeBg ?>; color: <?= $badgeColor ?>; font-weight: 700; font-size: 11px; padding: 4px 10px; border-radius: 20px; white-space: nowrap;">
-                            <?= h($badgeText) ?>
-                        </span>
-                    </div>
-
-                    <p style="color: var(--muted); font-size: 13px; line-height: 1.5; margin: 0 0 16px;">
-                        <?php if ($ownerTrialInfo['is_trial_active']): ?>
-                            Evaluation trial active &bull; Uninterrupted access to classes, workouts, and reporting.
-                        <?php elseif ($ownerTrialInfo['is_free']): ?>
-                            Basic operations only (QR scanner, check-in, memberships, up to 25 members).
-                        <?php elseif ($matchedPlan): ?>
-                            <?= h($matchedPlan['price_label']) ?> / month &bull; <?= h($matchedPlan['desc']) ?>
-                        <?php else: ?>
-                            <?= h($subPlan) ?>
-                        <?php endif; ?>
-                    </p>
-
-                    <div style="display: flex; gap: 8px; align-items: center; margin-bottom: 18px; font-size: 12.5px;">
-                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color: var(--muted); flex-shrink: 0;"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
-                        <?php if ($ownerTrialInfo['is_trial_active']): ?>
-                            <span style="color: var(--lime); font-weight: 600;">Trial ends on <?= h($subRenewal) ?></span>
-                        <?php elseif ($subRenewal !== 'N/A' && $subStatus === 'active'): ?>
-                            <span style="color: var(--muted);">Renews on <?= h($subRenewal) ?></span>
-                        <?php else: ?>
-                            <span style="color: var(--muted);">No active expiration date</span>
-                        <?php endif; ?>
-                    </div>
-
-                    <!-- Member & Trainer Capacity Progress -->
-                    <div style="margin-top: auto; padding: 14px; border-radius: 10px; background: rgba(255,255,255,0.03); border: 1px solid var(--line);">
-                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; font-size: 13px;">
-                            <span style="color: var(--muted);">Member Capacity</span>
-                            <strong style="color: var(--ink);">
-                                <?= $activeMemberCount ?> / <?= $memberLimit === PHP_INT_MAX ? '∞ Unlimited' : $memberLimit ?>
-                                <?= $usagePercent !== null ? "({$usagePercent}%)" : '' ?>
-                            </strong>
-                        </div>
-                        <?php if ($usagePercent !== null): ?>
-                            <div style="width: 100%; height: 6px; background: rgba(255,255,255,0.08); border-radius: 3px; overflow: hidden; margin-bottom: 10px;">
-                                <div style="width: <?= $usagePercent ?>%; height: 100%; background: <?= $usagePercent >= 90 ? 'var(--danger, #ef4444)' : 'var(--lime, #84cc16)' ?>; transition: width 0.3s ease;"></div>
-                            </div>
-                        <?php endif; ?>
-
-                        <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 8px; padding-top: 8px; border-top: 1px solid rgba(255,255,255,0.06); font-size: 12.5px;">
-                            <span style="color: var(--muted);">Trainer Capacity</span>
-                            <strong style="color: var(--ink);">
-                                <?php if ($trainerLimit === PHP_INT_MAX): ?>
-                                    <?= $activeTrainerCount ?> / ∞ Unlimited
-                                <?php elseif ($trainerLimit > 0): ?>
-                                    <?= $activeTrainerCount ?> / <?= $trainerLimit ?>
-                                <?php else: ?>
-                                    0 (Locked &bull; Pro only)
-                                <?php endif; ?>
-                            </strong>
-                        </div>
-                    </div>
+                    <button type="button" class="settings-edit-btn" onclick="document.getElementById('accountModal').showModal()">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
+                        </svg>
+                        Edit
+                    </button>
                 </div>
 
-                <!-- Card 2: Platform Earnings / Fees -->
-                <div style="border-radius: 14px; border: 1px solid var(--line); background: color-mix(in srgb, var(--panel-soft) 60%, transparent); padding: 22px; display: flex; flex-direction: column;">
-                    <span style="font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); font-weight: 700; margin-bottom: 4px;">Billing & Revenue</span>
-                    <h3 style="margin: 0 0 16px; font-size: 1.25rem; font-weight: 800; color: var(--ink);">Platform Earnings / Fees</h3>
-
-                    <div style="display: flex; flex-direction: column; gap: 12px; margin-bottom: 16px;">
-                        <div style="display: flex; justify-content: space-between; align-items: center; padding-bottom: 10px; border-bottom: 1px solid var(--line); font-size: 13.5px;">
-                            <span style="color: var(--muted);">Total Revenue This Month:</span>
-                            <strong style="color: var(--ink);"><?= money($gymRevenue) ?></strong>
+                <div class="settings-info-grid">
+                    <div class="settings-info-row">
+                        <div class="settings-info-icon">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+                                <circle cx="12" cy="7" r="4" />
+                            </svg>
                         </div>
-                        <div style="display: flex; justify-content: space-between; align-items: center; padding-bottom: 10px; border-bottom: 1px solid var(--line); font-size: 13.5px;">
-                            <span style="color: var(--danger, #ef4444);">Transaction Fees (1%):</span>
-                            <strong style="color: var(--danger, #ef4444);">-<?= money($platformFee) ?></strong>
-                        </div>
-                        <div style="display: flex; justify-content: space-between; align-items: center; font-size: 16px; padding-top: 4px;">
-                            <span style="font-weight: 700; color: var(--ink);">Gym Net Amount:</span>
-                            <strong style="color: var(--teal); font-size: 1.2rem;"><?= money($netRevenue) ?></strong>
+                        <div class="settings-info-content">
+                            <span class="settings-info-label">Full Name</span>
+                            <span class="settings-info-value"><?= h($user['first_name'] . ' ' . $user['last_name']) ?></span>
                         </div>
                     </div>
-
-                    <div style="margin-top: auto; padding: 12px; border-radius: 10px; background: rgba(255,255,255,0.03); border: 1px solid var(--line);">
-                        <p style="font-size: 12px; color: var(--muted); margin: 0; line-height: 1.45;">
-                            FitTrack platform fees are calculated as 1% of your recorded revenue (both online GCash and cash walk-ins).
-                        </p>
+                    <div class="settings-info-row">
+                        <div class="settings-info-icon">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <rect width="20" height="16" x="2" y="4" rx="2" />
+                                <path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7" />
+                            </svg>
+                        </div>
+                        <div class="settings-info-content">
+                            <span class="settings-info-label">Email Address</span>
+                            <span class="settings-info-value"><?= h($user['email']) ?></span>
+                        </div>
+                    </div>
+                    <div class="settings-info-row">
+                        <div class="settings-info-icon">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z" />
+                            </svg>
+                        </div>
+                        <div class="settings-info-content">
+                            <span class="settings-info-label">Phone Number</span>
+                            <span class="settings-info-value"><?= h($user['phone'] ?? 'Not set') ?></span>
+                        </div>
+                    </div>
+                    <div class="settings-info-row">
+                        <div class="settings-info-icon">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+                                <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+                            </svg>
+                        </div>
+                        <div class="settings-info-content">
+                            <span class="settings-info-label">Password</span>
+                            <span class="settings-info-value">••••••••</span>
+                        </div>
+                    </div>
+                    <div class="settings-info-row">
+                        <div class="settings-info-icon">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+                                <circle cx="9" cy="7" r="4" />
+                                <line x1="19" x2="19" y1="8" y2="14" />
+                                <line x1="22" x2="16" y1="11" y2="11" />
+                            </svg>
+                        </div>
+                        <div class="settings-info-content">
+                            <span class="settings-info-label">Account Type</span>
+                            <span class="settings-info-value"><?= h(ucfirst($user['role'])) ?></span>
+                        </div>
                     </div>
                 </div>
             </div>
         </div>
-    </div>
-    <?php endif; ?>
 
-    <!-- Tab: Preferences -->
-    <div class="settings-panel" data-panel="preferences">
-        <div class="settings-section">
-            <div class="settings-section-header">
-                <div>
-                    <h2 class="settings-section-title">Preferences</h2>
-                    <p class="settings-section-desc">Customize your app experience and visual settings.</p>
-                </div>
-            </div>
-            
-            <div class="settings-pref-list">
-                <div class="settings-pref-item">
-                    <div class="settings-pref-icon" style="background: color-mix(in srgb, var(--lime) 12%, transparent); color: var(--lime);">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="23 7 16 12 23 17 23 7"/><rect width="15" height="14" x="1" y="5" rx="2" ry="2"/></svg>
-                    </div>
-                    <div class="settings-pref-content">
-                        <strong>Video Background</strong>
-                        <span class="muted" style="font-size:13px;">Show an animated video loop behind your dashboard.</span>
-                    </div>
-                    <label class="toggle-switch">
-                        <input type="checkbox" id="toggleVideoBg" <?= (!isset($_COOKIE['fittracks_video_bg']) || $_COOKIE['fittracks_video_bg'] !== 'off') ? 'checked' : '' ?>>
-                        <span class="toggle-slider"></span>
-                    </label>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Tab: Rating & Feedback -->
-    <?php if (in_array(($user['role'] ?? ''), ['gym_owner', 'admin'], true)): ?>
-    <div class="settings-panel" data-panel="ratings_feedback">
-        <div class="settings-section">
-            <div class="settings-section-header" style="flex-wrap:wrap; gap:12px;">
-                <div>
-                    <h2 class="settings-section-title" style="display:flex; align-items:center; gap:8px;">
-                        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color:var(--lime);"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
-                        Two-Way Rating &amp; Feedback Hub
-                    </h2>
-                    <p class="settings-section-desc">
-                        Track member ratings for your gym &bull; Share your feedback on the FitTrack platform
-                    </p>
-                </div>
-                <div style="display:flex; align-items:center; gap:8px;">
-                    <span class="rating-badge-active">
-                        Two-Way Separation Active
-                    </span>
-                </div>
-            </div>
-
-            <!-- Two-Way Grid -->
-            <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(360px, 1fr)); gap:22px; margin-top:20px;">
-                <!-- Card 1: Members -> Your Gym -->
-                <div class="rating-hub-card">
-                    <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:16px;">
+        <!-- Tab: Physical Profile -->
+        <?php if ($is_member): ?>
+            <div class="settings-panel" data-panel="physical">
+                <div class="settings-section">
+                    <div class="settings-section-header">
                         <div>
-                            <div style="display:flex; align-items:center; gap:8px;">
-                                <span class="rating-badge-gym">Members &rarr; Your Gym</span>
-                            </div>
-                            <h3 style="font-size:17px; font-weight:700; margin:6px 0 0 0; color:var(--ink);">Member Ratings &amp; Reviews</h3>
-                            <p style="font-size:12px; color:var(--muted); margin:2px 0 0 0;">Ratings contributed exclusively by your enrolled gym members</p>
+                            <h2 class="settings-section-title">Physical Profile</h2>
+                            <p class="settings-section-desc">Keeping your physical profile up to date helps generate accurate workout & diet plans.</p>
                         </div>
-                        <?php if ($ownerGymId): ?>
-                        <a href="index.php?page=gym_profile#sec-ratings" class="btn btn-secondary" style="font-size:12px; padding:5px 12px; text-decoration:none; white-space:nowrap;">View All &rarr;</a>
+                        <button type="button" class="settings-edit-btn" onclick="document.getElementById('physicalProfileModal').showModal()">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
+                            </svg>
+                            Edit
+                        </button>
+                    </div>
+
+                    <!-- Body Measurements -->
+                    <h3 class="settings-group-title">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+                            <circle cx="12" cy="7" r="4" />
+                        </svg>
+                        Body Measurements
+                    </h3>
+                    <div class="settings-stat-grid">
+                        <div class="settings-stat-card">
+                            <div class="settings-stat-icon" style="background: color-mix(in srgb, var(--teal) 15%, transparent); color: var(--teal);">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="M12 20h0M12 4h0M12 12h0M4 8l2.5 2L4 12M20 8l-2.5 2L20 12" />
+                                </svg>
+                            </div>
+                            <div class="settings-stat-body">
+                                <span class="settings-stat-label">Height</span>
+                                <span class="settings-stat-value"><?= h($profile['height_cm'] ?? '—') ?> <small>cm</small></span>
+                            </div>
+                        </div>
+                        <div class="settings-stat-card">
+                            <div class="settings-stat-icon" style="background: color-mix(in srgb, var(--orange) 15%, transparent); color: var(--orange);">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <circle cx="12" cy="12" r="10" />
+                                    <path d="M12 6v6l4 2" />
+                                </svg>
+                            </div>
+                            <div class="settings-stat-body">
+                                <span class="settings-stat-label">Weight</span>
+                                <span class="settings-stat-value"><?= h($profile['weight_kg'] ?? '—') ?> <small>kg</small></span>
+                            </div>
+                        </div>
+                        <div class="settings-stat-card">
+                            <div class="settings-stat-icon" style="background: color-mix(in srgb, var(--lime) 15%, transparent); color: var(--lime);">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <rect width="18" height="18" x="3" y="4" rx="2" ry="2" />
+                                    <line x1="16" x2="16" y1="2" y2="6" />
+                                    <line x1="8" x2="8" y1="2" y2="6" />
+                                    <line x1="3" x2="21" y1="10" y2="10" />
+                                </svg>
+                            </div>
+                            <div class="settings-stat-body">
+                                <span class="settings-stat-label">Age</span>
+                                <span class="settings-stat-value"><?= h($profile['age'] ?? '—') ?> <small>yrs</small></span>
+                            </div>
+                        </div>
+                        <div class="settings-stat-card">
+                            <div class="settings-stat-icon" style="background: color-mix(in srgb, #a78bfa 15%, transparent); color: #a78bfa;">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+                                    <circle cx="12" cy="7" r="4" />
+                                </svg>
+                            </div>
+                            <div class="settings-stat-body">
+                                <span class="settings-stat-label">Sex</span>
+                                <span class="settings-stat-value"><?= h(ucwords($profile['biological_sex'] ?? '—')) ?></span>
+                            </div>
+                        </div>
+                        <div class="settings-stat-card">
+                            <div class="settings-stat-icon" style="background: color-mix(in srgb, #60a5fa 15%, transparent); color: #60a5fa;">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <circle cx="12" cy="12" r="10" />
+                                    <line x1="2" x2="22" y1="12" y2="12" />
+                                </svg>
+                            </div>
+                            <div class="settings-stat-body">
+                                <span class="settings-stat-label">Neck</span>
+                                <span class="settings-stat-value"><?= !empty($profile['neck_cm']) ? h($profile['neck_cm']) . ' <small>cm</small>' : '—' ?></span>
+                            </div>
+                        </div>
+                        <div class="settings-stat-card">
+                            <div class="settings-stat-icon" style="background: color-mix(in srgb, #f472b6 15%, transparent); color: #f472b6;">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="M3 12a9 9 0 1 0 18 0 9 9 0 0 0-18 0" />
+                                    <path d="M12 8v8" />
+                                </svg>
+                            </div>
+                            <div class="settings-stat-body">
+                                <span class="settings-stat-label">Waist</span>
+                                <span class="settings-stat-value"><?= !empty($profile['waist_cm']) ? h($profile['waist_cm']) . ' <small>cm</small>' : '—' ?></span>
+                            </div>
+                        </div>
+                        <?php if (!empty($profile['chest_cm'])): ?>
+                            <div class="settings-stat-card">
+                                <div class="settings-stat-icon" style="background: color-mix(in srgb, #60a5fa 15%, transparent); color: #60a5fa;">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                        <circle cx="12" cy="12" r="10" />
+                                        <line x1="2" x2="22" y1="12" y2="12" />
+                                    </svg>
+                                </div>
+                                <div class="settings-stat-body">
+                                    <span class="settings-stat-label">Chest</span>
+                                    <span class="settings-stat-value"><?= h(number_format((float)$profile['chest_cm'], 1)) ?> <small>cm</small></span>
+                                </div>
+                            </div>
+                        <?php endif; ?>
+                        <?php if (!empty($profile['arm_cm'])): ?>
+                            <div class="settings-stat-card">
+                                <div class="settings-stat-icon" style="background: color-mix(in srgb, #a78bfa 15%, transparent); color: #a78bfa;">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                        <path d="M18 8h1a4 4 0 0 1 0 8h-1" />
+                                        <path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z" />
+                                    </svg>
+                                </div>
+                                <div class="settings-stat-body">
+                                    <span class="settings-stat-label">Arm</span>
+                                    <span class="settings-stat-value"><?= h(number_format((float)$profile['arm_cm'], 1)) ?> <small>cm</small></span>
+                                </div>
+                            </div>
+                        <?php endif; ?>
+                        <?php if (($profile['biological_sex'] ?? '') === 'female'): ?>
+                            <div class="settings-stat-card">
+                                <div class="settings-stat-icon" style="background: color-mix(in srgb, #fb923c 15%, transparent); color: #fb923c;">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                        <path d="M3 12a9 9 0 1 0 18 0 9 9 0 0 0-18 0" />
+                                        <path d="M12 8v8" />
+                                    </svg>
+                                </div>
+                                <div class="settings-stat-body">
+                                    <span class="settings-stat-label">Hip</span>
+                                    <span class="settings-stat-value"><?= !empty($profile['hip_cm']) ? h($profile['hip_cm']) . ' <small>cm</small>' : '—' ?></span>
+                                </div>
+                            </div>
                         <?php endif; ?>
                     </div>
 
-                    <?php if ($gymRatingStats && $ownerGymId): ?>
-                        <!-- Score Summary Box -->
-                        <div class="rating-summary-box">
-                            <div style="text-align:center; min-width:85px;">
-                                <div class="rating-big-num">
-                                    <?= number_format($gymRatingStats['avg_rating'], 1) ?>
-                                </div>
-                                <div style="margin-top:6px; display:flex; justify-content:center;">
-                                    <?= render_star_rating($gymRatingStats['avg_rating'], 14, false) ?>
-                                </div>
-                                <div style="font-size:11px; color:var(--muted); margin-top:4px;">
-                                    <?= $gymRatingStats['total_reviews'] ?> <?= $gymRatingStats['total_reviews'] === 1 ? 'review' : 'reviews' ?>
-                                </div>
+                    <!-- Fitness Goals -->
+                    <h3 class="settings-group-title" style="margin-top: 2rem;">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
+                        </svg>
+                        Fitness Goals
+                    </h3>
+                    <div class="settings-stat-grid">
+                        <div class="settings-stat-card">
+                            <div class="settings-stat-icon" style="background: color-mix(in srgb, var(--lime) 15%, transparent); color: var(--lime);">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
+                                </svg>
                             </div>
+                            <div class="settings-stat-body">
+                                <span class="settings-stat-label">Activity Level</span>
+                                <span class="settings-stat-value"><?= h(ucwords(str_replace('_', ' ', $profile['activity_level'] ?? '—'))) ?></span>
+                            </div>
+                        </div>
+                        <div class="settings-stat-card">
+                            <div class="settings-stat-icon" style="background: color-mix(in srgb, var(--teal) 15%, transparent); color: var(--teal);">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <circle cx="12" cy="12" r="10" />
+                                    <path d="m9 12 2 2 4-4" />
+                                </svg>
+                            </div>
+                            <div class="settings-stat-body">
+                                <span class="settings-stat-label">Primary Goal</span>
+                                <span class="settings-stat-value"><?= h(ucwords(str_replace('_', ' ', $profile['primary_goal'] ?? '—'))) ?></span>
+                            </div>
+                        </div>
+                        <div class="settings-stat-card">
+                            <div class="settings-stat-icon" style="background: color-mix(in srgb, var(--orange) 15%, transparent); color: var(--orange);">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="M18 8h1a4 4 0 0 1 0 8h-1" />
+                                    <path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z" />
+                                    <line x1="6" x2="6" y1="1" y2="4" />
+                                    <line x1="10" x2="10" y1="1" y2="4" />
+                                    <line x1="14" x2="14" y1="1" y2="4" />
+                                </svg>
+                            </div>
+                            <div class="settings-stat-body">
+                                <span class="settings-stat-label">Dietary Preference</span>
+                                <span class="settings-stat-value"><?= h(ucwords(str_replace('-', ' ', $profile['dietary_restrictions'] ?? 'None'))) ?></span>
+                            </div>
+                        </div>
+                    </div>
 
-                            <!-- Star Breakdown Progress Bars -->
-                            <div class="rating-summary-divider">
-                                <?php for ($s = 5; $s >= 1; $s--): 
-                                    $pct = $gymRatingStats['breakdown_pct'][$s] ?? 0;
-                                    $cnt = $gymRatingStats['breakdown'][$s] ?? 0;
-                                ?>
-                                    <div style="display:flex; align-items:center; gap:8px; font-size:11px;">
-                                        <span style="width:20px; color:var(--muted); text-align:right; font-weight:600;"><?= $s ?>★</span>
-                                        <div class="rating-bar-track">
-                                            <div style="height:100%; width:<?= $pct ?>%; background:linear-gradient(90deg, #f59e0b, #fbbf24); border-radius:999px;"></div>
-                                        </div>
-                                        <span style="width:22px; color:var(--muted); font-size:10px;"><?= $cnt ?></span>
+                    <!-- Targets & Objectives -->
+                    <?php
+                    $hasAnyTarget = !empty($profile['target_strength_max_kg']) ||
+                        !empty($profile['target_weight_kg']) ||
+                        !empty($profile['target_body_fat_percent']) ||
+                        !empty($profile['weekly_workout_target']) ||
+                        !empty($profile['target_endurance_distance_km']) ||
+                        !empty($profile['target_endurance_time_mins']) ||
+                        !empty($profile['target_arm_cm']) ||
+                        !empty($profile['target_chest_cm']) ||
+                        !empty($profile['target_waist_cm']);
+                    if ($hasAnyTarget):
+                    ?>
+                        <h3 class="settings-group-title" style="margin-top: 2rem;">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <circle cx="12" cy="12" r="10" />
+                                <circle cx="12" cy="12" r="6" />
+                                <circle cx="12" cy="12" r="2" />
+                            </svg>
+                            Targets & Objectives
+                        </h3>
+                        <div class="settings-stat-grid">
+                            <?php if (!empty($profile['target_strength_max_kg'])):
+                                $stEx = $profile['target_exercise'] ?? 'Bench Press';
+                            ?>
+                                <div class="settings-stat-card">
+                                    <div class="settings-stat-icon" style="background: color-mix(in srgb, var(--lime) 15%, transparent); color: var(--lime);">
+                                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                            <path d="m6.5 6.5 11 11" />
+                                            <path d="m21 21-1-1" />
+                                            <path d="m3 3 1 1" />
+                                            <path d="m18 22 4-4" />
+                                            <path d="m2 6 4-4" />
+                                            <path d="m3 10 7-7" />
+                                            <path d="m14 21 7-7" />
+                                        </svg>
                                     </div>
-                                <?php endfor; ?>
+                                    <div class="settings-stat-body">
+                                        <span class="settings-stat-label">Strength Target (<?= h($stEx) ?>)</span>
+                                        <span class="settings-stat-value"><?= h(number_format((float)$profile['target_strength_max_kg'], 1)) ?> <small>kg PR</small></span>
+                                        <?php if (!empty($profile['current_strength_max_kg'])): ?>
+                                            <span class="settings-stat-hint" style="font-size: 11px; color: var(--muted);">Current: <?= h(number_format((float)$profile['current_strength_max_kg'], 1)) ?> kg</span>
+                                        <?php endif; ?>
+                                    </div>
+                                </div>
+                            <?php endif; ?>
+
+                            <?php if (!empty($profile['target_weight_kg'])): ?>
+                                <div class="settings-stat-card">
+                                    <div class="settings-stat-icon" style="background: color-mix(in srgb, var(--orange) 15%, transparent); color: var(--orange);">
+                                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                            <circle cx="12" cy="12" r="10" />
+                                            <path d="M12 6v6l4 2" />
+                                        </svg>
+                                    </div>
+                                    <div class="settings-stat-body">
+                                        <span class="settings-stat-label">Target Weight</span>
+                                        <span class="settings-stat-value"><?= h(number_format((float)$profile['target_weight_kg'], 1)) ?> <small>kg</small></span>
+                                        <?php if (!empty($profile['weight_kg'])):
+                                            $diff = (float)$profile['target_weight_kg'] - (float)$profile['weight_kg'];
+                                        ?>
+                                            <span class="settings-stat-hint" style="font-size: 11px; color: var(--muted);"><?= $diff > 0 ? '+' : '' ?><?= number_format($diff, 1) ?> kg from current</span>
+                                        <?php endif; ?>
+                                    </div>
+                                </div>
+                            <?php endif; ?>
+
+                            <?php if (!empty($profile['target_body_fat_percent'])): ?>
+                                <div class="settings-stat-card">
+                                    <div class="settings-stat-icon" style="background: color-mix(in srgb, #f43f5e 15%, transparent); color: #f43f5e;">
+                                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                            <path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z" />
+                                        </svg>
+                                    </div>
+                                    <div class="settings-stat-body">
+                                        <span class="settings-stat-label">Target Body Fat</span>
+                                        <span class="settings-stat-value"><?= h(number_format((float)$profile['target_body_fat_percent'], 1)) ?> <small>%</small></span>
+                                    </div>
+                                </div>
+                            <?php endif; ?>
+
+                            <?php if (!empty($profile['weekly_workout_target'])): ?>
+                                <div class="settings-stat-card">
+                                    <div class="settings-stat-icon" style="background: color-mix(in srgb, var(--lime) 15%, transparent); color: var(--lime);">
+                                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                            <rect width="18" height="18" x="3" y="4" rx="2" ry="2" />
+                                            <line x1="16" x2="16" y1="2" y2="6" />
+                                            <line x1="8" x2="8" y1="2" y2="6" />
+                                            <line x1="3" x2="21" y1="10" y2="10" />
+                                        </svg>
+                                    </div>
+                                    <div class="settings-stat-body">
+                                        <span class="settings-stat-label">Workout Frequency</span>
+                                        <span class="settings-stat-value"><?= (int)$profile['weekly_workout_target'] ?> <small>days / wk</small></span>
+                                    </div>
+                                </div>
+                            <?php endif; ?>
+
+                            <?php if (!empty($profile['preferred_duration_mins'])): ?>
+                                <div class="settings-stat-card">
+                                    <div class="settings-stat-icon" style="background: color-mix(in srgb, var(--lime) 15%, transparent); color: var(--lime);">
+                                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                            <circle cx="12" cy="12" r="10" />
+                                            <polyline points="12 6 12 12 16 14" />
+                                        </svg>
+                                    </div>
+                                    <div class="settings-stat-body">
+                                        <span class="settings-stat-label">Session Duration</span>
+                                        <span class="settings-stat-value"><?= (int)$profile['preferred_duration_mins'] ?> <small>mins</small></span>
+                                    </div>
+                                </div>
+                            <?php endif; ?>
+
+                            <?php if (!empty($profile['target_endurance_distance_km']) || !empty($profile['target_endurance_time_mins'])):
+                                $act = $profile['endurance_activity'] ?? 'Running';
+                            ?>
+                                <div class="settings-stat-card">
+                                    <div class="settings-stat-icon" style="background: color-mix(in srgb, var(--teal) 15%, transparent); color: var(--teal);">
+                                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                            <path d="M22 12h-4l-3 9L9 3l-3 9H2" />
+                                        </svg>
+                                    </div>
+                                    <div class="settings-stat-body">
+                                        <span class="settings-stat-label">Endurance (<?= h($act) ?>)</span>
+                                        <span class="settings-stat-value">
+                                            <?= !empty($profile['target_endurance_distance_km']) ? h(number_format((float)$profile['target_endurance_distance_km'], 1)) . ' <small>km</small>' : '' ?>
+                                            <?= (!empty($profile['target_endurance_distance_km']) && !empty($profile['target_endurance_time_mins'])) ? ' / ' : '' ?>
+                                            <?= !empty($profile['target_endurance_time_mins']) ? h($profile['target_endurance_time_mins']) . ' <small>min</small>' : '' ?>
+                                        </span>
+                                    </div>
+                                </div>
+                            <?php endif; ?>
+
+                            <?php if (!empty($profile['target_arm_cm'])): ?>
+                                <div class="settings-stat-card">
+                                    <div class="settings-stat-icon" style="background: color-mix(in srgb, #a78bfa 15%, transparent); color: #a78bfa;">
+                                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                            <path d="M18 8h1a4 4 0 0 1 0 8h-1" />
+                                            <path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z" />
+                                        </svg>
+                                    </div>
+                                    <div class="settings-stat-body">
+                                        <span class="settings-stat-label">Target Arm Size</span>
+                                        <span class="settings-stat-value"><?= h(number_format((float)$profile['target_arm_cm'], 1)) ?> <small>cm</small></span>
+                                    </div>
+                                </div>
+                            <?php endif; ?>
+
+                            <?php if (!empty($profile['target_chest_cm'])): ?>
+                                <div class="settings-stat-card">
+                                    <div class="settings-stat-icon" style="background: color-mix(in srgb, #60a5fa 15%, transparent); color: #60a5fa;">
+                                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                            <circle cx="12" cy="12" r="10" />
+                                            <line x1="2" x2="22" y1="12" y2="12" />
+                                        </svg>
+                                    </div>
+                                    <div class="settings-stat-body">
+                                        <span class="settings-stat-label">Target Chest Size</span>
+                                        <span class="settings-stat-value"><?= h(number_format((float)$profile['target_chest_cm'], 1)) ?> <small>cm</small></span>
+                                    </div>
+                                </div>
+                            <?php endif; ?>
+
+                            <?php if (!empty($profile['target_waist_cm'])): ?>
+                                <div class="settings-stat-card">
+                                    <div class="settings-stat-icon" style="background: color-mix(in srgb, #f472b6 15%, transparent); color: #f472b6;">
+                                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                            <path d="M3 12a9 9 0 1 0 18 0 9 9 0 0 0-18 0" />
+                                            <path d="M12 8v8" />
+                                        </svg>
+                                    </div>
+                                    <div class="settings-stat-body">
+                                        <span class="settings-stat-label">Target Waist Size</span>
+                                        <span class="settings-stat-value"><?= h(number_format((float)$profile['target_waist_cm'], 1)) ?> <small>cm</small></span>
+                                    </div>
+                                </div>
+                            <?php endif; ?>
+                        </div>
+                    <?php endif; ?>
+                </div>
+            </div>
+        <?php endif; ?>
+
+        <!-- Tab: Gym Affiliation -->
+        <?php if ($is_member): ?>
+            <div class="settings-panel" data-panel="gym">
+                <div class="settings-section">
+                    <div class="settings-section-header">
+                        <div>
+                            <h2 class="settings-section-title">Gym Affiliation</h2>
+                            <p class="settings-section-desc">
+                                <?php if ($currentGymId): ?>
+                                    View your active gym membership details.
+                                <?php else: ?>
+                                    Set your home gym to access trainers, classes, and plans.
+                                <?php endif; ?>
+                            </p>
+                        </div>
+                    </div>
+
+                    <!-- Current Gym Card -->
+                    <div class="settings-gym-card <?= $currentGymId ? 'has-membership' : 'no-membership' ?>">
+                        <div class="settings-gym-card-accent"></div>
+                        <div class="settings-gym-card-body">
+                            <div class="settings-gym-card-icon">
+                                <?php if ($currentGymId || $homeGymId): ?>
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                                        <polygon points="12 2 2 7 12 12 22 7 12 2" />
+                                        <polyline points="2 17 12 22 22 17" />
+                                        <polyline points="2 12 12 17 22 12" />
+                                    </svg>
+                                <?php else: ?>
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                                        <circle cx="12" cy="12" r="10" />
+                                        <line x1="12" x2="12" y1="8" y2="16" />
+                                        <line x1="8" x2="16" y1="12" y2="12" />
+                                    </svg>
+                                <?php endif; ?>
+                            </div>
+                            <div class="settings-gym-card-info">
+                                <span class="settings-gym-card-label"><?= $currentGymId ? 'Active Membership' : 'Home Gym' ?></span>
+                                <span class="settings-gym-card-name"><?= h($currentGymId ? $currentGymName : $homeGymName) ?></span>
+                                <?php if ($currentGymId && $membershipInfo): ?>
+                                    <div class="settings-gym-card-details">
+                                        <span class="settings-gym-badge active">
+                                            <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                                                <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
+                                                <polyline points="22 4 12 14.01 9 11.01" />
+                                            </svg>
+                                            Active
+                                        </span>
+                                        <span class="settings-gym-plan"><?= h($membershipInfo['plan_name']) ?></span>
+                                        <?php if ($membershipInfo['days_remaining'] > 0): ?>
+                                            <span class="settings-gym-days"><?= (int)$membershipInfo['days_remaining'] ?> days remaining</span>
+                                        <?php endif; ?>
+                                    </div>
+                                <?php elseif (!$currentGymId): ?>
+                                    <div class="settings-gym-card-details">
+                                        <span class="settings-gym-badge inactive">No Active Plan</span>
+                                    </div>
+                                <?php endif; ?>
+                            </div>
+                        </div>
+                    </div>
+
+                    <?php if (!$currentGymId): ?>
+                        <!-- Switch Home Gym -->
+                        <div class="settings-homegym-form-wrapper">
+                            <h3 class="settings-group-title" style="margin-top:1.5rem;">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
+                                    <circle cx="12" cy="10" r="3" />
+                                </svg>
+                                Switch Home Gym
+                            </h3>
+                            <p class="muted" style="font-size:13px;margin-bottom:12px;">
+                                Since you don't have an active membership, you can freely switch your affiliation. Your historical data stays with your profile.
+                            </p>
+                            <form method="post" class="form" style="margin-bottom:0;" onsubmit="const val = this.querySelector('input[name=new_gym_id]')?.value || this.querySelector('select[name=new_gym_id]')?.value; if(!val){ if (typeof Swal !== 'undefined') { Swal.fire({ icon: 'warning', title: 'Select Gym', text: 'Please choose a gym first.', confirmButtonColor: 'var(--lime-dark)' }); } else { alert('Please choose a gym first.'); } return false; } const btn = this.querySelector('button[type=submit]'); btn.disabled = true; btn.textContent = 'Updating...';">
+                                <?= csrf_field() ?>
+                                <input type="hidden" name="switch_home_gym" value="1">
+                                <div class="settings-select-wrapper">
+                                    <label class="settings-select-label">New Home Gym</label>
+                                    <div id="switchHomeGymDropdownWrap"></div>
+                                    <noscript>
+                                        <select name="new_gym_id" class="settings-select" required>
+                                            <option value="">Choose a gym...</option>
+                                            <?php foreach ($allGyms as $g): if ($homeGymId && (int)$g['gym_id'] === $homeGymId) continue; ?>
+                                                <option value="<?= (int) $g['gym_id'] ?>"><?= h($g['name']) ?></option>
+                                            <?php endforeach; ?>
+                                        </select>
+                                    </noscript>
+                                </div>
+                                <button type="submit" class="settings-action-btn primary" style="margin-top:12px;">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                        <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
+                                        <circle cx="12" cy="10" r="3" />
+                                    </svg>
+                                    Set Home Gym
+                                </button>
+                            </form>
+                        </div>
+                    <?php endif; ?>
+                </div>
+            </div>
+        <?php endif; ?>
+
+        <?php if ($user['role'] === 'platform_admin'): ?>
+            <!-- Tab: Platform Settings -->
+            <div class="settings-panel" data-panel="platform_settings">
+                <div class="settings-section">
+                    <div class="settings-section-header">
+                        <div>
+                            <h2 class="settings-section-title">Platform Settings</h2>
+                            <p class="settings-section-desc">Manage global platform configurations, support contact, and registration availability.</p>
+                        </div>
+                    </div>
+
+                    <div class="platform-settings-cards">
+                        <article class="platform-settings-card">
+                            <div class="platform-settings-card-mark" aria-hidden="true">01</div>
+                            <div class="platform-settings-card-copy">
+                                <span class="platform-settings-eyebrow">CORE CONFIGURATION</span>
+                                <h3>General platform</h3>
+                                <p>Manage your platform identity, support contact, and new account registration.</p>
+                            </div>
+                            <button type="button" class="platform-settings-open" onclick="document.getElementById('generalPlatformSettingsModal').showModal()">Configure <span aria-hidden="true">&rarr;</span></button>
+                        </article>
+                        <article class="platform-settings-card">
+                            <div class="platform-settings-card-mark" aria-hidden="true">02</div>
+                            <div class="platform-settings-card-copy">
+                                <span class="platform-settings-eyebrow">MEMBER ENGAGEMENT</span>
+                                <h3>Inactive member reminders</h3>
+                                <p>Set when members are flagged inactive and the wait between reminder messages.</p>
+                            </div>
+                            <button type="button" class="platform-settings-open" onclick="document.getElementById('inactiveMemberSettingsModal').showModal()">Configure <span aria-hidden="true">&rarr;</span></button>
+                        </article>
+                    </div>
+
+                    <dialog id="generalPlatformSettingsModal" class="modal platform-settings-modal" onclick="if (event.target === this) this.close();">
+                        <div class="modal-header">
+                            <div><span class="platform-settings-eyebrow">CORE CONFIGURATION</span>
+                                <h3>General platform</h3>
+                            </div>
+                            <button type="button" class="modal-close" onclick="this.closest('dialog').close()" aria-label="Close">&times;</button>
+                        </div>
+                        <div class="modal-body">
+                            <form method="post" class="form grid-form platform-settings-form">
+                                <?= csrf_field() ?>
+                                <input type="hidden" name="update_platform_settings" value="1">
+                                <label>Platform Name<input type="text" name="platform_name" value="<?= h($sysSettings['platform_name']['setting_value'] ?? 'FITTRACKS') ?>" required></label>
+                                <label>Support Contact Email<input type="email" name="contact_email" value="<?= h($sysSettings['contact_email']['setting_value'] ?? 'support@fittracks.com') ?>" required></label>
+                                <label class="platform-settings-full">New account registration
+                                    <select name="registration_enabled">
+                                        <option value="1" <?= ($sysSettings['registration_enabled']['setting_value'] ?? '1') === '1' ? 'selected' : '' ?>>Open - new gyms and members can register</option>
+                                        <option value="0" <?= ($sysSettings['registration_enabled']['setting_value'] ?? '1') === '0' ? 'selected' : '' ?>>Closed - pause new registrations</option>
+                                    </select>
+                                </label>
+                                <div class="platform-settings-modal-actions">
+                                    <button type="button" class="platform-settings-cancel" onclick="this.closest('dialog').close()">Cancel</button>
+                                    <button type="submit" class="btn-primary">Save changes</button>
+                                </div>
+                            </form>
+                        </div>
+                    </dialog>
+
+                    <dialog id="inactiveMemberSettingsModal" class="modal platform-settings-modal" onclick="if (event.target === this) this.close();">
+                        <div class="modal-header">
+                            <div><span class="platform-settings-eyebrow">MEMBER ENGAGEMENT</span>
+                                <h3>Inactive member reminders</h3>
+                            </div>
+                            <button type="button" class="modal-close" onclick="this.closest('dialog').close()" aria-label="Close">&times;</button>
+                        </div>
+                        <div class="modal-body">
+                            <form method="post" class="form grid-form platform-settings-form">
+                                <?= csrf_field() ?>
+                                <input type="hidden" name="update_platform_settings" value="1">
+                                <label>Inactivity threshold (days)
+                                    <input type="number" min="1" max="90" name="at_risk_inactivity_days" value="<?= h($sysSettings['at_risk_inactivity_days']['setting_value'] ?? '3') ?>" required>
+                                    <span class="platform-settings-help">Days without a check-in before a member is flagged as inactive.</span>
+                                </label>
+                                <label>Reminder cooldown (days)
+                                    <input type="number" min="1" max="180" name="at_risk_notification_cooldown" value="<?= h($sysSettings['at_risk_notification_cooldown']['setting_value'] ?? '14') ?>" required>
+                                    <span class="platform-settings-help">Minimum wait before sending another reminder to the same member.</span>
+                                </label>
+                                <div class="platform-settings-modal-actions">
+                                    <button type="button" class="platform-settings-cancel" onclick="this.closest('dialog').close()">Cancel</button>
+                                    <button type="submit" class="btn-primary">Save changes</button>
+                                </div>
+                            </form>
+                        </div>
+                    </dialog>
+
+                </div>
+            </div>
+        <?php endif; ?>
+
+        <?php if ($user['role'] === 'platform_admin'): ?>
+            <!-- Tab: Platform Feedback -->
+            <div class="settings-panel" data-panel="platform_feedback">
+                <div class="settings-section">
+                    <div class="settings-section-header" style="margin-top:2rem;">
+                        <div>
+                            <h2 class="settings-section-title">Commercial Gym Owner Feedback</h2>
+                            <p class="settings-section-desc">Live ratings submitted by gym operators regarding system usability, features, and platform services.</p>
+                        </div>
+                        <a href="index.php?page=landing#testimonials" target="_blank" rel="noopener" class="btn btn-secondary" style="font-size:12px; padding:5px 12px; text-decoration:none;">View Live on Landing Page &rarr;</a>
+                    </div>
+                    <div class="platform-rating-summary">
+                        <div class="platform-rating-overall">
+                            <div class="platform-rating-number"><?= number_format($platformRatingStats['avg_rating'], 1) ?></div>
+                            <div>
+                                <div class="platform-rating-title"><?= render_star_rating((float)$platformRatingStats['avg_rating'], 16, false) ?><strong>Overall Platform Score</strong></div>
+                                <span style="font-size:12px; color:var(--muted);">Based on <?= (int)$platformRatingStats['total_reviews'] ?> verified reviews from approved gym owners</span>
+                            </div>
+                        </div>
+                        <div class="platform-rating-metrics">
+                            <?php foreach (['System UX' => 'avg_system', 'Features' => 'avg_features', 'Service Quality' => 'avg_service'] as $label => $key): ?>
+                                <div style="text-align:center; padding:0 10px;">
+                                    <div style="font-size:17px; font-weight:800; color:var(--lime);"><?= number_format($platformRatingStats[$key], 1) ?>★</div>
+                                    <div style="font-size:11px; color:var(--muted); text-transform:uppercase;"><?= h($label) ?></div>
+                                </div>
+                            <?php endforeach; ?>
+                        </div>
+                    </div>
+                    <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(min(320px, 100%), 1fr)); gap:14px;">
+                        <?php foreach ($recentPlatformFeedback as $pf): ?>
+                            <div style="background:rgba(255,255,255,0.02); border:1px solid rgba(255,255,255,0.04); border-radius:10px; padding:14px; display:flex; flex-direction:column; justify-content:space-between;">
+                                <div>
+                                    <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:8px;">
+                                        <div><strong style="font-size:13.5px; display:block; color:#fff;"><?= h($pf['gym_name'] ?? 'Commercial Gym') ?></strong><small style="font-size:11.5px; color:var(--muted);"><?= h(($pf['first_name'] ?? '') . ' ' . ($pf['last_name'] ?? '')) ?> (Owner)</small></div><?= render_star_rating((float)$pf['rating'], 14, false) ?>
+                                    </div>
+                                    <?php if (!empty($pf['review'])): ?><p style="font-size:12.5px; line-height:1.45; color:rgba(255,255,255,0.85); margin:0 0 10px; font-style:italic;">&ldquo;<?= h($pf['review']) ?>&rdquo;</p><?php endif; ?>
+                                </div>
+                                <div style="display:flex; justify-content:space-between; align-items:center; font-size:11px; color:var(--muted); border-top:1px solid rgba(255,255,255,0.04); padding-top:8px; margin-top:6px;">
+                                    <div style="display:flex; gap:8px;"><span>UX: <b style="color:var(--lime);"><?= (int)($pf['system_experience'] ?? 5) ?>★</b></span><span>Feat: <b style="color:var(--lime);"><?= (int)($pf['features_rating'] ?? 5) ?>★</b></span><span>Serv: <b style="color:var(--lime);"><?= (int)($pf['service_rating'] ?? 5) ?>★</b></span></div><time><?= h(date('M d, Y', strtotime($pf['created_at']))) ?></time>
+                                </div>
+                            </div>
+                        <?php endforeach; ?>
+                        <?php if (!$recentPlatformFeedback): ?><p class="muted" style="grid-column:1/-1; text-align:center; padding:20px;">No platform reviews submitted yet.</p><?php endif; ?>
+                    </div>
+                </div>
+            </div>
+        <?php endif; ?>
+
+        <?php if ($user['role'] === 'gym_owner' && $ownerGym):
+            $ownerGymId = (int)$ownerGym['gym_id'];
+            $subPlan = $ownerGym['subscription_plan'] ?: 'No Active Plan';
+            $subStatus = $ownerGym['subscription_status'] ?: 'inactive';
+            $subRenewal = !empty($ownerGym['subscription_renewal_date']) ? date('M j, Y', strtotime($ownerGym['subscription_renewal_date'])) : 'N/A';
+
+            $allPlatformPlans = get_platform_subscription_plans();
+            $matchedPlan = null;
+            foreach ($allPlatformPlans as $p) {
+                if (strtolower($p['name']) === strtolower((string)$subPlan) || strtolower($p['key']) === strtolower((string)$subPlan)) {
+                    $matchedPlan = $p;
+                    break;
+                }
+            }
+
+            $badgeBg = 'rgba(255, 255, 255, 0.08)';
+            $badgeColor = 'var(--ink)';
+            $badgeText = ucfirst((string)$subStatus);
+            $subCta = 'Choose Subscription';
+
+            if ($ownerTrialInfo['is_trial_active']) {
+                $badgeBg = 'rgba(132, 204, 22, 0.15)';
+                $badgeColor = 'var(--lime, #84cc16)';
+                $badgeText = 'Free Trial (' . $ownerTrialInfo['days_left'] . 'd left)';
+                $subCta = 'Upgrade Plan';
+            } elseif ($subStatus === 'active') {
+                $badgeBg = 'color-mix(in srgb, var(--teal) 15%, transparent)';
+                $badgeColor = 'var(--teal)';
+                $badgeText = 'Active Paid';
+                $subCta = 'Manage Subscription';
+            } elseif ($ownerTrialInfo['is_free']) {
+                $badgeBg = 'rgba(255, 255, 255, 0.08)';
+                $badgeColor = 'var(--muted)';
+                $badgeText = 'Free Tier (Limited)';
+                $subCta = 'Upgrade to Unlock Full Features';
+            }
+
+            $memberLimit = gym_member_limit($ownerGym);
+            $activeMemberCount = $ownerGymId ? gym_active_member_count($ownerGymId) : 0;
+            $usagePercent = ($memberLimit > 0 && $memberLimit !== PHP_INT_MAX)
+                ? min(100, round(($activeMemberCount / $memberLimit) * 100))
+                : null;
+            $trainerLimit = gym_trainer_limit($ownerGym);
+            $activeTrainerCount = $ownerGymId ? gym_active_trainer_count($ownerGymId) : 0;
+        ?>
+            <!-- Tab: Subscription & Billing -->
+            <div class="settings-panel" data-panel="subscription">
+                <div class="settings-section">
+                    <div class="settings-section-header">
+                        <div>
+                            <h2 class="settings-section-title">Subscription & Platform Fees</h2>
+                            <p class="settings-section-desc">Manage your commercial subscription, member/trainer limits, and platform fee breakdown.</p>
+                        </div>
+                        <a href="index.php?page=gym_subscription" class="btn btn-primary" style="padding: 8px 18px; border-radius: 10px; font-weight: 700; text-decoration: none; font-size: 13px; display: inline-flex; align-items: center; gap: 6px;">
+                            <span><?= h($subCta) ?></span>
+                            <span>&rarr;</span>
+                        </a>
+                    </div>
+
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 20px; margin-top: 10px;">
+                        <!-- Card 1: Subscription & Plan -->
+                        <div style="border-radius: 14px; border: 1px solid var(--line); background: color-mix(in srgb, var(--panel-soft) 60%, transparent); padding: 22px; display: flex; flex-direction: column;">
+                            <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px; gap: 10px;">
+                                <div>
+                                    <span style="font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); font-weight: 700;">Current Plan</span>
+                                    <h3 style="margin: 4px 0 0; font-size: 1.25rem; font-weight: 800; color: var(--ink);">
+                                        <?php if ($ownerTrialInfo['is_trial_active']): ?>
+                                            Free Trial (50 Members &bull; 2 Trainers)
+                                        <?php elseif ($ownerTrialInfo['is_free']): ?>
+                                            Free Tier
+                                        <?php else: ?>
+                                            <?= h($subPlan) ?><?= $subPlan !== 'No Active Plan' ? ' Plan' : '' ?>
+                                        <?php endif; ?>
+                                    </h3>
+                                </div>
+                                <span class="badge" style="background: <?= $badgeBg ?>; color: <?= $badgeColor ?>; font-weight: 700; font-size: 11px; padding: 4px 10px; border-radius: 20px; white-space: nowrap;">
+                                    <?= h($badgeText) ?>
+                                </span>
+                            </div>
+
+                            <p style="color: var(--muted); font-size: 13px; line-height: 1.5; margin: 0 0 16px;">
+                                <?php if ($ownerTrialInfo['is_trial_active']): ?>
+                                    Evaluation trial active &bull; Uninterrupted access to classes, workouts, and reporting.
+                                <?php elseif ($ownerTrialInfo['is_free']): ?>
+                                    Basic operations only (QR scanner, check-in, memberships, up to 25 members).
+                                <?php elseif ($matchedPlan): ?>
+                                    <?= h($matchedPlan['price_label']) ?> / month &bull; <?= h($matchedPlan['desc']) ?>
+                                <?php else: ?>
+                                    <?= h($subPlan) ?>
+                                <?php endif; ?>
+                            </p>
+
+                            <div style="display: flex; gap: 8px; align-items: center; margin-bottom: 18px; font-size: 12.5px;">
+                                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color: var(--muted); flex-shrink: 0;">
+                                    <circle cx="12" cy="12" r="10"></circle>
+                                    <polyline points="12 6 12 12 16 14"></polyline>
+                                </svg>
+                                <?php if ($ownerTrialInfo['is_trial_active']): ?>
+                                    <span style="color: var(--lime); font-weight: 600;">Trial ends on <?= h($subRenewal) ?></span>
+                                <?php elseif ($subRenewal !== 'N/A' && $subStatus === 'active'): ?>
+                                    <span style="color: var(--muted);">Renews on <?= h($subRenewal) ?></span>
+                                <?php else: ?>
+                                    <span style="color: var(--muted);">No active expiration date</span>
+                                <?php endif; ?>
+                            </div>
+
+                            <!-- Member & Trainer Capacity Progress -->
+                            <div style="margin-top: auto; padding: 14px; border-radius: 10px; background: rgba(255,255,255,0.03); border: 1px solid var(--line);">
+                                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; font-size: 13px;">
+                                    <span style="color: var(--muted);">Member Capacity</span>
+                                    <strong style="color: var(--ink);">
+                                        <?= $activeMemberCount ?> / <?= $memberLimit === PHP_INT_MAX ? '∞ Unlimited' : $memberLimit ?>
+                                        <?= $usagePercent !== null ? "({$usagePercent}%)" : '' ?>
+                                    </strong>
+                                </div>
+                                <?php if ($usagePercent !== null): ?>
+                                    <div style="width: 100%; height: 6px; background: rgba(255,255,255,0.08); border-radius: 3px; overflow: hidden; margin-bottom: 10px;">
+                                        <div style="width: <?= $usagePercent ?>%; height: 100%; background: <?= $usagePercent >= 90 ? 'var(--danger, #ef4444)' : 'var(--lime, #84cc16)' ?>; transition: width 0.3s ease;"></div>
+                                    </div>
+                                <?php endif; ?>
+
+                                <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 8px; padding-top: 8px; border-top: 1px solid rgba(255,255,255,0.06); font-size: 12.5px;">
+                                    <span style="color: var(--muted);">Trainer Capacity</span>
+                                    <strong style="color: var(--ink);">
+                                        <?php if ($trainerLimit === PHP_INT_MAX): ?>
+                                            <?= $activeTrainerCount ?> / ∞ Unlimited
+                                        <?php elseif ($trainerLimit > 0): ?>
+                                            <?= $activeTrainerCount ?> / <?= $trainerLimit ?>
+                                        <?php else: ?>
+                                            0 (Locked &bull; Pro only)
+                                        <?php endif; ?>
+                                    </strong>
+                                </div>
                             </div>
                         </div>
 
-                        <!-- Recent Member Reviews Feed -->
-                        <div style="flex:1; display:flex; flex-direction:column;">
-                            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
-                                <div style="font-size:12px; font-weight:700; color:var(--muted); text-transform:uppercase; letter-spacing:0.5px;">
-                                    Recent Member Reviews
+                        <!-- Card 2: Platform Earnings / Fees -->
+                        <div style="border-radius: 14px; border: 1px solid var(--line); background: color-mix(in srgb, var(--panel-soft) 60%, transparent); padding: 22px; display: flex; flex-direction: column;">
+                            <span style="font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); font-weight: 700; margin-bottom: 4px;">Billing & Revenue</span>
+                            <h3 style="margin: 0 0 16px; font-size: 1.25rem; font-weight: 800; color: var(--ink);">Platform Earnings / Fees</h3>
+
+                            <div style="display: flex; flex-direction: column; gap: 12px; margin-bottom: 16px;">
+                                <div style="display: flex; justify-content: space-between; align-items: center; padding-bottom: 10px; border-bottom: 1px solid var(--line); font-size: 13.5px;">
+                                    <span style="color: var(--muted);">Total Revenue This Month:</span>
+                                    <strong style="color: var(--ink);"><?= money($gymRevenue) ?></strong>
                                 </div>
-                                <?php if (!empty($recentGymReviews)): ?>
-                                    <span style="font-size:11px; color:var(--muted); font-weight:600;">
-                                        Latest <?= count($recentGymReviews) ?>
+                                <div style="display: flex; justify-content: space-between; align-items: center; padding-bottom: 10px; border-bottom: 1px solid var(--line); font-size: 13.5px;">
+                                    <span style="color: var(--danger, #ef4444);">Transaction Fees (1%):</span>
+                                    <strong style="color: var(--danger, #ef4444);">-<?= money($platformFee) ?></strong>
+                                </div>
+                                <div style="display: flex; justify-content: space-between; align-items: center; font-size: 16px; padding-top: 4px;">
+                                    <span style="font-weight: 700; color: var(--ink);">Gym Net Amount:</span>
+                                    <strong style="color: var(--teal); font-size: 1.2rem;"><?= money($netRevenue) ?></strong>
+                                </div>
+                            </div>
+
+                            <div style="margin-top: auto; padding: 12px; border-radius: 10px; background: rgba(255,255,255,0.03); border: 1px solid var(--line);">
+                                <p style="font-size: 12px; color: var(--muted); margin: 0; line-height: 1.45;">
+                                    FitTrack platform fees are calculated as 1% of your recorded revenue (both online GCash and cash walk-ins).
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        <?php endif; ?>
+
+        <!-- Tab: Preferences -->
+        <div class="settings-panel" data-panel="preferences">
+            <div class="settings-section">
+                <div class="settings-section-header">
+                    <div>
+                        <h2 class="settings-section-title">Preferences</h2>
+                        <p class="settings-section-desc">Customize your app experience and visual settings.</p>
+                    </div>
+                </div>
+
+                <div class="settings-pref-list">
+                    <div class="settings-pref-item">
+                        <div class="settings-pref-icon" style="background: color-mix(in srgb, var(--lime) 12%, transparent); color: var(--lime);">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <polygon points="23 7 16 12 23 17 23 7" />
+                                <rect width="15" height="14" x="1" y="5" rx="2" ry="2" />
+                            </svg>
+                        </div>
+                        <div class="settings-pref-content">
+                            <strong>Video Background</strong>
+                            <span class="muted" style="font-size:13px;">Show an animated video loop behind your dashboard.</span>
+                        </div>
+                        <label class="toggle-switch">
+                            <input type="checkbox" id="toggleVideoBg" <?= (!isset($_COOKIE['fittracks_video_bg']) || $_COOKIE['fittracks_video_bg'] !== 'off') ? 'checked' : '' ?>>
+                            <span class="toggle-slider"></span>
+                        </label>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tab: Rating & Feedback -->
+        <?php if (in_array(($user['role'] ?? ''), ['gym_owner', 'admin'], true)): ?>
+            <div class="settings-panel" data-panel="ratings_feedback">
+                <div class="settings-section">
+                    <div class="settings-section-header" style="flex-wrap:wrap; gap:12px;">
+                        <div>
+                            <h2 class="settings-section-title" style="display:flex; align-items:center; gap:8px;">
+                                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color:var(--lime);">
+                                    <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+                                </svg>
+                                Two-Way Rating &amp; Feedback Hub
+                            </h2>
+                            <p class="settings-section-desc">
+                                Track member ratings for your gym &bull; Share your feedback on the FitTrack platform
+                            </p>
+                        </div>
+                        <div style="display:flex; align-items:center; gap:8px;">
+                            <span class="rating-badge-active">
+                                Two-Way Separation Active
+                            </span>
+                        </div>
+                    </div>
+
+                    <!-- Two-Way Grid -->
+                    <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(360px, 1fr)); gap:22px; margin-top:20px;">
+                        <!-- Card 1: Members -> Your Gym -->
+                        <div class="rating-hub-card">
+                            <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:16px;">
+                                <div>
+                                    <div style="display:flex; align-items:center; gap:8px;">
+                                        <span class="rating-badge-gym">Members &rarr; Your Gym</span>
+                                    </div>
+                                    <h3 style="font-size:17px; font-weight:700; margin:6px 0 0 0; color:var(--ink);">Member Ratings &amp; Reviews</h3>
+                                    <p style="font-size:12px; color:var(--muted); margin:2px 0 0 0;">Ratings contributed exclusively by your enrolled gym members</p>
+                                </div>
+                                <?php if ($ownerGymId): ?>
+                                    <a href="index.php?page=gym_profile#sec-ratings" class="btn btn-secondary" style="font-size:12px; padding:5px 12px; text-decoration:none; white-space:nowrap;">View All &rarr;</a>
+                                <?php endif; ?>
+                            </div>
+
+                            <?php if ($gymRatingStats && $ownerGymId): ?>
+                                <!-- Score Summary Box -->
+                                <div class="rating-summary-box">
+                                    <div style="text-align:center; min-width:85px;">
+                                        <div class="rating-big-num">
+                                            <?= number_format($gymRatingStats['avg_rating'], 1) ?>
+                                        </div>
+                                        <div style="margin-top:6px; display:flex; justify-content:center;">
+                                            <?= render_star_rating($gymRatingStats['avg_rating'], 14, false) ?>
+                                        </div>
+                                        <div style="font-size:11px; color:var(--muted); margin-top:4px;">
+                                            <?= $gymRatingStats['total_reviews'] ?> <?= $gymRatingStats['total_reviews'] === 1 ? 'review' : 'reviews' ?>
+                                        </div>
+                                    </div>
+
+                                    <!-- Star Breakdown Progress Bars -->
+                                    <div class="rating-summary-divider">
+                                        <?php for ($s = 5; $s >= 1; $s--):
+                                            $pct = $gymRatingStats['breakdown_pct'][$s] ?? 0;
+                                            $cnt = $gymRatingStats['breakdown'][$s] ?? 0;
+                                        ?>
+                                            <div style="display:flex; align-items:center; gap:8px; font-size:11px;">
+                                                <span style="width:20px; color:var(--muted); text-align:right; font-weight:600;"><?= $s ?>★</span>
+                                                <div class="rating-bar-track">
+                                                    <div style="height:100%; width:<?= $pct ?>%; background:linear-gradient(90deg, #f59e0b, #fbbf24); border-radius:999px;"></div>
+                                                </div>
+                                                <span style="width:22px; color:var(--muted); font-size:10px;"><?= $cnt ?></span>
+                                            </div>
+                                        <?php endfor; ?>
+                                    </div>
+                                </div>
+
+                                <!-- Recent Member Reviews Feed -->
+                                <div style="flex:1; display:flex; flex-direction:column;">
+                                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+                                        <div style="font-size:12px; font-weight:700; color:var(--muted); text-transform:uppercase; letter-spacing:0.5px;">
+                                            Recent Member Reviews
+                                        </div>
+                                        <?php if (!empty($recentGymReviews)): ?>
+                                            <span style="font-size:11px; color:var(--muted); font-weight:600;">
+                                                Latest <?= count($recentGymReviews) ?>
+                                            </span>
+                                        <?php endif; ?>
+                                    </div>
+                                    <div class="rating-reviews-scroll-list" style="display:flex; flex-direction:column; gap:10px; max-height:240px; overflow-y:auto; padding-right:4px;">
+                                        <?php if (!empty($recentGymReviews)): ?>
+                                            <?php foreach ($recentGymReviews as $rev): ?>
+                                                <div class="rating-review-card">
+                                                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+                                                        <div style="display:flex; align-items:center; gap:8px;">
+                                                            <?= render_avatar($rev) ?>
+                                                            <div>
+                                                                <strong style="font-size:12.5px; display:block; color:var(--ink);"><?= h(($rev['first_name'] ?? '') . ' ' . ($rev['last_name'] ?? '')) ?></strong>
+                                                                <span style="font-size:10.5px; color:var(--muted);"><?= h(date('M d, Y', strtotime($rev['created_at']))) ?></span>
+                                                            </div>
+                                                        </div>
+                                                        <div>
+                                                            <?= render_star_rating((float)$rev['rating'], 13, false) ?>
+                                                        </div>
+                                                    </div>
+                                                    <?php if (!empty($rev['review'])): ?>
+                                                        <p class="rating-review-quote">
+                                                            &ldquo;<?= h($rev['review']) ?>&rdquo;
+                                                        </p>
+                                                    <?php endif; ?>
+                                                </div>
+                                            <?php endforeach; ?>
+                                        <?php else: ?>
+                                            <div class="rating-empty-box">
+                                                <p style="font-size:13px; color:var(--muted); margin:0; font-weight:500;">No member reviews yet.</p>
+                                                <span style="font-size:11.5px; color:var(--muted); display:block; margin-top:4px;">When your enrolled members rate your gym in their portal, their feedback will show here.</span>
+                                            </div>
+                                        <?php endif; ?>
+                                    </div>
+                                    <?php if ($ownerGymId && ($gymRatingStats['total_reviews'] ?? 0) > 0): ?>
+                                        <div style="margin-top:12px; padding-top:10px; border-top:1px solid var(--line);">
+                                            <a href="index.php?page=gym_profile#sec-ratings" class="btn btn-secondary btn-sm" style="width:100%; justify-content:center; font-size:12px; gap:6px;">
+                                                View All Member Reviews (<?= (int)$gymRatingStats['total_reviews'] ?>) &rarr;
+                                            </a>
+                                        </div>
+                                    <?php endif; ?>
+                                </div>
+                            <?php else: ?>
+                                <div class="rating-empty-box" style="padding:32px 16px;">
+                                    <p style="font-size:13px; color:var(--muted); margin:0;">No gym associated yet.</p>
+                                </div>
+                            <?php endif; ?>
+                        </div>
+
+                        <!-- Card 2: Gym Owner -> FitTrack Platform -->
+                        <div id="platform-feedback-card" class="rating-hub-card rating-platform-card">
+                            <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:14px;">
+                                <div>
+                                    <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+                                        <span class="rating-badge-owner">Gym Owner &rarr; FitTrack</span>
+                                        <span class="rating-badge-featured">
+                                            Featured on Landing Page
+                                        </span>
+                                    </div>
+                                    <h3 style="font-size:17px; font-weight:700; margin:6px 0 0 0; color:var(--ink);">Rate the FitTrack Platform</h3>
+                                    <p style="font-size:12px; color:var(--muted); margin:2px 0 0 0;">
+                                        Your rating &amp; testimonial appear on the FitTrack landing page to help other gym owners!
+                                    </p>
+                                </div>
+                                <?php if ($myPlatformReview): ?>
+                                    <span class="rating-badge-live">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                                            <polyline points="20 6 9 17 4 12" />
+                                        </svg>
+                                        Feedback Live
                                     </span>
                                 <?php endif; ?>
                             </div>
-                            <div class="rating-reviews-scroll-list" style="display:flex; flex-direction:column; gap:10px; max-height:240px; overflow-y:auto; padding-right:4px;">
-                                <?php if (!empty($recentGymReviews)): ?>
-                                    <?php foreach ($recentGymReviews as $rev): ?>
-                                        <div class="rating-review-card">
-                                            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
-                                                <div style="display:flex; align-items:center; gap:8px;">
-                                                    <?= render_avatar($rev) ?>
-                                                    <div>
-                                                        <strong style="font-size:12.5px; display:block; color:var(--ink);"><?= h(($rev['first_name'] ?? '') . ' ' . ($rev['last_name'] ?? '')) ?></strong>
-                                                        <span style="font-size:10.5px; color:var(--muted);"><?= h(date('M d, Y', strtotime($rev['created_at']))) ?></span>
-                                                    </div>
-                                                </div>
-                                                <div>
-                                                    <?= render_star_rating((float)$rev['rating'], 13, false) ?>
-                                                </div>
-                                            </div>
-                                            <?php if (!empty($rev['review'])): ?>
-                                                <p class="rating-review-quote">
-                                                    &ldquo;<?= h($rev['review']) ?>&rdquo;
-                                                </p>
-                                            <?php endif; ?>
-                                        </div>
-                                    <?php endforeach; ?>
-                                <?php else: ?>
-                                    <div class="rating-empty-box">
-                                        <p style="font-size:13px; color:var(--muted); margin:0; font-weight:500;">No member reviews yet.</p>
-                                        <span style="font-size:11.5px; color:var(--muted); display:block; margin-top:4px;">When your enrolled members rate your gym in their portal, their feedback will show here.</span>
-                                    </div>
-                                <?php endif; ?>
-                            </div>
-                            <?php if ($ownerGymId && ($gymRatingStats['total_reviews'] ?? 0) > 0): ?>
-                                <div style="margin-top:12px; padding-top:10px; border-top:1px solid var(--line);">
-                                    <a href="index.php?page=gym_profile#sec-ratings" class="btn btn-secondary btn-sm" style="width:100%; justify-content:center; font-size:12px; gap:6px;">
-                                        View All Member Reviews (<?= (int)$gymRatingStats['total_reviews'] ?>) &rarr;
-                                    </a>
-                                </div>
-                            <?php endif; ?>
-                        </div>
-                    <?php else: ?>
-                        <div class="rating-empty-box" style="padding:32px 16px;">
-                            <p style="font-size:13px; color:var(--muted); margin:0;">No gym associated yet.</p>
-                        </div>
-                    <?php endif; ?>
-                </div>
 
-                <!-- Card 2: Gym Owner -> FitTrack Platform -->
-                <div id="platform-feedback-card" class="rating-hub-card rating-platform-card">
-                    <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:14px;">
-                        <div>
-                            <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
-                                <span class="rating-badge-owner">Gym Owner &rarr; FitTrack</span>
-                                <span class="rating-badge-featured">
-                                    Featured on Landing Page
-                                </span>
-                            </div>
-                            <h3 style="font-size:17px; font-weight:700; margin:6px 0 0 0; color:var(--ink);">Rate the FitTrack Platform</h3>
-                            <p style="font-size:12px; color:var(--muted); margin:2px 0 0 0;">
-                                Your rating &amp; testimonial appear on the FitTrack landing page to help other gym owners!
-                            </p>
-                        </div>
-                        <?php if ($myPlatformReview): ?>
-                            <span class="rating-badge-live">
-                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
-                                Feedback Live
-                            </span>
-                        <?php endif; ?>
-                    </div>
-
-                    <!-- Existing Review Summary / Toggle if already reviewed -->
-                    <?php if ($myPlatformReview): ?>
-                        <div id="platform-review-view" class="rating-existing-review">
-                            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
-                                <div style="display:flex; align-items:center; gap:8px;">
-                                    <?= render_star_rating((float)$myPlatformReview['rating'], 16, true) ?>
-                                    <span style="font-size:11px; color:var(--muted);">&bull; Submitted <?= h(date('M d, Y', strtotime($myPlatformReview['updated_at'] ?? $myPlatformReview['created_at']))) ?></span>
-                                </div>
-                                <button type="button" onclick="togglePlatformReviewEdit(true)" class="btn btn-secondary" style="font-size:11px; padding:2px 8px;">
-                                    Edit Feedback &#9998;
-                                </button>
-                            </div>
-                            <?php if (!empty($myPlatformReview['review'])): ?>
-                                <p style="font-size:13px; line-height:1.45; margin:0 0 8px 0; font-style:italic;" class="rating-review-quote">
-                                    &ldquo;<?= h($myPlatformReview['review']) ?>&rdquo;
-                                </p>
-                            <?php endif; ?>
-                            <div class="rating-meta-row" style="display:flex; gap:12px; font-size:11px; color:var(--muted); flex-wrap:wrap; border-top:1px solid rgba(255,255,255,0.06); padding-top:8px;">
-                                <?php if (!empty($myPlatformReview['system_experience'])): ?>
-                                    <span>System UX: <strong style="color:#f59e0b;"><?= (int)$myPlatformReview['system_experience'] ?>★</strong></span>
-                                <?php endif; ?>
-                                <?php if (!empty($myPlatformReview['features_rating'])): ?>
-                                    <span>Features: <strong style="color:#f59e0b;"><?= (int)$myPlatformReview['features_rating'] ?>★</strong></span>
-                                <?php endif; ?>
-                                <?php if (!empty($myPlatformReview['service_rating'])): ?>
-                                    <span>Service: <strong style="color:#f59e0b;"><?= (int)$myPlatformReview['service_rating'] ?>★</strong></span>
-                                <?php endif; ?>
-                                <a href="index.php?page=landing#testimonials" target="_blank" class="rating-landing-link" style="margin-left:auto; text-decoration:none; font-weight:600;">
-                                    View on Landing Page &rarr;
-                                </a>
-                            </div>
-                        </div>
-                    <?php endif; ?>
-
-                    <!-- Platform Review Form -->
-                    <form id="platform-review-form" method="POST" action="index.php" style="<?= $myPlatformReview ? 'display:none;' : '' ?> flex:1; display:<?= $myPlatformReview ? 'none' : 'flex' ?>; flex-direction:column; gap:12px;">
-                        <input type="hidden" name="action" value="submit_platform_review">
-                        <input type="hidden" name="submit_platform_review" value="1">
-                        <input type="hidden" name="csrf_token" value="<?= csrf_token() ?>">
-                        <input type="hidden" name="gym_id" value="<?= (int)($ownerGymId ?? 0) ?>">
-                        <input type="hidden" name="redirect_to" value="index.php?page=profile&tab=ratings_feedback#platform-feedback-card">
-                        <input type="hidden" name="rating" id="owner-overall-rating" value="<?= (int)($myPlatformReview['rating'] ?? 5) ?>">
-                        <input type="hidden" name="system_experience" id="owner-system-rating" value="<?= (int)($myPlatformReview['system_experience'] ?? 5) ?>">
-                        <input type="hidden" name="features_rating" id="owner-features-rating" value="<?= (int)($myPlatformReview['features_rating'] ?? 5) ?>">
-                        <input type="hidden" name="service_rating" id="owner-service-rating" value="<?= (int)($myPlatformReview['service_rating'] ?? 5) ?>">
-
-                        <!-- Overall Platform Rating Selector -->
-                        <div>
-                            <label class="rating-field-label" style="font-size:12px; font-weight:700; color:var(--muted); text-transform:uppercase; letter-spacing:0.5px; display:block; margin-bottom:6px;">
-                                Overall FitTrack Platform Rating <span style="color:var(--danger)">*</span>
-                            </label>
-                            <div style="display:flex; align-items:center; gap:8px;">
-                                <div id="owner-star-picker" style="display:flex; gap:4px; cursor:pointer;">
-                                    <?php 
-                                    $currOverall = (int)($myPlatformReview['rating'] ?? 5);
-                                    for ($i = 1; $i <= 5; $i++): 
-                                        $isFilled = $i <= $currOverall;
-                                    ?>
-                                        <button type="button" class="owner-star-btn" data-val="<?= $i ?>" onclick="setPlatformRating('overall', <?= $i ?>)" style="background:none; border:none; padding:2px; cursor:pointer; color:<?= $isFilled ? '#f59e0b' : 'var(--star-unfilled, #4b5563)' ?>; transition:transform 0.15s ease, color 0.15s ease;" title="<?= $i ?> Star<?= $i > 1 ? 's' : '' ?>">
-                                            <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
-                                                <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
-                                            </svg>
-                                        </button>
-                                    <?php endfor; ?>
-                                </div>
-                                <span id="owner-rating-text" class="rating-score-label">
-                                    <?= $currOverall ?> / 5 Stars
-                                </span>
-                            </div>
-                        </div>
-
-                        <!-- Sub-Ratings Row (System UX, Features, Service) -->
-                        <div class="rating-subratings-box">
-                            <div>
-                                <span style="font-size:11px; color:var(--muted); display:block; margin-bottom:4px; font-weight:600;">System UX:</span>
-                                <div class="sub-star-group" data-target="owner-system-rating" style="display:flex; gap:2px;">
-                                    <?php $currSys = (int)($myPlatformReview['system_experience'] ?? 5);
-                                    for ($i = 1; $i <= 5; $i++): ?>
-                                        <span class="sub-star" data-val="<?= $i ?>" onclick="setSubRating('owner-system-rating', <?= $i ?>, this)" style="cursor:pointer; font-size:14px; color:<?= $i <= $currSys ? '#f59e0b' : 'var(--star-unfilled, #4b5563)' ?>;">★</span>
-                                    <?php endfor; ?>
-                                </div>
-                            </div>
-                            <div>
-                                <span style="font-size:11px; color:var(--muted); display:block; margin-bottom:4px; font-weight:600;">Features:</span>
-                                <div class="sub-star-group" data-target="owner-features-rating" style="display:flex; gap:2px;">
-                                    <?php $currFeat = (int)($myPlatformReview['features_rating'] ?? 5);
-                                    for ($i = 1; $i <= 5; $i++): ?>
-                                        <span class="sub-star" data-val="<?= $i ?>" onclick="setSubRating('owner-features-rating', <?= $i ?>, this)" style="cursor:pointer; font-size:14px; color:<?= $i <= $currFeat ? '#f59e0b' : 'var(--star-unfilled, #4b5563)' ?>;">★</span>
-                                    <?php endfor; ?>
-                                </div>
-                            </div>
-                            <div>
-                                <span style="font-size:11px; color:var(--muted); display:block; margin-bottom:4px; font-weight:600;">Service:</span>
-                                <div class="sub-star-group" data-target="owner-service-rating" style="display:flex; gap:2px;">
-                                    <?php $currServ = (int)($myPlatformReview['service_rating'] ?? 5);
-                                    for ($i = 1; $i <= 5; $i++): ?>
-                                        <span class="sub-star" data-val="<?= $i ?>" onclick="setSubRating('owner-service-rating', <?= $i ?>, this)" style="cursor:pointer; font-size:14px; color:<?= $i <= $currServ ? '#f59e0b' : 'var(--star-unfilled, #4b5563)' ?>;">★</span>
-                                    <?php endfor; ?>
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- Written Review Comment -->
-                        <div>
-                            <label for="platform-review-text" class="rating-field-label" style="font-size:12px; font-weight:700; color:var(--muted); text-transform:uppercase; letter-spacing:0.5px; display:block; margin-bottom:6px;">
-                                Written Platform Review / Testimonial <span style="font-size:11px; font-weight:normal; text-transform:none; color:var(--muted);">(Optional &bull; featured on landing page)</span>
-                            </label>
-                            <textarea id="platform-review-text" name="review" rows="3" class="form-control rating-textarea" placeholder="Share your experience using FitTrack for your gym operations, attendance, billing, or member engagement..."><?= h($myPlatformReview['review'] ?? '') ?></textarea>
-                        </div>
-
-                        <div style="display:flex; align-items:center; justify-content:space-between; margin-top:auto; padding-top:6px;">
+                            <!-- Existing Review Summary / Toggle if already reviewed -->
                             <?php if ($myPlatformReview): ?>
-                                <button type="button" onclick="togglePlatformReviewEdit(false)" class="btn btn-secondary" style="font-size:12px; padding:6px 12px;">Cancel</button>
-                            <?php else: ?>
-                                <span style="font-size:11px; color:var(--muted);">Publicly attributed to your gym name</span>
+                                <div id="platform-review-view" class="rating-existing-review">
+                                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+                                        <div style="display:flex; align-items:center; gap:8px;">
+                                            <?= render_star_rating((float)$myPlatformReview['rating'], 16, true) ?>
+                                            <span style="font-size:11px; color:var(--muted);">&bull; Submitted <?= h(date('M d, Y', strtotime($myPlatformReview['updated_at'] ?? $myPlatformReview['created_at']))) ?></span>
+                                        </div>
+                                        <button type="button" onclick="togglePlatformReviewEdit(true)" class="btn btn-secondary" style="font-size:11px; padding:2px 8px;">
+                                            Edit Feedback &#9998;
+                                        </button>
+                                    </div>
+                                    <?php if (!empty($myPlatformReview['review'])): ?>
+                                        <p style="font-size:13px; line-height:1.45; margin:0 0 8px 0; font-style:italic;" class="rating-review-quote">
+                                            &ldquo;<?= h($myPlatformReview['review']) ?>&rdquo;
+                                        </p>
+                                    <?php endif; ?>
+                                    <div class="rating-meta-row" style="display:flex; gap:12px; font-size:11px; color:var(--muted); flex-wrap:wrap; border-top:1px solid rgba(255,255,255,0.06); padding-top:8px;">
+                                        <?php if (!empty($myPlatformReview['system_experience'])): ?>
+                                            <span>System UX: <strong style="color:#f59e0b;"><?= (int)$myPlatformReview['system_experience'] ?>★</strong></span>
+                                        <?php endif; ?>
+                                        <?php if (!empty($myPlatformReview['features_rating'])): ?>
+                                            <span>Features: <strong style="color:#f59e0b;"><?= (int)$myPlatformReview['features_rating'] ?>★</strong></span>
+                                        <?php endif; ?>
+                                        <?php if (!empty($myPlatformReview['service_rating'])): ?>
+                                            <span>Service: <strong style="color:#f59e0b;"><?= (int)$myPlatformReview['service_rating'] ?>★</strong></span>
+                                        <?php endif; ?>
+                                        <a href="index.php?page=landing#testimonials" target="_blank" class="rating-landing-link" style="margin-left:auto; text-decoration:none; font-weight:600;">
+                                            View on Landing Page &rarr;
+                                        </a>
+                                    </div>
+                                </div>
                             <?php endif; ?>
-                            <button type="submit" class="btn btn-primary" style="font-size:12px; padding:8px 18px; font-weight:700; display:inline-flex; align-items:center; gap:6px;">
-                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
-                                <?= $myPlatformReview ? 'Update Platform Review' : 'Publish Review to Landing Page' ?>
-                            </button>
+
+                            <!-- Platform Review Form -->
+                            <form id="platform-review-form" method="POST" action="index.php" style="<?= $myPlatformReview ? 'display:none;' : '' ?> flex:1; display:<?= $myPlatformReview ? 'none' : 'flex' ?>; flex-direction:column; gap:12px;">
+                                <input type="hidden" name="action" value="submit_platform_review">
+                                <input type="hidden" name="submit_platform_review" value="1">
+                                <input type="hidden" name="csrf_token" value="<?= csrf_token() ?>">
+                                <input type="hidden" name="gym_id" value="<?= (int)($ownerGymId ?? 0) ?>">
+                                <input type="hidden" name="redirect_to" value="index.php?page=profile&tab=ratings_feedback#platform-feedback-card">
+                                <input type="hidden" name="rating" id="owner-overall-rating" value="<?= (int)($myPlatformReview['rating'] ?? 5) ?>">
+                                <input type="hidden" name="system_experience" id="owner-system-rating" value="<?= (int)($myPlatformReview['system_experience'] ?? 5) ?>">
+                                <input type="hidden" name="features_rating" id="owner-features-rating" value="<?= (int)($myPlatformReview['features_rating'] ?? 5) ?>">
+                                <input type="hidden" name="service_rating" id="owner-service-rating" value="<?= (int)($myPlatformReview['service_rating'] ?? 5) ?>">
+
+                                <!-- Overall Platform Rating Selector -->
+                                <div>
+                                    <label class="rating-field-label" style="font-size:12px; font-weight:700; color:var(--muted); text-transform:uppercase; letter-spacing:0.5px; display:block; margin-bottom:6px;">
+                                        Overall FitTrack Platform Rating <span style="color:var(--danger)">*</span>
+                                    </label>
+                                    <div style="display:flex; align-items:center; gap:8px;">
+                                        <div id="owner-star-picker" style="display:flex; gap:4px; cursor:pointer;">
+                                            <?php
+                                            $currOverall = (int)($myPlatformReview['rating'] ?? 5);
+                                            for ($i = 1; $i <= 5; $i++):
+                                                $isFilled = $i <= $currOverall;
+                                            ?>
+                                                <button type="button" class="owner-star-btn" data-val="<?= $i ?>" onclick="setPlatformRating('overall', <?= $i ?>)" style="background:none; border:none; padding:2px; cursor:pointer; color:<?= $isFilled ? '#f59e0b' : 'var(--star-unfilled, #4b5563)' ?>; transition:transform 0.15s ease, color 0.15s ease;" title="<?= $i ?> Star<?= $i > 1 ? 's' : '' ?>">
+                                                    <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+                                                        <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+                                                    </svg>
+                                                </button>
+                                            <?php endfor; ?>
+                                        </div>
+                                        <span id="owner-rating-text" class="rating-score-label">
+                                            <?= $currOverall ?> / 5 Stars
+                                        </span>
+                                    </div>
+                                </div>
+
+                                <!-- Sub-Ratings Row (System UX, Features, Service) -->
+                                <div class="rating-subratings-box">
+                                    <div>
+                                        <span style="font-size:11px; color:var(--muted); display:block; margin-bottom:4px; font-weight:600;">System UX:</span>
+                                        <div class="sub-star-group" data-target="owner-system-rating" style="display:flex; gap:2px;">
+                                            <?php $currSys = (int)($myPlatformReview['system_experience'] ?? 5);
+                                            for ($i = 1; $i <= 5; $i++): ?>
+                                                <span class="sub-star" data-val="<?= $i ?>" onclick="setSubRating('owner-system-rating', <?= $i ?>, this)" style="cursor:pointer; font-size:14px; color:<?= $i <= $currSys ? '#f59e0b' : 'var(--star-unfilled, #4b5563)' ?>;">★</span>
+                                            <?php endfor; ?>
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <span style="font-size:11px; color:var(--muted); display:block; margin-bottom:4px; font-weight:600;">Features:</span>
+                                        <div class="sub-star-group" data-target="owner-features-rating" style="display:flex; gap:2px;">
+                                            <?php $currFeat = (int)($myPlatformReview['features_rating'] ?? 5);
+                                            for ($i = 1; $i <= 5; $i++): ?>
+                                                <span class="sub-star" data-val="<?= $i ?>" onclick="setSubRating('owner-features-rating', <?= $i ?>, this)" style="cursor:pointer; font-size:14px; color:<?= $i <= $currFeat ? '#f59e0b' : 'var(--star-unfilled, #4b5563)' ?>;">★</span>
+                                            <?php endfor; ?>
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <span style="font-size:11px; color:var(--muted); display:block; margin-bottom:4px; font-weight:600;">Service:</span>
+                                        <div class="sub-star-group" data-target="owner-service-rating" style="display:flex; gap:2px;">
+                                            <?php $currServ = (int)($myPlatformReview['service_rating'] ?? 5);
+                                            for ($i = 1; $i <= 5; $i++): ?>
+                                                <span class="sub-star" data-val="<?= $i ?>" onclick="setSubRating('owner-service-rating', <?= $i ?>, this)" style="cursor:pointer; font-size:14px; color:<?= $i <= $currServ ? '#f59e0b' : 'var(--star-unfilled, #4b5563)' ?>;">★</span>
+                                            <?php endfor; ?>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Written Review Comment -->
+                                <div>
+                                    <label for="platform-review-text" class="rating-field-label" style="font-size:12px; font-weight:700; color:var(--muted); text-transform:uppercase; letter-spacing:0.5px; display:block; margin-bottom:6px;">
+                                        Written Platform Review / Testimonial <span style="font-size:11px; font-weight:normal; text-transform:none; color:var(--muted);">(Optional &bull; featured on landing page)</span>
+                                    </label>
+                                    <textarea id="platform-review-text" name="review" rows="3" class="form-control rating-textarea" placeholder="Share your experience using FitTrack for your gym operations, attendance, billing, or member engagement..."><?= h($myPlatformReview['review'] ?? '') ?></textarea>
+                                </div>
+
+                                <div style="display:flex; align-items:center; justify-content:space-between; margin-top:auto; padding-top:6px;">
+                                    <?php if ($myPlatformReview): ?>
+                                        <button type="button" onclick="togglePlatformReviewEdit(false)" class="btn btn-secondary" style="font-size:12px; padding:6px 12px;">Cancel</button>
+                                    <?php else: ?>
+                                        <span style="font-size:11px; color:var(--muted);">Publicly attributed to your gym name</span>
+                                    <?php endif; ?>
+                                    <button type="submit" class="btn btn-primary" style="font-size:12px; padding:8px 18px; font-weight:700; display:inline-flex; align-items:center; gap:6px;">
+                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                                            <polyline points="20 6 9 17 4 12" />
+                                        </svg>
+                                        <?= $myPlatformReview ? 'Update Platform Review' : 'Publish Review to Landing Page' ?>
+                                    </button>
+                                </div>
+                            </form>
                         </div>
-                    </form>
+                    </div>
                 </div>
             </div>
-        </div>
-    </div>
-    <?php endif; ?>
+        <?php endif; ?>
 
-    <!-- ==================== MODALS ==================== -->
+        <!-- ==================== MODALS ==================== -->
 
-    <!-- Account Edit Modal -->
-    <dialog id="accountModal" class="modal" onclick="if (event.target === this) this.close();">
-        <div class="modal-header">
-            <h3>Edit Account Details</h3>
-            <button class="modal-close" onclick="this.closest('dialog').close()" aria-label="Close">
-                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
-            </button>
-        </div>
-        <div class="modal-body">
-            <form method="post" enctype="multipart/form-data" class="form grid-form" style="margin-bottom:0;" onsubmit="const btn = this.querySelector('button[type=submit]'); btn.disabled = true; btn.innerHTML = '<span class=\'loader\' style=\'width:16px;height:16px;border:2px solid var(--bg);border-bottom-color:transparent;border-radius:50%;display:inline-block;box-sizing:border-box;animation:rotation 1s linear infinite;margin-right:8px;vertical-align:-2px;\'></span> Saving...';">
-                <?= csrf_field() ?>
-                <input type="hidden" name="update_account" value="1">
-                <div style="grid-column:1/-1;display:flex;align-items:center;gap:1rem;margin-bottom:0.5rem;">
-                    <?php if (!empty($user['profile_picture'])): ?>
-                        <img src="<?= h(upload_url($user['profile_picture'])) ?>" alt="Profile picture" loading="lazy" decoding="async" style="width:60px;height:60px;border-radius:50%;object-fit:cover;">
-                    <?php else: ?>
-                        <div style="width:60px;height:60px;border-radius:50%;background:var(--panel-soft);display:flex;align-items:center;justify-content:center;font-size:1.5rem;color:var(--muted);"><?= h(initials($user)) ?></div>
-                    <?php endif; ?>
-                    <label>Profile Picture
-                        <input type="file" name="profile_picture" accept="image/*">
+        <!-- Account Edit Modal -->
+        <dialog id="accountModal" class="modal" onclick="if (event.target === this) this.close();">
+            <div class="modal-header">
+                <h3>Edit Account Details</h3>
+                <button class="modal-close" onclick="this.closest('dialog').close()" aria-label="Close">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="18" y1="6" x2="6" y2="18" />
+                        <line x1="6" y1="6" x2="18" y2="18" />
+                    </svg>
+                </button>
+            </div>
+            <div class="modal-body">
+                <form method="post" enctype="multipart/form-data" class="form grid-form" style="margin-bottom:0;" onsubmit="const btn = this.querySelector('button[type=submit]'); btn.disabled = true; btn.innerHTML = '<span class=\'loader\' style=\'width:16px;height:16px;border:2px solid var(--bg);border-bottom-color:transparent;border-radius:50%;display:inline-block;box-sizing:border-box;animation:rotation 1s linear infinite;margin-right:8px;vertical-align:-2px;\'></span> Saving...';">
+                    <?= csrf_field() ?>
+                    <input type="hidden" name="update_account" value="1">
+                    <div style="grid-column:1/-1;display:flex;align-items:center;gap:1rem;margin-bottom:0.5rem;">
+                        <?php if (!empty($user['profile_picture'])): ?>
+                            <img src="<?= h(upload_url($user['profile_picture'])) ?>" alt="Profile picture" loading="lazy" decoding="async" style="width:60px;height:60px;border-radius:50%;object-fit:cover;">
+                        <?php else: ?>
+                            <div style="width:60px;height:60px;border-radius:50%;background:var(--panel-soft);display:flex;align-items:center;justify-content:center;font-size:1.5rem;color:var(--muted);"><?= h(initials($user)) ?></div>
+                        <?php endif; ?>
+                        <label>Profile Picture
+                            <input type="file" name="profile_picture" accept="image/*">
+                        </label>
+                    </div>
+                    <label>First name <input name="first_name" required value="<?= h($user['first_name']) ?>" autocapitalize="words" style="text-transform: capitalize;" onblur="this.value = this.value.trim().replace(/\b\w/g, l => l.toUpperCase())"></label>
+                    <label>Last name <input name="last_name" required value="<?= h($user['last_name']) ?>" autocapitalize="words" style="text-transform: capitalize;" onblur="this.value = this.value.trim().replace(/\b\w/g, l => l.toUpperCase())"></label>
+                    <label>Email <input type="email" name="email" required value="<?= h($user['email']) ?>" style="text-transform: lowercase;" oninput="this.value = this.value.toLowerCase()" onblur="this.value = this.value.trim().toLowerCase()"></label>
+                    <label>Mobile Number * <input name="phone" type="tel" pattern="[0-9]{11}" maxlength="11" required title="Please enter exactly 11 digits" placeholder="09123456789" value="<?= h($user['phone'] ?? '') ?>" oninput="this.value=this.value.replace(/[^0-9]/g,'').slice(0,11)"></label>
+                    <label style="grid-column:1/-1">New password
+                        <input type="password" name="password" placeholder="Leave blank to keep current">
+                        <small class="muted" style="font-weight:400;">Min. 8 characters, with a letter and a number.</small>
                     </label>
-                </div>
-                <label>First name <input name="first_name" required value="<?= h($user['first_name']) ?>" autocapitalize="words" style="text-transform: capitalize;" onblur="this.value = this.value.trim().replace(/\b\w/g, l => l.toUpperCase())"></label>
-                <label>Last name <input name="last_name" required value="<?= h($user['last_name']) ?>" autocapitalize="words" style="text-transform: capitalize;" onblur="this.value = this.value.trim().replace(/\b\w/g, l => l.toUpperCase())"></label>
-                <label>Email <input type="email" name="email" required value="<?= h($user['email']) ?>" style="text-transform: lowercase;" oninput="this.value = this.value.toLowerCase()" onblur="this.value = this.value.trim().toLowerCase()"></label>
-                <label>Mobile Number * <input name="phone" type="tel" pattern="[0-9]{11}" maxlength="11" required title="Please enter exactly 11 digits" placeholder="09123456789" value="<?= h($user['phone'] ?? '') ?>" oninput="this.value=this.value.replace(/[^0-9]/g,'').slice(0,11)"></label>
-                <label style="grid-column:1/-1">New password
-                    <input type="password" name="password" placeholder="Leave blank to keep current">
-                    <small class="muted" style="font-weight:400;">Min. 8 characters, with a letter and a number.</small>
-                </label>
-                <div style="grid-column:1/-1;display:flex;justify-content:flex-end;gap:10px;margin-top:4px;">
-                    <button type="button" onclick="this.closest('dialog').close()">Cancel</button>
-                    <button type="submit" class="btn-primary">Save changes</button>
-                </div>
-            </form>
-        </div>
-    </dialog>
+                    <div style="grid-column:1/-1;display:flex;justify-content:flex-end;gap:10px;margin-top:4px;">
+                        <button type="button" onclick="this.closest('dialog').close()">Cancel</button>
+                        <button type="submit" class="btn-primary">Save changes</button>
+                    </div>
+                </form>
+            </div>
+        </dialog>
 
-    <?php if ($is_member): ?>
-    <!-- Physical Profile Edit Modal -->
-    <dialog id="physicalProfileModal" class="modal" onclick="if (event.target === this) this.close();">
-        <div class="modal-header">
-            <h3>Edit Physical Profile</h3>
-            <button class="modal-close" onclick="this.closest('dialog').close()" aria-label="Close">
-                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
-            </button>
-        </div>
-        <div class="modal-body">
-            <?php render_member_form('profile', $user, $profile); ?>
-        </div>
-    </dialog>
-    <?php endif; ?>
+        <?php if ($is_member): ?>
+            <!-- Physical Profile Edit Modal -->
+            <dialog id="physicalProfileModal" class="modal" onclick="if (event.target === this) this.close();">
+                <div class="modal-header">
+                    <h3>Edit Physical Profile</h3>
+                    <button class="modal-close" onclick="this.closest('dialog').close()" aria-label="Close">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <line x1="18" y1="6" x2="6" y2="18" />
+                            <line x1="6" y1="6" x2="18" y2="18" />
+                        </svg>
+                    </button>
+                </div>
+                <div class="modal-body">
+                    <?php render_member_form('profile', $user, $profile); ?>
+                </div>
+            </dialog>
+        <?php endif; ?>
 
-    <!-- ==================== SCRIPTS ==================== -->
-    <?php
-    $gymDropdownOptions = [];
-    foreach ($allGyms as $g) {
-        if ($homeGymId && (int)$g['gym_id'] === $homeGymId) continue;
-        $gymDropdownOptions[] = [
-            'id' => (int)$g['gym_id'],
-            'label' => $g['name']
-        ];
-    }
-    ?>
-    <!-- Profile Configuration & Script -->
-    <script>
-    window.PROFILE_CONFIG = {
-        gymOptions: <?= json_encode($gymDropdownOptions) ?>
-    };
-    </script>
-    <script src="<?= h(asset_url('js/pages/profile.js')) ?>"></script>
+        <!-- ==================== SCRIPTS ==================== -->
+        <?php
+        $gymDropdownOptions = [];
+        foreach ($allGyms as $g) {
+            if ($homeGymId && (int)$g['gym_id'] === $homeGymId) continue;
+            $gymDropdownOptions[] = [
+                'id' => (int)$g['gym_id'],
+                'label' => $g['name']
+            ];
+        }
+        ?>
+        <!-- Profile Configuration & Script -->
+        <script>
+            window.PROFILE_CONFIG = {
+                gymOptions: <?= json_encode($gymDropdownOptions) ?>
+            };
+        </script>
+        <script src="<?= h(asset_url('js/pages/profile.js')) ?>"></script>
     </div>
     </div>
 <?php

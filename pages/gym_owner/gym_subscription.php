@@ -495,32 +495,55 @@ function gym_subscription_page(): void
     </div>
 
     <!-- Modal for Payment Method Selection -->
-    <div id="payment-modal" style="display:none; position:fixed; inset:0; z-index:9999; background:rgba(0,0,0,0.8); backdrop-filter:blur(6px); align-items:center; justify-content:center; padding:20px;">
-        <div style="background:#121815; border:1px solid rgba(255,255,255,0.1); border-radius:16px; max-width:440px; width:100%; padding:28px; box-shadow:0 20px 50px rgba(0,0,0,0.6); position:relative;">
-            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
-                <h3 style="margin:0; font-size:1.3rem; color:#fff;" id="modal-plan-title">Subscribe to Plan</h3>
-                <button type="button" onclick="closePaymentModal()" style="background:none; border:none; color:var(--muted, #94a3b8); font-size:24px; cursor:pointer; line-height:1;">&times;</button>
+    <div id="payment-modal" style="display:none; position:fixed; inset:0; z-index:9999; background:rgba(4,7,12,0.85); backdrop-filter:blur(8px); align-items:center; justify-content:center; padding:20px;">
+        <div style="background:#0d1117; border:1px solid rgba(255,255,255,0.14); border-radius:18px; max-width:460px; width:100%; padding:28px 26px; box-shadow:0 25px 60px rgba(0,0,0,0.85), 0 0 40px rgba(132,204,22,0.06); position:relative; color:#f1f5f9;">
+            <!-- Header -->
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; padding-bottom:14px; border-bottom:1px solid rgba(255,255,255,0.08);">
+                <div style="display:flex; align-items:center; gap:10px;">
+                    <span style="display:inline-flex; align-items:center; justify-content:center; width:34px; height:34px; border-radius:10px; background:rgba(132,204,22,0.12); color:#84cc16;">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+                    </span>
+                    <h3 style="margin:0; font-size:1.25rem; font-weight:800; color:#ffffff; letter-spacing:-0.02em;" id="modal-plan-title">Subscribe to Plan</h3>
+                </div>
+                <button type="button" onclick="closePaymentModal()" style="background:rgba(255,255,255,0.06); border:1px solid rgba(255,255,255,0.1); border-radius:8px; color:#cbd5e1; width:32px; height:32px; display:inline-flex; align-items:center; justify-content:center; font-size:18px; cursor:pointer; line-height:1; transition:all 0.15s ease;" onmouseover="this.style.color='#fff'; this.style.background='rgba(255,255,255,0.12)'" onmouseout="this.style.color='#cbd5e1'; this.style.background='rgba(255,255,255,0.06)'">&times;</button>
             </div>
 
-            <p style="color:var(--muted, #94a3b8); font-size:14px; margin-bottom:20px;">
-                You are subscribing to the <strong id="modal-plan-name" style="color:#fff;"></strong> plan at <strong id="modal-plan-price" style="color:var(--lime, #22c55e);"></strong> <span id="modal-plan-period" style="color:var(--muted, #94a3b8);">per month</span>.
-            </p>
+            <!-- Plan Summary Card -->
+            <div style="background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.09); border-radius:14px; padding:16px 18px; margin-bottom:18px; display:flex; justify-content:space-between; align-items:center;">
+                <div>
+                    <div style="font-size:11px; text-transform:uppercase; letter-spacing:0.08em; color:#94a3b8; font-weight:700; margin-bottom:4px;">Selected Plan</div>
+                    <div style="font-size:1.15rem; font-weight:800; color:#ffffff;" id="modal-plan-name">Plan</div>
+                </div>
+                <div style="text-align:right;">
+                    <div style="font-size:1.35rem; font-weight:900; color:#84cc16; letter-spacing:-0.02em;" id="modal-plan-price">₱0</div>
+                    <div style="font-size:12px; font-weight:600; color:#94a3b8;" id="modal-plan-period">per month</div>
+                </div>
+            </div>
 
             <form method="post" id="sub-form">
                 <?= csrf_field() ?>
                 <input type="hidden" name="plan_key" id="form-plan-key" value="">
                 <input type="hidden" name="billing_cycle" id="form-billing-cycle" value="monthly">
 
-                <p style="margin:0 0 22px; padding:14px; border-radius:10px; background:rgba(255,255,255,0.05); color:var(--muted, #cbd5e1); font-size:14px; line-height:1.5;">
-                    Continue to Xendit's secure checkout to choose an available payment method. Your subscription activates after Xendit confirms payment.
-                </p>
+                <!-- Secure Checkout Notice Box -->
+                <div style="margin:0 0 24px; padding:14px 16px; border-radius:12px; background:rgba(15,23,42,0.65); border:1px solid rgba(255,255,255,0.08); display:flex; gap:12px; align-items:flex-start;">
+                    <span style="color:#84cc16; flex-shrink:0; margin-top:2px;">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
+                    </span>
+                    <div style="color:#cbd5e1; font-size:13px; line-height:1.5;">
+                        <span style="color:#ffffff; font-weight:700; display:block; margin-bottom:2px;">Redirect to Secure Checkout</span>
+                        You will be directed to Xendit to choose your preferred payment method (GCash, Maya, Cards, or Bank Transfer). Your subscription activates immediately upon payment.
+                    </div>
+                </div>
 
+                <!-- Action Buttons -->
                 <div style="display:flex; gap:12px;">
-                    <button type="button" onclick="closePaymentModal()" style="flex:1; padding:12px; border-radius:8px; background:rgba(255,255,255,0.05); color:#fff; border:1px solid rgba(255,255,255,0.1); font-weight:600; cursor:pointer;">
+                    <button type="button" onclick="closePaymentModal()" style="flex:1; padding:12px 16px; border-radius:10px; background:rgba(255,255,255,0.06); color:#f1f5f9; border:1px solid rgba(255,255,255,0.12); font-weight:700; font-size:14px; cursor:pointer; transition:all 0.15s ease;" onmouseover="this.style.background='rgba(255,255,255,0.12)'" onmouseout="this.style.background='rgba(255,255,255,0.06)'">
                         Cancel
                     </button>
-                    <button type="submit" style="flex:2; padding:12px; border-radius:8px; background:var(--lime, #22c55e); color:#000; border:none; font-weight:700; cursor:pointer;">
-                        Continue to Xendit Checkout
+                    <button type="submit" style="flex:2; padding:12px 18px; border-radius:10px; background:#84cc16; color:#081202; border:none; font-weight:800; font-size:14px; cursor:pointer; display:inline-flex; align-items:center; justify-content:center; gap:8px; box-shadow:0 4px 16px rgba(132,204,22,0.35); transition:all 0.15s ease;" onmouseover="this.style.background='#a3e635'; this.style.transform='translateY(-1px)'" onmouseout="this.style.background='#84cc16'; this.style.transform='none'">
+                        <span>Continue to Xendit</span>
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"></line><polyline points="12 5 19 12 12 19"></polyline></svg>
                     </button>
                 </div>
             </form>

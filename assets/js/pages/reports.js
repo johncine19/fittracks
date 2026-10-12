@@ -1186,6 +1186,9 @@
                     };
                     window.dismissEODModal = dismissEODModal;
 
+                    const isOwner = (window.REPORTS_CONFIG?.userRole === 'gym_owner');
+                    const emailBtnLabel = isOwner ? 'Send to My Email' : 'Email Owner';
+
                     Swal.fire({
                         width: 'min(94vw, 480px)',
                         customClass: {
@@ -1239,7 +1242,7 @@
                                     </button>
                                     <button type="button" onclick="sendEODEmail()" class="btn btn-primary" style="flex:1;padding:9px;font-size:12.5px;font-weight:700;border-radius:8px;display:inline-flex;align-items:center;justify-content:center;gap:6px;cursor:pointer;">
                                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
-                                        Email Owner
+                                        ${emailBtnLabel}
                                     </button>
                                 </div>
                             </div>
@@ -1339,8 +1342,10 @@
             formData.append('gym_id', window.REPORTS_CONFIG.selectedGymId);
         }
 
+        const isOwner = (window.REPORTS_CONFIG?.userRole === 'gym_owner');
+
         Swal.fire({
-            title: 'Sending EOD Email...',
+            title: isOwner ? 'Sending Settlement to Your Email...' : 'Sending EOD Email...',
             didOpen: () => {
                 Swal.showLoading();
                 fetch('index.php?page=reports', {
@@ -1354,7 +1359,7 @@
                         Swal.fire({
                             icon: 'success',
                             title: 'Settlement Dispatched!',
-                            text: res.message || 'Daily summary dispatched to owner email.',
+                            text: res.message || (isOwner ? 'Daily summary sent to your registered email.' : 'Daily summary dispatched to owner email.'),
                             timer: 2500,
                             showConfirmButton: false
                         });

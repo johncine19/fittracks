@@ -610,7 +610,10 @@ function reports_page(): void
                 exit;
             }
             $sent = gym_send_eod_summary_email($targetGymId, null, true);
-            echo json_encode(['success' => $sent, 'message' => $sent ? 'Daily Settlement summary dispatched to owner email!' : 'Unable to dispatch email. Please check your SMTP settings.']);
+            $msg = $sent
+                ? ($isPlatformAdmin ? 'Daily Settlement summary dispatched to gym owner email!' : 'Daily Settlement summary sent to your registered email!')
+                : 'Unable to dispatch email. Please check your SMTP settings.';
+            echo json_encode(['success' => $sent, 'message' => $msg]);
         } catch (Throwable $e) {
             echo json_encode(['success' => false, 'error' => 'Failed to dispatch email: ' . $e->getMessage()]);
         }
@@ -2376,6 +2379,9 @@ function reports_page(): void
     <script>
     window.REPORTS_CONFIG = {
         csrfToken: <?= json_encode(csrf_token()) ?>,
+        isPlatformAdmin: <?= json_encode($isPlatformAdmin) ?>,
+        userRole: <?= json_encode($user['role'] ?? '') ?>,
+        userEmail: <?= json_encode($user['email'] ?? '') ?>,
         selectedGymId: <?= ($isPlatformAdmin && $selectedGymId !== 'all' && $selectedGymId !== 'platform') ? (int)$selectedGymId : 'null' ?>,
         gymScopeId: <?= json_encode((string)$selectedGymId) ?>,
         gymScopeItems: <?= json_encode($gymScopeDropdownItems ?? [], JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP) ?>,
