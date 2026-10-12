@@ -749,6 +749,10 @@
             box-sizing: border-box;
         }
 
+        .gym-gallery-delete-alert {
+            z-index: 10010 !important;
+        }
+
         .custom-modal-backdrop.is-open {
             opacity: 1;
             pointer-events: auto;

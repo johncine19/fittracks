@@ -184,7 +184,10 @@
                 showCancelButton: true,
                 confirmButtonColor: '#ef4444',
                 cancelButtonColor: '#64748b',
-                confirmButtonText: 'Yes, delete it!'
+                confirmButtonText: 'Yes, delete it!',
+                customClass: {
+                    container: 'gym-gallery-delete-alert'
+                }
             }).then((result) => {
                 if (result.isConfirmed) {
                     const form = document.createElement('form');
