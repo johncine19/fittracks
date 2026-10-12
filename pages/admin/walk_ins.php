@@ -6,7 +6,7 @@ use PHPMailer\PHPMailer\Exception as PHPMailerException;
 
 function walk_ins_page(): void
 {
-    $user = require_roles(['platform_admin', 'gym_owner']);
+    $user = require_roles(['platform_admin', 'gym_owner', 'staff']);
     $gym = get_user_gym($user);
     $gymId = $gym ? (int)$gym['gym_id'] : null;
 

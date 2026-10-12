@@ -3,7 +3,7 @@ declare(strict_types=1);
 
 function gym_equipment_page(): void
 {
-    $user = require_roles(['gym_owner', 'admin', 'platform_admin']);
+    $user = require_roles(['gym_owner', 'admin', 'platform_admin', 'staff']);
     $pdo = db();
     $gymId = get_user_gym_id($user);
 

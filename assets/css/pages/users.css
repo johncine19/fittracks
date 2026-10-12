@@ -455,7 +455,7 @@
         background: var(--panel, #121721) !important;
         color: var(--ink, #ffffff) !important;
         max-height: 92vh !important;
-        overflow-y: auto !important;
+        overflow: visible !important;
     }
     .edit-user-swal-modal .swal2-title {
         font-size: 1.15rem !important;
@@ -521,11 +521,43 @@
     .edit-user-grid-form .form-control:focus {
         border-color: var(--lime) !important;
     }
+    .edit-user-grid-form .fit-dropdown-wrap {
+        width: 100% !important;
+        position: relative !important;
+    }
+    .edit-user-grid-form .fit-dropdown-trigger {
+        width: 100% !important;
+        height: 35px !important;
+        min-height: 35px !important;
+        padding: 6px 10px !important;
+        font-size: 13px !important;
+        border-radius: 6px !important;
+        border: 1px solid var(--line) !important;
+        background: var(--bg) !important;
+        color: var(--ink) !important;
+        box-sizing: border-box !important;
+        outline: none !important;
+    }
+    .edit-user-grid-form .fit-dropdown-trigger:hover,
+    .edit-user-grid-form .fit-dropdown-trigger:focus,
+    .edit-user-grid-form .fit-dropdown-trigger.open {
+        border-color: var(--lime) !important;
+        box-shadow: 0 0 0 2px rgba(132, 204, 22, 0.2) !important;
+    }
+    .edit-user-grid-form .fit-dropdown-trigger-content span {
+        font-size: 13px !important;
+        font-weight: 600 !important;
+        color: var(--ink) !important;
+    }
     .edit-user-grid-form .eu-trainer-fields {
         grid-column: 1 / -1 !important;
         display: grid !important;
         grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
         gap: 9px 12px !important;
+    }
+    .edit-user-grid-form .eu-staff-fields {
+        grid-column: 1 / -1 !important;
+        width: 100% !important;
     }
     .edit-user-swal-modal .swal2-actions {
         margin-top: 14px !important;

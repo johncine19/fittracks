@@ -80,6 +80,53 @@ function dashboard(): void
 {
     $user = require_login();
 
+    // Return staff EOD API responses before the dashboard renders its HTML shell.
+    if (($user['role'] ?? '') === 'staff' && ($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && in_array(post('action'), ['get_eod_data', 'send_eod_email'], true)) {
+        header('Content-Type: application/json; charset=utf-8');
+        verify_csrf();
+        try {
+            $gym = get_user_gym($user);
+            $gymId = (int)($gym['gym_id'] ?? 0);
+            if ($gymId <= 0) {
+                http_response_code(400);
+                echo json_encode(['success' => false, 'error' => 'Your staff account is not assigned to a gym.']);
+                exit;
+            }
+
+            if (post('action') === 'get_eod_data') {
+                $summary = gym_get_eod_summary($gymId);
+                $isMasked = is_staff_financials_restricted($user);
+                $summary['is_masked'] = $isMasked;
+                if ($isMasked) {
+                    $summary['total_gross_display'] = '••••••';
+                    $summary['subscriptions_revenue_display'] = '••••••';
+                    $summary['walkins_revenue_display'] = '••••••';
+                    // Zero raw currency fields to prevent network inspection
+                    $summary['total_gross'] = 0;
+                    $summary['subscriptions_revenue'] = 0;
+                    $summary['walkins_revenue'] = 0;
+                } else {
+                    $summary['total_gross_display'] = '₱' . number_format((float)($summary['total_gross'] ?? 0), 2);
+                    $summary['subscriptions_revenue_display'] = '₱' . number_format((float)($summary['subscriptions_revenue'] ?? 0), 2);
+                    $summary['walkins_revenue_display'] = '₱' . number_format((float)($summary['walkins_revenue'] ?? 0), 2);
+                }
+                $gymRowStmt = db()->prepare('SELECT name, logo_url, brand_color FROM gyms WHERE gym_id = ?');
+                $gymRowStmt->execute([$gymId]);
+                echo json_encode(['success' => true, 'data' => $summary, 'gym' => $gymRowStmt->fetch(PDO::FETCH_ASSOC)]);
+            } else {
+                $sent = gym_send_eod_summary_email($gymId, null, true);
+                echo json_encode([
+                    'success' => $sent,
+                    'message' => $sent ? 'Daily Settlement summary sent to the gym owner.' : 'Unable to send the settlement email. Please check the gym email and SMTP settings.'
+                ]);
+            }
+        } catch (Throwable $e) {
+            http_response_code(500);
+            echo json_encode(['success' => false, 'error' => 'Unable to process the settlement request: ' . $e->getMessage()]);
+        }
+        exit;
+    }
+
     // AJAX API for Dashboard Attendance Activity & Peak Hours
     if (isset($_GET['action']) && $_GET['action'] === 'attendance_activity_api') {
         require_once 'pages/member/dashboard.php';
@@ -100,6 +147,9 @@ function dashboard(): void
     } elseif ($user['role'] === 'trainer') {
         require_once 'pages/trainer/dashboard.php';
         trainer_dashboard($pdo, $user);
+    } elseif ($user['role'] === 'staff') {
+        require_once 'pages/staff/dashboard.php';
+        staff_dashboard($pdo, $user);
     } elseif ($user['role'] === 'member') {
         require_once 'pages/member/dashboard.php';
         member_dashboard($pdo, $user);

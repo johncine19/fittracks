@@ -279,12 +279,12 @@ function admin_dashboard(PDO $pdo, array $user): void
             </div>
         </article>
         <article class="panel">
-            <div style="display:flex; justify-content:space-between; align-items:center;">
-                <h2>Inactive Members (At-Risk)</h2>
-                <div id="inactive-nav" style="display:none; gap:4px; align-items:center;">
-                    <button class="btn btn-secondary" onclick="prevInactiveSlide()" style="padding:2px 8px; font-size:12px;">&#8592;</button>
-                    <span id="inactive-page-indicator" style="font-size:12px; color:var(--muted); margin:0 4px;"></span>
-                    <button class="btn btn-secondary" onclick="nextInactiveSlide()" style="padding:2px 8px; font-size:12px;">&#8594;</button>
+            <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">
+                <h2 style="margin:0; flex:1 1 200px;">Inactive Members (At-Risk)</h2>
+                <div id="inactive-nav" style="display:none; gap:4px; align-items:center; flex:0 0 auto; white-space:nowrap;">
+                    <button class="btn btn-secondary" onclick="prevInactiveSlide()" style="padding:4px 8px; min-width:32px; font-size:12px;">&#8592;</button>
+                    <span id="inactive-page-indicator" style="font-size:12px; color:var(--muted); margin:0 4px; white-space:nowrap;"></span>
+                    <button class="btn btn-secondary" onclick="nextInactiveSlide()" style="padding:4px 8px; min-width:32px; font-size:12px;">&#8594;</button>
                 </div>
             </div>
             <div class="list-stack" id="inactive-carousel">

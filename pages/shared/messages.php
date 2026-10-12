@@ -31,10 +31,21 @@ function messages_page(): void
             $cg = get_user_gym($user);
             $currentGymId = (int) ($cg['gym_id'] ?? 0);
         }
-    } elseif ($role === 'trainer' || $role === 'member') {
+    } elseif ($role === 'trainer' || $role === 'member' || $role === 'staff') {
         $cg = get_user_gym($user);
         $currentGymId = (int) ($cg['gym_id'] ?? 0);
     }
+
+    $formatRoleLabel = function(?string $userRole, ?string $staffRole = null): string {
+        return match ($userRole ?? '') {
+            'platform_admin' => 'Admin',
+            'gym_owner'      => 'Gym Owner',
+            'trainer'        => 'Trainer',
+            'member'         => 'Member',
+            'staff'          => !empty($staffRole) ? 'Staff (' . ($staffRole === 'manager' ? 'Manager' : 'Front Desk') . ')' : 'Staff',
+            default          => ucwords(str_replace('_', ' ', (string)($userRole ?? 'User'))),
+        };
+    };
 
     $canMessageUser = function(int $targetUserId) use ($user, $role, $isGymOwner, $currentGymId): bool {
         if ($targetUserId <= 0 || (int)$user['user_id'] === $targetUserId) {
@@ -54,6 +65,7 @@ function messages_page(): void
                 WHERE u.user_id = ?
                   AND u.status = "active"
                   AND (
+                      (u.role = "staff" AND EXISTS (SELECT 1 FROM gym_staff gs WHERE gs.user_id = u.user_id AND gs.gym_id = ?)) OR
                       (u.role = "trainer" AND (
                           EXISTS (SELECT 1 FROM trainer_profiles tp WHERE tp.user_id = u.user_id AND tp.gym_id = ?) OR
                           EXISTS (SELECT 1 FROM gym_members gm WHERE gm.user_id = u.user_id AND gm.gym_id = ?)
@@ -64,7 +76,29 @@ function messages_page(): void
                       ))
                   )
                 LIMIT 1',
-                [$targetUserId, $currentGymId, $currentGymId, $currentGymId, $currentGymId]
+                [$targetUserId, $currentGymId, $currentGymId, $currentGymId, $currentGymId, $currentGymId]
+            );
+        }
+
+        if ($role === 'staff') {
+            if ($currentGymId <= 0) {
+                return false;
+            }
+            return (bool) scalar('
+                SELECT 1 FROM users u
+                WHERE u.user_id = ?
+                  AND u.status = "active"
+                  AND (
+                      (u.role IN ("admin", "gym_owner") AND EXISTS (SELECT 1 FROM gyms g WHERE g.owner_user_id = u.user_id AND g.gym_id = ?))
+                      OR (u.role = "staff" AND EXISTS (SELECT 1 FROM gym_staff gs WHERE gs.user_id = u.user_id AND gs.gym_id = ?))
+                      OR (u.role = "trainer" AND EXISTS (SELECT 1 FROM trainer_profiles tp WHERE tp.user_id = u.user_id AND tp.gym_id = ?))
+                      OR (u.role = "member" AND (
+                          EXISTS (SELECT 1 FROM gym_members gm WHERE gm.user_id = u.user_id AND gm.gym_id = ?) OR
+                          EXISTS (SELECT 1 FROM memberships m JOIN membership_plans mp ON mp.plan_id = m.plan_id WHERE m.user_id = u.user_id AND mp.gym_id = ?)
+                      ))
+                  )
+                LIMIT 1',
+                [$targetUserId, $currentGymId, $currentGymId, $currentGymId, $currentGymId, $currentGymId]
             );
         }
 
@@ -75,6 +109,7 @@ function messages_page(): void
                   AND u.status = "active"
                   AND (
                       (u.role IN ("admin", "gym_owner") AND EXISTS (SELECT 1 FROM gyms g WHERE g.owner_user_id = u.user_id AND g.gym_id = ?))
+                      OR (u.role = "staff" AND EXISTS (SELECT 1 FROM gym_staff gs WHERE gs.user_id = u.user_id AND gs.gym_id = ?))
                       OR u.user_id IN (
                           SELECT ta.member_user_id FROM trainer_assignments ta 
                           JOIN trainer_profiles tp ON tp.trainer_id = ta.trainer_id 
@@ -82,7 +117,7 @@ function messages_page(): void
                       )
                   )
                 LIMIT 1',
-                [$targetUserId, $currentGymId, $user['user_id']]
+                [$targetUserId, $currentGymId, $currentGymId, $user['user_id']]
             );
         }
 
@@ -101,9 +136,10 @@ function messages_page(): void
                           )
                       ))
                       OR (u.role IN ("admin", "gym_owner") AND EXISTS (SELECT 1 FROM gyms g WHERE g.owner_user_id = u.user_id AND g.gym_id = ?))
+                      OR (u.role = "staff" AND EXISTS (SELECT 1 FROM gym_staff gs WHERE gs.user_id = u.user_id AND gs.gym_id = ?))
                   )
                 LIMIT 1',
-                [$targetUserId, $currentGymId, $user['user_id'], $currentGymId]
+                [$targetUserId, $currentGymId, $user['user_id'], $currentGymId, $currentGymId]
             );
         }
 
@@ -124,11 +160,12 @@ function messages_page(): void
         $results = [];
         if ($isGymOwner) {
             if ($currentGymId > 0) {
-                $sql = 'SELECT u.user_id, u.first_name, u.last_name, u.profile_picture, u.role 
+                $sql = 'SELECT u.user_id, u.first_name, u.last_name, u.profile_picture, u.role, u.staff_role 
                         FROM users u
                         WHERE u.user_id != ?
                           AND u.status = "active"
                           AND (
+                              (u.role = "staff" AND EXISTS (SELECT 1 FROM gym_staff gs WHERE gs.user_id = u.user_id AND gs.gym_id = ?)) OR
                               (u.role = "trainer" AND (
                                   EXISTS (SELECT 1 FROM trainer_profiles tp WHERE tp.user_id = u.user_id AND tp.gym_id = ?) OR
                                   EXISTS (SELECT 1 FROM gym_members gm WHERE gm.user_id = u.user_id AND gm.gym_id = ?)
@@ -138,29 +175,55 @@ function messages_page(): void
                                   EXISTS (SELECT 1 FROM memberships m JOIN membership_plans mp ON mp.plan_id = m.plan_id WHERE m.user_id = u.user_id AND mp.gym_id = ?)
                               ))
                           )';
-                $params = [$user['user_id'], $currentGymId, $currentGymId, $currentGymId, $currentGymId];
+                $params = [$user['user_id'], $currentGymId, $currentGymId, $currentGymId, $currentGymId, $currentGymId];
                 if ($searchQuery !== '') {
                     $sql .= ' AND (u.first_name LIKE ? OR u.last_name LIKE ? OR CONCAT(u.first_name, " ", u.last_name) LIKE ?)';
                     $params[] = $searchPattern;
                     $params[] = $searchPattern;
                     $params[] = $searchPattern;
                 }
-                $sql .= ' ORDER BY u.first_name ASC LIMIT 50';
+                $sql .= ' ORDER BY u.role = "staff" DESC, u.first_name ASC LIMIT 50';
+                $results = query_all($sql, $params);
+            }
+        } elseif ($role === 'staff') {
+            if ($currentGymId > 0) {
+                $sql = 'SELECT u.user_id, u.first_name, u.last_name, u.profile_picture, u.role, u.staff_role 
+                        FROM users u
+                        WHERE u.user_id != ?
+                          AND u.status = "active"
+                          AND (
+                              (u.role IN ("admin", "gym_owner") AND EXISTS (SELECT 1 FROM gyms g WHERE g.owner_user_id = u.user_id AND g.gym_id = ?))
+                              OR (u.role = "staff" AND EXISTS (SELECT 1 FROM gym_staff gs WHERE gs.user_id = u.user_id AND gs.gym_id = ?))
+                              OR (u.role = "trainer" AND EXISTS (SELECT 1 FROM trainer_profiles tp WHERE tp.user_id = u.user_id AND tp.gym_id = ?))
+                              OR (u.role = "member" AND (
+                                  EXISTS (SELECT 1 FROM gym_members gm WHERE gm.user_id = u.user_id AND gm.gym_id = ?) OR
+                                  EXISTS (SELECT 1 FROM memberships m JOIN membership_plans mp ON mp.plan_id = m.plan_id WHERE m.user_id = u.user_id AND mp.gym_id = ?)
+                              ))
+                          )';
+                $params = [$user['user_id'], $currentGymId, $currentGymId, $currentGymId, $currentGymId, $currentGymId];
+                if ($searchQuery !== '') {
+                    $sql .= ' AND (u.first_name LIKE ? OR u.last_name LIKE ? OR CONCAT(u.first_name, " ", u.last_name) LIKE ?)';
+                    $params[] = $searchPattern;
+                    $params[] = $searchPattern;
+                    $params[] = $searchPattern;
+                }
+                $sql .= ' ORDER BY u.role = "gym_owner" DESC, u.role = "staff" DESC, u.first_name ASC LIMIT 50';
                 $results = query_all($sql, $params);
             }
         } elseif ($role === 'trainer') {
-            $sql = 'SELECT u.user_id, u.first_name, u.last_name, u.profile_picture, u.role FROM users u
+            $sql = 'SELECT u.user_id, u.first_name, u.last_name, u.profile_picture, u.role, u.staff_role FROM users u
                     WHERE u.user_id != ?
                       AND u.status = "active"
                       AND (
                           (u.role IN ("admin", "gym_owner") AND EXISTS (SELECT 1 FROM gyms g WHERE g.owner_user_id = u.user_id AND g.gym_id = ?))
+                          OR (u.role = "staff" AND EXISTS (SELECT 1 FROM gym_staff gs WHERE gs.user_id = u.user_id AND gs.gym_id = ?))
                           OR u.user_id IN (
                               SELECT ta.member_user_id FROM trainer_assignments ta 
                               JOIN trainer_profiles tp ON tp.trainer_id = ta.trainer_id 
                               WHERE tp.user_id = ? AND ta.status = "active"
                           )
                       )';
-            $params = [$user['user_id'], $currentGymId, $user['user_id']];
+            $params = [$user['user_id'], $currentGymId, $currentGymId, $user['user_id']];
             if ($searchQuery !== '') {
                 $sql .= ' AND (u.first_name LIKE ? OR u.last_name LIKE ? OR CONCAT(u.first_name, " ", u.last_name) LIKE ?)';
                 $params[] = $searchPattern;
@@ -170,7 +233,7 @@ function messages_page(): void
             $sql .= ' ORDER BY u.first_name ASC LIMIT 50';
             $results = query_all($sql, $params);
         } elseif ($role === 'member') {
-            $sql = 'SELECT u.user_id, u.first_name, u.last_name, u.profile_picture, u.role FROM users u
+            $sql = 'SELECT u.user_id, u.first_name, u.last_name, u.profile_picture, u.role, u.staff_role FROM users u
                     WHERE u.user_id != ?
                       AND u.status = "active"
                       AND (
@@ -183,8 +246,9 @@ function messages_page(): void
                               )
                           ))
                           OR (u.role IN ("admin", "gym_owner") AND EXISTS (SELECT 1 FROM gyms g WHERE g.owner_user_id = u.user_id AND g.gym_id = ?))
+                          OR (u.role = "staff" AND EXISTS (SELECT 1 FROM gym_staff gs WHERE gs.user_id = u.user_id AND gs.gym_id = ?))
                       )';
-            $params = [$user['user_id'], $currentGymId, $user['user_id'], $currentGymId];
+            $params = [$user['user_id'], $currentGymId, $user['user_id'], $currentGymId, $currentGymId];
             if ($searchQuery !== '') {
                 $sql .= ' AND (u.first_name LIKE ? OR u.last_name LIKE ? OR CONCAT(u.first_name, " ", u.last_name) LIKE ?)';
                 $params[] = $searchPattern;
@@ -193,11 +257,11 @@ function messages_page(): void
             }
             $sql .= ' ORDER BY u.first_name ASC LIMIT 50';
             $results = query_all($sql, $params);
-        } else {
-            $sql = 'SELECT user_id, first_name, last_name, profile_picture, role FROM users
+        } elseif ($role === 'platform_admin') {
+            $sql = 'SELECT user_id, first_name, last_name, profile_picture, role, staff_role FROM users
                     WHERE user_id != ?
                       AND status = "active"
-                      AND role IN ("gym_owner", "trainer", "member", "admin")';
+                      AND role IN ("gym_owner", "trainer", "member", "staff", "admin")';
             $params = [$user['user_id']];
             if ($searchQuery !== '') {
                 $sql .= ' AND (first_name LIKE ? OR last_name LIKE ? OR CONCAT(first_name, " ", last_name) LIKE ?)';
@@ -211,12 +275,13 @@ function messages_page(): void
 
         $contactsData = [];
         foreach ($results as $c) {
+            $roleLabel = $formatRoleLabel($c['role'] ?? '', $c['staff_role'] ?? null);
             $contactsData[] = [
                 'user_id'    => (int) $c['user_id'],
                 'first_name' => $c['first_name'],
                 'last_name'  => $c['last_name'],
                 'full_name'  => trim($c['first_name'] . ' ' . $c['last_name']),
-                'role'       => ucfirst($c['role']),
+                'role'       => $roleLabel,
                 'avatar_html'=> render_avatar($c),
                 'chat_url'   => 'index.php?page=messages&chat=' . (int) $c['user_id']
             ];
@@ -397,7 +462,7 @@ function messages_page(): void
     // Get list of users this person has conversed with
     if ($isGymOwner) {
         $conversations = query_all(
-            'SELECT u.user_id, u.first_name, u.last_name, u.profile_picture, u.role,
+            'SELECT u.user_id, u.first_name, u.last_name, u.profile_picture, u.role, u.staff_role,
                     (SELECT 1 FROM user_blocks WHERE blocker_id = ? AND blocked_id = u.user_id LIMIT 1) as is_blocked,
                     (SELECT message_text FROM trainer_messages WHERE (sender_id = u.user_id AND recipient_id = ?) OR (sender_id = ? AND recipient_id = u.user_id) ORDER BY sent_at DESC LIMIT 1) as last_message,
                     (SELECT sent_at FROM trainer_messages WHERE (sender_id = u.user_id AND recipient_id = ?) OR (sender_id = ? AND recipient_id = u.user_id) ORDER BY sent_at DESC LIMIT 1) as last_time
@@ -408,12 +473,14 @@ function messages_page(): void
                    UNION
                    SELECT recipient_id FROM trainer_messages WHERE sender_id = ?
                 )
+                OR (u.role = "staff" AND u.status = "active" AND EXISTS (SELECT 1 FROM gym_staff gs WHERE gs.user_id = u.user_id AND gs.gym_id = ?))
                 OR (u.role = "trainer" AND u.status = "active" AND (
                     EXISTS (SELECT 1 FROM trainer_profiles tp WHERE tp.user_id = u.user_id AND tp.gym_id = ?) OR
                     EXISTS (SELECT 1 FROM gym_members gm WHERE gm.user_id = u.user_id AND gm.gym_id = ?)
                 ))
              )
              AND (
+                (u.role = "staff" AND EXISTS (SELECT 1 FROM gym_staff gs WHERE gs.user_id = u.user_id AND gs.gym_id = ?)) OR
                 (u.role = "trainer" AND (
                     EXISTS (SELECT 1 FROM trainer_profiles tp WHERE tp.user_id = u.user_id AND tp.gym_id = ?) OR
                     EXISTS (SELECT 1 FROM gym_members gm WHERE gm.user_id = u.user_id AND gm.gym_id = ?)
@@ -428,13 +495,65 @@ function messages_page(): void
                 $user['user_id'],
                 $user['user_id'], $user['user_id'], $user['user_id'], $user['user_id'],
                 $user['user_id'], $user['user_id'],
+                $currentGymId,
                 $currentGymId, $currentGymId,
-                $currentGymId, $currentGymId, $currentGymId, $currentGymId
+                $currentGymId,
+                $currentGymId, $currentGymId,
+                $currentGymId, $currentGymId
             ]
         );
+    } elseif ($role === 'staff') {
+        if ($currentGymId > 0) {
+            $conversations = query_all(
+                'SELECT u.user_id, u.first_name, u.last_name, u.profile_picture, u.role, u.staff_role,
+                        (SELECT 1 FROM user_blocks WHERE blocker_id = ? AND blocked_id = u.user_id LIMIT 1) as is_blocked,
+                        (SELECT message_text FROM trainer_messages WHERE (sender_id = u.user_id AND recipient_id = ?) OR (sender_id = ? AND recipient_id = u.user_id) ORDER BY sent_at DESC LIMIT 1) as last_message,
+                        (SELECT sent_at FROM trainer_messages WHERE (sender_id = u.user_id AND recipient_id = ?) OR (sender_id = ? AND recipient_id = u.user_id) ORDER BY sent_at DESC LIMIT 1) as last_time
+                 FROM users u
+                 WHERE (
+                    u.user_id IN (
+                       SELECT sender_id FROM trainer_messages WHERE recipient_id = ?
+                       UNION
+                       SELECT recipient_id FROM trainer_messages WHERE sender_id = ?
+                    )
+                    OR (u.role IN ("admin", "gym_owner") AND u.status = "active" AND EXISTS (SELECT 1 FROM gyms g WHERE g.owner_user_id = u.user_id AND g.gym_id = ?))
+                    OR (u.role = "staff" AND u.status = "active" AND EXISTS (SELECT 1 FROM gym_staff gs WHERE gs.user_id = u.user_id AND gs.gym_id = ?))
+                    OR (u.role = "trainer" AND u.status = "active" AND EXISTS (SELECT 1 FROM trainer_profiles tp WHERE tp.user_id = u.user_id AND tp.gym_id = ?))
+                    OR (u.role = "member" AND u.status = "active" AND (
+                        EXISTS (SELECT 1 FROM gym_members gm WHERE gm.user_id = u.user_id AND gm.gym_id = ?) OR
+                        EXISTS (SELECT 1 FROM memberships m JOIN membership_plans mp ON mp.plan_id = m.plan_id WHERE m.user_id = u.user_id AND mp.gym_id = ?)
+                    ))
+                 )
+                 AND (
+                    (u.role IN ("admin", "gym_owner") AND EXISTS (SELECT 1 FROM gyms g WHERE g.owner_user_id = u.user_id AND g.gym_id = ?))
+                    OR (u.role = "staff" AND EXISTS (SELECT 1 FROM gym_staff gs WHERE gs.user_id = u.user_id AND gs.gym_id = ?))
+                    OR (u.role = "trainer" AND EXISTS (SELECT 1 FROM trainer_profiles tp WHERE tp.user_id = u.user_id AND tp.gym_id = ?))
+                    OR (u.role = "member" AND (
+                        EXISTS (SELECT 1 FROM gym_members gm WHERE gm.user_id = u.user_id AND gm.gym_id = ?) OR
+                        EXISTS (SELECT 1 FROM memberships m JOIN membership_plans mp ON mp.plan_id = m.plan_id WHERE m.user_id = u.user_id AND mp.gym_id = ?)
+                    ))
+                 )
+                 ORDER BY last_time DESC, u.first_name ASC',
+                [
+                    $user['user_id'],
+                    $user['user_id'], $user['user_id'], $user['user_id'], $user['user_id'],
+                    $user['user_id'], $user['user_id'],
+                    $currentGymId,
+                    $currentGymId,
+                    $currentGymId,
+                    $currentGymId, $currentGymId,
+                    $currentGymId,
+                    $currentGymId,
+                    $currentGymId,
+                    $currentGymId, $currentGymId
+                ]
+            );
+        } else {
+            $conversations = [];
+        }
     } elseif ($role === 'trainer') {
         $conversations = query_all(
-            'SELECT u.user_id, u.first_name, u.last_name, u.profile_picture, u.role,
+            'SELECT u.user_id, u.first_name, u.last_name, u.profile_picture, u.role, u.staff_role,
                     (SELECT 1 FROM user_blocks WHERE blocker_id = ? AND blocked_id = u.user_id LIMIT 1) as is_blocked,
                     (SELECT message_text FROM trainer_messages WHERE (sender_id = u.user_id AND recipient_id = ?) OR (sender_id = ? AND recipient_id = u.user_id) ORDER BY sent_at DESC LIMIT 1) as last_message,
                     (SELECT sent_at FROM trainer_messages WHERE (sender_id = u.user_id AND recipient_id = ?) OR (sender_id = ? AND recipient_id = u.user_id) ORDER BY sent_at DESC LIMIT 1) as last_time
@@ -446,6 +565,7 @@ function messages_page(): void
                    SELECT recipient_id FROM trainer_messages WHERE sender_id = ?
                 )
                 OR (u.role IN ("admin", "gym_owner") AND u.status = "active" AND EXISTS (SELECT 1 FROM gyms g WHERE g.owner_user_id = u.user_id AND g.gym_id = ?))
+                OR (u.role = "staff" AND u.status = "active" AND EXISTS (SELECT 1 FROM gym_staff gs WHERE gs.user_id = u.user_id AND gs.gym_id = ?))
                 OR u.user_id IN (SELECT ta.member_user_id FROM trainer_assignments ta JOIN trainer_profiles tp ON tp.trainer_id = ta.trainer_id WHERE tp.user_id = ? AND ta.status = "active")
              )
              ORDER BY last_time DESC, u.first_name ASC',
@@ -453,6 +573,7 @@ function messages_page(): void
                 $user['user_id'],
                 $user['user_id'], $user['user_id'], $user['user_id'], $user['user_id'],
                 $user['user_id'], $user['user_id'],
+                $currentGymId,
                 $currentGymId,
                 $user['user_id']
             ]
@@ -500,7 +621,7 @@ function messages_page(): void
                 }
             }
             if (!$found) {
-                $stmt = db()->prepare('SELECT user_id, first_name, last_name, profile_picture, role FROM users WHERE user_id = ? AND status = "active"');
+                $stmt = db()->prepare('SELECT user_id, first_name, last_name, profile_picture, role, staff_role FROM users WHERE user_id = ? AND status = "active"');
                 $stmt->execute([$activeChatId]);
                 $activeUser = $stmt->fetch();
                 if ($activeUser) {
@@ -532,11 +653,12 @@ function messages_page(): void
     // Get list of users this person can message for the New Message modal
     if ($isGymOwner) {
         $contacts = query_all(
-            'SELECT u.user_id, u.first_name, u.last_name, u.profile_picture, u.role 
+            'SELECT u.user_id, u.first_name, u.last_name, u.profile_picture, u.role, u.staff_role 
              FROM users u
              WHERE u.user_id != ?
                AND u.status = "active"
                AND (
+                   (u.role = "staff" AND EXISTS (SELECT 1 FROM gym_staff gs WHERE gs.user_id = u.user_id AND gs.gym_id = ?)) OR
                    (u.role = "trainer" AND (
                        EXISTS (SELECT 1 FROM trainer_profiles tp WHERE tp.user_id = u.user_id AND tp.gym_id = ?) OR
                        EXISTS (SELECT 1 FROM gym_members gm WHERE gm.user_id = u.user_id AND gm.gym_id = ?)
@@ -546,16 +668,39 @@ function messages_page(): void
                        EXISTS (SELECT 1 FROM memberships m JOIN membership_plans mp ON mp.plan_id = m.plan_id WHERE m.user_id = u.user_id AND mp.gym_id = ?)
                    ))
                )
-             ORDER BY u.first_name ASC',
-            [$user['user_id'], $currentGymId, $currentGymId, $currentGymId, $currentGymId]
+             ORDER BY u.role = "staff" DESC, u.first_name ASC',
+            [$user['user_id'], $currentGymId, $currentGymId, $currentGymId, $currentGymId, $currentGymId]
         );
+    } elseif ($role === 'staff') {
+        if ($currentGymId > 0) {
+            $contacts = query_all(
+                'SELECT u.user_id, u.first_name, u.last_name, u.profile_picture, u.role, u.staff_role 
+                 FROM users u
+                 WHERE u.user_id != ?
+                   AND u.status = "active"
+                   AND (
+                       (u.role IN ("admin", "gym_owner") AND EXISTS (SELECT 1 FROM gyms g WHERE g.owner_user_id = u.user_id AND g.gym_id = ?))
+                       OR (u.role = "staff" AND EXISTS (SELECT 1 FROM gym_staff gs WHERE gs.user_id = u.user_id AND gs.gym_id = ?))
+                       OR (u.role = "trainer" AND EXISTS (SELECT 1 FROM trainer_profiles tp WHERE tp.user_id = u.user_id AND tp.gym_id = ?))
+                       OR (u.role = "member" AND (
+                           EXISTS (SELECT 1 FROM gym_members gm WHERE gm.user_id = u.user_id AND gm.gym_id = ?) OR
+                           EXISTS (SELECT 1 FROM memberships m JOIN membership_plans mp ON mp.plan_id = m.plan_id WHERE m.user_id = u.user_id AND mp.gym_id = ?)
+                       ))
+                   )
+                 ORDER BY u.role = "gym_owner" DESC, u.role = "staff" DESC, u.first_name ASC',
+                [$user['user_id'], $currentGymId, $currentGymId, $currentGymId, $currentGymId, $currentGymId]
+            );
+        } else {
+            $contacts = [];
+        }
     } elseif ($role === 'trainer') {
         $contacts = query_all(
-            'SELECT u.user_id, u.first_name, u.last_name, u.profile_picture, u.role FROM users u
+            'SELECT u.user_id, u.first_name, u.last_name, u.profile_picture, u.role, u.staff_role FROM users u
              WHERE u.user_id != ?
                AND u.status = "active"
                AND (
                    (u.role IN ("admin", "gym_owner") AND EXISTS (SELECT 1 FROM gyms g WHERE g.owner_user_id = u.user_id AND g.gym_id = ?))
+                   OR (u.role = "staff" AND EXISTS (SELECT 1 FROM gym_staff gs WHERE gs.user_id = u.user_id AND gs.gym_id = ?))
                    OR u.user_id IN (
                        SELECT ta.member_user_id FROM trainer_assignments ta 
                        JOIN trainer_profiles tp ON tp.trainer_id = ta.trainer_id 
@@ -563,11 +708,11 @@ function messages_page(): void
                    )
                )
              ORDER BY u.first_name ASC',
-            [$user['user_id'], $currentGymId, $user['user_id']]
+            [$user['user_id'], $currentGymId, $currentGymId, $user['user_id']]
         );
     } elseif ($role === 'member') {
         $contacts = query_all(
-            'SELECT u.user_id, u.first_name, u.last_name, u.profile_picture, u.role FROM users u
+            'SELECT u.user_id, u.first_name, u.last_name, u.profile_picture, u.role, u.staff_role FROM users u
              WHERE u.user_id != ?
                AND u.status = "active"
                AND (
@@ -580,19 +725,22 @@ function messages_page(): void
                        )
                    ))
                    OR (u.role IN ("admin", "gym_owner") AND EXISTS (SELECT 1 FROM gyms g WHERE g.owner_user_id = u.user_id AND g.gym_id = ?))
+                   OR (u.role = "staff" AND EXISTS (SELECT 1 FROM gym_staff gs WHERE gs.user_id = u.user_id AND gs.gym_id = ?))
                )
              ORDER BY u.first_name ASC',
-            [$user['user_id'], $currentGymId, $user['user_id'], $currentGymId]
+            [$user['user_id'], $currentGymId, $user['user_id'], $currentGymId, $currentGymId]
         );
-    } else {
+    } elseif ($role === 'platform_admin') {
         $contacts = query_all(
-            'SELECT user_id, first_name, last_name, profile_picture, role FROM users
+            'SELECT user_id, first_name, last_name, profile_picture, role, staff_role FROM users
              WHERE user_id != ?
                AND status = "active"
-               AND role IN ("gym_owner", "trainer", "member", "admin")
+               AND role IN ("gym_owner", "trainer", "member", "staff", "admin")
              ORDER BY first_name ASC',
             [$user['user_id']]
         );
+    } else {
+        $contacts = [];
     }
 
     render_header('Messages', $user);
@@ -869,7 +1017,7 @@ function messages_page(): void
                                     <span style="font-size: 0.7rem; padding: 2px 6px; border-radius: 4px; background: rgba(239, 68, 68, 0.15); color: #ef4444; font-weight: 600; text-transform: uppercase;">Blocked</span>
                                 <?php endif; ?>
                             </div>
-                            <p style="margin: 0; font-size: 0.8rem; color: var(--muted); text-transform: capitalize;"><?= h($activeUser['role']) ?></p>
+                            <p style="margin: 0; font-size: 0.8rem; color: var(--muted);"><?= h($formatRoleLabel($activeUser['role'] ?? '', $activeUser['staff_role'] ?? null)) ?></p>
                         </div>
                     </div>
                     <!-- Chat Header Options (Three dots) -->
@@ -1197,7 +1345,7 @@ function messages_page(): void
                         <?= render_avatar($c) ?>
                         <div style="flex: 1; min-width: 0;">
                             <strong style="display: block; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"><?= h($c['first_name'] . ' ' . $c['last_name']) ?></strong>
-                            <small style="color: var(--muted); text-transform: capitalize;"><?= h($c['role']) ?></small>
+                            <small style="color: var(--muted);"><?= h($formatRoleLabel($c['role'] ?? '', $c['staff_role'] ?? null)) ?></small>
                         </div>
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16" style="color: var(--muted); flex-shrink: 0; opacity: 0.6;">
                             <path d="M9 18l6-6-6-6"/>

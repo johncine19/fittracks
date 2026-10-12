@@ -88,6 +88,7 @@ function format_audit_log_entry(array $row): array
         'gym_owner'      => 'Gym Owner',
         'trainer'        => 'Trainer',
         'member'         => 'Member',
+        'staff'          => !empty($row['staff_role']) ? 'Staff (' . ($row['staff_role'] === 'manager' ? 'Manager' : 'Front Desk') . ')' : (!empty($row['staff_title']) ? 'Staff (' . $row['staff_title'] . ')' : 'Staff'),
         default          => 'Staff',
     };
 
@@ -243,10 +244,12 @@ function format_audit_log_entry(array $row): array
         $headline = "<strong>{$actorSafe}</strong> changed " . strtolower($friendlyEntity) . " status" . ($st !== '' ? " to <strong>{$st}</strong>" : '');
     } elseif (in_array($action, ['checkin', 'qr_checkin', 'manual_checkin', 'member_checkin'], true)) {
         $memberId = $details['user_id'] ?? null;
-        $headline = $memberId ? "Member <strong>#{$memberId}</strong> checked in to gym" : "Member check-in recorded";
+        $memberName = !empty($details['member_name']) ? " member <strong>" . h($details['member_name']) . "</strong>" : ($memberId ? " member <strong>#{$memberId}</strong>" : " a member");
+        $headline = "<strong>{$actorSafe}</strong> recorded check-in for{$memberName}";
     } elseif (in_array($action, ['checkout', 'qr_checkout', 'manual_checkout'], true)) {
         $memberId = $details['user_id'] ?? null;
-        $headline = $memberId ? "Member <strong>#{$memberId}</strong> checked out from gym" : "Member check-out recorded";
+        $memberName = !empty($details['member_name']) ? " member <strong>" . h($details['member_name']) . "</strong>" : ($memberId ? " member <strong>#{$memberId}</strong>" : " a member");
+        $headline = "<strong>{$actorSafe}</strong> recorded check-out for{$memberName}";
     } elseif ($action === 'mark_paid') {
         $headline = "<strong>{$actorSafe}</strong> marked commission payout <strong>#{$entityId}</strong> as paid";
     } elseif ($action === 'convert') {
@@ -341,10 +344,20 @@ function format_audit_log_entry(array $row): array
 
 function audit_logs_page(): void
 {
-    $user = require_roles(['platform_admin']);
+    $user = require_roles(['platform_admin', 'gym_owner']);
+    $role = $user['role'];
+    $gym = null;
+    $gymId = null;
+
+    if ($role === 'gym_owner') {
+        $gym = get_user_gym($user);
+        require_gym_feature('audit_logs');
+        $gymId = (int)($gym['gym_id'] ?? 0);
+    }
 
     // Filters
     $filterAdmin  = $_GET['admin_id'] ?? '';
+    $filterRole   = $_GET['role_filter'] ?? '';
     $filterAction = $_GET['action_filter'] ?? '';
     $filterEntity = $_GET['entity_filter'] ?? '';
     $filterFrom   = $_GET['from'] ?? '';
@@ -353,9 +366,33 @@ function audit_logs_page(): void
     $where  = '1=1';
     $params = [];
 
+    if ($role === 'gym_owner') {
+        // Multi-tenant isolation: only show logs for this gym or users affiliated with this gym
+        $where .= ' AND (a.gym_id = ? OR a.admin_user_id IN (
+            SELECT user_id FROM gym_staff WHERE gym_id = ?
+            UNION SELECT user_id FROM trainer_profiles WHERE gym_id = ?
+            UNION SELECT owner_user_id FROM gyms WHERE gym_id = ?
+        ))';
+        $params[] = $gymId;
+        $params[] = $gymId;
+        $params[] = $gymId;
+        $params[] = $gymId;
+    }
+
     if ($filterAdmin !== '') {
         $where .= ' AND a.admin_user_id = ?';
         $params[] = (int) $filterAdmin;
+    }
+    if ($filterRole !== '') {
+        if ($filterRole === 'staff') {
+            $where .= ' AND u.role = "staff"';
+        } elseif ($filterRole === 'trainer') {
+            $where .= ' AND u.role = "trainer"';
+        } elseif ($filterRole === 'gym_owner') {
+            $where .= ' AND u.role = "gym_owner"';
+        } elseif ($filterRole === 'platform_admin') {
+            $where .= ' AND u.role = "platform_admin"';
+        }
     }
     if ($filterAction !== '') {
         $where .= ' AND a.action = ?';
@@ -379,7 +416,8 @@ function audit_logs_page(): void
     $limit  = 20;
     $offset = ($page - 1) * $limit;
 
-    $total      = (int) scalar('SELECT COUNT(*) FROM admin_audit_logs a WHERE ' . $where, $params);
+    $countSql   = 'SELECT COUNT(*) FROM admin_audit_logs a LEFT JOIN users u ON u.user_id = a.admin_user_id WHERE ' . $where;
+    $total      = (int) scalar($countSql, $params);
     $totalPages = max(1, (int) ceil($total / $limit));
 
     $rows = query_all(
@@ -388,10 +426,13 @@ function audit_logs_page(): void
                 u.first_name,
                 u.last_name,
                 u.role AS admin_role,
+                u.staff_role,
                 u.profile_picture AS admin_profile_picture,
-                u.email AS admin_email
+                u.email AS admin_email,
+                gs.staff_title
          FROM admin_audit_logs a
          LEFT JOIN users u ON u.user_id = a.admin_user_id
+         LEFT JOIN gym_staff gs ON gs.user_id = u.user_id
          WHERE ' . $where . '
          ORDER BY a.created_at DESC
          LIMIT ' . $limit . ' OFFSET ' . $offset,
@@ -401,6 +442,7 @@ function audit_logs_page(): void
     // Build URL query string for pagination
     $queryParams = [];
     if ($filterAdmin !== '') $queryParams['admin_id'] = $filterAdmin;
+    if ($filterRole !== '') $queryParams['role_filter'] = $filterRole;
     if ($filterAction !== '') $queryParams['action_filter'] = $filterAction;
     if ($filterEntity !== '') $queryParams['entity_filter'] = $filterEntity;
     if ($filterFrom !== '') $queryParams['from'] = $filterFrom;
@@ -408,11 +450,52 @@ function audit_logs_page(): void
     $paginationBaseUrl = 'index.php?page=audit_logs' . ($queryParams ? '&' . http_build_query($queryParams) : '');
 
     // Distinct values for filter dropdowns with friendly names
-    $admins  = query_all('SELECT DISTINCT a.admin_user_id, CONCAT(u.first_name, " ", u.last_name) AS name, u.role FROM admin_audit_logs a JOIN users u ON u.user_id = a.admin_user_id ORDER BY name');
-    $actions = query_all('SELECT DISTINCT action FROM admin_audit_logs ORDER BY action');
-    $entities = query_all('SELECT DISTINCT entity_type FROM admin_audit_logs ORDER BY entity_type');
+    if ($role === 'gym_owner') {
+        $admins = query_all('
+            SELECT DISTINCT u.user_id AS admin_user_id, 
+                   CONCAT(u.first_name, " ", u.last_name) AS name, 
+                   u.role,
+                   u.staff_role,
+                   gs.staff_title
+            FROM users u
+            LEFT JOIN gym_staff gs ON gs.user_id = u.user_id
+            WHERE u.user_id IN (
+                SELECT user_id FROM gym_staff WHERE gym_id = ?
+                UNION SELECT user_id FROM trainer_profiles WHERE gym_id = ?
+                UNION SELECT owner_user_id FROM gyms WHERE gym_id = ?
+            )
+            ORDER BY u.role = "staff" DESC, u.role = "gym_owner" DESC, name ASC
+        ', [$gymId, $gymId, $gymId]);
 
-    render_header('Audit Logs', $user);
+        $actions = query_all('
+            SELECT DISTINCT a.action 
+            FROM admin_audit_logs a 
+            WHERE (a.gym_id = ? OR a.admin_user_id IN (
+                SELECT user_id FROM gym_staff WHERE gym_id = ?
+                UNION SELECT user_id FROM trainer_profiles WHERE gym_id = ?
+                UNION SELECT owner_user_id FROM gyms WHERE gym_id = ?
+            ))
+            ORDER BY a.action
+        ', [$gymId, $gymId, $gymId, $gymId]);
+
+        $entities = query_all('
+            SELECT DISTINCT a.entity_type 
+            FROM admin_audit_logs a 
+            WHERE (a.gym_id = ? OR a.admin_user_id IN (
+                SELECT user_id FROM gym_staff WHERE gym_id = ?
+                UNION SELECT user_id FROM trainer_profiles WHERE gym_id = ?
+                UNION SELECT owner_user_id FROM gyms WHERE gym_id = ?
+            ))
+            ORDER BY a.entity_type
+        ', [$gymId, $gymId, $gymId, $gymId]);
+    } else {
+        $admins  = query_all('SELECT DISTINCT a.admin_user_id, CONCAT(u.first_name, " ", u.last_name) AS name, u.role, u.staff_role, gs.staff_title FROM admin_audit_logs a JOIN users u ON u.user_id = a.admin_user_id LEFT JOIN gym_staff gs ON gs.user_id = u.user_id ORDER BY name');
+        $actions = query_all('SELECT DISTINCT action FROM admin_audit_logs ORDER BY action');
+        $entities = query_all('SELECT DISTINCT entity_type FROM admin_audit_logs ORDER BY entity_type');
+    }
+
+    $pageTitle = $role === 'gym_owner' ? 'Staff Activity & Audit Logs' : 'Audit Logs';
+    render_header($pageTitle, $user);
     ?>
     <style>
     /* Responsive Desktop Table vs Mobile Cards */
@@ -825,8 +908,8 @@ function audit_logs_page(): void
     <section class="panel">
         <div class="page-header" style="flex-wrap: wrap; gap: 12px;">
             <div>
-                <h1>Audit Logs</h1>
-                <p>Track activities, submissions, and changes across the platform in plain English.</p>
+                <h1><?= $role === 'gym_owner' ? 'Staff Activity & Audit Logs' : 'Audit Logs' ?></h1>
+                <p><?= $role === 'gym_owner' ? 'Monitor front desk operations, member check-ins, walk-in sales, and staff actions in real time.' : 'Track activities, submissions, and changes across the platform in plain English.' ?></p>
             </div>
             <span class="badge badge-active"><?= $total ?> record<?= $total !== 1 ? 's' : '' ?></span>
         </div>
@@ -846,6 +929,7 @@ function audit_logs_page(): void
                                 'gym_owner'      => 'Gym Owner',
                                 'trainer'        => 'Trainer',
                                 'member'         => 'Member',
+                                'staff'          => !empty($a['staff_role']) ? 'Staff (' . ($a['staff_role'] === 'manager' ? 'Manager' : 'Front Desk') . ')' : (!empty($a['staff_title']) ? 'Staff (' . $a['staff_title'] . ')' : 'Staff'),
                                 default          => 'Staff'
                             };
                         ?>
@@ -853,6 +937,19 @@ function audit_logs_page(): void
                             <?= h($a['name']) ?> (<?= $roleName ?>)
                         </option>
                     <?php endforeach; ?>
+                </select>
+            </label>
+
+            <label class="audit-filter-item filter-role">
+                <span>Role</span>
+                <select name="role_filter" class="form-control">
+                    <option value="">All Roles</option>
+                    <option value="staff" <?= selected('staff', $filterRole) ?>>Staff Only</option>
+                    <option value="trainer" <?= selected('trainer', $filterRole) ?>>Trainers Only</option>
+                    <option value="gym_owner" <?= selected('gym_owner', $filterRole) ?>>Gym Owner</option>
+                    <?php if ($role === 'platform_admin'): ?>
+                    <option value="platform_admin" <?= selected('platform_admin', $filterRole) ?>>Platform Admins</option>
+                    <?php endif; ?>
                 </select>
             </label>
 

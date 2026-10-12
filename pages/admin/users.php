@@ -6,18 +6,26 @@ use PHPMailer\PHPMailer\Exception as PHPMailerException;
 
 function users_page(): void
 {
-    $user = require_roles(['platform_admin', 'gym_owner']);
+    $user = require_roles(['platform_admin', 'gym_owner', 'staff']);
     $isAdmin = $user['role'] === 'platform_admin';
+    $isStaff = $user['role'] === 'staff';
     $gymId = null;
-    if (!$isAdmin) {
+    if ($isAdmin) {
+        $gymId = null;
+    } elseif ($isStaff) {
+        $gymId = (int) scalar('SELECT gym_id FROM gym_staff WHERE user_id = ?', [$user['user_id']]);
+    } else {
         $gymId = (int) scalar('SELECT gym_id FROM gyms WHERE owner_user_id = ?', [$user['user_id']]);
     }
 
-    $canManageUser = function(int $targetUserId) use ($isAdmin, $gymId): bool {
+    $canManageUser = function(int $targetUserId) use ($isAdmin, $isStaff, $gymId): bool {
+        if ($isStaff) return false;
         $targetRole = scalar('SELECT role FROM users WHERE user_id = ?', [$targetUserId]);
         if ($targetRole === 'platform_admin') return false;
         if ($isAdmin) return true;
-        if ($targetRole === 'trainer') {
+        if ($targetRole === 'staff') {
+            return (bool) scalar('SELECT 1 FROM gym_staff WHERE user_id = ? AND gym_id = ?', [$targetUserId, $gymId]);
+        } elseif ($targetRole === 'trainer') {
             return (bool) scalar('SELECT 1 FROM trainer_profiles WHERE user_id = ? AND gym_id = ?', [$targetUserId, $gymId]);
         } elseif ($targetRole === 'member') {
             return (bool) scalar('SELECT 1 FROM gym_members WHERE user_id = ? AND gym_id = ?', [$targetUserId, $gymId]);
@@ -53,7 +61,7 @@ function users_page(): void
 
         if (post('action') === 'create') {
             $roleToCreate = post('role');
-            if (!$isAdmin && !in_array($roleToCreate, ['trainer', 'member'])) {
+            if (!$isAdmin && !in_array($roleToCreate, ['trainer', 'member', 'staff'])) {
                 $sendCreateResponse(false, 'You do not have permission to create this role.');
                 return;
             }
@@ -102,10 +110,12 @@ function users_page(): void
             $lastName  = mb_convert_case(trim((string) post('last_name')), MB_CASE_TITLE, 'UTF-8');
 
             $staffRole = null;
-            if ($roleToCreate === 'trainer') {
-                $allowedStaffRoles = ['trainer', 'front_desk', 'manager'];
+            if ($roleToCreate === 'staff') {
+                $allowedStaffRoles = ['front_desk', 'manager'];
                 $reqStaffRole = trim((string) post('staff_role'));
-                $staffRole = in_array($reqStaffRole, $allowedStaffRoles, true) ? $reqStaffRole : 'trainer';
+                $staffRole = in_array($reqStaffRole, $allowedStaffRoles, true) ? $reqStaffRole : 'front_desk';
+            } elseif ($roleToCreate === 'trainer') {
+                $staffRole = 'trainer';
             }
 
             $stmt = db()->prepare('INSERT INTO users (role, first_name, last_name, email, password_hash, phone, status, email_verified_at, staff_role) VALUES (?, ?, ?, ?, ?, ?, "active", NOW(), ?)');
@@ -114,6 +124,10 @@ function users_page(): void
             if ($roleToCreate === 'trainer') {
                 $trainerGymId = $isAdmin ? null : $gymId;
                 db()->prepare('INSERT INTO trainer_profiles (user_id, specialization, bio, gym_id) VALUES (?, ?, ?, ?)')->execute([$newUserId, post('specialization'), post('bio'), $trainerGymId]);
+            } elseif ($roleToCreate === 'staff') {
+                $staffGymId = $isAdmin ? (int)(post('gym_id') ?: 0) : $gymId;
+                $staffTitle = ($staffRole === 'manager') ? 'Operations Manager' : 'Front Desk Staff';
+                db()->prepare('INSERT INTO gym_staff (gym_id, user_id, staff_title) VALUES (?, ?, ?)')->execute([$staffGymId, $newUserId, $staffTitle]);
             } elseif ($roleToCreate === 'member' && !$isAdmin) {
                 db()->prepare('INSERT IGNORE INTO gym_members (gym_id, user_id) VALUES (?, ?)')->execute([$gymId, $newUserId]);
             }
@@ -159,7 +173,7 @@ function users_page(): void
             }
             
             $roleToEdit = post('role');
-            if (!$isAdmin && !in_array($roleToEdit, ['trainer', 'member'])) {
+            if (!$isAdmin && !in_array($roleToEdit, ['trainer', 'member', 'staff'])) {
                 flash('You do not have permission to assign this role.', 'danger');
                 redirect('users');
                 return;
@@ -202,13 +216,18 @@ function users_page(): void
             }
             
             if (post('role') === 'trainer') {
-                $allowedStaffRoles = ['trainer', 'front_desk', 'manager'];
-                $reqStaffRole = trim((string) post('staff_role'));
-                $staffRole = in_array($reqStaffRole, $allowedStaffRoles, true) ? $reqStaffRole : 'trainer';
-                db()->prepare('UPDATE users SET staff_role = ? WHERE user_id = ?')->execute([$staffRole, $editUserId]);
-
+                db()->prepare('UPDATE users SET staff_role = "trainer" WHERE user_id = ?')->execute([$editUserId]);
                 db()->prepare('INSERT INTO trainer_profiles (user_id, specialization, bio) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE specialization = VALUES(specialization), bio = VALUES(bio)')
                     ->execute([$editUserId, post('specialization'), post('bio')]);
+            } elseif (post('role') === 'staff') {
+                $allowedStaffRoles = ['front_desk', 'manager'];
+                $reqStaffRole = trim((string) post('staff_role'));
+                $staffRole = in_array($reqStaffRole, $allowedStaffRoles, true) ? $reqStaffRole : 'front_desk';
+                $staffTitle = ($staffRole === 'manager') ? 'Operations Manager' : 'Front Desk Staff';
+                db()->prepare('UPDATE users SET staff_role = ? WHERE user_id = ?')->execute([$staffRole, $editUserId]);
+                $staffGymId = $isAdmin ? (int)(post('gym_id') ?: 0) : $gymId;
+                db()->prepare('INSERT INTO gym_staff (gym_id, user_id, staff_title) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE staff_title = VALUES(staff_title)')
+                    ->execute([$staffGymId, $editUserId, $staffTitle]);
             }
             audit_log($user['user_id'], 'edit', 'user', (string) $editUserId, json_encode(['email' => post('email'), 'role' => post('role'), 'staff_role' => post('staff_role'), 'password_changed' => $newPassword !== '']));
             flash('User updated successfully.');
@@ -247,6 +266,7 @@ function users_page(): void
                         }
                     }
                     
+                    db()->prepare('DELETE FROM gym_staff WHERE user_id=?')->execute([$targetUserId]);
                     db()->prepare('DELETE FROM users WHERE user_id=?')->execute([$targetUserId]);
                     audit_log($user['user_id'], 'delete', 'user', (string) $targetUserId, json_encode(['role' => $targetUser['role']]));
                     flash('User deleted.');
@@ -270,14 +290,18 @@ function users_page(): void
 
         if (!$isAdmin) {
             $where .= ' AND (
+                (u.role = "staff" AND EXISTS (SELECT 1 FROM gym_staff gs WHERE gs.user_id = u.user_id AND gs.gym_id = ?)) OR
                 (u.role = "trainer" AND EXISTS (SELECT 1 FROM trainer_profiles WHERE user_id = u.user_id AND gym_id = ?)) OR
                 (u.role = "member" AND EXISTS (SELECT 1 FROM gym_members gm WHERE gm.user_id = u.user_id AND gm.gym_id = ?))
             )';
             $params[] = $gymId;
             $params[] = $gymId;
+            $params[] = $gymId;
+            $where .= ' AND u.user_id <> ?';
+            $params[] = (int)$user['user_id'];
         }
 
-        if (in_array($tab, ['gym_owner', 'trainer', 'member'], true)) {
+        if (in_array($tab, ['gym_owner', 'trainer', 'member', 'staff'], true)) {
             $where .= ' AND u.role = ?';
             $params[] = $tab;
         }
@@ -285,9 +309,11 @@ function users_page(): void
         if ($isAdmin && $gymFilter) {
             $where .= ' AND (
                 (u.role = "gym_owner" AND EXISTS (SELECT 1 FROM gyms WHERE owner_user_id = u.user_id AND gym_id = ?)) OR
+                (u.role = "staff" AND EXISTS (SELECT 1 FROM gym_staff gs WHERE gs.user_id = u.user_id AND gs.gym_id = ?)) OR
                 (u.role = "trainer" AND EXISTS (SELECT 1 FROM trainer_profiles WHERE user_id = u.user_id AND gym_id = ?)) OR
                 (u.role = "member" AND EXISTS (SELECT 1 FROM gym_members gm WHERE gm.user_id = u.user_id AND gm.gym_id = ?))
             )';
+            $params[] = $gymFilter;
             $params[] = $gymFilter;
             $params[] = $gymFilter;
             $params[] = $gymFilter;
@@ -311,11 +337,12 @@ function users_page(): void
                 (SELECT g1.name FROM gyms g1 WHERE g1.owner_user_id = u.user_id ORDER BY g1.gym_id DESC LIMIT 1) AS owner_gym_name,
                 (SELECT g1.status FROM gyms g1 WHERE g1.owner_user_id = u.user_id ORDER BY g1.gym_id DESC LIMIT 1) AS owner_gym_status,
                 (SELECT g2.name FROM trainer_profiles tp2 JOIN gyms g2 ON tp2.gym_id = g2.gym_id WHERE tp2.user_id = u.user_id LIMIT 1) AS trainer_gym_name,
-                (SELECT g3.name FROM gym_members gm JOIN gyms g3 ON gm.gym_id = g3.gym_id WHERE gm.user_id = u.user_id LIMIT 1) AS member_gym_name
+                (SELECT g3.name FROM gym_members gm JOIN gyms g3 ON gm.gym_id = g3.gym_id WHERE gm.user_id = u.user_id LIMIT 1) AS member_gym_name,
+                (SELECT g4.name FROM gym_staff gs JOIN gyms g4 ON gs.gym_id = g4.gym_id WHERE gs.user_id = u.user_id LIMIT 1) AS staff_gym_name
                 FROM users u 
                 LEFT JOIN trainer_profiles tp ON u.user_id = tp.user_id 
                 WHERE ' . $where . ' 
-                ORDER BY CASE u.role WHEN "gym_owner" THEN 1 WHEN "trainer" THEN 2 WHEN "member" THEN 3 ELSE 4 END ASC, u.first_name ASC, u.last_name ASC 
+                ORDER BY CASE u.role WHEN "gym_owner" THEN 1 WHEN "staff" THEN 2 WHEN "trainer" THEN 3 WHEN "member" THEN 4 ELSE 5 END ASC, u.first_name ASC, u.last_name ASC 
                 LIMIT 50';
 
         $stmt = db()->prepare($sql);
@@ -328,6 +355,7 @@ function users_page(): void
             if ($row['role'] === 'gym_owner') $associatedGym = $row['owner_gym_name'];
             elseif ($row['role'] === 'trainer') $associatedGym = $row['trainer_gym_name'];
             elseif ($row['role'] === 'member') $associatedGym = $row['member_gym_name'];
+            elseif ($row['role'] === 'staff') $associatedGym = $row['staff_gym_name'] ?? null;
 
             $outputUsers[] = [
                 'user_id'          => (int) $row['user_id'],
@@ -350,6 +378,7 @@ function users_page(): void
                 'is_member'        => $row['role'] === 'member',
                 'is_trainer'       => $row['role'] === 'trainer',
                 'is_gym_owner'     => $row['role'] === 'gym_owner',
+                'is_staff'         => $row['role'] === 'staff',
                 'raw_user'         => $row
             ];
         }
@@ -376,14 +405,18 @@ function users_page(): void
     
     if (!$isAdmin) {
         $where .= ' AND (
+            (u.role = "staff" AND EXISTS (SELECT 1 FROM gym_staff gs WHERE gs.user_id = u.user_id AND gs.gym_id = ?)) OR
             (u.role = "trainer" AND EXISTS (SELECT 1 FROM trainer_profiles WHERE user_id = u.user_id AND gym_id = ?)) OR
             (u.role = "member" AND EXISTS (SELECT 1 FROM gym_members gm WHERE gm.user_id = u.user_id AND gm.gym_id = ?))
         )';
         $params[] = $gymId;
         $params[] = $gymId;
+        $params[] = $gymId;
+        $where .= ' AND u.user_id <> ?';
+        $params[] = (int)$user['user_id'];
     }
     
-    if (in_array($tab, ['gym_owner', 'trainer', 'member'], true)) {
+    if (in_array($tab, ['gym_owner', 'trainer', 'member', 'staff'], true)) {
         $where .= ' AND u.role = ?';
         $params[] = $tab;
     }
@@ -391,9 +424,11 @@ function users_page(): void
     if ($isAdmin && $gymFilter) {
         $where .= ' AND (
             (u.role = "gym_owner" AND EXISTS (SELECT 1 FROM gyms WHERE owner_user_id = u.user_id AND gym_id = ?)) OR
+            (u.role = "staff" AND EXISTS (SELECT 1 FROM gym_staff gs WHERE gs.user_id = u.user_id AND gym_id = ?)) OR
             (u.role = "trainer" AND EXISTS (SELECT 1 FROM trainer_profiles WHERE user_id = u.user_id AND gym_id = ?)) OR
             (u.role = "member" AND EXISTS (SELECT 1 FROM gym_members gm WHERE gm.user_id = u.user_id AND gym_id = ?))
         )';
+        $params[] = $gymFilter;
         $params[] = $gymFilter;
         $params[] = $gymFilter;
         $params[] = $gymFilter;
@@ -418,11 +453,12 @@ function users_page(): void
             (SELECT g1.name FROM gyms g1 WHERE g1.owner_user_id = u.user_id ORDER BY g1.gym_id DESC LIMIT 1) AS owner_gym_name,
             (SELECT g1.status FROM gyms g1 WHERE g1.owner_user_id = u.user_id ORDER BY g1.gym_id DESC LIMIT 1) AS owner_gym_status,
             (SELECT g2.name FROM trainer_profiles tp2 JOIN gyms g2 ON tp2.gym_id = g2.gym_id WHERE tp2.user_id = u.user_id LIMIT 1) AS trainer_gym_name,
-            (SELECT g3.name FROM gym_members gm JOIN gyms g3 ON gm.gym_id = g3.gym_id WHERE gm.user_id = u.user_id LIMIT 1) AS member_gym_name
+            (SELECT g3.name FROM gym_members gm JOIN gyms g3 ON gm.gym_id = g3.gym_id WHERE gm.user_id = u.user_id LIMIT 1) AS member_gym_name,
+            (SELECT g4.name FROM gym_staff gs JOIN gyms g4 ON gs.gym_id = g4.gym_id WHERE gs.user_id = u.user_id LIMIT 1) AS staff_gym_name
             FROM users u 
             LEFT JOIN trainer_profiles tp ON u.user_id = tp.user_id 
             WHERE ' . $where . ' 
-            ORDER BY CASE u.role WHEN "gym_owner" THEN 1 WHEN "trainer" THEN 2 WHEN "member" THEN 3 ELSE 4 END ASC, u.first_name ASC, u.last_name ASC 
+            ORDER BY CASE u.role WHEN "gym_owner" THEN 1 WHEN "staff" THEN 2 WHEN "trainer" THEN 3 WHEN "member" THEN 4 ELSE 5 END ASC, u.first_name ASC, u.last_name ASC 
             LIMIT ' . (int)$limit . ' OFFSET ' . (int)$offset;
 
     $stmt = db()->prepare($sql);
@@ -517,15 +553,13 @@ function users_page(): void
                         <label>Specialization <small style="font-weight:400">(trainer only)</small>
                             <input name="specialization" id="new_user_spec" value="<?= h($oldUser['specialization'] ?? '') ?>" placeholder="e.g. Strength & Conditioning">
                         </label>
-                        <label>Staff Permission Level
-                            <select name="staff_role" id="new_user_staff_role" style="width: 100%; box-sizing: border-box; padding: 8px 10px; border-radius: 6px; background: var(--bg); border: 1px solid var(--line); color: var(--ink);">
-                                <option value="trainer" <?= selected('trainer', $oldUser['staff_role'] ?? 'trainer') ?>>Fitness Trainer (Floor Staff)</option>
-                                <option value="front_desk" <?= selected('front_desk', $oldUser['staff_role'] ?? '') ?>>Front Desk / Cashier (Financials Masked)</option>
-                                <option value="manager" <?= selected('manager', $oldUser['staff_role'] ?? '') ?>>Operations Manager (Full Staff Access)</option>
-                            </select>
-                        </label>
-                        <label style="grid-column: 1 / -1;">Bio <small style="font-weight:400">(trainer only)</small>
+                        <label>Bio <small style="font-weight:400">(trainer only)</small>
                             <input name="bio" value="<?= h($oldUser['bio'] ?? '') ?>" placeholder="Short bio">
+                        </label>
+                    </div>
+                    <div id="staff_fields" style="display: <?= ($oldUser['role'] ?? '') === 'staff' ? 'block' : 'none' ?>; grid-column: 1 / -1;">
+                        <label>Staff Permission Level
+                            <div id="staffRoleComboboxWrap"></div>
                         </label>
                     </div>
                     <button id="createUserSubmitBtn" style="grid-column: 1 / -1; margin-top: 10px;">Create user</button>
@@ -539,6 +573,7 @@ function users_page(): void
                 <?php if ($isAdmin): ?>
                     <a href="?page=users&tab=gym_owner<?= $gymFilter ? '&gym_id='.$gymFilter : '' ?>" style="white-space:nowrap; color: <?= $tab === 'gym_owner' ? 'var(--lime)' : 'var(--muted)' ?>; font-weight: <?= $tab === 'gym_owner' ? '700' : '400' ?>; text-decoration:none; padding-bottom:4px; border-bottom: 2px solid <?= $tab === 'gym_owner' ? 'var(--lime)' : 'transparent' ?>;">Gym Owners</a>
                 <?php endif; ?>
+                <a href="?page=users&tab=staff<?= $gymFilter ? '&gym_id='.$gymFilter : '' ?>" style="white-space:nowrap; color: <?= $tab === 'staff' ? 'var(--lime)' : 'var(--muted)' ?>; font-weight: <?= $tab === 'staff' ? '700' : '400' ?>; text-decoration:none; padding-bottom:4px; border-bottom: 2px solid <?= $tab === 'staff' ? 'var(--lime)' : 'transparent' ?>;">Staff</a>
                 <a href="?page=users&tab=trainer<?= $gymFilter ? '&gym_id='.$gymFilter : '' ?>" style="white-space:nowrap; color: <?= $tab === 'trainer' ? 'var(--lime)' : 'var(--muted)' ?>; font-weight: <?= $tab === 'trainer' ? '700' : '400' ?>; text-decoration:none; padding-bottom:4px; border-bottom: 2px solid <?= $tab === 'trainer' ? 'var(--lime)' : 'transparent' ?>;">Trainers</a>
                 <a href="?page=users&tab=member<?= $gymFilter ? '&gym_id='.$gymFilter : '' ?>" style="white-space:nowrap; color: <?= $tab === 'member' ? 'var(--lime)' : 'var(--muted)' ?>; font-weight: <?= $tab === 'member' ? '700' : '400' ?>; text-decoration:none; padding-bottom:4px; border-bottom: 2px solid <?= $tab === 'member' ? 'var(--lime)' : 'transparent' ?>;">Members</a>
             </div>
@@ -636,9 +671,9 @@ function users_page(): void
                         <td style="color:var(--muted);"><?= h($row['email']) ?></td>
                         <td>
                             <span class="user-role-text"><?= h($roleDisplayName) ?></span>
-                            <?php if ($row['role'] === 'trainer' && !empty($row['staff_role']) && $row['staff_role'] !== 'trainer'): ?>
+                            <?php if ($row['role'] === 'staff'): ?>
                                 <span class="user-staff-role-text">
-                                    <?= $row['staff_role'] === 'front_desk' ? 'Front Desk' : 'Manager' ?>
+                                    <?= ($row['staff_role'] ?? '') === 'manager' ? 'Operations Manager' : 'Front Desk' ?>
                                 </span>
                             <?php endif; ?>
                         </td>
@@ -648,6 +683,7 @@ function users_page(): void
                             if ($row['role'] === 'gym_owner') $associatedGym = $row['owner_gym_name'];
                             elseif ($row['role'] === 'trainer') $associatedGym = $row['trainer_gym_name'];
                             elseif ($row['role'] === 'member') $associatedGym = $row['member_gym_name'];
+                            elseif ($row['role'] === 'staff') $associatedGym = $row['staff_gym_name'] ?? null;
                         ?>
                         <td class="user-gym-td">
                             <?php if ($associatedGym): ?>
@@ -689,6 +725,7 @@ function users_page(): void
                         <td style="color:var(--muted);font-size:12px"><?= h(date('M j, Y', strtotime($row['created_at']))) ?></td>
                         <td>
                             <div style="display:flex;gap:4px;align-items:center;">
+                                <?php if (!$isStaff): ?>
                                 <form method="post" class="row-actions" style="margin:0;">
                                     <?= csrf_field() ?>
                                     <input type="hidden" name="action" value="status">
@@ -699,14 +736,15 @@ function users_page(): void
                                     </select>
                                     <button type="submit" class="btn-sm btn-ghost">Update</button>
                                 </form>
+                                <?php endif; ?>
                                 <button type="button" class="btn btn-secondary btn-edit-user" data-user="<?= htmlspecialchars(json_encode($row), ENT_QUOTES, 'UTF-8') ?>" style="padding:4px 8px;font-size:12px;margin-left:8px;">Edit</button>
-                                <?php if (!$isAdmin && $row['role'] === 'member'): ?>
+                                <?php if ($isStaff === false && $user['role'] === 'gym_owner' && $row['role'] === 'member'): ?>
                                     <a href="index.php?page=diet_builder&member_user_id=<?= (int)$row['user_id'] ?>&ref=users" class="btn btn-secondary" style="padding:4px 8px;font-size:12px;text-decoration:none;display:inline-flex;align-items:center;gap:4px;" title="Manage Diet Plan">
                                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
                                         Diet Plan
                                     </a>
                                 <?php endif; ?>
-                                <?php if ((int) $row['user_id'] !== (int) $user['user_id']): ?>
+                                <?php if (!$isStaff && (int) $row['user_id'] !== (int) $user['user_id']): ?>
                                 <button type="button" 
                                     class="btn btn-danger btn-delete-user" 
                                     data-user-id="<?= (int) $row['user_id'] ?>" 
@@ -746,9 +784,9 @@ function users_page(): void
                         </div>
                         <div class="user-card-badges">
                             <span class="user-role-text"><?= h($roleDisplayName) ?></span>
-                            <?php if ($row['role'] === 'trainer' && !empty($row['staff_role']) && $row['staff_role'] !== 'trainer'): ?>
+                            <?php if ($row['role'] === 'staff'): ?>
                                 <span class="user-staff-role-text">
-                                    <?= $row['staff_role'] === 'front_desk' ? 'Front Desk' : 'Manager' ?>
+                                    <?= ($row['staff_role'] ?? '') === 'manager' ? 'Operations Manager' : 'Front Desk' ?>
                                 </span>
                             <?php endif; ?>
                             <span class="<?= $statusClass ?>"><?= h($row['status']) ?></span>
@@ -809,6 +847,7 @@ function users_page(): void
                     </div>
 
                     <div class="user-card-actions">
+                        <?php if (!$isStaff): ?>
                         <form method="post" class="user-card-status-form">
                             <?= csrf_field() ?>
                             <input type="hidden" name="action" value="status">
@@ -820,19 +859,20 @@ function users_page(): void
                             </select>
                             <button type="submit" class="btn-sm btn-ghost">Update</button>
                         </form>
+                        <?php endif; ?>
                         
                         <div class="user-card-btn-group">
                             <button type="button" class="btn btn-secondary btn-sm btn-edit-user" data-user="<?= htmlspecialchars(json_encode($row), ENT_QUOTES, 'UTF-8') ?>">
                                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
                                 Edit
                             </button>
-                            <?php if (!$isAdmin && $row['role'] === 'member'): ?>
+                            <?php if (!$isStaff && $user['role'] === 'gym_owner' && $row['role'] === 'member'): ?>
                                 <a href="index.php?page=diet_builder&member_user_id=<?= (int)$row['user_id'] ?>&ref=users" class="btn btn-secondary btn-sm" title="Manage Diet Plan">
                                     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
                                     Diet
                                 </a>
                             <?php endif; ?>
-                            <?php if ((int) $row['user_id'] !== (int) $user['user_id']): ?>
+                            <?php if (!$isStaff && (int) $row['user_id'] !== (int) $user['user_id']): ?>
                             <button type="button" 
                                 class="btn btn-danger btn-sm btn-delete-user" 
                                 data-user-id="<?= (int) $row['user_id'] ?>" 
@@ -860,7 +900,8 @@ function users_page(): void
         gymFilter: <?= json_encode($gymFilter) ?>,
         isAdmin: <?= $isAdmin ? 'true' : 'false' ?>,
         hasOldUser: <?= json_encode(!empty($oldUser)) ?>,
-        initialRole: <?= json_encode($oldUser['role'] ?? ($isAdmin ? 'gym_owner' : 'trainer')) ?>
+        initialRole: <?= json_encode($oldUser['role'] ?? ($isAdmin ? 'gym_owner' : 'trainer')) ?>,
+        oldUserStaffRole: <?= json_encode($oldUser['staff_role'] ?? 'front_desk') ?>
     };
     </script>
     <script src="<?= h(asset_url('js/pages/users.js')) ?>"></script>

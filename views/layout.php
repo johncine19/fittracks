@@ -45,6 +45,18 @@ function render_header(string $title, ?array $user = null): void
                 'food_library' => 'Food Library',
                 'gym_equipment' => 'Equipment',
                 'reports' => 'Reports',
+                'audit_logs' => 'Audit Logs',
+            ];
+        }
+        if ($role === 'staff') {
+            $nav += [
+                'messages' => 'Messages',
+                'notifications' => 'Notifications',
+                'scanner' => 'Scan QR',
+                'attendance' => 'Attendance',
+                'walk_ins' => 'Walk-ins',
+                'users' => 'Member Lookup',
+                'gym_equipment' => 'Equipment',
             ];
         }
         if ($role === 'trainer') {
@@ -1389,7 +1401,7 @@ function render_header(string $title, ?array $user = null): void
                                 default => null,
                             };
                             if ($mappedFeature !== null && !gym_has_feature($mappedFeature, $gym)) {
-                                $tierBadge = in_array($mappedFeature, ['audit_logs'], true) ? 'BIZ' : (in_array($mappedFeature, ['reports'], true) ? 'STARTER' : 'PRO');
+                                $tierBadge = in_array($mappedFeature, ['audit_logs'], true) ? 'PRO' : (in_array($mappedFeature, ['reports'], true) ? 'STARTER' : 'PRO');
                             }
                         }
                         $isActive = ($page === $key 

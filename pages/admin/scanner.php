@@ -3,13 +3,15 @@ declare(strict_types=1);
 
 function scanner_page(): void
 {
-    $user = require_roles(['platform_admin', 'gym_owner', 'trainer']);
+    $user = require_roles(['platform_admin', 'gym_owner', 'trainer', 'staff']);
     
     $currentGymId = null;
     if ($user['role'] === 'gym_owner') {
         $currentGymId = scalar('SELECT gym_id FROM gyms WHERE owner_user_id = ?', [$user['user_id']]);
     } elseif ($user['role'] === 'trainer') {
         $currentGymId = scalar('SELECT gym_id FROM trainer_profiles WHERE user_id = ?', [$user['user_id']]);
+    } elseif ($user['role'] === 'staff') {
+        $currentGymId = scalar('SELECT gym_id FROM gym_staff WHERE user_id = ?', [$user['user_id']]);
     }
 
     if (!$currentGymId && $user['role'] !== 'platform_admin') {

@@ -71,10 +71,6 @@ function plans_page(): void
                 <p style="margin:0; color:var(--muted);">Edit pricing, descriptions, and feature bullet points offered to gym members.</p>
             </div>
             <div style="display:flex; gap:12px; align-items:center; flex-wrap:wrap;">
-                <a href="index.php?page=memberships" target="_blank" class="btn btn-secondary plan-preview-link">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
-                    Preview Member View
-                </a>
                 <button onclick="addPlan()" class="btn" style="background: var(--lime); color: var(--bg); font-weight: bold;">+ New Plan</button>
             </div>
         </div>

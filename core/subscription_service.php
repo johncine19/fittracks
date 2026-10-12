@@ -428,7 +428,7 @@ function gym_has_feature(string $feature, array|int|null $gym = null): bool
         'custom_branding' => 'business',
         'staff_permissions' => 'business',
         'eod_summary' => 'business',
-        'audit_logs' => 'business',
+        'audit_logs' => 'professional',
         'full_audit_logs' => 'business',
         'multi_branch' => 'business',
         'consolidated_reports' => 'business',
@@ -468,9 +468,9 @@ function require_gym_feature(string $feature): void
         $tier = gym_subscription_tier($gym);
         $planName = $tier === 'free' ? 'Free Tier' : ($tier !== 'none' ? ucfirst($tier) : 'Inactive');
         
-        $neededTier = in_array($feature, ['custom_branding', 'audit_logs', 'multi_branch', 'full_audit_logs'], true)
+        $neededTier = in_array($feature, ['custom_branding', 'multi_branch', 'full_audit_logs', 'staff_permissions'], true)
             ? 'Business'
-            : (in_array($feature, ['trainers', 'trainer_assignments', 'commissions', 'classes', 'renewal_reminders', 'engagement_tracking', 'workouts', 'exercises', 'training', 'admin_workouts', 'advanced_reports'], true)
+            : (in_array($feature, ['trainers', 'trainer_assignments', 'commissions', 'classes', 'renewal_reminders', 'engagement_tracking', 'workouts', 'exercises', 'training', 'admin_workouts', 'advanced_reports', 'audit_logs', 'staff_activity'], true)
                 ? 'Professional'
                 : 'Starter');
 
@@ -529,11 +529,18 @@ function is_staff_financials_restricted(?array $user = null): bool
         return true;
     }
 
-    // If staff/trainer role:
-    if (($user['role'] ?? '') === 'trainer') {
-        if (($user['staff_role'] ?? '') === 'front_desk') {
-            return true;
+    // Staff role permission levels (front_desk = masked when gym privacy mode is on, manager = full access)
+    if (($user['role'] ?? '') === 'staff') {
+        if (($user['staff_role'] ?? 'front_desk') === 'manager') {
+            return false;
         }
+        $gym = get_user_gym($user);
+        return !empty($gym['staff_hide_financials']);
+    }
+    if (($user['role'] ?? '') === 'trainer') {
+        // Trainer floor check
+
+
 
         $gym = get_user_gym($user);
         if ($gym && !empty($gym['staff_hide_financials'])) {

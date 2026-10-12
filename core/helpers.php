@@ -406,11 +406,37 @@ function grant_retroactive_commission(int $memberUserId): void
     }
 }
 
-function audit_log(int $adminUserId, string $action, string $entityType, ?string $entityId = null, ?string $details = null): void
+function audit_log(int $adminUserId, string $action, string $entityType, ?string $entityId = null, ?string $details = null, ?int $gymId = null): void
 {
     try {
-        db()->prepare('INSERT INTO admin_audit_logs (admin_user_id, action, entity_type, entity_id, details) VALUES (?, ?, ?, ?, ?)')
-            ->execute([$adminUserId, $action, $entityType, $entityId, $details]);
+        if ($gymId === null) {
+            if ($details) {
+                $decoded = json_decode($details, true);
+                if (is_array($decoded) && !empty($decoded['gym_id'])) {
+                    $gymId = (int) $decoded['gym_id'];
+                }
+            }
+            if (!$gymId && $adminUserId > 0) {
+                $gymId = (int) scalar('SELECT gym_id FROM gym_staff WHERE user_id = ? LIMIT 1', [$adminUserId]);
+                if (!$gymId) {
+                    $gymId = (int) scalar('SELECT gym_id FROM gyms WHERE owner_user_id = ? LIMIT 1', [$adminUserId]);
+                }
+                if (!$gymId) {
+                    $gymId = (int) scalar('SELECT gym_id FROM trainer_profiles WHERE user_id = ? LIMIT 1', [$adminUserId]);
+                }
+            }
+            if (!$gymId) {
+                $currentUser = current_user();
+                if ($currentUser) {
+                    $userGym = get_user_gym($currentUser);
+                    if ($userGym && !empty($userGym['gym_id'])) {
+                        $gymId = (int) $userGym['gym_id'];
+                    }
+                }
+            }
+        }
+        db()->prepare('INSERT INTO admin_audit_logs (admin_user_id, gym_id, action, entity_type, entity_id, details) VALUES (?, ?, ?, ?, ?, ?)')
+            ->execute([$adminUserId, $gymId ?: null, $action, $entityType, $entityId, $details]);
     } catch (Throwable) {
         // Non-fatal — audit logging should never break the main flow
     }
@@ -547,6 +573,11 @@ function get_user_gym(array $user): ?array
         return $gym ?: null;
     }
     
+    if ($role === 'staff') {
+        $gym = $pdo->query("SELECT g.* FROM gyms g JOIN gym_staff gs ON gs.gym_id = g.gym_id WHERE gs.user_id = $userId LIMIT 1")->fetch();
+        return $gym ?: null;
+    }
+
     if ($role === 'trainer') {
         $gym = $pdo->query("SELECT g.* FROM gyms g JOIN trainer_profiles tp ON tp.gym_id = g.gym_id WHERE tp.user_id = $userId LIMIT 1")->fetch();
         return $gym ?: null;
@@ -749,6 +780,11 @@ function get_user_gym_id(array $user): ?int
 
     if ($role === 'gym_owner' || $role === 'admin') {
         $gymId = scalar('SELECT gym_id FROM gyms WHERE owner_user_id = ? LIMIT 1', [$userId]);
+        return $gymId ? (int)$gymId : null;
+    }
+
+    if ($role === 'staff') {
+        $gymId = scalar('SELECT gym_id FROM gym_staff WHERE user_id = ? LIMIT 1', [$userId]);
         return $gymId ? (int)$gymId : null;
     }
 

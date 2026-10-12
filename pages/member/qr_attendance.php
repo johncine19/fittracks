@@ -294,6 +294,14 @@ function qr_attendance_page(): void
             color: #000;
             font-weight: 800;
         }
+        .swal2-popup.quick-claim-swal-popup {
+            max-width: 440px !important;
+            width: min(94vw, 440px) !important;
+            border-radius: 16px !important;
+            box-sizing: border-box !important;
+            margin: auto !important;
+            padding: 18px 16px !important;
+        }
     </style>
     <div class="skeleton-wrapper">
         <section class="panel" style="text-align: center; display:flex; flex-direction:column; align-items:center; padding: 40px 20px;">
@@ -760,7 +768,7 @@ function qr_attendance_page(): void
                                 <svg id="quick-equip-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="flex-shrink:0; transition: transform 0.2s ease;"><polyline points="6 9 12 15 18 9"/></svg>
                             </button>
 
-                            <div id="quick-equip-menu" style="display: none; position: absolute; top: calc(100% + 5px); left: 0; right: 0; max-height: 200px; overflow-y: auto; background: var(--panel, #121721); border: 1px solid var(--line); border-radius: 9px; box-shadow: 0 10px 28px rgba(0,0,0,0.5); z-index: 99999; padding: 4px; box-sizing: border-box; -webkit-overflow-scrolling: touch;">
+                            <div id="quick-equip-menu" style="display: none; position: absolute; top: calc(100% + 5px); left: 0; right: 0; max-height: 200px; overflow-y: auto; background: var(--bg, #11141d); border: 1px solid var(--line); border-radius: 9px; box-shadow: 0 10px 28px rgba(0,0,0,0.5); z-index: 99999; padding: 4px; box-sizing: border-box; -webkit-overflow-scrolling: touch;">
                             </div>
                         </div>
 
@@ -820,9 +828,11 @@ function qr_attendance_page(): void
             allowEscapeKey: false,
             background: 'var(--panel)',
             color: 'var(--ink)',
-            width: '92%',
-            maxWidth: '400px',
-            padding: '14px 12px',
+            width: 'min(94vw, 440px)',
+            customClass: {
+                popup: 'quick-claim-swal-popup'
+            },
+            padding: '18px 16px',
             didOpen: () => {
                 const rawEquipList = Array.isArray(data.equipment_list) ? data.equipment_list : [];
                 const searchInput = document.getElementById('quick-search-equip');

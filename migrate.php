@@ -65,7 +65,14 @@ try {
         "ALTER TABLE gyms ADD COLUMN staff_hide_financials TINYINT(1) DEFAULT 0",
         "ALTER TABLE gyms ADD COLUMN eod_email_summary TINYINT(1) DEFAULT 1",
         "CREATE TABLE IF NOT EXISTS gym_eod_email_log (id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY, gym_id INT UNSIGNED NOT NULL, report_date DATE NOT NULL, status VARCHAR(16) NOT NULL DEFAULT 'queued', created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP, UNIQUE KEY uq_gym_eod_email_date (gym_id, report_date)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
-        "ALTER TABLE users ADD COLUMN staff_role VARCHAR(30) DEFAULT NULL"
+        "ALTER TABLE users ADD COLUMN staff_role VARCHAR(30) DEFAULT NULL",
+        "ALTER TABLE users MODIFY COLUMN role ENUM('platform_admin','gym_owner','staff','trainer','member') NOT NULL",
+        "CREATE TABLE IF NOT EXISTS gym_staff (staff_id INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY, gym_id INT UNSIGNED NOT NULL, user_id INT UNSIGNED NOT NULL, staff_title VARCHAR(50) DEFAULT 'Front Desk Staff', created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, UNIQUE KEY uq_gym_staff_user (user_id), INDEX idx_gym_staff_gym (gym_id)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
+        "ALTER TABLE admin_audit_logs ADD COLUMN gym_id INT UNSIGNED DEFAULT NULL AFTER admin_user_id",
+        "ALTER TABLE admin_audit_logs ADD INDEX idx_audit_logs_gym (gym_id)",
+        "UPDATE admin_audit_logs a JOIN gym_staff gs ON gs.user_id = a.admin_user_id SET a.gym_id = gs.gym_id WHERE a.gym_id IS NULL",
+        "UPDATE admin_audit_logs a JOIN gyms g ON g.owner_user_id = a.admin_user_id SET a.gym_id = g.gym_id WHERE a.gym_id IS NULL",
+        "UPDATE admin_audit_logs a JOIN trainer_profiles tp ON tp.user_id = a.admin_user_id SET a.gym_id = tp.gym_id WHERE a.gym_id IS NULL"
     ];
 
     foreach ($migrations as $sql) {

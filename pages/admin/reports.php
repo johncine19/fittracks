@@ -533,6 +533,8 @@ function reports_page(): void
             $m['score'] = $score;
             $memberLists[$cat][] = $m;
         }
+        // Put the lowest engagement scores first so the most urgent members are visible in the preview.
+        usort($memberLists['At-Risk'], static fn($a, $b) => (int)($a['score'] ?? 0) <=> (int)($b['score'] ?? 0));
     }
     
     $engagementData = [
@@ -887,15 +889,15 @@ function reports_page(): void
     <!-- Header / Banner -->
     <div class="animate-fade-in reports-hero-banner">
         <div>
+            <?php if ($isPlatformScope || $isGlobalScope): ?>
             <div class="reports-hero-badges">
                 <?php if ($isPlatformScope): ?>
                     <span class="pill-badge lime" style="color: var(--lime); border-color: rgba(132,204,22,0.3);">FitTrack Platform (SaaS Revenue)</span>
-                <?php elseif ($isGlobalScope): ?>
-                    <span class="pill-badge blue" style="color: #38bdf8; border-color: rgba(56,189,248,0.3);">All Gyms (Global Ecosystem)</span>
                 <?php else: ?>
-                    <span class="pill-badge neutral" style="color: var(--ink); border-color: rgba(255,255,255,0.15);"><?= h($currentGymName) ?></span>
+                    <span class="pill-badge blue" style="color: #38bdf8; border-color: rgba(56,189,248,0.3);">All Gyms (Global Ecosystem)</span>
                 <?php endif; ?>
             </div>
+            <?php endif; ?>
             <h1 class="reports-hero-title">
                 <svg viewBox="0 0 24 24" fill="none" stroke="var(--lime)" stroke-width="2"><path d="M21.21 15.89A10 10 0 1 1 8 2.83"></path><path d="M22 12A10 10 0 0 0 12 2v10z"></path></svg>
                 <?php if ($isPlatformScope): ?>
@@ -1489,16 +1491,16 @@ function reports_page(): void
                 </div>
                 <div style="display: flex; gap: 8px; flex-wrap: wrap;">
                     <?php if ($isGymSpecific): ?>
-                        <button type="button" onclick="openEODModal()" class="export-btn" style="background: rgba(132, 204, 22, 0.12); color: var(--lime); border-color: rgba(132, 204, 22, 0.35); font-weight: 700; cursor: pointer;">
+                        <button type="button" onclick="openEODModal()" class="export-btn" style="background: linear-gradient(135deg, #262a31, #171b22); color: #e2e8f0; border-color: rgba(148, 163, 184, 0.28); font-weight: 700; cursor: pointer;">
                             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
                             Daily Settlement (Z-Reading)
                         </button>
                     <?php endif; ?>
-                    <a href="index.php?page=reports&type=revenue&timeframe=monthly&export=csv" id="btn-export-revenue-csv" class="export-btn">
+                    <a href="index.php?page=reports&type=revenue&timeframe=monthly&export=csv" id="btn-export-revenue-csv" class="export-btn" style="background: linear-gradient(135deg, #262a31, #171b22); color: #e2e8f0; border-color: rgba(148, 163, 184, 0.28);">
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
                         Export CSV
                     </a>
-                    <a href="index.php?page=reports&type=revenue&timeframe=monthly&export=print" id="btn-export-revenue-print" target="_blank" class="export-btn">
+                    <a href="index.php?page=reports&type=revenue&timeframe=monthly&export=print" id="btn-export-revenue-print" target="_blank" class="export-btn" style="background: linear-gradient(135deg, #262a31, #171b22); color: #e2e8f0; border-color: rgba(148, 163, 184, 0.28);">
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 6 2 18 2 18 9"></polyline><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path><rect x="6" y="14" width="12" height="8"></rect></svg>
                         Print / PDF
                     </a>
@@ -2322,6 +2324,11 @@ function reports_page(): void
                                             Nudge All
                                         </button>
                                     <?php endif; ?>
+                                    <?php if ($catName === 'At-Risk' && $count > 4): ?>
+                                        <button type="button" id="atRiskToggle" aria-expanded="false" aria-controls="atRiskMemberList" onclick="toggleAtRiskMembers()" class="btn-sm" style="font-size: 11.5px; padding: 4px 9px; background: transparent; color: var(--muted); border: 1px solid var(--line); border-radius: 6px; font-weight: 600; cursor: pointer;">
+                                            View all (<?= $count ?>)
+                                        </button>
+                                    <?php endif; ?>
                                     <span style="background: rgba(255,255,255,0.05); padding: 3px 10px; border-radius: 999px; font-size: 12px; color: var(--muted); font-weight: bold; flex-shrink: 0;">
                                         <?= $count ?> Members
                                     </span>
@@ -2329,9 +2336,9 @@ function reports_page(): void
                             </div>
                             
                             <?php if ($count > 0): ?>
-                                <div class="engagement-member-list">
-                                    <?php foreach ($memberLists[$catName] as $m): ?>
-                                        <div class="engagement-member-item">
+                                <div class="engagement-member-list" <?= $catName === 'At-Risk' ? 'id="atRiskMemberList"' : '' ?>>
+                                    <?php foreach ($memberLists[$catName] as $memberIndex => $m): ?>
+                                        <div class="engagement-member-item" <?= $catName === 'At-Risk' && $memberIndex >= 4 ? 'data-at-risk-extra hidden' : '' ?>>
                                             <div class="engagement-member-profile">
                                                 <?= render_avatar($m) ?>
                                                 <div class="engagement-member-info">
@@ -2374,6 +2381,18 @@ function reports_page(): void
         </div>
     </div>
     <?php endif; ?>
+
+    <script>
+    function toggleAtRiskMembers() {
+        const list = document.getElementById('atRiskMemberList');
+        const button = document.getElementById('atRiskToggle');
+        if (!list || !button) return;
+        const expanded = button.getAttribute('aria-expanded') === 'true';
+        list.querySelectorAll('[data-at-risk-extra]').forEach(row => { row.hidden = expanded; });
+        button.setAttribute('aria-expanded', String(!expanded));
+        button.textContent = expanded ? 'View all (<?= (int)$categories['At-Risk'] ?>)' : 'Show less';
+    }
+    </script>
 
     <!-- Chart.js & Tab Controller Logic -->
     <script>

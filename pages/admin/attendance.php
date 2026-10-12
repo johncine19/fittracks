@@ -3,12 +3,15 @@ declare(strict_types=1);
 
 function attendance_page(): void
 {
-    $user = require_roles(['platform_admin', 'gym_owner']);
+    $user = require_roles(['platform_admin', 'gym_owner', 'staff']);
     auto_checkout_past_attendance();
     
     $currentGymId = null;
     if ($user['role'] === 'gym_owner') {
         $gid = scalar('SELECT gym_id FROM gyms WHERE owner_user_id = ?', [$user['user_id']]);
+        $currentGymId = $gid ? (int)$gid : null;
+    } elseif ($user['role'] === 'staff') {
+        $gid = scalar('SELECT gym_id FROM gym_staff WHERE user_id = ?', [$user['user_id']]);
         $currentGymId = $gid ? (int)$gid : null;
     } else {
         if (!empty($_GET['gym_id'])) {
@@ -17,6 +20,68 @@ function attendance_page(): void
             $gid = scalar('SELECT gym_id FROM gyms ORDER BY gym_id ASC LIMIT 1');
             $currentGymId = $gid ? (int)$gid : null;
         }
+    }
+
+    // AJAX Hybrid Live Search Endpoint for Available Gym Equipment
+    if (($_GET['action'] ?? post('action')) === 'search_equipment') {
+        if (ob_get_level()) ob_clean();
+        header('Content-Type: application/json; charset=utf-8');
+        $q = trim((string)($_GET['q'] ?? post('q') ?? ''));
+
+        $sql = 'SELECT equipment_id, name, unit_number, category, location_area 
+                FROM gym_equipment 
+                WHERE gym_id = ? AND status = "available"';
+        $params = [(int)$currentGymId];
+        if ($q !== '') {
+            $sql .= ' AND (name LIKE ? OR unit_number LIKE ? OR category LIKE ? OR location_area LIKE ?)';
+            $pat = '%' . $q . '%';
+            $params[] = $pat;
+            $params[] = $pat;
+            $params[] = $pat;
+            $params[] = $pat;
+        }
+        $sql .= ' ORDER BY category ASC, name ASC, unit_number ASC LIMIT 100';
+        $stmt = db()->prepare($sql);
+        $stmt->execute($params);
+        $eqResults = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+        $dropdownItems = [];
+        $dropdownItems[] = [
+            'id'       => '',
+            'label'    => '— None / General Floor Access —',
+            'subtitle' => 'General floor entry without assigned machine'
+        ];
+
+        $grouped = [];
+        foreach ($eqResults as $eq) {
+            $c = !empty($eq['category']) ? $eq['category'] : 'Equipment';
+            $grouped[$c][] = $eq;
+        }
+
+        foreach ($grouped as $catName => $items) {
+            $dropdownItems[] = [
+                'label'    => $catName . ' (' . count($items) . ')',
+                'isHeader' => true
+            ];
+            foreach ($items as $eqItem) {
+                $uNum = trim((string)($eqItem['unit_number'] ?? ''));
+                $uStr = ($uNum !== '' && $uNum !== '#1' && $uNum !== '1') ? ' ' . $uNum : '';
+                $loc = !empty($eqItem['location_area']) ? $eqItem['location_area'] : $catName;
+                $dropdownItems[] = [
+                    'id'       => (int)$eqItem['equipment_id'],
+                    'label'    => $eqItem['name'] . $uStr,
+                    'subtitle' => $loc,
+                    'badge'    => $catName
+                ];
+            }
+        }
+
+        echo json_encode([
+            'success' => true,
+            'count'   => count($eqResults),
+            'results' => $dropdownItems
+        ]);
+        exit;
     }
 
     if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -134,6 +199,56 @@ function attendance_page(): void
         $availableEquipment = $eqStmt->fetchAll(PDO::FETCH_ASSOC);
     }
 
+    // Paginate attendance records so the page can browse the full history instead of a fixed first 100.
+    $attendancePerPage = 25;
+    $attendancePage = max(1, (int)($_GET['attendance_page'] ?? 1));
+    $attendanceSearch = trim((string)($_GET['attendance_search'] ?? ''));
+    $attendanceFrom = trim((string)($_GET['attendance_from'] ?? ''));
+    $attendanceTo = trim((string)($_GET['attendance_to'] ?? ''));
+    $attendanceStatus = (string)($_GET['attendance_status'] ?? '');
+    $validDate = static function (string $value): string {
+        $formats = ['!m/d/y' => 'm/d/y', '!Y-m-d' => 'Y-m-d'];
+        foreach ($formats as $inputFormat => $outputFormat) {
+            $date = DateTimeImmutable::createFromFormat($inputFormat, $value);
+            if ($date && $date->format($outputFormat) === $value) return $date->format('Y-m-d');
+        }
+        return '';
+    };
+    $attendanceFrom = $validDate($attendanceFrom);
+    $attendanceTo = $validDate($attendanceTo);
+    if (!in_array($attendanceStatus, ['in_gym', 'checked_out'], true)) $attendanceStatus = '';
+
+    $attendanceWhereParts = [];
+    $attendanceFilterParams = [];
+    if ($user['role'] === 'gym_owner' && $currentGymId) {
+        $attendanceWhereParts[] = '(a.gym_id = ? OR a.recorded_by = ?)';
+        $attendanceFilterParams[] = $currentGymId;
+        $attendanceFilterParams[] = (int)$user['user_id'];
+    }
+    if ($attendanceSearch !== '') {
+        $attendanceWhereParts[] = 'CONCAT(u.first_name, " ", u.last_name) LIKE ?';
+        $attendanceFilterParams[] = '%' . $attendanceSearch . '%';
+    }
+    if ($attendanceFrom !== '') {
+        $attendanceWhereParts[] = 'a.check_in_time >= ?';
+        $attendanceFilterParams[] = $attendanceFrom . ' 00:00:00';
+    }
+    if ($attendanceTo !== '') {
+        $attendanceWhereParts[] = 'a.check_in_time < DATE_ADD(?, INTERVAL 1 DAY)';
+        $attendanceFilterParams[] = $attendanceTo;
+    }
+    if ($attendanceStatus === 'in_gym') $attendanceWhereParts[] = 'a.check_out_time IS NULL';
+    if ($attendanceStatus === 'checked_out') $attendanceWhereParts[] = 'a.check_out_time IS NOT NULL';
+    $attendanceWhereSql = $attendanceWhereParts ? implode(' AND ', $attendanceWhereParts) : '1=1';
+    $attendanceFilterActive = $attendanceSearch !== '' || $attendanceFrom !== '' || $attendanceTo !== '' || $attendanceStatus !== '';
+
+    $countStmt = db()->prepare('SELECT COUNT(*) FROM attendance a JOIN users u ON u.user_id = a.user_id WHERE ' . $attendanceWhereSql);
+    $countStmt->execute($attendanceFilterParams);
+    $attendanceTotal = (int)$countStmt->fetchColumn();
+    $attendanceTotalPages = max(1, (int)ceil($attendanceTotal / $attendancePerPage));
+    $attendancePage = min($attendancePage, $attendanceTotalPages);
+    $attendanceOffset = ($attendancePage - 1) * $attendancePerPage;
+
     if ($user['role'] === 'gym_owner' && $currentGymId) {
         $members = db()->query('
             SELECT DISTINCT u.user_id, 
@@ -161,7 +276,7 @@ function attendance_page(): void
             ORDER BY s.start_datetime
         ')->fetchAll();
 
-        $rows = db()->query('
+        $rowsStmt = db()->prepare('
             SELECT a.*, CONCAT(u.first_name, " ", u.last_name) AS member, u.first_name, u.last_name, u.role, c.class_name,
                    (SELECT CONCAT(ge.name, IF(ge.unit_number != "" AND ge.unit_number != "#1" AND ge.unit_number != "1", CONCAT(" (", ge.unit_number, ")"), ""))
                     FROM equipment_sessions es
@@ -172,10 +287,12 @@ function attendance_page(): void
             JOIN users u ON u.user_id = a.user_id 
             LEFT JOIN class_schedules s ON s.schedule_id = a.schedule_id 
             LEFT JOIN classes c ON c.class_id = s.class_id 
-            WHERE (a.gym_id = ' . (int)$currentGymId . ' OR a.recorded_by = ' . (int)$user['user_id'] . ')
+            WHERE ' . $attendanceWhereSql . '
             ORDER BY a.check_in_time DESC 
-            LIMIT 100
-        ')->fetchAll();
+            LIMIT ' . $attendancePerPage . ' OFFSET ' . $attendanceOffset . '
+        ');
+        $rowsStmt->execute($attendanceFilterParams);
+        $rows = $rowsStmt->fetchAll(PDO::FETCH_ASSOC);
     } else {
         $members = db()->query('
             SELECT DISTINCT u.user_id, u.first_name, u.last_name, u.email, u.profile_picture, u.role, 1 AS is_affiliated, CONCAT(u.first_name, " ", u.last_name, " (", u.role, ")") AS name 
@@ -186,7 +303,7 @@ function attendance_page(): void
             ORDER BY u.role, u.first_name, u.last_name
         ')->fetchAll();
         $schedules = db()->query('SELECT s.schedule_id, CONCAT(c.class_name, " - ", DATE_FORMAT(s.start_datetime, "%b %d %h:%i %p")) AS label FROM class_schedules s JOIN classes c ON c.class_id = s.class_id WHERE s.start_datetime >= DATE_SUB(NOW(), INTERVAL 1 DAY) ORDER BY s.start_datetime')->fetchAll();
-        $rows = db()->query('
+        $rowsStmt = db()->prepare('
             SELECT a.*, CONCAT(u.first_name, " ", u.last_name) AS member, u.first_name, u.last_name, u.role, c.class_name,
                    (SELECT CONCAT(ge.name, IF(ge.unit_number != "" AND ge.unit_number != "#1" AND ge.unit_number != "1", CONCAT(" (", ge.unit_number, ")"), ""))
                     FROM equipment_sessions es
@@ -197,10 +314,27 @@ function attendance_page(): void
             JOIN users u ON u.user_id = a.user_id 
             LEFT JOIN class_schedules s ON s.schedule_id = a.schedule_id 
             LEFT JOIN classes c ON c.class_id = s.class_id 
+            WHERE ' . $attendanceWhereSql . '
             ORDER BY a.check_in_time DESC 
-            LIMIT 100
-        ')->fetchAll();
+            LIMIT ' . $attendancePerPage . ' OFFSET ' . $attendanceOffset . '
+        ');
+        $rowsStmt->execute($attendanceFilterParams);
+        $rows = $rowsStmt->fetchAll(PDO::FETCH_ASSOC);
     }
+
+    // Keep users with an open check-in off the manual check-in picker to prevent duplicate entries.
+    $checkedInSql = 'SELECT DISTINCT user_id FROM attendance WHERE check_out_time IS NULL AND DATE(check_in_time) = CURDATE()';
+    $checkedInParams = [];
+    if ($currentGymId) {
+        $checkedInSql .= ' AND (gym_id = ? OR gym_id IS NULL)';
+        $checkedInParams[] = $currentGymId;
+    }
+    $checkedInStmt = db()->prepare($checkedInSql);
+    $checkedInStmt->execute($checkedInParams);
+    $checkedInIds = array_fill_keys(array_map('intval', $checkedInStmt->fetchAll(PDO::FETCH_COLUMN)), true);
+    $availableCheckinMembers = array_values(array_filter($members ?: [], static function ($member) use ($checkedInIds): bool {
+        return !isset($checkedInIds[(int)($member['user_id'] ?? 0)]);
+    }));
 
     $checkinMembersData = array_map(function ($m) {
         $first = trim((string)($m['first_name'] ?? ''));
@@ -217,7 +351,49 @@ function attendance_page(): void
             'initials' => $ini ?: 'U',
             'avatar'   => !empty($m['profile_picture']) ? upload_url($m['profile_picture']) : null
         ];
-    }, $members ?: []);
+    }, $availableCheckinMembers);
+
+    // Prepare Equipment items for Global FitDropdown with Category Headers & Subtitles
+    $checkinEquipmentData = [];
+    $checkinEquipmentData[] = [
+        'id'       => '',
+        'label'    => '— None / General Floor Access —',
+        'subtitle' => 'General floor entry without assigned machine'
+    ];
+    $groupedEquip = [];
+    foreach ($availableEquipment as $eq) {
+        $catName = !empty($eq['category']) ? $eq['category'] : 'Equipment';
+        $groupedEquip[$catName][] = $eq;
+    }
+    foreach ($groupedEquip as $catName => $items) {
+        $checkinEquipmentData[] = [
+            'label'    => $catName . ' (' . count($items) . ')',
+            'isHeader' => true
+        ];
+        foreach ($items as $eqItem) {
+            $uNum = trim((string)($eqItem['unit_number'] ?? ''));
+            $uStr = ($uNum !== '' && $uNum !== '#1' && $uNum !== '1') ? ' ' . $uNum : '';
+            $loc = !empty($eqItem['location_area']) ? $eqItem['location_area'] : $catName;
+            $checkinEquipmentData[] = [
+                'id'       => (int)$eqItem['equipment_id'],
+                'label'    => $eqItem['name'] . $uStr,
+                'subtitle' => $loc,
+                'badge'    => $catName
+            ];
+        }
+    }
+
+    // Prepare Session items for Global FitDropdown
+    $checkinSessionsData = [
+        ['id' => '', 'label' => '— General Check-in —', 'subtitle' => 'Standard floor workout']
+    ];
+    foreach ($schedules as $s) {
+        $checkinSessionsData[] = [
+            'id'       => (int)$s['schedule_id'],
+            'label'    => $s['label'],
+            'subtitle' => 'Scheduled Class Session'
+        ];
+    }
 
     render_header('Attendance', $user);
     ?>
@@ -247,11 +423,49 @@ function attendance_page(): void
 
 
 
-        <p class="section-label">Recent attendance (last 100)</p>
+        <form method="get" action="index.php" style="display:grid; grid-template-columns:repeat(auto-fit,minmax(160px,1fr)); gap:12px; align-items:end; margin:0 0 18px; padding:16px; background:var(--surface); border:1px solid var(--line); border-radius:12px;">
+            <input type="hidden" name="page" value="attendance">
+            <?php if ($currentGymId): ?><input type="hidden" name="gym_id" value="<?= (int)$currentGymId ?>"><?php endif; ?>
+            <label style="display:grid; gap:6px; color:var(--muted); font-size:12px; font-weight:600;">
+                Member
+                <input type="search" name="attendance_search" value="<?= h($attendanceSearch) ?>" placeholder="Search member name" style="width:100%; box-sizing:border-box; padding:9px 11px; color:var(--ink); background:var(--bg); border:1px solid var(--line); border-radius:8px;">
+            </label>
+            <label style="display:grid; gap:6px; color:var(--muted); font-size:12px; font-weight:600;">
+                From
+                <span style="position:relative;display:block;width:100%;">
+                    <input type="text" name="attendance_from" data-attendance-date-text="from" value="<?= $attendanceFrom !== '' ? h(date('m/d/y', strtotime($attendanceFrom))) : '' ?>" placeholder="MM/DD/YY" inputmode="numeric" maxlength="8" pattern="\d{2}/\d{2}/\d{2}" style="width:100%; box-sizing:border-box; padding:9px 42px 9px 11px; color:var(--ink); background:var(--bg); border:1px solid var(--line); border-radius:8px;">
+                    <svg aria-hidden="true" viewBox="0 0 24 24" width="16" height="16" style="position:absolute;right:12px;top:50%;transform:translateY(-50%);color:var(--muted);pointer-events:none;"><rect x="3" y="5" width="18" height="16" rx="2" fill="none" stroke="currentColor" stroke-width="2"/><path d="M16 3v4M8 3v4M3 11h18" fill="none" stroke="currentColor" stroke-width="2"/></svg>
+                    <input type="date" data-attendance-date-picker="from" value="<?= h($attendanceFrom) ?>" aria-label="Choose start date" style="position:absolute;right:0;top:0;width:40px;height:100%;opacity:0;cursor:pointer;">
+                </span>
+            </label>
+            <label style="display:grid; gap:6px; color:var(--muted); font-size:12px; font-weight:600;">
+                To
+                <span style="position:relative;display:block;width:100%;">
+                    <input type="text" name="attendance_to" data-attendance-date-text="to" value="<?= $attendanceTo !== '' ? h(date('m/d/y', strtotime($attendanceTo))) : '' ?>" placeholder="MM/DD/YY" inputmode="numeric" maxlength="8" pattern="\d{2}/\d{2}/\d{2}" style="width:100%; box-sizing:border-box; padding:9px 42px 9px 11px; color:var(--ink); background:var(--bg); border:1px solid var(--line); border-radius:8px;">
+                    <svg aria-hidden="true" viewBox="0 0 24 24" width="16" height="16" style="position:absolute;right:12px;top:50%;transform:translateY(-50%);color:var(--muted);pointer-events:none;"><rect x="3" y="5" width="18" height="16" rx="2" fill="none" stroke="currentColor" stroke-width="2"/><path d="M16 3v4M8 3v4M3 11h18" fill="none" stroke="currentColor" stroke-width="2"/></svg>
+                    <input type="date" data-attendance-date-picker="to" value="<?= h($attendanceTo) ?>" aria-label="Choose end date" style="position:absolute;right:0;top:0;width:40px;height:100%;opacity:0;cursor:pointer;">
+                </span>
+            </label>
+            <label style="display:grid; gap:6px; color:var(--muted); font-size:12px; font-weight:600;">
+                Status
+                <select name="attendance_status" style="width:100%; box-sizing:border-box; padding:9px 11px; color:var(--ink); background:var(--bg); border:1px solid var(--line); border-radius:8px;">
+                    <option value="">All statuses</option>
+                    <option value="in_gym" <?= $attendanceStatus === 'in_gym' ? 'selected' : '' ?>>In gym</option>
+                    <option value="checked_out" <?= $attendanceStatus === 'checked_out' ? 'selected' : '' ?>>Checked out</option>
+                </select>
+            </label>
+            <div style="display:flex; gap:8px; align-items:center;">
+                <button type="submit" class="btn btn-primary" style="padding:9px 14px;">Filter</button>
+                <?php if ($attendanceFilterActive): ?>
+                    <a href="<?= h('index.php?' . http_build_query(array_filter(['page' => 'attendance', 'gym_id' => $currentGymId]))) ?>" class="btn btn-secondary" style="padding:9px 14px; text-decoration:none;">Clear</a>
+                <?php endif; ?>
+            </div>
+        </form>
+        <p class="section-label">Attendance history<?= $attendanceFilterActive ? ' (' . $attendanceTotal . ' matching)' : '' ?></p>
         <?php if (!$rows): ?>
             <div class="empty-state">
                 <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
-                <p>No attendance records yet.<br>Use the form above to record a check-in.</p>
+                <p><?= $attendanceFilterActive ? 'No attendance records match these filters.' : 'No attendance records yet.<br>Use the form above to record a check-in.' ?></p>
             </div>
         <?php else: ?>
         <div class="table-wrap">
@@ -311,7 +525,7 @@ function attendance_page(): void
                         </td>
                         <td>
                             <?php if (!$checkedOut): ?>
-                                <form method="post">
+                                <form method="post" class="attendance-checkout-form" data-member-name="<?= h($row['member']) ?>">
                                     <?= csrf_field() ?>
                                     <input type="hidden" name="action" value="checkout">
                                     <input type="hidden" name="attendance_id" value="<?= (int) $row['attendance_id'] ?>">
@@ -324,21 +538,92 @@ function attendance_page(): void
                 </tbody>
             </table>
         </div>
+        <?php if ($attendanceTotalPages > 1):
+            $attendancePageUrl = static function (int $page) use ($currentGymId, $attendanceSearch, $attendanceFrom, $attendanceTo, $attendanceStatus): string {
+                $params = ['page' => 'attendance', 'attendance_page' => $page];
+                if ($currentGymId) $params['gym_id'] = $currentGymId;
+                if ($attendanceSearch !== '') $params['attendance_search'] = $attendanceSearch;
+                if ($attendanceFrom !== '') $params['attendance_from'] = $attendanceFrom;
+                if ($attendanceTo !== '') $params['attendance_to'] = $attendanceTo;
+                if ($attendanceStatus !== '') $params['attendance_status'] = $attendanceStatus;
+                return 'index.php?' . http_build_query($params);
+            };
+        ?>
+            <nav aria-label="Attendance pages" style="display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap; margin-top:18px;">
+                <span style="font-size:13px; color:var(--muted);">Showing <?= $attendanceOffset + 1 ?>–<?= min($attendanceOffset + $attendancePerPage, $attendanceTotal) ?> of <?= $attendanceTotal ?></span>
+                <div style="display:flex; align-items:center; gap:8px;">
+                    <?php if ($attendancePage > 1): ?>
+                        <a class="btn btn-secondary" href="<?= h($attendancePageUrl($attendancePage - 1)) ?>" style="padding:6px 12px; text-decoration:none;">Previous</a>
+                    <?php endif; ?>
+                    <span style="font-size:13px; color:var(--muted);">Page <?= $attendancePage ?> of <?= $attendanceTotalPages ?></span>
+                    <?php if ($attendancePage < $attendanceTotalPages): ?>
+                        <a class="btn btn-secondary" href="<?= h($attendancePageUrl($attendancePage + 1)) ?>" style="padding:6px 12px; text-decoration:none;">Next</a>
+                    <?php endif; ?>
+                </div>
+            </nav>
+        <?php endif; ?>
         <?php endif; ?>
     </section>
     
     <script>
     window.checkinMembersData = <?= json_encode($checkinMembersData ?? [], JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP) ?>;
+    window.checkinEquipmentData = <?= json_encode($checkinEquipmentData ?? [], JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP) ?>;
+    window.checkinSessionsData = <?= json_encode($checkinSessionsData ?? [], JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP) ?>;
+
+    document.querySelectorAll('[data-attendance-date-picker]').forEach(function(picker) {
+        picker.addEventListener('change', function() {
+            if (!picker.value) return;
+            const dateText = document.querySelector('[data-attendance-date-text="' + picker.dataset.attendanceDatePicker + '"]');
+            if (!dateText) return;
+            const parts = picker.value.split('-');
+            dateText.value = parts[1] + '/' + parts[2] + '/' + parts[0].slice(-2);
+        });
+    });
+
+    document.addEventListener('submit', function(event) {
+        const form = event.target.closest('.attendance-checkout-form');
+        if (!form || form.dataset.checkoutConfirmed === 'true') return;
+        event.preventDefault();
+
+        const memberName = form.dataset.memberName || 'this member';
+        if (typeof Swal === 'undefined') {
+            if (window.confirm(`Check out ${memberName}?`)) form.submit();
+            return;
+        }
+
+        const accentColor = getComputedStyle(document.documentElement).getPropertyValue('--lime').trim() || '#84cc16';
+        Swal.fire({
+            icon: 'question',
+            title: 'Confirm check-out',
+            text: `Check out ${memberName}?`,
+            showCancelButton: true,
+            confirmButtonText: 'Check out',
+            cancelButtonText: 'Keep checked in',
+            confirmButtonColor: accentColor,
+            reverseButtons: true,
+            focusCancel: true
+        }).then(result => {
+            if (result.isConfirmed) {
+                form.dataset.checkoutConfirmed = 'true';
+                form.submit();
+            }
+        });
+    });
 
     function recordCheckin() {
         const checkinUsers = Array.isArray(window.checkinMembersData) ? window.checkinMembersData : [];
+        const initialEquipItems = Array.isArray(window.checkinEquipmentData) ? window.checkinEquipmentData : [];
+        const initialSessionItems = Array.isArray(window.checkinSessionsData) ? window.checkinSessionsData : [];
         let userDrop = null;
+        let sessionDrop = null;
+        let equipDrop = null;
+        let equipSearchTimer = null;
 
         Swal.fire({
             title: 'Record Check-in',
-            width: '460px',
+            width: '470px',
             html: `
-                <form id="recordCheckinForm" method="post" style="text-align: left; display: flex; flex-direction: column; gap: 14px; margin-top: 15px; min-height: 300px; position: relative;">
+                <form id="recordCheckinForm" method="post" style="text-align: left; display: flex; flex-direction: column; gap: 14px; margin-top: 15px; min-height: 320px; position: relative;">
                     <?= csrf_field() ?>
                     <input type="hidden" name="action" value="checkin">
                     <input type="hidden" name="user_id" id="checkinUserId" value="">
@@ -350,42 +635,13 @@ function attendance_page(): void
                     
                     <div>
                         <label id="sessionLabel" style="display:block; color: var(--muted); font-size: 13.5px; margin-bottom: 6px; font-weight: 500;">Session</label>
-                        <select name="schedule_id" class="form-control" style="width: 100%; height: 42px; box-sizing: border-box; background: var(--panel); color: var(--ink); border: 1px solid var(--line); border-radius: 8px; padding: 0 12px; font-size: 13px; font-family: inherit; outline: none; cursor: pointer;">
-                            <option value="" style="font-size: 13px;">— General Check-in —</option>
-                            <?php foreach ($schedules as $schedule): ?>
-                                <option value="<?= (int) $schedule['schedule_id'] ?>" style="font-size: 13px;"><?= h($schedule['label']) ?></option>
-                            <?php endforeach; ?>
-                        </select>
+                        <div id="checkinSessionWrap"></div>
                     </div>
 
                     <div>
                         <label style="display:block; color: var(--muted); font-size: 13.5px; margin-bottom: 6px; font-weight: 500;">Assign Equipment <span style="font-size: 11.5px; opacity: 0.8; font-weight: normal;">(Optional)</span></label>
-                        <select name="equipment_id" class="form-control" style="width: 100%; height: 42px; box-sizing: border-box; background: var(--panel); color: var(--ink); border: 1px solid var(--line); border-radius: 8px; padding: 0 12px; font-size: 13px; font-family: inherit; outline: none; cursor: pointer;">
-                            <option value="">— None / General Floor Access —</option>
-                            <?php if (!empty($availableEquipment)): ?>
-                                <?php
-                                $groupedEquip = [];
-                                foreach ($availableEquipment as $eq) {
-                                    $catName = !empty($eq['category']) ? $eq['category'] : 'Equipment';
-                                    $groupedEquip[$catName][] = $eq;
-                                }
-                                foreach ($groupedEquip as $catName => $items):
-                                ?>
-                                    <optgroup label="<?= h($catName) ?>">
-                                        <?php foreach ($items as $eqItem): 
-                                            $uNum = trim((string)($eqItem['unit_number'] ?? ''));
-                                            $uStr = ($uNum !== '' && $uNum !== '#1' && $uNum !== '1') ? ' ' . $uNum : '';
-                                            $locStr = !empty($eqItem['location_area']) ? ' • ' . $eqItem['location_area'] : '';
-                                        ?>
-                                            <option value="<?= (int) $eqItem['equipment_id'] ?>"><?= h($eqItem['name'] . $uStr . $locStr) ?></option>
-                                        <?php endforeach; ?>
-                                    </optgroup>
-                                <?php endforeach; ?>
-                            <?php else: ?>
-                                <option value="" disabled>No equipment currently available</option>
-                            <?php endif; ?>
-                        </select>
-                        <div style="font-size: 11.5px; color: var(--muted); margin-top: 4px;">Assign a machine for members whose phone was left behind.</div>
+                        <div id="checkinEquipWrap"></div>
+                        <div style="font-size: 11.5px; color: var(--muted); margin-top: 5px;">Assign a machine for members whose phone was left behind.</div>
                     </div>
                     
                     <input type="hidden" name="check_in_method" value="manual">
@@ -399,18 +655,77 @@ function attendance_page(): void
             color: 'var(--ink)',
             didOpen: () => {
                 const userIdInput = document.getElementById('checkinUserId');
+
+                // 1. User Selection Dropdown
                 userDrop = new FitDropdown({
                     container: '#checkinUserWrap',
                     placeholder: 'Search user by name or email...',
                     searchable: true,
                     searchPlaceholder: 'Search users...',
                     allowClear: true,
-                    zIndex: 80,
+                    zIndex: 90,
                     items: checkinUsers,
                     onChange: (selectedUser) => {
                         if (userIdInput) {
                             userIdInput.value = selectedUser ? selectedUser.id : '';
                         }
+                    }
+                });
+
+                // 2. Session Selection Dropdown
+                sessionDrop = new FitDropdown({
+                    container: '#checkinSessionWrap',
+                    name: 'schedule_id',
+                    id: 'checkinScheduleId',
+                    placeholder: '— General Check-in —',
+                    searchable: false,
+                    zIndex: 80,
+                    items: initialSessionItems,
+                    value: ''
+                });
+
+                // 3. Equipment Selection Dropdown with Hybrid Live Search
+                equipDrop = new FitDropdown({
+                    container: '#checkinEquipWrap',
+                    name: 'equipment_id',
+                    id: 'checkinEquipmentId',
+                    placeholder: '— None / General Floor Access —',
+                    searchable: true,
+                    searchPlaceholder: 'Search machine, unit #, or zone...',
+                    allowClear: true,
+                    zIndex: 70,
+                    items: initialEquipItems,
+                    value: '',
+                    onSearch: function(q, updateBadge, setResults) {
+                        clearTimeout(equipSearchTimer);
+                        const query = q.trim();
+
+                        if (!query) {
+                            updateBadge('');
+                            setResults(initialEquipItems);
+                            return;
+                        }
+
+                        // Hybrid Live Search:
+                        // 1. Client-side instant filter is executed immediately by FitDropdown
+                        // 2. Debounced asynchronous search queries live database across all zones
+                        updateBadge('Searching...');
+                        equipSearchTimer = setTimeout(() => {
+                            fetch('index.php?page=attendance&action=search_equipment&q=' + encodeURIComponent(query))
+                                .then(res => res.json())
+                                .then(data => {
+                                    if (data && data.success && Array.isArray(data.results)) {
+                                        updateBadge(data.count + (data.count === 1 ? ' machine' : ' machines'));
+                                        setResults(data.results);
+                                    } else {
+                                        updateBadge('');
+                                    }
+                                })
+                                .catch(err => {
+                                    console.warn('[FitDropdown] Equipment search error:', err);
+                                    updateBadge('');
+                                });
+                        }, 200);
                     }
                 });
             },
