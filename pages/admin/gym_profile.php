@@ -169,7 +169,7 @@ function gym_profile_page(): void
         if ($image) {
             FileUpload::deleteGymGalleryImage($image['image_url']);
             $pdo->prepare('DELETE FROM gym_images WHERE id = ?')->execute([$imageId]);
-            flash('Photo deleted from gallery successfully.', 'success');
+            redirect('gym_profile?open_gallery=1&gallery_deleted=1');
         }
         redirect('gym_profile?open_gallery=1');
     }

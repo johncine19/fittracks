@@ -190,32 +190,47 @@
                 }
             }).then((result) => {
                 if (result.isConfirmed) {
-                    const form = document.createElement('form');
-                    form.method = 'POST';
-                    
-                    const csrfInput = document.querySelector('input[name="csrf_token"]');
-                    if (csrfInput) {
-                        const csrfClone = document.createElement('input');
-                        csrfClone.type = 'hidden';
-                        csrfClone.name = 'csrf_token';
-                        csrfClone.value = csrfInput.value;
-                        form.appendChild(csrfClone);
-                    }
-                    
-                    const actionInput = document.createElement('input');
-                    actionInput.type = 'hidden';
-                    actionInput.name = 'delete_gallery_image';
-                    actionInput.value = '1';
-                    form.appendChild(actionInput);
-                    
-                    const idInput = document.createElement('input');
-                    idInput.type = 'hidden';
-                    idInput.name = 'image_id';
-                    idInput.value = imageId;
-                    form.appendChild(idInput);
-                    
-                    document.body.appendChild(form);
-                    form.submit();
+                    Swal.fire({
+                        title: 'Deleting photo…',
+                        text: 'Please wait while the photo is removed.',
+                        allowOutsideClick: false,
+                        allowEscapeKey: false,
+                        showConfirmButton: false,
+                        background: 'var(--panel)',
+                        color: 'var(--ink)',
+                        customClass: { container: 'gym-gallery-delete-alert' },
+                        didOpen: () => {
+                            Swal.showLoading();
+                            window.setTimeout(() => {
+                                const form = document.createElement('form');
+                                form.method = 'POST';
+
+                                const csrfInput = document.querySelector('input[name="csrf_token"]');
+                                if (csrfInput) {
+                                    const csrfClone = document.createElement('input');
+                                    csrfClone.type = 'hidden';
+                                    csrfClone.name = 'csrf_token';
+                                    csrfClone.value = csrfInput.value;
+                                    form.appendChild(csrfClone);
+                                }
+
+                                const actionInput = document.createElement('input');
+                                actionInput.type = 'hidden';
+                                actionInput.name = 'delete_gallery_image';
+                                actionInput.value = '1';
+                                form.appendChild(actionInput);
+
+                                const idInput = document.createElement('input');
+                                idInput.type = 'hidden';
+                                idInput.name = 'image_id';
+                                idInput.value = imageId;
+                                form.appendChild(idInput);
+
+                                document.body.appendChild(form);
+                                form.submit();
+                            }, 150);
+                        }
+                    });
                 }
             });
         }
@@ -232,7 +247,22 @@
                 openCustomModal('modal-gallery');
                 const cleanUrl = new URL(window.location.href);
                 cleanUrl.searchParams.delete('open_gallery');
+                const photoDeleted = cleanUrl.searchParams.get('gallery_deleted') === '1';
+                cleanUrl.searchParams.delete('gallery_deleted');
                 window.history.replaceState({}, '', cleanUrl);
+
+                if (photoDeleted && typeof Swal !== 'undefined') {
+                    Swal.fire({
+                        icon: 'success',
+                        title: 'Photo deleted',
+                        text: 'The photo was removed from your gallery.',
+                        confirmButtonText: 'OK',
+                        confirmButtonColor: 'var(--lime-dark)',
+                        background: 'var(--panel)',
+                        color: 'var(--ink)',
+                        customClass: { container: 'gym-gallery-delete-alert' }
+                    });
+                }
             }
 
             const form = document.getElementById('gym-profile-form');
