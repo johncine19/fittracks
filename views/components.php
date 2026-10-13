@@ -2627,7 +2627,6 @@ function render_current_workout(int $memberUserId, bool $dashboardMode = false, 
         // Header
         echo '<div class="workout-dashboard-header">';
         echo '  <div class="workout-dashboard-title-group">';
-        echo '    <div class="workout-dashboard-icon-wrap"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="m6.5 6.5 11 11"/><path d="m21 21-1-1"/><path d="m3 3 1 1"/><path d="m18 22 4-4"/><path d="m2 6 4-4"/><path d="m3 10 7-7"/><path d="m14 21 7-7"/></svg></div>';
         echo '    <div>';
         echo '      <h2 style="margin:0; font-size: 1.25rem; font-weight:800; color: var(--ink);">Your Workout Plan</h2>';
         echo '      <div class="workout-plan-sub">';
@@ -2788,19 +2787,6 @@ function render_current_workout(int $memberUserId, bool $dashboardMode = false, 
             .workout-dashboard-title-group {
                 display: flex;
                 align-items: center;
-                gap: 12px;
-            }
-            .workout-dashboard-icon-wrap {
-                width: 40px;
-                height: 40px;
-                border-radius: 10px;
-                background: color-mix(in srgb, var(--lime) 12%, transparent);
-                color: var(--lime);
-                border: 1px solid color-mix(in srgb, var(--lime) 25%, transparent);
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                flex-shrink: 0;
             }
             .workout-plan-sub {
                 display: flex;
@@ -3051,15 +3037,6 @@ function render_current_workout(int $memberUserId, bool $dashboardMode = false, 
                 }
                 .workout-dashboard-title-group {
                     width: 100%;
-                }
-                .workout-dashboard-icon-wrap {
-                    width: 36px;
-                    height: 36px;
-                    border-radius: 8px;
-                }
-                .workout-dashboard-icon-wrap svg {
-                    width: 18px;
-                    height: 18px;
                 }
                 .workout-plan-top-link {
                     width: 100%;
@@ -3405,11 +3382,6 @@ function render_current_workout(int $memberUserId, bool $dashboardMode = false, 
             /* LIGHT MODE ADAPTATION */
             [data-theme="light"] .workout-dashboard-header {
                 border-bottom-color: #e2e8f0;
-            }
-            [data-theme="light"] .workout-dashboard-icon-wrap {
-                background: #ecfccb;
-                color: #365314;
-                border-color: #bef264;
             }
             [data-theme="light"] .workout-plan-badge {
                 background: #f1f5f9;

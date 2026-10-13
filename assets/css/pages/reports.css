@@ -901,6 +901,12 @@ select option {
         min-width: 0 !important;
         max-width: none;
     }
+    /* Keep the wider searchable menu inside the viewport on narrow screens. */
+    #gymScopeDropdownContainer .fit-dropdown-menu {
+        left: auto;
+        right: 0;
+        max-width: min(380px, calc(100vw - 24px));
+    }
     .reports-hero-scope select {
         flex: 1;
         min-width: 0 !important;
@@ -1372,6 +1378,11 @@ select option {
 /* EOD Settlement Modal Close Button */
 .swal2-popup.eod-settlement-modal {
     position: relative !important;
+}
+.eod-reading-badge {
+    flex: 0 0 auto;
+    white-space: nowrap;
+    word-break: keep-all;
 }
 .swal2-popup.eod-settlement-modal .swal2-close {
     position: absolute !important;

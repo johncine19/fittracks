@@ -42,6 +42,20 @@ function gym_profile_page(): void
             ? max(1, (int) post('inactivity_cooldown_days')) 
             : null;
         $autoInactivityAlerts = isset($_POST['auto_inactivity_alerts']) ? 1 : 0;
+
+        $fbGeneral = post('fb_page_url') !== null ? trim((string)post('fb_page_url')) : null;
+        $fbModal = post('modal_fb_page_url') !== null ? trim((string)post('modal_fb_page_url')) : null;
+        $fbRaw = $fbModal !== null && $fbModal !== ($gym['fb_page_url'] ?? '')
+            ? $fbModal
+            : ($fbGeneral !== null ? $fbGeneral : $fbModal);
+        $fbPageUrl = trim((string)$fbRaw);
+        if ($fbPageUrl !== '') {
+            if (!preg_match('~^https?://~i', $fbPageUrl)) {
+                $fbPageUrl = 'https://' . $fbPageUrl;
+            }
+        } else {
+            $fbPageUrl = null;
+        }
         
         if ($canCustomBrand) {
             $brandColor = trim((string) post('brand_color'));
@@ -151,8 +165,8 @@ function gym_profile_page(): void
         }
 
         if ($name && $address && $contact) {
-            $pdo->prepare('UPDATE gyms SET name = ?, address = ?, contact_info = ?, walk_in_fee = ?, inactivity_threshold_days = ?, inactivity_cooldown_days = ?, auto_inactivity_alerts = ?, business_permit_url = ?, barangay_clearance_url = ?, fire_safety_cert_url = ?, logo_url = ?, cover_image_url = ?, public_description = ?, brand_color = ?, staff_hide_financials = ?, eod_email_summary = ? WHERE gym_id = ?')
-                ->execute([$name, $address, $contact, $walkInFee, $inactivityThreshold, $inactivityCooldown, $autoInactivityAlerts, $permitUrl, $brgyUrl, $fireSafetyUrl, $logoUrl, $coverImageUrl, $publicDescription, $brandColor, $staffHideFinancials, $eodEmailSummary, $gym['gym_id']]);
+            $pdo->prepare('UPDATE gyms SET name = ?, address = ?, contact_info = ?, fb_page_url = ?, walk_in_fee = ?, inactivity_threshold_days = ?, inactivity_cooldown_days = ?, auto_inactivity_alerts = ?, business_permit_url = ?, barangay_clearance_url = ?, fire_safety_cert_url = ?, logo_url = ?, cover_image_url = ?, public_description = ?, brand_color = ?, staff_hide_financials = ?, eod_email_summary = ? WHERE gym_id = ?')
+                ->execute([$name, $address, $contact, $fbPageUrl, $walkInFee, $inactivityThreshold, $inactivityCooldown, $autoInactivityAlerts, $permitUrl, $brgyUrl, $fireSafetyUrl, $logoUrl, $coverImageUrl, $publicDescription, $brandColor, $staffHideFinancials, $eodEmailSummary, $gym['gym_id']]);
             flash('Gym settings updated successfully.', 'success');
             redirect('gym_profile');
         } else {
@@ -176,8 +190,6 @@ function gym_profile_page(): void
 
     $galleryImages = $pdo->query('SELECT * FROM gym_images WHERE gym_id = ' . (int)$gym['gym_id'] . ' ORDER BY created_at DESC')->fetchAll();
     $gymTier = gym_subscription_tier($gym);
-    $memberCount = gym_active_member_count((int)$gym['gym_id']);
-    $memberLimit = gym_member_limit($gym);
     $currentGalleryCount = count($galleryImages);
     $remainingSlots = max(0, 10 - $currentGalleryCount);
 
@@ -198,18 +210,6 @@ function gym_profile_page(): void
                     Facility information, visual branding, business permits, and media gallery.
                 </p>
                 <div class="profile-meta-badges">
-                    <span class="tier-pill">
-                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg>
-                        <?= h(ucfirst($gymTier)) ?> Plan
-                    </span>
-                    <span class="capacity-pill">
-                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
-                        Active Members: <?= $memberCount ?>
-                    </span>
-                    <span class="capacity-pill" style="color: #fbbf24; border-color: rgba(251, 191, 36, 0.3); background: rgba(251, 191, 36, 0.08);">
-                        <svg width="12" height="12" viewBox="0 0 24 24" fill="#fbbf24" stroke="none"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
-                        Rating: <?= number_format((float)$gymRatingStats['avg_rating'], 1) ?> (<?= (int)$gymRatingStats['total_reviews'] ?>)
-                    </span>
                     <?php if ($gymTier !== 'business'): ?>
                         <a href="index.php?page=gym_subscription" style="font-size: 11.5px; font-weight: 700; color: var(--lime, #84cc16); text-decoration: none; display: inline-flex; align-items: center; gap: 3px;">
                             Upgrade Plan →
@@ -389,6 +389,17 @@ function gym_profile_page(): void
                                 </div>
                                 <span class="field-hint">Phone number or support email for inquiries.</span>
                             </div>
+
+                            <div>
+                                <label class="field-label" for="fb_page_url">Facebook / Social Media Page</label>
+                                <div class="input-icon-wrap">
+                                    <span class="input-icon">
+                                        <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg>
+                                    </span>
+                                    <input type="text" name="fb_page_url" id="fb_page_url" class="input-with-icon" value="<?= h($gym['fb_page_url'] ?? '') ?>" placeholder="https://facebook.com/yourgympage">
+                                </div>
+                                <span class="field-hint">Official Facebook or social profile link for prospective members.</span>
+                            </div>
                         </div>
                     </section>
 
@@ -500,11 +511,9 @@ function gym_profile_page(): void
                                                     <img id="public-cover-preview-img" src="" alt="Cover image preview" hidden>
                                                     <span id="public-cover-placeholder">Your cover photo preview</span>
                                                 <?php endif; ?>
+                                                <button type="button" class="public-cover-change" id="public-cover-change" aria-label="Change cover photo">Change cover photo</button>
                                             </div>
-                                            <label class="public-cover-upload btn btn-secondary">
-                                                <span>Choose Cover Image</span>
-                                                <input type="file" name="cover_image" id="cover-image-input" accept="image/jpeg,image/png,image/webp,image/gif">
-                                            </label>
+                                            <input type="file" name="cover_image" id="cover-image-input" accept="image/jpeg,image/png,image/webp,image/gif" class="public-cover-input">
                                         </div>
                                         <div class="public-description-column">
                                             <label class="field-label public-description-label" for="public-description-input">Public description</label>
@@ -670,6 +679,31 @@ function gym_profile_page(): void
                             <?php if (!empty($gym['fire_safety_cert_url'])): ?>
                                 <a href="<?= h(upload_url($gym['fire_safety_cert_url'], 'permits')) ?>" target="_blank" class="btn btn-secondary" style="font-size: 11px; padding: 4px 9px; border-radius: 6px;">
                                     View
+                                </a>
+                            <?php endif; ?>
+                        </div>
+
+                        <!-- Facebook / Social Media Link -->
+                        <div class="overview-doc-item">
+                            <div class="overview-doc-left">
+                                <div class="overview-doc-icon <?= !empty($gym['fb_page_url']) ? 'is-verified' : 'is-optional' ?>" style="<?= !empty($gym['fb_page_url']) ? 'background: color-mix(in srgb, #1877f2 15%, transparent); color: #1877f2; border-color: color-mix(in srgb, #1877f2 35%, transparent);' : '' ?>">
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg>
+                                </div>
+                                <div class="overview-doc-info">
+                                    <div class="overview-doc-name">Facebook Page / Social Link <span style="font-size: 10.5px; color: var(--muted);">(Optional)</span></div>
+                                    <div class="overview-doc-status" title="<?= h($gym['fb_page_url'] ?? '') ?>">
+                                        <?php if (!empty($gym['fb_page_url'])): ?>
+                                            <span style="color: var(--teal, #10b981); font-weight: 600;">✅ Linked</span>
+                                        <?php else: ?>
+                                            <span style="color: var(--muted);">Not linked yet</span>
+                                        <?php endif; ?>
+                                    </div>
+                                </div>
+                            </div>
+                            <?php if (!empty($gym['fb_page_url'])): ?>
+                                <a href="<?= h($gym['fb_page_url']) ?>" target="_blank" rel="noopener noreferrer" class="btn btn-secondary" style="font-size: 11px; padding: 4px 9px; border-radius: 6px; display: inline-flex; align-items: center; gap: 4px;">
+                                    <span>Visit</span>
+                                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
                                 </a>
                             <?php endif; ?>
                         </div>
@@ -1052,6 +1086,29 @@ function gym_profile_page(): void
                             <span style="font-size: 10.5px; color: var(--muted);">PDF, JPG, PNG (Max 10MB)</span>
                             <input type="file" name="fire_safety_cert" id="fire-file-input" accept=".pdf,.jpg,.jpeg,.png">
                         </label>
+                    </div>
+
+                    <!-- 4. Facebook Page / Social Media Link -->
+                    <div style="background: var(--panel-soft); border: 1px solid var(--line); border-radius: 12px; padding: 14px; display: flex; flex-direction: column; gap: 10px;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; gap: 8px;">
+                            <div>
+                                <strong style="font-size: 13px; color: var(--ink); display: block;">Facebook Page / Social Link (Optional)</strong>
+                                <span style="font-size: 11.5px; color: var(--muted);">Facility public profile for verification and member discovery.</span>
+                            </div>
+                            <?php if (!empty($gym['fb_page_url'])): ?>
+                                <span style="font-size: 10.5px; font-weight: 700; color: var(--teal, #10b981); background: color-mix(in srgb, var(--teal, #10b981) 14%, transparent); border: 1px solid color-mix(in srgb, var(--teal, #10b981) 28%, transparent); padding: 2px 7px; border-radius: 5px;">
+                                    ✅ Linked
+                                </span>
+                            <?php endif; ?>
+                        </div>
+
+                        <div class="input-icon-wrap">
+                            <span class="input-icon">
+                                <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg>
+                            </span>
+                            <input type="text" name="modal_fb_page_url" id="modal_fb_page_url" class="input-with-icon" value="<?= h($gym['fb_page_url'] ?? '') ?>" placeholder="https://facebook.com/yourgympage">
+                        </div>
+                        <span class="field-hint" style="font-size: 11px; color: var(--muted); margin-top: -4px;">e.g., https://facebook.com/ironfitnesscenter</span>
                     </div>
                 </div>
                 <div class="custom-modal-footer">

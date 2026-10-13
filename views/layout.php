@@ -1972,6 +1972,7 @@ HTML;
         return;
     }
     echo '</main>';
+    echo $themeScript;
     echo $confirmScript;
     echo $passwordScript;
     echo $skeletonScript;

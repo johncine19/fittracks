@@ -3,28 +3,45 @@ declare(strict_types=1);
 
 function view_gym_page(): void
 {
-    $user = require_roles(['member', 'platform_admin', 'gym_owner']);
+    if (!defined('AUTH_PAGE')) {
+        define('AUTH_PAGE', true);
+    }
+
+    $user = current_user();
     $pdo = db();
     
     $gymId = (int) ($_GET['gym_id'] ?? 0);
-    $fromGymSelection = ($user['role'] === 'member' && ($_GET['from'] ?? '') === 'gym_selection');
+    $fromGymSelection = ($user && ($user['role'] ?? '') === 'member' && ($_GET['from'] ?? '') === 'gym_selection');
     if (!$gymId) {
         flash('Invalid gym ID.', 'danger');
-        redirect('dashboard');
+        redirect($user ? 'dashboard' : 'login');
     }
     
-    $stmt = $pdo->prepare('SELECT * FROM gyms WHERE gym_id = ? AND status = "approved"');
-    $stmt->execute([$gymId]);
+    // Check if the current user is owner of this gym or admin to allow previewing
+    $isOwner = $user && ($user['role'] ?? '') === 'gym_owner' && ((int)($user['user_id'] ?? 0) > 0);
+    $isAdmin = $user && ($user['role'] ?? '') === 'platform_admin';
+
+    if ($isAdmin) {
+        $stmt = $pdo->prepare('SELECT * FROM gyms WHERE gym_id = ?');
+        $stmt->execute([$gymId]);
+    } elseif ($isOwner) {
+        $stmt = $pdo->prepare('SELECT * FROM gyms WHERE gym_id = ? AND (status = "approved" OR owner_user_id = ?)');
+        $stmt->execute([$gymId, (int)$user['user_id']]);
+    } else {
+        $stmt = $pdo->prepare('SELECT * FROM gyms WHERE gym_id = ? AND status = "approved"');
+        $stmt->execute([$gymId]);
+    }
     $gym = $stmt->fetch(PDO::FETCH_ASSOC);
     
     if (!$gym) {
         flash('Gym not found or not active.', 'danger');
-        redirect('dashboard');
+        redirect($user ? 'dashboard' : 'login');
     }
+    $facebookPageUrl = trim((string) ($gym['fb_page_url'] ?? ''));
 
     // Affiliation check for members
     $isAffiliatedWithThisGym = false;
-    if ($user['role'] === 'member') {
+    if ($user && ($user['role'] ?? '') === 'member') {
         $stmtAff = $pdo->prepare('SELECT 1 FROM gym_members WHERE user_id = ? AND gym_id = ?');
         $stmtAff->execute([$user['user_id'], $gymId]);
         $isAffiliatedWithThisGym = (bool) $stmtAff->fetchColumn();
@@ -33,8 +50,8 @@ function view_gym_page(): void
     // Ratings & Reviews for this Gym
     $ratingStats = get_gym_rating_stats($gymId);
     $gymReviews = get_gym_reviews($gymId, 50);
-    $canReview = ($user['role'] === 'member') && can_user_review_gym((int)$user['user_id'], $gymId);
-    $myReview = ($user['role'] === 'member') ? get_user_gym_review((int)$user['user_id'], $gymId) : null;
+    $canReview = ($user && ($user['role'] ?? '') === 'member') && can_user_review_gym((int)$user['user_id'], $gymId);
+    $myReview = ($user && ($user['role'] ?? '') === 'member') ? get_user_gym_review((int)$user['user_id'], $gymId) : null;
     
     // Classes
     $stmtClasses = $pdo->prepare('
@@ -89,6 +106,17 @@ function view_gym_page(): void
 
     $brandColor = !empty($gym['brand_color']) ? $gym['brand_color'] : 'var(--lime)';
 
+    $backUrl = match($user['role'] ?? null) {
+        'gym_owner' => 'index.php?page=gym_profile',
+        'platform_admin' => 'index.php?page=gyms',
+        default => ($fromGymSelection ? 'index.php?page=gym_selection' : 'index.php?page=dashboard#explore'),
+    };
+    $backLabel = match($user['role'] ?? null) {
+        'gym_owner' => 'Back to Gym Profile',
+        'platform_admin' => 'Back to All Gyms',
+        default => ($fromGymSelection ? 'Back to Gyms' : 'Back to Dashboard'),
+    };
+
     render_header($gym['name'] . ' - Partner Gym', $user);
     ?>
 
@@ -98,6 +126,53 @@ function view_gym_page(): void
         }
     </style>
     <link rel="stylesheet" href="<?= h(asset_url('css/pages/view_gym.css')) ?>">
+
+    <!-- STANDALONE DEDICATED GYM NAVBAR -->
+    <header class="gym-standalone-navbar">
+        <div class="gym-nav-left">
+            <a href="index.php" class="gym-nav-brand">
+                <span class="gym-nav-brand-mark">FT</span>
+                <span class="gym-nav-brand-text">Fit<span style="color:var(--lime,#84cc16);">Track</span></span>
+            </a>
+            <span class="gym-nav-divider">/</span>
+            <div class="gym-nav-facility-badge">
+                <span class="facility-status-dot"></span>
+                <span><?= h($gym['name']) ?></span>
+            </div>
+            <?php if ($user && ($user['role'] ?? '') === 'gym_owner' && (int)($gym['owner_user_id'] ?? 0) === (int)$user['user_id']): ?>
+                <span class="gym-nav-preview-pill">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                    Public Preview
+                </span>
+            <?php endif; ?>
+        </div>
+
+        <div class="gym-nav-right">
+            <button class="theme-toggle" id="theme-toggle-btn" title="Toggle Light/Dark Mode" type="button" aria-label="Toggle theme">
+                <!-- icon injected by JS -->
+            </button>
+            <?php if ($user): ?>
+                <a href="<?= h($backUrl) ?>" class="btn-gym-nav-back">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg>
+                    <span><?= h($backLabel) ?></span>
+                </a>
+                <div class="gym-nav-user-chip">
+                    <?php if (!empty($user['profile_picture'])): ?>
+                        <img src="<?= h(upload_url($user['profile_picture'])) ?>" alt="Avatar" class="gym-nav-avatar">
+                    <?php else: ?>
+                        <span class="gym-nav-avatar-initials"><?= h(initials($user)) ?></span>
+                    <?php endif; ?>
+                    <div class="gym-nav-user-meta">
+                        <strong><?= h($user['first_name'] . ' ' . $user['last_name']) ?></strong>
+                        <small><?= h(ucfirst($user['role'])) ?></small>
+                    </div>
+                </div>
+            <?php else: ?>
+                <a href="index.php?page=login" class="btn-gym-nav-login">Sign In</a>
+                <a href="index.php?page=register" class="btn-gym-nav-register">Join FitTrack</a>
+            <?php endif; ?>
+        </div>
+    </header>
 
     <div class="gym-showcase-container animate-fade-in <?= $fromGymSelection ? 'gym-selection-showcase' : '' ?>">
         <!-- Hero Banner Card -->
@@ -155,6 +230,12 @@ function view_gym_page(): void
                                     <span><?= h($gym['contact_info']) ?></span>
                                 </span>
                             <?php endif; ?>
+                            <?php if ($facebookPageUrl !== ''): ?>
+                                <a href="<?= h($facebookPageUrl) ?>" target="_blank" rel="noopener noreferrer" class="gym-meta-item gym-meta-social" style="color: #60a5fa; text-decoration: none; transition: color 0.2s;" onmouseover="this.style.color='#93c5fd'" onmouseout="this.style.color='#60a5fa'">
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg>
+                                    <span>Facebook Page ↗</span>
+                                </a>
+                            <?php endif; ?>
                         </div>
                         <?php if (!empty($gym['public_description'])): ?>
                             <p class="gym-public-description"><?= nl2br(h($gym['public_description'])) ?></p>
@@ -163,11 +244,11 @@ function view_gym_page(): void
                 </div>
 
                 <div class="gym-hero-actions">
-                    <a href="<?= $fromGymSelection ? 'index.php?page=gym_selection' : 'index.php?page=dashboard#explore' ?>" class="btn-action-back">
+                    <a href="<?= h($backUrl) ?>" class="btn-action-back">
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg>
-                        <span><?= $fromGymSelection ? 'Back to gyms' : 'Back to Dashboard' ?></span>
+                        <span><?= h($backLabel) ?></span>
                     </a>
-                    <?php if ($user['role'] === 'member' && !$isAffiliatedWithThisGym): ?>
+                    <?php if ($user && ($user['role'] ?? '') === 'member' && !$isAffiliatedWithThisGym): ?>
                         <form method="post" action="index.php?page=gym_selection" style="margin: 0;">
                             <?= csrf_field() ?>
                             <input type="hidden" name="action" value="select_gym">
@@ -253,7 +334,7 @@ function view_gym_page(): void
                     </div>
                     <span>Classes & Sessions</span>
                 </div>
-                <?php if ($user['role'] === 'member'): ?>
+                <?php if ($user && ($user['role'] ?? '') === 'member'): ?>
                     <a href="index.php?page=book_classes" class="gym-section-header-link">
                         <span>Schedule & Booking</span>
                         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg>
@@ -279,7 +360,7 @@ function view_gym_page(): void
                                     <?php endif; ?>
                                 </div>
                             </div>
-                            <?php if ($user['role'] === 'member'): ?>
+                            <?php if ($user && ($user['role'] ?? '') === 'member'): ?>
                                 <a href="index.php?page=book_classes" class="explore-action-btn btn-book">
                                     <span>Book</span>
                                     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg>
@@ -310,7 +391,7 @@ function view_gym_page(): void
 
                 <div class="gym-equip-grid">
                     <?php foreach ($equipment as $idx => $eq): ?>
-                        <div class="gym-equip-card <?= $idx >= 4 ? 'gym-equip-extra' : '' ?>" <?= $idx >= 4 ? 'style="display:none;"' : '' ?>>
+                        <div class="gym-equip-card <?= $idx >= 5 ? 'gym-equip-extra' : '' ?>" <?= $idx >= 5 ? 'style="display:none;"' : '' ?>>
                             <div class="gym-equip-icon">
                                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
                             </div>
@@ -335,7 +416,7 @@ function view_gym_page(): void
                     <?php endforeach; ?>
                 </div>
 
-                <?php if (count($equipment) > 4): ?>
+                <?php if (count($equipment) > 5): ?>
                     <div style="text-align: center; margin-top: 14px;">
                         <button type="button" class="btn-toggle-equip" id="btnToggleEquip" data-expanded="false" onclick="toggleAllEquipment(<?= count($equipment) ?>)">
                             <span>View all <?= count($equipment) ?> equipment</span>
@@ -554,7 +635,7 @@ function view_gym_page(): void
                                     <div>
                                         <div class="review-user-name">
                                             <?= h($rev['first_name'] . ' ' . $rev['last_name']) ?>
-                                            <?php if ((int)$rev['user_id'] === (int)$user['user_id']): ?>
+                                            <?php if ($user && (int)$rev['user_id'] === (int)$user['user_id']): ?>
                                                 <span class="review-you-pill">You</span>
                                             <?php endif; ?>
                                             <span class="review-verified-pill">
@@ -591,7 +672,7 @@ function view_gym_page(): void
         </div>
     </div>
 
-    <?php if ($fromGymSelection && $user['role'] === 'member' && !$isAffiliatedWithThisGym): ?>
+    <?php if ($fromGymSelection && $user && ($user['role'] ?? '') === 'member' && !$isAffiliatedWithThisGym): ?>
         <div class="gym-selection-sticky-action">
             <div class="gym-selection-sticky-copy">
                 <strong><?= h($gym['name']) ?></strong>

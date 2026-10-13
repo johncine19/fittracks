@@ -318,6 +318,12 @@
             const coverInput = document.getElementById('cover-image-input');
             const coverPreview = document.getElementById('public-cover-preview-img');
             const coverPlaceholder = document.getElementById('public-cover-placeholder');
+            const coverChangeButton = document.getElementById('public-cover-change');
+            if (coverChangeButton && coverInput) {
+                coverChangeButton.addEventListener('click', function() {
+                    coverInput.click();
+                });
+            }
             if (coverInput && coverPreview) {
                 coverInput.addEventListener('change', function() {
                     const file = this.files && this.files[0];
@@ -458,4 +464,18 @@
                     applyColor(this.dataset.color);
                 });
             });
+
+            // Synchronize Facebook / Social Page inputs across General Info & Documents Modal
+            const fbGeneralInput = document.getElementById('fb_page_url');
+            const fbModalInput = document.getElementById('modal_fb_page_url');
+            if (fbGeneralInput && fbModalInput) {
+                fbGeneralInput.addEventListener('input', function() {
+                    fbModalInput.value = this.value;
+                    if (typeof markDirty === 'function') markDirty();
+                });
+                fbModalInput.addEventListener('input', function() {
+                    fbGeneralInput.value = this.value;
+                    if (typeof markDirty === 'function') markDirty();
+                });
+            }
         });

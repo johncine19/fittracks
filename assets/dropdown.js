@@ -283,7 +283,7 @@
                     `;
                 }
 
-                const isSelected = this.selectedItem && String(this.selectedItem.id) === String(item.id);
+                const isSelected = (!this.selectedItem && (item.id === '' || item.id === null)) || (this.selectedItem && String(this.selectedItem.id) === String(item.id));
                 
                 let iconHtml = '';
                 if (item.avatar) {
@@ -340,6 +340,11 @@
             FitDropdown.closeAll();
             this.isOpen = true;
             this.wrap.style.zIndex = '99999';
+            const parentForm = this.wrap.closest('form, .filter-form, .exercises-filter-form, .panel, .card, .report-tabs-mobile-wrap');
+            if (parentForm) {
+                this._prevParentZIndex = parentForm.style.zIndex;
+                parentForm.style.zIndex = '99999';
+            }
             this.trigger.classList.add('open');
             this.trigger.setAttribute('aria-expanded', 'true');
             this.menu.style.display = 'block';
@@ -361,6 +366,10 @@
             if (!this.isOpen) return;
             this.isOpen = false;
             this.wrap.style.zIndex = this.baseZIndex;
+            const parentForm = this.wrap.closest('form, .filter-form, .exercises-filter-form, .panel, .card, .report-tabs-mobile-wrap');
+            if (parentForm) {
+                parentForm.style.zIndex = this._prevParentZIndex || '';
+            }
             this.trigger.classList.remove('open');
             this.trigger.setAttribute('aria-expanded', 'false');
             this.menu.style.display = 'none';

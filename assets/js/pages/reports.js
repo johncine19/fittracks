@@ -1201,7 +1201,7 @@
                                         <div style="font-size:16px;font-weight:800;color:var(--ink);">${gymName}</div>
                                         <div style="font-size:12px;color:var(--muted);margin-top:2px;">Daily Settlement &bull; <strong>${d.date_formatted}</strong></div>
                                     </div>
-                                    <span style="background:rgba(132,204,22,0.12);color:var(--lime);font-size:11px;font-weight:800;padding:3px 8px;border-radius:6px;border:1px solid rgba(132,204,22,0.3);">
+                                    <span class="eod-reading-badge" style="background:rgba(132,204,22,0.12);color:var(--lime);font-size:11px;font-weight:800;padding:3px 8px;border-radius:6px;border:1px solid rgba(132,204,22,0.3);">
                                         Z-READING
                                     </span>
                                 </div>

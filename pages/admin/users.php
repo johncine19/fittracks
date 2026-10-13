@@ -550,10 +550,10 @@ function users_page(): void
                         <div id="roleComboboxWrap"></div>
                     </label>
                     <div id="trainer_fields" style="display: <?= ($oldUser['role'] ?? '') === 'trainer' ? 'grid' : 'none' ?>; grid-column: 1 / -1; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px;">
-                        <label>Specialization <small style="font-weight:400">(trainer only)</small>
+                        <label>Specialization
                             <input name="specialization" id="new_user_spec" value="<?= h($oldUser['specialization'] ?? '') ?>" placeholder="e.g. Strength & Conditioning">
                         </label>
-                        <label>Bio <small style="font-weight:400">(trainer only)</small>
+                        <label>Bio
                             <input name="bio" value="<?= h($oldUser['bio'] ?? '') ?>" placeholder="Short bio">
                         </label>
                     </div>

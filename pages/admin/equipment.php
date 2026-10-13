@@ -70,20 +70,17 @@ function gym_equipment_page(): void
 
     <link rel="stylesheet" href="<?= h(asset_url('css/pages/admin_equipment.css')) ?>">
 
-    <div class="equipment-admin-container" style="max-width: 1300px; margin: 0 auto; padding-bottom: 60px;">
+    <div class="equipment-admin-container">
         <!-- Top Title Bar -->
-        <div class="equip-header-row" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px; margin-bottom: 24px;">
+        <div class="equip-header-row">
             <div>
                 <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 4px; flex-wrap: wrap;">
                     <h1 style="margin: 0; font-size: clamp(22px, 5vw, 26px); color: var(--ink);">Equipment Management</h1>
-                    <span style="background: color-mix(in srgb, var(--lime) 15%, transparent); color: var(--lime); border: 1px solid color-mix(in srgb, var(--lime) 30%, transparent); font-size: 12px; font-weight: 700; padding: 3px 10px; border-radius: 20px;">
-                        <?= h($gymName) ?>
-                    </span>
                 </div>
                 <p style="margin: 0; color: var(--muted); font-size: 14px;">Manage machines, monitor live occupancy & queues, log maintenance, and review usage metrics.</p>
             </div>
 
-            <div class="equip-header-actions" style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
+            <div class="equip-header-actions">
                 <?php if (!empty($allGyms)): ?>
                     <form method="GET" style="display: inline-flex; align-items: center; gap: 6px;">
                         <input type="hidden" name="page" value="gym_equipment">
@@ -97,7 +94,7 @@ function gym_equipment_page(): void
                     </form>
                 <?php endif; ?>
 
-                <button type="button" onclick="openAddModal()" class="btn" style="background: var(--lime); color: #fff; font-weight: 700; padding: 10px 22px; border-radius: 8px; border: none; cursor: pointer; display: flex; align-items: center; gap: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.15);">
+                <button type="button" onclick="openAddModal()" class="btn btn-add-equip" style="background: var(--lime); color: #fff; font-weight: 700; padding: 10px 22px; border-radius: 8px; border: none; cursor: pointer; display: flex; align-items: center; gap: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.15);">
                     <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
                     Add Equipment
                 </button>
@@ -297,51 +294,49 @@ function gym_equipment_page(): void
             </div>
 
             <!-- DESCRIPTIVE ANALYTICS SECTION -->
-            <div class="equip-admin-card" style="padding: 22px 24px; margin-bottom: 24px;">
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 18px; flex-wrap: wrap; gap: 10px;">
+            <div class="equip-admin-card equip-analytics-card">
+                <div class="equip-analytics-header">
                     <div>
-                        <h3 style="margin: 0 0 4px; font-size: 17px; color: var(--ink);">Equipment Usage & Analytics</h3>
-                        <p style="margin: 0; font-size: 13px; color: var(--muted);">Descriptive metrics derived from recorded equipment sessions and queues.</p>
+                        <h3 class="equip-analytics-title">Equipment Usage & Analytics</h3>
+                        <p class="equip-analytics-sub">Descriptive metrics derived from recorded equipment sessions and queues.</p>
                     </div>
-                    <div class="equip-analytics-meta-pills" style="display: flex; gap: 12px; font-size: 13px; flex-wrap: wrap;">
-                        <span style="background: var(--panel-soft); border: 1px solid var(--line); padding: 5px 12px; border-radius: 8px; color: var(--muted);">
-                            Avg. Session: <strong style="color: var(--ink);"><?= $avgDurationMins ?> mins</strong>
+                    <div class="equip-analytics-meta-pills">
+                        <span class="equip-meta-pill">
+                            Avg. Session: <strong><?= $avgDurationMins ?> mins</strong>
                         </span>
-                        <span style="background: var(--panel-soft); border: 1px solid var(--line); padding: 5px 12px; border-radius: 8px; color: var(--lime); font-weight: bold;">
-                            Total Time: <strong style="color: var(--lime);"><?= $totalUsageHours ?> hrs</strong>
+                        <span class="equip-meta-pill equip-meta-pill-accent">
+                            Total Time: <strong><?= $totalUsageHours ?> hrs</strong>
                         </span>
-                        <span style="background: var(--panel-soft); border: 1px solid var(--line); padding: 5px 12px; border-radius: 8px; color: var(--muted);">
-                            Completed: <strong style="color: var(--ink);"><?= $totalSessions ?> sessions</strong>
+                        <span class="equip-meta-pill">
+                            Completed: <strong><?= $totalSessions ?> sessions</strong>
                         </span>
                     </div>
                 </div>
 
-                <div class="analytics-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 18px;">
+                <div class="analytics-grid">
                     <!-- Top Used Equipment -->
                     <div class="analytics-subcard">
-                        <h4 style="margin: 0 0 14px; font-size: 13px; color: var(--ink); text-transform: uppercase; letter-spacing: 0.05em; display: flex; align-items: center; gap: 6px;">
+                        <h4 class="analytics-subcard-title">
                             <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
                             Top Used Equipment
                         </h4>
                         <?php if (empty($topUsed)): ?>
-                            <div style="text-align: center; padding: 24px 0; color: var(--muted); font-size: 13px;">
+                            <div class="analytics-empty">
                                 No completed equipment sessions recorded yet.
                             </div>
                         <?php else: ?>
-                            <ul style="list-style: none; padding: 0; margin: 0;">
+                            <ul class="top-used-list">
                                 <?php foreach ($topUsed as $idx => $t): ?>
-                                    <li style="display: flex; justify-content: space-between; align-items: center; padding: 9px 0; border-bottom: 1px solid var(--line); font-size: 13px; gap: 10px; flex-wrap: wrap;">
-                                        <div style="display: flex; align-items: center; gap: 8px; min-width: 0;">
-                                            <span style="display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; border-radius: 50%; background: var(--line); font-size: 11px; font-weight: 700; color: var(--muted); flex-shrink: 0;">
-                                                <?= $idx + 1 ?>
-                                            </span>
-                                            <strong style="color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;"><?= h($t['name']) ?></strong>
-                                            <span class="unit-pill" style="font-size: 11px; flex-shrink: 0;"><?= h($t['unit_number']) ?></span>
-                                            <span style="font-size: 11px; color: var(--muted); white-space: nowrap;">(<?= h($t['category']) ?>)</span>
+                                    <li class="top-used-item">
+                                        <div class="top-used-info">
+                                            <span class="top-used-rank"><?= $idx + 1 ?></span>
+                                            <strong class="top-used-name"><?= h($t['name']) ?></strong>
+                                            <span class="unit-pill"><?= h($t['unit_number']) ?></span>
+                                            <span class="top-used-cat">(<?= h($t['category']) ?>)</span>
                                         </div>
-                                        <div style="text-align: right; white-space: nowrap;">
-                                            <strong style="color: var(--ink);"><?= $t['session_count'] ?></strong> <span style="color: var(--muted); font-size: 12px;">sessions</span>
-                                            <span style="color: var(--muted); font-size: 11px; margin-left: 6px;">(<?= round((float)$t['total_seconds'] / 3600, 1) ?> hrs)</span>
+                                        <div class="top-used-stats">
+                                            <strong><?= $t['session_count'] ?></strong> <span class="top-used-stat-label">sessions</span>
+                                            <span class="top-used-hours">(<?= round((float)$t['total_seconds'] / 3600, 1) ?> hrs)</span>
                                         </div>
                                     </li>
                                 <?php endforeach; ?>
@@ -351,26 +346,26 @@ function gym_equipment_page(): void
 
                     <!-- Queue Demand Summary -->
                     <div class="analytics-subcard">
-                        <h4 style="margin: 0 0 14px; font-size: 13px; color: var(--ink); text-transform: uppercase; letter-spacing: 0.05em; display: flex; align-items: center; gap: 6px;">
+                        <h4 class="analytics-subcard-title">
                             <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
                             Queue Demand & Turnaround
                         </h4>
-                        <div style="display: flex; flex-direction: column; gap: 12px; font-size: 13px;">
-                            <div style="display: flex; justify-content: space-between; border-bottom: 1px solid var(--line); padding-bottom: 8px;">
-                                <span style="color: var(--muted);">Total Queue Requests Logged:</span>
-                                <strong style="color: var(--ink);"><?= $totalQueueRequests ?></strong>
+                        <div class="queue-demand-list">
+                            <div class="queue-demand-row">
+                                <span>Total Queue Requests Logged:</span>
+                                <strong><?= $totalQueueRequests ?></strong>
                             </div>
-                            <div style="display: flex; justify-content: space-between; border-bottom: 1px solid var(--line); padding-bottom: 8px;">
-                                <span style="color: var(--muted);">Successfully Claimed via Queue:</span>
+                            <div class="queue-demand-row">
+                                <span>Successfully Claimed via Queue:</span>
                                 <strong style="color: #059669;"><?= $claimedQueues ?></strong>
                             </div>
-                            <div style="display: flex; justify-content: space-between; border-bottom: 1px solid var(--line); padding-bottom: 8px;">
-                                <span style="color: var(--muted);">Cancelled / Passed Queues:</span>
+                            <div class="queue-demand-row">
+                                <span>Cancelled / Passed Queues:</span>
                                 <strong style="color: #dc2626;"><?= $cancelledQueues ?></strong>
                             </div>
-                            <div style="display: flex; justify-content: space-between; padding-top: 2px;">
-                                <span style="color: var(--muted);">Claim Conversion Rate:</span>
-                                <strong style="color: var(--ink);">
+                            <div class="queue-demand-row queue-demand-row-total">
+                                <span>Claim Conversion Rate:</span>
+                                <strong>
                                     <?= $totalQueueRequests > 0 ? round(($claimedQueues / $totalQueueRequests) * 100, 1) . '%' : 'N/A' ?>
                                 </strong>
                             </div>

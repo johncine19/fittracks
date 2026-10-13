@@ -185,70 +185,159 @@ function exercises_page(): void
         .ex-pill.category { background: rgba(56,189,248,0.12); color: #38bdf8; }
         .ex-pill.muscle { background: rgba(234,88,12,0.12); color: var(--orange, #ea580c); }
         .exercises-banner {
-            background: linear-gradient(135deg, rgba(234, 88, 12, 0.08) 0%, rgba(255, 255, 255, 0.02) 100%);
-            border: 1px solid rgba(234, 88, 12, 0.22);
-            border-left: 4px solid var(--orange, #ea580c);
-            border-radius: 16px;
-            padding: 24px 28px;
+            background: var(--panel);
+            border: 1px solid var(--line);
+            border-radius: 12px;
+            padding: 20px 24px;
             margin-bottom: 24px;
-            box-shadow: 0 4px 24px rgba(0,0,0,0.08);
-            backdrop-filter: blur(16px);
             display: flex;
             justify-content: space-between;
-            align-items: flex-start;
+            align-items: center;
             flex-wrap: wrap;
-            gap: 16px;
+            gap: 20px;
         }
-        [data-theme="light"] .exercises-banner {
-            background: linear-gradient(135deg, #ffffff 0%, #fff7ed 100%);
-            border: 1px solid #fed7aa;
-            border-left: 4px solid var(--orange, #ea580c);
-            box-shadow: 0 4px 18px rgba(15, 23, 42, 0.05);
+        .exercises-banner-copy {
+            min-width: 0;
         }
-        [data-theme="dark"] .exercises-banner {
-            background: linear-gradient(135deg, rgba(26, 30, 40, 0.95) 0%, rgba(16, 19, 27, 0.95) 100%);
-            border: 1px solid var(--line);
-            border-left: 4px solid var(--orange, #ea580c);
+        .exercises-banner-action {
+            flex: 0 0 auto;
+        }
+        .exercises-title {
+            display: flex;
+            align-items: center;
+            gap: 11px;
+            margin: 0;
+            color: var(--ink);
+            font-size: 22px;
+            font-weight: 750;
+            letter-spacing: -0.025em;
+        }
+        .exercises-banner-description {
+            margin: 8px 0 0;
+            color: var(--muted);
+            font-size: 14px;
+        }
+        .exercises-new-button {
+            min-height: 42px;
+            padding: 9px 14px;
+            border: 1px solid var(--lime-dark, #9fd21c);
+            border-radius: 8px;
+            background: var(--lime, #c7ff22);
+            color: #080b0d;
+            font-weight: 700;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            transition: background 0.18s ease, border-color 0.18s ease;
+        }
+        .exercises-new-button:hover {
+            background: var(--lime-dark, #9fd21c);
+            border-color: var(--lime-dark, #9fd21c);
+        }
+        .exercises-filter-button {
+            transition: background-color 0.18s ease, border-color 0.18s ease, color 0.18s ease;
+        }
+        .exercises-filter-button:hover {
+            background: color-mix(in srgb, var(--surface) 88%, var(--lime)) !important;
+            border-color: color-mix(in srgb, var(--line) 45%, var(--lime));
+            color: var(--ink);
+        }
+        .exercises-filter-button:focus-visible {
+            outline: 2px solid var(--lime);
+            outline-offset: 2px;
+        }
+        .exercises-filter-form {
+            position: relative;
+            z-index: 50;
+        }
+        .exercises-category-dropdown {
+            position: relative;
+            z-index: 55;
+        }
+        @media (max-width: 600px) {
+            .exercises-banner {
+                align-items: stretch;
+                padding: 16px 14px;
+                gap: 14px;
+            }
+            .exercises-title {
+                gap: 9px;
+                font-size: 20px;
+            }
+            .exercises-banner-description {
+                margin-top: 7px;
+                font-size: 13px;
+            }
+            .exercises-banner-action {
+                width: 100%;
+            }
+            .exercises-new-button {
+                width: 100%;
+                justify-content: center;
+            }
+            .exercises-filter-form {
+                display: grid !important;
+                grid-template-columns: minmax(0, 1fr) minmax(84px, auto);
+                gap: 10px !important;
+            }
+            .exercises-search-field {
+                grid-column: 1 / -1;
+                max-width: none !important;
+            }
+            .exercises-category-field,
+            .exercises-category-dropdown,
+            .exercises-filter-button {
+                width: 100%;
+                max-width: none !important;
+                min-width: 0;
+            }
+            .exercises-clear-button {
+                grid-column: 1 / -1;
+                justify-self: center;
+            }
         }
     </style>
 
     <div>
-        <!-- Glassmorphic Banner -->
         <div class="exercises-banner animate-fade-in">
-            <div>
-                <h1 style="margin: 0; font-size: 26px; color: var(--ink); display: flex; align-items: center; gap: 12px; font-weight: 800;">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="var(--orange, #ea580c)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18.36 6.64a9 9 0 1 1-12.73 0"/><line x1="12" y1="2" x2="12" y2="12"/></svg>
+            <div class="exercises-banner-copy">
+                <h1 class="exercises-title">
                     Exercises Database
                 </h1>
-                <p style="margin: 8px 0 0 0; color: var(--muted); font-size: 15px; max-width: 600px;">
+                <p class="exercises-banner-description">
                     Manage the global library of exercises used for workout templates.
                 </p>
             </div>
-            <div style="display:flex; gap:12px;">
-                <button type="button" onclick="openNewExerciseModal()" style="background: var(--orange, #ea580c); border: none; color: #ffffff; padding: 10px 16px; border-radius: 8px; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 8px; transition: opacity 0.2s;">
+            <div class="exercises-banner-action">
+                <button type="button" class="exercises-new-button" onclick="openNewExerciseModal()">
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
                     New Exercise
                 </button>
             </div>
         </div>
 
-        <form method="get" class="animate-fade-in" style="display:flex; gap:12px; margin-bottom: 24px; align-items: center; flex-wrap: wrap;">
+        <form method="get" class="animate-fade-in exercises-filter-form" style="display:flex; gap:12px; margin-bottom: 24px; align-items: center; flex-wrap: wrap; position: relative; z-index: 50;">
             <input type="hidden" name="page" value="exercises">
-            <div style="position: relative; max-width: 300px; flex-grow: 1;">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--muted)" stroke-width="2" style="position: absolute; left: 12px; top: 50%; transform: translateY(-50%);"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-                <input type="text" name="q" class="form-control" placeholder="Search exercises..." value="<?= h($q) ?>" style="padding-left: 40px; width: 100%;">
+            <div class="exercises-search-field" style="position: relative; max-width: 300px; flex-grow: 1;">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--muted)" stroke-width="2" style="position: absolute; left: 12px; top: 50%; transform: translateY(-50%); pointer-events: none;"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                <input type="text" name="q" class="form-control" placeholder="Search exercises..." value="<?= h($q) ?>" style="padding-left: 40px; width: 100%; height: 42px; border-radius: 8px; box-sizing: border-box;">
             </div>
             
-            <select name="cat" class="form-control" style="max-width:200px;">
-                <option value="">All Categories</option>
-                <?php foreach ($allCategories as $c): ?>
-                    <option value="<?= h($c) ?>" <?= selected($cat, $c) ?>><?= h(ucfirst($c)) ?></option>
-                <?php endforeach; ?>
-            </select>
+            <div id="exerciseCategoryDropdownWrap" class="exercises-category-dropdown" style="min-width: 180px; max-width: 220px; flex: 0 1 200px; position: relative; z-index: 55;">
+                <noscript>
+                    <select name="cat" class="form-control exercises-category-field" style="max-width:200px; height: 42px;">
+                        <option value="">All Categories</option>
+                        <?php foreach ($allCategories as $c): ?>
+                            <option value="<?= h($c) ?>" <?= selected($cat, $c) ?>><?= h(ucfirst($c)) ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                </noscript>
+            </div>
             
-            <button type="submit" class="btn" style="background: var(--surface); color: var(--ink); border: 1px solid var(--line); font-weight: 500;">Filter</button>
+            <button type="submit" class="btn exercises-filter-button" style="height: 42px; padding: 0 18px; border-radius: 8px; background: var(--surface); color: var(--ink); border: 1px solid var(--line); font-weight: 600; display: inline-flex; align-items: center; justify-content: center; cursor: pointer;">Filter</button>
             <?php if ($q || $cat): ?>
-                <a href="index.php?page=exercises" class="btn" style="background: transparent; border: none; color: var(--muted); text-decoration: none; padding: 0 8px;">Clear</a>
+                <a href="index.php?page=exercises" class="btn exercises-clear-button" style="background: transparent; border: none; color: var(--muted); text-decoration: none; padding: 0 8px; font-size: 13px;">Clear</a>
             <?php endif; ?>
         </form>
 
@@ -387,6 +476,32 @@ function exercises_page(): void
     </dialog>
 
     <script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const filterForm = document.querySelector('.exercises-filter-form');
+        const container = document.getElementById('exerciseCategoryDropdownWrap');
+        if (typeof FitDropdown !== 'undefined' && container) {
+            window.exerciseCategoryDropdown = new FitDropdown({
+                container: '#exerciseCategoryDropdownWrap',
+                name: 'cat',
+                id: 'exerciseCatInput',
+                value: <?= json_encode((string)($cat ?? '')) ?>,
+                placeholder: 'All Categories',
+                zIndex: 60,
+                items: [
+                    { id: '', label: 'All Categories' },
+                    <?php foreach ($allCategories as $c): ?>
+                    { id: <?= json_encode((string)$c) ?>, label: <?= json_encode(ucfirst((string)$c)) ?> },
+                    <?php endforeach; ?>
+                ],
+                onChange: function(item) {
+                    if (filterForm) {
+                        filterForm.submit();
+                    }
+                }
+            });
+        }
+    });
+
     function openNewExerciseModal() {
         document.getElementById('exForm').reset();
         document.getElementById('exFormAction').value = 'create';

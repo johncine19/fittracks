@@ -218,11 +218,11 @@ if (FT_USERS_CONFIG.hasOldUser) {
 
                     <div id="eu_trainer_fields" class="eu-trainer-fields" style="display: none;">
                         <label class="eu-field eu-field-full">
-                            <span class="eu-label">Specialization <small style="font-weight:400;">(trainer only)</small></span>
+                            <span class="eu-label">Specialization</span>
                             <input name="specialization" id="eu_spec" class="form-control" placeholder="e.g. Strength & Conditioning">
                         </label>
                         <label class="eu-field eu-field-full">
-                            <span class="eu-label">Bio <small style="font-weight:400;">(trainer only)</small></span>
+                            <span class="eu-label">Bio</span>
                             <input name="bio" id="eu_bio" class="form-control" placeholder="Short bio">
                         </label>
                     </div>

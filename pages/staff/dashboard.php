@@ -211,7 +211,6 @@ function staff_dashboard(PDO $pdo, array $user): void
 
         <?php if (empty($activeMembers)): ?>
             <div style="text-align: center; padding: 40px 20px; color: var(--muted);">
-                <div style="font-size: 38px; margin-bottom: 10px;">🏋️</div>
                 <div style="font-size: 16px; font-weight: 700; color: var(--ink);">No active check-ins right now</div>
                 <p style="font-size: 13px; margin: 4px 0 16px;">Scan a member's QR code or register a walk-in to check them in.</p>
                 <a href="index.php?page=scanner" class="btn btn-primary btn-sm" style="text-decoration: none;">Launch Scanner</a>
@@ -326,7 +325,7 @@ function staff_dashboard(PDO $pdo, array $user): void
                                         <div style="font-size:16px;font-weight:800;color:var(--ink);">${gymName}</div>
                                         <div style="font-size:12px;color:var(--muted);margin-top:2px;">Daily Settlement &bull; <strong>${d.date_formatted}</strong></div>
                                     </div>
-                                    <span style="background:rgba(132,204,22,0.12);color:var(--lime);font-size:11px;font-weight:800;padding:3px 8px;border-radius:6px;border:1px solid rgba(132,204,22,0.3);">
+                                    <span class="eod-reading-badge" style="background:rgba(132,204,22,0.12);color:var(--lime);font-size:11px;font-weight:800;padding:3px 8px;border-radius:6px;border:1px solid rgba(132,204,22,0.3);">
                                         Z-READING
                                     </span>
                                 </div>

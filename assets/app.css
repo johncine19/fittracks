@@ -212,8 +212,9 @@
     transition: background 0.2s, color 0.2s;
 }
 .theme-toggle:hover {
+    background: color-mix(in srgb, var(--panel-soft) 92%, var(--lime));
     color: var(--lime);
-    border-color: var(--lime);
+    border-color: color-mix(in srgb, var(--line) 65%, var(--lime));
 }
 
 * {
@@ -646,6 +647,8 @@ input[type="radio"] {
 
 .main-area {
     min-width: 0;
+    width: 100%;
+    overflow-x: hidden;
 }
 
 .topbar {
@@ -1606,6 +1609,8 @@ code {
     }
     .main-area {
         width: 100%;
+        min-width: 0;
+        overflow-x: hidden;
     }
 
     /* Only the nav list scrolls; bottom buttons stay pinned */
@@ -2707,6 +2712,12 @@ input::-ms-clear {
     background: var(--panel-soft);
     color: var(--ink);
     cursor: pointer;
+}
+
+.notif-bell:hover {
+    background: color-mix(in srgb, var(--panel-soft) 92%, var(--lime));
+    border-color: color-mix(in srgb, var(--line) 65%, var(--lime));
+    color: var(--lime);
 }
 
 .notif-badge {
