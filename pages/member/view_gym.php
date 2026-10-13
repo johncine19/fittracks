@@ -253,10 +253,12 @@ function view_gym_page(): void
                     </div>
                     <span>Classes & Sessions</span>
                 </div>
-                <a href="index.php?page=book_classes" class="gym-section-header-link">
-                    <span>Schedule & Booking</span>
-                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg>
-                </a>
+                <?php if ($user['role'] === 'member'): ?>
+                    <a href="index.php?page=book_classes" class="gym-section-header-link">
+                        <span>Schedule & Booking</span>
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg>
+                    </a>
+                <?php endif; ?>
             </div>
 
             <?php if (!empty($classes)): ?>
@@ -277,10 +279,12 @@ function view_gym_page(): void
                                     <?php endif; ?>
                                 </div>
                             </div>
-                            <a href="index.php?page=book_classes" class="explore-action-btn btn-book">
-                                <span>Book</span>
-                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg>
-                            </a>
+                            <?php if ($user['role'] === 'member'): ?>
+                                <a href="index.php?page=book_classes" class="explore-action-btn btn-book">
+                                    <span>Book</span>
+                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg>
+                                </a>
+                            <?php endif; ?>
                         </div>
                     <?php endforeach; ?>
                 </div>

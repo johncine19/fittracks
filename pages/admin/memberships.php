@@ -511,7 +511,7 @@ function memberships_page(): void
                         $pdo->prepare('UPDATE memberships SET status = "cancelled" WHERE membership_id = ? AND status = "pending"')->execute([$membershipId]);
                     }
                     error_log('Could not start Xendit member checkout: ' . $e->getMessage());
-                    flash('We could not start secure checkout. Please try again or contact the gym.', 'danger');
+                    flash('We could not start secure checkout: ' . htmlspecialchars($e->getMessage()) . '. Please try again or contact the gym.', 'danger');
                     redirect('memberships');
                 }
             }

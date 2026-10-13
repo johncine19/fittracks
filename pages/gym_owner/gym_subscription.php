@@ -84,7 +84,12 @@ function gym_subscription_page(): void
                     ->execute([$paymentRowId]);
             }
             error_log('Could not start gym subscription checkout: ' . $e->getMessage());
-            flash('We could not start secure checkout. Please try again or contact support.', 'danger');
+            $errorMsg = $e->getMessage();
+            if ($errorMsg === 'Xendit is not configured.') {
+                flash('Payment gateway is not configured yet (missing XENDIT_SECRET_KEY in server environment). Please contact system administrator.', 'danger');
+            } else {
+                flash('We could not start secure checkout: ' . htmlspecialchars($errorMsg) . '. Please try again or contact support.', 'danger');
+            }
         }
     }
 

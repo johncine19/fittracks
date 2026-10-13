@@ -72,7 +72,19 @@ try {
         "ALTER TABLE admin_audit_logs ADD INDEX idx_audit_logs_gym (gym_id)",
         "UPDATE admin_audit_logs a JOIN gym_staff gs ON gs.user_id = a.admin_user_id SET a.gym_id = gs.gym_id WHERE a.gym_id IS NULL",
         "UPDATE admin_audit_logs a JOIN gyms g ON g.owner_user_id = a.admin_user_id SET a.gym_id = g.gym_id WHERE a.gym_id IS NULL",
-        "UPDATE admin_audit_logs a JOIN trainer_profiles tp ON tp.user_id = a.admin_user_id SET a.gym_id = tp.gym_id WHERE a.gym_id IS NULL"
+        "UPDATE admin_audit_logs a JOIN trainer_profiles tp ON tp.user_id = a.admin_user_id SET a.gym_id = tp.gym_id WHERE a.gym_id IS NULL",
+        "ALTER TABLE gym_subscription_payments MODIFY payment_method ENUM('gcash','card','bank_transfer','cash','online') NOT NULL DEFAULT 'gcash'",
+        "ALTER TABLE gym_subscription_payments ADD COLUMN xendit_reference_id VARCHAR(64) DEFAULT NULL",
+        "ALTER TABLE gym_subscription_payments ADD COLUMN xendit_session_id VARCHAR(64) DEFAULT NULL",
+        "ALTER TABLE gym_subscription_payments ADD COLUMN xendit_payment_id VARCHAR(64) DEFAULT NULL",
+        "ALTER TABLE gyms ADD COLUMN xendit_subaccount_id VARCHAR(64) DEFAULT NULL",
+        "ALTER TABLE payments ADD COLUMN xendit_reference_id VARCHAR(64) DEFAULT NULL",
+        "ALTER TABLE payments ADD COLUMN xendit_session_id VARCHAR(64) DEFAULT NULL",
+        "ALTER TABLE payments ADD COLUMN xendit_payment_id VARCHAR(64) DEFAULT NULL",
+        "ALTER TABLE gym_subscription_payments ADD UNIQUE KEY uq_sub_xendit_reference (xendit_reference_id)",
+        "ALTER TABLE gym_subscription_payments ADD UNIQUE KEY uq_sub_xendit_session (xendit_session_id)",
+        "ALTER TABLE payments ADD UNIQUE KEY uq_payment_xendit_reference (xendit_reference_id)",
+        "ALTER TABLE payments ADD UNIQUE KEY uq_payment_xendit_session (xendit_session_id)"
     ];
 
     foreach ($migrations as $sql) {
@@ -80,16 +92,35 @@ try {
             $pdo->exec($sql);
             echo "<li><span style='color:green;'>Success:</span> " . htmlspecialchars($sql) . "</li>";
         } catch (PDOException $e) {
-            // Ignore "Duplicate column name" and "Duplicate key name" errors
-            if (strpos($e->getMessage(), 'Duplicate column name') !== false || strpos($e->getMessage(), 'Duplicate key name') !== false) {
+            // Ignore "Duplicate column name", "Duplicate key name", and already existing definitions
+            $msg = $e->getMessage();
+            if (strpos($msg, 'Duplicate column name') !== false || strpos($msg, 'Duplicate key name') !== false || strpos($msg, 'already exists') !== false) {
                 echo "<li><span style='color:gray;'>Skipped (Already exists):</span> " . htmlspecialchars($sql) . "</li>";
             } else {
-                echo "<li><span style='color:red;'>Error:</span> " . htmlspecialchars($e->getMessage()) . "</li>";
+                echo "<li><span style='color:red;'>Error:</span> " . htmlspecialchars($msg) . "</li>";
             }
         }
     }
     
-    echo "</ul><p><strong>Migration complete!</strong> You can now return to the application.</p>";
+    echo "</ul><p><strong>Migration complete!</strong></p>";
+
+    echo "<h2>Xendit Gateway Status:</h2>";
+    $xenditSecret = (string) app_env('XENDIT_SECRET_KEY');
+    $xenditWebhook = (string) app_env('XENDIT_WEBHOOK_TOKEN');
+    if ($xenditSecret === '') {
+        echo "<p style='color:red;'><strong>&#10060; XENDIT_SECRET_KEY is NOT configured in environment variables!</strong></p>";
+    } else {
+        $prefix = substr($xenditSecret, 0, 8);
+        $mode = str_starts_with($xenditSecret, 'xnd_development_') ? 'Test/Development' : (str_starts_with($xenditSecret, 'xnd_production_') ? 'Live/Production' : 'Custom');
+        echo "<p style='color:green;'>&#9989; XENDIT_SECRET_KEY is configured (Mode: {$mode}, Prefix: " . htmlspecialchars($prefix) . "..., Length: " . strlen($xenditSecret) . ")</p>";
+    }
+    if ($xenditWebhook === '') {
+        echo "<p style='color:orange;'>&#9888;&#65039; XENDIT_WEBHOOK_TOKEN is NOT configured (webhook confirmation callbacks will fail).</p>";
+    } else {
+        echo "<p style='color:green;'>&#9989; XENDIT_WEBHOOK_TOKEN is configured.</p>";
+    }
+    echo "<p>App Base URL detected: <code>" . htmlspecialchars(app_base_url()) . "</code></p>";
+    echo "<p>PHP cURL extension: " . (function_exists('curl_init') ? "<span style='color:green;'>Enabled</span>" : "<span style='color:red;'>Disabled</span>") . "</p>";
 } catch (Exception $e) {
     echo "<h2>Critical Database Connection Error:</h2>";
     echo "<p>" . htmlspecialchars($e->getMessage()) . "</p>";

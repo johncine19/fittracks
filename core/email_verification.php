@@ -44,7 +44,12 @@ function app_base_url(): string
         return $clean;
     }
 
-    $scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
+    $scheme = 'http';
+    if ((!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')
+        || (!empty($_SERVER['HTTP_X_FORWARDED_PROTO']) && strtolower((string)$_SERVER['HTTP_X_FORWARDED_PROTO']) === 'https')
+        || (!empty($_SERVER['HTTP_CF_VISITOR']) && str_contains((string)$_SERVER['HTTP_CF_VISITOR'], '"scheme":"https"'))) {
+        $scheme = 'https';
+    }
 
     // 2. Active Web Request Host (e.g., fitworks.tech or localhost)
     if (php_sapi_name() !== 'cli' && !empty($_SERVER['HTTP_HOST'])) {

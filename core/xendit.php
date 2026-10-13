@@ -45,13 +45,18 @@ function xendit_api_request(string $method, string $path, ?array $body = null, a
 
     $response = json_decode((string) $responseBody, true);
     if (!is_array($response)) {
-        error_log('Xendit returned a non-JSON response (HTTP ' . $httpStatus . ').');
-        throw new RuntimeException('Xendit returned an unexpected response.');
+        error_log('Xendit returned a non-JSON response (HTTP ' . $httpStatus . '). Body: ' . substr((string)$responseBody, 0, 500));
+        throw new RuntimeException('Xendit returned an unexpected response (HTTP ' . $httpStatus . ').');
     }
     if ($httpStatus < 200 || $httpStatus >= 300) {
         $errorCode = preg_replace('/[^A-Z0-9_]/', '', (string) ($response['error_code'] ?? ''));
-        error_log('Xendit API request failed (HTTP ' . $httpStatus . ', ' . ($errorCode ?: 'UNKNOWN') . ').');
-        throw new RuntimeException('Xendit could not start checkout. Please try again.');
+        $rawMessage = (string) ($response['message'] ?? '');
+        $detailMsg = $rawMessage;
+        if (!empty($response['errors']) && is_array($response['errors'])) {
+            $detailMsg .= ' - ' . json_encode($response['errors'], JSON_UNESCAPED_SLASHES);
+        }
+        error_log('Xendit API request failed (HTTP ' . $httpStatus . ', ' . ($errorCode ?: 'UNKNOWN') . '): ' . $detailMsg);
+        throw new RuntimeException('Xendit error (' . ($errorCode ?: 'HTTP_' . $httpStatus) . '): ' . ($detailMsg ?: 'Request rejected'));
     }
 
     return $response;
@@ -102,15 +107,22 @@ function xendit_create_checkout_session(
     }
 
     $requestHeaders = $forUserId !== null ? ['for-user-id: ' . $forUserId] : [];
-    if (!empty($customer['email'])) {
+    $customerEmail = trim((string)($customer['email'] ?? ''));
+    if ($customerEmail !== '') {
+        $givenNames = trim(preg_replace('/[^\p{L}\p{N} .\-]/u', '', (string)($customer['first_name'] ?? 'Member')) ?: 'Member');
+        $surname = trim(preg_replace('/[^\p{L}\p{N} .\-]/u', '', (string)($customer['last_name'] ?? '')));
+        $individualDetail = [
+            'given_names' => $givenNames,
+        ];
+        if ($surname !== '') {
+            $individualDetail['surname'] = $surname;
+        }
+
         $payload['customer'] = [
-            'reference_id' => 'member-' . (int)($customer['user_id'] ?? 0),
+            'reference_id' => 'user-' . (int)($customer['user_id'] ?? 0),
             'type' => 'INDIVIDUAL',
-            'email' => (string)$customer['email'],
-            'individual_detail' => [
-                'given_names' => preg_replace('/[^\p{L}\p{N} .\-]/u', '', (string)($customer['first_name'] ?? 'Member')) ?: 'Member',
-                'surname' => preg_replace('/[^\p{L}\p{N} .\-]/u', '', (string)($customer['last_name'] ?? '')),
-            ],
+            'email' => $customerEmail,
+            'individual_detail' => $individualDetail,
         ];
     }
     $session = xendit_api_request('POST', '/sessions', $payload, $requestHeaders);
