@@ -272,13 +272,19 @@ function handle_xendit_subscription_webhook(): void
 
         $today = new DateTimeImmutable(date('Y-m-d'));
         $start = $today;
-        if (($gym['subscription_status'] ?? '') === 'active' && !empty($gym['subscription_renewal_date'])) {
+        $currentPlan = strtolower(trim((string)($gym['subscription_plan'] ?? '')));
+        $newPlan = strtolower(trim((string)$lockedPayment['plan_name']));
+        $billingCycle = (string)$lockedPayment['billing_cycle'];
+
+        // Only extend from existing renewal date if renewing the exact same plan AND within a reasonable upcoming window (not a dummy far-future test date)
+        if (($gym['subscription_status'] ?? '') === 'active' && !empty($gym['subscription_renewal_date']) && $currentPlan === $newPlan) {
             $renewal = new DateTimeImmutable((string) $gym['subscription_renewal_date']);
-            if ($renewal > $start) {
+            $maxReasonableWindow = $today->modify($billingCycle === 'yearly' ? '+366 days' : '+35 days');
+            if ($renewal > $start && $renewal <= $maxReasonableWindow) {
                 $start = $renewal;
             }
         }
-        $end = xendit_add_billing_period($start, (string) $lockedPayment['billing_cycle']);
+        $end = xendit_add_billing_period($start, $billingCycle);
         $startDate = $start->format('Y-m-d');
         $endDate = $end->format('Y-m-d');
         $receiptNumber = 'SUB-' . date('Ymd') . '-' . strtoupper(substr(bin2hex(random_bytes(4)), 0, 6));
