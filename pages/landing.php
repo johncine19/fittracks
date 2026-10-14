@@ -32,6 +32,42 @@ if (!function_exists('landing_icon')) {
     }
 }
 
+if (!function_exists('landing_hero_qr_path')) {
+    /**
+     * Decorative 21×21 QR-style glyph for the hero's check-in card, returned as a
+     * single SVG path. Deterministic (no RNG state touched) so markup is stable.
+     */
+    function landing_hero_qr_path(): string
+    {
+        $size = 21;
+        $finders = [[0, 0], [$size - 7, 0], [0, $size - 7]];
+        $d = '';
+        for ($y = 0; $y < $size; $y++) {
+            for ($x = 0; $x < $size; $x++) {
+                $dark = null;
+                foreach ($finders as [$fx, $fy]) {
+                    $rx = $x - $fx;
+                    $ry = $y - $fy;
+                    if ($rx >= -1 && $rx <= 7 && $ry >= -1 && $ry <= 7) {
+                        $inFinder = $rx >= 0 && $rx <= 6 && $ry >= 0 && $ry <= 6;
+                        $ring = $rx === 0 || $rx === 6 || $ry === 0 || $ry === 6;
+                        $core = $rx >= 2 && $rx <= 4 && $ry >= 2 && $ry <= 4;
+                        $dark = $inFinder && ($ring || $core);
+                        break;
+                    }
+                }
+                if ($dark === null) {
+                    $dark = (crc32("ft-qr-$x-$y") % 100) < 47;
+                }
+                if ($dark) {
+                    $d .= "M{$x} {$y}h1v1h-1z";
+                }
+            }
+        }
+        return $d;
+    }
+}
+
 function landing_page(): void
 {
     // If user is already logged in, send straight to dashboard
@@ -247,6 +283,8 @@ function landing_page(): void
             href="https://fonts.googleapis.com/css2?family=Inter:ital,wght@0,400;0,500;0,600;0,700;0,800;0,900;1,700;1,900&display=swap"
             rel="stylesheet">
         <link rel="stylesheet" href="assets/landing.css?v=<?= filemtime(__DIR__ . '/../assets/landing.css') ?>">
+        <link rel="stylesheet" href="<?= h(asset_url('css/pages/landing-hero.css')) ?>">
+        <link rel="preload" as="image" href="assets/landing/hero_gym.png" fetchpriority="high">
         <link rel="stylesheet" href="assets/splash.css?v=<?= file_exists(__DIR__ . '/../assets/splash.css') ? filemtime(__DIR__ . '/../assets/splash.css') : 1 ?>">
         <script src="assets/splash.js?v=<?= file_exists(__DIR__ . '/../assets/splash.js') ? filemtime(__DIR__ . '/../assets/splash.js') : 1 ?>"></script>
     </head>
@@ -323,66 +361,142 @@ function landing_page(): void
         <div class="ambient-glow glow-hero"></div>
 
         <!-- ==========================================================================
-       02. HERO SECTION — FULL-BLEED GYM BACKGROUND WITH FLOATING ENGINE
+       02. HERO SECTION — IMMERSIVE: SPOTLIT GYM FLOOR + LIVE PRODUCT HUD
+       Styles: assets/css/pages/landing-hero.css · Motion: assets/js/pages/landing-hero.js
        ========================================================================== -->
-        <header class="hero-section reveal-on-scroll">
-            <!-- Parallax: hero photo drifts slower than the page -->
-            <div class="parallax-layer hero-bg" data-parallax="0.3" data-parallax-origin="top" aria-hidden="true"></div>
-            <div class="container">
-                <div class="hero-grid hero-grid-centered">
-                    <!-- Left Side: Brand Narrative & Feature Pills Floating directly on Background -->
-                    <div class="hero-left">
-                        <div class="hero-brand-header">
-                            <h1 class="hero-title">
-                                All-in-one software to                                <span class="title-highlight">grow your gym.</span>
-                            </h1>
-                            <p class="hero-subtitle">
-                                From the front desk to the training floor, FitTrack brings check-ins, memberships,
-                                payments, and coaching into one place—so your team can spend less time chasing updates.
-                            </p>
+        <?php
+        $heroFeedSeed = [
+            ['Andrea S.', 'AS', 18, 'Monthly', 'Active', false, '2m'],
+            ['Jomar P.', 'JP', 200, 'Annual', 'Active', false, '5m'],
+            ['Lia C.', 'LC', 320, 'PT · Coach Mia', 'Renews in 4d', true, '9m'],
+            ['Ken D.', 'KD', 150, 'Day pass', 'Walk-in', false, '12m'],
+        ];
+        ?>
+        <header class="hx-hero is-pending" id="hero">
+            <script>
+                // Failsafe: never leave the hero hidden if the hero script fails to load.
+                setTimeout(function () { var h = document.getElementById('hero'); if (h) h.classList.remove('is-pending'); }, 4000);
+            </script>
+
+            <!-- Background depth stack -->
+            <div class="hx-stage" aria-hidden="true">
+                <div class="hx-dolly">
+                    <div class="hx-drift">
+                        <img class="hx-photo" src="assets/landing/hero_gym.png" alt="" width="1024" height="1024" fetchpriority="high" decoding="async">
+                    </div>
+                </div>
+                <div class="hx-dim"></div>
+                <div class="hx-glow"></div>
+                <canvas class="hx-particles"></canvas>
+                <div class="hx-shade"></div>
+                <div class="hx-grain"></div>
+            </div>
+
+            <div class="hx-body">
+                <div class="container hx-grid">
+                    <!-- Copy -->
+                    <div class="hx-copy">
+                        <h1 class="hx-title">
+                            <span class="hx-line"><span class="hx-line-inner" style="--i:0">All-in-one</span></span>
+                            <span class="hx-line"><span class="hx-line-inner" style="--i:1">software to</span></span>
+                            <span class="hx-line hx-line-accent"><span class="hx-line-inner" style="--i:2"><span class="hx-rotator" data-hx-rotator><span class="hx-word is-active">grow</span><span class="hx-word" aria-hidden="true">run</span><span class="hx-word" aria-hidden="true">scale</span><span class="hx-word" aria-hidden="true">power</span></span> your gym.</span></span>
+                        </h1>
+
+                        <p class="hx-sub hx-reveal" style="--d:640ms">
+                            <span class="hx-sub-desktop">From the front desk to the training floor, FitTrack brings check-ins, memberships, payments, and coaching into one place—so your team can spend less time chasing updates.</span>
+                            <span class="hx-sub-mobile">Check-ins, billing, and coaching—streamlined in one platform.</span>
+                        </p>
+
+                        <div class="hx-ctas hx-reveal" style="--d:780ms">
+                            <a href="index.php?page=gym_register" class="hx-btn hx-btn-primary hx-magnetic" id="hero-cta-start">
+                                <span>Start your gym setup</span>
+                                <?= landing_icon('arrow-right', 'hx-btn-arrow') ?>
+                            </a>
+                            <button type="button" class="hx-btn hx-btn-ghost hx-magnetic" id="hero-cta-demo" onclick="openDemoModal()">
+                                <span class="hx-play" aria-hidden="true"><?= landing_icon('play') ?></span>
+                                <span>Request a demo</span>
+                            </button>
                         </div>
 
-                        <div class="hero-capabilities" aria-label="FitTrack capabilities">
-                            <span>Member check-in</span>
-                            <span>Memberships &amp; payments</span>
-                            <span>Trainer plans</span>
-                        </div>
+                        <ul class="hx-cues hx-reveal" style="--d:920ms">
+                            <li><?= landing_icon('check') ?>14-day free trial</li>
+                            <li><?= landing_icon('check') ?>No credit card required</li>
+                            <li class="hx-cue-desktop"><?= landing_icon('check') ?>Free tier fallback anytime</li>
+                        </ul>
+                    </div>
 
-                        <div class="hero-cta-block">
-                            <div class="hero-ctas">
-                                <a href="index.php?page=gym_register" class="btn btn-lime btn-lg">
-                                    <span>Start your gym setup</span>
-                                    <?= landing_icon('arrow-right', 'btn-svg') ?>
-                                </a>
-                                <button class="btn btn-secondary btn-lg" onclick="openDemoModal()">
-                                    <?= landing_icon('play', 'btn-svg') ?>
-                                    <span>Request a Demo</span>
-                                </button>
+                    <!-- Live product HUD (illustrative preview, hidden from assistive tech) -->
+                    <div class="hx-hud" aria-hidden="true">
+                        <div class="hx-float hx-float-rev" data-depth="0.55">
+                            <div class="hx-card hx-rev">
+                                <span class="hx-kicker">Revenue · This month</span>
+                                <div class="hx-rev-row">
+                                    <span class="hx-rev-value">₱<span data-hx-revenue data-target="184250">184,250</span></span>
+                                    <span class="hx-trend">▲ 12.4%</span>
+                                </div>
+                                <svg class="hx-spark" viewBox="0 0 250 72" preserveAspectRatio="none">
+                                    <defs>
+                                        <linearGradient id="hxSparkFill" x1="0" y1="0" x2="0" y2="1">
+                                            <stop offset="0" stop-color="#84cc16" stop-opacity=".35" />
+                                            <stop offset="1" stop-color="#84cc16" stop-opacity="0" />
+                                        </linearGradient>
+                                    </defs>
+                                    <path class="hx-spark-area" fill="url(#hxSparkFill)" d="M0 60 L22 55 L44 58 L66 46 L88 50 L110 38 L132 42 L154 30 L176 34 L198 21 L220 25 L236 14 L236 72 L0 72 Z" />
+                                    <path class="hx-spark-line" pathLength="1" fill="none" stroke="#a3e635" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" vector-effect="non-scaling-stroke" d="M0 60 L22 55 L44 58 L66 46 L88 50 L110 38 L132 42 L154 30 L176 34 L198 21 L220 25 L236 14" />
+                                    <circle class="hx-spark-ping" cx="236" cy="14" r="4" fill="#a3e635" />
+                                    <circle class="hx-spark-dot" cx="236" cy="14" r="3.5" fill="#ecfccb" stroke="#84cc16" stroke-width="2" />
+                                </svg>
                             </div>
-                            <div class="hero-cta-cues">
-                                <span class="cta-cue-item">
-                                    <span class="cue-check"><?= landing_icon('check', 'check-svg') ?></span>
-                                    14-Day Free Trial Included
-                                </span>
-                                <span class="cta-cue-bullet">·</span>
-                                <span class="cta-cue-item">
-                                    <span class="cue-check"><?= landing_icon('check', 'check-svg') ?></span>
-                                    No credit card required
-                                </span>
-                                <span class="cta-cue-bullet">·</span>
-                                <span class="cta-cue-item">
-                                    <span class="cue-check"><?= landing_icon('check', 'check-svg') ?></span>
-                                    Free Tier fallback anytime
-                                </span>
+                        </div>
+
+                        <div class="hx-float hx-float-feed" data-depth="1">
+                            <div class="hx-card hx-feed">
+                                <div class="hx-card-head">
+                                    <div>
+                                        <span class="hx-kicker"><span class="hx-live-dot"></span>Front desk · Live</span>
+                                        <strong class="hx-card-title">Check-ins today</strong>
+                                    </div>
+                                    <span class="hx-count" data-hx-count>128</span>
+                                </div>
+                                <ul class="hx-feed-list" data-hx-feed>
+                                    <?php foreach ($heroFeedSeed as [$fName, $fInit, $fHue, $fPlan, $fStatus, $fWarn, $fTime]): ?>
+                                        <li class="hx-feed-row">
+                                            <span class="hx-avatar" style="--h:<?= (int) $fHue ?>"><?= htmlspecialchars($fInit) ?></span>
+                                            <span class="hx-feed-meta">
+                                                <b><?= htmlspecialchars($fName) ?></b>
+                                                <small><?= htmlspecialchars($fPlan) ?> · <em class="hx-status<?= $fWarn ? ' is-warn' : '' ?>"><?= htmlspecialchars($fStatus) ?></em></small>
+                                            </span>
+                                            <span class="hx-feed-time" data-min="<?= (int) $fTime ?>"><?= htmlspecialchars($fTime) ?></span>
+                                        </li>
+                                    <?php endforeach; ?>
+                                </ul>
+                            </div>
+                        </div>
+
+                        <div class="hx-float hx-float-scan" data-depth="1.6">
+                            <div class="hx-card hx-scan">
+                                <div class="hx-qr">
+                                    <svg viewBox="0 0 21 21" shape-rendering="crispEdges"><path fill="#0b0f14" d="<?= landing_hero_qr_path() ?>" /></svg>
+                                    <span class="hx-scanline"></span>
+                                </div>
+                                <div class="hx-scan-info">
+                                    <span class="hx-kicker">QR check-in</span>
+                                    <strong class="hx-scan-title"><?= landing_icon('check') ?>Access granted</strong>
+                                    <span class="hx-scan-sub" data-hx-scan-sub>Andrea S. · Main entrance</span>
+                                </div>
                             </div>
                         </div>
                     </div>
                 </div>
+            </div>
 
-                <!-- Scroll to Explore Indicator in Bottom Center -->
-                <div class="scroll-explore-wrap">
-                    <span class="scroll-explore-text">SCROLL TO EXPLORE</span>
-                </div>
+            <!-- Bottom band: scroll cue -->
+            <div class="hx-bottom">
+                <button type="button" class="hx-scroll" data-hx-scroll aria-label="Scroll to explore">
+                    <span>Scroll</span>
+                    <span class="hx-scroll-line" aria-hidden="true"></span>
+                </button>
+            </div>
         </header>
 
         <!-- ==========================================================================
@@ -489,25 +603,42 @@ function landing_page(): void
 
                 <div class="solution-flow">
                     <div class="flow-node">
-                        <div class="flow-node-icon"><?= landing_icon('building', 'icon-svg') ?></div>
+                        <div class="flow-node-icon flow-illustration facility-illustration" aria-hidden="true">
+                            <svg viewBox="0 0 96 96" fill="none">
+                                <path d="M18 76V37l30-17 30 17v39H18Z" />
+                                <path d="M34 76V54h28v22M29 42h.1M48 42h.1M67 42h.1M29 52h.1M67 52h.1" />
+                                <path d="M12 77h72" />
+                            </svg>
+                        </div>
                         <div class="flow-node-title">Your Facility</div>
-                        <div class="flow-node-desc">Front Desk & Floor</div>
                     </div>
 
                     <div class="flow-arrow"><?= landing_icon('arrow-right', 'arrow-svg') ?></div>
 
                     <div class="flow-node flow-hub">
-                        <div class="flow-node-icon"><?= landing_icon('zap', 'icon-svg') ?></div>
+                        <div class="flow-node-icon flow-illustration hub-illustration" aria-hidden="true">
+                            <svg viewBox="0 0 120 104" fill="none">
+                                <path class="cube-top" d="M60 8 101 31 60 54 19 31 60 8Z" />
+                                <path class="cube-left" d="M19 31v44l41 23V54L19 31Z" />
+                                <path class="cube-right" d="M101 31v44L60 98V54l41-23Z" />
+                                <path class="cube-core" d="m60 36 13 7.5v15L60 66l-13-7.5v-15L60 36Z" />
+                            </svg>
+                        </div>
                         <div class="flow-node-title">FITTRACK HUB</div>
-                        <div class="flow-node-desc">Central Core Engine</div>
                     </div>
 
                     <div class="flow-arrow"><?= landing_icon('arrow-right', 'arrow-svg') ?></div>
 
                     <div class="flow-node">
-                        <div class="flow-node-icon"><?= landing_icon('chart', 'icon-svg') ?></div>
+                        <div class="flow-node-icon flow-illustration insights-illustration" aria-hidden="true">
+                            <svg viewBox="0 0 96 96" fill="none">
+                                <path d="M18 18v60h62" />
+                                <path d="m27 63 15-17 13 8 20-27" />
+                                <circle cx="27" cy="63" r="2.5" /><circle cx="42" cy="46" r="2.5" />
+                                <circle cx="55" cy="54" r="2.5" /><circle cx="75" cy="27" r="2.5" />
+                            </svg>
+                        </div>
                         <div class="flow-node-title">Live Insights</div>
-                        <div class="flow-node-desc">Operations & Revenue</div>
                     </div>
                 </div>
             </div>
@@ -1893,6 +2024,7 @@ function landing_page(): void
         };
         </script>
         <script src="<?= h(asset_url('js/pages/landing.js')) ?>"></script>
+        <script src="<?= h(asset_url('js/pages/landing-hero.js')) ?>"></script>
 
     </body>
 
