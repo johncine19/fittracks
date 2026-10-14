@@ -319,7 +319,7 @@
             if (!running) return;
 
             // Follow the cursor; when idle (or on touch) the light wanders.
-            const idle = !finePointer || now - lastPointer > 3500;
+            const idle = now - lastPointer > 3500;
             if (idle) {
                 tx = 0.64 + 0.2 * Math.sin(now * 0.00021);
                 ty = 0.48 + 0.16 * Math.sin(now * 0.00029 + 1.3);
@@ -381,6 +381,19 @@
                 lastPointer = performance.now();
             }, { passive: true });
         }
+
+        hero.addEventListener('pointerdown', (e) => {
+            if (e.pointerType === 'mouse') return;
+
+            const rect = hero.getBoundingClientRect();
+            tx = clamp((e.clientX - rect.left) / rect.width, 0, 1);
+            ty = clamp((e.clientY - rect.top) / rect.height, 0, 1);
+            lastPointer = performance.now();
+
+            stage.classList.remove('is-tap-splash');
+            void stage.offsetWidth;
+            stage.classList.add('is-tap-splash');
+        }, { passive: true });
 
         let resizeTimer = 0;
         window.addEventListener('resize', () => {

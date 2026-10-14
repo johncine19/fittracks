@@ -284,6 +284,7 @@ function landing_page(): void
             rel="stylesheet">
         <link rel="stylesheet" href="assets/landing.css?v=<?= filemtime(__DIR__ . '/../assets/landing.css') ?>">
         <link rel="stylesheet" href="<?= h(asset_url('css/pages/landing-hero.css')) ?>">
+        <link rel="stylesheet" href="<?= h(asset_url('css/pages/landing-architecture.css')) ?>">
         <link rel="preload" as="image" href="assets/landing/hero_gym.png" fetchpriority="high">
         <link rel="stylesheet" href="assets/splash.css?v=<?= file_exists(__DIR__ . '/../assets/splash.css') ? filemtime(__DIR__ . '/../assets/splash.css') : 1 ?>">
         <script src="assets/splash.js?v=<?= file_exists(__DIR__ . '/../assets/splash.js') ? filemtime(__DIR__ . '/../assets/splash.js') : 1 ?>"></script>
@@ -590,55 +591,176 @@ function landing_page(): void
         </section>
 
         <!-- ==========================================================================
-       05. THE FITTRACK SOLUTION
+       05. THE FITTRACK SOLUTION — CONNECTED OPERATING PIPELINE
+       Styles: assets/css/pages/landing-architecture.css
        ========================================================================== -->
-        <section class="solution-section reveal-on-scroll">
+        <section class="arch-section reveal-on-scroll">
+            <div class="arch-backdrop" aria-hidden="true"></div>
             <div class="container">
                 <div class="section-header">
                     <span class="section-label">Unified Architecture</span>
                     <h2 class="section-title">One Platform. Total Connectivity.</h2>
-                    <p class="section-desc">Observe how FitTrack unifies every aspect of your facility into one smooth
-                        digital workflow.</p>
+                    <p class="section-desc">From floor interactions to executive intelligence—watch how FitTrack turns daily gym operations into an automated, synchronized workflow.</p>
                 </div>
 
-                <div class="solution-flow">
-                    <div class="flow-node">
-                        <div class="flow-node-icon flow-illustration facility-illustration" aria-hidden="true">
-                            <svg viewBox="0 0 96 96" fill="none">
-                                <path d="M18 76V37l30-17 30 17v39H18Z" />
-                                <path d="M34 76V54h28v22M29 42h.1M48 42h.1M67 42h.1M29 52h.1M67 52h.1" />
-                                <path d="M12 77h72" />
-                            </svg>
+                <div class="arch-pipeline">
+                    <!-- Stage 01: Ingestion & Touchpoints -->
+                    <div class="arch-card arch-card-1">
+                        <div class="arch-card-glow" aria-hidden="true"></div>
+                        <svg class="arch-border-svg" aria-hidden="true" focusable="false">
+                            <path class="arch-path arch-path-top" pathLength="1000" />
+                            <path class="arch-path arch-path-bottom" pathLength="1000" />
+                        </svg>
+                        <div class="arch-merge-point" aria-hidden="true"></div>
+                        <div>
+                            <div class="arch-card-top">
+                                <span class="arch-step-badge">Stage 01</span>
+                                <span class="arch-status-pill"><span class="arch-pulse-dot"></span>Live Ingestion</span>
+                            </div>
+                            <h3 class="arch-card-title">Gym Touchpoints</h3>
+                            <p class="arch-card-sub">Every member, coach, and billing event captured at source without manual intervention.</p>
+
+                            <ul class="arch-feature-list">
+                                <li class="arch-feature-item">
+                                    <div class="arch-feature-icon"><?= landing_icon('qr') ?></div>
+                                    <div class="arch-feature-content">
+                                        <b>Dynamic QR Turnstile Check-Ins</b>
+                                        <span>Instant identity validation &amp; time-stamped entrance logs.</span>
+                                    </div>
+                                </li>
+                                <li class="arch-feature-item">
+                                    <div class="arch-feature-icon"><?= landing_icon('card') ?></div>
+                                    <div class="arch-feature-content">
+                                        <b>GCash, POS &amp; Walk-In Payments</b>
+                                        <span>Automated receipts, day pass activation &amp; plan upgrades.</span>
+                                    </div>
+                                </li>
+                                <li class="arch-feature-item">
+                                    <div class="arch-feature-icon"><?= landing_icon('clipboard') ?></div>
+                                    <div class="arch-feature-content">
+                                        <b>Coach Routines &amp; Diet Logging</b>
+                                        <span>Trainers assign client workouts and check compliance on the floor.</span>
+                                    </div>
+                                </li>
+                            </ul>
                         </div>
-                        <div class="flow-node-title">Your Facility</div>
+
+                        <div class="arch-card-footer">
+                            <span>Sub-second event stream</span>
+                            <?= landing_icon('zap') ?>
+                        </div>
                     </div>
 
-                    <div class="flow-arrow"><?= landing_icon('arrow-right', 'arrow-svg') ?></div>
-
-                    <div class="flow-node flow-hub">
-                        <div class="flow-node-icon flow-illustration hub-illustration" aria-hidden="true">
-                            <svg viewBox="0 0 120 104" fill="none">
-                                <path class="cube-top" d="M60 8 101 31 60 54 19 31 60 8Z" />
-                                <path class="cube-left" d="M19 31v44l41 23V54L19 31Z" />
-                                <path class="cube-right" d="M101 31v44L60 98V54l41-23Z" />
-                                <path class="cube-core" d="m60 36 13 7.5v15L60 66l-13-7.5v-15L60 36Z" />
-                            </svg>
+                    <!-- Animated Beam Connector 1 (Stage 1 -> Stage 2) -->
+                    <div class="arch-connector arch-connector-1" aria-hidden="true">
+                        <div class="arch-track">
+                            <span class="arch-pulse-beam"></span>
+                            <span class="arch-pulse-comet"></span>
                         </div>
-                        <div class="flow-node-title">FITTRACK HUB</div>
+                        <div class="arch-connector-node"><?= landing_icon('arrow-right') ?></div>
                     </div>
 
-                    <div class="flow-arrow"><?= landing_icon('arrow-right', 'arrow-svg') ?></div>
+                    <!-- Stage 02: FitTrack Operations Engine (Hub) -->
+                    <div class="arch-card arch-card-hub arch-card-2">
+                        <div class="arch-card-glow" aria-hidden="true"></div>
+                        <svg class="arch-border-svg" aria-hidden="true" focusable="false">
+                            <path class="arch-path arch-path-top" pathLength="1000" />
+                            <path class="arch-path arch-path-bottom" pathLength="1000" />
+                        </svg>
+                        <div class="arch-merge-point" aria-hidden="true"></div>
+                        <div>
+                            <div class="arch-card-top">
+                                <span class="arch-step-badge">Stage 02 · Core</span>
+                                <span class="arch-status-pill"><span class="arch-pulse-dot"></span>FitTrack Engine</span>
+                            </div>
+                            <h3 class="arch-card-title">Intelligent Automation</h3>
+                            <p class="arch-card-sub">The central brain that handles expiration rules, payroll math, and security protocols in real time.</p>
 
-                    <div class="flow-node">
-                        <div class="flow-node-icon flow-illustration insights-illustration" aria-hidden="true">
-                            <svg viewBox="0 0 96 96" fill="none">
-                                <path d="M18 18v60h62" />
-                                <path d="m27 63 15-17 13 8 20-27" />
-                                <circle cx="27" cy="63" r="2.5" /><circle cx="42" cy="46" r="2.5" />
-                                <circle cx="55" cy="54" r="2.5" /><circle cx="75" cy="27" r="2.5" />
-                            </svg>
+                            <ul class="arch-feature-list">
+                                <li class="arch-feature-item">
+                                    <div class="arch-feature-icon"><?= landing_icon('bell') ?></div>
+                                    <div class="arch-feature-content">
+                                        <b>Multi-Stage Renewal Automation</b>
+                                        <span>Dispatches automated reminders at 30d, 14d, 7d, and 1d notices.</span>
+                                    </div>
+                                </li>
+                                <li class="arch-feature-item">
+                                    <div class="arch-feature-icon"><?= landing_icon('chart') ?></div>
+                                    <div class="arch-feature-content">
+                                        <b>Trainer Commission Splitter</b>
+                                        <span>Calculates trainer shares per session with automatic payroll accrual.</span>
+                                    </div>
+                                </li>
+                                <li class="arch-feature-item">
+                                    <div class="arch-feature-icon"><?= landing_icon('shield') ?></div>
+                                    <div class="arch-feature-content">
+                                        <b>Pass-Sharing Security Guard</b>
+                                        <span>Flags duplicate concurrent scans and stops barcode screenshot abuse.</span>
+                                    </div>
+                                </li>
+                            </ul>
                         </div>
-                        <div class="flow-node-title">Live Insights</div>
+
+                        <div class="arch-card-footer">
+                            <span>99.98% System uptime</span>
+                            <?= landing_icon('shield') ?>
+                        </div>
+                    </div>
+
+                    <!-- Animated Beam Connector 2 (Stage 2 -> Stage 3) -->
+                    <div class="arch-connector arch-connector-2" aria-hidden="true">
+                        <div class="arch-track">
+                            <span class="arch-pulse-beam"></span>
+                            <span class="arch-pulse-comet"></span>
+                        </div>
+                        <div class="arch-connector-node"><?= landing_icon('arrow-right') ?></div>
+                    </div>
+
+                    <!-- Stage 03: Actionable Outcomes -->
+                    <div class="arch-card arch-card-3">
+                        <div class="arch-card-glow" aria-hidden="true"></div>
+                        <svg class="arch-border-svg" aria-hidden="true" focusable="false">
+                            <path class="arch-path arch-path-top" pathLength="1000" />
+                            <path class="arch-path arch-path-bottom" pathLength="1000" />
+                        </svg>
+                        <div class="arch-merge-point" aria-hidden="true"></div>
+                        <div>
+                            <div class="arch-card-top">
+                                <span class="arch-step-badge">Stage 03</span>
+                                <span class="arch-status-pill"><span class="arch-pulse-dot"></span>Executive View</span>
+                            </div>
+                            <h3 class="arch-card-title">Business Growth</h3>
+                            <p class="arch-card-sub">Immediate clarity on revenue velocity, staff performance, and member retention curves.</p>
+
+                            <ul class="arch-feature-list">
+                                <li class="arch-feature-item">
+                                    <div class="arch-feature-icon"><?= landing_icon('trend-up') ?></div>
+                                    <div class="arch-feature-content">
+                                        <b>Real-Time Financial P&amp;L &amp; MRR</b>
+                                        <span>Live revenue breakdowns by plan, walk-ins, and coach packages.</span>
+                                    </div>
+                                </li>
+                                <li class="arch-feature-item">
+                                    <div class="arch-feature-icon"><?= landing_icon('users') ?></div>
+                                    <div class="arch-feature-content">
+                                        <b>Floor Capacity &amp; Peak Heatmaps</b>
+                                        <span>Monitor current gym floor density and equipment peak usage hours.</span>
+                                    </div>
+                                </li>
+                                <li class="arch-feature-item">
+                                    <div class="arch-feature-icon"><?= landing_icon('check') ?></div>
+                                    <div class="arch-feature-content">
+                                        <b>1-Click Payroll CSV Export</b>
+                                        <span>Complete staff payouts and revenue reports ready in seconds.</span>
+                                    </div>
+                                </li>
+                            </ul>
+                        </div>
+
+                        <div class="arch-card-footer">
+                            <span>Zero administrative friction</span>
+                            <?= landing_icon('star') ?>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -2025,6 +2147,7 @@ function landing_page(): void
         </script>
         <script src="<?= h(asset_url('js/pages/landing.js')) ?>"></script>
         <script src="<?= h(asset_url('js/pages/landing-hero.js')) ?>"></script>
+        <script src="<?= h(asset_url('js/pages/landing-architecture.js')) ?>"></script>
 
     </body>
 

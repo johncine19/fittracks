@@ -1,0 +1,1127 @@
+/* ==========================================================================
+   FITTRACK — UNIFIED ARCHITECTURE PIPELINE
+   Sequential Split, Merge, and Transfer Animation Engine
+   Path: Stage 01 (Split & Merge) -> Arrow 01 -> Stage 02 (Split & Merge) -> Arrow 02 -> Stage 03 (Split & Merge) -> Pause -> Loop
+   Total Cycle Duration: 7.6s
+   Scoped namespace: .arch-*
+   ========================================================================== */
+
+:root {
+    --arch-cycle-duration: 10s;
+}
+
+.arch-section {
+    position: relative;
+    padding: clamp(70px, 10vh, 110px) 0;
+    background-color: var(--bg-surface, #0e1117);
+    border-top: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.08));
+    border-bottom: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.08));
+    overflow: hidden;
+    isolation: isolate;
+}
+
+/* Subtle ambient backdrop illumination */
+.arch-backdrop {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    z-index: 0;
+    background:
+        radial-gradient(ellipse 60% 40% at 50% 50%, rgba(132, 204, 22, 0.05), transparent 70%),
+        radial-gradient(circle at 15% 20%, rgba(56, 189, 248, 0.03), transparent 50%),
+        radial-gradient(circle at 85% 80%, rgba(132, 204, 22, 0.04), transparent 50%);
+}
+
+.arch-section .container {
+    position: relative;
+    z-index: 1;
+}
+
+/* ── Pipeline Grid / Flex ──────────────────────────────────────────────── */
+.arch-pipeline {
+    display: flex;
+    align-items: stretch;
+    justify-content: center;
+    gap: 1.25rem;
+    margin-top: clamp(2.5rem, 5vw, 4rem);
+    position: relative;
+    width: 100%;
+}
+
+/* ── Individual Stage Card ─────────────────────────────────────────────── */
+.arch-card {
+    position: relative;
+    flex: 1;
+    min-width: 0;
+    background: linear-gradient(175deg, rgba(24, 29, 39, 0.72) 0%, rgba(14, 18, 25, 0.85) 100%);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 20px;
+    padding: clamp(1.4rem, 2.5vw, 1.85rem);
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    transition: transform 0.35s cubic-bezier(0.16, 1, 0.3, 1),
+                border-color 0.35s ease,
+                box-shadow 0.35s ease;
+    box-shadow: 0 16px 40px -15px rgba(0, 0, 0, 0.5);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+}
+
+.arch-card > div:not(.arch-card-glow):not(.arch-merge-point),
+.arch-card > .arch-card-footer {
+    position: relative;
+    z-index: 1;
+}
+
+/* Subtle ambient active aura */
+.arch-card-glow {
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    pointer-events: none;
+    z-index: 0;
+    opacity: 0;
+    transition: opacity 0.35s ease;
+    background: radial-gradient(ellipse 90% 60% at 50% 0%, rgba(132, 204, 22, 0.12), transparent 70%);
+}
+
+.arch-card:hover {
+    transform: translateY(-5px) !important;
+    border-color: rgba(132, 204, 22, 0.45) !important;
+    box-shadow: 0 24px 50px -15px rgba(0, 0, 0, 0.7), 0 0 35px -8px rgba(132, 204, 22, 0.22) !important;
+}
+
+.arch-card:hover .arch-card-glow {
+    opacity: 0.65 !important;
+}
+
+/* Center Core Card Highlight */
+.arch-card-hub {
+    background: linear-gradient(175deg, rgba(28, 35, 48, 0.85) 0%, rgba(16, 21, 30, 0.92) 100%);
+    border: 1px solid rgba(132, 204, 22, 0.25);
+    box-shadow: 0 20px 50px -15px rgba(0, 0, 0, 0.65), 0 0 35px -8px rgba(132, 204, 22, 0.18);
+}
+
+.arch-card-hub::before {
+    content: '';
+    position: absolute;
+    top: -1px;
+    left: 15%;
+    right: 15%;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(190, 242, 100, 0.75), transparent);
+    pointer-events: none;
+    z-index: 1;
+}
+
+/* ── SVG Split Border Paths ────────────────────────────────────────────── */
+.arch-border-svg {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    overflow: visible;
+    z-index: 3;
+    border-radius: inherit;
+}
+
+.arch-path {
+    fill: none;
+    stroke: #bef264;
+    stroke-width: 2.25px;
+    stroke-linecap: round;
+    stroke-dasharray: 120 1000;
+    filter: drop-shadow(0 0 3px #ffffff) drop-shadow(0 0 8px #bef264) drop-shadow(0 0 16px rgba(132, 204, 22, 0.8));
+    opacity: 0;
+    will-change: stroke-dashoffset, opacity;
+}
+
+/* Merge Point Flash Flare at Right-Center */
+.arch-merge-point {
+    position: absolute;
+    top: 50%;
+    right: -2px;
+    transform: translate(50%, -50%) scale(0.3);
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: #ffffff;
+    box-shadow: 0 0 10px #bef264, 0 0 22px #84cc16, 0 0 32px rgba(132, 204, 22, 0.9);
+    opacity: 0;
+    z-index: 5;
+    pointer-events: none;
+    will-change: transform, opacity;
+}
+
+/* ── Card Header ───────────────────────────────────────────────────────── */
+.arch-card-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 1.25rem;
+}
+
+.arch-step-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+    padding: 0.3rem 0.7rem;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    font-size: 0.72rem;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: #94a3b8;
+}
+
+.arch-card-hub .arch-step-badge {
+    background: rgba(132, 204, 22, 0.12);
+    border-color: rgba(132, 204, 22, 0.3);
+    color: var(--accent, #84cc16);
+}
+
+.arch-status-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    font-size: 0.7rem;
+    font-weight: 700;
+    color: #cbd5e1;
+}
+
+.arch-pulse-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--accent, #84cc16);
+    box-shadow: 0 0 6px var(--accent, #84cc16);
+    display: inline-block;
+    will-change: transform, box-shadow;
+}
+
+.arch-card-title {
+    font-size: clamp(1.15rem, 1.8vw, 1.35rem);
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    color: #fff;
+    margin-bottom: 0.45rem;
+}
+
+.arch-card-sub {
+    font-size: 0.84rem;
+    color: #94a3b8;
+    line-height: 1.5;
+    margin-bottom: 1.4rem;
+}
+
+/* ── Feature Rows Inside Card ──────────────────────────────────────────── */
+.arch-feature-list {
+    list-style: none;
+    margin: 0 0 1.5rem 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.85rem;
+}
+
+.arch-feature-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.75rem;
+    padding: 0.65rem 0.75rem;
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.025);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    transition: background 0.2s ease, border-color 0.2s ease;
+}
+
+.arch-card:hover .arch-feature-item {
+    background: rgba(255, 255, 255, 0.04);
+}
+
+.arch-feature-icon {
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+    background: rgba(132, 204, 22, 0.12);
+    border: 1px solid rgba(132, 204, 22, 0.25);
+    color: var(--accent, #84cc16);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    margin-top: 2px;
+}
+
+.arch-feature-icon svg {
+    width: 16px;
+    height: 16px;
+}
+
+.arch-feature-content b {
+    display: block;
+    font-size: 0.88rem;
+    font-weight: 700;
+    color: #f1f5f9;
+    letter-spacing: -0.01em;
+    margin-bottom: 0.15rem;
+}
+
+.arch-feature-content span {
+    display: block;
+    font-size: 0.78rem;
+    color: #8da0b5;
+    line-height: 1.4;
+}
+
+/* ── Card Footer ───────────────────────────────────────────────────────── */
+.arch-card-footer {
+    padding-top: 1rem;
+    border-top: 1px solid rgba(255, 255, 255, 0.06);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-size: 0.74rem;
+    font-weight: 600;
+    color: #738496;
+}
+
+.arch-card-footer svg {
+    width: 14px;
+    height: 14px;
+    color: var(--accent, #84cc16);
+}
+
+/* ── Connecting Data Stream (Beams & Nodes) ────────────────────────────── */
+.arch-connector {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: clamp(38px, 3.8vw, 54px);
+    flex-shrink: 0;
+    position: relative;
+    z-index: 2;
+}
+
+.arch-track {
+    position: relative;
+    width: 100%;
+    height: 2px;
+    background: rgba(255, 255, 255, 0.08);
+    border-radius: 999px;
+    overflow: visible;
+}
+
+.arch-pulse-beam {
+    position: absolute;
+    inset: 0;
+    overflow: hidden;
+    border-radius: 999px;
+}
+
+.arch-pulse-beam::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 80%;
+    height: 100%;
+    background: linear-gradient(90deg, transparent 0%, rgba(132, 204, 22, 0.4) 40%, #bef264 90%, #ffffff 100%);
+    opacity: 0;
+    pointer-events: none;
+    will-change: left, opacity;
+}
+
+/* Combined traveling glow packet transferring across the gap */
+.arch-pulse-comet {
+    position: absolute;
+    top: 50%;
+    left: 0%;
+    width: 8px;
+    height: 8px;
+    margin-top: -4px;
+    margin-left: -4px;
+    border-radius: 50%;
+    background: #ffffff;
+    box-shadow: 0 0 10px #bef264, 0 0 18px #84cc16, 0 0 28px rgba(132, 204, 22, 0.95);
+    opacity: 0;
+    z-index: 3;
+    pointer-events: none;
+    will-change: left, opacity;
+}
+
+/* Intermediate Flow Arrow Node */
+.arch-connector-node {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%) scale(1);
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background: rgba(14, 18, 25, 0.95);
+    border: 1px solid rgba(132, 204, 22, 0.35);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--accent, #84cc16);
+    box-shadow: 0 0 10px rgba(132, 204, 22, 0.2);
+    z-index: 4;
+    transition: transform 0.25s ease, border-color 0.25s ease, box-shadow 0.25s ease, color 0.25s ease;
+    will-change: transform, border-color, box-shadow;
+}
+
+.arch-connector-node svg {
+    width: 12px;
+    height: 12px;
+}
+
+/* ==========================================================================
+   ANIMATION TIMELINE (7.6s TOTAL CYCLE)
+   1. stage1-split  (00.00% – 22.37%, 0.0s – 1.7s): Two lights move from left-center
+   2. stage1-merge  (22.37% – 26.32%, 1.7s – 2.0s): Both lights merge at right-center
+   3. arrow1-transf (26.32% – 31.58%, 2.0s – 2.4s): Merged glow travels through arrow 1
+   4. stage2-split  (31.58% – 53.95%, 2.4s – 4.1s): Incoming light splits at left-center
+   5. stage2-merge  (53.95% – 57.89%, 4.1s – 4.4s): Both lights merge at right-center
+   6. arrow2-transf (57.89% – 63.16%, 4.4s – 4.8s): Merged glow travels through arrow 2
+   7. stage3-split  (63.16% – 85.53%, 4.8s – 6.5s): Incoming light splits at left-center
+   8. stage3-merge  (85.53% – 89.47%, 6.5s – 6.8s): Both lights merge at right-center
+   9. loop-reset    (89.47% – 100.0%, 6.8s – 7.6s): Clean resting pause & loop restart
+   ========================================================================== */
+
+/* ── Stage 01 Elements ── */
+.arch-card-1 {
+    animation: archCardActive1 var(--arch-cycle-duration) linear infinite;
+}
+
+.arch-card-1 .arch-path-top,
+.arch-card-1 .arch-path-bottom {
+    animation: archSplit1 var(--arch-cycle-duration) linear infinite;
+}
+
+.arch-card-1 .arch-merge-point {
+    animation: archMerge1 var(--arch-cycle-duration) ease-out infinite;
+}
+
+.arch-card-1 .arch-card-glow {
+    animation: archCardGlow1 var(--arch-cycle-duration) linear infinite;
+}
+
+.arch-card-1 .arch-pulse-dot {
+    animation: archDotPulse1 var(--arch-cycle-duration) linear infinite;
+}
+
+/* ── Connector 01 Elements ── */
+.arch-connector-1 .arch-pulse-beam::after {
+    animation: archBeam1Flow var(--arch-cycle-duration) linear infinite;
+}
+
+.arch-connector-1 .arch-pulse-comet {
+    animation: archComet1Flow var(--arch-cycle-duration) linear infinite;
+}
+
+.arch-connector-1 .arch-connector-node {
+    animation: archNode1Pulse var(--arch-cycle-duration) ease infinite;
+}
+
+/* ── Stage 02 Elements ── */
+.arch-card-2 {
+    animation: archCardActive2 var(--arch-cycle-duration) linear infinite;
+}
+
+.arch-card-2 .arch-path-top,
+.arch-card-2 .arch-path-bottom {
+    animation: archSplit2 var(--arch-cycle-duration) linear infinite;
+}
+
+.arch-card-2 .arch-merge-point {
+    animation: archMerge2 var(--arch-cycle-duration) ease-out infinite;
+}
+
+.arch-card-2 .arch-card-glow {
+    animation: archCardGlow2 var(--arch-cycle-duration) linear infinite;
+}
+
+.arch-card-2 .arch-pulse-dot {
+    animation: archDotPulse2 var(--arch-cycle-duration) linear infinite;
+}
+
+/* ── Connector 02 Elements ── */
+.arch-connector-2 .arch-pulse-beam::after {
+    animation: archBeam2Flow var(--arch-cycle-duration) linear infinite;
+}
+
+.arch-connector-2 .arch-pulse-comet {
+    animation: archComet2Flow var(--arch-cycle-duration) linear infinite;
+}
+
+.arch-connector-2 .arch-connector-node {
+    animation: archNode2Pulse var(--arch-cycle-duration) ease infinite;
+}
+
+/* ── Stage 03 Elements ── */
+.arch-card-3 {
+    animation: archCardActive3 var(--arch-cycle-duration) linear infinite;
+}
+
+.arch-card-3 .arch-path-top,
+.arch-card-3 .arch-path-bottom {
+    animation: archSplit3 var(--arch-cycle-duration) linear infinite;
+}
+
+.arch-card-3 .arch-merge-point {
+    animation: archMerge3 var(--arch-cycle-duration) ease-out infinite;
+}
+
+.arch-card-3 .arch-card-glow {
+    animation: archCardGlow3 var(--arch-cycle-duration) linear infinite;
+}
+
+.arch-card-3 .arch-pulse-dot {
+    animation: archDotPulse3 var(--arch-cycle-duration) linear infinite;
+}
+
+/* ==========================================================================
+   KEYFRAME DEFINITIONS (Desktop Horizontal Stream)
+   ========================================================================== */
+
+/* ── Stage 01 Split: 0.0% to 22.37% (1.7s) ── */
+@keyframes archSplit1 {
+    0% {
+        stroke-dashoffset: 60;
+        opacity: 0;
+    }
+    0.8% {
+        opacity: 1;
+    }
+    21.0% {
+        opacity: 1;
+    }
+    22.37% {
+        stroke-dashoffset: -1000;
+        opacity: 0;
+    }
+    22.38%, 100% {
+        stroke-dashoffset: 60;
+        opacity: 0;
+    }
+}
+
+/* ── Stage 01 Merge: 22.37% to 26.32% (0.3s) ── */
+@keyframes archMerge1 {
+    0%, 21.8% {
+        opacity: 0;
+        transform: translate(50%, -50%) scale(0.3);
+    }
+    22.37% {
+        opacity: 1;
+        transform: translate(50%, -50%) scale(1.6);
+    }
+    24.5% {
+        opacity: 0.9;
+        transform: translate(50%, -50%) scale(1.2);
+    }
+    26.32%, 100% {
+        opacity: 0;
+        transform: translate(50%, -50%) scale(0.3);
+    }
+}
+
+@keyframes archCardGlow1 {
+    0% { opacity: 0; }
+    4%, 21% { opacity: 0.65; }
+    26.32%, 100% { opacity: 0; }
+}
+
+@keyframes archDotPulse1 {
+    0% { transform: scale(1); box-shadow: 0 0 6px var(--accent, #84cc16); }
+    4%, 21% { transform: scale(1.35); box-shadow: 0 0 14px #bef264, 0 0 22px #84cc16; }
+    26.32%, 100% { transform: scale(1); box-shadow: 0 0 6px var(--accent, #84cc16); }
+}
+
+@keyframes archCardActive1 {
+    0% {
+        transform: translateY(0);
+        box-shadow: 0 16px 40px -15px rgba(0, 0, 0, 0.5);
+    }
+    3%, 22% {
+        transform: translateY(-3px);
+        box-shadow: 0 20px 48px -15px rgba(0, 0, 0, 0.65), 0 0 28px -8px rgba(132, 204, 22, 0.2);
+    }
+    26.32%, 100% {
+        transform: translateY(0);
+        box-shadow: 0 16px 40px -15px rgba(0, 0, 0, 0.5);
+    }
+}
+
+/* ── Connector 01: 26.32% to 31.58% (0.4s) ── */
+@keyframes archComet1Flow {
+    0%, 25.8% {
+        left: 0%;
+        opacity: 0;
+        transform: scale(0.6);
+    }
+    26.32% {
+        opacity: 1;
+        transform: scale(1);
+    }
+    31.0% {
+        left: 95%;
+        opacity: 1;
+        transform: scale(1);
+    }
+    31.58%, 100% {
+        left: 100%;
+        opacity: 0;
+        transform: scale(0.6);
+    }
+}
+
+@keyframes archBeam1Flow {
+    0%, 25.5% {
+        left: -100%;
+        opacity: 0;
+    }
+    26.32% {
+        opacity: 0.95;
+    }
+    31.0% {
+        left: 100%;
+        opacity: 0.95;
+    }
+    31.58%, 100% {
+        left: 120%;
+        opacity: 0;
+    }
+}
+
+@keyframes archNode1Pulse {
+    0%, 27.2% {
+        transform: translate(-50%, -50%) scale(1);
+        border-color: rgba(132, 204, 22, 0.35);
+        box-shadow: 0 0 10px rgba(132, 204, 22, 0.2);
+        color: var(--accent, #84cc16);
+    }
+    28.8%, 29.8% {
+        transform: translate(-50%, -50%) scale(1.28);
+        border-color: #bef264;
+        box-shadow: 0 0 22px rgba(190, 242, 100, 0.9), 0 0 35px rgba(132, 204, 22, 0.5);
+        color: #ffffff;
+        background: rgba(22, 28, 38, 0.95);
+    }
+    31.2%, 100% {
+        transform: translate(-50%, -50%) scale(1);
+        border-color: rgba(132, 204, 22, 0.35);
+        box-shadow: 0 0 10px rgba(132, 204, 22, 0.2);
+        color: var(--accent, #84cc16);
+    }
+}
+
+/* ── Stage 02 Split: 31.58% to 53.95% (1.7s) ── */
+@keyframes archSplit2 {
+    0%, 31.57% {
+        stroke-dashoffset: 60;
+        opacity: 0;
+    }
+    31.58% {
+        stroke-dashoffset: 60;
+        opacity: 0;
+    }
+    32.4% {
+        opacity: 1;
+    }
+    52.5% {
+        opacity: 1;
+    }
+    53.95% {
+        stroke-dashoffset: -1000;
+        opacity: 0;
+    }
+    53.96%, 100% {
+        stroke-dashoffset: 60;
+        opacity: 0;
+    }
+}
+
+/* ── Stage 02 Merge: 53.95% to 57.89% (0.3s) ── */
+@keyframes archMerge2 {
+    0%, 53.4% {
+        opacity: 0;
+        transform: translate(50%, -50%) scale(0.3);
+    }
+    53.95% {
+        opacity: 1;
+        transform: translate(50%, -50%) scale(1.6);
+    }
+    56.0% {
+        opacity: 0.9;
+        transform: translate(50%, -50%) scale(1.2);
+    }
+    57.89%, 100% {
+        opacity: 0;
+        transform: translate(50%, -50%) scale(0.3);
+    }
+}
+
+@keyframes archCardGlow2 {
+    0%, 31.57% { opacity: 0; }
+    35%, 52% { opacity: 0.75; }
+    57.89%, 100% { opacity: 0; }
+}
+
+@keyframes archDotPulse2 {
+    0%, 31.57% { transform: scale(1); box-shadow: 0 0 6px var(--accent, #84cc16); }
+    35%, 52% { transform: scale(1.4); box-shadow: 0 0 14px #bef264, 0 0 22px #84cc16; }
+    57.89%, 100% { transform: scale(1); box-shadow: 0 0 6px var(--accent, #84cc16); }
+}
+
+@keyframes archCardActive2 {
+    0%, 31.57% {
+        transform: translateY(0);
+        box-shadow: 0 20px 50px -15px rgba(0, 0, 0, 0.65), 0 0 35px -8px rgba(132, 204, 22, 0.18);
+    }
+    34%, 53% {
+        transform: translateY(-4px);
+        box-shadow: 0 26px 58px -15px rgba(0, 0, 0, 0.75), 0 0 42px -6px rgba(132, 204, 22, 0.32);
+    }
+    57.89%, 100% {
+        transform: translateY(0);
+        box-shadow: 0 20px 50px -15px rgba(0, 0, 0, 0.65), 0 0 35px -8px rgba(132, 204, 22, 0.18);
+    }
+}
+
+/* ── Connector 02: 57.89% to 63.16% (0.4s) ── */
+@keyframes archComet2Flow {
+    0%, 57.3% {
+        left: 0%;
+        opacity: 0;
+        transform: scale(0.6);
+    }
+    57.89% {
+        opacity: 1;
+        transform: scale(1);
+    }
+    62.5% {
+        left: 95%;
+        opacity: 1;
+        transform: scale(1);
+    }
+    63.16%, 100% {
+        left: 100%;
+        opacity: 0;
+        transform: scale(0.6);
+    }
+}
+
+@keyframes archBeam2Flow {
+    0%, 57.1% {
+        left: -100%;
+        opacity: 0;
+    }
+    57.89% {
+        opacity: 0.95;
+    }
+    62.5% {
+        left: 100%;
+        opacity: 0.95;
+    }
+    63.16%, 100% {
+        left: 120%;
+        opacity: 0;
+    }
+}
+
+@keyframes archNode2Pulse {
+    0%, 58.8% {
+        transform: translate(-50%, -50%) scale(1);
+        border-color: rgba(132, 204, 22, 0.35);
+        box-shadow: 0 0 10px rgba(132, 204, 22, 0.2);
+        color: var(--accent, #84cc16);
+    }
+    60.2%, 61.2% {
+        transform: translate(-50%, -50%) scale(1.28);
+        border-color: #bef264;
+        box-shadow: 0 0 22px rgba(190, 242, 100, 0.9), 0 0 35px rgba(132, 204, 22, 0.5);
+        color: #ffffff;
+        background: rgba(22, 28, 38, 0.95);
+    }
+    62.8%, 100% {
+        transform: translate(-50%, -50%) scale(1);
+        border-color: rgba(132, 204, 22, 0.35);
+        box-shadow: 0 0 10px rgba(132, 204, 22, 0.2);
+        color: var(--accent, #84cc16);
+    }
+}
+
+/* ── Stage 03 Split: 63.16% to 85.53% (1.7s) ── */
+@keyframes archSplit3 {
+    0%, 63.15% {
+        stroke-dashoffset: 60;
+        opacity: 0;
+    }
+    63.16% {
+        stroke-dashoffset: 60;
+        opacity: 0;
+    }
+    64.0% {
+        opacity: 1;
+    }
+    84.0% {
+        opacity: 1;
+    }
+    85.53% {
+        stroke-dashoffset: -1000;
+        opacity: 0;
+    }
+    85.54%, 100% {
+        stroke-dashoffset: 60;
+        opacity: 0;
+    }
+}
+
+/* ── Stage 03 Merge: 85.53% to 89.47% (0.3s) ── */
+@keyframes archMerge3 {
+    0%, 85.0% {
+        opacity: 0;
+        transform: translate(50%, -50%) scale(0.3);
+    }
+    85.53% {
+        opacity: 1;
+        transform: translate(50%, -50%) scale(1.6);
+    }
+    87.5% {
+        opacity: 0.9;
+        transform: translate(50%, -50%) scale(1.2);
+    }
+    89.47%, 100% {
+        opacity: 0;
+        transform: translate(50%, -50%) scale(0.3);
+    }
+}
+
+@keyframes archCardGlow3 {
+    0%, 63.15% { opacity: 0; }
+    67%, 84% { opacity: 0.65; }
+    89.47%, 100% { opacity: 0; }
+}
+
+@keyframes archDotPulse3 {
+    0%, 63.15% { transform: scale(1); box-shadow: 0 0 6px var(--accent, #84cc16); }
+    67%, 84% { transform: scale(1.35); box-shadow: 0 0 14px #bef264, 0 0 22px #84cc16; }
+    89.47%, 100% { transform: scale(1); box-shadow: 0 0 6px var(--accent, #84cc16); }
+}
+
+@keyframes archCardActive3 {
+    0%, 63.15% {
+        transform: translateY(0);
+        box-shadow: 0 16px 40px -15px rgba(0, 0, 0, 0.5);
+    }
+    66%, 84% {
+        transform: translateY(-3px);
+        box-shadow: 0 20px 48px -15px rgba(0, 0, 0, 0.65), 0 0 28px -8px rgba(132, 204, 22, 0.2);
+    }
+    89.47%, 100% {
+        transform: translateY(0);
+        box-shadow: 0 16px 40px -15px rgba(0, 0, 0, 0.5);
+    }
+}
+
+/* ==========================================================================
+   RESPONSIVE DESIGN & MOBILE VERTICAL PIPELINE
+   ========================================================================== */
+
+@media (max-width: 1080px) {
+    .arch-pipeline {
+        gap: 0.75rem;
+    }
+
+    .arch-connector {
+        width: 32px;
+    }
+
+    .arch-card {
+        padding: 1.25rem;
+    }
+
+    .arch-feature-item {
+        padding: 0.55rem;
+    }
+}
+
+@media (max-width: 900px) {
+    .arch-pipeline {
+        flex-direction: column;
+        align-items: center;
+        gap: 1.25rem;
+        max-width: 520px;
+        margin-left: auto;
+        margin-right: auto;
+    }
+
+    .arch-card {
+        width: 100%;
+    }
+
+    /* Merge point moves to bottom-center on vertical mobile */
+    .arch-merge-point {
+        top: auto;
+        bottom: -3px;
+        right: auto;
+        left: 50%;
+        transform: translate(-50%, 50%) scale(0.3);
+    }
+
+    .arch-connector {
+        width: 2px;
+        height: 44px;
+        margin: 0.15rem 0;
+    }
+
+    .arch-track {
+        width: 2px;
+        height: 100%;
+    }
+
+    .arch-pulse-beam::after {
+        left: 0;
+        top: -100%;
+        width: 100%;
+        height: 80%;
+        background: linear-gradient(180deg, transparent 0%, rgba(132, 204, 22, 0.4) 40%, #bef264 90%, #ffffff 100%);
+    }
+
+    .arch-pulse-comet {
+        left: 50%;
+        top: 0%;
+        margin-left: -4px;
+        margin-top: -4px;
+    }
+
+    .arch-connector-node {
+        transform: translate(-50%, -50%) rotate(90deg) scale(1);
+    }
+
+    /* Assign Vertical Flow Keyframes */
+    .arch-connector-1 .arch-pulse-beam::after {
+        animation-name: archBeam1FlowV;
+    }
+
+    .arch-connector-1 .arch-pulse-comet {
+        animation-name: archComet1FlowV;
+    }
+
+    .arch-connector-1 .arch-connector-node {
+        animation-name: archNode1PulseV;
+    }
+
+    .arch-connector-2 .arch-pulse-beam::after {
+        animation-name: archBeam2FlowV;
+    }
+
+    .arch-connector-2 .arch-pulse-comet {
+        animation-name: archComet2FlowV;
+    }
+
+    .arch-connector-2 .arch-connector-node {
+        animation-name: archNode2PulseV;
+    }
+
+    /* Merge point pulse keyframes on mobile */
+    .arch-card-1 .arch-merge-point {
+        animation-name: archMerge1V;
+    }
+
+    .arch-card-2 .arch-merge-point {
+        animation-name: archMerge2V;
+    }
+
+    .arch-card-3 .arch-merge-point {
+        animation-name: archMerge3V;
+    }
+}
+
+/* Mobile Vertical Merge Keyframes */
+@keyframes archMerge1V {
+    0%, 21.8% {
+        opacity: 0;
+        transform: translate(-50%, 50%) scale(0.3);
+    }
+    22.37% {
+        opacity: 1;
+        transform: translate(-50%, 50%) scale(1.6);
+    }
+    24.5% {
+        opacity: 0.9;
+        transform: translate(-50%, 50%) scale(1.2);
+    }
+    26.32%, 100% {
+        opacity: 0;
+        transform: translate(-50%, 50%) scale(0.3);
+    }
+}
+
+@keyframes archMerge2V {
+    0%, 53.4% {
+        opacity: 0;
+        transform: translate(-50%, 50%) scale(0.3);
+    }
+    53.95% {
+        opacity: 1;
+        transform: translate(-50%, 50%) scale(1.6);
+    }
+    56.0% {
+        opacity: 0.9;
+        transform: translate(-50%, 50%) scale(1.2);
+    }
+    57.89%, 100% {
+        opacity: 0;
+        transform: translate(-50%, 50%) scale(0.3);
+    }
+}
+
+@keyframes archMerge3V {
+    0%, 85.0% {
+        opacity: 0;
+        transform: translate(-50%, 50%) scale(0.3);
+    }
+    85.53% {
+        opacity: 1;
+        transform: translate(-50%, 50%) scale(1.6);
+    }
+    87.5% {
+        opacity: 0.9;
+        transform: translate(-50%, 50%) scale(1.2);
+    }
+    89.47%, 100% {
+        opacity: 0;
+        transform: translate(-50%, 50%) scale(0.3);
+    }
+}
+
+/* Vertical Stream Keyframes for Mobile Connectors */
+@keyframes archBeam1FlowV {
+    0%, 25.5% { top: -100%; opacity: 0; }
+    26.32% { opacity: 0.95; }
+    31.0% { top: 100%; opacity: 0.95; }
+    31.58%, 100% { top: 120%; opacity: 0; }
+}
+
+@keyframes archComet1FlowV {
+    0%, 25.8% { top: 0%; opacity: 0; transform: scale(0.6); }
+    26.32% { opacity: 1; transform: scale(1); }
+    31.0% { top: 95%; opacity: 1; transform: scale(1); }
+    31.58%, 100% { top: 100%; opacity: 0; transform: scale(0.6); }
+}
+
+@keyframes archNode1PulseV {
+    0%, 27.2% {
+        transform: translate(-50%, -50%) rotate(90deg) scale(1);
+        border-color: rgba(132, 204, 22, 0.35);
+        box-shadow: 0 0 10px rgba(132, 204, 22, 0.2);
+        color: var(--accent, #84cc16);
+    }
+    28.8%, 29.8% {
+        transform: translate(-50%, -50%) rotate(90deg) scale(1.28);
+        border-color: #bef264;
+        box-shadow: 0 0 22px rgba(190, 242, 100, 0.9), 0 0 35px rgba(132, 204, 22, 0.5);
+        color: #ffffff;
+        background: rgba(22, 28, 38, 0.95);
+    }
+    31.2%, 100% {
+        transform: translate(-50%, -50%) rotate(90deg) scale(1);
+        border-color: rgba(132, 204, 22, 0.35);
+        box-shadow: 0 0 10px rgba(132, 204, 22, 0.2);
+        color: var(--accent, #84cc16);
+    }
+}
+
+@keyframes archBeam2FlowV {
+    0%, 57.1% { top: -100%; opacity: 0; }
+    57.89% { opacity: 0.95; }
+    62.5% { top: 100%; opacity: 0.95; }
+    63.16%, 100% { top: 120%; opacity: 0; }
+}
+
+@keyframes archComet2FlowV {
+    0%, 57.3% { top: 0%; opacity: 0; transform: scale(0.6); }
+    57.89% { opacity: 1; transform: scale(1); }
+    62.5% { top: 95%; opacity: 1; transform: scale(1); }
+    63.16%, 100% { top: 100%; opacity: 0; transform: scale(0.6); }
+}
+
+@keyframes archNode2PulseV {
+    0%, 58.8% {
+        transform: translate(-50%, -50%) rotate(90deg) scale(1);
+        border-color: rgba(132, 204, 22, 0.35);
+        box-shadow: 0 0 10px rgba(132, 204, 22, 0.2);
+        color: var(--accent, #84cc16);
+    }
+    60.2%, 61.2% {
+        transform: translate(-50%, -50%) rotate(90deg) scale(1.28);
+        border-color: #bef264;
+        box-shadow: 0 0 22px rgba(190, 242, 100, 0.9), 0 0 35px rgba(132, 204, 22, 0.5);
+        color: #ffffff;
+        background: rgba(22, 28, 38, 0.95);
+    }
+    62.8%, 100% {
+        transform: translate(-50%, -50%) rotate(90deg) scale(1);
+        border-color: rgba(132, 204, 22, 0.35);
+        box-shadow: 0 0 10px rgba(132, 204, 22, 0.2);
+        color: var(--accent, #84cc16);
+    }
+}
+
+@media (max-width: 640px) {
+    .arch-section {
+        padding: 56px 0;
+    }
+
+    .arch-card {
+        padding: 1.15rem;
+        border-radius: 16px;
+    }
+
+    .arch-card-title {
+        font-size: 1.12rem;
+    }
+
+    .arch-feature-content b {
+        font-size: 0.84rem;
+    }
+
+    .arch-feature-content span {
+        font-size: 0.74rem;
+    }
+}
+
+/* Accessibility: respect user preference for reduced motion */
+@media (prefers-reduced-motion: reduce) {
+    .arch-card-1,
+    .arch-card-2,
+    .arch-card-3,
+    .arch-path,
+    .arch-merge-point,
+    .arch-card-glow,
+    .arch-pulse-dot,
+    .arch-pulse-beam::after,
+    .arch-pulse-comet,
+    .arch-connector-node {
+        animation: none !important;
+        transform: none !important;
+        opacity: 0 !important;
+    }
+    .arch-connector-node {
+        opacity: 1 !important;
+        transform: translate(-50%, -50%) !important;
+    }
+    .arch-card-1,
+    .arch-card-2,
+    .arch-card-3 {
+        opacity: 1 !important;
+        transform: none !important;
+    }
+}

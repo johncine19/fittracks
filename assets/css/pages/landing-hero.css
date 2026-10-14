@@ -1,18 +1,5 @@
 /* ==========================================================================
    FITTRACK — IMMERSIVE HERO
-   --------------------------------------------------------------------------
-   Self-contained (`hx-` namespace) so the legacy `.hero-*` overrides in
-   landing.css never leak in. Motion is driven by js/pages/landing-hero.js.
-
-   Depth stack (back → front):
-     photo (dolly on scroll, drift on pointer, slow Ken Burns)
-     → dim layer with a cursor-shaped hole (the "flashlight")
-     → lime glow at the cursor → dust particles (canvas)
-     → readability shade → film grain → copy + live product HUD
-
-  States:
-     .is-pending   set by an inline script before first paint; everything sits
-                   in its pre-entrance pose. Removing it plays the entrance.
    ========================================================================== */
 
 .hx-hero {
@@ -55,6 +42,39 @@
     z-index: 0;
     overflow: hidden;
     pointer-events: none;
+}
+
+.hx-stage::after {
+    content: '';
+    position: absolute;
+    z-index: 5;
+    left: var(--mx);
+    top: var(--my);
+    width: clamp(190px, 48vw, 360px);
+    aspect-ratio: 1;
+    border-radius: 50%;
+    opacity: 0;
+    pointer-events: none;
+    background:
+        radial-gradient(circle, rgba(163, 230, 53, .12) 0%, rgba(163, 230, 53, .04) 36%, transparent 62%),
+        radial-gradient(circle, transparent 53%, rgba(190, 242, 100, .9) 53.5%, transparent 54.5%, transparent 69%, rgba(132, 204, 22, .55) 69.5%, transparent 70.5%);
+    filter: drop-shadow(0 0 12px rgba(132, 204, 22, .5));
+    transform: translate(-50%, -50%) scale(.22);
+}
+
+.hx-stage.is-tap-splash::after {
+    animation: hxTapSplash 850ms cubic-bezier(.16, 1, .3, 1) both;
+}
+
+@keyframes hxTapSplash {
+    0% {
+        opacity: .95;
+        transform: translate(-50%, -50%) scale(.22);
+    }
+    100% {
+        opacity: 0;
+        transform: translate(-50%, -50%) scale(1.35);
+    }
 }
 
 .hx-dolly,
@@ -1018,7 +1038,8 @@
 
 @media (max-width: 1080px) {
     .hx-hero {
-        min-height: 0;
+        min-height: 100vh;
+        min-height: 100svh;
         height: auto;
     }
 
@@ -1087,25 +1108,42 @@
 }
 
 @media (max-width: 640px) {
-    .hx-copy {
-        width: 100%;
-        margin-right: auto;
-        margin-left: auto;
-        text-align: center;
-    }
-
     .hx-hero {
-        min-height: 0;
+        min-height: 100vh;
+        min-height: 100svh;
+        min-height: 100dvh;
         height: auto;
+        display: flex;
+        flex-direction: column;
+        justify-content: flex-start;
     }
 
     .hx-hero::after {
-        height: 36px;
+        height: 60px;
     }
 
     .hx-body {
-        padding: 80px 0 20px;
-        flex: none;
+        flex: 1 0 auto;
+        display: flex;
+        flex-direction: column;
+        justify-content: flex-start;
+        align-items: center;
+        padding: clamp(74px, 12vh, 92px) 0 clamp(32px, 6vh, 48px);
+    }
+
+    .hx-copy {
+        width: 100%;
+        max-width: 480px;
+        margin-right: auto;
+        margin-left: auto;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        text-align: center;
+    }
+
+    .hx-copy {
+        padding-top: clamp(8rem, 25svh, 13rem);
     }
 
     .hx-bottom {
@@ -1113,102 +1151,51 @@
     }
 
     .hx-eyebrow {
-        margin-bottom: 0.85rem;
+        margin-bottom: 0.95rem;
         font-size: 0.72rem;
         padding: 0.32rem 0.75rem;
     }
 
     .hx-title {
         text-align: center;
-        font-size: clamp(1.85rem, 8vw, 2.35rem);
-        line-height: 1.04;
+        font-size: clamp(2rem, 8.8vw, 2.5rem);
+        line-height: 1.05;
         letter-spacing: -0.035em;
-        margin-bottom: 0.75rem;
+        margin-bottom: 0.95rem;
     }
 
     .hx-sub {
-        margin-bottom: 1.15rem;
-        font-size: 0.92rem;
-        line-height: 1.48;
-        max-width: 100%;
+        text-align: center;
+        margin-bottom: 1.5rem;
+        font-size: 0.95rem;
+        line-height: 1.52;
+        max-width: 380px;
     }
 
     .hx-ctas {
+        width: 100%;
+        max-width: 360px;
+        margin-top: clamp(3rem, 9svh, 5rem);
         flex-direction: column;
         align-items: stretch;
-        gap: 0.65rem;
+        gap: 0.75rem;
     }
 
     .hx-btn {
         width: 100%;
-        height: 50px;
-        font-size: 0.94rem;
-        border-radius: 12px;
-    }
-
-    .hx-cues {
-        margin: 0.75rem 0 0;
-        gap: 0.35rem 0.85rem;
-        font-size: 0.76rem;
-    }
-
-    .hx-hud {
-        margin-top: 1.15rem;
-        width: 100%;
-    }
-
-    .hx-float-scan {
-        display: none;
-    }
-
-    .hx-float-feed,
-    .hx-feed {
-        width: 100%;
-        padding: 0.8rem 0.9rem 0.55rem;
+        height: 52px;
+        font-size: 0.96rem;
         border-radius: 14px;
     }
 
-    .hx-card-head {
-        padding-bottom: 0.55rem;
-        margin-bottom: 0.3rem;
-    }
-
-    .hx-count {
-        font-size: 1.55rem;
-    }
-
-    .hx-card-title {
-        font-size: 0.82rem;
-        margin-top: 0.15rem;
-    }
-
-    .hx-feed-row {
-        padding: 0.35rem 0.4rem;
-        gap: 0.55rem;
-        max-height: 48px;
-    }
-
-    .hx-avatar {
-        width: 28px;
-        height: 28px;
-        font-size: 0.65rem;
-        border-radius: 7px;
-    }
-
-    .hx-feed-meta b {
+    .hx-cues {
+        margin-top: 1.15rem;
+        justify-content: center;
+        gap: 0.45rem 1rem;
         font-size: 0.78rem;
     }
 
-    .hx-feed-meta small {
-        font-size: 0.68rem;
-    }
-
-    .hx-feed-time {
-        font-size: 0.68rem;
-    }
-
-    /* Keep it compact: show only top 2 rows on mobile */
-    .hx-feed-row:nth-child(n + 3) {
+    .hx-hud {
         display: none !important;
     }
 
