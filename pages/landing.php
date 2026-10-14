@@ -578,14 +578,86 @@ function landing_page(): void
                     </div>
                 </div>
 
-                <div class="problem-summary-card">
-                    <span class="summary-tag">The FitTrack Engine</span>
-                    <h3 class="summary-headline">FitTrack brings every operational thread together into a single live
-                        system.</h3>
-                    <p class="summary-body">
-                        From automated turnstile QR scanning to live trainer assignments and financial reporting, FitTrack
-                        eliminates administrative friction so your team can focus on member retention and growth.
-                    </p>
+                <div class="problem-summary-card ft-custom-card-assembly" id="ftProblemSummaryCard">
+                    <!-- SVG Background with Dynamic Cutout Path -->
+                    <svg class="ft-card-svg" aria-hidden="true">
+                        <defs>
+                            <clipPath id="ftCardClip">
+                                <path id="ftCardClipPath" />
+                            </clipPath>
+
+                            <linearGradient id="ftCardGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                                <stop offset="0%" stop-color="#242c3d" stop-opacity="0.94" />
+                                <stop offset="50%" stop-color="#141824" stop-opacity="0.97" />
+                                <stop offset="100%" stop-color="#0c1018" stop-opacity="0.99" />
+                            </linearGradient>
+
+                            <linearGradient id="ftSpecularGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                                <stop offset="0%" stop-color="#ffffff" stop-opacity="0.75" />
+                                <stop offset="35%" stop-color="#bef264" stop-opacity="0.55" />
+                                <stop offset="70%" stop-color="#ffffff" stop-opacity="0.12" />
+                                <stop offset="100%" stop-color="#84cc16" stop-opacity="0.35" />
+                            </linearGradient>
+
+                            <linearGradient id="ftPillGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                                <stop offset="0%" stop-color="#2a3346" stop-opacity="0.96" />
+                                <stop offset="100%" stop-color="#131722" stop-opacity="0.98" />
+                            </linearGradient>
+
+                            <filter id="ftCardShadow" x="-15%" y="-15%" width="130%" height="130%">
+                                <feDropShadow dx="0" dy="28" stdDeviation="30" flood-color="#000000" flood-opacity="0.8" />
+                                <feDropShadow dx="0" dy="0" stdDeviation="20" flood-color="#84cc16" flood-opacity="0.14" />
+                            </filter>
+
+                            <filter id="ftPillShadow" x="-20%" y="-20%" width="140%" height="140%">
+                                <feDropShadow dx="0" dy="14" stdDeviation="16" flood-color="#000000" flood-opacity="0.7" />
+                                <feDropShadow dx="0" dy="0" stdDeviation="12" flood-color="#84cc16" flood-opacity="0.22" />
+                            </filter>
+                        </defs>
+
+                        <path class="ft-card-bg" id="ftCardBgPath" filter="url(#ftCardShadow)" />
+                        <path class="ft-card-specular" id="ftCardSpecularPath" />
+                    </svg>
+
+                    <!-- Frosted Glass Sheen Layer (Clipped to Notched Silhouette) -->
+                    <div class="ft-card-inner-sheen" aria-hidden="true"></div>
+
+                    <!-- Card Content Overlay -->
+                    <div class="ft-card-content">
+                        <div class="ft-glass-top">
+                            <span class="summary-tag">
+                                <span class="summary-tag-dot"></span>
+                                The FitTrack Engine
+                            </span>
+                            <div class="ft-glass-badge">
+                                <?= landing_icon('zap') ?>
+                                <span>Core Engine</span>
+                            </div>
+                        </div>
+
+                        <h3 class="summary-headline">
+                            FitTrack brings every operational thread <span class="summary-headline-accent">into a single live system.</span>
+                        </h3>
+
+                        <div class="ft-card-bottom-row">
+                            <p class="summary-body">
+                                From automated turnstile QR scanning to live trainer assignments and financial reporting, FitTrack
+                                eliminates administrative friction so your team can focus on member retention and growth.
+                            </p>
+                        </div>
+                    </div>
+
+                    <!-- Floating Companion Pill nestled in the bottom-right cutout -->
+                    <div class="floating-pill-wrap" id="ftFloatingPill">
+                        <svg class="pill-svg" aria-hidden="true">
+                            <path class="pill-bg" id="ftPillBgPath" filter="url(#ftPillShadow)" />
+                            <path class="pill-specular" id="ftPillSpecularPath" />
+                        </svg>
+                        <div class="pill-content">
+                            <span class="pill-dot"></span>
+                            <span>99.98% System Uptime</span>
+                        </div>
+                    </div>
                 </div>
             </div>
         </section>
@@ -767,75 +839,241 @@ function landing_page(): void
         </section>
 
         <!-- ==========================================================================
-       06. CORE FEATURES
+       06. CORE FEATURES (Platform Capabilities - Serpentine Hexagon Infographic)
        ========================================================================== -->
         <section class="has-parallax-orbs features-section reveal-on-scroll" id="features">
             <div class="parallax-orbs" aria-hidden="true">
                 <span class="parallax-orb orb-lime" data-parallax="0.22"></span>
                 <span class="parallax-orb orb-sky" data-parallax="-0.12"></span>
             </div>
+
+            <!-- Global SVG Gradients for Hexagon & Wing -->
+            <svg style="position: absolute; width: 0; height: 0; overflow: hidden;" aria-hidden="true">
+                <defs>
+                    <linearGradient id="capHexFillGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+                        <stop offset="0%" stop-color="#14191a" stop-opacity="0.95" />
+                        <stop offset="55%" stop-color="#1c2419" stop-opacity="0.98" />
+                        <stop offset="85%" stop-color="#4d7c0f" stop-opacity="0.92" />
+                        <stop offset="100%" stop-color="#bef264" stop-opacity="1" />
+                    </linearGradient>
+
+                    <linearGradient id="capHexBevelGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                        <stop offset="0%" stop-color="#bef264" stop-opacity="0.85" />
+                        <stop offset="45%" stop-color="#84cc16" stop-opacity="0.55" />
+                        <stop offset="80%" stop-color="#ffffff" stop-opacity="0.95" />
+                        <stop offset="100%" stop-color="#bef264" stop-opacity="1" />
+                    </linearGradient>
+
+                    <linearGradient id="capWingFillGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+                        <stop offset="0%" stop-color="#182218" stop-opacity="0.95" />
+                        <stop offset="30%" stop-color="#12161f" stop-opacity="0.92" />
+                        <stop offset="100%" stop-color="#0b0e14" stop-opacity="0.96" />
+                    </linearGradient>
+
+                    <linearGradient id="capWingBorderGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+                        <stop offset="0%" stop-color="#84cc16" stop-opacity="0.6" />
+                        <stop offset="50%" stop-color="#475569" stop-opacity="0.3" />
+                        <stop offset="90%" stop-color="#bef264" stop-opacity="0.5" />
+                        <stop offset="100%" stop-color="#84cc16" stop-opacity="0.8" />
+                    </linearGradient>
+                </defs>
+            </svg>
+
             <div class="container">
                 <div class="section-header">
                     <span class="section-label">Platform Capabilities</span>
                     <h2 class="section-title">Everything moving behind the workout.</h2>
-                    <p class="section-desc">The daily details that keep members showing up and your team on the same page.
-                    </p>
+                    <p class="section-desc">The daily details that keep members showing up and your team on the same page.</p>
                 </div>
 
-                <div class="features-grid">
-                    <div class="feature-card">
-                        <div class="feature-icon-box"><?= landing_icon('users', 'icon-svg') ?></div>
-                        <h3 class="feature-title">Member Management</h3>
-                        <p class="feature-desc">Complete digital records, membership plan statuses, profiles, and attendance
-                            history.</p>
+                <div class="serpentine-container" id="capabilitiesSerpentineTimeline">
+                    <!-- SVG Serpentine Track Line -->
+                    <svg class="serpentine-track-svg" aria-hidden="true">
+                        <path class="track-line" id="capabilitiesTrackPath" />
+                    </svg>
+
+                    <!-- Item 01 -->
+                    <div class="cap-item">
+                        <div class="cap-node">01</div>
+                        <div class="cap-card">
+                            <div class="cap-hex-badge">
+                                <svg class="cap-hex-svg" viewBox="0 0 100 100" preserveAspectRatio="none">
+                                    <polygon points="25,5 75,5 98,50 75,95 25,95 2,50" fill="url(#capHexFillGrad)" stroke="url(#capHexBevelGrad)" stroke-width="2" />
+                                    <line x1="25" y1="95" x2="75" y2="95" stroke="#ffffff" stroke-width="2.5" stroke-linecap="round" />
+                                </svg>
+                                <div class="cap-hex-icon"><?= landing_icon('users', 'icon-svg') ?></div>
+                            </div>
+                            <div class="cap-wing">
+                                <svg class="cap-wing-svg" viewBox="0 0 500 100" preserveAspectRatio="none">
+                                    <polygon points="0,5 470,5 498,50 470,95 0,95" fill="url(#capWingFillGrad)" stroke="url(#capWingBorderGrad)" stroke-width="1.5" />
+                                </svg>
+                                <div class="cap-wing-body">
+                                    <h3 class="cap-title">Member Management</h3>
+                                    <p class="cap-desc">Complete digital records, membership plan statuses, profiles, and attendance history.</p>
+                                </div>
+                            </div>
+                        </div>
                     </div>
 
-                    <div class="feature-card">
-                        <div class="feature-icon-box"><?= landing_icon('qr', 'icon-svg') ?></div>
-                        <h3 class="feature-title">Dynamic QR Attendance</h3>
-                        <p class="feature-desc">Secure time-stamped check-ins using rotating dynamic QR codes to prevent
-                            pass-sharing.</p>
+                    <!-- Item 02 (Stagger Right) -->
+                    <div class="cap-item stagger-right">
+                        <div class="cap-node">02</div>
+                        <div class="cap-card">
+                            <div class="cap-hex-badge">
+                                <svg class="cap-hex-svg" viewBox="0 0 100 100" preserveAspectRatio="none">
+                                    <polygon points="25,5 75,5 98,50 75,95 25,95 2,50" fill="url(#capHexFillGrad)" stroke="url(#capHexBevelGrad)" stroke-width="2" />
+                                    <line x1="25" y1="95" x2="75" y2="95" stroke="#ffffff" stroke-width="2.5" stroke-linecap="round" />
+                                </svg>
+                                <div class="cap-hex-icon"><?= landing_icon('qr', 'icon-svg') ?></div>
+                            </div>
+                            <div class="cap-wing">
+                                <svg class="cap-wing-svg" viewBox="0 0 500 100" preserveAspectRatio="none">
+                                    <polygon points="0,5 470,5 498,50 470,95 0,95" fill="url(#capWingFillGrad)" stroke="url(#capWingBorderGrad)" stroke-width="1.5" />
+                                </svg>
+                                <div class="cap-wing-body">
+                                    <h3 class="cap-title">Dynamic QR Attendance</h3>
+                                    <p class="cap-desc">Secure time-stamped check-ins using rotating dynamic QR codes to prevent pass-sharing.</p>
+                                </div>
+                            </div>
+                        </div>
                     </div>
 
-                    <div class="feature-card">
-                        <div class="feature-icon-box"><?= landing_icon('card', 'icon-svg') ?></div>
-                        <h3 class="feature-title">Online Payments</h3>
-                        <p class="feature-desc">Streamlined membership billing, recurring payments, walk-in fees, and audit
-                            logging.</p>
+                    <!-- Item 03 -->
+                    <div class="cap-item">
+                        <div class="cap-node">03</div>
+                        <div class="cap-card">
+                            <div class="cap-hex-badge">
+                                <svg class="cap-hex-svg" viewBox="0 0 100 100" preserveAspectRatio="none">
+                                    <polygon points="25,5 75,5 98,50 75,95 25,95 2,50" fill="url(#capHexFillGrad)" stroke="url(#capHexBevelGrad)" stroke-width="2" />
+                                    <line x1="25" y1="95" x2="75" y2="95" stroke="#ffffff" stroke-width="2.5" stroke-linecap="round" />
+                                </svg>
+                                <div class="cap-hex-icon"><?= landing_icon('card', 'icon-svg') ?></div>
+                            </div>
+                            <div class="cap-wing">
+                                <svg class="cap-wing-svg" viewBox="0 0 500 100" preserveAspectRatio="none">
+                                    <polygon points="0,5 470,5 498,50 470,95 0,95" fill="url(#capWingFillGrad)" stroke="url(#capWingBorderGrad)" stroke-width="1.5" />
+                                </svg>
+                                <div class="cap-wing-body">
+                                    <h3 class="cap-title">Online Payments</h3>
+                                    <p class="cap-desc">Streamlined membership billing, recurring payments, walk-in fees, and audit logging.</p>
+                                </div>
+                            </div>
+                        </div>
                     </div>
 
-                    <div class="feature-card">
-                        <div class="feature-icon-box"><?= landing_icon('dumbbell', 'icon-svg') ?></div>
-                        <h3 class="feature-title">Trainer Management</h3>
-                        <p class="feature-desc">Assign coaches to members, manage training schedules, and monitor client
-                            progression.</p>
+                    <!-- Item 04 (Stagger Right) -->
+                    <div class="cap-item stagger-right">
+                        <div class="cap-node">04</div>
+                        <div class="cap-card">
+                            <div class="cap-hex-badge">
+                                <svg class="cap-hex-svg" viewBox="0 0 100 100" preserveAspectRatio="none">
+                                    <polygon points="25,5 75,5 98,50 75,95 25,95 2,50" fill="url(#capHexFillGrad)" stroke="url(#capHexBevelGrad)" stroke-width="2" />
+                                    <line x1="25" y1="95" x2="75" y2="95" stroke="#ffffff" stroke-width="2.5" stroke-linecap="round" />
+                                </svg>
+                                <div class="cap-hex-icon"><?= landing_icon('dumbbell', 'icon-svg') ?></div>
+                            </div>
+                            <div class="cap-wing">
+                                <svg class="cap-wing-svg" viewBox="0 0 500 100" preserveAspectRatio="none">
+                                    <polygon points="0,5 470,5 498,50 470,95 0,95" fill="url(#capWingFillGrad)" stroke="url(#capWingBorderGrad)" stroke-width="1.5" />
+                                </svg>
+                                <div class="cap-wing-body">
+                                    <h3 class="cap-title">Trainer Management</h3>
+                                    <p class="cap-desc">Assign coaches to members, manage training schedules, and monitor client progression.</p>
+                                </div>
+                            </div>
+                        </div>
                     </div>
 
-                    <div class="feature-card">
-                        <div class="feature-icon-box"><?= landing_icon('clipboard', 'icon-svg') ?></div>
-                        <h3 class="feature-title">Workout & Dietary Plans</h3>
-                        <p class="feature-desc">Custom routine builders with automated calorie and macro calculation
-                            engines.</p>
+                    <!-- Item 05 -->
+                    <div class="cap-item">
+                        <div class="cap-node">05</div>
+                        <div class="cap-card">
+                            <div class="cap-hex-badge">
+                                <svg class="cap-hex-svg" viewBox="0 0 100 100" preserveAspectRatio="none">
+                                    <polygon points="25,5 75,5 98,50 75,95 25,95 2,50" fill="url(#capHexFillGrad)" stroke="url(#capHexBevelGrad)" stroke-width="2" />
+                                    <line x1="25" y1="95" x2="75" y2="95" stroke="#ffffff" stroke-width="2.5" stroke-linecap="round" />
+                                </svg>
+                                <div class="cap-hex-icon"><?= landing_icon('clipboard', 'icon-svg') ?></div>
+                            </div>
+                            <div class="cap-wing">
+                                <svg class="cap-wing-svg" viewBox="0 0 500 100" preserveAspectRatio="none">
+                                    <polygon points="0,5 470,5 498,50 470,95 0,95" fill="url(#capWingFillGrad)" stroke="url(#capWingBorderGrad)" stroke-width="1.5" />
+                                </svg>
+                                <div class="cap-wing-body">
+                                    <h3 class="cap-title">Workout &amp; Dietary Plans</h3>
+                                    <p class="cap-desc">Custom routine builders with automated calorie and macro calculation engines.</p>
+                                </div>
+                            </div>
+                        </div>
                     </div>
 
-                    <div class="feature-card">
-                        <div class="feature-icon-box"><?= landing_icon('zap', 'icon-svg') ?></div>
-                        <h3 class="feature-title">Equipment Availability</h3>
-                        <p class="feature-desc">Live equipment queue monitoring and maintenance schedule tracking.</p>
+                    <!-- Item 06 (Stagger Right) -->
+                    <div class="cap-item stagger-right">
+                        <div class="cap-node">06</div>
+                        <div class="cap-card">
+                            <div class="cap-hex-badge">
+                                <svg class="cap-hex-svg" viewBox="0 0 100 100" preserveAspectRatio="none">
+                                    <polygon points="25,5 75,5 98,50 75,95 25,95 2,50" fill="url(#capHexFillGrad)" stroke="url(#capHexBevelGrad)" stroke-width="2" />
+                                    <line x1="25" y1="95" x2="75" y2="95" stroke="#ffffff" stroke-width="2.5" stroke-linecap="round" />
+                                </svg>
+                                <div class="cap-hex-icon"><?= landing_icon('zap', 'icon-svg') ?></div>
+                            </div>
+                            <div class="cap-wing">
+                                <svg class="cap-wing-svg" viewBox="0 0 500 100" preserveAspectRatio="none">
+                                    <polygon points="0,5 470,5 498,50 470,95 0,95" fill="url(#capWingFillGrad)" stroke="url(#capWingBorderGrad)" stroke-width="1.5" />
+                                </svg>
+                                <div class="cap-wing-body">
+                                    <h3 class="cap-title">Equipment Availability</h3>
+                                    <p class="cap-desc">Live equipment queue monitoring and maintenance schedule tracking.</p>
+                                </div>
+                            </div>
+                        </div>
                     </div>
 
-                    <div class="feature-card">
-                        <div class="feature-icon-box"><?= landing_icon('trend-up', 'icon-svg') ?></div>
-                        <h3 class="feature-title">Fitness Progress</h3>
-                        <p class="feature-desc">Track weight, body measurement changes, strength records, and milestone
-                            achievements.</p>
+                    <!-- Item 07 -->
+                    <div class="cap-item">
+                        <div class="cap-node">07</div>
+                        <div class="cap-card">
+                            <div class="cap-hex-badge">
+                                <svg class="cap-hex-svg" viewBox="0 0 100 100" preserveAspectRatio="none">
+                                    <polygon points="25,5 75,5 98,50 75,95 25,95 2,50" fill="url(#capHexFillGrad)" stroke="url(#capHexBevelGrad)" stroke-width="2" />
+                                    <line x1="25" y1="95" x2="75" y2="95" stroke="#ffffff" stroke-width="2.5" stroke-linecap="round" />
+                                </svg>
+                                <div class="cap-hex-icon"><?= landing_icon('trend-up', 'icon-svg') ?></div>
+                            </div>
+                            <div class="cap-wing">
+                                <svg class="cap-wing-svg" viewBox="0 0 500 100" preserveAspectRatio="none">
+                                    <polygon points="0,5 470,5 498,50 470,95 0,95" fill="url(#capWingFillGrad)" stroke="url(#capWingBorderGrad)" stroke-width="1.5" />
+                                </svg>
+                                <div class="cap-wing-body">
+                                    <h3 class="cap-title">Fitness Progress</h3>
+                                    <p class="cap-desc">Track weight, body measurement changes, strength records, and milestone achievements.</p>
+                                </div>
+                            </div>
+                        </div>
                     </div>
 
-                    <div class="feature-card">
-                        <div class="feature-icon-box"><?= landing_icon('bell', 'icon-svg') ?></div>
-                        <h3 class="feature-title">Engagement Monitoring</h3>
-                        <p class="feature-desc">Automated alerts flag inactive members early so staff can re-engage them
-                            before churn.</p>
+                    <!-- Item 08 (Stagger Right) -->
+                    <div class="cap-item stagger-right">
+                        <div class="cap-node">08</div>
+                        <div class="cap-card">
+                            <div class="cap-hex-badge">
+                                <svg class="cap-hex-svg" viewBox="0 0 100 100" preserveAspectRatio="none">
+                                    <polygon points="25,5 75,5 98,50 75,95 25,95 2,50" fill="url(#capHexFillGrad)" stroke="url(#capHexBevelGrad)" stroke-width="2" />
+                                    <line x1="25" y1="95" x2="75" y2="95" stroke="#ffffff" stroke-width="2.5" stroke-linecap="round" />
+                                </svg>
+                                <div class="cap-hex-icon"><?= landing_icon('bell', 'icon-svg') ?></div>
+                            </div>
+                            <div class="cap-wing">
+                                <svg class="cap-wing-svg" viewBox="0 0 500 100" preserveAspectRatio="none">
+                                    <polygon points="0,5 470,5 498,50 470,95 0,95" fill="url(#capWingFillGrad)" stroke="url(#capWingBorderGrad)" stroke-width="1.5" />
+                                </svg>
+                                <div class="cap-wing-body">
+                                    <h3 class="cap-title">Engagement Monitoring</h3>
+                                    <p class="cap-desc">Automated alerts flag inactive members early so staff can re-engage them before churn.</p>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>

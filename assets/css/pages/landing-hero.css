@@ -122,11 +122,11 @@
 .hx-dim {
     position: absolute;
     inset: 0;
-    background: rgba(3, 5, 7, 0.8);
+    background: rgba(3, 5, 7, 0.9);
     -webkit-mask-image: radial-gradient(circle var(--hx-r) at var(--mx) var(--my),
-            transparent 0%, rgba(0, 0, 0, 0.55) 48%, #000 100%);
+            transparent 0%, rgba(0, 0, 0, 0.72) 48%, #000 100%);
     mask-image: radial-gradient(circle var(--hx-r) at var(--mx) var(--my),
-            transparent 0%, rgba(0, 0, 0, 0.55) 48%, #000 100%);
+            transparent 0%, rgba(0, 0, 0, 0.72) 48%, #000 100%);
 }
 
 .hx-glow {
@@ -134,7 +134,7 @@
     inset: 0;
     mix-blend-mode: screen;
     background: radial-gradient(circle calc(var(--hx-r) * 0.7) at var(--mx) var(--my),
-            rgba(163, 230, 53, 0.11), rgba(163, 230, 53, 0) 70%);
+            rgba(163, 230, 53, 0.2), rgba(163, 230, 53, 0) 70%);
 }
 
 .hx-particles {
