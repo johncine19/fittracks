@@ -5649,7 +5649,7 @@ body.auth-body .auth-shell {
     }
 
     .showcase-brand-tagline {
-        font-size: 11px;
+        font-size: 8px !important;
         letter-spacing: 0.1em;
         text-align: left;
     }

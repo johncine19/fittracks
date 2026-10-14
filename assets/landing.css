@@ -127,10 +127,6 @@ video {
     letter-spacing: 0.1em;
     color: var(--accent);
     margin-bottom: 0.75rem;
-    background: var(--accent-soft);
-    padding: 0.35rem 0.9rem;
-    border-radius: var(--radius-pill);
-    border: 1px solid var(--border-accent);
 }
 
 .section-title {
