@@ -57,7 +57,7 @@ final class Emails
 HTML;
     }
 
-    public static function sendVerification(string $email, string $firstName, string $token): bool
+    public static function sendVerification(string $email, string $firstName, string $token, bool $immediate = false): bool
     {
         $link = app_base_url() . '?page=verify_email&token=' . urlencode($token);
         
@@ -72,12 +72,20 @@ HTML;
         <p style="font-size: 14px; color: #94a3b8; margin-top: 30px;">If you didn't create an account, you can safely ignore this email.</p>
 HTML;
 
-        return send_email_job([
-            'to' => $email,
-            'name' => $firstName,
-            'subject' => 'Verify your FITTRACKS email address',
-            'body' => self::layout($content),
-        ]);
+        $subject = 'Verify your FITTRACKS email address';
+        $htmlBody = self::layout($content);
+
+        if ($immediate && function_exists('send_email_job')) {
+            return send_email_job([
+                'to' => $email,
+                'name' => $firstName,
+                'subject' => $subject,
+                'body' => $htmlBody,
+            ]);
+        }
+
+        queue_email($email, $firstName, $subject, $htmlBody);
+        return true;
     }
 
     public static function sendPasswordReset(string $email, string $firstName, string $token): void
@@ -138,7 +146,8 @@ HTML;
         string $receiptNumber,
         string $paymentId,
         string $startDate,
-        string $endDate
+        string $endDate,
+        bool $immediate = false
     ): bool {
         $safeOwnerName = htmlspecialchars($ownerName, ENT_QUOTES, 'UTF-8');
         $safeGymName = htmlspecialchars($gymName, ENT_QUOTES, 'UTF-8');
@@ -165,12 +174,20 @@ HTML;
         <p style="font-size:14px; color:#94a3b8;">Keep this email as your payment receipt.</p>
 HTML;
 
-        return send_email_job([
-            'to' => $email,
-            'name' => $ownerName,
-            'subject' => 'Subscription Payment Receipt - FITTRACKS',
-            'body' => self::layout($content),
-        ]);
+        $subject = 'Subscription Payment Receipt - FITTRACKS';
+        $htmlBody = self::layout($content);
+
+        if ($immediate && function_exists('send_email_job')) {
+            return send_email_job([
+                'to' => $email,
+                'name' => $ownerName,
+                'subject' => $subject,
+                'body' => $htmlBody,
+            ]);
+        }
+
+        queue_email($email, $ownerName, $subject, $htmlBody);
+        return true;
     }
 
     public static function sendMembershipPaymentReceipt(
@@ -182,7 +199,8 @@ HTML;
         string $receiptNumber,
         string $paymentId,
         string $startDate,
-        string $endDate
+        string $endDate,
+        bool $immediate = false
     ): bool {
         $safeMember = htmlspecialchars($memberName, ENT_QUOTES, 'UTF-8');
         $safeGym = htmlspecialchars($gymName, ENT_QUOTES, 'UTF-8');
@@ -206,12 +224,20 @@ HTML;
         <p style="font-size:14px; color:#94a3b8;">Keep this email as your membership payment receipt.</p>
 HTML;
 
-        return send_email_job([
-            'to' => $email,
-            'name' => $memberName,
-            'subject' => 'Membership Payment Receipt - FITTRACKS',
-            'body' => self::layout($content),
-        ]);
+        $subject = 'Membership Payment Receipt - FITTRACKS';
+        $htmlBody = self::layout($content);
+
+        if ($immediate && function_exists('send_email_job')) {
+            return send_email_job([
+                'to' => $email,
+                'name' => $memberName,
+                'subject' => $subject,
+                'body' => $htmlBody,
+            ]);
+        }
+
+        queue_email($email, $memberName, $subject, $htmlBody);
+        return true;
     }
 
     public static function sendGymMemberPaymentNotice(
@@ -222,7 +248,8 @@ HTML;
         string $planName,
         float $amount,
         string $receiptNumber,
-        string $paymentId
+        string $paymentId,
+        bool $immediate = false
     ): bool {
         $safeOwner = htmlspecialchars($ownerName, ENT_QUOTES, 'UTF-8');
         $safeGym = htmlspecialchars($gymName, ENT_QUOTES, 'UTF-8');
@@ -244,12 +271,20 @@ HTML;
         </table>
 HTML;
 
-        return send_email_job([
-            'to' => $email,
-            'name' => $ownerName,
-            'subject' => 'Member Payment Received - FITTRACKS',
-            'body' => self::layout($content),
-        ]);
+        $subject = 'Member Payment Received - FITTRACKS';
+        $htmlBody = self::layout($content);
+
+        if ($immediate && function_exists('send_email_job')) {
+            return send_email_job([
+                'to' => $email,
+                'name' => $ownerName,
+                'subject' => $subject,
+                'body' => $htmlBody,
+            ]);
+        }
+
+        queue_email($email, $ownerName, $subject, $htmlBody);
+        return true;
     }
 
     public static function sendNewGymApplication(string $gymName, string $ownerName): void

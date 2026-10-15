@@ -55,22 +55,20 @@ class Queue
      * Process pending jobs in the queue.
      * @param int $limit Maximum number of jobs to process in this run.
      * @param int $timeLimitSeconds Maximum execution time in seconds (0 for no limit).
+     * @return int Number of jobs processed in this run.
      */
-    public static function work(int $limit = 50, int $timeLimitSeconds = 0): void
+    public static function work(int $limit = 50, int $timeLimitSeconds = 0): int
     {
         $redis = function_exists('redis') ? redis() : null;
         $startTime = time();
-
-        error_log("Starting worker loop...");
+        $totalProcessed = 0;
 
         // 1. Process Redis queue first if available
         if ($redis !== null) {
             try {
-                $processed = 0;
-                while ($processed < $limit) {
+                while ($totalProcessed < $limit) {
                     if ($timeLimitSeconds > 0 && (time() - $startTime) >= $timeLimitSeconds) {
-                        error_log("Worker time limit reached ({$timeLimitSeconds}s). Stopping.");
-                        return;
+                        return $totalProcessed;
                     }
 
                     $raw = $redis->lpop(self::REDIS_QUEUE_KEY);
@@ -92,7 +90,7 @@ class Queue
                         error_log("Failed Redis job: $jobClass - Error: " . $e->getMessage());
                     }
 
-                    $processed++;
+                    $totalProcessed++;
                 }
             } catch (Throwable $e) {
                 error_log("Redis worker error: " . $e->getMessage());
@@ -101,9 +99,8 @@ class Queue
 
         // 2. Process MySQL database jobs if any exist
         $pdo = db();
-        for ($i = 0; $i < $limit; $i++) {
+        while ($totalProcessed < $limit) {
             if ($timeLimitSeconds > 0 && (time() - $startTime) >= $timeLimitSeconds) {
-                error_log("Worker time limit reached ({$timeLimitSeconds}s). Stopping.");
                 break;
             }
 
@@ -132,10 +129,13 @@ class Queue
 
                 $pdo->prepare('DELETE FROM jobs WHERE id = ?')->execute([$job['id']]);
                 $pdo->commit();
+                $totalProcessed++;
             } catch (Throwable $e) {
                 $pdo->rollBack();
                 error_log("Failed DB job ID: {$job['id']} - Error: " . $e->getMessage());
             }
         }
+
+        return $totalProcessed;
     }
 }

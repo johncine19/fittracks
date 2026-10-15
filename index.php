@@ -273,8 +273,13 @@ try {
 }
 
 // Poor man's cron: process a few queue jobs at the end of every request.
-// Since Render web services don't have background cron, this ensures emails are sent.
+// Can be disabled when running dedicated horizontal worker instances (php worker.php).
 register_shutdown_function(function() {
+    $inlineEnabled = strtolower((string)app_env('ENABLE_INLINE_QUEUE_WORKER', 'true'));
+    if ($inlineEnabled === 'false' || $inlineEnabled === '0') {
+        return;
+    }
+
     if (function_exists('fastcgi_finish_request')) {
         fastcgi_finish_request();
     }
