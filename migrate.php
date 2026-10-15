@@ -84,7 +84,15 @@ try {
         "ALTER TABLE gym_subscription_payments ADD UNIQUE KEY uq_sub_xendit_reference (xendit_reference_id)",
         "ALTER TABLE gym_subscription_payments ADD UNIQUE KEY uq_sub_xendit_session (xendit_session_id)",
         "ALTER TABLE payments ADD UNIQUE KEY uq_payment_xendit_reference (xendit_reference_id)",
-        "ALTER TABLE payments ADD UNIQUE KEY uq_payment_xendit_session (xendit_session_id)"
+        "ALTER TABLE payments ADD UNIQUE KEY uq_payment_xendit_session (xendit_session_id)",
+        "CREATE INDEX idx_att_gym_checkin ON attendance (gym_id, check_in_time)",
+        "CREATE INDEX idx_att_user_checkin ON attendance (user_id, check_in_time)",
+        "CREATE INDEX idx_payments_membership ON payments (membership_id)",
+        "CREATE INDEX idx_payments_status_date ON payments (status, payment_date)",
+        "CREATE INDEX idx_sub_payments_gym_date ON gym_subscription_payments (gym_id, payment_date)",
+        "CREATE INDEX idx_sub_payments_status_date ON gym_subscription_payments (status, payment_date)",
+        "CREATE INDEX idx_notif_user_read ON notifications (user_id, is_read, created_at)",
+        "CREATE INDEX idx_gym_members_gym ON gym_members (gym_id)"
     ];
 
     foreach ($migrations as $sql) {
