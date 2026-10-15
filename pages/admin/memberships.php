@@ -454,6 +454,21 @@ function memberships_page(): void
 
             if ($currentActive) {
                 if ((int)$currentActive['plan_id'] === $planId) {
+                    $daysUntilEnd = (int)ceil((strtotime($currentActive['end_date']) - strtotime('today')) / 86400);
+
+                    // Guardrail: Enforce 7-day renewal window for the same membership plan
+                    if ($daysUntilEnd > 7) {
+                        flash("Your {$plan['plan_name']} membership is currently active with {$daysUntilEnd} days remaining. Renewals open 7 days before your expiration date (" . date('M j, Y', strtotime($currentActive['end_date'])) . ").", 'warning');
+                        redirect('memberships');
+                    }
+
+                    // Guardrail: Prevent stacking more than 1 advance renewal cycle
+                    $alreadyQueued = (int) scalar("SELECT COUNT(*) FROM memberships m JOIN membership_plans mp ON mp.plan_id = m.plan_id WHERE m.user_id = ? AND mp.gym_id = ? AND m.status = 'active' AND m.start_date > CURDATE()", [$user['user_id'], $planGymId]);
+                    if ($alreadyQueued > 0) {
+                        flash("You already have an advance renewal queued through " . date('M j, Y', strtotime($currentActive['end_date'])) . ". Further renewals cannot be queued until your current cycle ends.", 'warning');
+                        redirect('memberships');
+                    }
+
                     // Renewal: Queue it
                     $start = new DateTime($currentActive['end_date']);
                     $end = (clone $start)->modify('+' . $plan['duration_days'] . ' days')->format('Y-m-d');
@@ -466,6 +481,15 @@ function memberships_page(): void
                         $finalPrice = max(0, $finalPrice - (float)$currentActive['old_price']);
                     }
                 }
+            }
+
+            // Guardrail: Clean up any older pending memberships and pending payments for this member at this gym
+            $pdo = db();
+            $pendingMids = $pdo->query("SELECT m.membership_id FROM memberships m JOIN membership_plans mp ON mp.plan_id = m.plan_id WHERE m.user_id = " . (int)$user['user_id'] . " AND mp.gym_id = " . (int)$planGymId . " AND m.status = 'pending'")->fetchAll(PDO::FETCH_COLUMN);
+            if (!empty($pendingMids)) {
+                $inList = implode(',', array_map('intval', $pendingMids));
+                $pdo->exec("UPDATE payments SET status = 'overdue' WHERE membership_id IN ($inList) AND status = 'pending'");
+                $pdo->exec("UPDATE memberships SET status = 'cancelled' WHERE membership_id IN ($inList) AND status = 'pending'");
             }
 
             if ($paymentMethod === 'xendit') {
@@ -876,6 +900,15 @@ function memberships_page(): void
                                 $isPopular = $hasCustomPopular ? !empty($plan['is_popular']) : ($index === $popularIndex);
                                 $displayPrice = (float)$plan['price'];
 
+                                $isRenewalLocked = false;
+                                $memberDaysLeft = null;
+                                if ($isActive && !empty($currentActive['end_date'])) {
+                                    $memberDaysLeft = (int)ceil((strtotime($currentActive['end_date']) - strtotime('today')) / 86400);
+                                    if ($memberDaysLeft > 7) {
+                                        $isRenewalLocked = true;
+                                    }
+                                }
+
                                 if (!$isActive && $sameDayDiscount > 0) {
                                     $displayPrice = max(0, $displayPrice - $sameDayDiscount);
                                 }
@@ -937,14 +970,27 @@ function memberships_page(): void
 
                                     <div style="margin-top: auto; padding-top: 14px;">
                                         <?php if ($isActive): ?>
-                                            <button type="button"
-                                                class="member-pricing-btn member-popular-btn btn-subscribe-plan"
-                                                data-plan-id="<?= (int)$plan['plan_id'] ?>"
-                                                data-plan-name="<?= h($plan['plan_name']) ?>"
-                                                data-plan-price="<?= h($formattedPrice) ?>"
-                                                data-is-current="1">
-                                                Renew Plan
-                                            </button>
+                                            <?php if ($isRenewalLocked): ?>
+                                                <button type="button"
+                                                    class="member-pricing-btn member-locked-btn"
+                                                    disabled
+                                                    title="Renewals open 7 days before expiration"
+                                                    style="background: rgba(255,255,255,0.06); color: var(--muted); border: 1px solid var(--line); cursor: not-allowed; opacity: 0.75; width: 100%; box-shadow: none;">
+                                                    Active (<?= $memberDaysLeft ?>d left)
+                                                </button>
+                                                <div style="font-size: 11.5px; color: var(--muted); margin-top: 6px; text-align: center;">
+                                                    Renewals open <?= date('M j, Y', strtotime('-7 days', strtotime($currentActive['end_date']))) ?>
+                                                </div>
+                                            <?php else: ?>
+                                                <button type="button"
+                                                    class="member-pricing-btn member-popular-btn btn-subscribe-plan"
+                                                    data-plan-id="<?= (int)$plan['plan_id'] ?>"
+                                                    data-plan-name="<?= h($plan['plan_name']) ?>"
+                                                    data-plan-price="<?= h($formattedPrice) ?>"
+                                                    data-is-current="1">
+                                                    Renew Plan (<?= max(0, $memberDaysLeft ?? 0) ?>d left)
+                                                </button>
+                                            <?php endif; ?>
                                         <?php else: ?>
                                             <button type="button"
                                                 class="member-pricing-btn <?= $isPopular ? 'member-popular-btn' : 'member-standard-btn' ?> btn-subscribe-plan"
@@ -952,7 +998,7 @@ function memberships_page(): void
                                                 data-plan-name="<?= h($plan['plan_name']) ?>"
                                                 data-plan-price="<?= h($formattedPrice) ?>"
                                                 data-is-current="0">
-                                                Get Started
+                                                <?= $activePlanId ? 'Switch Plan' : 'Get Started' ?>
                                             </button>
                                         <?php endif; ?>
                                     </div>

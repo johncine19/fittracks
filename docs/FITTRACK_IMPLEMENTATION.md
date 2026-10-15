@@ -172,3 +172,17 @@ Calculates a weighted engagement score (0–100) reflecting member health and re
   - `Highly Engaged`: Score ≥ 75
   - `Moderately Engaged`: Score 40 – 74
   - `At-Risk`: Score < 40 (eligible for automated churn re-engagement)
+
+### 7.8 Subscription & Membership Over-Purchase Guardrails
+Enforces strict lifecycle rules across platform and gym tiers:
+1. **Gym Platform SaaS Plans (`pages/gym_owner/gym_subscription.php`, `core/xendit.php`)**:
+   - **7-Day Renewal Window**: Locks checkout for active plans having >7 days left, with client and server rejection.
+   - **Immediate Tier Upgrades**: Tier switches remain immediately enabled without restriction.
+   - **Pending Checkout Cleanup**: Invalidates prior pending checkouts before issuing new Xendit links.
+   - **Webhook Rollover Alignment**: Ensures renewals seamlessly roll over from `subscription_renewal_date`.
+2. **Member Gym Subscriptions (`pages/admin/memberships.php`, `pages/admin/payments.php`)**:
+   - **7-Day Renewal Window**: Renewal buttons locked if active plan has >7 days remaining.
+   - **Queue Limit**: Prohibits stacking renewals more than 1 cycle in advance.
+   - **Stale Request Cleanup**: Supersedes abandoned pending requests automatically.
+   - **365-Day Safety Ceiling**: Restricts manual front-desk queueing to 1 year maximum.
+   - See detailed documentation in [SUBSCRIPTION_GUARDRAILS.md](SUBSCRIPTION_GUARDRAILS.md).

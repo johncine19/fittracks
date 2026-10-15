@@ -33,7 +33,12 @@ echo "Checking for expired partner gym subscriptions...\n";
 $expiredGymsCount = auto_expire_lapsed_gym_subscriptions();
 echo "Gym subscription expiration check completed: {$expiredGymsCount} gym(s) transitioned to expired.\n";
 
-// 5. Auto-sync trainer assignment end dates with member active plans and renewals
+// 5. Auto-send renewal reminders and expiration notice emails (members + gym owners)
+echo "Processing automated renewal and expiration email notices...\n";
+$emailNotices = process_all_renewal_email_notices();
+echo "Renewal emails: {$emailNotices['member_reminders']} member reminder(s), {$emailNotices['member_expired']} member expired notice(s), {$emailNotices['gym_reminders']} gym owner reminder(s), {$emailNotices['gym_expired']} gym owner expired notice(s).\n";
+
+// 6. Auto-sync trainer assignment end dates with member active plans and renewals
 echo "Syncing trainer assignments with member plans...\n";
 $assignSync = sync_trainer_assignments_with_memberships();
 echo "Trainer assignments synced: {$assignSync['extended']} extended, {$assignSync['ended']} ended.\n";

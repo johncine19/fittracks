@@ -104,6 +104,18 @@ function users_page(): void
                     return;
                 }
             }
+            if ($roleToCreate === 'staff' && !$isAdmin) {
+                if (!gym_has_feature('staff')) {
+                    $sendCreateResponse(false, "Staff management requires an active Free Trial or a Starter/Professional/Business plan. Please upgrade your subscription.", 'warning');
+                    return;
+                }
+                if (!gym_can_add_staff($gymId)) {
+                    $sLimit = gym_staff_limit();
+                    $activeSCount = gym_active_staff_count($gymId);
+                    $sendCreateResponse(false, "Staff account capacity reached ({$activeSCount}/{$sLimit} staff). Please upgrade your subscription plan to add more staff.", 'warning');
+                    return;
+                }
+            }
 
             $plainPassword = (string) post('password');
             $firstName = mb_convert_case(trim((string) post('first_name')), MB_CASE_TITLE, 'UTF-8');

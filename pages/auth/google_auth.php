@@ -154,5 +154,10 @@ function handle_google_auth(?string $requiredRole = null): void
         flash('Signed in with Google as ' . htmlspecialchars($user['email']), 'info');
     }
 
-    redirect('dashboard');
+    $target = 'dashboard';
+    if (!empty($_SESSION['return_to'])) {
+        $target = (string) $_SESSION['return_to'];
+        unset($_SESSION['return_to']);
+    }
+    redirect($target);
 }

@@ -102,6 +102,11 @@ function render_header(string $title, ?array $user = null): void
     if ($user && ($user['role'] ?? '') === 'member') {
         maybe_notify_membership_renewal((int) $user['user_id']);
         maybe_notify_membership_expired((int) $user['user_id']);
+    } elseif ($user && ($user['role'] ?? '') === 'gym_owner') {
+        if (function_exists('process_gym_owner_renewal_reminder_emails')) {
+            process_gym_owner_renewal_reminder_emails();
+            process_gym_owner_plan_expired_emails();
+        }
     }
     ?>
     <!doctype html>
@@ -1660,7 +1665,7 @@ function render_header(string $title, ?array $user = null): void
                                                 <?= $trialInfo['days_left'] ?>d left &bull; 50 cap
                                             </span>
                                         </div>
-                                        <span class="trial-banner-subtext">Free Trial active (up to 50 members & 2 trainers). Upgrade for unlimited capacity.</span>
+                                        <span class="trial-banner-subtext">Free Trial active (up to 50 members, 2 trainers & 2 staff). Upgrade for unlimited capacity.</span>
                                     </div>
                                 </div>
                                 <a href="index.php?page=gym_subscription" class="trial-banner-btn btn-trial">

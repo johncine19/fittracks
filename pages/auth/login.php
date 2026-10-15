@@ -220,7 +220,12 @@ function handle_login(): void
             if ($shouldFlashWelcome) {
                 flash('Welcome back, ' . $user['first_name'] . '!', 'success');
             }
-            redirect('dashboard');
+            $target = 'dashboard';
+            if (!empty($_SESSION['return_to'])) {
+                $target = (string) $_SESSION['return_to'];
+                unset($_SESSION['return_to']);
+            }
+            redirect($target);
         }
         RateLimiter::hit($email, 300);
         flash('Invalid email or password.', 'danger');

@@ -333,7 +333,7 @@ HTML;
         $content = <<<HTML
         <p>Hi <strong>{$ownerName}</strong>,</p>
         <p>Congratulations! Your gym application for <strong>{$gymName}</strong> has been approved by the platform administration.</p>
-        <p>Your Gym Owner account is now active with a <strong>14-Day Free Trial</strong> (up to 50 members and 2 trainers with full platform access). You can log in immediately to customize your gym profile, set up membership plans, and test attendance check-ins without any upfront payment.</p>
+        <p>Your Gym Owner account is now active with a <strong>14-Day Free Trial</strong> (up to 50 members, 2 trainers, and 2 front desk staff with full platform access). You can log in immediately to customize your gym profile, set up your front desk QR scanner, and test attendance check-ins without any upfront payment.</p>
         <p style="text-align: center; margin: 30px 0;">
             <a href="{$dashboardUrl}" class="btn">Go to Dashboard</a>
         </p>
@@ -432,6 +432,196 @@ HTML;
         </p>
 HTML;
 
+        $htmlBody = self::layout($content);
+
+        if ($immediate && function_exists('send_email_job')) {
+            return send_email_job([
+                'to' => $email,
+                'name' => $ownerName,
+                'subject' => $subject,
+                'body' => $htmlBody,
+            ]);
+        }
+
+        queue_email($email, $ownerName, $subject, $htmlBody);
+        return true;
+    }
+
+    public static function sendMemberRenewalReminder(
+        string $email,
+        string $memberName,
+        string $gymName,
+        string $planName,
+        string $endDate,
+        int $daysLeft,
+        bool $immediate = false
+    ): bool {
+        $safeMember = htmlspecialchars($memberName, ENT_QUOTES, 'UTF-8');
+        $safeGym = htmlspecialchars($gymName, ENT_QUOTES, 'UTF-8');
+        $safePlan = htmlspecialchars($planName, ENT_QUOTES, 'UTF-8');
+        $formattedDate = date('M j, Y', strtotime($endDate));
+        $renewUrl = app_base_url() . '?page=memberships';
+
+        $daysText = $daysLeft === 0 ? 'today' : ($daysLeft === 1 ? 'tomorrow' : "in {$daysLeft} days");
+
+        $content = <<<HTML
+        <p>Hi <strong>{$safeMember}</strong>,</p>
+        <p>This is a friendly reminder that your <strong>{$safePlan}</strong> membership at <strong>{$safeGym}</strong> is expiring <strong>{$daysText}</strong> on <strong>{$formattedDate}</strong>.</p>
+        <div style="background: rgba(255, 255, 255, 0.04); border: 1px solid rgba(199, 255, 34, 0.25); border-radius: 8px; padding: 18px; margin: 20px 0;">
+            <p style="margin: 0 0 8px 0; color: #94a3b8; font-size: 13px; text-transform: uppercase; font-weight: 700;">Membership Status</p>
+            <p style="margin: 0; font-size: 18px; font-weight: 700; color: #ffffff;">{$safePlan} &bull; <span style="color: #c7ff22;">Expires {$formattedDate}</span></p>
+        </div>
+        <p>Renew your membership now to continue enjoying uninterrupted gym facility access, QR attendance check-in, equipment reservation, and trainer guidance.</p>
+        <p style="text-align: center; margin: 30px 0;">
+            <a href="{$renewUrl}" class="btn" style="display:inline-block; padding:12px 26px; background-color:#c7ff22; color:#0b110e !important; text-decoration:none; border-radius:6px; font-weight:700; font-size:15px;">Renew Membership Online</a>
+        </p>
+        <p style="font-size: 13px; color: #94a3b8; text-align: center;">
+            Prefer paying in person? You can also renew at the front desk using cash.
+        </p>
+HTML;
+
+        $subject = "Action Required: Your {$planName} membership at {$gymName} expires {$daysText}";
+        $htmlBody = self::layout($content);
+
+        if ($immediate && function_exists('send_email_job')) {
+            return send_email_job([
+                'to' => $email,
+                'name' => $memberName,
+                'subject' => $subject,
+                'body' => $htmlBody,
+            ]);
+        }
+
+        queue_email($email, $memberName, $subject, $htmlBody);
+        return true;
+    }
+
+    public static function sendMemberPlanExpiredNotice(
+        string $email,
+        string $memberName,
+        string $gymName,
+        string $planName,
+        string $endDate,
+        bool $immediate = false
+    ): bool {
+        $safeMember = htmlspecialchars($memberName, ENT_QUOTES, 'UTF-8');
+        $safeGym = htmlspecialchars($gymName, ENT_QUOTES, 'UTF-8');
+        $safePlan = htmlspecialchars($planName, ENT_QUOTES, 'UTF-8');
+        $formattedDate = date('M j, Y', strtotime($endDate));
+        $renewUrl = app_base_url() . '?page=memberships';
+
+        $content = <<<HTML
+        <p>Hi <strong>{$safeMember}</strong>,</p>
+        <p>Your <strong>{$safePlan}</strong> membership at <strong>{$safeGym}</strong> expired on <strong>{$formattedDate}</strong>.</p>
+        <div style="background: rgba(255, 77, 93, 0.08); border: 1px solid rgba(255, 77, 93, 0.3); border-radius: 8px; padding: 18px; margin: 20px 0;">
+            <p style="margin: 0 0 6px 0; color: #ff6b7b; font-size: 13px; text-transform: uppercase; font-weight: 700;">Membership Expired</p>
+            <p style="margin: 0; font-size: 15px; color: #e2e8f0;">Your gym check-in privileges and active equipment queues are currently paused until renewed.</p>
+        </div>
+        <p>Don't lose your fitness momentum! Renew today with 1 click to reactivate your gym access immediately.</p>
+        <p style="text-align: center; margin: 30px 0;">
+            <a href="{$renewUrl}" class="btn" style="display:inline-block; padding:12px 26px; background-color:#c7ff22; color:#0b110e !important; text-decoration:none; border-radius:6px; font-weight:700; font-size:15px;">Reactivate &amp; Renew Membership</a>
+        </p>
+        <p style="font-size: 13px; color: #94a3b8; text-align: center;">
+            Need help or have questions? Visit the reception desk or message your gym trainers through the app.
+        </p>
+HTML;
+
+        $subject = "Notice: Your {$planName} membership at {$gymName} has expired";
+        $htmlBody = self::layout($content);
+
+        if ($immediate && function_exists('send_email_job')) {
+            return send_email_job([
+                'to' => $email,
+                'name' => $memberName,
+                'subject' => $subject,
+                'body' => $htmlBody,
+            ]);
+        }
+
+        queue_email($email, $memberName, $subject, $htmlBody);
+        return true;
+    }
+
+    public static function sendGymOwnerRenewalReminder(
+        string $email,
+        string $ownerName,
+        string $gymName,
+        string $planName,
+        string $renewalDate,
+        int $daysLeft,
+        float $amount,
+        string $billingCycle,
+        bool $immediate = false
+    ): bool {
+        $safeOwner = htmlspecialchars($ownerName, ENT_QUOTES, 'UTF-8');
+        $safeGym = htmlspecialchars($gymName, ENT_QUOTES, 'UTF-8');
+        $safePlan = htmlspecialchars($planName, ENT_QUOTES, 'UTF-8');
+        $formattedDate = date('M j, Y', strtotime($renewalDate));
+        $formattedAmount = '&#8369;' . number_format($amount, 2);
+        $cycleLabel = ucfirst($billingCycle);
+        $renewUrl = app_base_url() . '?page=gym_subscription';
+
+        $daysText = $daysLeft === 0 ? 'today' : ($daysLeft === 1 ? 'tomorrow' : "in {$daysLeft} days");
+
+        $content = <<<HTML
+        <p>Hi <strong>{$safeOwner}</strong>,</p>
+        <p>Your FitTrack platform subscription for <strong>{$safeGym}</strong> is scheduled for renewal <strong>{$daysText}</strong> on <strong>{$formattedDate}</strong>.</p>
+        <table style="width:100%; border-collapse:collapse; margin:22px 0; font-size:14px;">
+            <tr><td style="padding:9px 0; color:#94a3b8;">Gym Name</td><td style="padding:9px 0; text-align:right; color:#fff; font-weight:700;">{$safeGym}</td></tr>
+            <tr><td style="padding:9px 0; color:#94a3b8;">Subscription Tier</td><td style="padding:9px 0; text-align:right; color:#c7ff22; font-weight:700;">{$safePlan} Plan</td></tr>
+            <tr><td style="padding:9px 0; color:#94a3b8;">Renewal Date</td><td style="padding:9px 0; text-align:right; color:#fff;">{$formattedDate}</td></tr>
+            <tr><td style="padding:9px 0; color:#94a3b8;">Plan Price</td><td style="padding:9px 0; text-align:right; color:#fff; font-weight:700;">{$formattedAmount} / {$cycleLabel}</td></tr>
+        </table>
+        <p>Your 7-day renewal window is now open. You can renew early or switch tiers anytime to ensure your staff accounts, QR check-in terminal, and member management stay active without disruption.</p>
+        <p style="text-align: center; margin: 30px 0;">
+            <a href="{$renewUrl}" class="btn" style="display:inline-block; padding:12px 26px; background-color:#c7ff22; color:#0b110e !important; text-decoration:none; border-radius:6px; font-weight:700; font-size:15px;">Manage &amp; Renew Subscription</a>
+        </p>
+HTML;
+
+        $subject = "Upcoming Renewal: {$gymName} FitTrack {$planName} Plan renews {$daysText}";
+        $htmlBody = self::layout($content);
+
+        if ($immediate && function_exists('send_email_job')) {
+            return send_email_job([
+                'to' => $email,
+                'name' => $ownerName,
+                'subject' => $subject,
+                'body' => $htmlBody,
+            ]);
+        }
+
+        queue_email($email, $ownerName, $subject, $htmlBody);
+        return true;
+    }
+
+    public static function sendGymOwnerPlanExpiredNotice(
+        string $email,
+        string $ownerName,
+        string $gymName,
+        string $planName,
+        string $renewalDate,
+        bool $immediate = false
+    ): bool {
+        $safeOwner = htmlspecialchars($ownerName, ENT_QUOTES, 'UTF-8');
+        $safeGym = htmlspecialchars($gymName, ENT_QUOTES, 'UTF-8');
+        $safePlan = htmlspecialchars($planName, ENT_QUOTES, 'UTF-8');
+        $formattedDate = date('M j, Y', strtotime($renewalDate));
+        $renewUrl = app_base_url() . '?page=gym_subscription';
+
+        $content = <<<HTML
+        <p>Hi <strong>{$safeOwner}</strong>,</p>
+        <p>The FitTrack platform subscription for <strong>{$safeGym}</strong> expired on <strong>{$formattedDate}</strong>.</p>
+        <div style="background: rgba(255, 77, 93, 0.08); border: 1px solid rgba(255, 77, 93, 0.3); border-radius: 8px; padding: 18px; margin: 20px 0;">
+            <p style="margin: 0 0 6px 0; color: #ff6b7b; font-size: 13px; text-transform: uppercase; font-weight: 700;">Subscription Inactive</p>
+            <p style="margin: 0; font-size: 15px; color: #e2e8f0;">Front desk check-in terminals, staff logins, and premium analytics for {$safeGym} are temporarily paused until your plan is renewed.</p>
+        </div>
+        <p>All your gym records, member profiles, and historical logs are securely preserved. Simply renew your plan to restore full operational access instantly.</p>
+        <p style="text-align: center; margin: 30px 0;">
+            <a href="{$renewUrl}" class="btn" style="display:inline-block; padding:12px 26px; background-color:#c7ff22; color:#0b110e !important; text-decoration:none; border-radius:6px; font-weight:700; font-size:15px;">Reactivate Gym Subscription</a>
+        </p>
+HTML;
+
+        $subject = "Urgent: {$gymName} FitTrack subscription has expired";
         $htmlBody = self::layout($content);
 
         if ($immediate && function_exists('send_email_job')) {

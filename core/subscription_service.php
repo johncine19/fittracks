@@ -311,6 +311,46 @@ function gym_trainer_limit(array|int|null $gym = null): int
     };
 }
 
+function gym_staff_limit(array|int|null $gym = null): int
+{
+    $tier = gym_subscription_tier($gym);
+    return match ($tier) {
+        'free' => 0,
+        'starter' => 1,
+        'trial' => 2,
+        'professional' => 5,
+        'business' => PHP_INT_MAX,
+        default => 0,
+    };
+}
+
+function gym_active_staff_count(int $gymId): int
+{
+    if ($gymId <= 0) return 0;
+    return (int) scalar(
+        'SELECT COUNT(*) FROM gym_staff gs
+         JOIN users u ON u.user_id = gs.user_id
+         WHERE gs.gym_id = ? AND u.status = "active"',
+        [$gymId]
+    );
+}
+
+function gym_can_add_staff(int $gymId, ?array $gym = null): bool
+{
+    if (!$gym) {
+        $gym = db()->query("SELECT * FROM gyms WHERE gym_id = " . (int)$gymId)->fetch(PDO::FETCH_ASSOC);
+    }
+    if (!$gym || !gym_has_feature('staff', $gym)) {
+        return false;
+    }
+    $limit = gym_staff_limit($gym);
+    if ($limit === PHP_INT_MAX) {
+        return true;
+    }
+    $current = gym_active_staff_count($gymId);
+    return $current < $limit;
+}
+
 function gym_active_trainer_count(int $gymId): int
 {
     if ($gymId <= 0) return 0;
@@ -399,6 +439,7 @@ function gym_has_feature(string $feature, array|int|null $gym = null): bool
         'plans' => 'free',
 
         // Starter & Above (Staff & Basic Reporting)
+        'staff' => 'starter',
         'users' => 'starter',
         'reports' => 'starter',
         'basic_reports' => 'starter',
@@ -695,3 +736,242 @@ function auto_expire_lapsed_gym_subscriptions(): int
         return 0;
     }
 }
+
+/**
+ * Dispatch automated 3-day renewal reminder emails to members whose active plans expire soon.
+ */
+function process_member_renewal_reminder_emails(?int $onlyUserId = null): int
+{
+    $pdo = db();
+    $userFilter = $onlyUserId !== null ? 'AND m.user_id = ' . (int)$onlyUserId : '';
+    $sql = "
+        SELECT m.membership_id, m.user_id, m.end_date, p.plan_name, p.gym_id, g.name AS gym_name,
+               u.email, CONCAT(u.first_name, ' ', u.last_name) AS member_name
+        FROM memberships m
+        JOIN membership_plans p ON p.plan_id = m.plan_id
+        JOIN gyms g ON g.gym_id = p.gym_id
+        JOIN users u ON u.user_id = m.user_id
+        LEFT JOIN renewal_email_log rel ON rel.recipient_type = 'member' 
+             AND rel.target_id = m.membership_id 
+             AND rel.notice_type = 'reminder' 
+             AND rel.reference_date = m.end_date
+        WHERE m.status = 'active'
+          AND m.end_date BETWEEN CURDATE() AND DATE_ADD(CURDATE(), INTERVAL 3 DAY)
+          AND rel.id IS NULL
+          {$userFilter}
+    ";
+
+    $candidates = $pdo->query($sql)->fetchAll(PDO::FETCH_ASSOC);
+    $sent = 0;
+
+    $claimStmt = $pdo->prepare("INSERT IGNORE INTO renewal_email_log (recipient_type, target_id, notice_type, reference_date) VALUES ('member', ?, 'reminder', ?)");
+
+    foreach ($candidates as $row) {
+        if (empty($row['email'])) {
+            continue;
+        }
+
+        if (!empty($row['gym_id'])) {
+            $gymRow = $pdo->query("SELECT * FROM gyms WHERE gym_id = " . (int)$row['gym_id'])->fetch(PDO::FETCH_ASSOC);
+            if ($gymRow && !gym_has_feature('renewal_reminders', $gymRow)) {
+                continue;
+            }
+        }
+
+        $claimStmt->execute([(int)$row['membership_id'], $row['end_date']]);
+        if ($claimStmt->rowCount() > 0) {
+            $daysLeft = (int)ceil((strtotime($row['end_date']) - strtotime(date('Y-m-d'))) / 86400);
+            Emails::sendMemberRenewalReminder(
+                (string)$row['email'],
+                (string)$row['member_name'],
+                (string)$row['gym_name'],
+                (string)$row['plan_name'],
+                (string)$row['end_date'],
+                $daysLeft
+            );
+            $sent++;
+        }
+    }
+
+    return $sent;
+}
+
+/**
+ * Dispatch automated expiration emails to members whose plans have expired.
+ */
+function process_member_plan_expired_emails(?int $onlyUserId = null): int
+{
+    $pdo = db();
+    $userFilter = $onlyUserId !== null ? 'AND m.user_id = ' . (int)$onlyUserId : '';
+    $sql = "
+        SELECT m.membership_id, m.user_id, m.end_date, p.plan_name, g.name AS gym_name,
+               u.email, CONCAT(u.first_name, ' ', u.last_name) AS member_name
+        FROM memberships m
+        JOIN membership_plans p ON p.plan_id = m.plan_id
+        JOIN gyms g ON g.gym_id = p.gym_id
+        JOIN users u ON u.user_id = m.user_id
+        LEFT JOIN renewal_email_log rel ON rel.recipient_type = 'member' 
+             AND rel.target_id = m.membership_id 
+             AND rel.notice_type = 'expired' 
+             AND rel.reference_date = m.end_date
+        WHERE m.status IN ('active', 'expired')
+          AND m.end_date < CURDATE()
+          AND m.end_date >= DATE_SUB(CURDATE(), INTERVAL 14 DAY)
+          AND rel.id IS NULL
+          AND NOT EXISTS (
+              SELECT 1 FROM memberships m2 
+              WHERE m2.user_id = m.user_id AND m2.status = 'active' AND m2.end_date >= CURDATE()
+          )
+          {$userFilter}
+    ";
+
+    $candidates = $pdo->query($sql)->fetchAll(PDO::FETCH_ASSOC);
+    $sent = 0;
+
+    $claimStmt = $pdo->prepare("INSERT IGNORE INTO renewal_email_log (recipient_type, target_id, notice_type, reference_date) VALUES ('member', ?, 'expired', ?)");
+
+    foreach ($candidates as $row) {
+        if (empty($row['email'])) {
+            continue;
+        }
+
+        $claimStmt->execute([(int)$row['membership_id'], $row['end_date']]);
+        if ($claimStmt->rowCount() > 0) {
+            Emails::sendMemberPlanExpiredNotice(
+                (string)$row['email'],
+                (string)$row['member_name'],
+                (string)$row['gym_name'],
+                (string)$row['plan_name'],
+                (string)$row['end_date']
+            );
+            $sent++;
+        }
+    }
+
+    return $sent;
+}
+
+/**
+ * Dispatch automated 7-day renewal reminder emails to Gym Owners for their platform SaaS subscription.
+ */
+function process_gym_owner_renewal_reminder_emails(): int
+{
+    $pdo = db();
+    $sql = "
+        SELECT g.gym_id, g.name AS gym_name, g.subscription_plan, g.subscription_renewal_date,
+               u.email, CONCAT(u.first_name, ' ', u.last_name) AS owner_name
+        FROM gyms g
+        JOIN users u ON u.user_id = g.owner_user_id
+        LEFT JOIN renewal_email_log rel ON rel.recipient_type = 'gym_owner'
+             AND rel.target_id = g.gym_id
+             AND rel.notice_type = 'reminder'
+             AND rel.reference_date = g.subscription_renewal_date
+        WHERE g.status = 'approved'
+          AND g.subscription_status = 'active'
+          AND g.subscription_renewal_date IS NOT NULL
+          AND g.subscription_renewal_date BETWEEN CURDATE() AND DATE_ADD(CURDATE(), INTERVAL 7 DAY)
+          AND rel.id IS NULL
+    ";
+
+    $candidates = $pdo->query($sql)->fetchAll(PDO::FETCH_ASSOC);
+    $plans = get_platform_subscription_plans();
+    $sent = 0;
+
+    $claimStmt = $pdo->prepare("INSERT IGNORE INTO renewal_email_log (recipient_type, target_id, notice_type, reference_date) VALUES ('gym_owner', ?, 'reminder', ?)");
+
+    foreach ($candidates as $row) {
+        if (empty($row['email'])) {
+            continue;
+        }
+
+        $planKey = strtolower((string)$row['subscription_plan']);
+        $planMeta = $plans[$planKey] ?? ['name' => ucfirst($planKey), 'price' => 599.00];
+        $planName = $planMeta['name'] ?? ucfirst($planKey);
+        $amount = (float)($planMeta['price'] ?? 599.00);
+
+        $claimStmt->execute([(int)$row['gym_id'], $row['subscription_renewal_date']]);
+        if ($claimStmt->rowCount() > 0) {
+            $daysLeft = (int)ceil((strtotime($row['subscription_renewal_date']) - strtotime(date('Y-m-d'))) / 86400);
+            Emails::sendGymOwnerRenewalReminder(
+                (string)$row['email'],
+                (string)$row['owner_name'],
+                (string)$row['gym_name'],
+                $planName,
+                (string)$row['subscription_renewal_date'],
+                $daysLeft,
+                $amount,
+                'monthly'
+            );
+            $sent++;
+        }
+    }
+
+    return $sent;
+}
+
+/**
+ * Dispatch automated expiration notice emails to Gym Owners whose platform SaaS subscription has expired.
+ */
+function process_gym_owner_plan_expired_emails(): int
+{
+    $pdo = db();
+    $sql = "
+        SELECT g.gym_id, g.name AS gym_name, g.subscription_plan, g.subscription_renewal_date,
+               u.email, CONCAT(u.first_name, ' ', u.last_name) AS owner_name
+        FROM gyms g
+        JOIN users u ON u.user_id = g.owner_user_id
+        LEFT JOIN renewal_email_log rel ON rel.recipient_type = 'gym_owner'
+             AND rel.target_id = g.gym_id
+             AND rel.notice_type = 'expired'
+             AND rel.reference_date = g.subscription_renewal_date
+        WHERE g.status = 'approved'
+          AND g.subscription_status = 'expired'
+          AND g.subscription_renewal_date IS NOT NULL
+          AND g.subscription_renewal_date >= DATE_SUB(CURDATE(), INTERVAL 14 DAY)
+          AND rel.id IS NULL
+    ";
+
+    $candidates = $pdo->query($sql)->fetchAll(PDO::FETCH_ASSOC);
+    $plans = get_platform_subscription_plans();
+    $sent = 0;
+
+    $claimStmt = $pdo->prepare("INSERT IGNORE INTO renewal_email_log (recipient_type, target_id, notice_type, reference_date) VALUES ('gym_owner', ?, 'expired', ?)");
+
+    foreach ($candidates as $row) {
+        if (empty($row['email'])) {
+            continue;
+        }
+
+        $planKey = strtolower((string)$row['subscription_plan']);
+        $planMeta = $plans[$planKey] ?? ['name' => ucfirst($planKey)];
+        $planName = $planMeta['name'] ?? ucfirst($planKey);
+
+        $claimStmt->execute([(int)$row['gym_id'], $row['subscription_renewal_date']]);
+        if ($claimStmt->rowCount() > 0) {
+            Emails::sendGymOwnerPlanExpiredNotice(
+                (string)$row['email'],
+                (string)$row['owner_name'],
+                (string)$row['gym_name'],
+                $planName,
+                (string)$row['subscription_renewal_date']
+            );
+            $sent++;
+        }
+    }
+
+    return $sent;
+}
+
+/**
+ * Master runner for all renewal reminder and expiration notices.
+ */
+function process_all_renewal_email_notices(): array
+{
+    return [
+        'member_reminders' => process_member_renewal_reminder_emails(),
+        'member_expired'   => process_member_plan_expired_emails(),
+        'gym_reminders'    => process_gym_owner_renewal_reminder_emails(),
+        'gym_expired'      => process_gym_owner_plan_expired_emails(),
+    ];
+}
+

@@ -521,6 +521,13 @@ function landing_page(): void
                     </div>
 
                     <div class="trust-role-card">
+                        <span class="role-tag">Front Desk & Gate</span>
+                        <h3 class="role-title">Front Desk Staff</h3>
+                        <p class="role-desc">Rapidly scan member QR codes, register walk-in guests, collect counter payments,
+                            and manage daily door check-ins with zero paperwork.</p>
+                    </div>
+
+                    <div class="trust-role-card">
                         <span class="role-tag">Coaching Staff</span>
                         <h3 class="role-title">Trainers</h3>
                         <p class="role-desc">Assign personalized workout routines, build dietary plans, track member
@@ -647,17 +654,6 @@ function landing_page(): void
                         </div>
                     </div>
 
-                    <!-- Floating Companion Pill nestled in the bottom-right cutout -->
-                    <div class="floating-pill-wrap" id="ftFloatingPill">
-                        <svg class="pill-svg" aria-hidden="true">
-                            <path class="pill-bg" id="ftPillBgPath" filter="url(#ftPillShadow)" />
-                            <path class="pill-specular" id="ftPillSpecularPath" />
-                        </svg>
-                        <div class="pill-content">
-                            <span class="pill-dot"></span>
-                            <span>99.98% System Uptime</span>
-                        </div>
-                    </div>
                 </div>
             </div>
         </section>
@@ -774,7 +770,6 @@ function landing_page(): void
                         </div>
 
                         <div class="arch-card-footer">
-                            <span>99.98% System uptime</span>
                             <?= landing_icon('shield') ?>
                         </div>
                     </div>
@@ -842,6 +837,10 @@ function landing_page(): void
        06. CORE FEATURES (Platform Capabilities - Serpentine Hexagon Infographic)
        ========================================================================== -->
         <section class="has-parallax-orbs features-section reveal-on-scroll" id="features">
+            <img class="capabilities-background" src="assets/landing/hero_gym.png" alt="" aria-hidden="true" loading="lazy" decoding="async">
+            <div class="capabilities-flashlight-dim" aria-hidden="true"></div>
+            <div class="capabilities-flashlight-glow" aria-hidden="true"></div>
+            <div class="capabilities-flashlight-ripple" aria-hidden="true"></div>
             <div class="parallax-orbs" aria-hidden="true">
                 <span class="parallax-orb orb-lime" data-parallax="0.22"></span>
                 <span class="parallax-orb orb-sky" data-parallax="-0.12"></span>
@@ -1444,13 +1443,14 @@ function landing_page(): void
                 <div class="section-header">
                     <span class="section-label">Tailored Interfaces</span>
                     <h2 class="section-title">Designed for Every User in Your Facility</h2>
-                    <p class="section-desc">Customized experiences optimized for the specific tasks of owners, coaches, and
+                    <p class="section-desc">Customized experiences optimized for the specific tasks of owners, staff, coaches, and
                         members.</p>
                 </div>
 
                 <div class="users-tabs-container">
                     <div class="users-tab-header">
                         <button class="user-tab-btn active" data-user="user-owners">For Gym Owners</button>
+                        <button class="user-tab-btn" data-user="user-staff">For Front Desk Staff</button>
                         <button class="user-tab-btn" data-user="user-trainers">For Trainers</button>
                         <button class="user-tab-btn" data-user="user-members">For Members</button>
                     </div>
@@ -1478,6 +1478,32 @@ function landing_page(): void
                             </ul>
                         </div>
                         <img src="assets/landing/gym_management.png" alt="Gym Management"
+                            style="border-radius: var(--radius-lg); border: 1px solid var(--border-medium);">
+                    </div>
+
+                    <div class="user-pane-content" id="user-staff">
+                        <div>
+                            <h3 class="user-pane-title">Fast Front-Desk & Gate Operations</h3>
+                            <p class="user-pane-desc">
+                                Accelerate daily operations with quick QR turnstile scanning, fast walk-in guest check-ins,
+                                and instant cash or digital payment processing.
+                            </p>
+                            <ul class="user-benefit-list">
+                                <li class="user-benefit-item">
+                                    <span class="bullet-check"><?= landing_icon('check', 'check-svg') ?></span>
+                                    Instant QR code scanner for member attendance
+                                </li>
+                                <li class="user-benefit-item">
+                                    <span class="bullet-check"><?= landing_icon('check', 'check-svg') ?></span>
+                                    Walk-in guest ticketing and day-pass sales
+                                </li>
+                                <li class="user-benefit-item">
+                                    <span class="bullet-check"><?= landing_icon('check', 'check-svg') ?></span>
+                                    On-the-spot payment collection & receipts
+                                </li>
+                            </ul>
+                        </div>
+                        <img src="assets/landing/gym_qr_scan.png" alt="Front Desk & QR Scanning"
                             style="border-radius: var(--radius-lg); border: 1px solid var(--border-medium);">
                     </div>
 
@@ -1780,7 +1806,7 @@ function landing_page(): void
                             <span class="faq-icon">+</span>
                         </button>
                         <div class="faq-answer">
-                            <p>None at all! Every approved facility begins with an automatic <strong>14-Day Free Trial (up to 50 active members & 2 trainers)</strong> with zero payment or credit card required. If you choose not to subscribe after 14 days, your facility gracefully transitions to our <strong>Limited Free Account (up to 25 members)</strong> so your daily turnstile check-ins and member operations never stop.</p>
+                            <p>None at all! Every approved facility begins with an automatic <strong>14-Day Free Trial (up to 50 active members, 2 trainers & 2 front desk staff)</strong> with zero payment or credit card required. If you choose not to subscribe after 14 days, your facility gracefully transitions to our <strong>Limited Free Account (up to 25 members)</strong> so your daily turnstile check-ins and member operations never stop.</p>
                         </div>
                     </div>
 
@@ -1823,7 +1849,7 @@ function landing_page(): void
                         <div class="trial-highlight-perks">
                             <div class="trial-perk-item">
                                 <span class="trial-perk-check"><?= landing_icon('check', 'check-svg') ?></span>
-                                <span><strong>14-Day Evaluation:</strong> Up to 50 active members &amp; 2 trainers included.</span>
+                                <span><strong>14-Day Evaluation:</strong> Up to 50 active members, 2 trainers &amp; 2 staff included.</span>
                             </div>
                             <div class="trial-perk-item">
                                 <span class="trial-perk-check"><?= landing_icon('check', 'check-svg') ?></span>
@@ -2088,7 +2114,7 @@ function landing_page(): void
 
                 <div class="modal-body distribution-modal-body">
                     <p class="distribution-intro">
-                        Review the exact capability distribution across our commercial gym tiers. Every approved facility starts with a complimentary <strong>14-day evaluation trial (50 members & 2 trainers)</strong> with zero payment required, and graceful fallback to our <strong>Limited Free Account (25 members)</strong>.
+                        Review the exact capability distribution across our commercial gym tiers. Every approved facility starts with a complimentary <strong>14-day evaluation trial (50 members, 2 trainers & 2 staff)</strong> with zero payment required, and graceful fallback to our <strong>Limited Free Account (25 members)</strong>.
                     </p>
                     <!-- Mobile Comparison Controls -->
                     <div class="dist-mobile-controls">
@@ -2341,12 +2367,8 @@ function landing_page(): void
 
                         <div class="form-group">
                             <label class="form-label">Your Role</label>
-                            <select name="role" class="form-select">
-                                <option value="Gym Owner">Gym Owner</option>
-                                <option value="General Manager">General Manager</option>
-                                <option value="Head Trainer">Head Trainer</option>
-                                <option value="Other">Other</option>
-                            </select>
+                            <input type="text" name="role" class="form-input"
+                                placeholder="e.g. Gym Owner, General Manager">
                         </div>
 
                         <div class="form-group">

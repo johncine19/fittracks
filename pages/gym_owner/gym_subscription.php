@@ -6,8 +6,12 @@ function gym_subscription_page(): void
     if (!defined('AUTH_PAGE')) define('AUTH_PAGE', true);
 
     $user = current_user();
-    if (!$user || $user['role'] !== 'gym_owner') {
+    if (!$user) {
+        $_SESSION['return_to'] = 'gym_subscription';
         redirect('login');
+    }
+    if ($user['role'] !== 'gym_owner') {
+        redirect('dashboard');
     }
 
     $pdo = db();
@@ -24,6 +28,13 @@ function gym_subscription_page(): void
     }
 
     $plans = get_platform_subscription_plans();
+    $currentPlan = strtolower((string)($gym['subscription_plan'] ?? ''));
+    $hasActiveSub = ($gym['subscription_status'] === 'active' && !empty($gym['subscription_plan']));
+    $gymRenewalDate = !empty($gym['subscription_renewal_date']) ? (string)$gym['subscription_renewal_date'] : null;
+    $gymDaysLeft = null;
+    if ($hasActiveSub && $gymRenewalDate) {
+        $gymDaysLeft = (int)ceil((strtotime($gymRenewalDate) - strtotime('today')) / 86400);
+    }
 
     if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         verify_csrf();
@@ -39,6 +50,13 @@ function gym_subscription_page(): void
 
         $plan = $plans[$selectedKey];
         $planName = $plan['name'];
+
+        // Guardrail: Disallow early renewal of the same plan if > 7 days remain
+        if ($hasActiveSub && $currentPlan === $selectedKey && $gymDaysLeft !== null && $gymDaysLeft > 7) {
+            flash("Your {$planName} subscription is active with {$gymDaysLeft} days remaining. Renewals open 7 days before your renewal date (" . date('M j, Y', strtotime($gymRenewalDate)) . ").", 'warning');
+            redirect('gym_subscription');
+        }
+
         $amount = $billingCycle === 'yearly'
             ? (float)($plan['annual_price'] ?? round($plan['price'] * 10, 2))
             : (float)$plan['price'];
@@ -48,6 +66,11 @@ function gym_subscription_page(): void
             if ((string)app_env('XENDIT_SECRET_KEY') === '') {
                 throw new RuntimeException('Xendit is not configured.');
             }
+
+            // Guardrail: Cancel any older pending payments for this gym to prevent checkout spam / stacking
+            $pdo->prepare('UPDATE gym_subscription_payments SET status = "failed" WHERE gym_id = ? AND status = "pending"')
+                ->execute([(int)$gym['gym_id']]);
+
             $referenceId = 'FTSUB-' . strtoupper(bin2hex(random_bytes(16)));
             $periodEnd = $billingCycle === 'yearly' ? '+1 year' : '+1 month';
             $stmt = $pdo->prepare('
@@ -186,6 +209,7 @@ function gym_subscription_page(): void
                 <?php foreach ($plans as $key => $plan): 
                     $isPopular = $plan['popular'];
                     $isCurrent = ($hasActiveSub && $currentPlan === $key);
+                    $isRenewalLocked = ($isCurrent && $gymDaysLeft !== null && $gymDaysLeft > 7);
                 ?>
                     <div class="pricing-card <?= $isPopular ? 'popular' : '' ?>">
                         <?php if ($isPopular): ?>
@@ -245,11 +269,24 @@ function gym_subscription_page(): void
                         </div>
 
                         <div style="margin-top: auto; padding-top: 24px;">
-                            <button type="button" 
-                                    class="pricing-btn <?= $isPopular ? 'popular-btn' : 'standard-btn' ?>"
-                                    onclick="openPaymentModal('<?= h($key) ?>', '<?= h($plan['name']) ?>')">
-                                <?= $isCurrent ? 'Renew Plan' : 'Get Started' ?>
-                            </button>
+                            <?php if ($isRenewalLocked): ?>
+                                <button type="button" 
+                                        class="pricing-btn current-locked-btn"
+                                        disabled
+                                        title="Renewals open 7 days before expiration"
+                                        style="background: rgba(255,255,255,0.06); color: rgba(226,232,240,0.5); border: 1px solid rgba(255,255,255,0.1); cursor: not-allowed; width: 100%; box-shadow: none;">
+                                    Active (<?= $gymDaysLeft ?> days left)
+                                </button>
+                                <div style="font-size: 0.78rem; color: rgba(226, 232, 240, 0.55); margin-top: 6px; text-align: center;">
+                                    Renewals open on <?= date('M j, Y', strtotime('-7 days', strtotime($gymRenewalDate))) ?>
+                                </div>
+                            <?php else: ?>
+                                <button type="button" 
+                                        class="pricing-btn <?= $isPopular ? 'popular-btn' : 'standard-btn' ?>"
+                                        onclick="openPaymentModal('<?= h($key) ?>', '<?= h($plan['name']) ?>')">
+                                    <?= $isCurrent ? ('Renew Plan' . ($gymDaysLeft !== null ? ' (' . max(0, $gymDaysLeft) . 'd left)' : '')) : ($hasActiveSub ? 'Switch to ' . h($plan['name']) : 'Get Started') ?>
+                                </button>
+                            <?php endif; ?>
                         </div>
                     </div>
                 <?php endforeach; ?>
@@ -557,6 +594,10 @@ function gym_subscription_page(): void
 
     <script>
         window.subscriptionPlansData = <?= json_encode($plans, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP) ?>;
+        window.currentPlanKey = <?= json_encode($currentPlan) ?>;
+        window.isCurrentPlanLocked = <?= ($hasActiveSub && $gymDaysLeft !== null && $gymDaysLeft > 7) ? 'true' : 'false' ?>;
+        window.currentPlanDaysLeft = <?= json_encode($gymDaysLeft) ?>;
+        window.currentPlanRenewalDate = <?= json_encode($gymRenewalDate) ?>;
     </script>
     <script src="<?= h(asset_url('js/pages/gym_subscription.js')) ?>"></script>
     <?php

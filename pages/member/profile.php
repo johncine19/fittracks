@@ -876,7 +876,6 @@ function profile_page(): void
                             <h2 class="settings-section-title">Commercial Gym Owner Feedback</h2>
                             <p class="settings-section-desc">Live ratings submitted by gym operators regarding system usability, features, and platform services.</p>
                         </div>
-                        <a href="index.php?page=landing#testimonials" target="_blank" rel="noopener" class="btn btn-secondary" style="font-size:12px; padding:5px 12px; text-decoration:none;">View Live on Landing Page &rarr;</a>
                     </div>
                     <div class="platform-rating-summary">
                         <div class="platform-rating-overall">
@@ -897,15 +896,26 @@ function profile_page(): void
                     </div>
                     <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(min(320px, 100%), 1fr)); gap:14px;">
                         <?php foreach ($recentPlatformFeedback as $pf): ?>
-                            <div style="background:rgba(255,255,255,0.02); border:1px solid rgba(255,255,255,0.04); border-radius:10px; padding:14px; display:flex; flex-direction:column; justify-content:space-between;">
+                            <div class="platform-feedback-card">
                                 <div>
                                     <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:8px;">
-                                        <div><strong style="font-size:13.5px; display:block; color:#fff;"><?= h($pf['gym_name'] ?? 'Commercial Gym') ?></strong><small style="font-size:11.5px; color:var(--muted);"><?= h(($pf['first_name'] ?? '') . ' ' . ($pf['last_name'] ?? '')) ?> (Owner)</small></div><?= render_star_rating((float)$pf['rating'], 14, false) ?>
+                                        <div>
+                                            <strong class="platform-feedback-gym"><?= h($pf['gym_name'] ?? 'Commercial Gym') ?></strong>
+                                            <small style="font-size:11.5px; color:var(--muted);"><?= h(($pf['first_name'] ?? '') . ' ' . ($pf['last_name'] ?? '')) ?> (Owner)</small>
+                                        </div>
+                                        <?= render_star_rating((float)$pf['rating'], 14, false) ?>
                                     </div>
-                                    <?php if (!empty($pf['review'])): ?><p style="font-size:12.5px; line-height:1.45; color:rgba(255,255,255,0.85); margin:0 0 10px; font-style:italic;">&ldquo;<?= h($pf['review']) ?>&rdquo;</p><?php endif; ?>
+                                    <?php if (!empty($pf['review'])): ?>
+                                        <p class="platform-feedback-quote">&ldquo;<?= h($pf['review']) ?>&rdquo;</p>
+                                    <?php endif; ?>
                                 </div>
-                                <div style="display:flex; justify-content:space-between; align-items:center; font-size:11px; color:var(--muted); border-top:1px solid rgba(255,255,255,0.04); padding-top:8px; margin-top:6px;">
-                                    <div style="display:flex; gap:8px;"><span>UX: <b style="color:var(--lime);"><?= (int)($pf['system_experience'] ?? 5) ?>★</b></span><span>Feat: <b style="color:var(--lime);"><?= (int)($pf['features_rating'] ?? 5) ?>★</b></span><span>Serv: <b style="color:var(--lime);"><?= (int)($pf['service_rating'] ?? 5) ?>★</b></span></div><time><?= h(date('M d, Y', strtotime($pf['created_at']))) ?></time>
+                                <div class="platform-feedback-footer">
+                                    <div style="display:flex; gap:8px;">
+                                        <span>UX: <b style="color:var(--lime);"><?= (int)($pf['system_experience'] ?? 5) ?>★</b></span>
+                                        <span>Feat: <b style="color:var(--lime);"><?= (int)($pf['features_rating'] ?? 5) ?>★</b></span>
+                                        <span>Serv: <b style="color:var(--lime);"><?= (int)($pf['service_rating'] ?? 5) ?>★</b></span>
+                                    </div>
+                                    <time><?= h(date('M d, Y', strtotime($pf['created_at']))) ?></time>
                                 </div>
                             </div>
                         <?php endforeach; ?>
@@ -982,7 +992,7 @@ function profile_page(): void
                                     <span style="font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); font-weight: 700;">Current Plan</span>
                                     <h3 style="margin: 4px 0 0; font-size: 1.25rem; font-weight: 800; color: var(--ink);">
                                         <?php if ($ownerTrialInfo['is_trial_active']): ?>
-                                            Free Trial (50 Members &bull; 2 Trainers)
+                                            Free Trial (50 Members &bull; 2 Trainers &bull; 2 Staff)
                                         <?php elseif ($ownerTrialInfo['is_free']): ?>
                                             Free Tier
                                         <?php else: ?>

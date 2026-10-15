@@ -18,6 +18,8 @@
     border-bottom: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.08));
     overflow: hidden;
     isolation: isolate;
+    /* Perf: keep this section's layout/paint work from leaking into the rest of the page */
+    contain: layout paint;
 }
 
 /* Subtle ambient backdrop illumination */
@@ -53,7 +55,8 @@
     position: relative;
     flex: 1;
     min-width: 0;
-    background: linear-gradient(175deg, rgba(24, 29, 39, 0.72) 0%, rgba(14, 18, 25, 0.85) 100%);
+    /* Perf: near-opaque fill replaces backdrop-filter blur (visually identical on this dark, flat backdrop) */
+    background: linear-gradient(175deg, rgba(24, 29, 39, 0.94) 0%, rgba(14, 18, 25, 0.97) 100%);
     border: 1px solid rgba(255, 255, 255, 0.08);
     border-radius: 20px;
     padding: clamp(1.4rem, 2.5vw, 1.85rem);
@@ -64,8 +67,6 @@
                 border-color 0.35s ease,
                 box-shadow 0.35s ease;
     box-shadow: 0 16px 40px -15px rgba(0, 0, 0, 0.5);
-    backdrop-filter: blur(16px);
-    -webkit-backdrop-filter: blur(16px);
 }
 
 .arch-card > div:not(.arch-card-glow):not(.arch-merge-point),
@@ -84,6 +85,10 @@
     opacity: 0;
     transition: opacity 0.35s ease;
     background: radial-gradient(ellipse 90% 60% at 50% 0%, rgba(132, 204, 22, 0.12), transparent 70%);
+    /* Perf: the "active" lime halo is pre-rendered here and faded via opacity,
+       instead of animating the card's box-shadow every frame */
+    box-shadow: 0 0 32px -6px rgba(132, 204, 22, 0.35);
+    will-change: opacity;
 }
 
 .arch-card:hover {
@@ -133,9 +138,9 @@
     stroke-width: 2.25px;
     stroke-linecap: round;
     stroke-dasharray: 120 1000;
-    filter: drop-shadow(0 0 3px #ffffff) drop-shadow(0 0 8px #bef264) drop-shadow(0 0 16px rgba(132, 204, 22, 0.8));
+    /* Perf: the old triple drop-shadow filter was re-rasterized on every frame of the
+       dash animation (the #1 cause of stutter). A bright stroke reads as a glow on dark. */
     opacity: 0;
-    will-change: stroke-dashoffset, opacity;
 }
 
 /* Merge Point Flash Flare at Right-Center */
@@ -200,7 +205,7 @@
     background: var(--accent, #84cc16);
     box-shadow: 0 0 6px var(--accent, #84cc16);
     display: inline-block;
-    will-change: transform, box-shadow;
+    will-change: transform;
 }
 
 .arch-card-title {
@@ -312,31 +317,44 @@
     content: '';
     position: absolute;
     top: 0;
-    left: -100%;
+    left: 0;
     width: 80%;
     height: 100%;
     background: linear-gradient(90deg, transparent 0%, rgba(132, 204, 22, 0.4) 40%, #bef264 90%, #ffffff 100%);
     opacity: 0;
     pointer-events: none;
-    will-change: left, opacity;
+    /* Perf: moved with transform (GPU) instead of animating `left` (layout + paint) */
+    transform: translate3d(-125%, 0, 0);
+    will-change: transform, opacity;
 }
 
-/* Combined traveling glow packet transferring across the gap */
+/* Combined traveling glow packet transferring across the gap.
+   Perf: the wrapper spans the full track so translateX(100%) == track length;
+   the visible dot is a pseudo-element pinned to its leading edge. */
 .arch-pulse-comet {
     position: absolute;
     top: 50%;
-    left: 0%;
-    width: 8px;
+    left: 0;
+    width: 100%;
     height: 8px;
     margin-top: -4px;
-    margin-left: -4px;
-    border-radius: 50%;
-    background: #ffffff;
-    box-shadow: 0 0 10px #bef264, 0 0 18px #84cc16, 0 0 28px rgba(132, 204, 22, 0.95);
     opacity: 0;
     z-index: 3;
     pointer-events: none;
-    will-change: left, opacity;
+    transform: translate3d(0, 0, 0);
+    will-change: transform, opacity;
+}
+
+.arch-pulse-comet::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -4px;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #ffffff;
+    box-shadow: 0 0 10px #bef264, 0 0 18px #84cc16, 0 0 28px rgba(132, 204, 22, 0.95);
 }
 
 /* Intermediate Flow Arrow Node */
@@ -356,8 +374,7 @@
     color: var(--accent, #84cc16);
     box-shadow: 0 0 10px rgba(132, 204, 22, 0.2);
     z-index: 4;
-    transition: transform 0.25s ease, border-color 0.25s ease, box-shadow 0.25s ease, color 0.25s ease;
-    will-change: transform, border-color, box-shadow;
+    will-change: transform;
 }
 
 .arch-connector-node svg {
@@ -379,10 +396,6 @@
    ========================================================================== */
 
 /* ── Stage 01 Elements ── */
-.arch-card-1 {
-    animation: archCardActive1 var(--arch-cycle-duration) linear infinite;
-}
-
 .arch-card-1 .arch-path-top,
 .arch-card-1 .arch-path-bottom {
     animation: archSplit1 var(--arch-cycle-duration) linear infinite;
@@ -414,10 +427,6 @@
 }
 
 /* ── Stage 02 Elements ── */
-.arch-card-2 {
-    animation: archCardActive2 var(--arch-cycle-duration) linear infinite;
-}
-
 .arch-card-2 .arch-path-top,
 .arch-card-2 .arch-path-bottom {
     animation: archSplit2 var(--arch-cycle-duration) linear infinite;
@@ -449,10 +458,6 @@
 }
 
 /* ── Stage 03 Elements ── */
-.arch-card-3 {
-    animation: archCardActive3 var(--arch-cycle-duration) linear infinite;
-}
-
 .arch-card-3 .arch-path-top,
 .arch-card-3 .arch-path-bottom {
     animation: archSplit3 var(--arch-cycle-duration) linear infinite;
@@ -523,85 +528,40 @@
 }
 
 @keyframes archDotPulse1 {
-    0% { transform: scale(1); box-shadow: 0 0 6px var(--accent, #84cc16); }
-    4%, 21% { transform: scale(1.35); box-shadow: 0 0 14px #bef264, 0 0 22px #84cc16; }
-    26.32%, 100% { transform: scale(1); box-shadow: 0 0 6px var(--accent, #84cc16); }
-}
-
-@keyframes archCardActive1 {
-    0% {
-        transform: translateY(0);
-        box-shadow: 0 16px 40px -15px rgba(0, 0, 0, 0.5);
-    }
-    3%, 22% {
-        transform: translateY(-3px);
-        box-shadow: 0 20px 48px -15px rgba(0, 0, 0, 0.65), 0 0 28px -8px rgba(132, 204, 22, 0.2);
-    }
-    26.32%, 100% {
-        transform: translateY(0);
-        box-shadow: 0 16px 40px -15px rgba(0, 0, 0, 0.5);
-    }
+    0% { transform: scale(1); }
+    4%, 21% { transform: scale(1.35); }
+    26.32%, 100% { transform: scale(1); }
 }
 
 /* ── Connector 01: 26.32% to 31.58% (0.4s) ── */
 @keyframes archComet1Flow {
-    0%, 25.8% {
-        left: 0%;
-        opacity: 0;
-        transform: scale(0.6);
-    }
-    26.32% {
-        opacity: 1;
-        transform: scale(1);
-    }
-    31.0% {
-        left: 95%;
-        opacity: 1;
-        transform: scale(1);
-    }
-    31.58%, 100% {
-        left: 100%;
-        opacity: 0;
-        transform: scale(0.6);
-    }
+    0%, 25.8% { transform: translate3d(0, 0, 0); opacity: 0; }
+    26.32% { opacity: 1; }
+    31.0% { transform: translate3d(95%, 0, 0); opacity: 1; }
+    31.58%, 100% { transform: translate3d(100%, 0, 0); opacity: 0; }
 }
 
 @keyframes archBeam1Flow {
-    0%, 25.5% {
-        left: -100%;
-        opacity: 0;
-    }
-    26.32% {
-        opacity: 0.95;
-    }
-    31.0% {
-        left: 100%;
-        opacity: 0.95;
-    }
-    31.58%, 100% {
-        left: 120%;
-        opacity: 0;
-    }
+    0%, 25.5% { transform: translate3d(-125%, 0, 0); opacity: 0; }
+    26.32% { opacity: 0.95; }
+    31.0% { transform: translate3d(125%, 0, 0); opacity: 0.95; }
+    31.58%, 100% { transform: translate3d(150%, 0, 0); opacity: 0; }
 }
 
 @keyframes archNode1Pulse {
     0%, 27.2% {
         transform: translate(-50%, -50%) scale(1);
         border-color: rgba(132, 204, 22, 0.35);
-        box-shadow: 0 0 10px rgba(132, 204, 22, 0.2);
         color: var(--accent, #84cc16);
     }
     28.8%, 29.8% {
         transform: translate(-50%, -50%) scale(1.28);
         border-color: #bef264;
-        box-shadow: 0 0 22px rgba(190, 242, 100, 0.9), 0 0 35px rgba(132, 204, 22, 0.5);
         color: #ffffff;
-        background: rgba(22, 28, 38, 0.95);
     }
     31.2%, 100% {
         transform: translate(-50%, -50%) scale(1);
         border-color: rgba(132, 204, 22, 0.35);
-        box-shadow: 0 0 10px rgba(132, 204, 22, 0.2);
         color: var(--accent, #84cc16);
     }
 }
@@ -659,85 +619,40 @@
 }
 
 @keyframes archDotPulse2 {
-    0%, 31.57% { transform: scale(1); box-shadow: 0 0 6px var(--accent, #84cc16); }
-    35%, 52% { transform: scale(1.4); box-shadow: 0 0 14px #bef264, 0 0 22px #84cc16; }
-    57.89%, 100% { transform: scale(1); box-shadow: 0 0 6px var(--accent, #84cc16); }
-}
-
-@keyframes archCardActive2 {
-    0%, 31.57% {
-        transform: translateY(0);
-        box-shadow: 0 20px 50px -15px rgba(0, 0, 0, 0.65), 0 0 35px -8px rgba(132, 204, 22, 0.18);
-    }
-    34%, 53% {
-        transform: translateY(-4px);
-        box-shadow: 0 26px 58px -15px rgba(0, 0, 0, 0.75), 0 0 42px -6px rgba(132, 204, 22, 0.32);
-    }
-    57.89%, 100% {
-        transform: translateY(0);
-        box-shadow: 0 20px 50px -15px rgba(0, 0, 0, 0.65), 0 0 35px -8px rgba(132, 204, 22, 0.18);
-    }
+    0%, 31.57% { transform: scale(1); }
+    35%, 52% { transform: scale(1.4); }
+    57.89%, 100% { transform: scale(1); }
 }
 
 /* ── Connector 02: 57.89% to 63.16% (0.4s) ── */
 @keyframes archComet2Flow {
-    0%, 57.3% {
-        left: 0%;
-        opacity: 0;
-        transform: scale(0.6);
-    }
-    57.89% {
-        opacity: 1;
-        transform: scale(1);
-    }
-    62.5% {
-        left: 95%;
-        opacity: 1;
-        transform: scale(1);
-    }
-    63.16%, 100% {
-        left: 100%;
-        opacity: 0;
-        transform: scale(0.6);
-    }
+    0%, 57.3% { transform: translate3d(0, 0, 0); opacity: 0; }
+    57.89% { opacity: 1; }
+    62.5% { transform: translate3d(95%, 0, 0); opacity: 1; }
+    63.16%, 100% { transform: translate3d(100%, 0, 0); opacity: 0; }
 }
 
 @keyframes archBeam2Flow {
-    0%, 57.1% {
-        left: -100%;
-        opacity: 0;
-    }
-    57.89% {
-        opacity: 0.95;
-    }
-    62.5% {
-        left: 100%;
-        opacity: 0.95;
-    }
-    63.16%, 100% {
-        left: 120%;
-        opacity: 0;
-    }
+    0%, 57.1% { transform: translate3d(-125%, 0, 0); opacity: 0; }
+    57.89% { opacity: 0.95; }
+    62.5% { transform: translate3d(125%, 0, 0); opacity: 0.95; }
+    63.16%, 100% { transform: translate3d(150%, 0, 0); opacity: 0; }
 }
 
 @keyframes archNode2Pulse {
     0%, 58.8% {
         transform: translate(-50%, -50%) scale(1);
         border-color: rgba(132, 204, 22, 0.35);
-        box-shadow: 0 0 10px rgba(132, 204, 22, 0.2);
         color: var(--accent, #84cc16);
     }
     60.2%, 61.2% {
         transform: translate(-50%, -50%) scale(1.28);
         border-color: #bef264;
-        box-shadow: 0 0 22px rgba(190, 242, 100, 0.9), 0 0 35px rgba(132, 204, 22, 0.5);
         color: #ffffff;
-        background: rgba(22, 28, 38, 0.95);
     }
     62.8%, 100% {
         transform: translate(-50%, -50%) scale(1);
         border-color: rgba(132, 204, 22, 0.35);
-        box-shadow: 0 0 10px rgba(132, 204, 22, 0.2);
         color: var(--accent, #84cc16);
     }
 }
@@ -795,24 +710,9 @@
 }
 
 @keyframes archDotPulse3 {
-    0%, 63.15% { transform: scale(1); box-shadow: 0 0 6px var(--accent, #84cc16); }
-    67%, 84% { transform: scale(1.35); box-shadow: 0 0 14px #bef264, 0 0 22px #84cc16; }
-    89.47%, 100% { transform: scale(1); box-shadow: 0 0 6px var(--accent, #84cc16); }
-}
-
-@keyframes archCardActive3 {
-    0%, 63.15% {
-        transform: translateY(0);
-        box-shadow: 0 16px 40px -15px rgba(0, 0, 0, 0.5);
-    }
-    66%, 84% {
-        transform: translateY(-3px);
-        box-shadow: 0 20px 48px -15px rgba(0, 0, 0, 0.65), 0 0 28px -8px rgba(132, 204, 22, 0.2);
-    }
-    89.47%, 100% {
-        transform: translateY(0);
-        box-shadow: 0 16px 40px -15px rgba(0, 0, 0, 0.5);
-    }
+    0%, 63.15% { transform: scale(1); }
+    67%, 84% { transform: scale(1.35); }
+    89.47%, 100% { transform: scale(1); }
 }
 
 /* ==========================================================================
@@ -873,17 +773,25 @@
 
     .arch-pulse-beam::after {
         left: 0;
-        top: -100%;
+        top: 0;
         width: 100%;
         height: 80%;
         background: linear-gradient(180deg, transparent 0%, rgba(132, 204, 22, 0.4) 40%, #bef264 90%, #ffffff 100%);
+        transform: translate3d(0, -125%, 0);
     }
 
     .arch-pulse-comet {
         left: 50%;
-        top: 0%;
+        top: 0;
+        width: 8px;
+        height: 100%;
         margin-left: -4px;
-        margin-top: -4px;
+        margin-top: 0;
+    }
+
+    .arch-pulse-comet::before {
+        top: -4px;
+        left: 0;
     }
 
     .arch-connector-node {
@@ -989,73 +897,65 @@
 
 /* Vertical Stream Keyframes for Mobile Connectors */
 @keyframes archBeam1FlowV {
-    0%, 25.5% { top: -100%; opacity: 0; }
+    0%, 25.5% { transform: translate3d(0, -125%, 0); opacity: 0; }
     26.32% { opacity: 0.95; }
-    31.0% { top: 100%; opacity: 0.95; }
-    31.58%, 100% { top: 120%; opacity: 0; }
+    31.0% { transform: translate3d(0, 125%, 0); opacity: 0.95; }
+    31.58%, 100% { transform: translate3d(0, 150%, 0); opacity: 0; }
 }
 
 @keyframes archComet1FlowV {
-    0%, 25.8% { top: 0%; opacity: 0; transform: scale(0.6); }
-    26.32% { opacity: 1; transform: scale(1); }
-    31.0% { top: 95%; opacity: 1; transform: scale(1); }
-    31.58%, 100% { top: 100%; opacity: 0; transform: scale(0.6); }
+    0%, 25.8% { transform: translate3d(0, 0, 0); opacity: 0; }
+    26.32% { opacity: 1; }
+    31.0% { transform: translate3d(0, 95%, 0); opacity: 1; }
+    31.58%, 100% { transform: translate3d(0, 100%, 0); opacity: 0; }
 }
 
 @keyframes archNode1PulseV {
     0%, 27.2% {
         transform: translate(-50%, -50%) rotate(90deg) scale(1);
         border-color: rgba(132, 204, 22, 0.35);
-        box-shadow: 0 0 10px rgba(132, 204, 22, 0.2);
         color: var(--accent, #84cc16);
     }
     28.8%, 29.8% {
         transform: translate(-50%, -50%) rotate(90deg) scale(1.28);
         border-color: #bef264;
-        box-shadow: 0 0 22px rgba(190, 242, 100, 0.9), 0 0 35px rgba(132, 204, 22, 0.5);
         color: #ffffff;
-        background: rgba(22, 28, 38, 0.95);
     }
     31.2%, 100% {
         transform: translate(-50%, -50%) rotate(90deg) scale(1);
         border-color: rgba(132, 204, 22, 0.35);
-        box-shadow: 0 0 10px rgba(132, 204, 22, 0.2);
         color: var(--accent, #84cc16);
     }
 }
 
 @keyframes archBeam2FlowV {
-    0%, 57.1% { top: -100%; opacity: 0; }
+    0%, 57.1% { transform: translate3d(0, -125%, 0); opacity: 0; }
     57.89% { opacity: 0.95; }
-    62.5% { top: 100%; opacity: 0.95; }
-    63.16%, 100% { top: 120%; opacity: 0; }
+    62.5% { transform: translate3d(0, 125%, 0); opacity: 0.95; }
+    63.16%, 100% { transform: translate3d(0, 150%, 0); opacity: 0; }
 }
 
 @keyframes archComet2FlowV {
-    0%, 57.3% { top: 0%; opacity: 0; transform: scale(0.6); }
-    57.89% { opacity: 1; transform: scale(1); }
-    62.5% { top: 95%; opacity: 1; transform: scale(1); }
-    63.16%, 100% { top: 100%; opacity: 0; transform: scale(0.6); }
+    0%, 57.3% { transform: translate3d(0, 0, 0); opacity: 0; }
+    57.89% { opacity: 1; }
+    62.5% { transform: translate3d(0, 95%, 0); opacity: 1; }
+    63.16%, 100% { transform: translate3d(0, 100%, 0); opacity: 0; }
 }
 
 @keyframes archNode2PulseV {
     0%, 58.8% {
         transform: translate(-50%, -50%) rotate(90deg) scale(1);
         border-color: rgba(132, 204, 22, 0.35);
-        box-shadow: 0 0 10px rgba(132, 204, 22, 0.2);
         color: var(--accent, #84cc16);
     }
     60.2%, 61.2% {
         transform: translate(-50%, -50%) rotate(90deg) scale(1.28);
         border-color: #bef264;
-        box-shadow: 0 0 22px rgba(190, 242, 100, 0.9), 0 0 35px rgba(132, 204, 22, 0.5);
         color: #ffffff;
-        background: rgba(22, 28, 38, 0.95);
     }
     62.8%, 100% {
         transform: translate(-50%, -50%) rotate(90deg) scale(1);
         border-color: rgba(132, 204, 22, 0.35);
-        box-shadow: 0 0 10px rgba(132, 204, 22, 0.2);
         color: var(--accent, #84cc16);
     }
 }
@@ -1081,6 +981,15 @@
     .arch-feature-content span {
         font-size: 0.74rem;
     }
+}
+
+/* Perf: freeze the whole loop while the section is off-screen (toggled by
+   landing-architecture.js via IntersectionObserver). Pausing every element at
+   once keeps the stage-to-stage choreography in sync when it resumes. */
+.arch-section.arch-offscreen *,
+.arch-section.arch-offscreen *::before,
+.arch-section.arch-offscreen *::after {
+    animation-play-state: paused !important;
 }
 
 /* Accessibility: respect user preference for reduced motion */

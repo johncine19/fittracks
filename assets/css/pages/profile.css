@@ -274,6 +274,12 @@ html[data-theme="light"] .settings-hero.has-gym-cover .settings-hero-role,
     border-radius: 12px;
 }
 
+[data-theme="light"] .platform-rating-summary {
+    background: #f8fafc !important;
+    border: 1px solid #e2e8f0 !important;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+}
+
 .platform-rating-overall {
     display: flex;
     align-items: center;
@@ -283,10 +289,71 @@ html[data-theme="light"] .settings-hero.has-gym-cover .settings-hero-role,
 
 .platform-rating-number {
     flex: 0 0 auto;
-    color: #fff;
+    color: var(--ink, #ffffff);
     font-size: 42px;
     font-weight: 900;
     line-height: 1;
+}
+
+[data-theme="light"] .platform-rating-number {
+    color: #0f172a !important;
+}
+
+.platform-feedback-card {
+    background: rgba(255, 255, 255, 0.02);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    border-radius: 10px;
+    padding: 14px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    transition: transform var(--transition-fast, 0.2s), border-color var(--transition-fast, 0.2s);
+}
+
+[data-theme="light"] .platform-feedback-card {
+    background: #ffffff !important;
+    border: 1px solid #e2e8f0 !important;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+}
+
+.platform-feedback-gym {
+    font-size: 13.5px;
+    display: block;
+    font-weight: 700;
+    color: var(--ink, #ffffff);
+}
+
+[data-theme="light"] .platform-feedback-gym {
+    color: #0f172a !important;
+}
+
+.platform-feedback-quote {
+    font-size: 12.5px;
+    line-height: 1.45;
+    color: var(--ink, #f1f5f9);
+    opacity: 0.9;
+    margin: 0 0 10px;
+    font-style: italic;
+}
+
+[data-theme="light"] .platform-feedback-quote {
+    color: #334155 !important;
+    opacity: 1 !important;
+}
+
+.platform-feedback-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 11px;
+    color: var(--muted);
+    border-top: 1px solid rgba(255, 255, 255, 0.06);
+    padding-top: 8px;
+    margin-top: 6px;
+}
+
+[data-theme="light"] .platform-feedback-footer {
+    border-top: 1px solid #e2e8f0 !important;
 }
 
 .platform-rating-copy {

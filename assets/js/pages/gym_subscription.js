@@ -49,6 +49,21 @@ const subscriptionPlansData = window.subscriptionPlansData || {};
         }
 
         function openPaymentModal(key, name) {
+            if (window.isCurrentPlanLocked && key === window.currentPlanKey) {
+                const days = window.currentPlanDaysLeft || '';
+                const msg = `Your ${name} plan is currently active with ${days} days remaining. Renewals open 7 days prior to expiry.`;
+                if (typeof Swal !== 'undefined') {
+                    Swal.fire({
+                        icon: 'info',
+                        title: 'Plan Active',
+                        text: msg,
+                        confirmButtonColor: '#84cc16'
+                    });
+                } else {
+                    alert(msg);
+                }
+                return;
+            }
             const plan = subscriptionPlansData[key];
             if (!plan) return;
             const price = (activeCycle === 'yearly') 

@@ -17,6 +17,10 @@ function require_login(): array
 {
     $user = current_user();
     if (!$user) {
+        $requestedPage = (string) ($_GET['page'] ?? '');
+        if ($requestedPage !== '' && !in_array($requestedPage, ['login', 'logout', 'register', 'verify_email', 'reset_password'], true)) {
+            $_SESSION['return_to'] = $requestedPage;
+        }
         redirect('login');
     }
 

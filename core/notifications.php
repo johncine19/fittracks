@@ -284,6 +284,9 @@ function maybe_notify_membership_renewal(int $userId): void
     }
 
     notify_user($userId, 'renewal_reminder', 'Membership expiring soon', $message);
+    if (function_exists('process_member_renewal_reminder_emails')) {
+        process_member_renewal_reminder_emails($userId);
+    }
 }
 
 function maybe_notify_membership_expired(int $userId): void
@@ -331,6 +334,9 @@ function maybe_notify_membership_expired(int $userId): void
     }
 
     notify_user($userId, 'renewal_reminder', 'Membership expired', $message);
+    if (function_exists('process_member_plan_expired_emails')) {
+        process_member_plan_expired_emails($userId);
+    }
 }
 
 function handle_notification_actions(): void

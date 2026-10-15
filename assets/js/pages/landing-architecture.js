@@ -60,16 +60,38 @@
         // Initialize immediately
         updatePaths();
 
-        // Observe card resizes
-        if (typeof ResizeObserver !== 'undefined') {
-            const ro = new ResizeObserver(() => {
+        // Perf: coalesce bursts of resize notifications into a single update per frame
+        let rafId = 0;
+        const scheduleUpdate = () => {
+            if (rafId) return;
+            rafId = requestAnimationFrame(() => {
+                rafId = 0;
                 updatePaths();
             });
+        };
+
+        // Observe card resizes (ResizeObserver already covers viewport resizes,
+        // so the window listener is only a fallback for very old browsers)
+        if (typeof ResizeObserver !== 'undefined') {
+            const ro = new ResizeObserver(scheduleUpdate);
             cards.forEach(card => ro.observe(card));
+        } else {
+            window.addEventListener('resize', scheduleUpdate, { passive: true });
         }
 
-        window.addEventListener('resize', updatePaths, { passive: true });
-        window.addEventListener('load', updatePaths, { passive: true });
+        window.addEventListener('load', scheduleUpdate, { passive: true });
+
+        // Perf: freeze the ~20 looping CSS animations while the section is off-screen
+        const section = pipeline.closest('.arch-section');
+        if (section && typeof IntersectionObserver !== 'undefined') {
+            section.classList.add('arch-offscreen');
+            const io = new IntersectionObserver((entries) => {
+                entries.forEach(entry => {
+                    section.classList.toggle('arch-offscreen', !entry.isIntersecting);
+                });
+            }, { rootMargin: '100px 0px' });
+            io.observe(section);
+        }
     }
 
     // ==========================================================================
@@ -165,6 +187,35 @@
     // ==========================================================================
     // PLATFORM CAPABILITIES — SERPENTINE DOTTED TRACK GENERATOR
     // ==========================================================================
+    function initCapabilitiesFlashlight() {
+        const section = document.getElementById('features');
+        if (!section || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+        const finePointer = window.matchMedia('(hover: hover) and (pointer: fine)').matches;
+        const ripple = section.querySelector('.capabilities-flashlight-ripple');
+
+        const moveLight = (event) => {
+            const rect = section.getBoundingClientRect();
+            section.style.setProperty('--cap-light-x', `${event.clientX - rect.left}px`);
+            section.style.setProperty('--cap-light-y', `${event.clientY - rect.top}px`);
+        };
+
+        if (finePointer) {
+            section.addEventListener('pointermove', moveLight, { passive: true });
+            section.addEventListener('pointerleave', () => {
+                section.style.setProperty('--cap-light-x', '50%');
+                section.style.setProperty('--cap-light-y', '50%');
+            }, { passive: true });
+        }
+
+        section.addEventListener('pointerdown', (event) => {
+            if (event.pointerType === 'mouse' || !ripple) return;
+            moveLight(event);
+            ripple.classList.remove('is-active');
+            void ripple.offsetWidth;
+            ripple.classList.add('is-active');
+        }, { passive: true });
+    }
+
     function initCapabilitiesSerpentineTrack() {
         const container = document.getElementById('capabilitiesSerpentineTimeline');
         if (!container) return;
@@ -210,11 +261,13 @@
         document.addEventListener('DOMContentLoaded', () => {
             initArchitecturePaths();
             initFitTrackNotchedCard();
+            initCapabilitiesFlashlight();
             initCapabilitiesSerpentineTrack();
         });
     } else {
         initArchitecturePaths();
         initFitTrackNotchedCard();
+        initCapabilitiesFlashlight();
         initCapabilitiesSerpentineTrack();
     }
 })();

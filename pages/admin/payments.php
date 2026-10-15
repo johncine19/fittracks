@@ -94,6 +94,11 @@ function payments_page(): void
                     : db()->query("SELECT m.* FROM memberships m WHERE m.user_id = $memberUserId AND m.status = 'active' ORDER BY m.end_date DESC LIMIT 1")->fetch();
                 if ($currentActive) {
                     if ((int)$currentActive['plan_id'] === $planId) {
+                        $daysUntilEnd = (int)ceil((strtotime($currentActive['end_date']) - strtotime('today')) / 86400);
+                        if ($daysUntilEnd > 365) {
+                            flash("This member already has active coverage extended over 1 year in advance (until " . date('M j, Y', strtotime($currentActive['end_date'])) . "). Additional renewals cannot be stacked.", 'warning');
+                            redirect('payments');
+                        }
                         // Queue renewal from previous end date
                         $start = new DateTime($currentActive['end_date']);
                         $end = (clone $start)->modify('+' . $duration . ' days')->format('Y-m-d');

@@ -263,7 +263,7 @@ function handle_xendit_subscription_webhook(): void
             return;
         }
 
-        $gymStmt = $pdo->prepare('SELECT subscription_status, subscription_renewal_date FROM gyms WHERE gym_id = ? FOR UPDATE');
+        $gymStmt = $pdo->prepare('SELECT subscription_plan, subscription_status, subscription_renewal_date FROM gyms WHERE gym_id = ? FOR UPDATE');
         $gymStmt->execute([(int) $lockedPayment['gym_id']]);
         $gym = $gymStmt->fetch(PDO::FETCH_ASSOC);
         if (!$gym) {

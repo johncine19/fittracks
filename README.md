@@ -45,6 +45,7 @@ The admin dashboard charts use Chart.js loaded from CDN in `views/layout.php`, w
 ## Architecture, Security & Performance Documentation
 - 🔒 **[SECURITY.md](SECURITY.md)**: Production security audit remediations, migration authentication, permit authorization endpoints, TLS enforcement, reverse proxy IP spoofing mitigation, and environment hardening.
 - ⚡ **[OPTIMIZATIONS.md](OPTIMIZATIONS.md)**: Database scaling guide, sargable index-range queries, equipment poll session lock optimization, batch-grouped engagement calculation, and atomic distributed locking with Redis Lua / flock.
+- 🛡️ **[SUBSCRIPTION_GUARDRAILS.md](docs/SUBSCRIPTION_GUARDRAILS.md)**: Anti-hoarding specifications, 7-day renewal window enforcement, advance queue limits, and stale pending checkout session cleanup.
 
 ---
 
@@ -193,12 +194,18 @@ To solve this, FitTracks implements a **high-performance hybrid auto check-out s
    - Backed by a covering B-Tree index: `idx_att_checkout_checkin (check_out_time, check_in_time)`.
    - The query resolves as an in-memory index range scan (`Using where; Using index`), ensuring instant execution (`< 1ms`) with zero table locks even with 100,000+ attendance records.
 
-### 6. Smart Tiered Notification Retention Cleanup
-To prevent the `notifications` table from bloating over months of automated alerts, FitTracks runs an automated **Smart Tiered Purge** every night at 12:00:00 AM PHT in `cron.php` via `cleanup_old_notifications(30, 60)`:
-1. **Read Notifications (`is_read = 1`)**: Purged after **30 days**. Since the user has already opened and seen them, keeping month-old alerts is unnecessary.
-2. **Unread Notifications & System Alerts**: Retained for **60 days**. This grants an extended grace period so members or staff returning from leaves/vacations do not miss unread announcements or appointment updates.
-3. **Database Safety**: Critical business data (memberships, payment receipts, appointment records, chat transcripts) is permanently stored in separate tables (`payments`, `memberships`, `trainer_assignments`, `trainer_messages`), so purging transient UI notification bells never loses audit data.
-4. **Optimized Indexing**: Supported by composite indexes `idx_notif_created_read (is_read, created_at)` and `idx_notif_created (created_at)` with `LIMIT 5000` batch bounds, executing seamlessly in `< 2ms`.
+### 7. Subscription Anti-Hoarding & Over-Purchase Guardrails
+Comprehensive renewal window restrictions and anti-spam measures across gym SaaS subscriptions and member plans:
+- **Gym SaaS Platform Subscriptions (`pages/gym_owner/gym_subscription.php`, `core/xendit.php`)**:
+  - **7-Day Renewal Window Constraint**: Disallows early renewal of the same plan if > 7 days remain. The checkout button is disabled and displays `Active (X days left)` along with the exact renewal opening date.
+  - **Immediate Tier Upgrades**: Upgrading from lower tiers to higher tiers (e.g. Starter ➔ Pro/Business) remains available immediately without window restrictions.
+  - **Stale Pending Session Cleanup**: Automatically invalidates and marks prior pending checkout sessions as `failed` before generating new Xendit links, preventing checkout spam.
+  - **Webhook Renewal Date Rollover**: Fixed `SELECT` query in `xendit_handle_gym_subscription_payment_webhook` to include `subscription_plan`, ensuring legitimate renewals within the 7-day window properly extend from `subscription_renewal_date`.
+- **Member Gym Subscriptions (`pages/admin/memberships.php`, `pages/admin/payments.php`)**:
+  - **7-Day Renewal Window & Single Advance Cycle**: Members cannot renew the same plan if > 7 days remain on their active membership, and cannot queue more than 1 advance cycle.
+  - **Stale Pending Request Cleanup**: Submitting a new membership subscription automatically supersedes and cancels older unpaid `pending` memberships and payments for that member at the gym.
+  - **Admin Manual Recording Safeguard**: Added validation in `payments.php` blocking manual membership stacking beyond 365 days in advance.
+- Full architectural and workflow documentation available in 🛡️ **[SUBSCRIPTION_GUARDRAILS.md](docs/SUBSCRIPTION_GUARDRAILS.md)**.
 
 ---
 
