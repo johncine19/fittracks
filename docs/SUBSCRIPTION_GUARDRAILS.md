@@ -24,9 +24,12 @@ Prior to these guardrails, the subscription engines had no constraints on purcha
 | Tier | Policy | Trigger Condition | System Action | UI Presentation |
 | :--- | :--- | :--- | :--- | :--- |
 | **Gym SaaS Plan** | **7-Day Renewal Window** | Active plan, same plan selected, `days_left > 7` | Block POST; flash warning notice; redirect to `gym_subscription` | Button disabled with `Active (X days left)`; displays `Renewals open on [Date]` |
-| **Gym SaaS Plan** | **Immediate Plan Upgrade** | Active plan, different tier selected (e.g. Starter ➔ Pro) | Allowed immediately | Enabled button labeled `Switch to [Plan]` |
+| **Gym SaaS Plan** | **Two-Way Downgrade Guardrail** | Active plan, lower tier selected (e.g. Pro ➔ Starter), `days_left > 7` | Block POST; flash warning notice; redirect to `gym_subscription` | Button disabled with `Active on [Higher Tier]`; displays `Downgrades open on [Date]` |
+| **Gym SaaS Plan** | **Plan Upgrade with Notice** | Active plan, higher tier selected (e.g. Pro ➔ Business) | Allowed immediately | Enabled button labeled `Upgrade to [Plan]`; payment modal shows prominent Upgrade Notice banner |
 | **Gym SaaS Plan** | **Stale Pending Cleanup** | Gym owner initiates new checkout | Marks all existing `pending` rows for this gym as `failed` | Single active Xendit checkout link at any given time |
 | **Member Subscription** | **7-Day Renewal Window** | Active membership, same plan selected, `days_left > 7` | Block POST; flash warning notice; redirect to `memberships` | Button disabled with `Active (Xd left)`; displays `Renewals open [Date]` |
+| **Member Subscription** | **Two-Way Downgrade Guardrail** | Active membership, lower priced plan selected, `days_left > 7` | Block POST; flash warning notice; redirect to `memberships` | Button disabled with `Active on [Higher Tier]`; displays `Downgrades open on [Date]` |
+| **Member Subscription** | **Plan Upgrade with Notice** | Active membership, higher priced plan selected | Allowed immediately | Enabled button labeled `Upgrade to [Plan]`; modal displays amber Upgrade Notice banner |
 | **Member Subscription** | **Advance Queue Limit** | Member already has a queued cycle (`start_date > CURDATE()`) | Block POST; flash warning notice; redirect to `memberships` | Disallows multi-cycle stacking beyond 1 cycle in advance |
 | **Member Subscription** | **Stale Pending Cleanup** | Member requests a new plan (Cash or Xendit) | Updates older `pending` payments to `overdue` and memberships to `cancelled` | Replaces abandoned pending requests cleanly |
 | **Front Desk / Admin** | **365-Day Safety Ceiling** | Admin records manual payment with `end_date > 365 days` | Rejects stacking; flashes advisory notice | Prevents accidental multi-year stacking loops |
@@ -37,7 +40,7 @@ Prior to these guardrails, the subscription engines had no constraints on purcha
 
 ### 3.1 Gym Owner Platform Subscriptions (`pages/gym_owner/gym_subscription.php`)
 
-#### Calculation of Remaining Validity
+#### Calculation of Remaining Validity & Plan Tiers
 ```php
 $currentPlan = strtolower((string)($gym['subscription_plan'] ?? ''));
 $hasActiveSub = ($gym['subscription_status'] === 'active' && !empty($gym['subscription_plan']));
@@ -46,39 +49,59 @@ $gymDaysLeft = null;
 if ($hasActiveSub && $gymRenewalDate) {
     $gymDaysLeft = (int)ceil((strtotime($gymRenewalDate) - strtotime('today')) / 86400);
 }
+
+// Plan tier hierarchy (Starter = 1, Pro = 2, Business = 3)
+$planRank = [];
+$pRankIndex = 1;
+foreach ($plans as $pk => $pVal) {
+    $planRank[$pk] = $pRankIndex++;
+}
+$currentPlanRank = $planRank[$currentPlan] ?? 0;
 ```
 
 #### Server-Side Enforcement (POST Handler)
 ```php
-// Guardrail: Disallow early renewal of the same plan if > 7 days remain
+// Guardrail 1: Disallow early renewal of the same plan if > 7 days remain
 if ($hasActiveSub && $currentPlan === $selectedKey && $gymDaysLeft !== null && $gymDaysLeft > 7) {
     flash("Your {$planName} subscription is active with {$gymDaysLeft} days remaining. Renewals open 7 days before your renewal date (" . date('M j, Y', strtotime($gymRenewalDate)) . ").", 'warning');
     redirect('gym_subscription');
 }
 
-// Guardrail: Cancel any older pending payments for this gym to prevent checkout spam / stacking
+// Guardrail 2 (Two-Way Rule): Disallow early downgrade if > 7 days remain on higher tier
+$selectedPlanRank = $planRank[$selectedKey] ?? 0;
+if ($hasActiveSub && $currentPlanRank > 0 && $selectedPlanRank < $currentPlanRank && $gymDaysLeft !== null && $gymDaysLeft > 7) {
+    $curName = $plans[$currentPlan]['name'] ?? 'current tier';
+    flash("You currently have an active {$curName} subscription with {$gymDaysLeft} days remaining. Downgrading to {$planName} is only available within 7 days of your renewal date (" . date('M j, Y', strtotime($gymRenewalDate)) . ") so you don't forfeit your {$curName} features early.", 'warning');
+    redirect('gym_subscription');
+}
+
+// Guardrail 3: Cancel any older pending payments for this gym to prevent checkout spam / stacking
 $pdo->prepare('UPDATE gym_subscription_payments SET status = "failed" WHERE gym_id = ? AND status = "pending"')
     ->execute([(int)$gym['gym_id']]);
 ```
 
-#### Client-Side UI & Distribution Table Lock
+#### Client-Side UI & Upgrade Warning Banner
 In `gym_subscription.php`:
 ```php
 <?php if ($isRenewalLocked): ?>
-    <button type="button" 
-            class="pricing-btn current-locked-btn"
-            disabled
-            title="Renewals open 7 days before expiration">
+    <button type="button" class="pricing-btn current-locked-btn" disabled>
         Active (<?= $gymDaysLeft ?> days left)
     </button>
     <div class="renewal-note">
         Renewals open on <?= date('M j, Y', strtotime('-7 days', strtotime($gymRenewalDate))) ?>
     </div>
+<?php elseif ($isDowngradeLocked): ?>
+    <button type="button" class="pricing-btn current-locked-btn" disabled>
+        Active on <?= h($plans[$currentPlan]['name'] ?? 'Higher Tier') ?>
+    </button>
+    <div class="renewal-note">
+        Downgrades open on <?= date('M j, Y', strtotime('-7 days', strtotime($gymRenewalDate))) ?>
+    </div>
 <?php else: ?>
     <button type="button" 
             class="pricing-btn <?= $isPopular ? 'popular-btn' : 'standard-btn' ?>"
             onclick="openPaymentModal('<?= h($key) ?>', '<?= h($plan['name']) ?>')">
-        <?= $isCurrent ? ('Renew Plan' . ($gymDaysLeft !== null ? ' (' . max(0, $gymDaysLeft) . 'd left)' : '')) : ($hasActiveSub ? 'Switch to ' . h($plan['name']) : 'Get Started') ?>
+        <?= $isCurrent ? 'Renew Plan' : ($isUpgrade ? 'Upgrade to ' . h($plan['name']) : 'Switch to ' . h($plan['name'])) ?>
     </button>
 <?php endif; ?>
 ```
@@ -130,19 +153,19 @@ In `xendit_handle_gym_subscription_payment_webhook()`:
 
 ### 3.3 Member Gym Subscriptions (`pages/admin/memberships.php`)
 
-#### Renewal Window & Single Advance Cycle Guardrail
+#### Renewal Window, Two-Way Downgrade Guardrail & Upgrades
 ```php
 if ($currentActive) {
-    if ((int)$currentActive['plan_id'] === $planId) {
-        $daysUntilEnd = (int)ceil((strtotime($currentActive['end_date']) - strtotime('today')) / 86400);
+    $daysUntilEnd = (int)ceil((strtotime($currentActive['end_date']) - strtotime('today')) / 86400);
 
-        // Guardrail: Enforce 7-day renewal window for the same membership plan
+    if ((int)$currentActive['plan_id'] === $planId) {
+        // Guardrail 1: Enforce 7-day renewal window for the same membership plan
         if ($daysUntilEnd > 7) {
             flash("Your {$plan['plan_name']} membership is currently active with {$daysUntilEnd} days remaining. Renewals open 7 days before your expiration date (" . date('M j, Y', strtotime($currentActive['end_date'])) . ").", 'warning');
             redirect('memberships');
         }
 
-        // Guardrail: Prevent stacking more than 1 advance renewal cycle
+        // Guardrail 2: Prevent stacking more than 1 advance renewal cycle
         $alreadyQueued = (int) scalar("SELECT COUNT(*) FROM memberships m JOIN membership_plans mp ON mp.plan_id = m.plan_id WHERE m.user_id = ? AND mp.gym_id = ? AND m.status = 'active' AND m.start_date > CURDATE()", [$user['user_id'], $planGymId]);
         if ($alreadyQueued > 0) {
             flash("You already have an advance renewal queued through " . date('M j, Y', strtotime($currentActive['end_date'])) . ". Further renewals cannot be queued until your current cycle ends.", 'warning');
@@ -152,9 +175,29 @@ if ($currentActive) {
         // Renewal: Queue it from currentActive end_date
         $start = new DateTime($currentActive['end_date']);
         $end = (clone $start)->modify('+' . $plan['duration_days'] . ' days')->format('Y-m-d');
+    } else {
+        // Guardrail 3 (Two-Way Rule): Disallow early downgrade if > 7 days remain on higher tier
+        $currentPlanPrice = (float)($currentActive['old_price'] ?? 0);
+        $newPlanPrice = (float)$plan['price'];
+        if ($newPlanPrice < $currentPlanPrice && $daysUntilEnd > 7) {
+            $curName = $currentActive['plan_name'] ?? 'current tier';
+            flash("You currently have an active {$curName} membership with {$daysUntilEnd} days remaining. Downgrading to {$plan['plan_name']} is only available within 7 days of your expiration date (" . date('M j, Y', strtotime($currentActive['end_date'])) . ") so you don't forfeit your {$curName} privileges early.", 'warning');
+            redirect('memberships');
+        }
+
+        // Same-day upgrade credit
+        if (date('Y-m-d', strtotime($currentActive['created_at'])) === date('Y-m-d')) {
+            $finalPrice = max(0, $finalPrice - (float)$currentActive['old_price']);
+        }
     }
 }
 ```
+
+#### Member Plan UI & Modal Experience
+1. **Downgrade Cards**: Disabled button displaying `Active on [Current Higher Plan]` with subtext `Downgrades open on [Date]`. Intercepted on click if clicked programmatically with SweetAlert notice.
+2. **Upgrade Cards**: Active button labeled `Upgrade to [Plan]`. Opening the checkout modal renders a dynamic amber alert banner:
+   > **Plan Upgrade Notice:** You currently have **X days remaining** on your **[Current Plan]** membership. Upgrading takes effect immediately upon payment confirmation and starts a fresh validity period today. Any remaining days on your previous tier will be superseded.
+3. **Same Plan Renewals**: Disabled when `days_left > 7` with `Renewals open on [Date]`. When within 7 days, opens checkout to seamlessly queue onto current expiration date.
 
 #### Stale Pending Checkout Cleanup
 ```php

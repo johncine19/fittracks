@@ -628,6 +628,15 @@ html[data-theme="light"] .settings-hero.has-gym-cover .settings-hero-role,
     color: var(--ink);
 }
 
+.account-modal-actions {
+    grid-column: 1 / -1;
+    display: flex;
+    justify-content: flex-end;
+    align-items: center;
+    gap: 10px;
+    margin-top: 10px;
+}
+
 .platform-settings-cancel:hover {
     border-color: var(--lime);
     background: color-mix(in srgb, var(--lime) 7%, transparent);
@@ -855,11 +864,11 @@ html[data-theme="light"] .settings-hero.has-gym-cover .settings-hero-role,
 
 .settings-stat-card-highlight {
     background: color-mix(in srgb, var(--panel-soft) 80%, transparent);
-    border-color: color-mix(in srgb, var(--teal) 35%, var(--line));
+    border-color: color-mix(in srgb, var(--lime) 35%, var(--line));
 }
 
 .settings-stat-card-highlight:hover {
-    border-color: var(--teal);
+    border-color: var(--lime);
 }
 
 .settings-stat-card-wide {
@@ -879,6 +888,8 @@ html[data-theme="light"] .settings-hero.has-gym-cover .settings-hero-role,
     display: grid;
     place-items: center;
     flex-shrink: 0;
+    background: color-mix(in srgb, var(--lime) 15%, transparent);
+    color: var(--lime);
 }
 
 .settings-stat-icon svg {
@@ -1688,6 +1699,23 @@ input:checked+.toggle-slider:before {
     .settings-section-header {
         flex-direction: column;
     }
+
+    .account-modal-actions,
+    .platform-settings-modal-actions {
+        justify-content: center !important;
+        gap: 12px;
+        width: 100%;
+    }
+
+    .account-modal-actions button {
+        flex: 1;
+        max-width: 160px;
+        min-height: 42px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        text-align: center;
+    }
 }
 
 @media (max-width: 380px) {
@@ -1746,5 +1774,12 @@ input:checked+.toggle-slider:before {
 
     .settings-stat-value small {
         font-size: 0.68rem;
+    }
+
+    .account-modal-actions button {
+        max-width: 135px;
+        font-size: 13px;
+        min-height: 38px;
+        padding: 8px 10px;
     }
 }

@@ -4938,41 +4938,58 @@ body.auth-body .auth-shell {
 
 .doc-action-btn {
     border: none;
-    border-radius: 6px;
-    padding: 4px 8px;
-    font-size: 11px;
+    border-radius: 5px;
+    height: 22px;
+    padding: 2px 7px;
+    font-size: 10.5px;
     font-weight: 700;
     cursor: pointer;
     display: inline-flex;
     align-items: center;
+    justify-content: center;
     gap: 4px;
+    box-sizing: border-box;
     transition: all 0.15s ease;
-    line-height: 1.2;
+    line-height: 1;
 }
 
 .doc-action-btn.view {
-    background: #0f172a;
+    background: linear-gradient(135deg, #84cc16 0%, #65a30d 100%);
     color: #ffffff;
+    box-shadow: 0 2px 5px rgba(101, 163, 13, 0.28);
 }
 
 .doc-action-btn.view:hover {
-    background: #334155;
-    box-shadow: 0 2px 6px rgba(15, 23, 42, 0.2);
+    filter: brightness(1.08);
+    box-shadow: 0 3px 8px rgba(101, 163, 13, 0.4);
+    transform: translateY(-1px);
+}
+
+.doc-action-btn.view:active {
+    transform: translateY(0);
 }
 
 .doc-action-btn.view svg {
-    width: 12px;
-    height: 12px;
+    width: 11px;
+    height: 11px;
+    stroke: currentColor;
 }
 
 .doc-action-btn.remove {
-    background: #f1f5f9;
+    height: 22px;
+    width: 22px;
+    padding: 0;
+    font-size: 13px;
+    font-weight: 700;
+    background: #ffffff;
+    border: 1px solid #cbd5e1;
+    border-radius: 5px;
     color: #64748b;
-    padding: 5px 6px;
 }
 
 .doc-action-btn.remove:hover {
-    background: #fee2e2;
+    background: #fef2f2;
+    border-color: #ef4444;
     color: #ef4444;
 }
 

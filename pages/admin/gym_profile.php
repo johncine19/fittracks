@@ -56,6 +56,12 @@ function gym_profile_page(): void
         } else {
             $fbPageUrl = null;
         }
+
+        $payoutChannel = trim((string) post('payout_channel')) ?: ($gym['payout_channel'] ?? 'gcash');
+        $payoutAccountNumber = post('payout_account_number') !== null ? trim((string) post('payout_account_number')) : ($gym['payout_account_number'] ?? null);
+        $payoutAccountNumber = $payoutAccountNumber !== '' ? $payoutAccountNumber : null;
+        $payoutAccountName = post('payout_account_name') !== null ? trim((string) post('payout_account_name')) : ($gym['payout_account_name'] ?? null);
+        $payoutAccountName = $payoutAccountName !== '' ? $payoutAccountName : null;
         
         if ($canCustomBrand) {
             $brandColor = trim((string) post('brand_color'));
@@ -165,8 +171,8 @@ function gym_profile_page(): void
         }
 
         if ($name && $address && $contact) {
-            $pdo->prepare('UPDATE gyms SET name = ?, address = ?, contact_info = ?, fb_page_url = ?, walk_in_fee = ?, inactivity_threshold_days = ?, inactivity_cooldown_days = ?, auto_inactivity_alerts = ?, business_permit_url = ?, barangay_clearance_url = ?, fire_safety_cert_url = ?, logo_url = ?, cover_image_url = ?, public_description = ?, brand_color = ?, staff_hide_financials = ?, eod_email_summary = ? WHERE gym_id = ?')
-                ->execute([$name, $address, $contact, $fbPageUrl, $walkInFee, $inactivityThreshold, $inactivityCooldown, $autoInactivityAlerts, $permitUrl, $brgyUrl, $fireSafetyUrl, $logoUrl, $coverImageUrl, $publicDescription, $brandColor, $staffHideFinancials, $eodEmailSummary, $gym['gym_id']]);
+            $pdo->prepare('UPDATE gyms SET name = ?, address = ?, contact_info = ?, fb_page_url = ?, walk_in_fee = ?, inactivity_threshold_days = ?, inactivity_cooldown_days = ?, auto_inactivity_alerts = ?, business_permit_url = ?, barangay_clearance_url = ?, fire_safety_cert_url = ?, logo_url = ?, cover_image_url = ?, public_description = ?, brand_color = ?, staff_hide_financials = ?, eod_email_summary = ?, payout_channel = ?, payout_account_number = ?, payout_account_name = ? WHERE gym_id = ?')
+                ->execute([$name, $address, $contact, $fbPageUrl, $walkInFee, $inactivityThreshold, $inactivityCooldown, $autoInactivityAlerts, $permitUrl, $brgyUrl, $fireSafetyUrl, $logoUrl, $coverImageUrl, $publicDescription, $brandColor, $staffHideFinancials, $eodEmailSummary, $payoutChannel, $payoutAccountNumber, $payoutAccountName, $gym['gym_id']]);
             flash('Gym settings updated successfully.', 'success');
             redirect('gym_profile');
         } else {
@@ -399,6 +405,58 @@ function gym_profile_page(): void
                                     <input type="text" name="fb_page_url" id="fb_page_url" class="input-with-icon" value="<?= h($gym['fb_page_url'] ?? '') ?>" placeholder="https://facebook.com/yourgympage">
                                 </div>
                                 <span class="field-hint">Official Facebook or social profile link for prospective members.</span>
+                            </div>
+
+                            <div class="span-full" style="grid-column: 1 / -1; margin-top: 14px; padding-top: 16px; border-top: 1px dashed var(--line, #cbd5e1);">
+                                <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px; flex-wrap: wrap; gap: 6px;">
+                                    <label class="field-label" style="font-size: 13.5px; font-weight: 700; color: var(--ink); margin: 0;">
+                                        Online Member Payments Payout Destination
+                                    </label>
+                                    <span style="font-size: 11px; font-weight: 700; color: var(--lime); background: rgba(132, 204, 22, 0.12); border: 1px solid rgba(132, 204, 22, 0.28); padding: 2px 8px; border-radius: 4px;">
+                                        Xendit Settlement
+                                    </span>
+                                </div>
+                                <span class="field-hint" style="margin-bottom: 12px; display: block; line-height: 1.45;">
+                                    When members pay for memberships online (via GCash, Maya, cards, or bank), earnings collected in your XenPlatform sub-account are disbursed to this destination.
+                                </span>
+
+                                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px;">
+                                    <div>
+                                        <label class="field-label">Payout Channel</label>
+                                        <div class="input-icon-wrap">
+                                            <span class="input-icon">
+                                                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>
+                                            </span>
+                                            <select name="payout_channel" class="input-with-icon" style="padding-left: 36px; height: 38px;">
+                                                <option value="gcash" <?= ($gym['payout_channel'] ?? 'gcash') === 'gcash' ? 'selected' : '' ?>>GCash</option>
+                                                <option value="maya" <?= ($gym['payout_channel'] ?? '') === 'maya' ? 'selected' : '' ?>>Maya</option>
+                                                <option value="bank_transfer" <?= ($gym['payout_channel'] ?? '') === 'bank_transfer' ? 'selected' : '' ?>>Bank Transfer</option>
+                                            </select>
+                                        </div>
+                                    </div>
+
+                                    <div>
+                                        <label class="field-label">Account / Mobile Number</label>
+                                        <div class="input-icon-wrap">
+                                            <span class="input-icon">
+                                                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
+                                            </span>
+                                            <input type="text" name="payout_account_number" class="input-with-icon" value="<?= h($gym['payout_account_number'] ?? '') ?>" placeholder="e.g. 09171234567">
+                                        </div>
+                                        <span class="field-hint">Your 11-digit GCash mobile number or bank account.</span>
+                                    </div>
+
+                                    <div>
+                                        <label class="field-label">Account Holder Full Name</label>
+                                        <div class="input-icon-wrap">
+                                            <span class="input-icon">
+                                                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                                            </span>
+                                            <input type="text" name="payout_account_name" class="input-with-icon" value="<?= h($gym['payout_account_name'] ?? '') ?>" placeholder="e.g. Juan Dela Cruz">
+                                        </div>
+                                        <span class="field-hint">Exact name on verified GCash / Bank account.</span>
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     </section>

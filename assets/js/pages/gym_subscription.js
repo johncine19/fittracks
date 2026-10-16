@@ -49,7 +49,21 @@ const subscriptionPlansData = window.subscriptionPlansData || {};
         }
 
         function openPaymentModal(key, name) {
-            if (window.isCurrentPlanLocked && key === window.currentPlanKey) {
+            if (window.lockedPlans && window.lockedPlans[key]) {
+                const lockInfo = window.lockedPlans[key];
+                const msg = lockInfo.reason || 'This plan is currently locked.';
+                if (typeof Swal !== 'undefined') {
+                    Swal.fire({
+                        icon: 'info',
+                        title: lockInfo.title || 'Plan Unavailable',
+                        text: msg,
+                        confirmButtonColor: '#84cc16'
+                    });
+                } else {
+                    alert(msg);
+                }
+                return;
+            } else if (window.isCurrentPlanLocked && key === window.currentPlanKey) {
                 const days = window.currentPlanDaysLeft || '';
                 const msg = `Your ${name} plan is currently active with ${days} days remaining. Renewals open 7 days prior to expiry.`;
                 if (typeof Swal !== 'undefined') {
@@ -64,6 +78,7 @@ const subscriptionPlansData = window.subscriptionPlansData || {};
                 }
                 return;
             }
+
             const plan = subscriptionPlansData[key];
             if (!plan) return;
             const price = (activeCycle === 'yearly') 
@@ -71,9 +86,24 @@ const subscriptionPlansData = window.subscriptionPlansData || {};
                 : plan.price_label;
             const periodText = (activeCycle === 'yearly') ? 'per year (Annual)' : 'per month (Monthly)';
 
+            // Upgrade Warning Banner Check
+            const upgradeBox = document.getElementById('modal-upgrade-warning');
+            const upgradeText = document.getElementById('modal-upgrade-warning-text');
+            if (window.hasActiveSub && window.currentPlanKey && key !== window.currentPlanKey && window.planRanks && window.planRanks[key] > window.planRanks[window.currentPlanKey]) {
+                const curPlanData = window.subscriptionPlansData[window.currentPlanKey];
+                const curName = curPlanData ? curPlanData.name : 'Current';
+                const days = window.currentPlanDaysLeft || 0;
+                if (upgradeBox && upgradeText) {
+                    upgradeText.innerHTML = `You have <strong>${days} days remaining</strong> on your <strong>${curName}</strong> plan. Upgrading to <strong>${name}</strong> will take effect immediately and begin a new full billing cycle starting today.`;
+                    upgradeBox.style.display = 'block';
+                }
+            } else if (upgradeBox) {
+                upgradeBox.style.display = 'none';
+            }
+
             document.getElementById('form-plan-key').value = key;
             document.getElementById('form-billing-cycle').value = activeCycle;
-            document.getElementById('modal-plan-title').textContent = 'Subscribe to ' + name;
+            document.getElementById('modal-plan-title').textContent = (window.hasActiveSub && window.currentPlanKey && window.planRanks && window.planRanks[key] > window.planRanks[window.currentPlanKey]) ? ('Upgrade to ' + name) : ('Subscribe to ' + name);
             document.getElementById('modal-plan-name').textContent = name;
             document.getElementById('modal-plan-price').textContent = price;
             const periodEl = document.getElementById('modal-plan-period');

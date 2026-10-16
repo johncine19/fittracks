@@ -164,61 +164,99 @@
                 document.addEventListener('click', function(e) {
                     const btn = e.target.closest('.btn-subscribe-plan');
                     if (btn) {
+                        const planId = parseInt(btn.getAttribute('data-plan-id'), 10);
+                        const isCurrent = btn.getAttribute('data-is-current') === '1';
+                        const isUpgrade = btn.getAttribute('data-is-upgrade') === '1';
+
+                        // Check if plan is locked by guardrails (e.g. premature renewal or downgrade)
+                        if (window.MEMBERSHIPS_CONFIG?.lockedPlans && window.MEMBERSHIPS_CONFIG.lockedPlans[planId]) {
+                            const reason = window.MEMBERSHIPS_CONFIG.lockedPlans[planId];
+                            if (typeof Swal !== 'undefined') {
+                                Swal.fire({
+                                    icon: 'info',
+                                    title: 'Plan Locked',
+                                    text: reason,
+                                    confirmButtonColor: 'var(--lime, #22c55e)'
+                                });
+                            } else {
+                                alert(reason);
+                            }
+                            return;
+                        }
+
                         subscribePlan(
-                            parseInt(btn.getAttribute('data-plan-id'), 10),
+                            planId,
                             btn.getAttribute('data-plan-name') || '',
                             btn.getAttribute('data-plan-price') || '',
-                            btn.getAttribute('data-is-current') === '1'
+                            isCurrent,
+                            isUpgrade
                         );
                     }
                 });
 
-                function subscribePlan(planId, planName, planPrice, isCurrent) {
-                    const actionWord = isCurrent ? 'Renew' : 'Subscribe to';
-                    const btnWord = isCurrent ? 'Confirm & Renew' : 'Confirm Subscription';
+                function subscribePlan(planId, planName, planPrice, isCurrent, isUpgrade) {
+                    const actionWord = isCurrent ? 'Renew' : (isUpgrade ? 'Upgrade to' : 'Subscribe to');
+                    const btnWord = isCurrent ? 'Confirm & Renew' : (isUpgrade ? 'Confirm Upgrade' : 'Confirm Subscription');
                     const safeName = typeof escapeHtml === 'function' ? escapeHtml(planName) : planName;
                     const safePrice = typeof escapeHtml === 'function' ? escapeHtml(planPrice) : planPrice;
+                    const cur = window.MEMBERSHIPS_CONFIG?.currentPlan;
+
+                    let upgradeBannerHtml = '';
+                    if (isUpgrade && cur && cur.daysLeft !== null) {
+                        const curPlanSafe = typeof escapeHtml === 'function' ? escapeHtml(cur.name || 'current') : (cur.name || 'current');
+                        const daysLeftLabel = cur.daysLeft === 1 ? '1 day' : `${cur.daysLeft} days`;
+                        upgradeBannerHtml = `
+                        <div style="background: rgba(245, 158, 11, 0.1); border: 1px solid rgba(245, 158, 11, 0.3); border-radius: 9px; padding: 7px 10px; margin-bottom: 8px; display: flex; gap: 8px; align-items: flex-start; text-align: left;">
+                            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="2.2" style="flex-shrink:0; margin-top:2px;">
+                                <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+                                <line x1="12" y1="9" x2="12" y2="13"/>
+                                <line x1="12" y1="17" x2="12.01" y2="17"/>
+                            </svg>
+                            <div style="font-size: 11.5px; line-height: 1.35; color: var(--ink);">
+                                <strong style="color: #f59e0b; display: inline-block; margin-right: 3px;">Upgrade Notice:</strong>
+                                Has <strong>${daysLeftLabel} left</strong> on <strong>${curPlanSafe}</strong>. Upgrades activate today; remaining days are superseded.
+                            </div>
+                        </div>
+                        `;
+                    }
 
                     Swal.fire({
-                        title: `<span style="font-size:1.35rem;font-weight:800;letter-spacing:-0.3px;">${actionWord} ${safeName}</span>`,
+                        customClass: { popup: 'membership-subscribe-swal' },
+                        title: `<span style="font-size:1.15rem;font-weight:700;letter-spacing:-0.2px;">${actionWord} ${safeName}</span>`,
                         html: `
-                        <p style="margin: 0 0 18px 0; font-size: 14px; color: var(--muted); line-height: 1.5;">
-                            You are selecting the <strong style="color:var(--ink);">${safeName}</strong> plan for <strong style="color:var(--lime, #22c55e); font-size: 16px;">${safePrice}</strong>.
-                        </p>
-                        <form id="subscribeForm" method="post" action="index.php?page=memberships" style="text-align: left; display: flex; flex-direction: column; gap: 12px;">
+                        ${upgradeBannerHtml}
+                        <div style="margin: 0 0 8px 0; font-size: 12.5px; color: var(--muted);">
+                            Selected: <strong style="color:var(--ink);">${safeName}</strong> • <strong style="color:var(--lime, #22c55e); font-size: 14px;">${safePrice}</strong>
+                        </div>
+                        <form id="subscribeForm" method="post" action="index.php?page=memberships" style="text-align: left; display: flex; flex-direction: column; gap: 8px;">
                             <input type="hidden" name="csrf_token" value="${window.MEMBERSHIPS_CONFIG?.csrfToken || ''}">
                             <input type="hidden" name="subscribe_plan_id" value="${planId}">
                             
-                            <label style="display:block; font-size:11.5px; font-weight:700; letter-spacing:0.5px; color:var(--muted); text-transform:uppercase;">
-                                Select Payment Method
+                            <label style="display:block; font-size:10.5px; font-weight:700; letter-spacing:0.4px; color:var(--muted); text-transform:uppercase; margin-bottom: -2px;">
+                                Payment Method
                             </label>
                             
-                            <div style="display:flex; flex-direction:column; gap:10px;">
-                                <label style="display:flex; align-items:center; gap:12px; padding:12px 14px; border-radius:10px; border:1px solid var(--line); background:rgba(128,128,128,0.05); cursor:${window.MEMBERSHIPS_CONFIG?.xenditEnabled ? 'pointer' : 'not-allowed'}; opacity:${window.MEMBERSHIPS_CONFIG?.xenditEnabled ? '1' : '.55'};">
-                                    <input type="radio" name="payment_method" value="xendit" ${window.MEMBERSHIPS_CONFIG?.xenditEnabled ? 'checked' : 'disabled'} style="accent-color:var(--lime, #22c55e); width:18px; height:18px;">
-                                    <div style="flex:1;">
-                                        <div style="font-weight:700; font-size:14px; color:var(--ink);">Pay online with Xendit</div>
-                                        <div style="font-size:12px; color:var(--muted);">Secure checkout; activates after payment confirmation</div>
+                            <div style="display:flex; flex-direction:column; gap:7px;">
+                                <label style="display:flex; align-items:center; gap:10px; padding:8px 10px; border-radius:9px; border:1px solid var(--line); background:rgba(128,128,128,0.05); cursor:${window.MEMBERSHIPS_CONFIG?.xenditEnabled ? 'pointer' : 'not-allowed'}; opacity:${window.MEMBERSHIPS_CONFIG?.xenditEnabled ? '1' : '.55'};">
+                                    <input type="radio" name="payment_method" value="xendit" ${window.MEMBERSHIPS_CONFIG?.xenditEnabled ? 'checked' : 'disabled'} style="accent-color:var(--lime, #22c55e); width:16px; height:16px; margin:0;">
+                                    <div style="flex:1; min-width:0;">
+                                        <div style="font-weight:700; font-size:13px; color:var(--ink); line-height:1.2;">Pay online with Xendit</div>
+                                        <div style="font-size:11px; color:var(--muted); line-height:1.2; margin-top:1px;">Secure instant checkout</div>
                                     </div>
-                                    <span style="font-size:11px; font-weight:700; background:rgba(34,197,94,0.15); color:var(--lime,#22c55e); padding:3px 8px; border-radius:6px;">Xendit</span>
+                                    <span style="font-size:10px; font-weight:700; background:rgba(34,197,94,0.15); color:var(--lime,#22c55e); padding:2px 6px; border-radius:5px;">Xendit</span>
                                 </label>
                                 
-                                <label style="display:flex; align-items:center; gap:12px; padding:12px 14px; border-radius:10px; border:1px solid var(--line); background:rgba(128,128,128,0.05); cursor:pointer;">
-                                    <input type="radio" name="payment_method" value="cash" style="accent-color:var(--lime, #22c55e); width:18px; height:18px;">
-                                    <div style="flex:1;">
-                                        <div style="font-weight:700; font-size:14px; color:var(--ink);">Cash / Over-the-Counter</div>
-                                        <div style="font-size:12px; color:var(--muted);">Pay at the gym reception desk</div>
+                                <label style="display:flex; align-items:center; gap:10px; padding:8px 10px; border-radius:9px; border:1px solid var(--line); background:rgba(128,128,128,0.05); cursor:pointer;">
+                                    <input type="radio" name="payment_method" value="cash" style="accent-color:var(--lime, #22c55e); width:16px; height:16px; margin:0;">
+                                    <div style="flex:1; min-width:0;">
+                                        <div style="font-weight:700; font-size:13px; color:var(--ink); line-height:1.2;">Cash / Over-the-Counter</div>
+                                        <div style="font-size:11px; color:var(--muted); line-height:1.2; margin-top:1px;">Pay at gym reception desk</div>
                                     </div>
-                                    <span style="font-size:11px; font-weight:700; background:rgba(148,163,184,0.15); color:var(--muted); padding:3px 8px; border-radius:6px;">Front Desk</span>
+                                    <span style="font-size:10px; font-weight:700; background:rgba(148,163,184,0.15); color:var(--muted); padding:2px 6px; border-radius:5px;">Front Desk</span>
                                 </label>
                             </div>
-                            ${window.MEMBERSHIPS_CONFIG?.xenditEnabled ? '' : '<div style="font-size:12px;color:var(--muted);">Online payment is not configured for this gym yet. Please contact the gym owner.</div>'}
-                            
-                            <div style="font-size: 12.5px; color: var(--muted); margin-top: 4px; line-height: 1.4; padding: 10px 12px; background: rgba(128,128,128,0.06); border-radius: 8px;">
-                                ${isCurrent 
-                                    ? 'Your membership validity will be automatically extended from your current expiration date.' 
-                                    : 'Your subscription will be recorded and activated upon payment confirmation.'}
-                            </div>
+                            ${window.MEMBERSHIPS_CONFIG?.xenditEnabled ? '' : '<div style="font-size:11px;color:#f59e0b;line-height:1.3;">Online payment is not enabled for this gym. Please select Cash.</div>'}
+                            ${isCurrent ? '<div style="font-size:11px;color:var(--muted);text-align:center;line-height:1.3;margin-top:2px;">Validity extends seamlessly from your current expiration date.</div>' : ''}
                         </form>
                     `,
                         showCancelButton: true,

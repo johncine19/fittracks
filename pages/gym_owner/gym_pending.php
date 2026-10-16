@@ -231,6 +231,22 @@ function gym_pending_page(): void
     <!-- Real-time AJAX Auto-Polling Script -->
     <script>
     (function() {
+        // Clear submitted onboarding draft
+        try {
+            localStorage.removeItem('fittrack_onboarding_draft_' + <?= (int)$user['user_id'] ?>);
+            if (window.indexedDB) {
+                const req = indexedDB.open('FitTrackOnboardingDB', 1);
+                req.onsuccess = (e) => {
+                    const db = e.target.result;
+                    if (db.objectStoreNames.contains('draft_files')) {
+                        const tx = db.transaction('draft_files', 'readwrite');
+                        const keys = ['id', 'permit', 'barangay', 'fire-safety'];
+                        keys.forEach(k => tx.objectStore('draft_files').delete('user_' + <?= (int)$user['user_id'] ?> + '_' + k));
+                    }
+                };
+            }
+        } catch (e) {}
+
         let isRedirecting = false;
 
         function pollGymStatus() {

@@ -449,13 +449,13 @@ function memberships_page(): void
             $end = (clone $start)->modify('+' . $plan['duration_days'] . ' days')->format('Y-m-d');
             $planGymId = (int) ($plan['gym_id'] ?? 0);
             $currentActive = $planGymId > 0
-                ? db()->query("SELECT m.*, p.price as old_price FROM memberships m JOIN membership_plans p ON p.plan_id = m.plan_id WHERE m.user_id = {$user['user_id']} AND p.gym_id = {$planGymId} AND m.status = 'active' ORDER BY m.end_date DESC LIMIT 1")->fetch()
-                : db()->query("SELECT m.*, p.price as old_price FROM memberships m JOIN membership_plans p ON p.plan_id = m.plan_id WHERE m.user_id = {$user['user_id']} AND m.status = 'active' ORDER BY m.end_date DESC LIMIT 1")->fetch();
+                ? db()->query("SELECT m.*, p.plan_name, p.price as old_price FROM memberships m JOIN membership_plans p ON p.plan_id = m.plan_id WHERE m.user_id = {$user['user_id']} AND p.gym_id = {$planGymId} AND m.status = 'active' ORDER BY m.end_date DESC LIMIT 1")->fetch()
+                : db()->query("SELECT m.*, p.plan_name, p.price as old_price FROM memberships m JOIN membership_plans p ON p.plan_id = m.plan_id WHERE m.user_id = {$user['user_id']} AND m.status = 'active' ORDER BY m.end_date DESC LIMIT 1")->fetch();
 
             if ($currentActive) {
-                if ((int)$currentActive['plan_id'] === $planId) {
-                    $daysUntilEnd = (int)ceil((strtotime($currentActive['end_date']) - strtotime('today')) / 86400);
+                $daysUntilEnd = (int)ceil((strtotime($currentActive['end_date']) - strtotime('today')) / 86400);
 
+                if ((int)$currentActive['plan_id'] === $planId) {
                     // Guardrail: Enforce 7-day renewal window for the same membership plan
                     if ($daysUntilEnd > 7) {
                         flash("Your {$plan['plan_name']} membership is currently active with {$daysUntilEnd} days remaining. Renewals open 7 days before your expiration date (" . date('M j, Y', strtotime($currentActive['end_date'])) . ").", 'warning');
@@ -473,6 +473,15 @@ function memberships_page(): void
                     $start = new DateTime($currentActive['end_date']);
                     $end = (clone $start)->modify('+' . $plan['duration_days'] . ' days')->format('Y-m-d');
                 } else {
+                    // Two-Way Rule: Block early downgrade if active plan has > 7 days remaining
+                    $currentPlanPrice = (float)($currentActive['old_price'] ?? 0);
+                    $newPlanPrice = (float)$plan['price'];
+                    if ($newPlanPrice < $currentPlanPrice && $daysUntilEnd > 7) {
+                        $curName = $currentActive['plan_name'] ?? 'current tier';
+                        flash("You currently have an active {$curName} membership with {$daysUntilEnd} days remaining. Downgrading to {$plan['plan_name']} is only available within 7 days of your expiration date (" . date('M j, Y', strtotime($currentActive['end_date'])) . ") so you don't forfeit your {$curName} privileges early.", 'warning');
+                        redirect('memberships');
+                    }
+
                     // Check if they bought the previous plan today (same-day upgrade pricing)
                     $oldPlanCreatedAt = date('Y-m-d', strtotime($currentActive['created_at']));
                     $todayDate = date('Y-m-d');
@@ -817,12 +826,21 @@ function memberships_page(): void
 
         <?php if ($user['role'] === 'member'):
             $activePlanId = null;
+            $activePlanName = null;
+            $activePlanPrice = 0.0;
+            $activeDaysLeft = null;
+            $activeEndDate = null;
             $sameDayDiscount = 0;
 
-            // Look for an active plan to check if they get a same-day upgrade discount
+            // Look for an active plan to check if they get a same-day upgrade discount & guardrails
             $currentActive = db()->query("SELECT m.*, p.price, p.plan_name FROM memberships m JOIN membership_plans p ON p.plan_id = m.plan_id WHERE m.user_id = {$user['user_id']} AND m.status = 'active' ORDER BY m.end_date DESC LIMIT 1")->fetch();
             if ($currentActive) {
                 $activePlanId = (int)$currentActive['plan_id'];
+                $activePlanName = (string)$currentActive['plan_name'];
+                $activePlanPrice = (float)$currentActive['price'];
+                $activeEndDate = (string)$currentActive['end_date'];
+                $activeDaysLeft = (int)ceil((strtotime($activeEndDate) - strtotime('today')) / 86400);
+
                 if (date('Y-m-d', strtotime($currentActive['created_at'])) === date('Y-m-d')) {
                     $sameDayDiscount = (float)$currentActive['price'];
                 }
@@ -830,6 +848,7 @@ function memberships_page(): void
 
             $planCount = count($plans);
             $popularIndex = ($planCount === 3) ? 1 : ($planCount > 1 ? 1 : 0);
+            $lockedPlansData = [];
         ?>
             <!-- Top View Switcher -->
             <nav class="member-membership-nav" aria-label="Membership Views">
@@ -896,16 +915,32 @@ function memberships_page(): void
                                 }
                             }
                             foreach ($plans as $index => $plan):
-                                $isActive = ($activePlanId === (int)$plan['plan_id']);
+                                $planIdVal = (int)$plan['plan_id'];
+                                $isActive = ($activePlanId === $planIdVal);
                                 $isPopular = $hasCustomPopular ? !empty($plan['is_popular']) : ($index === $popularIndex);
                                 $displayPrice = (float)$plan['price'];
 
                                 $isRenewalLocked = false;
-                                $memberDaysLeft = null;
-                                if ($isActive && !empty($currentActive['end_date'])) {
-                                    $memberDaysLeft = (int)ceil((strtotime($currentActive['end_date']) - strtotime('today')) / 86400);
-                                    if ($memberDaysLeft > 7) {
+                                $isDowngrade = false;
+                                $isUpgrade = false;
+                                $isDowngradeLocked = false;
+
+                                if ($isActive) {
+                                    if ($activeDaysLeft !== null && $activeDaysLeft > 7) {
                                         $isRenewalLocked = true;
+                                        $renewalOpenDate = date('M j, Y', strtotime('-7 days', strtotime($activeEndDate)));
+                                        $lockedPlansData[$planIdVal] = "Your {$plan['plan_name']} membership is currently active with {$activeDaysLeft} days remaining. Renewals open on {$renewalOpenDate}.";
+                                    }
+                                } elseif ($activePlanId) {
+                                    if ($displayPrice < $activePlanPrice) {
+                                        $isDowngrade = true;
+                                        if ($activeDaysLeft !== null && $activeDaysLeft > 7) {
+                                            $isDowngradeLocked = true;
+                                            $downgradeOpenDate = date('M j, Y', strtotime('-7 days', strtotime($activeEndDate)));
+                                            $lockedPlansData[$planIdVal] = "You currently have an active {$activePlanName} membership with {$activeDaysLeft} days remaining. Downgrading to {$plan['plan_name']} is only available within 7 days of your expiration date ({$downgradeOpenDate}) so you don't forfeit your {$activePlanName} privileges early.";
+                                        }
+                                    } elseif ($displayPrice > $activePlanPrice) {
+                                        $isUpgrade = true;
                                     }
                                 }
 
@@ -976,10 +1011,10 @@ function memberships_page(): void
                                                     disabled
                                                     title="Renewals open 7 days before expiration"
                                                     style="background: rgba(255,255,255,0.06); color: var(--muted); border: 1px solid var(--line); cursor: not-allowed; opacity: 0.75; width: 100%; box-shadow: none;">
-                                                    Active (<?= $memberDaysLeft ?>d left)
+                                                    Active (<?= $activeDaysLeft ?>d left)
                                                 </button>
                                                 <div style="font-size: 11.5px; color: var(--muted); margin-top: 6px; text-align: center;">
-                                                    Renewals open <?= date('M j, Y', strtotime('-7 days', strtotime($currentActive['end_date']))) ?>
+                                                    Renewals open <?= date('M j, Y', strtotime('-7 days', strtotime($activeEndDate))) ?>
                                                 </div>
                                             <?php else: ?>
                                                 <button type="button"
@@ -987,17 +1022,40 @@ function memberships_page(): void
                                                     data-plan-id="<?= (int)$plan['plan_id'] ?>"
                                                     data-plan-name="<?= h($plan['plan_name']) ?>"
                                                     data-plan-price="<?= h($formattedPrice) ?>"
-                                                    data-is-current="1">
-                                                    Renew Plan (<?= max(0, $memberDaysLeft ?? 0) ?>d left)
+                                                    data-is-current="1"
+                                                    data-is-upgrade="0">
+                                                    Renew Plan (<?= max(0, $activeDaysLeft ?? 0) ?>d left)
                                                 </button>
                                             <?php endif; ?>
+                                        <?php elseif ($isDowngradeLocked): ?>
+                                            <button type="button"
+                                                class="member-pricing-btn member-locked-btn"
+                                                disabled
+                                                title="Downgrades open 7 days before expiration"
+                                                style="background: rgba(255,255,255,0.06); color: var(--muted); border: 1px solid var(--line); cursor: not-allowed; opacity: 0.75; width: 100%; box-shadow: none;">
+                                                Active on <?= h($activePlanName ?: 'Higher Tier') ?>
+                                            </button>
+                                            <div style="font-size: 11.5px; color: var(--muted); margin-top: 6px; text-align: center;">
+                                                Downgrades open <?= date('M j, Y', strtotime('-7 days', strtotime($activeEndDate))) ?>
+                                            </div>
+                                        <?php elseif ($isUpgrade): ?>
+                                            <button type="button"
+                                                class="member-pricing-btn <?= $isPopular ? 'member-popular-btn' : 'member-standard-btn' ?> btn-subscribe-plan"
+                                                data-plan-id="<?= (int)$plan['plan_id'] ?>"
+                                                data-plan-name="<?= h($plan['plan_name']) ?>"
+                                                data-plan-price="<?= h($formattedPrice) ?>"
+                                                data-is-current="0"
+                                                data-is-upgrade="1">
+                                                Upgrade to <?= h($plan['plan_name']) ?>
+                                            </button>
                                         <?php else: ?>
                                             <button type="button"
                                                 class="member-pricing-btn <?= $isPopular ? 'member-popular-btn' : 'member-standard-btn' ?> btn-subscribe-plan"
                                                 data-plan-id="<?= (int)$plan['plan_id'] ?>"
                                                 data-plan-name="<?= h($plan['plan_name']) ?>"
                                                 data-plan-price="<?= h($formattedPrice) ?>"
-                                                data-is-current="0">
+                                                data-is-current="0"
+                                                data-is-upgrade="0">
                                                 <?= $activePlanId ? 'Switch Plan' : 'Get Started' ?>
                                             </button>
                                         <?php endif; ?>
@@ -1458,7 +1516,15 @@ function memberships_page(): void
         initialMembers: <?= json_encode($initialMembersData ?? [], JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP) ?>,
         plans: <?= json_encode($plansData ?? [], JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP) ?>,
         memberships: <?= json_encode($membershipsData ?? [], JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP) ?>,
-        xenditEnabled: <?= !empty($memberXenditEnabled) ? 'true' : 'false' ?>
+        xenditEnabled: <?= !empty($memberXenditEnabled) ? 'true' : 'false' ?>,
+        currentPlan: <?= json_encode($currentActive ? [
+            'id' => (int)$currentActive['plan_id'],
+            'name' => (string)($currentActive['plan_name'] ?? ''),
+            'price' => (float)($currentActive['price'] ?? 0),
+            'daysLeft' => $activeDaysLeft,
+            'endDate' => !empty($activeEndDate) ? date('M j, Y', strtotime($activeEndDate)) : ''
+        ] : null, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP) ?>,
+        lockedPlans: <?= json_encode($lockedPlansData ?? [], JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP) ?>
     };
     </script>
     <script src="<?= h(asset_url("js/pages/memberships.js")) ?>"></script>

@@ -326,7 +326,7 @@ function profile_page(): void
                     </h3>
                     <div class="settings-stat-grid">
                         <div class="settings-stat-card">
-                            <div class="settings-stat-icon" style="background: color-mix(in srgb, var(--teal) 15%, transparent); color: var(--teal);">
+                            <div class="settings-stat-icon">
                                 <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                                     <path d="M12 20h0M12 4h0M12 12h0M4 8l2.5 2L4 12M20 8l-2.5 2L20 12" />
                                 </svg>
@@ -337,7 +337,7 @@ function profile_page(): void
                             </div>
                         </div>
                         <div class="settings-stat-card">
-                            <div class="settings-stat-icon" style="background: color-mix(in srgb, var(--orange) 15%, transparent); color: var(--orange);">
+                            <div class="settings-stat-icon">
                                 <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                                     <circle cx="12" cy="12" r="10" />
                                     <path d="M12 6v6l4 2" />
@@ -349,7 +349,7 @@ function profile_page(): void
                             </div>
                         </div>
                         <div class="settings-stat-card">
-                            <div class="settings-stat-icon" style="background: color-mix(in srgb, var(--lime) 15%, transparent); color: var(--lime);">
+                            <div class="settings-stat-icon">
                                 <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                                     <rect width="18" height="18" x="3" y="4" rx="2" ry="2" />
                                     <line x1="16" x2="16" y1="2" y2="6" />
@@ -363,7 +363,7 @@ function profile_page(): void
                             </div>
                         </div>
                         <div class="settings-stat-card">
-                            <div class="settings-stat-icon" style="background: color-mix(in srgb, #a78bfa 15%, transparent); color: #a78bfa;">
+                            <div class="settings-stat-icon">
                                 <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                                     <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
                                     <circle cx="12" cy="7" r="4" />
@@ -375,7 +375,7 @@ function profile_page(): void
                             </div>
                         </div>
                         <div class="settings-stat-card">
-                            <div class="settings-stat-icon" style="background: color-mix(in srgb, #60a5fa 15%, transparent); color: #60a5fa;">
+                            <div class="settings-stat-icon">
                                 <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                                     <circle cx="12" cy="12" r="10" />
                                     <line x1="2" x2="22" y1="12" y2="12" />
@@ -387,7 +387,7 @@ function profile_page(): void
                             </div>
                         </div>
                         <div class="settings-stat-card">
-                            <div class="settings-stat-icon" style="background: color-mix(in srgb, #f472b6 15%, transparent); color: #f472b6;">
+                            <div class="settings-stat-icon">
                                 <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                                     <path d="M3 12a9 9 0 1 0 18 0 9 9 0 0 0-18 0" />
                                     <path d="M12 8v8" />
@@ -400,7 +400,7 @@ function profile_page(): void
                         </div>
                         <?php if (!empty($profile['chest_cm'])): ?>
                             <div class="settings-stat-card">
-                                <div class="settings-stat-icon" style="background: color-mix(in srgb, #60a5fa 15%, transparent); color: #60a5fa;">
+                                <div class="settings-stat-icon">
                                     <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                                         <circle cx="12" cy="12" r="10" />
                                         <line x1="2" x2="22" y1="12" y2="12" />
@@ -414,7 +414,7 @@ function profile_page(): void
                         <?php endif; ?>
                         <?php if (!empty($profile['arm_cm'])): ?>
                             <div class="settings-stat-card">
-                                <div class="settings-stat-icon" style="background: color-mix(in srgb, #a78bfa 15%, transparent); color: #a78bfa;">
+                                <div class="settings-stat-icon">
                                     <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                                         <path d="M18 8h1a4 4 0 0 1 0 8h-1" />
                                         <path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z" />
@@ -428,7 +428,7 @@ function profile_page(): void
                         <?php endif; ?>
                         <?php if (($profile['biological_sex'] ?? '') === 'female'): ?>
                             <div class="settings-stat-card">
-                                <div class="settings-stat-icon" style="background: color-mix(in srgb, #fb923c 15%, transparent); color: #fb923c;">
+                                <div class="settings-stat-icon">
                                     <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                                         <path d="M3 12a9 9 0 1 0 18 0 9 9 0 0 0-18 0" />
                                         <path d="M12 8v8" />
@@ -451,7 +451,7 @@ function profile_page(): void
                     </h3>
                     <div class="settings-stat-grid settings-stat-grid-goals">
                         <div class="settings-stat-card settings-stat-card-wide settings-stat-card-highlight">
-                            <div class="settings-stat-icon" style="background: color-mix(in srgb, var(--teal) 15%, transparent); color: var(--teal);">
+                            <div class="settings-stat-icon">
                                 <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                                     <circle cx="12" cy="12" r="10" />
                                     <path d="m9 12 2 2 4-4" />
@@ -463,7 +463,7 @@ function profile_page(): void
                             </div>
                         </div>
                         <div class="settings-stat-card">
-                            <div class="settings-stat-icon" style="background: color-mix(in srgb, var(--lime) 15%, transparent); color: var(--lime);">
+                            <div class="settings-stat-icon">
                                 <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                                     <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
                                 </svg>
@@ -474,7 +474,7 @@ function profile_page(): void
                             </div>
                         </div>
                         <div class="settings-stat-card">
-                            <div class="settings-stat-icon" style="background: color-mix(in srgb, var(--orange) 15%, transparent); color: var(--orange);">
+                            <div class="settings-stat-icon">
                                 <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                                     <path d="M18 8h1a4 4 0 0 1 0 8h-1" />
                                     <path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z" />
@@ -516,7 +516,7 @@ function profile_page(): void
                                 $stEx = $profile['target_exercise'] ?? 'Bench Press';
                             ?>
                                 <div class="settings-stat-card settings-stat-card-wide">
-                                    <div class="settings-stat-icon" style="background: color-mix(in srgb, var(--lime) 15%, transparent); color: var(--lime);">
+                                    <div class="settings-stat-icon">
                                         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                                             <path d="m6.5 6.5 11 11" />
                                             <path d="m21 21-1-1" />
@@ -539,7 +539,7 @@ function profile_page(): void
 
                             <?php if (!empty($profile['target_weight_kg'])): ?>
                                 <div class="settings-stat-card">
-                                    <div class="settings-stat-icon" style="background: color-mix(in srgb, var(--orange) 15%, transparent); color: var(--orange);">
+                                    <div class="settings-stat-icon">
                                         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                                             <circle cx="12" cy="12" r="10" />
                                             <path d="M12 6v6l4 2" />
@@ -559,7 +559,7 @@ function profile_page(): void
 
                             <?php if (!empty($profile['target_body_fat_percent'])): ?>
                                 <div class="settings-stat-card">
-                                    <div class="settings-stat-icon" style="background: color-mix(in srgb, #f43f5e 15%, transparent); color: #f43f5e;">
+                                    <div class="settings-stat-icon">
                                         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                                             <path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z" />
                                         </svg>
@@ -573,7 +573,7 @@ function profile_page(): void
 
                             <?php if (!empty($profile['weekly_workout_target'])): ?>
                                 <div class="settings-stat-card">
-                                    <div class="settings-stat-icon" style="background: color-mix(in srgb, var(--lime) 15%, transparent); color: var(--lime);">
+                                    <div class="settings-stat-icon">
                                         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                                             <rect width="18" height="18" x="3" y="4" rx="2" ry="2" />
                                             <line x1="16" x2="16" y1="2" y2="6" />
@@ -590,7 +590,7 @@ function profile_page(): void
 
                             <?php if (!empty($profile['preferred_duration_mins'])): ?>
                                 <div class="settings-stat-card">
-                                    <div class="settings-stat-icon" style="background: color-mix(in srgb, var(--lime) 15%, transparent); color: var(--lime);">
+                                    <div class="settings-stat-icon">
                                         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                                             <circle cx="12" cy="12" r="10" />
                                             <polyline points="12 6 12 12 16 14" />
@@ -607,7 +607,7 @@ function profile_page(): void
                                 $act = $profile['endurance_activity'] ?? 'Running';
                             ?>
                                 <div class="settings-stat-card settings-stat-card-wide">
-                                    <div class="settings-stat-icon" style="background: color-mix(in srgb, var(--teal) 15%, transparent); color: var(--teal);">
+                                    <div class="settings-stat-icon">
                                         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                                             <path d="M22 12h-4l-3 9L9 3l-3 9H2" />
                                         </svg>
@@ -625,7 +625,7 @@ function profile_page(): void
 
                             <?php if (!empty($profile['target_arm_cm'])): ?>
                                 <div class="settings-stat-card">
-                                    <div class="settings-stat-icon" style="background: color-mix(in srgb, #a78bfa 15%, transparent); color: #a78bfa;">
+                                    <div class="settings-stat-icon">
                                         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                                             <path d="M18 8h1a4 4 0 0 1 0 8h-1" />
                                             <path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z" />
@@ -640,7 +640,7 @@ function profile_page(): void
 
                             <?php if (!empty($profile['target_chest_cm'])): ?>
                                 <div class="settings-stat-card">
-                                    <div class="settings-stat-icon" style="background: color-mix(in srgb, #60a5fa 15%, transparent); color: #60a5fa;">
+                                    <div class="settings-stat-icon">
                                         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                                             <circle cx="12" cy="12" r="10" />
                                             <line x1="2" x2="22" y1="12" y2="12" />
@@ -655,7 +655,7 @@ function profile_page(): void
 
                             <?php if (!empty($profile['target_waist_cm'])): ?>
                                 <div class="settings-stat-card">
-                                    <div class="settings-stat-icon" style="background: color-mix(in srgb, #f472b6 15%, transparent); color: #f472b6;">
+                                    <div class="settings-stat-icon">
                                         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                                             <path d="M3 12a9 9 0 1 0 18 0 9 9 0 0 0-18 0" />
                                             <path d="M12 8v8" />
@@ -1442,7 +1442,7 @@ function profile_page(): void
                         <input type="password" name="password" placeholder="Leave blank to keep current">
                         <small class="muted" style="font-weight:400;">Min. 8 characters, with a letter and a number.</small>
                     </label>
-                    <div style="grid-column:1/-1;display:flex;justify-content:flex-end;gap:10px;margin-top:4px;">
+                    <div class="account-modal-actions">
                         <button type="button" onclick="this.closest('dialog').close()">Cancel</button>
                         <button type="submit" class="btn-primary">Save changes</button>
                     </div>

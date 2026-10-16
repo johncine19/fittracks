@@ -94,7 +94,7 @@ function gym_applications_page(): void
         $app['docs'] = $docs;
         $app['doc_count'] = count($docs);
         $docNames = implode(' ', array_column($docs, 'name'));
-        $app['search_text'] = strtolower($app['name'] . ' ' . $app['first_name'] . ' ' . $app['last_name'] . ' ' . $app['email'] . ' ' . $app['address'] . ' ' . ($app['contact_info'] ?? '') . ' ' . $docNames);
+        $app['search_text'] = strtolower($app['name'] . ' ' . $app['first_name'] . ' ' . $app['last_name'] . ' ' . $app['email'] . ' ' . $app['address'] . ' ' . ($app['contact_info'] ?? '') . ' ' . ($app['payout_account_number'] ?? '') . ' ' . ($app['payout_account_name'] ?? '') . ' ' . $docNames);
     }
     unset($app);
 
@@ -500,6 +500,102 @@ function gym_applications_page(): void
         background: rgba(59, 130, 246, 0.12);
     }
 
+    /* Payout Dropdown Details */
+    .payout-detail-card {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        padding: 2px;
+    }
+
+    .payout-detail-item {
+        display: flex;
+        align-items: center;
+        gap: 9px;
+        padding: 7px 9px;
+        background: color-mix(in srgb, var(--panel-soft, rgba(255, 255, 255, 0.05)) 50%, transparent);
+        border: 1px solid var(--line, rgba(255, 255, 255, 0.08));
+        border-radius: 8px;
+    }
+
+    .payout-detail-icon {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 26px;
+        height: 26px;
+        border-radius: 6px;
+        background: color-mix(in srgb, var(--accent, #c7ff22) 16%, transparent);
+        color: var(--accent, #c7ff22);
+        flex-shrink: 0;
+    }
+
+    .payout-detail-content {
+        min-width: 0;
+        display: flex;
+        flex-direction: column;
+        gap: 1px;
+    }
+
+    .payout-detail-label {
+        font-size: 9.5px;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        color: var(--muted, #8792ad);
+    }
+
+    .payout-detail-val {
+        font-size: 12.5px;
+        color: var(--ink, #f8fafc);
+        word-break: normal;
+        overflow-wrap: break-word;
+    }
+
+    .payout-copy-btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        padding: 3px 8px;
+        font-size: 10.5px;
+        font-weight: 600;
+        background: var(--panel-soft, rgba(255, 255, 255, 0.08));
+        color: var(--ink, #f8fafc);
+        border: 1px solid var(--line, rgba(255, 255, 255, 0.12));
+        border-radius: 6px;
+        cursor: pointer;
+        transition: all 0.15s ease;
+        margin-left: auto;
+        flex-shrink: 0;
+    }
+
+    .payout-copy-btn:hover {
+        background: color-mix(in srgb, var(--accent, #c7ff22) 20%, transparent);
+        border-color: var(--accent, #c7ff22);
+        color: var(--accent, #c7ff22);
+    }
+
+    .payout-copy-btn.copied {
+        background: rgba(132, 204, 22, 0.2) !important;
+        border-color: #84cc16 !important;
+        color: #84cc16 !important;
+    }
+
+    .payout-detail-footer {
+        display: flex;
+        align-items: center;
+        gap: 5px;
+        font-size: 10px;
+        color: var(--muted, #8792ad);
+        padding: 4px 6px 2px;
+        line-height: 1.25;
+    }
+
+    .payout-detail-footer svg {
+        color: var(--accent, #c7ff22);
+        flex-shrink: 0;
+    }
+
     /* Mobile Gym Application Card Styles */
     .app-card-item {
         background: color-mix(in srgb, var(--panel-soft) 45%, transparent);
@@ -727,13 +823,14 @@ function gym_applications_page(): void
                         <th>Email</th>
                         <th>Address</th>
                         <th>Contact Info</th>
+                        <th>Payout Account</th>
                         <th>Documents</th>
                         <th style="width: 170px;">Actions</th>
                     </tr>
                 </thead>
                 <tbody>
                     <?php if (!$applications): ?>
-                        <?php table_empty(7, 'No pending applications.'); ?>
+                        <?php table_empty(8, 'No pending applications.'); ?>
                     <?php else: foreach ($applications as $app): 
                         $docs = $app['docs'];
                         $docCount = $app['doc_count'];
@@ -753,6 +850,77 @@ function gym_applications_page(): void
                                 </div>
                             </td>
                             <td><?= h($app['contact_info'] ?? 'N/A') ?></td>
+                            <td>
+                                <?php if (!empty($app['payout_account_number'])): ?>
+                                    <div class="doc-pill-dropdown payout-pill-dropdown" id="payout-dropdown-<?= (int)$app['gym_id'] ?>">
+                                        <button type="button" class="doc-pill-trigger payout-pill-trigger" onclick="togglePayoutDropdown(<?= (int)$app['gym_id'] ?>, event)" title="View payout destination details">
+                                            <span style="width: 7px; height: 7px; border-radius: 50%; background: #84cc16; display: inline-block; flex-shrink: 0;"></span>
+                                            <span style="font-weight: 700; color: var(--accent, #c7ff22);"><?= strtoupper(h($app['payout_channel'] ?? 'GCash')) ?></span>
+                                            <span style="font-size: 11.5px; opacity: 0.92; font-family: monospace; letter-spacing: -0.2px;"><?= h($app['payout_account_number']) ?></span>
+                                            <svg class="doc-pill-chevron" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                                                <polyline points="6 9 12 15 18 9"></polyline>
+                                            </svg>
+                                        </button>
+                                        <div class="doc-pill-menu payout-pill-menu" id="payout-menu-<?= (int)$app['gym_id'] ?>" style="min-width: 275px;">
+                                            <div class="doc-menu-header">
+                                                <span>Payout Destination</span>
+                                            </div>
+                                            <div class="payout-detail-card">
+                                                <div class="payout-detail-item">
+                                                    <div class="payout-detail-icon">
+                                                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="5" width="20" height="14" rx="2"></rect><line x1="2" y1="10" x2="22" y2="10"></line></svg>
+                                                    </div>
+                                                    <div class="payout-detail-content">
+                                                        <div class="payout-detail-label">Payment Channel</div>
+                                                        <div class="payout-detail-val">
+                                                            <span class="badge" style="padding: 2px 7px; font-size: 10.5px; font-weight: 700; background: rgba(132, 204, 22, 0.18); color: var(--accent, #c7ff22); border-radius: 4px;">
+                                                                <?= strtoupper(h($app['payout_channel'] ?? 'GCash')) ?>
+                                                            </span>
+                                                        </div>
+                                                    </div>
+                                                </div>
+
+                                                <div class="payout-detail-item">
+                                                    <div class="payout-detail-icon">
+                                                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path></svg>
+                                                    </div>
+                                                    <div class="payout-detail-content" style="flex: 1; min-width: 0;">
+                                                        <div class="payout-detail-label">Account Number</div>
+                                                        <div class="payout-detail-val" style="font-family: monospace; font-size: 13px; font-weight: 700; color: #ffffff;">
+                                                            <?= h($app['payout_account_number']) ?>
+                                                        </div>
+                                                    </div>
+                                                    <button type="button" class="payout-copy-btn" onclick="copyPayoutText('<?= h($app['payout_account_number']) ?>', this, event)" title="Copy account number">
+                                                        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+                                                        <span>Copy</span>
+                                                    </button>
+                                                </div>
+
+                                                <?php if (!empty($app['payout_account_name'])): ?>
+                                                <div class="payout-detail-item">
+                                                    <div class="payout-detail-icon">
+                                                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
+                                                    </div>
+                                                    <div class="payout-detail-content">
+                                                        <div class="payout-detail-label">Account Holder Name</div>
+                                                        <div class="payout-detail-val" style="font-weight: 600; color: #ffffff;">
+                                                            <?= h($app['payout_account_name']) ?>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                                <?php endif; ?>
+
+                                                <div class="payout-detail-footer">
+                                                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+                                                    <span>Verified destination for member payouts</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                <?php else: ?>
+                                    <span class="muted" style="font-size:12px;">Not provided</span>
+                                <?php endif; ?>
+                            </td>
                             <td>
                                 <?php if ($docCount === 0): ?>
                                     <span class="muted" style="font-size:12px;">No docs</span>
@@ -810,7 +978,7 @@ function gym_applications_page(): void
                         </tr>
                     <?php endforeach; ?>
                         <tr id="appNoResultsRow" style="display: none;">
-                            <td colspan="7" style="text-align: center; padding: 48px 16px; color: var(--muted);">
+                            <td colspan="8" style="text-align: center; padding: 48px 16px; color: var(--muted);">
                                 <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="margin: 0 auto 10px; display: block; opacity: 0.5;">
                                     <circle cx="11" cy="11" r="8"></circle>
                                     <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
@@ -881,6 +1049,29 @@ function gym_applications_page(): void
                                 Address
                             </span>
                             <span class="app-card-value" style="font-size:12px;"><?= h($app['address']) ?></span>
+                        </div>
+
+                        <div class="app-card-info-row">
+                            <span class="app-card-label">
+                                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>
+                                Payout Dest.
+                            </span>
+                            <span class="app-card-value">
+                                <?php if (!empty($app['payout_account_number'])): ?>
+                                    <div style="display: flex; align-items: center; justify-content: flex-end; gap: 6px; flex-wrap: wrap;">
+                                        <span class="badge" style="padding: 2px 6px; font-size: 10px; font-weight: 700; background: rgba(132, 204, 22, 0.18); color: var(--accent, #c7ff22); border-radius: 4px;">
+                                            <?= strtoupper(h($app['payout_channel'] ?? 'GCash')) ?>
+                                        </span>
+                                        <span style="font-family: monospace; font-size: 12px; font-weight: 600; color: var(--ink, #ffffff);"><?= h($app['payout_account_number']) ?></span>
+                                        <button type="button" class="payout-copy-btn" style="padding: 2px 7px; font-size: 9.5px;" onclick="copyPayoutText('<?= h($app['payout_account_number']) ?>', this, event)" title="Copy account number">Copy</button>
+                                    </div>
+                                    <?php if (!empty($app['payout_account_name'])): ?>
+                                        <div style="font-size: 11px; color: var(--muted); margin-top: 3px; text-align: right;"><?= h($app['payout_account_name']) ?></div>
+                                    <?php endif; ?>
+                                <?php else: ?>
+                                    <span class="muted" style="font-size: 12px;">Not provided</span>
+                                <?php endif; ?>
+                            </span>
                         </div>
                     </div>
 
@@ -973,6 +1164,61 @@ function gym_applications_page(): void
                 }
             }
         }
+    }
+
+    function togglePayoutDropdown(gymId, event) {
+        if (event) {
+            event.stopPropagation();
+        }
+        const dropdown = document.getElementById('payout-dropdown-' + gymId);
+        if (!dropdown) return;
+        const isOpen = dropdown.classList.contains('is-open');
+        closeAllDocDropdowns();
+        if (!isOpen) {
+            dropdown.classList.remove('drop-up');
+            dropdown.classList.add('is-open');
+
+            const trigger = dropdown.querySelector('.doc-pill-trigger');
+            if (trigger) {
+                const triggerRect = trigger.getBoundingClientRect();
+                const container = dropdown.closest('.table-container') || document.body;
+                const containerRect = container.getBoundingClientRect();
+
+                const spaceBelow = Math.min(window.innerHeight - triggerRect.bottom, containerRect.bottom - triggerRect.bottom);
+                const spaceAbove = triggerRect.top - Math.max(0, containerRect.top);
+
+                if (spaceBelow < 250 && spaceAbove > spaceBelow) {
+                    dropdown.classList.add('drop-up');
+                }
+            }
+        }
+    }
+
+    function copyPayoutText(text, btn, event) {
+        if (event) {
+            event.preventDefault();
+            event.stopPropagation();
+        }
+        if (!text) return;
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(text);
+        } else {
+            const ta = document.createElement('textarea');
+            ta.value = text;
+            ta.style.position = 'fixed';
+            ta.style.opacity = '0';
+            document.body.appendChild(ta);
+            ta.select();
+            document.execCommand('copy');
+            document.body.removeChild(ta);
+        }
+        const origHtml = btn.innerHTML;
+        btn.innerHTML = '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg> <span>Copied!</span>';
+        btn.classList.add('copied');
+        setTimeout(() => {
+            btn.innerHTML = origHtml;
+            btn.classList.remove('copied');
+        }, 1500);
     }
 
     function closeAllDocDropdowns() {

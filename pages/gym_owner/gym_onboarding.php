@@ -37,6 +37,9 @@ function gym_onboarding_page(): void
         $validIdType = trim((string) post('valid_id_type'));
         $validIdTypeOther = trim((string) post('valid_id_type_other'));
         $fbPageUrl = trim((string) post('fb_page_url'));
+        $payoutChannel = trim((string) post('payout_channel')) ?: 'gcash';
+        $payoutAccountNumber = preg_replace('/[^0-9]/', '', (string) post('payout_account_number'));
+        $payoutAccountName = trim((string) post('payout_account_name'));
 
         $addressParts = array_filter([$street, $barangay, $city, $province, $zipcode], fn($val) => $val !== '');
         $gymAddress = implode(', ', $addressParts);
@@ -146,6 +149,21 @@ function gym_onboarding_page(): void
                     $placeholders[] = '?';
                     $params[] = $validIdFilename;
                 }
+                if (in_array('payout_channel', $gymColumns, true)) {
+                    $fields[] = 'payout_channel';
+                    $placeholders[] = '?';
+                    $params[] = $payoutChannel;
+                }
+                if (in_array('payout_account_number', $gymColumns, true)) {
+                    $fields[] = 'payout_account_number';
+                    $placeholders[] = '?';
+                    $params[] = $payoutAccountNumber ?: null;
+                }
+                if (in_array('payout_account_name', $gymColumns, true)) {
+                    $fields[] = 'payout_account_name';
+                    $placeholders[] = '?';
+                    $params[] = $payoutAccountName ?: null;
+                }
 
                 $insertSql = 'INSERT INTO gyms (' . implode(', ', $fields) . ') VALUES (' . implode(', ', $placeholders) . ')';
                 $stmt = $pdo->prepare($insertSql);
@@ -245,6 +263,12 @@ function gym_onboarding_page(): void
         .onboarding-stepper .stepper-bar {
             height: 3.5px !important;
         }
+        .stepper-label-short {
+            display: none !important;
+        }
+        .stepper-label-full {
+            display: inline !important;
+        }
 
         /* Section Title */
         .onboarding-card .onboarding-section-title {
@@ -309,12 +333,25 @@ function gym_onboarding_page(): void
         }
         .onboarding-card .split-input-wrap input,
         .onboarding-card .split-input-wrap select {
-            height: 39px !important;
+            height: 40px !important;
             padding: 7px 12px 7px 38px !important;
             font-size: 13px !important;
             border-radius: 9px !important;
             width: 100% !important;
             box-sizing: border-box !important;
+            border: 1px solid #111111 !important;
+            background: #ffffff !important;
+            color: #0f172a !important;
+            transition: border-color 0.15s ease, box-shadow 0.15s ease !important;
+        }
+        .onboarding-card .split-input-wrap input:focus,
+        .onboarding-card .split-input-wrap select:focus {
+            border-color: #84cc16 !important;
+            outline: none !important;
+            box-shadow: 0 0 0 2px rgba(132, 204, 22, 0.2) !important;
+        }
+        .onboarding-card .split-input-wrap input::placeholder {
+            color: #94a3b8 !important;
         }
         .onboarding-card .split-input-wrap select {
             padding-right: 28px !important;
@@ -326,18 +363,55 @@ function gym_onboarding_page(): void
             left: 12px !important;
             width: 16px !important;
             height: 16px !important;
+            color: #64748b !important;
         }
 
         /* Upload Boxes (Step 2) - Strict Ellipsis & Overflow Protection */
         .onboarding-card .split-file-upload-box {
             min-height: 40px !important;
             padding: 5px 8px !important;
-            border-radius: 8px !important;
+            border-radius: 9px !important;
             width: 100% !important;
             max-width: 100% !important;
             min-width: 0 !important;
             overflow: hidden !important;
             box-sizing: border-box !important;
+            border: 1.5px dashed #334155 !important;
+            background: #f8fafc !important;
+            transition: all 0.15s ease !important;
+        }
+        .onboarding-card .split-file-upload-box:hover {
+            border-color: #84cc16 !important;
+            background: rgba(132, 204, 22, 0.04) !important;
+        }
+        .onboarding-card .split-file-upload-box.has-file {
+            border-style: solid !important;
+            border-color: #111111 !important;
+            background: #ffffff !important;
+        }
+        .onboarding-card .split-file-upload-box.box-locked {
+            opacity: 0.65 !important;
+            background: #f1f5f9 !important;
+            border-style: dashed !important;
+            border-color: #94a3b8 !important;
+            cursor: not-allowed !important;
+        }
+        .onboarding-card .split-file-upload-box.box-locked:hover {
+            border-color: #ef4444 !important;
+            background: rgba(239, 68, 68, 0.04) !important;
+        }
+        .onboarding-card .split-file-upload-box.box-locked input[type="file"] {
+            cursor: not-allowed !important;
+        }
+        .shake-highlight {
+            animation: shakeHighlight 0.45s ease-in-out !important;
+            border-color: #ef4444 !important;
+            box-shadow: 0 0 0 2px rgba(239, 68, 68, 0.25) !important;
+        }
+        @keyframes shakeHighlight {
+            0%, 100% { transform: translateX(0); }
+            20%, 60% { transform: translateX(-5px); }
+            40%, 80% { transform: translateX(5px); }
         }
         .onboarding-card .doc-upload-empty {
             gap: 8px !important;
@@ -422,12 +496,60 @@ function gym_onboarding_page(): void
             flex-shrink: 0 !important;
         }
         .onboarding-card .doc-action-btn.view {
-            padding: 3px 7px !important;
+            height: 22px !important;
+            padding: 2px 7px !important;
             font-size: 10.5px !important;
+            font-weight: 700 !important;
+            background: linear-gradient(135deg, #84cc16 0%, #65a30d 100%) !important;
+            color: #ffffff !important;
+            border: none !important;
+            border-radius: 5px !important;
+            box-shadow: 0 2px 5px rgba(101, 163, 13, 0.28) !important;
+            display: inline-flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+            gap: 4px !important;
+            line-height: 1 !important;
+            box-sizing: border-box !important;
+            transition: all 0.15s ease !important;
+            cursor: pointer !important;
+        }
+        .onboarding-card .doc-action-btn.view:hover {
+            filter: brightness(1.08) !important;
+            box-shadow: 0 3px 8px rgba(101, 163, 13, 0.4) !important;
+            transform: translateY(-1px) !important;
+        }
+        .onboarding-card .doc-action-btn.view:active {
+            transform: translateY(0) !important;
+        }
+        .onboarding-card .doc-action-btn.view svg {
+            width: 11px !important;
+            height: 11px !important;
+            color: #ffffff !important;
+            stroke: currentColor !important;
         }
         .onboarding-card .doc-action-btn.remove {
-            padding: 3px 6px !important;
+            height: 22px !important;
+            width: 22px !important;
+            padding: 0 !important;
             font-size: 13px !important;
+            font-weight: 700 !important;
+            border: 1px solid #cbd5e1 !important;
+            border-radius: 5px !important;
+            background: #ffffff !important;
+            color: #64748b !important;
+            line-height: 1 !important;
+            box-sizing: border-box !important;
+            transition: all 0.15s ease !important;
+            display: inline-flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+            cursor: pointer !important;
+        }
+        .onboarding-card .doc-action-btn.remove:hover {
+            border-color: #ef4444 !important;
+            background: #fef2f2 !important;
+            color: #ef4444 !important;
         }
 
         /* Review Details (Step 3) */
@@ -438,6 +560,13 @@ function gym_onboarding_page(): void
         .onboarding-card .review-row {
             font-size: 11.5px !important;
             padding: 2px 0 !important;
+        }
+        .onboarding-card .review-row.align-top {
+            align-items: flex-start !important;
+        }
+        .onboarding-card #rev-payout-dest {
+            word-break: normal !important;
+            overflow-wrap: break-word !important;
         }
         .onboarding-card .review-trust-banner {
             padding: 6px 10px !important;
@@ -462,12 +591,146 @@ function gym_onboarding_page(): void
             font-size: 12.5px !important;
             border-radius: 10px !important;
             height: 40px !important;
+            border: 1px solid #111111 !important;
+            background: #ffffff !important;
+            color: #0f172a !important;
         }
 
         /* Footer Finish Later */
         .onboarding-card .split-card-footer {
             margin-top: 8px !important;
             font-size: 12px !important;
+        }
+
+        /* Payout Destination Box (Step 2) */
+        .onboarding-card .onboarding-payout-box {
+            margin-top: 10px !important;
+            padding: 10px 12px !important;
+            border-radius: 12px !important;
+            background: #f8fafc !important;
+            border: 1px solid #111111 !important;
+            display: flex !important;
+            flex-direction: column !important;
+            gap: 8px !important;
+            box-sizing: border-box !important;
+            width: 100% !important;
+        }
+        .onboarding-card .onboarding-payout-header {
+            display: flex !important;
+            align-items: center !important;
+            justify-content: space-between !important;
+            gap: 6px !important;
+            flex-wrap: wrap !important;
+        }
+        .onboarding-card .onboarding-payout-title {
+            display: inline-flex !important;
+            align-items: center !important;
+            gap: 5px !important;
+            font-size: 12px !important;
+            font-weight: 700 !important;
+            color: #0f172a !important;
+        }
+        .onboarding-card .onboarding-payout-title svg {
+            color: #84cc16 !important;
+            flex-shrink: 0 !important;
+        }
+        .onboarding-card .onboarding-payout-badge {
+            font-size: 9.5px !important;
+            font-weight: 600 !important;
+            color: #4d7c0f !important;
+            background: rgba(132, 204, 22, 0.15) !important;
+            border: 1px solid rgba(132, 204, 22, 0.3) !important;
+            padding: 1px 6px !important;
+            border-radius: 4px !important;
+            white-space: nowrap !important;
+        }
+        .onboarding-card .onboarding-payout-desc {
+            font-size: 11px !important;
+            color: #64748b !important;
+            line-height: 1.35 !important;
+            margin: 0 !important;
+        }
+        .onboarding-card .onboarding-payout-grid {
+            display: grid !important;
+            grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) !important;
+            gap: 10px !important;
+            width: 100% !important;
+            box-sizing: border-box !important;
+        }
+        .onboarding-card .onboarding-payout-box .split-form-group label {
+            white-space: normal !important;
+        }
+        .onboarding-card .payout-field-hint {
+            font-size: 10px !important;
+            color: #94a3b8 !important;
+            margin-top: 1px !important;
+            line-height: 1.25 !important;
+            display: block !important;
+        }
+
+        @media (max-width: 520px) {
+            body:has(.onboarding-wizard-frame) .split-login-viewport,
+            .split-login-viewport:has(.onboarding-wizard-frame) {
+                padding: 10px 8px !important;
+            }
+            .split-login-card.onboarding-card {
+                padding: 16px 14px 14px !important;
+                border-radius: 14px !important;
+            }
+            .stepper-label-short {
+                display: inline !important;
+            }
+            .stepper-label-full {
+                display: none !important;
+            }
+            .onboarding-stepper {
+                gap: 6px !important;
+                margin-bottom: 10px !important;
+            }
+            .onboarding-stepper .stepper-item {
+                gap: 3px !important;
+            }
+            .onboarding-stepper .stepper-label {
+                font-size: 11px !important;
+                white-space: nowrap !important;
+            }
+            .onboarding-card .review-row {
+                flex-direction: column !important;
+                align-items: flex-start !important;
+                gap: 2px !important;
+                padding: 5px 0 !important;
+                border-bottom: 1px dashed #e2e8f0 !important;
+            }
+            .onboarding-card .review-row:last-child {
+                border-bottom: none !important;
+            }
+            .onboarding-card .review-row .review-label {
+                font-size: 11px !important;
+                color: #64748b !important;
+                white-space: normal !important;
+            }
+            .onboarding-card .review-row .review-value,
+            .onboarding-card .review-row .review-value-stack {
+                width: 100% !important;
+                text-align: left !important;
+                justify-content: flex-start !important;
+                align-items: flex-start !important;
+                font-size: 12px !important;
+                word-break: normal !important;
+                overflow-wrap: break-word !important;
+            }
+            .onboarding-card #rev-payout-dest {
+                word-break: normal !important;
+                overflow-wrap: break-word !important;
+                line-height: 1.35 !important;
+            }
+            .onboarding-card .onboarding-payout-grid {
+                grid-template-columns: 1fr !important;
+                gap: 8px !important;
+            }
+            .onboarding-card .onboarding-payout-box {
+                padding: 10px !important;
+            }
         }
     </style>
     <div class="split-login-viewport">
@@ -499,20 +762,29 @@ function gym_onboarding_page(): void
                 <!-- 3-Step Progress Stepper -->
                 <div class="onboarding-stepper" id="onboarding-stepper">
                     <button type="button" class="stepper-item active" id="stepper-tab-1" onclick="goToStep(1)">
-                        <span class="stepper-label">1. Facility Info</span>
+                        <span class="stepper-label">
+                            <span class="stepper-label-full">1. Facility Info</span>
+                            <span class="stepper-label-short">1. Facility</span>
+                        </span>
                         <span class="stepper-bar"></span>
                     </button>
                     <button type="button" class="stepper-item" id="stepper-tab-2" onclick="goToStep(2)">
-                        <span class="stepper-label">2. Verification Documents</span>
+                        <span class="stepper-label">
+                            <span class="stepper-label-full">2. Verification Documents</span>
+                            <span class="stepper-label-short">2. Documents</span>
+                        </span>
                         <span class="stepper-bar"></span>
                     </button>
                     <button type="button" class="stepper-item" id="stepper-tab-3" onclick="goToStep(3)">
-                        <span class="stepper-label">3. Review &amp; Submit</span>
+                        <span class="stepper-label">
+                            <span class="stepper-label-full">3. Review &amp; Submit</span>
+                            <span class="stepper-label-short">3. Review</span>
+                        </span>
                         <span class="stepper-bar"></span>
                     </button>
                 </div>
 
-                    <form method="post" enctype="multipart/form-data" class="split-card-form" novalidate onsubmit="const btn = this.querySelector('button[type=submit]'); if (btn) { btn.disabled = true; btn.innerHTML = '<svg class=\'fitness-loader mini\' viewBox=\'0 0 24 24\' fill=\'none\' stroke=\'currentColor\' stroke-width=\'2\' stroke-linecap=\'round\' stroke-linejoin=\'round\' style=\'margin-right:8px;\'><line x1=\'6\' y1=\'12\' x2=\'18\' y2=\'12\'></line><rect x=\'4\' y=\'8\' width=\'2\' height=\'8\' rx=\'1\'></rect><rect x=\'18\' y=\'8\' width=\'2\' height=\'8\' rx=\'1\'></rect><rect x=\'2\' y=\'10\' width=\'2\' height=\'4\' rx=\'1\'></rect><rect x=\'20\' y=\'10\' width=\'2\' height=\'4\' rx=\'1\'></rect></svg> SUBMITTING...'; }">
+                    <form method="post" enctype="multipart/form-data" class="split-card-form" id="gymOnboardingForm" novalidate onsubmit="const btn = this.querySelector('button[type=submit]'); if (btn) { btn.disabled = true; btn.innerHTML = '<svg class=\'fitness-loader mini\' viewBox=\'0 0 24 24\' fill=\'none\' stroke=\'currentColor\' stroke-width=\'2\' stroke-linecap=\'round\' stroke-linejoin=\'round\' style=\'margin-right:8px;\'><line x1=\'6\' y1=\'12\' x2=\'18\' y2=\'12\'></line><rect x=\'4\' y=\'8\' width=\'2\' height=\'8\' rx=\'1\'></rect><rect x=\'18\' y=\'8\' width=\'2\' height=\'8\' rx=\'1\'></rect><rect x=\'2\' y=\'10\' width=\'2\' height=\'4\' rx=\'1\'></rect><rect x=\'20\' y=\'10\' width=\'2\' height=\'4\' rx=\'1\'></rect></svg> SUBMITTING...'; }">
                         <?= csrf_field() ?>
 
                         <!-- STEP 1: Facility Information -->
@@ -699,8 +971,9 @@ function gym_onboarding_page(): void
                                 <!-- Valid ID Upload Box -->
                                 <div class="split-form-group">
                                     <label>Upload Valid ID<span class="req-star">*</span></label>
-                                    <div class="split-file-upload-box" id="box-valid-id">
+                                    <div class="split-file-upload-box <?= empty(post('valid_id_type')) ? 'box-locked' : '' ?>" id="box-valid-id" onclick="handleValidIdBoxClick(event)" title="<?= empty(post('valid_id_type')) ? 'Please choose a Valid ID Type first' : 'Click to choose file' ?>">
                                         <input type="file" name="valid_id" id="input-valid-id" required accept=".pdf,.jpg,.jpeg,.png,.webp"
+                                               onclick="return handleValidIdClick(event)"
                                                onchange="handleDocFileChosen(this, 'id', 'Valid Government ID')"
                                                oninvalid="this.setCustomValidity('Please upload your valid government ID.')"
                                                oninput="this.setCustomValidity('')">
@@ -716,7 +989,7 @@ function gym_onboarding_page(): void
                                             </svg>
                                             <div class="doc-upload-text">
                                                 <span class="split-upload-title" id="title-valid-id">Upload Valid ID</span>
-                                                <span class="split-upload-desc">JPG, PNG or PDF (Max 5MB)</span>
+                                                <span class="split-upload-desc" id="desc-valid-id"><?= empty(post('valid_id_type')) ? 'Select ID type first' : 'JPG, PNG or PDF (Max 5MB)' ?></span>
                                             </div>
                                         </div>
 
@@ -886,6 +1159,57 @@ function gym_onboarding_page(): void
                                 </div>
                             </div>
 
+                            <!-- Online Settlement & Payout Information Box -->
+                            <div class="onboarding-payout-box">
+                                <div class="onboarding-payout-header">
+                                    <div class="onboarding-payout-title">
+                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>
+                                        <span>Payout Destination</span>
+                                        <span class="opt-label">(Optional)</span>
+                                    </div>
+                                    <span class="onboarding-payout-badge">For Member Payments</span>
+                                </div>
+                                <p class="onboarding-payout-desc">
+                                    Where member payments (GCash, Maya, cards) will be deposited.
+                                </p>
+
+                                <div class="onboarding-payout-grid">
+                                    <div class="split-form-group">
+                                        <label>Payout Method</label>
+                                        <div class="split-input-wrap auth-input-group">
+                                            <svg class="split-input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>
+                                            <select name="payout_channel" id="payout_channel">
+                                                <option value="gcash" <?= post('payout_channel') === 'gcash' || !post('payout_channel') ? 'selected' : '' ?>>GCash</option>
+                                                <option value="maya" <?= post('payout_channel') === 'maya' ? 'selected' : '' ?>>Maya</option>
+                                                <option value="bank_transfer" <?= post('payout_channel') === 'bank_transfer' ? 'selected' : '' ?>>Bank Transfer</option>
+                                            </select>
+                                        </div>
+                                    </div>
+
+                                    <div class="split-form-group">
+                                        <label>Account / GCash No.</label>
+                                        <div class="split-input-wrap auth-input-group">
+                                            <svg class="split-input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
+                                            <input type="tel" name="payout_account_number" id="payout_account_number"
+                                                   placeholder="e.g. 09171234567"
+                                                   value="<?= h(post('payout_account_number')) ?>">
+                                        </div>
+                                        <span class="payout-field-hint">11-digit GCash/Maya number</span>
+                                    </div>
+                                </div>
+
+                                <div class="split-form-group" style="margin-top: 1px;">
+                                    <label>Account Holder Name</label>
+                                    <div class="split-input-wrap auth-input-group">
+                                        <svg class="split-input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                                        <input type="text" name="payout_account_name" id="payout_account_name"
+                                               placeholder="e.g. Juan Dela Cruz"
+                                               value="<?= h(post('payout_account_name')) ?>">
+                                    </div>
+                                    <span class="payout-field-hint">Must match verified account name</span>
+                                </div>
+                            </div>
+
                             <!-- Step 2 Navigation Row -->
                             <div class="onboarding-nav-row">
                                 <button type="button" class="split-back-btn" onclick="goToStep(1)">
@@ -977,6 +1301,12 @@ function gym_onboarding_page(): void
                                                 <span id="rev-fb-page">None (Optional)</span>
                                             </span>
                                         </div>
+                                        <div class="review-row review-payout-row align-top">
+                                            <span class="review-label">Payout Destination:</span>
+                                            <span class="review-value">
+                                                <span id="rev-payout-dest">Not specified</span>
+                                            </span>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
@@ -1050,6 +1380,161 @@ function gym_onboarding_page(): void
     <script>
     let currentStep = 1;
 
+    const ONBOARDING_USER_ID = <?= (int)$user['user_id'] ?>;
+    const ONBOARDING_STORAGE_KEY = 'fittrack_onboarding_draft_' + ONBOARDING_USER_ID;
+    const ONBOARDING_IDB_NAME = 'FitTrackOnboardingDB';
+    const ONBOARDING_IDB_STORE = 'draft_files';
+
+    function getOnboardingDb() {
+        return new Promise((resolve, reject) => {
+            if (!window.indexedDB) {
+                return reject(new Error('IndexedDB not supported'));
+            }
+            const req = indexedDB.open(ONBOARDING_IDB_NAME, 1);
+            req.onupgradeneeded = (e) => {
+                const db = e.target.result;
+                if (!db.objectStoreNames.contains(ONBOARDING_IDB_STORE)) {
+                    db.createObjectStore(ONBOARDING_IDB_STORE);
+                }
+            };
+            req.onsuccess = () => resolve(req.result);
+            req.onerror = () => reject(req.error);
+        });
+    }
+
+    async function saveDraftFile(key, file) {
+        if (!file) return;
+        try {
+            const db = await getOnboardingDb();
+            const tx = db.transaction(ONBOARDING_IDB_STORE, 'readwrite');
+            tx.objectStore(ONBOARDING_IDB_STORE).put({
+                name: file.name,
+                type: file.type,
+                lastModified: file.lastModified,
+                blob: file
+            }, 'user_' + ONBOARDING_USER_ID + '_' + key);
+        } catch (err) {
+            console.warn('Could not save draft file to IndexedDB', err);
+        }
+    }
+
+    async function removeDraftFile(key) {
+        try {
+            const db = await getOnboardingDb();
+            const tx = db.transaction(ONBOARDING_IDB_STORE, 'readwrite');
+            tx.objectStore(ONBOARDING_IDB_STORE).delete('user_' + ONBOARDING_USER_ID + '_' + key);
+        } catch (err) {}
+    }
+
+    let saveDraftTimer = null;
+    function saveDraftText() {
+        clearTimeout(saveDraftTimer);
+        saveDraftTimer = setTimeout(() => {
+            try {
+                const draft = {
+                    gym_name: document.getElementById('gym_name')?.value || '',
+                    gym_contact_info: document.getElementById('gym_contact_info')?.value || '',
+                    street: document.getElementById('street')?.value || '',
+                    barangay: document.getElementById('barangay')?.value || '',
+                    city: document.getElementById('city')?.value || '',
+                    province: document.getElementById('province')?.value || '',
+                    zipcode: document.getElementById('zipcode')?.value || '',
+                    valid_id_type: document.getElementById('valid_id_type')?.value || '',
+                    valid_id_type_other: document.getElementById('valid_id_type_other')?.value || '',
+                    fb_page_url: document.getElementById('fb_page_url')?.value || '',
+                    payout_channel: document.getElementById('payout_channel')?.value || 'gcash',
+                    payout_account_number: document.getElementById('payout_account_number')?.value || '',
+                    payout_account_name: document.getElementById('payout_account_name')?.value || '',
+                    currentStep: currentStep
+                };
+                localStorage.setItem(ONBOARDING_STORAGE_KEY, JSON.stringify(draft));
+            } catch (err) {}
+        }, 150);
+    }
+
+    async function restoreDraftData() {
+        // 1. Restore text & select fields from localStorage
+        try {
+            const raw = localStorage.getItem(ONBOARDING_STORAGE_KEY);
+            if (raw) {
+                const saved = JSON.parse(raw);
+                if (saved && typeof saved === 'object') {
+                    const fields = [
+                        'gym_name', 'gym_contact_info', 'street', 'barangay', 'city', 'province',
+                        'zipcode', 'valid_id_type_other', 'fb_page_url',
+                        'payout_channel', 'payout_account_number', 'payout_account_name'
+                    ];
+                    fields.forEach(f => {
+                        const el = document.getElementById(f);
+                        if (el && (!el.value || el.value.trim() === '')) {
+                            if (saved[f] !== undefined && saved[f] !== null) {
+                                el.value = saved[f];
+                            }
+                        }
+                    });
+
+                    // ID Type
+                    const idTypeEl = document.getElementById('valid_id_type');
+                    if (idTypeEl) {
+                        if (!idTypeEl.value && saved.valid_id_type) {
+                            idTypeEl.value = saved.valid_id_type;
+                        }
+                        if (idTypeEl.value) {
+                            handleIdTypeChange(idTypeEl.value);
+                        }
+                    }
+
+                    // Restore Step
+                    if (saved.currentStep && saved.currentStep > 1) {
+                        goToStepDirect(saved.currentStep);
+                    }
+                }
+            }
+        } catch (err) {
+            console.warn('Could not restore draft text', err);
+        }
+
+        // 2. Restore file inputs from IndexedDB
+        try {
+            const db = await getOnboardingDb();
+            const tx = db.transaction(ONBOARDING_IDB_STORE, 'readonly');
+            const store = tx.objectStore(ONBOARDING_IDB_STORE);
+            const docConfigs = [
+                { key: 'id', inputId: 'input-valid-id', title: 'Valid ID' },
+                { key: 'permit', inputId: 'input-business-permit', title: 'Business Permit' },
+                { key: 'barangay', inputId: 'input-barangay-clearance', title: 'Barangay Clearance' },
+                { key: 'fire-safety', inputId: 'input-fire-safety', title: 'Fire Safety Cert.' }
+            ];
+
+            docConfigs.forEach(cfg => {
+                const req = store.get('user_' + ONBOARDING_USER_ID + '_' + cfg.key);
+                req.onsuccess = () => {
+                    const item = req.result;
+                    if (item && item.blob) {
+                        const input = document.getElementById(cfg.inputId);
+                        if (input && (!input.files || input.files.length === 0)) {
+                            try {
+                                const file = new File([item.blob], item.name, {
+                                    type: item.type || 'application/octet-stream',
+                                    lastModified: item.lastModified || Date.now()
+                                });
+                                const dt = new DataTransfer();
+                                dt.items.add(file);
+                                input.files = dt.files;
+                                handleDocFileChosen(input, cfg.key, cfg.title);
+                                if (currentStep === 3) {
+                                    populateReviewData();
+                                }
+                            } catch (e) {
+                                console.warn('DataTransfer file restore error', e);
+                            }
+                        }
+                    }
+                };
+            });
+        } catch (err) {}
+    }
+
     function formatFileSize(bytes) {
         if (!bytes || bytes === 0) return '0 KB';
         const k = 1024;
@@ -1077,8 +1562,11 @@ function gym_onboarding_page(): void
             if (emptyEl) emptyEl.style.display = 'flex';
             if (filledEl) filledEl.style.display = 'none';
             if (box) box.classList.remove('has-file');
+            removeDraftFile(key);
             return;
         }
+
+        saveDraftFile(key, file);
 
         if (nameEl) {
             nameEl.textContent = file.name;
@@ -1126,6 +1614,7 @@ function gym_onboarding_page(): void
         if (input) {
             input.value = '';
         }
+        removeDraftFile(key);
         const boxMap = {
             'id': 'box-valid-id',
             'permit': 'box-permit',
@@ -1212,19 +1701,97 @@ function gym_onboarding_page(): void
         }
     });
 
+    function handleValidIdClick(e) {
+        const idTypeSelect = document.getElementById('valid_id_type');
+        if (!idTypeSelect || !idTypeSelect.value.trim()) {
+            if (e) {
+                e.preventDefault();
+                e.stopPropagation();
+            }
+            idTypeSelect.focus();
+            idTypeSelect.setCustomValidity('Please choose a Valid ID Type first before uploading.');
+            idTypeSelect.reportValidity();
+
+            idTypeSelect.classList.remove('shake-highlight');
+            void idTypeSelect.offsetWidth; // trigger reflow
+            idTypeSelect.classList.add('shake-highlight');
+            setTimeout(() => idTypeSelect.classList.remove('shake-highlight'), 600);
+            return false;
+        }
+
+        if (idTypeSelect.value === 'Other Valid Government ID') {
+            const otherInput = document.getElementById('valid_id_type_other');
+            if (otherInput && !otherInput.value.trim()) {
+                if (e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                }
+                otherInput.focus();
+                otherInput.setCustomValidity('Please specify your other valid ID type.');
+                otherInput.reportValidity();
+
+                otherInput.classList.remove('shake-highlight');
+                void otherInput.offsetWidth;
+                otherInput.classList.add('shake-highlight');
+                setTimeout(() => otherInput.classList.remove('shake-highlight'), 600);
+                return false;
+            }
+        }
+        return true;
+    }
+
+    function handleValidIdBoxClick(e) {
+        if (!e) return;
+        if (e.target && (e.target.closest('.doc-action-btn') || e.target.closest('.doc-preview-thumb-wrap'))) {
+            return;
+        }
+        const idTypeSelect = document.getElementById('valid_id_type');
+        if (!idTypeSelect || !idTypeSelect.value.trim()) {
+            handleValidIdClick(e);
+        }
+    }
+
     function handleIdTypeChange(val) {
         const otherWrap = document.getElementById('other-id-wrap');
         const titleValidId = document.getElementById('title-valid-id');
+        const descValidId = document.getElementById('desc-valid-id');
         const otherInput = document.getElementById('valid_id_type_other');
-        
+        const box = document.getElementById('box-valid-id');
+        const idTypeSelect = document.getElementById('valid_id_type');
+
+        if (idTypeSelect) {
+            idTypeSelect.setCustomValidity('');
+            idTypeSelect.classList.remove('shake-highlight');
+        }
+
+        val = (val || '').trim();
+
         if (val === 'Other Valid Government ID') {
             if (otherWrap) otherWrap.style.display = 'block';
             if (otherInput) otherInput.focus();
             if (titleValidId) titleValidId.textContent = 'Upload Valid ID';
-        } else {
+            if (descValidId) descValidId.textContent = 'JPG, PNG or PDF (Max 5MB)';
+            if (box) {
+                box.classList.remove('box-locked');
+                box.title = 'Click to choose file';
+            }
+        } else if (val) {
             if (otherWrap) otherWrap.style.display = 'none';
             if (titleValidId) {
-                titleValidId.textContent = val ? 'Upload ' + (val.length > 22 ? val.substring(0, 20) + '...' : val) : 'Upload Valid ID';
+                titleValidId.textContent = 'Upload ' + (val.length > 22 ? val.substring(0, 20) + '...' : val);
+            }
+            if (descValidId) descValidId.textContent = 'JPG, PNG or PDF (Max 5MB)';
+            if (box) {
+                box.classList.remove('box-locked');
+                box.title = 'Click to choose file';
+            }
+        } else {
+            if (otherWrap) otherWrap.style.display = 'none';
+            if (titleValidId) titleValidId.textContent = 'Upload Valid ID';
+            if (descValidId) descValidId.textContent = 'Select ID type first';
+            if (box) {
+                box.classList.add('box-locked');
+                box.title = 'Please choose a Valid ID Type first';
             }
         }
     }
@@ -1376,6 +1943,7 @@ function gym_onboarding_page(): void
         }
 
         currentStep = step;
+        saveDraftText();
 
         // Smoothly scroll card into view
         const card = document.querySelector('.onboarding-card');
@@ -1467,6 +2035,23 @@ function gym_onboarding_page(): void
                 revFb.style.color = '#64748b';
             }
         }
+
+        const revPayout = document.getElementById('rev-payout-dest');
+        if (revPayout) {
+            const pChan = document.getElementById('payout_channel')?.value || 'gcash';
+            const pNum  = document.getElementById('payout_account_number')?.value.trim() || '';
+            const pName = document.getElementById('payout_account_name')?.value.trim() || '';
+            if (pNum) {
+                const chanLabel = pChan === 'gcash' ? 'GCash' : (pChan === 'maya' ? 'Maya' : 'Bank Transfer');
+                revPayout.textContent = chanLabel + ': ' + pNum + (pName ? ' (' + pName + ')' : '');
+                revPayout.style.color = '#0f172a';
+                revPayout.style.fontWeight = '600';
+            } else {
+                revPayout.textContent = 'Not specified (Can set up later)';
+                revPayout.style.color = '#64748b';
+                revPayout.style.fontWeight = 'normal';
+            }
+        }
     }
 
     function handleFileChosen(input, labelId, boxId) {
@@ -1487,7 +2072,17 @@ function gym_onboarding_page(): void
         }
     }
 
-
+    // Auto-save & auto-restore draft across page refreshes
+    const onboardingForm = document.getElementById('gymOnboardingForm') || document.querySelector('.split-card-form');
+    if (onboardingForm) {
+        onboardingForm.addEventListener('input', saveDraftText);
+        onboardingForm.addEventListener('change', saveDraftText);
+    }
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', restoreDraftData);
+    } else {
+        restoreDraftData();
+    }
     </script>
     <?php
     render_footer();

@@ -36,6 +36,13 @@ function gym_subscription_page(): void
         $gymDaysLeft = (int)ceil((strtotime($gymRenewalDate) - strtotime('today')) / 86400);
     }
 
+    $planRank = [];
+    $pRankIndex = 1;
+    foreach ($plans as $pk => $pVal) {
+        $planRank[$pk] = $pRankIndex++;
+    }
+    $currentPlanRank = $planRank[$currentPlan] ?? 0;
+
     if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         verify_csrf();
         $selectedKey = strtolower(trim((string) post('plan_key')));
@@ -54,6 +61,14 @@ function gym_subscription_page(): void
         // Guardrail: Disallow early renewal of the same plan if > 7 days remain
         if ($hasActiveSub && $currentPlan === $selectedKey && $gymDaysLeft !== null && $gymDaysLeft > 7) {
             flash("Your {$planName} subscription is active with {$gymDaysLeft} days remaining. Renewals open 7 days before your renewal date (" . date('M j, Y', strtotime($gymRenewalDate)) . ").", 'warning');
+            redirect('gym_subscription');
+        }
+
+        // Two-Way Guardrail: Disallow downgrade while active plan has > 7 days remaining
+        $selectedPlanRank = $planRank[$selectedKey] ?? 0;
+        if ($hasActiveSub && $currentPlanRank > 0 && $selectedPlanRank < $currentPlanRank && $gymDaysLeft !== null && $gymDaysLeft > 7) {
+            $curName = $plans[$currentPlan]['name'] ?? 'current tier';
+            flash("You currently have an active {$curName} subscription with {$gymDaysLeft} days remaining. Downgrading to {$planName} is only available within 7 days of your renewal date (" . date('M j, Y', strtotime($gymRenewalDate)) . ") so you don't forfeit your {$curName} features early.", 'warning');
             redirect('gym_subscription');
         }
 
@@ -209,7 +224,11 @@ function gym_subscription_page(): void
                 <?php foreach ($plans as $key => $plan): 
                     $isPopular = $plan['popular'];
                     $isCurrent = ($hasActiveSub && $currentPlan === $key);
+                    $planTierRank = $planRank[$key] ?? 0;
+                    $isDowngrade = ($hasActiveSub && $currentPlanRank > 0 && $planTierRank < $currentPlanRank);
+                    $isUpgrade = ($hasActiveSub && $currentPlanRank > 0 && $planTierRank > $currentPlanRank);
                     $isRenewalLocked = ($isCurrent && $gymDaysLeft !== null && $gymDaysLeft > 7);
+                    $isDowngradeLocked = ($isDowngrade && $gymDaysLeft !== null && $gymDaysLeft > 7);
                 ?>
                     <div class="pricing-card <?= $isPopular ? 'popular' : '' ?>">
                         <?php if ($isPopular): ?>
@@ -280,11 +299,32 @@ function gym_subscription_page(): void
                                 <div style="font-size: 0.78rem; color: rgba(226, 232, 240, 0.55); margin-top: 6px; text-align: center;">
                                     Renewals open on <?= date('M j, Y', strtotime('-7 days', strtotime($gymRenewalDate))) ?>
                                 </div>
+                            <?php elseif ($isDowngradeLocked): ?>
+                                <button type="button" 
+                                        class="pricing-btn current-locked-btn"
+                                        disabled
+                                        title="Downgrades open 7 days before expiration"
+                                        style="background: rgba(255,255,255,0.06); color: rgba(226,232,240,0.5); border: 1px solid rgba(255,255,255,0.1); cursor: not-allowed; width: 100%; box-shadow: none;">
+                                    Active on <?= h($plans[$currentPlan]['name'] ?? 'Higher Tier') ?>
+                                </button>
+                                <div style="font-size: 0.78rem; color: rgba(226, 232, 240, 0.55); margin-top: 6px; text-align: center;">
+                                    Downgrades open on <?= date('M j, Y', strtotime('-7 days', strtotime($gymRenewalDate))) ?>
+                                </div>
                             <?php else: ?>
                                 <button type="button" 
                                         class="pricing-btn <?= $isPopular ? 'popular-btn' : 'standard-btn' ?>"
                                         onclick="openPaymentModal('<?= h($key) ?>', '<?= h($plan['name']) ?>')">
-                                    <?= $isCurrent ? ('Renew Plan' . ($gymDaysLeft !== null ? ' (' . max(0, $gymDaysLeft) . 'd left)' : '')) : ($hasActiveSub ? 'Switch to ' . h($plan['name']) : 'Get Started') ?>
+                                    <?php if ($isCurrent): ?>
+                                        Renew Plan <?= $gymDaysLeft !== null ? '(' . max(0, $gymDaysLeft) . 'd left)' : '' ?>
+                                    <?php elseif ($isUpgrade): ?>
+                                        Upgrade to <?= h($plan['name']) ?>
+                                    <?php elseif ($isDowngrade): ?>
+                                        Switch to <?= h($plan['name']) ?>
+                                    <?php elseif ($hasActiveSub): ?>
+                                        Switch to <?= h($plan['name']) ?>
+                                    <?php else: ?>
+                                        Get Started
+                                    <?php endif; ?>
                                 </button>
                             <?php endif; ?>
                         </div>
@@ -562,6 +602,15 @@ function gym_subscription_page(): void
                 </div>
             </div>
 
+            <!-- Upgrade Notice Warning Banner (Shown only during upgrade from active plan) -->
+            <div id="modal-upgrade-warning" style="display:none; margin:0 0 18px; padding:12px 14px; border-radius:12px; background:rgba(234,179,8,0.12); border:1px solid rgba(234,179,8,0.3); color:#fef08a; font-size:12.5px; line-height:1.45;">
+                <div style="font-weight:700; display:flex; align-items:center; gap:6px; margin-bottom:4px; color:#fde047;">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+                    <span>Plan Upgrade Notice</span>
+                </div>
+                <span id="modal-upgrade-warning-text"></span>
+            </div>
+
             <form method="post" id="sub-form">
                 <?= csrf_field() ?>
                 <input type="hidden" name="plan_key" id="form-plan-key" value="">
@@ -592,12 +641,37 @@ function gym_subscription_page(): void
         </div>
     </div>
 
+    <?php
+    $lockedPlansInfo = [];
+    foreach ($plans as $pk => $pData) {
+        $pRank = $planRank[$pk] ?? 0;
+        if ($hasActiveSub && $gymDaysLeft !== null && $gymDaysLeft > 7) {
+            if ($pk === $currentPlan) {
+                $lockedPlansInfo[$pk] = [
+                    'type' => 'renewal',
+                    'title' => 'Plan Active',
+                    'reason' => "Your {$pData['name']} plan is currently active with {$gymDaysLeft} days remaining. Renewals open 7 days prior to expiry (" . date('M j, Y', strtotime('-7 days', strtotime($gymRenewalDate))) . ")."
+                ];
+            } elseif ($pRank < $currentPlanRank) {
+                $curName = $plans[$currentPlan]['name'] ?? 'current tier';
+                $lockedPlansInfo[$pk] = [
+                    'type' => 'downgrade',
+                    'title' => 'Downgrade Locked',
+                    'reason' => "You currently have an active {$curName} subscription with {$gymDaysLeft} days remaining. Downgrades to {$pData['name']} open 7 days before your renewal date (" . date('M j, Y', strtotime('-7 days', strtotime($gymRenewalDate))) . ") so you don't lose {$curName} capabilities early."
+                ];
+            }
+        }
+    }
+    ?>
     <script>
         window.subscriptionPlansData = <?= json_encode($plans, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP) ?>;
         window.currentPlanKey = <?= json_encode($currentPlan) ?>;
+        window.planRanks = <?= json_encode($planRank) ?>;
+        window.hasActiveSub = <?= $hasActiveSub ? 'true' : 'false' ?>;
         window.isCurrentPlanLocked = <?= ($hasActiveSub && $gymDaysLeft !== null && $gymDaysLeft > 7) ? 'true' : 'false' ?>;
         window.currentPlanDaysLeft = <?= json_encode($gymDaysLeft) ?>;
         window.currentPlanRenewalDate = <?= json_encode($gymRenewalDate) ?>;
+        window.lockedPlans = <?= json_encode($lockedPlansInfo, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP) ?>;
     </script>
     <script src="<?= h(asset_url('js/pages/gym_subscription.js')) ?>"></script>
     <?php
