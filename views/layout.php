@@ -215,6 +215,10 @@ function render_header(string $title, ?array $user = null): void
         </script>
         <link rel="stylesheet" href="assets/splash.css?v=<?= file_exists(__DIR__ . '/../assets/splash.css') ? filemtime(__DIR__ . '/../assets/splash.css') : 1 ?>">
         <script src="assets/splash.js?v=<?= file_exists(__DIR__ . '/../assets/splash.js') ? filemtime(__DIR__ . '/../assets/splash.js') : 1 ?>"></script>
+        <?php if ($user): ?>
+            <link rel="stylesheet" href="assets/gym-owner-tour.css?v=<?= file_exists(__DIR__ . '/../assets/gym-owner-tour.css') ? filemtime(__DIR__ . '/../assets/gym-owner-tour.css') : 1 ?>">
+            <script src="assets/gym-owner-tour.js?v=<?= file_exists(__DIR__ . '/../assets/gym-owner-tour.js') ? filemtime(__DIR__ . '/../assets/gym-owner-tour.js') : 1 ?>" defer></script>
+        <?php endif; ?>
     </head>
     <body class="<?= $user ? 'app-body' : 'auth-body' ?>">
     <!-- In-App FitTrack Splash Preloader -->
@@ -1621,6 +1625,15 @@ function render_header(string $title, ?array $user = null): void
                                 })();
                                 </script>
                             <?php endif; ?>
+                        <?php endif; ?>
+                        <?php if ($user && ($user['role'] ?? '') === 'gym_owner'): ?>
+                            <button type="button" class="tour-quick-btn" id="gym-owner-tour-trigger" onclick="if(window.startGymOwnerTour){window.startGymOwnerTour(true);}" title="Take Guided Gym Owner Tour">
+                                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                                    <circle cx="12" cy="12" r="10"></circle>
+                                    <polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"></polygon>
+                                </svg>
+                                <span class="tour-btn-text">Quick Tour</span>
+                            </button>
                         <?php endif; ?>
                         <?php render_notification_bell($user, $page, $unreadNotifsCount); ?>
                         <button class="theme-toggle" id="theme-toggle-btn" title="Toggle Light/Dark Mode" type="button">

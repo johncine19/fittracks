@@ -1,0 +1,549 @@
+/* ==========================================================================
+   FitTrack - Minimalist Spotlight Tour & Feature Discovery
+   Theme-Adaptive: Automatically inherits the Gym Owner's brand color (var(--lime))
+   ========================================================================== */
+
+/* --------------------------------------------------------------------------
+   01. Topbar Quick Tour Button & Sparkle Discovery Badge
+   -------------------------------------------------------------------------- */
+.tour-quick-btn {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    background: color-mix(in srgb, var(--lime, #c7ff22) 10%, rgba(255, 255, 255, 0.03));
+    border: 1px solid color-mix(in srgb, var(--lime, #c7ff22) 30%, transparent);
+    color: var(--lime, #c7ff22);
+    font-size: 11.5px;
+    font-weight: 700;
+    letter-spacing: 0.2px;
+    padding: 6px 12px;
+    border-radius: 9999px;
+    cursor: pointer;
+    transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+    line-height: 1;
+    z-index: 10;
+    flex-shrink: 0;
+    align-self: center;
+    box-sizing: border-box;
+}
+
+.tour-quick-btn:hover {
+    background: var(--lime, #c7ff22);
+    color: #080d0a;
+    border-color: var(--lime, #c7ff22);
+    transform: translateY(-1px);
+    box-shadow: 0 0 16px color-mix(in srgb, var(--lime, #c7ff22) 40%, transparent);
+}
+
+.tour-quick-btn svg {
+    flex-shrink: 0;
+    display: block;
+}
+
+@media (max-width: 640px) {
+    .tour-quick-btn .tour-btn-text {
+        display: none;
+    }
+    .tour-quick-btn {
+        width: 32px;
+        height: 32px;
+        min-width: 32px;
+        min-height: 32px;
+        max-width: 32px;
+        max-height: 32px;
+        padding: 0;
+        border-radius: 50%;
+        aspect-ratio: 1 / 1;
+        flex-shrink: 0;
+        align-self: center;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+    }
+}
+
+/* Minimalist Sparkle Discovery Beacon (Mode A) */
+.ft-sparkle-badge {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 20px;
+    height: 20px;
+    min-width: 20px;
+    min-height: 20px;
+    max-width: 20px;
+    max-height: 20px;
+    aspect-ratio: 1 / 1;
+    flex-shrink: 0;
+    align-self: center;
+    box-sizing: border-box;
+    background: color-mix(in srgb, var(--lime, #c7ff22) 12%, rgba(255, 255, 255, 0.04));
+    border: 1px solid color-mix(in srgb, var(--lime, #c7ff22) 35%, transparent);
+    border-radius: 50%;
+    color: var(--lime, #c7ff22);
+    cursor: pointer;
+    padding: 0;
+    margin-left: 6px;
+    vertical-align: middle;
+    transition: all 0.2s ease;
+}
+
+.ft-sparkle-badge svg {
+    display: block;
+    flex-shrink: 0;
+}
+
+.ft-sparkle-badge:hover {
+    background: var(--lime, #c7ff22);
+    color: #080d0a;
+    transform: scale(1.1);
+    box-shadow: 0 0 12px color-mix(in srgb, var(--lime, #c7ff22) 50%, transparent);
+}
+
+.ft-sparkle-badge::after {
+    content: '';
+    position: absolute;
+    inset: -3px;
+    border-radius: 50%;
+    aspect-ratio: 1 / 1;
+    border: 1px solid color-mix(in srgb, var(--lime, #c7ff22) 45%, transparent);
+    animation: ftSparklePulse 2.4s cubic-bezier(0.24, 0, 0.38, 1) infinite;
+    pointer-events: none;
+    box-sizing: border-box;
+}
+
+@keyframes ftSparklePulse {
+    0% {
+        transform: scale(0.9);
+        opacity: 0.8;
+    }
+    70% {
+        transform: scale(1.5);
+        opacity: 0;
+    }
+    100% {
+        transform: scale(1.55);
+        opacity: 0;
+    }
+}
+
+/* --------------------------------------------------------------------------
+   02. Fullscreen SVG Spotlight Overlay (Mode B)
+   -------------------------------------------------------------------------- */
+.ft-spotlight-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 99980;
+    pointer-events: auto;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.25s cubic-bezier(0.16, 1, 0.3, 1), visibility 0.25s ease;
+}
+
+.ft-spotlight-overlay.is-active {
+    opacity: 1;
+    visibility: visible;
+}
+
+.ft-spotlight-svg {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+}
+
+.ft-spotlight-mask-rect {
+    fill: #000000;
+    transition: x 0.28s cubic-bezier(0.16, 1, 0.3, 1),
+                y 0.28s cubic-bezier(0.16, 1, 0.3, 1),
+                width 0.28s cubic-bezier(0.16, 1, 0.3, 1),
+                height 0.28s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* Spotlight Target Focus Ring — strictly follows var(--lime) */
+.ft-spotlight-beacon-ring {
+    position: fixed;
+    z-index: 99985;
+    pointer-events: none;
+    border: 2px solid var(--lime, #c7ff22);
+    border-radius: 10px;
+    box-shadow: 0 0 16px color-mix(in srgb, var(--lime, #c7ff22) 45%, transparent),
+                inset 0 0 8px color-mix(in srgb, var(--lime, #c7ff22) 20%, transparent);
+    transition: all 0.28s cubic-bezier(0.16, 1, 0.3, 1);
+    opacity: 0;
+}
+
+.ft-spotlight-overlay.is-active .ft-spotlight-beacon-ring {
+    opacity: 1;
+    animation: ftBeaconBreath 2.4s ease-in-out infinite alternate;
+}
+
+@keyframes ftBeaconBreath {
+    0% {
+        box-shadow: 0 0 12px color-mix(in srgb, var(--lime, #c7ff22) 35%, transparent),
+                    inset 0 0 6px color-mix(in srgb, var(--lime, #c7ff22) 15%, transparent);
+    }
+    100% {
+        box-shadow: 0 0 24px color-mix(in srgb, var(--lime, #c7ff22) 65%, transparent),
+                    inset 0 0 12px color-mix(in srgb, var(--lime, #c7ff22) 30%, transparent);
+    }
+}
+
+/* --------------------------------------------------------------------------
+   03. Compact, Minimalist Anchored Popover Card
+   -------------------------------------------------------------------------- */
+.ft-tour-popover {
+    position: fixed;
+    z-index: 99990;
+    width: 320px;
+    max-width: calc(100vw - 28px);
+    background: #0d120f;
+    border: 1px solid color-mix(in srgb, var(--lime, #c7ff22) 28%, rgba(255, 255, 255, 0.08));
+    border-radius: 14px;
+    box-shadow: 0 16px 40px rgba(0, 0, 0, 0.65), 0 0 20px color-mix(in srgb, var(--lime, #c7ff22) 12%, transparent);
+    color: #ffffff;
+    padding: 16px 18px;
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    opacity: 0;
+    visibility: hidden;
+    transform: scale(0.97) translateY(4px);
+    transition: opacity 0.22s cubic-bezier(0.16, 1, 0.3, 1),
+                transform 0.22s cubic-bezier(0.16, 1, 0.3, 1),
+                visibility 0.22s ease;
+    pointer-events: auto;
+}
+
+[data-theme="light"] .ft-tour-popover {
+    background: #ffffff;
+    border-color: color-mix(in srgb, var(--lime, #4d7c0f) 35%, #e2e8f0);
+    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.12), 0 0 16px color-mix(in srgb, var(--lime, #4d7c0f) 10%, transparent);
+    color: #0f172a;
+}
+
+.ft-tour-popover.is-visible {
+    opacity: 1;
+    visibility: visible;
+    transform: scale(1) translateY(0);
+}
+
+/* Directional Arrow Pointer */
+.ft-popover-arrow {
+    position: absolute;
+    width: 12px;
+    height: 12px;
+    background: #0d120f;
+    border: 1px solid color-mix(in srgb, var(--lime, #c7ff22) 28%, rgba(255, 255, 255, 0.08));
+    transform: rotate(45deg);
+    z-index: -1;
+}
+
+[data-theme="light"] .ft-popover-arrow {
+    background: #ffffff;
+    border-color: color-mix(in srgb, var(--lime, #4d7c0f) 35%, #e2e8f0);
+}
+
+/* Arrow Placements */
+.ft-tour-popover[data-placement^="bottom"] .ft-popover-arrow {
+    top: -7px;
+    border-right-color: transparent;
+    border-bottom-color: transparent;
+}
+.ft-tour-popover[data-placement^="top"] .ft-popover-arrow {
+    bottom: -7px;
+    border-left-color: transparent;
+    border-top-color: transparent;
+}
+.ft-tour-popover[data-placement^="right"] .ft-popover-arrow {
+    left: -7px;
+    border-top-color: transparent;
+    border-right-color: transparent;
+}
+.ft-tour-popover[data-placement^="left"] .ft-popover-arrow {
+    right: -7px;
+    border-bottom-color: transparent;
+    border-left-color: transparent;
+}
+
+/* Popover Header */
+.ft-popover-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    margin-bottom: 8px;
+}
+
+.ft-popover-badge {
+    display: inline-flex;
+    align-items: center;
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    padding: 2px 8px;
+    border-radius: 9999px;
+    background: color-mix(in srgb, var(--lime, #c7ff22) 14%, transparent);
+    border: 1px solid color-mix(in srgb, var(--lime, #c7ff22) 30%, transparent);
+    color: var(--lime, #c7ff22);
+}
+
+.ft-popover-close {
+    background: transparent;
+    border: none;
+    color: #64748b;
+    font-size: 18px;
+    line-height: 1;
+    cursor: pointer;
+    padding: 2px 4px;
+    border-radius: 4px;
+    transition: all 0.15s ease;
+}
+
+.ft-popover-close:hover {
+    color: #ffffff;
+    background: rgba(255, 255, 255, 0.08);
+}
+
+[data-theme="light"] .ft-popover-close:hover {
+    color: #0f172a;
+    background: rgba(0, 0, 0, 0.05);
+}
+
+/* Title & Description */
+.ft-popover-title {
+    font-size: 14px;
+    font-weight: 700;
+    color: #ffffff;
+    margin: 0 0 5px 0;
+    line-height: 1.3;
+}
+
+[data-theme="light"] .ft-popover-title {
+    color: #0f172a;
+}
+
+.ft-popover-desc {
+    font-size: 12px;
+    line-height: 1.45;
+    color: #94a3b8;
+    margin: 0 0 14px 0;
+}
+
+[data-theme="light"] .ft-popover-desc {
+    color: #64748b;
+}
+
+/* Footer & Controls */
+.ft-popover-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding-top: 10px;
+    border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+[data-theme="light"] .ft-popover-footer {
+    border-top-color: #f1f5f9;
+}
+
+/* Action Buttons */
+.btn-ft-skip,
+.btn-ft-back {
+    background: transparent;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    color: #94a3b8;
+    font-size: 11px;
+    font-weight: 600;
+    padding: 5px 10px;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.btn-ft-skip:hover,
+.btn-ft-back:hover {
+    color: #ffffff;
+    border-color: rgba(255, 255, 255, 0.25);
+    background: rgba(255, 255, 255, 0.04);
+}
+
+[data-theme="light"] .btn-ft-skip,
+[data-theme="light"] .btn-ft-back {
+    border-color: #cbd5e1;
+    color: #64748b;
+}
+
+[data-theme="light"] .btn-ft-skip:hover,
+[data-theme="light"] .btn-ft-back:hover {
+    color: #0f172a;
+    background: #f8fafc;
+}
+
+.btn-ft-primary {
+    background: var(--lime, #c7ff22);
+    border: 1px solid var(--lime, #c7ff22);
+    color: #050a07;
+    font-size: 11.5px;
+    font-weight: 700;
+    padding: 5px 12px;
+    border-radius: 6px;
+    cursor: pointer;
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    transition: all 0.15s ease;
+}
+
+.btn-ft-primary:hover {
+    opacity: 0.92;
+    transform: translateY(-0.5px);
+}
+
+/* --------------------------------------------------------------------------
+   04. Dashboard Welcome Banner
+   -------------------------------------------------------------------------- */
+.gym-tour-welcome-banner {
+    position: relative;
+    background: linear-gradient(135deg, color-mix(in srgb, var(--lime, #c7ff22) 8%, rgba(15, 20, 18, 0.95)), rgba(10, 14, 12, 0.98));
+    border: 1px solid color-mix(in srgb, var(--lime, #c7ff22) 25%, transparent);
+    border-radius: 14px;
+    padding: 14px 20px;
+    margin-bottom: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+    overflow: hidden;
+}
+
+[data-theme="light"] .gym-tour-welcome-banner {
+    background: linear-gradient(135deg, color-mix(in srgb, var(--lime, #4d7c0f) 8%, #ffffff), #f8fafc);
+    border-color: color-mix(in srgb, var(--lime, #4d7c0f) 25%, #e2e8f0);
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.04);
+}
+
+.tour-banner-content {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.tour-banner-icon {
+    width: 36px;
+    height: 36px;
+    border-radius: 10px;
+    background: color-mix(in srgb, var(--lime, #c7ff22) 12%, transparent);
+    border: 1px solid color-mix(in srgb, var(--lime, #c7ff22) 25%, transparent);
+    color: var(--lime, #c7ff22);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.tour-banner-text h3 {
+    margin: 0 0 2px 0;
+    font-size: 13.5px;
+    font-weight: 700;
+    color: #ffffff;
+}
+
+[data-theme="light"] .tour-banner-text h3 {
+    color: #0f172a;
+}
+
+.tour-banner-text p {
+    margin: 0;
+    font-size: 12px;
+    color: #94a3b8;
+    line-height: 1.4;
+}
+
+[data-theme="light"] .tour-banner-text p {
+    color: #64748b;
+}
+
+.tour-banner-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-shrink: 0;
+}
+
+.btn-start-tour {
+    background: var(--lime, #c7ff22);
+    border: none;
+    color: #050a07;
+    font-size: 11.5px;
+    font-weight: 700;
+    padding: 6px 14px;
+    border-radius: 999px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.btn-start-tour:hover {
+    opacity: 0.92;
+}
+
+.btn-dismiss-tour {
+    background: transparent;
+    border: none;
+    color: #64748b;
+    font-size: 18px;
+    cursor: pointer;
+    padding: 2px 6px;
+    line-height: 1;
+    border-radius: 4px;
+    transition: all 0.15s ease;
+}
+
+.btn-dismiss-tour:hover {
+    color: #ffffff;
+}
+
+@media (max-width: 768px) {
+    .gym-tour-welcome-banner {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+    .tour-banner-actions {
+        width: 100%;
+        justify-content: space-between;
+    }
+}
+
+/* Mobile Popover Docking (Top & Bottom Sheets) */
+@media (max-width: 640px) {
+    .ft-tour-popover {
+        position: fixed !important;
+        left: 12px !important;
+        right: 12px !important;
+        width: auto !important;
+        max-width: calc(100vw - 24px) !important;
+        transform: translateY(0) !important;
+        z-index: 99995 !important;
+        box-shadow: 0 16px 48px rgba(0, 0, 0, 0.85), 0 0 24px color-mix(in srgb, var(--lime, #c7ff22) 15%, transparent) !important;
+    }
+    .ft-tour-popover[data-placement="dock-bottom"] {
+        bottom: 16px !important;
+        top: auto !important;
+    }
+    .ft-tour-popover[data-placement="dock-top"] {
+        top: 16px !important;
+        bottom: auto !important;
+    }
+    .ft-tour-popover[data-placement="dock-bottom"] .ft-popover-arrow,
+    .ft-tour-popover[data-placement="dock-top"] .ft-popover-arrow {
+        display: none !important;
+    }
+}

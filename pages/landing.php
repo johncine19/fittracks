@@ -70,10 +70,6 @@ if (!function_exists('landing_hero_qr_path')) {
 
 function landing_page(): void
 {
-    // If user is already logged in, send straight to dashboard
-    if (current_user()) {
-        redirect('dashboard');
-    }
 
     // ── Handle Demo Request POST ─────────────────────────────────────
     if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['demo_request'])) {
@@ -329,15 +325,24 @@ function landing_page(): void
                     <li><a href="#faq" class="nav-link">FAQ</a></li>
                 </ul>
 
+                <?php $loggedInUser = current_user(); ?>
                 <div class="nav-actions">
-                    <a href="index.php?page=register" class="nav-auth-link">Join as Member</a>
-                    <a href="javascript:void(0)" onclick="openDemoModal()" class="nav-demo-link">Request Demo</a>
-                    <a href="index.php?page=login" class="btn btn-secondary btn-sm">Log In</a>
-                    <a href="index.php?page=gym_register" class="btn btn-lime btn-sm">Register Gym</a>
+                    <?php if ($loggedInUser): ?>
+                        <a href="index.php?page=dashboard" class="btn btn-lime btn-sm">Dashboard &rarr;</a>
+                    <?php else: ?>
+                        <a href="index.php?page=register" class="nav-auth-link">Join as Member</a>
+                        <a href="javascript:void(0)" onclick="openDemoModal()" class="nav-demo-link">Request Demo</a>
+                        <a href="index.php?page=login" class="btn btn-secondary btn-sm">Log In</a>
+                        <a href="index.php?page=gym_register" class="btn btn-lime btn-sm">Register Gym</a>
+                    <?php endif; ?>
                 </div>
 
                 <div class="nav-mobile-actions">
-                    <a href="index.php?page=login" class="mobile-nav-login-btn">Log In</a>
+                    <?php if ($loggedInUser): ?>
+                        <a href="index.php?page=dashboard" class="mobile-nav-login-btn" style="border-color:var(--lime); color:var(--lime);">Dashboard</a>
+                    <?php else: ?>
+                        <a href="index.php?page=login" class="mobile-nav-login-btn">Log In</a>
+                    <?php endif; ?>
                     <button class="mobile-toggle" id="mobileMenuBtn" aria-label="Toggle Navigation">
                         <?= landing_icon('menu', 'mobile-toggle-icon') ?>
                     </button>
@@ -352,9 +357,13 @@ function landing_page(): void
             <a href="#testimonials" class="mobile-drawer-link" onclick="closeMobileMenu()">Testimonials</a>
             <a href="#pricing" class="mobile-drawer-link" onclick="closeMobileMenu()">Pricing</a>
             <a href="#faq" class="mobile-drawer-link" onclick="closeMobileMenu()">FAQ</a>
-            <a href="index.php?page=register" class="mobile-drawer-link" onclick="closeMobileMenu()">Join as Member</a>
-            <a href="javascript:void(0)" class="mobile-drawer-link" onclick="closeMobileMenu(); openDemoModal();">Request Demo Walkthrough</a>
-            <a href="index.php?page=gym_register" class="btn btn-lime mobile-drawer-cta" onclick="closeMobileMenu()">Register Your Gym</a>
+            <?php if ($loggedInUser): ?>
+                <a href="index.php?page=dashboard" class="btn btn-lime mobile-drawer-cta" onclick="closeMobileMenu()">Back to Dashboard &rarr;</a>
+            <?php else: ?>
+                <a href="index.php?page=register" class="mobile-drawer-link" onclick="closeMobileMenu()">Join as Member</a>
+                <a href="javascript:void(0)" class="mobile-drawer-link" onclick="closeMobileMenu(); openDemoModal();">Request Demo Walkthrough</a>
+                <a href="index.php?page=gym_register" class="btn btn-lime mobile-drawer-cta" onclick="closeMobileMenu()">Register Your Gym</a>
+            <?php endif; ?>
         </div>
 
         <!-- Ambient Lighting Glow Orbs -->
@@ -2408,6 +2417,20 @@ function landing_page(): void
         <script src="<?= h(asset_url('js/pages/landing.js')) ?>"></script>
         <script src="<?= h(asset_url('js/pages/landing-hero.js')) ?>"></script>
         <script src="<?= h(asset_url('js/pages/landing-architecture.js')) ?>"></script>
+        <script>
+        if (window.location.hash) {
+            window.addEventListener('load', function () {
+                try {
+                    var el = document.querySelector(window.location.hash);
+                    if (el) {
+                        setTimeout(function () {
+                            el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                        }, 300);
+                    }
+                } catch (e) {}
+            });
+        }
+        </script>
 
     </body>
 

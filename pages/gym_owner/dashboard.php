@@ -116,6 +116,28 @@ function admin_dashboard(PDO $pdo, array $user): void
         'checkins' => ['labels' => array_keys($week), 'values' => array_values($week)],
     ];
 ?>
+    <?php if (!$isPlatformAdmin): ?>
+    <div class="gym-tour-welcome-banner" id="gym-tour-welcome-banner">
+        <div class="tour-banner-content">
+            <div class="tour-banner-icon">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="12" cy="12" r="10"></circle>
+                    <polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"></polygon>
+                </svg>
+            </div>
+            <div class="tour-banner-text">
+                <h3>Welcome to your FitTrack Dashboard! 👋</h3>
+                <p>New to the platform? Take a quick guided tour to explore your live operations, plans, classes, equipment, and staff tools.</p>
+            </div>
+        </div>
+        <div class="tour-banner-actions">
+            <button type="button" class="btn-start-tour" onclick="if(window.startGymOwnerTour){window.startGymOwnerTour(true);}">
+                <span>Start 2-Min Tour</span> &rarr;
+            </button>
+            <button type="button" class="btn-dismiss-tour" onclick="if(window.dismissGymOwnerTourBanner){window.dismissGymOwnerTourBanner();}" title="Dismiss banner">&times;</button>
+        </div>
+    </div>
+    <?php endif; ?>
     <?php render_announcement_carousel(get_active_announcements('gym_owners')); ?>
     <?php render_skeleton_stats(4); ?>
     <section class="dash-grid stats-row skeleton-content sk-display-grid">
@@ -139,7 +161,12 @@ function admin_dashboard(PDO $pdo, array $user): void
         <article class="panel chart-panel revenue-panel">
             <div class="panel-title">
                 <div>
-                    <h2>Revenue Trend</h2>
+                    <div style="display:flex; align-items:center;">
+                        <h2>Revenue Trend</h2>
+                        <button type="button" class="ft-sparkle-badge" data-ft-feature="revenue_analytics" data-ft-title="Automated Revenue Tracking" data-ft-desc="FitTrack separates recurring membership fees from cash walk-in daily passes for clear cash flow visibility." data-ft-action="Open Reports ↗" data-ft-url="index.php?page=reports" title="Discover Revenue Feature">
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+                        </button>
+                    </div>
                     <p>Last 6 months</p>
                 </div><span<?= ($revPct !== null && $revPct < 0) ? ' class="trend-down-bg"' : '' ?>><?= h($revPctLabel) ?></span>
             </div>
