@@ -51,8 +51,7 @@ function commissions_page(): void
     <section class="panel">
         <div class="page-header">
             <div>
-                <h1>Trainer Commissions</h1>
-                <p>Manage pending and paid payouts to trainers.</p>
+                <p style="margin: 0;">Manage pending and paid payouts to trainers.</p>
             </div>
         </div>
 

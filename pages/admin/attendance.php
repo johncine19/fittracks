@@ -200,7 +200,7 @@ function attendance_page(): void
     }
 
     // Paginate attendance records so the page can browse the full history instead of a fixed first 100.
-    $attendancePerPage = 25;
+    $attendancePerPage = 15;
     $attendancePage = max(1, (int)($_GET['attendance_page'] ?? 1));
     $attendanceSearch = trim((string)($_GET['attendance_search'] ?? ''));
     $attendanceFrom = trim((string)($_GET['attendance_from'] ?? ''));
@@ -401,7 +401,6 @@ function attendance_page(): void
         <section class="panel">
             <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:24px">
                 <div>
-                    <div class="sk sk-title" style="width:140px;margin-bottom:8px"></div>
                     <div class="sk sk-text" style="width:280px;height:12px"></div>
                 </div>
                 <div class="sk sk-rect" style="width:140px;height:36px;border-radius:18px"></div>
@@ -415,8 +414,7 @@ function attendance_page(): void
     <section class="panel skeleton-content sk-display-block">
         <div class="page-header">
             <div>
-                <h1>Attendance</h1>
-                <p>Record user check-ins and check-outs for gym visits and classes.</p>
+                <p style="margin: 0;">Record user check-ins and check-outs for gym visits and classes.</p>
             </div>
             <button onclick="recordCheckin()" class="btn" style="background: var(--lime); color: var(--bg); font-weight: bold;">+ New Check-in</button>
         </div>
@@ -468,7 +466,7 @@ function attendance_page(): void
                 <p><?= $attendanceFilterActive ? 'No attendance records match these filters.' : 'No attendance records yet.<br>Use the form above to record a check-in.' ?></p>
             </div>
         <?php else: ?>
-        <div class="table-wrap">
+        <div class="table-wrap attendance-desktop-table">
             <table>
                 <thead>
                     <tr>
@@ -538,32 +536,277 @@ function attendance_page(): void
                 </tbody>
             </table>
         </div>
-        <?php if ($attendanceTotalPages > 1):
-            $attendancePageUrl = static function (int $page) use ($currentGymId, $attendanceSearch, $attendanceFrom, $attendanceTo, $attendanceStatus): string {
-                $params = ['page' => 'attendance', 'attendance_page' => $page];
-                if ($currentGymId) $params['gym_id'] = $currentGymId;
-                if ($attendanceSearch !== '') $params['attendance_search'] = $attendanceSearch;
-                if ($attendanceFrom !== '') $params['attendance_from'] = $attendanceFrom;
-                if ($attendanceTo !== '') $params['attendance_to'] = $attendanceTo;
-                if ($attendanceStatus !== '') $params['attendance_status'] = $attendanceStatus;
-                return 'index.php?' . http_build_query($params);
-            };
-        ?>
-            <nav aria-label="Attendance pages" style="display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap; margin-top:18px;">
-                <span style="font-size:13px; color:var(--muted);">Showing <?= $attendanceOffset + 1 ?>–<?= min($attendanceOffset + $attendancePerPage, $attendanceTotal) ?> of <?= $attendanceTotal ?></span>
-                <div style="display:flex; align-items:center; gap:8px;">
-                    <?php if ($attendancePage > 1): ?>
-                        <a class="btn btn-secondary" href="<?= h($attendancePageUrl($attendancePage - 1)) ?>" style="padding:6px 12px; text-decoration:none;">Previous</a>
-                    <?php endif; ?>
-                    <span style="font-size:13px; color:var(--muted);">Page <?= $attendancePage ?> of <?= $attendanceTotalPages ?></span>
-                    <?php if ($attendancePage < $attendanceTotalPages): ?>
-                        <a class="btn btn-secondary" href="<?= h($attendancePageUrl($attendancePage + 1)) ?>" style="padding:6px 12px; text-decoration:none;">Next</a>
+
+        <!-- Mobile Cards View for Attendance -->
+        <div class="attendance-mobile-cards">
+            <?php foreach ($rows as $row):
+                $initials = strtoupper(substr($row['first_name'], 0, 1) . substr($row['last_name'], 0, 1));
+                $checkedOut = !empty($row['check_out_time']);
+            ?>
+            <div class="attendance-card-item">
+                <div class="attendance-card-header">
+                    <div class="user-cell" style="display:flex; align-items:center; gap:10px;">
+                        <span class="avatar small"><?= h($initials) ?></span>
+                        <div>
+                            <div class="attendance-card-name"><?= h($row['member']) ?></div>
+                            <div class="attendance-card-role"><?= h(ucfirst($row['role'])) ?></div>
+                        </div>
+                    </div>
+                    <?php if ($checkedOut): ?>
+                        <span class="badge badge-active">Checked out</span>
+                    <?php else: ?>
+                        <span class="badge badge-pending">In gym</span>
                     <?php endif; ?>
                 </div>
-            </nav>
+
+                <div class="attendance-card-session-row">
+                    <div class="attendance-card-session">
+                        <span class="session-label">Session:</span>
+                        <span class="session-val">
+                            <?php if ($row['class_name']): ?>
+                                <?= h($row['class_name']) ?>
+                            <?php elseif ($row['role'] === 'trainer'): ?>
+                                Shift
+                            <?php else: ?>
+                                Gym visit
+                            <?php endif; ?>
+                        </span>
+                    </div>
+                    <div class="attendance-card-method">
+                        <?= h($row['check_in_method']) ?>
+                    </div>
+                </div>
+
+                <?php if (!$checkedOut && !empty($row['active_equipment'])): ?>
+                    <div class="attendance-card-equip">
+                        <span class="badge" style="background: rgba(34, 197, 94, 0.12); color: #22c55e; border: 1px solid rgba(34, 197, 94, 0.3); font-size: 11px; padding: 3px 8px; display: inline-flex; align-items: center; gap: 4px; border-radius: 6px; font-weight: 600;">
+                            ⚡ <?= h($row['active_equipment']) ?>
+                        </span>
+                    </div>
+                <?php endif; ?>
+
+                <div class="attendance-card-details">
+                    <div class="attendance-card-detail-item">
+                        <span class="detail-label">Check-in</span>
+                        <span class="detail-val"><?= h(date('M j, h:i A', strtotime($row['check_in_time']))) ?></span>
+                    </div>
+                    <div class="attendance-card-detail-item">
+                        <span class="detail-label">Check-out</span>
+                        <span class="detail-val"><?= $checkedOut ? h(date('M j, h:i A', strtotime($row['check_out_time']))) : '<span class="muted">—</span>' ?></span>
+                    </div>
+                </div>
+
+                <?php if (!$checkedOut): ?>
+                    <div class="attendance-card-actions">
+                        <form method="post" class="attendance-checkout-form" data-member-name="<?= h($row['member']) ?>" style="margin:0; width:100%;">
+                            <?= csrf_field() ?>
+                            <input type="hidden" name="action" value="checkout">
+                            <input type="hidden" name="attendance_id" value="<?= (int) $row['attendance_id'] ?>">
+                            <button type="submit" class="btn-sm btn-ghost" style="width:100%; justify-content:center; padding:9px 12px; font-weight:600;">Check out</button>
+                        </form>
+                    </div>
+                <?php endif; ?>
+            </div>
+            <?php endforeach; ?>
+        </div>
+        <!-- Pagination Bar -->
+        <?php if ($attendanceTotal > 0): 
+            $attendanceFilterParamsList = ['page' => 'attendance'];
+            if ($currentGymId) $attendanceFilterParamsList['gym_id'] = $currentGymId;
+            if ($attendanceSearch !== '') $attendanceFilterParamsList['attendance_search'] = $attendanceSearch;
+            if ($attendanceFrom !== '') $attendanceFilterParamsList['attendance_from'] = $attendanceFrom;
+            if ($attendanceTo !== '') $attendanceFilterParamsList['attendance_to'] = $attendanceTo;
+            if ($attendanceStatus !== '') $attendanceFilterParamsList['attendance_status'] = $attendanceStatus;
+            $attendanceBaseUrl = 'index.php?' . http_build_query($attendanceFilterParamsList);
+        ?>
+            <div class="pagination-bar">
+                <div class="pagination-info">
+                    Showing <strong><?= $attendanceOffset + 1 ?></strong> to <strong><?= min($attendanceOffset + $attendancePerPage, $attendanceTotal) ?></strong> of <strong><?= $attendanceTotal ?></strong> records
+                </div>
+                <?php render_pagination($attendancePage, $attendanceTotalPages, $attendanceBaseUrl, 'attendance_page'); ?>
+            </div>
         <?php endif; ?>
         <?php endif; ?>
     </section>
+
+    <style>
+        .attendance-mobile-cards {
+            display: none;
+        }
+
+        @media (max-width: 768px) {
+            .attendance-desktop-table {
+                display: none !important;
+            }
+            .attendance-mobile-cards {
+                display: flex !important;
+                flex-direction: column;
+                gap: 12px;
+                margin-top: 10px;
+                margin-bottom: 20px;
+            }
+        }
+
+        .attendance-card-item {
+            background: color-mix(in srgb, var(--panel-soft) 45%, transparent);
+            border: 1px solid var(--line);
+            border-radius: 12px;
+            padding: 14px 16px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+            transition: all 0.2s ease;
+        }
+
+        [data-theme="light"] .attendance-card-item {
+            background: #ffffff;
+            border-color: #e2e8f0;
+            box-shadow: 0 1px 4px rgba(0, 0, 0, 0.05);
+        }
+
+        .attendance-card-item:hover {
+            border-color: color-mix(in srgb, var(--lime) 35%, transparent);
+        }
+
+        .attendance-card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            gap: 10px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid color-mix(in srgb, var(--line) 60%, transparent);
+        }
+
+        [data-theme="light"] .attendance-card-header {
+            border-bottom-color: #f1f5f9;
+        }
+
+        .attendance-card-name {
+            font-weight: 700;
+            color: var(--ink);
+            font-size: 14.5px;
+        }
+
+        .attendance-card-role {
+            font-size: 12px;
+            color: var(--muted);
+            margin-top: 2px;
+        }
+
+        .attendance-card-session-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .attendance-card-session {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 13px;
+        }
+
+        .attendance-card-session .session-label {
+            color: var(--muted);
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+        .attendance-card-session .session-val {
+            color: var(--ink);
+            font-weight: 600;
+        }
+
+        .attendance-card-method {
+            display: inline-flex;
+            align-items: center;
+            font-size: 11px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: var(--muted);
+            background: rgba(128, 128, 128, 0.08);
+            padding: 3px 8px;
+            border-radius: 6px;
+        }
+
+        .attendance-card-details {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+            background: rgba(0, 0, 0, 0.15);
+            padding: 9px 12px;
+            border-radius: 8px;
+            border: 1px solid color-mix(in srgb, var(--line) 50%, transparent);
+        }
+
+        [data-theme="light"] .attendance-card-details {
+            background: #f8fafc;
+            border-color: #f1f5f9;
+        }
+
+        .attendance-card-detail-item {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+
+        .attendance-card-detail-item .detail-label {
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: var(--muted);
+        }
+
+        .attendance-card-detail-item .detail-val {
+            font-size: 12.5px;
+            font-weight: 600;
+            color: var(--ink);
+        }
+
+        .attendance-card-actions {
+            margin-top: 4px;
+            padding-top: 8px;
+            border-top: 1px solid color-mix(in srgb, var(--line) 40%, transparent);
+        }
+
+        /* Pagination Bar */
+        .pagination-bar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            gap: 14px;
+            margin-top: 20px;
+            padding-top: 14px;
+            border-top: 1px solid var(--line);
+        }
+
+        .pagination-bar .pagination {
+            margin-top: 0;
+        }
+
+        .pagination-info {
+            font-size: 13px;
+            color: var(--muted);
+        }
+
+        .pagination-info strong {
+            color: var(--ink);
+            font-weight: 600;
+        }
+
+        @media (max-width: 600px) {
+            .pagination-bar {
+                flex-direction: column;
+                align-items: center;
+                text-align: center;
+            }
+        }
+    </style>
     
     <script>
     window.checkinMembersData = <?= json_encode($checkinMembersData ?? [], JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP) ?>;

@@ -64,14 +64,17 @@ function plans_page(): void
     
     render_header('Plans', $user);
     ?>
-    <section class="panel">
-        <div class="page-header" style="display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:16px; margin-bottom: 24px;">
-            <div>
-                <h1 style="margin:0 0 6px 0;">Membership Plans & Pricing</h1>
-                <p style="margin:0; color:var(--muted);">Edit pricing, descriptions, and feature bullet points offered to gym members.</p>
+    <section class="panel plans-panel">
+        <div class="plans-header-row">
+            <div class="plans-header-content">
+                <h1 class="plans-header-title">Membership Plans &amp; Pricing</h1>
+                <p class="plans-header-desc">Edit pricing, descriptions, and feature bullet points offered to gym members.</p>
             </div>
-            <div style="display:flex; gap:12px; align-items:center; flex-wrap:wrap;">
-                <button onclick="addPlan()" class="btn" style="background: var(--lime); color: var(--bg); font-weight: bold;">+ New Plan</button>
+            <div class="plans-header-actions">
+                <button type="button" onclick="addPlan()" class="btn-add-plan">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                    <span>New Plan</span>
+                </button>
             </div>
         </div>
 
@@ -80,7 +83,10 @@ function plans_page(): void
                 <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="color:var(--muted); margin-bottom:16px;"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>
                 <h3 style="margin: 0 0 8px 0; color: var(--ink);">No membership plans created yet</h3>
                 <p style="color: var(--muted); margin: 0 0 20px 0;">Create your first subscription tier to let members sign up and pay.</p>
-                <button onclick="addPlan()" class="btn" style="background: var(--lime); color: var(--bg); font-weight: bold;">+ Create First Plan</button>
+                <button type="button" onclick="addPlan()" class="btn-add-plan" style="margin: 0 auto;">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                    <span>Create First Plan</span>
+                </button>
             </div>
         <?php else: ?>
             <div class="plans-editor-grid">
@@ -175,6 +181,142 @@ function plans_page(): void
     </section>
 
     <style>
+        .plans-panel {
+            padding: 24px;
+            border-radius: 16px;
+        }
+
+        .plans-header-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 16px;
+            margin-bottom: 24px;
+            flex-wrap: wrap;
+            height: auto;
+            min-height: 0;
+        }
+
+        .plans-header-content {
+            flex: 1 1 auto;
+            min-width: 0;
+            height: auto;
+            min-height: 0;
+        }
+
+        .plans-header-title {
+            margin: 0 0 6px 0;
+            font-size: clamp(20px, 3.5vw, 26px);
+            font-weight: 800;
+            color: var(--ink);
+            letter-spacing: -0.02em;
+            line-height: 1.25;
+        }
+
+        .plans-header-desc {
+            margin: 0;
+            color: var(--muted);
+            font-size: 13.5px;
+            line-height: 1.45;
+        }
+
+        .plans-header-actions {
+            display: flex;
+            gap: 12px;
+            align-items: center;
+            flex-shrink: 0;
+        }
+
+        .btn-add-plan {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            background: var(--lime);
+            color: #0b110e;
+            font-weight: 800;
+            font-size: 13.5px;
+            padding: 10px 20px;
+            border-radius: 9px;
+            border: none;
+            cursor: pointer;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+            transition: transform 0.15s ease, filter 0.15s ease, box-shadow 0.15s ease;
+            white-space: nowrap;
+        }
+
+        .btn-add-plan:hover {
+            filter: brightness(1.08);
+            transform: translateY(-1px);
+            box-shadow: 0 4px 14px color-mix(in srgb, var(--lime) 30%, transparent);
+        }
+
+        .btn-add-plan:active {
+            transform: translateY(0);
+        }
+
+        @media (max-width: 768px) {
+            .plans-panel {
+                padding: 16px 14px !important;
+                border-radius: 12px !important;
+            }
+
+            .plans-header-row {
+                display: flex !important;
+                flex-direction: column !important;
+                align-items: stretch !important;
+                gap: 12px !important;
+                margin-bottom: 16px !important;
+                height: auto !important;
+                min-height: 0 !important;
+            }
+
+            .plans-header-content {
+                flex: 0 0 auto !important;
+                width: 100% !important;
+                height: auto !important;
+                min-height: 0 !important;
+            }
+
+            .plans-header-title {
+                font-size: 19px !important;
+                line-height: 1.3 !important;
+                margin-bottom: 4px !important;
+            }
+
+            .plans-header-desc {
+                font-size: 12.5px !important;
+                line-height: 1.4 !important;
+            }
+
+            .plans-header-actions {
+                width: 100% !important;
+                flex: 0 0 auto !important;
+                margin: 0 !important;
+            }
+
+            .btn-add-plan {
+                width: 100% !important;
+                padding: 11px 16px !important;
+                font-size: 14px !important;
+                border-radius: 8px !important;
+            }
+
+            .plans-editor-grid {
+                grid-template-columns: 1fr !important;
+                gap: 14px !important;
+            }
+
+            .plan-edit-card {
+                padding: 16px !important;
+                border-radius: 14px !important;
+            }
+
+            .plan-title {
+                font-size: 1.25rem !important;
+            }
+        }
+
         .plan-preview-link {
             font-size: 13px;
             display: inline-flex;

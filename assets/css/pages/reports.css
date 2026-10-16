@@ -253,7 +253,7 @@
     margin: 10px 0 8px 0;
 }
 .split-bar-sub {
-    background: #84cc16;
+    background: var(--lime, #84cc16);
     height: 100%;
     transition: width 0.35s ease;
 }
@@ -261,6 +261,12 @@
     background: #0ea5e9;
     height: 100%;
     transition: width 0.35s ease;
+}
+.mix-legend-sub .mix-legend-label {
+    color: var(--lime);
+}
+[data-theme="light"] .mix-legend-sub .mix-legend-label {
+    color: var(--lime-dark, var(--lime)) !important;
 }
 .export-btn {
     background: rgba(255, 255, 255, 0.03);
@@ -360,16 +366,16 @@
     width: 100% !important;
 }
 .col-att-val {
-    color: #c084fc;
+    color: var(--lime, #84cc16);
 }
 [data-theme="light"] .col-att-val {
-    color: #7c3aed !important;
+    color: var(--lime-dark, var(--lime, #4d7c0f)) !important;
 }
 .col-walk-val {
-    color: #38bdf8;
+    color: var(--lime, #84cc16);
 }
 [data-theme="light"] .col-walk-val {
-    color: #0284c7 !important;
+    color: var(--lime-dark, var(--lime, #4d7c0f)) !important;
 }
 .rich-table thead th {
     position: sticky;

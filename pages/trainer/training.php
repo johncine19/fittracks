@@ -280,9 +280,8 @@ function training_page(): void
     render_header('Workouts', $user);
 ?>
 
-<div style="display:flex; justify-content:space-between; align-items:flex-end; margin-bottom: 20px; flex-wrap: wrap; gap: 12px;">
+<div style="display:flex; justify-content:space-between; align-items:flex-end; margin-bottom: 16px; flex-wrap: wrap; gap: 12px;">
     <div>
-        <h1 style="margin: 0 0 5px 0;">Workouts</h1>
         <p class="muted" style="margin: 0;">Create customized training routines and manage member workout plans across your gym.</p>
     </div>
 </div>

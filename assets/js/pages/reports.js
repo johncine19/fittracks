@@ -273,10 +273,35 @@
         });
 
         if (typeof Chart !== 'undefined') {
+            function hexToRgba(color, alpha) {
+                if (!color) return `rgba(199, 255, 34, ${alpha})`;
+                color = color.trim();
+                if (color.startsWith('rgb')) {
+                    return color.replace('rgb(', 'rgba(').replace(')', `, ${alpha})`);
+                }
+                const clean = color.replace('#', '');
+                if (clean.length === 3) {
+                    const r = parseInt(clean[0] + clean[0], 16);
+                    const g = parseInt(clean[1] + clean[1], 16);
+                    const b = parseInt(clean[2] + clean[2], 16);
+                    return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+                } else if (clean.length === 6) {
+                    const r = parseInt(clean.substring(0, 2), 16);
+                    const g = parseInt(clean.substring(2, 4), 16);
+                    const b = parseInt(clean.substring(4, 6), 16);
+                    return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+                }
+                return `color-mix(in srgb, ${color} ${Math.round(alpha * 100)}%, transparent)`;
+            }
+
             function getThemeColors() {
                 const isLight = document.documentElement.getAttribute('data-theme') === 'light';
+                const computedStyle = getComputedStyle(document.documentElement);
+                const themeAccent = (window.REPORTS_CONFIG && window.REPORTS_CONFIG.brandColor) || computedStyle.getPropertyValue('--lime').trim() || (isLight ? '#4d7c0f' : '#c7ff22');
+
                 return {
                     isLight: isLight,
+                    themeAccent: themeAccent,
                     textColor: isLight ? '#0f172a' : '#cbd5e1',
                     tickFont: { family: "'Inter', system-ui, -apple-system, sans-serif", size: 11, weight: '600' },
                     gridColor: isLight ? '#e2e8f0' : 'rgba(255, 255, 255, 0.08)',
@@ -286,36 +311,36 @@
                     tooltipBorder: isLight ? '#334155' : 'rgba(255, 255, 255, 0.2)',
                     
                     revenue: {
-                        subs: isLight ? '#4d7c0f' : '#84cc16',
-                        subsHover: isLight ? '#3f6212' : '#a3e635',
+                        subs: themeAccent,
+                        subsHover: hexToRgba(themeAccent, 0.85),
                         walk: isLight ? '#0284c7' : '#0ea5e9',
                         walkHover: isLight ? '#0369a1' : '#38bdf8'
                     },
                     attendance: {
-                        line: isLight ? '#7c3aed' : '#a78bfa',
-                        fill: isLight ? 'rgba(124, 58, 237, 0.22)' : 'rgba(167, 139, 250, 0.15)',
+                        line: themeAccent,
+                        fill: hexToRgba(themeAccent, isLight ? 0.22 : 0.16),
                         pointBg: isLight ? '#ffffff' : '#0f172a',
-                        pointBorder: isLight ? '#7c3aed' : '#a78bfa',
-                        pointHoverBg: isLight ? '#7c3aed' : '#ffffff'
+                        pointBorder: themeAccent,
+                        pointHoverBg: themeAccent
                     },
                     hourly: {
-                        peak: isLight ? '#4d7c0f' : 'rgba(132, 204, 22, 0.95)',
-                        peakHover: isLight ? '#3f6212' : '#a3e635',
-                        normal: isLight ? 'rgba(77, 124, 15, 0.32)' : 'rgba(132, 204, 22, 0.35)',
-                        normalHover: isLight ? 'rgba(77, 124, 15, 0.55)' : 'rgba(132, 204, 22, 0.60)'
+                        peak: themeAccent,
+                        peakHover: hexToRgba(themeAccent, 0.90),
+                        normal: hexToRgba(themeAccent, isLight ? 0.28 : 0.32),
+                        normalHover: hexToRgba(themeAccent, isLight ? 0.50 : 0.55)
                     },
                     dayOfWeek: {
-                        peak: isLight ? '#7e22ce' : 'rgba(168, 85, 247, 0.95)',
-                        peakHover: isLight ? '#6b21a8' : '#c084fc',
-                        normal: isLight ? 'rgba(126, 34, 206, 0.30)' : 'rgba(168, 85, 247, 0.38)',
-                        normalHover: isLight ? 'rgba(126, 34, 206, 0.55)' : 'rgba(168, 85, 247, 0.60)'
+                        peak: themeAccent,
+                        peakHover: hexToRgba(themeAccent, 0.90),
+                        normal: hexToRgba(themeAccent, isLight ? 0.28 : 0.32),
+                        normalHover: hexToRgba(themeAccent, isLight ? 0.50 : 0.55)
                     },
                     walkin: {
-                        line: isLight ? '#0284c7' : '#38bdf8',
-                        fill: isLight ? 'rgba(2, 132, 199, 0.22)' : 'rgba(56, 189, 248, 0.15)',
+                        line: themeAccent,
+                        fill: hexToRgba(themeAccent, isLight ? 0.22 : 0.16),
                         pointBg: isLight ? '#ffffff' : '#0f172a',
-                        pointBorder: isLight ? '#0284c7' : '#38bdf8',
-                        pointHoverBg: isLight ? '#0284c7' : '#ffffff'
+                        pointBorder: themeAccent,
+                        pointHoverBg: themeAccent
                     },
                     engagement: {
                         colors: isLight ? ['#059669', '#d97706', '#dc2626'] : ['#10b981', '#f59e0b', '#ef4444']
@@ -606,7 +631,7 @@
                             tooltip: { 
                                 backgroundColor: initialColors.tooltipBg, 
                                 titleColor: initialColors.tooltipTitle, 
-                                bodyColor: '#a78bfa', 
+                                bodyColor: initialColors.attendance.line, 
                                 padding: 12, 
                                 borderColor: initialColors.tooltipBorder, 
                                 borderWidth: 1 
@@ -668,7 +693,7 @@
                             tooltip: { 
                                 backgroundColor: initialColors.tooltipBg, 
                                 titleColor: initialColors.tooltipTitle, 
-                                bodyColor: '#84cc16', 
+                                bodyColor: initialColors.hourly.peak, 
                                 borderColor: initialColors.tooltipBorder,
                                 borderWidth: 1,
                                 padding: 10,
@@ -735,7 +760,7 @@
                         },
                         plugins: {
                             legend: { display: false },
-                            tooltip: { backgroundColor: initialColors.tooltipBg, titleColor: initialColors.tooltipTitle, bodyColor: '#c084fc', borderColor: initialColors.tooltipBorder, borderWidth: 1, padding: 10 }
+                            tooltip: { backgroundColor: initialColors.tooltipBg, titleColor: initialColors.tooltipTitle, bodyColor: initialColors.dayOfWeek.peak, borderColor: initialColors.tooltipBorder, borderWidth: 1, padding: 10 }
                         }
                     }
                 });
@@ -792,7 +817,7 @@
                         }, 
                         plugins: { 
                             legend: { display: false },
-                            tooltip: { backgroundColor: initialColors.tooltipBg, titleColor: initialColors.tooltipTitle, bodyColor: '#38bdf8', padding: 12, borderColor: initialColors.tooltipBorder, borderWidth: 1 }
+                            tooltip: { backgroundColor: initialColors.tooltipBg, titleColor: initialColors.tooltipTitle, bodyColor: initialColors.walkin.line, padding: 12, borderColor: initialColors.tooltipBorder, borderWidth: 1 }
                         } 
                     }
                 });
@@ -872,6 +897,9 @@
                     attendanceChartInstance.data.datasets[0].pointBackgroundColor = tc.attendance.pointBg;
                     attendanceChartInstance.data.datasets[0].pointBorderColor = tc.attendance.pointBorder;
                     attendanceChartInstance.data.datasets[0].pointHoverBackgroundColor = tc.attendance.pointHoverBg;
+                    if (attendanceChartInstance.options.plugins && attendanceChartInstance.options.plugins.tooltip) {
+                        attendanceChartInstance.options.plugins.tooltip.bodyColor = tc.attendance.line;
+                    }
                 }
 
                 // Update Hourly Bar
@@ -881,6 +909,9 @@
                         return isRush ? tc.hourly.peak : tc.hourly.normal;
                     });
                     hourlyChartInstance.data.datasets[0].hoverBackgroundColor = tc.hourly.peakHover;
+                    if (hourlyChartInstance.options.plugins && hourlyChartInstance.options.plugins.tooltip) {
+                        hourlyChartInstance.options.plugins.tooltip.bodyColor = tc.hourly.peak;
+                    }
                 }
 
                 // Update Day of Week Bar
@@ -890,6 +921,9 @@
                         return (val === maxVal && maxVal > 0) ? tc.dayOfWeek.peak : tc.dayOfWeek.normal;
                     });
                     dayOfWeekChartInstance.data.datasets[0].hoverBackgroundColor = tc.dayOfWeek.peakHover;
+                    if (dayOfWeekChartInstance.options.plugins && dayOfWeekChartInstance.options.plugins.tooltip) {
+                        dayOfWeekChartInstance.options.plugins.tooltip.bodyColor = tc.dayOfWeek.peak;
+                    }
                 }
 
                 // Update Walk-In Line
@@ -899,6 +933,9 @@
                     walkinChartInstance.data.datasets[0].pointBackgroundColor = tc.walkin.pointBg;
                     walkinChartInstance.data.datasets[0].pointBorderColor = tc.walkin.pointBorder;
                     walkinChartInstance.data.datasets[0].pointHoverBackgroundColor = tc.walkin.pointHoverBg;
+                    if (walkinChartInstance.options.plugins && walkinChartInstance.options.plugins.tooltip) {
+                        walkinChartInstance.options.plugins.tooltip.bodyColor = tc.walkin.line;
+                    }
                 }
 
                 // Update Engagement Doughnut

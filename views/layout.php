@@ -220,7 +220,7 @@ function render_header(string $title, ?array $user = null): void
             <script src="assets/gym-owner-tour.js?v=<?= file_exists(__DIR__ . '/../assets/gym-owner-tour.js') ? filemtime(__DIR__ . '/../assets/gym-owner-tour.js') : 1 ?>" defer></script>
         <?php endif; ?>
     </head>
-    <body class="<?= $user ? 'app-body' : 'auth-body' ?>">
+    <body class="<?= $user ? 'app-body' : 'auth-body' ?>" data-user-role="<?= h($user['role'] ?? '') ?>">
     <!-- In-App FitTrack Splash Preloader -->
     <div id="ft-splash-screen" aria-hidden="true">
         <div class="ft-splash-glow"></div>
@@ -1646,7 +1646,9 @@ function render_header(string $title, ?array $user = null): void
                         <?php endif; ?>
                         <div class="user-details">
                             <strong><?= h($user['first_name'] . ' ' . $user['last_name']) ?></strong>
-                            <small><?= h(ucfirst($user['role'])) ?></small>
+                            <?php if (($user['role'] ?? '') !== 'gym_owner'): ?>
+                                <small><?= h(ucwords(str_replace('_', ' ', (string)($user['role'] ?? '')))) ?></small>
+                            <?php endif; ?>
                         </div>
                     </div>
                 </header>

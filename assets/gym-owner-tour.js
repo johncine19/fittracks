@@ -562,9 +562,9 @@
         // Auto-launch Guided Tour for First-Time Gym Owners on Dashboard
         const isDashboard = window.location.search.includes('page=dashboard') || window.location.search === '' || window.location.search === '?';
         const isGymOwner = document.body.classList.contains('app-body') && (
-            document.querySelector('.role-badge')?.textContent?.toLowerCase()?.includes('owner') ||
-            document.querySelector('.user-details small')?.textContent?.toLowerCase()?.includes('gym_owner') ||
-            document.querySelector('.user-details small')?.textContent?.toLowerCase()?.includes('owner')
+            document.body.dataset.userRole === 'gym_owner' ||
+            !!document.getElementById('gym-owner-tour-trigger') ||
+            document.querySelector('.role-badge')?.textContent?.toLowerCase()?.includes('owner')
         );
 
         if (isDashboard && isGymOwner && !hasCompletedTour) {

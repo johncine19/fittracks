@@ -120,16 +120,24 @@ function walk_ins_page(): void
         redirect('walk_ins');
     }
 
-    $query = 'SELECT w.*, u.first_name AS member_first, u.last_name AS member_last, u.email AS member_email
-         FROM walk_in_transactions w
-         LEFT JOIN users u ON u.user_id = w.converted_to_member_id';
-    
+    $perPage = 15;
+    $page = max(1, (int)($_GET['p'] ?? 1));
+
+    $countSql = 'SELECT COUNT(*) FROM walk_in_transactions w';
+    $whereSql = '';
     $params = [];
     if ($user['role'] === 'gym_owner' && $gymId) {
-        $query .= ' WHERE w.gym_id = ?';
+        $whereSql = ' WHERE w.gym_id = ?';
         $params[] = $gymId;
     }
-    $query .= ' ORDER BY w.guest_name ASC';
+    $totalWalkIns = (int) scalar($countSql . $whereSql, $params);
+    $totalPages = max(1, (int)ceil($totalWalkIns / $perPage));
+    $page = min($page, $totalPages);
+    $offset = ($page - 1) * $perPage;
+
+    $query = 'SELECT w.*, u.first_name AS member_first, u.last_name AS member_last, u.email AS member_email
+         FROM walk_in_transactions w
+         LEFT JOIN users u ON u.user_id = w.converted_to_member_id' . $whereSql . ' ORDER BY w.visit_date DESC, w.transaction_id DESC LIMIT ' . $perPage . ' OFFSET ' . $offset;
     
     $rows = db()->prepare($query);
     $rows->execute($params);
@@ -142,8 +150,7 @@ function walk_ins_page(): void
     <section class="panel">
         <div class="page-header">
             <div>
-                <h1>Walk-in Transactions</h1>
-                <p>Record visits and payments for non-members.</p>
+                <p style="margin: 0;">Record visits and payments for non-members.</p>
             </div>
             <div style="display: flex; gap: 10px;">
                 <button onclick="document.getElementById('recordWalkInModal').showModal()">+ Record Walk-in</button>
@@ -245,7 +252,7 @@ function walk_ins_page(): void
                 <p>No walk-in transactions found.</p>
             </div>
         <?php else: ?>
-        <div class="table-wrap">
+        <div class="table-wrap walkins-desktop-table">
             <table>
                 <thead>
                     <tr>
@@ -253,6 +260,7 @@ function walk_ins_page(): void
                         <th>Contact Info</th>
                         <th>Amount Paid</th>
                         <th>Visit Date</th>
+                        <th>Payment Method</th>
                         <th>Status</th>
                         <th>Actions</th>
                     </tr>
@@ -264,6 +272,7 @@ function walk_ins_page(): void
                         <td><?= h($row['contact_info']) ?></td>
                         <td><?= h(money($row['amount_paid'])) ?></td>
                         <td style="color:var(--muted);font-size:12px"><?= h(date('M j, Y g:i A', strtotime($row['visit_date']))) ?></td>
+                        <td><span style="font-size:12px; text-transform:uppercase; color:var(--muted);"><?= h($row['payment_method'] ?? 'cash') ?></span></td>
                         <td>
                             <?php if ($row['converted_to_member_id']): ?>
                                 <span class="badge badge-active">MEMBER</span>
@@ -295,8 +304,234 @@ function walk_ins_page(): void
                 </tbody>
             </table>
         </div>
+
+        <!-- Mobile Cards View for Walk-in Transactions -->
+        <div class="walkins-mobile-cards">
+            <?php foreach ($rows as $row):
+                $nameParts = explode(' ', trim($row['guest_name']), 2);
+                $guestFirst = $nameParts[0] ?? '';
+                $guestLast = $nameParts[1] ?? '';
+                $initials = strtoupper(substr($guestFirst, 0, 1) . substr($guestLast, 0, 1)) ?: 'W';
+                $isMember = !empty($row['converted_to_member_id']);
+                $method = strtolower($row['payment_method'] ?? 'cash');
+            ?>
+            <div class="walkin-card-item">
+                <div class="walkin-card-header">
+                    <div class="user-cell" style="display:flex; align-items:center; gap:10px;">
+                        <span class="avatar small"><?= h($initials) ?></span>
+                        <div>
+                            <div class="walkin-card-name"><?= h($row['guest_name']) ?></div>
+                            <div class="walkin-card-contact"><?= h($row['contact_info'] ?: 'No contact') ?></div>
+                        </div>
+                    </div>
+                    <?php if ($isMember): ?>
+                        <span class="badge badge-active">MEMBER</span>
+                    <?php else: ?>
+                        <span class="badge badge-pending">Walk-in</span>
+                    <?php endif; ?>
+                </div>
+
+                <div class="walkin-card-amount-row">
+                    <span class="walkin-card-amount"><?= h(money($row['amount_paid'])) ?></span>
+                    <span class="walkin-card-method">
+                        <?= strtoupper(h($method)) ?>
+                    </span>
+                </div>
+
+                <div class="walkin-card-details">
+                    <div class="walkin-card-detail-item">
+                        <span class="detail-label">Visit Date</span>
+                        <span class="detail-val"><?= h(date('M j, Y g:i A', strtotime($row['visit_date']))) ?></span>
+                    </div>
+                </div>
+
+                <?php if (!$isMember): ?>
+                    <div class="walkin-card-actions">
+                        <button type="button" class="btn-sm btn-ghost btn-convert-member" style="width:100%; justify-content:center; padding:9px 12px; font-weight:600;"
+                            data-id="<?= (int)$row['transaction_id'] ?>"
+                            data-first="<?= h($guestFirst) ?>"
+                            data-last="<?= h($guestLast) ?>"
+                            data-phone="<?= h(($row['contact_info'] && $row['contact_info'] !== 'N/A') ? $row['contact_info'] : '') ?>">
+                            Convert to Member
+                        </button>
+                    </div>
+                <?php endif; ?>
+            </div>
+            <?php endforeach; ?>
+        </div>
+
+        <!-- Pagination Bar -->
+        <?php if ($totalWalkIns > 0): ?>
+            <div class="pagination-bar">
+                <div class="pagination-info">
+                    Showing <strong><?= $offset + 1 ?></strong> to <strong><?= min($offset + $perPage, $totalWalkIns) ?></strong> of <strong><?= $totalWalkIns ?></strong> records
+                </div>
+                <?php render_pagination($page, $totalPages, 'index.php?page=walk_ins', 'p'); ?>
+            </div>
+        <?php endif; ?>
         <?php endif; ?>
     </section>
+
+    <style>
+        .walkins-mobile-cards {
+            display: none;
+        }
+
+        @media (max-width: 768px) {
+            .walkins-desktop-table {
+                display: none !important;
+            }
+            .walkins-mobile-cards {
+                display: flex !important;
+                flex-direction: column;
+                gap: 12px;
+                margin-top: 10px;
+                margin-bottom: 20px;
+            }
+        }
+
+        .walkin-card-item {
+            background: color-mix(in srgb, var(--panel-soft) 45%, transparent);
+            border: 1px solid var(--line);
+            border-radius: 12px;
+            padding: 14px 16px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+            transition: all 0.2s ease;
+        }
+
+        [data-theme="light"] .walkin-card-item {
+            background: #ffffff;
+            border-color: #e2e8f0;
+            box-shadow: 0 1px 4px rgba(0, 0, 0, 0.05);
+        }
+
+        .walkin-card-item:hover {
+            border-color: color-mix(in srgb, var(--lime) 35%, transparent);
+        }
+
+        .walkin-card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            gap: 10px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid color-mix(in srgb, var(--line) 60%, transparent);
+        }
+
+        [data-theme="light"] .walkin-card-header {
+            border-bottom-color: #f1f5f9;
+        }
+
+        .walkin-card-name {
+            font-weight: 700;
+            color: var(--ink);
+            font-size: 14.5px;
+        }
+
+        .walkin-card-contact {
+            font-size: 12px;
+            color: var(--muted);
+            margin-top: 2px;
+        }
+
+        .walkin-card-amount-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .walkin-card-amount {
+            font-size: 1.15rem;
+            font-weight: 800;
+            color: var(--lime);
+        }
+
+        [data-theme="light"] .walkin-card-amount {
+            color: #15803d;
+        }
+
+        .walkin-card-method {
+            display: inline-flex;
+            align-items: center;
+            font-size: 11.5px;
+            font-weight: 700;
+            letter-spacing: 0.5px;
+            color: var(--muted);
+            background: rgba(128, 128, 128, 0.08);
+            padding: 3px 8px;
+            border-radius: 6px;
+        }
+
+        .walkin-card-details {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 8px;
+        }
+
+        .walkin-card-detail-item {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+
+        .walkin-card-detail-item .detail-label {
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: var(--muted);
+        }
+
+        .walkin-card-detail-item .detail-val {
+            font-size: 13px;
+            font-weight: 500;
+            color: var(--ink);
+        }
+
+        .walkin-card-actions {
+            margin-top: 4px;
+            padding-top: 8px;
+            border-top: 1px solid color-mix(in srgb, var(--line) 40%, transparent);
+        }
+
+        /* Pagination Bar */
+        .pagination-bar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            gap: 14px;
+            margin-top: 20px;
+            padding-top: 14px;
+            border-top: 1px solid var(--line);
+        }
+
+        .pagination-bar .pagination {
+            margin-top: 0;
+        }
+
+        .pagination-info {
+            font-size: 13px;
+            color: var(--muted);
+        }
+
+        .pagination-info strong {
+            color: var(--ink);
+            font-weight: 600;
+        }
+
+        @media (max-width: 600px) {
+            .pagination-bar {
+                flex-direction: column;
+                align-items: center;
+                text-align: center;
+            }
+        }
+    </style>
 
     <script>
     document.addEventListener('click', function(e) {

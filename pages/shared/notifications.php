@@ -57,10 +57,9 @@ function notifications_page(): void
     ?>
     <div class="skeleton-wrapper">
         <section class="panel wide">
-            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:24px">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
                 <div>
-                    <div class="sk sk-title" style="width:140px;margin-bottom:8px"></div>
-                    <div class="sk sk-text" style="width:200px;height:12px"></div>
+                    <div class="sk sk-text" style="width:160px;height:14px"></div>
                 </div>
                 <?php if ($unread): ?>
                     <div class="sk sk-rect" style="width:120px;height:36px;border-radius:18px"></div>
@@ -70,10 +69,9 @@ function notifications_page(): void
         </section>
     </div>
     <section class="panel wide skeleton-content sk-display-block">
-        <div class="page-header">
+        <div class="page-header" style="align-items: center;">
             <div>
-                <h1>Notifications</h1>
-                <p><?= $unread ? h((string) $unread) . ' unread' : 'You are all caught up.' ?></p>
+                <p style="margin: 0;"><?= $unread ? h((string) $unread) . ' unread' : 'You are all caught up.' ?></p>
             </div>
             <form method="post" style="margin:0;">
                 <?= csrf_field() ?>

@@ -74,9 +74,6 @@ function gym_equipment_page(): void
         <!-- Top Title Bar -->
         <div class="equip-header-row">
             <div>
-                <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 4px; flex-wrap: wrap;">
-                    <h1 style="margin: 0; font-size: clamp(22px, 5vw, 26px); color: var(--ink);">Equipment Management</h1>
-                </div>
                 <p style="margin: 0; color: var(--muted); font-size: 14px;">Manage machines, monitor live occupancy & queues, log maintenance, and review usage metrics.</p>
             </div>
 

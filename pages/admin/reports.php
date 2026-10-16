@@ -187,10 +187,15 @@ function reports_page(): void
 
     $gymId = null;
     $currentGymName = 'FitTrack Platform';
+    $gymBrandColor = null;
     if (!$isPlatformAdmin) {
-        $gymId = (int) scalar('SELECT gym_id FROM gyms WHERE owner_user_id = ?', [$user['user_id']]);
-        if ($gymId > 0) {
-            $currentGymName = (string) scalar('SELECT name FROM gyms WHERE gym_id = ?', [$gymId]) ?: 'FitTrack Gym';
+        $gymRow = $pdo->prepare('SELECT gym_id, name, brand_color FROM gyms WHERE owner_user_id = ?');
+        $gymRow->execute([$user['user_id']]);
+        $gData = $gymRow->fetch(PDO::FETCH_ASSOC);
+        if ($gData) {
+            $gymId = (int)$gData['gym_id'];
+            $currentGymName = (string)$gData['name'] ?: 'FitTrack Gym';
+            $gymBrandColor = !empty($gData['brand_color']) ? (string)$gData['brand_color'] : null;
         }
     }
 
@@ -214,6 +219,7 @@ function reports_page(): void
                         break;
                     }
                 }
+                $gymBrandColor = (string) scalar('SELECT brand_color FROM gyms WHERE gym_id = ?', [$selectedGymId]) ?: null;
             }
         } else {
             $selectedGymId = 'platform';
@@ -1046,7 +1052,7 @@ function reports_page(): void
                     <?php endif; ?>
                 </div>
                 <div class="kpi-sub" style="justify-content: space-between;">
-                    <span style="color: #84cc16;">Subs: ₱<?= number_format($curMonthSub, 0) ?></span>
+                    <span style="color: var(--lime);">Subs: ₱<?= number_format($curMonthSub, 0) ?></span>
                     <span style="color: #38bdf8;">Passes: ₱<?= number_format($curMonthWalk, 0) ?></span>
                 </div>
             </div>
@@ -1169,7 +1175,7 @@ function reports_page(): void
                 </div>
                 <div class="kpi-sub" style="justify-content: space-between;">
                     <?php if ($curMonthGross > 0): ?>
-                        <span style="color: #84cc16;">Subs: ₱<?= number_format($curMonthSub, 0) ?></span>
+                        <span style="color: var(--lime);">Subs: ₱<?= number_format($curMonthSub, 0) ?></span>
                         <span style="color: #38bdf8;">Passes: ₱<?= number_format($curMonthWalk, 0) ?></span>
                     <?php else: ?>
                         <span>No subscriptions or day passes recorded yet</span>
@@ -1526,7 +1532,7 @@ function reports_page(): void
                         <span style="font-size: 13px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em;">Stacked Financial Streams</span>
                         <div style="display: flex; gap: 12px; font-size: 12px; flex-wrap: wrap;">
                             <span style="display: inline-flex; align-items: center; gap: 6px; color: var(--ink);">
-                                <span style="width: 10px; height: 10px; border-radius: 3px; background: #84cc16; flex-shrink: 0;"></span> Subscriptions
+                                <span style="width: 10px; height: 10px; border-radius: 3px; background: var(--lime); flex-shrink: 0;"></span> Subscriptions
                             </span>
                             <span style="display: inline-flex; align-items: center; gap: 6px; color: var(--ink);">
                                 <span style="width: 10px; height: 10px; border-radius: 3px; background: #0ea5e9; flex-shrink: 0;"></span> Walk-In Passes
@@ -1586,9 +1592,9 @@ function reports_page(): void
                         </div>
 
                         <div style="margin-top: 14px; display: flex; flex-direction: column; gap: 8px; font-size: 13px;">
-                            <div style="display: flex; justify-content: space-between; align-items: center; padding: 7px 12px; background: rgba(132,204,22,0.08); border-radius: 6px;">
-                                <span style="color: #84cc16; font-weight: 600; display: inline-flex; align-items: center; gap: 6px;">
-                                    <span style="width:8px; height:8px; border-radius:50%; background:#84cc16;"></span> Subscriptions
+                            <div class="mix-legend-row mix-legend-sub" style="display: flex; justify-content: space-between; align-items: center; padding: 7px 12px; background: color-mix(in srgb, var(--lime) 12%, transparent); border-radius: 6px;">
+                                <span class="mix-legend-label" style="color: var(--lime); font-weight: 600; display: inline-flex; align-items: center; gap: 6px;">
+                                    <span class="mix-legend-dot" style="width:8px; height:8px; border-radius:50%; background: var(--lime);"></span> Subscriptions
                                 </span>
                                 <strong id="mix-sub-label" style="color: var(--ink);">₱<?= number_format($chartsData['revenue']['monthly']['subTotal'], 2) ?></strong>
                             </div>
@@ -2404,6 +2410,7 @@ function reports_page(): void
         selectedGymId: <?= ($isPlatformAdmin && $selectedGymId !== 'all' && $selectedGymId !== 'platform') ? (int)$selectedGymId : 'null' ?>,
         gymScopeId: <?= json_encode((string)$selectedGymId) ?>,
         gymScopeItems: <?= json_encode($gymScopeDropdownItems ?? [], JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP) ?>,
+        brandColor: <?= json_encode($gymBrandColor) ?>,
         chartsData: <?= $chartsDataJson ?>,
         engagement: {
             labels: <?= $engagementLabels ?>,

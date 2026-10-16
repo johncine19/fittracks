@@ -908,8 +908,7 @@ function audit_logs_page(): void
     <section class="panel">
         <div class="page-header" style="flex-wrap: wrap; gap: 12px;">
             <div>
-                <h1><?= $role === 'gym_owner' ? 'Staff Activity & Audit Logs' : 'Audit Logs' ?></h1>
-                <p><?= $role === 'gym_owner' ? 'Monitor front desk operations, member check-ins, walk-in sales, and staff actions in real time.' : 'Track activities, submissions, and changes across the platform in plain English.' ?></p>
+                <p style="margin: 0;"><?= $role === 'gym_owner' ? 'Monitor front desk operations, member check-ins, walk-in sales, and staff actions in real time.' : 'Track activities, submissions, and changes across the platform in plain English.' ?></p>
             </div>
             <span class="badge badge-active"><?= $total ?> record<?= $total !== 1 ? 's' : '' ?></span>
         </div>
