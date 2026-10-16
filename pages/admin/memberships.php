@@ -100,17 +100,34 @@ function memberships_page(): void
         if (isset($_POST['update_status_id'])) {
             $membershipId = (int) post('update_status_id');
             $status = post('status');
-            db()->prepare('UPDATE memberships SET status = ? WHERE membership_id = ?')->execute([$status, $membershipId]);
+
+            // Fetch current membership details before updating
+            $mInfo = db()->query('SELECT m.*, p.plan_name, p.duration_days, p.gym_id, u.email, u.first_name, u.last_name FROM memberships m JOIN membership_plans p ON p.plan_id = m.plan_id JOIN users u ON u.user_id = m.user_id WHERE m.membership_id = ' . $membershipId)->fetch();
+
+            $isActivatingPending = ($mInfo && $status === 'active' && $mInfo['status'] === 'pending');
+
+            if ($isActivatingPending) {
+                // When activating a pending membership, reset start_date to today so the member gets their full duration
+                $duration = (int) ($mInfo['duration_days'] ?? 30);
+                $startDate = date('Y-m-d');
+                $startObj = new DateTime($startDate);
+                $endDate = (clone $startObj)->modify('+' . $duration . ' days')->format('Y-m-d');
+
+                db()->prepare('UPDATE memberships SET status = ?, start_date = ?, end_date = ? WHERE membership_id = ?')
+                    ->execute([$status, $startDate, $endDate, $membershipId]);
+            } else {
+                db()->prepare('UPDATE memberships SET status = ? WHERE membership_id = ?')->execute([$status, $membershipId]);
+            }
 
             // Also update payment status if it exists and status is active
             if ($status === 'active') {
+                $todayDate = date('Y-m-d');
                 $pendingPayRows = db()->query('SELECT payment_id, amount FROM payments WHERE membership_id = ' . $membershipId . ' AND status = "pending"')->fetchAll();
-                db()->prepare('UPDATE payments SET status = "paid" WHERE membership_id = ? AND status = "pending"')->execute([$membershipId]);
+                db()->prepare('UPDATE payments SET status = "paid", payment_date = COALESCE(payment_date, ?) WHERE membership_id = ? AND status = "pending"')->execute([$todayDate, $membershipId]);
                 foreach ($pendingPayRows as $ppRow) {
                     process_trainer_commission((int)$ppRow['payment_id'], (float)$ppRow['amount']);
                 }
 
-                $mInfo = db()->query('SELECT m.user_id, p.plan_name, p.gym_id, u.email, u.first_name, u.last_name FROM memberships m JOIN membership_plans p ON p.plan_id = m.plan_id JOIN users u ON u.user_id = m.user_id WHERE m.membership_id = ' . $membershipId)->fetch();
                 if ($mInfo) {
                     // Cancel older active plans for this member at THIS gym only (supports concurrent plans at different gyms)
                     $mGymId = (int) ($mInfo['gym_id'] ?? 0);
@@ -131,7 +148,11 @@ function memberships_page(): void
             }
 
             audit_log($user['user_id'], 'update_status', 'membership', (string) $membershipId, json_encode(['new_status' => $status]));
-            flash('Membership status updated.');
+            if ($isActivatingPending) {
+                flash('Membership activated successfully. Starting point recorded as today (' . date('M j, Y') . ') with full plan duration.');
+            } else {
+                flash('Membership status updated.');
+            }
             redirect('memberships');
         } elseif (post('action') === 'confirm_payment') {
             $paymentId = (int) post('payment_id');
@@ -704,12 +725,220 @@ function memberships_page(): void
 
     $expiring = [];
     if ($user['role'] !== 'member') {
-        $expiring = db()->query('SELECT m.end_date, CONCAT(u.first_name, " ", u.last_name) AS member, u.first_name, u.last_name FROM memberships m JOIN users u ON u.user_id = m.user_id WHERE m.status = "active" AND m.end_date BETWEEN CURDATE() AND DATE_ADD(CURDATE(), INTERVAL 7 DAY) ORDER BY m.end_date ASC LIMIT 5')->fetchAll();
+        $gymFilter = ($user['role'] === 'gym_owner' && !empty($gymId)) ? ' AND mp.gym_id = ' . (int)$gymId : '';
+        $expiring = db()->query('SELECT m.end_date, CONCAT(u.first_name, " ", u.last_name) AS member, u.first_name, u.last_name, u.profile_picture, mp.plan_name 
+            FROM memberships m 
+            JOIN users u ON u.user_id = m.user_id 
+            JOIN membership_plans mp ON mp.plan_id = m.plan_id 
+            WHERE m.status = "active" AND m.end_date BETWEEN CURDATE() AND DATE_ADD(CURDATE(), INTERVAL 7 DAY)' . $gymFilter . ' 
+            ORDER BY m.end_date ASC LIMIT 30')->fetchAll();
+    }
+
+    if (!function_exists('render_expiring_banner')) {
+        function render_expiring_banner(array $expiring): void {
+            if (!$expiring) return;
+            $count = count($expiring);
+        ?>
+            <div class="expiring-alert-banner">
+                <div class="expiring-alert-header" onclick="this.closest('.expiring-alert-banner').classList.toggle('open');">
+                    <div class="expiring-alert-left">
+                        <div class="expiring-alert-icon">
+                            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                                <circle cx="12" cy="12" r="10"></circle>
+                                <polyline points="12 6 12 12 16 14"></polyline>
+                            </svg>
+                        </div>
+                        <div>
+                            <strong style="color: #f59e0b; font-size: 13px;">Upcoming Expirations (Next 7 Days)</strong>
+                            <span class="expiring-count-badge"><?= $count ?> <?= $count === 1 ? 'member' : 'members' ?></span>
+                        </div>
+                    </div>
+                    <button type="button" class="expiring-toggle-btn" aria-label="Toggle expiring members list">
+                        <span class="expiring-toggle-text">View details</span>
+                        <svg class="expiring-chevron" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
+                    </button>
+                </div>
+                <div class="expiring-alert-body">
+                    <div class="expiring-chips-grid">
+                        <?php foreach ($expiring as $row): 
+                            $days = (int) (new DateTime('today'))->diff(new DateTime($row['end_date']))->format('%r%a');
+                            $urgencyClass = $days <= 0 ? 'critical' : ($days <= 2 ? 'urgent' : 'warning');
+                            $dueText = $days === 0 ? 'Expires today' : ($days === 1 ? 'Expires tomorrow' : "Expires in {$days}d");
+                        ?>
+                            <div class="expiring-member-chip">
+                                <?= render_avatar($row) ?>
+                                <div class="expiring-member-info">
+                                    <strong><?= h($row['member']) ?></strong>
+                                    <small><?= !empty($row['plan_name']) ? h($row['plan_name']) . ' &bull; ' : '' ?><?= h(date('M j, Y', strtotime($row['end_date']))) ?></small>
+                                </div>
+                                <span class="expiring-badge <?= $urgencyClass ?>"><?= $dueText ?></span>
+                            </div>
+                        <?php endforeach; ?>
+                    </div>
+                </div>
+            </div>
+        <?php
+        }
     }
 
     render_header($user['role'] === 'gym_owner' ? 'Memberships & Payments' : 'Memberships', $user);
     ?>
     <link rel="stylesheet" href="<?= h(asset_url('css/pages/memberships.css')) ?>">
+    <style>
+    /* ── COMPACT NON-CLUTTERING EXPIRATIONS ACCORDION ─────────── */
+    .expiring-alert-banner {
+        background: rgba(245, 158, 11, 0.08);
+        border: 1px solid rgba(245, 158, 11, 0.25);
+        border-radius: 12px;
+        margin-bottom: 18px;
+        overflow: hidden;
+        transition: border-color 0.2s ease, box-shadow 0.2s ease;
+    }
+    .expiring-alert-banner:hover {
+        border-color: rgba(245, 158, 11, 0.4);
+    }
+    [data-theme="light"] .expiring-alert-banner {
+        background: #fffbeb;
+        border-color: #fde68a;
+    }
+    .expiring-alert-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 10px 16px;
+        cursor: pointer;
+        user-select: none;
+        gap: 12px;
+        transition: background 0.15s ease;
+    }
+    .expiring-alert-header:hover {
+        background: rgba(245, 158, 11, 0.06);
+    }
+    .expiring-alert-left {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        min-width: 0;
+    }
+    .expiring-alert-icon {
+        width: 28px;
+        height: 28px;
+        border-radius: 8px;
+        background: rgba(245, 158, 11, 0.15);
+        color: #f59e0b;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+    }
+    .expiring-count-badge {
+        display: inline-block;
+        font-size: 11px;
+        font-weight: 700;
+        padding: 2px 8px;
+        border-radius: 999px;
+        background: rgba(245, 158, 11, 0.2);
+        color: #f59e0b;
+        margin-left: 6px;
+    }
+    .expiring-toggle-btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        background: transparent;
+        border: 1px solid rgba(245, 158, 11, 0.35);
+        color: #f59e0b;
+        border-radius: 6px;
+        padding: 4px 10px;
+        font-size: 11.5px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.15s ease;
+        flex-shrink: 0;
+    }
+    .expiring-toggle-btn:hover {
+        background: rgba(245, 158, 11, 0.15);
+    }
+    .expiring-chevron {
+        transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    .expiring-alert-banner.open .expiring-chevron {
+        transform: rotate(180deg);
+    }
+    .expiring-alert-banner.open .expiring-toggle-text::after {
+        content: '';
+    }
+    .expiring-alert-body {
+        display: none;
+        border-top: 1px solid rgba(245, 158, 11, 0.15);
+        padding: 12px 16px;
+        max-height: 200px;
+        overflow-y: auto;
+    }
+    .expiring-alert-banner.open .expiring-alert-body {
+        display: block;
+    }
+    .expiring-chips-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+        gap: 8px;
+    }
+    .expiring-member-chip {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 8px 12px;
+        background: rgba(0, 0, 0, 0.22);
+        border: 1px solid rgba(255, 255, 255, 0.06);
+        border-radius: 8px;
+    }
+    [data-theme="light"] .expiring-member-chip {
+        background: #ffffff;
+        border-color: #f1f5f9;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+    }
+    .expiring-member-info {
+        flex: 1;
+        min-width: 0;
+    }
+    .expiring-member-info strong {
+        display: block;
+        font-size: 12.5px;
+        color: var(--ink, #fff);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+    .expiring-member-info small {
+        display: block;
+        font-size: 11px;
+        color: var(--muted, #94a3b8);
+        margin-top: 1px;
+    }
+    .expiring-badge {
+        font-size: 10.5px;
+        font-weight: 700;
+        padding: 2px 7px;
+        border-radius: 999px;
+        white-space: nowrap;
+        flex-shrink: 0;
+    }
+    .expiring-badge.critical {
+        background: rgba(239, 68, 68, 0.15);
+        color: #ef4444;
+        border: 1px solid rgba(239, 68, 68, 0.3);
+    }
+    .expiring-badge.urgent {
+        background: rgba(245, 158, 11, 0.15);
+        color: #f59e0b;
+        border: 1px solid rgba(245, 158, 11, 0.3);
+    }
+    .expiring-badge.warning {
+        background: rgba(234, 179, 8, 0.12);
+        color: #eab308;
+        border: 1px solid rgba(234, 179, 8, 0.25);
+    }
+    </style>
     <div class="skeleton-wrapper">
         <section class="panel <?= $user['role'] === 'member' ? 'member-membership-panel' : '' ?>">
             <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:24px">
@@ -813,14 +1042,7 @@ function memberships_page(): void
                 </div>
             </div>
             <?php if ($expiring): ?>
-                <div class="flash warning">
-                    <strong>Upcoming Expirations (Next 7 Days):</strong>
-                    <ul style="margin:5px 0 0 20px;">
-                        <?php foreach ($expiring as $row): ?>
-                            <li><?= h($row['member']) ?> - Expires on <?= h(date('M j, Y', strtotime($row['end_date']))) ?></li>
-                        <?php endforeach; ?>
-                    </ul>
-                </div>
+                <?php render_expiring_banner($expiring); ?>
             <?php endif; ?>
         <?php endif; ?>
 
@@ -1177,14 +1399,7 @@ function memberships_page(): void
                     </div>
 
                     <?php if ($expiring): ?>
-                        <div class="flash warning" style="margin-bottom: 16px;">
-                            <strong>Upcoming Expirations (Next 7 Days):</strong>
-                            <ul style="margin:5px 0 0 20px;">
-                                <?php foreach ($expiring as $row): ?>
-                                    <li><?= h($row['member']) ?> - Expires on <?= h(date('M j, Y', strtotime($row['end_date']))) ?></li>
-                                <?php endforeach; ?>
-                            </ul>
-                        </div>
+                        <?php render_expiring_banner($expiring); ?>
                     <?php endif; ?>
 
                     <?php if (!$rows): ?>
@@ -1517,11 +1732,11 @@ function memberships_page(): void
         plans: <?= json_encode($plansData ?? [], JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP) ?>,
         memberships: <?= json_encode($membershipsData ?? [], JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP) ?>,
         xenditEnabled: <?= !empty($memberXenditEnabled) ? 'true' : 'false' ?>,
-        currentPlan: <?= json_encode($currentActive ? [
-            'id' => (int)$currentActive['plan_id'],
+        currentPlan: <?= json_encode(!empty($currentActive) ? [
+            'id' => (int)($currentActive['plan_id'] ?? 0),
             'name' => (string)($currentActive['plan_name'] ?? ''),
             'price' => (float)($currentActive['price'] ?? 0),
-            'daysLeft' => $activeDaysLeft,
+            'daysLeft' => $activeDaysLeft ?? null,
             'endDate' => !empty($activeEndDate) ? date('M j, Y', strtotime($activeEndDate)) : ''
         ] : null, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP) ?>,
         lockedPlans: <?= json_encode($lockedPlansData ?? [], JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP) ?>

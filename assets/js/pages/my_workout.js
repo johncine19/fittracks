@@ -292,6 +292,146 @@ let selectedDate = FT_WORKOUT_CONFIG.initialSelectedDate || '';
                     } catch (e) {}
                 }
 
+                let workoutTickingBuffer = null;
+                let workoutTickingPromise = null;
+                let workoutTickingSource = null;
+                let workoutTickingGain = null;
+                let workoutTickingActive = false;
+                let workoutFallbackAudio = null;
+
+                function loadWorkoutTickingBuffer() {
+                    if (workoutTickingBuffer) return Promise.resolve(workoutTickingBuffer);
+                    if (workoutTickingPromise) return workoutTickingPromise;
+                    const ctx = getPlayerAudioContext();
+                    if (!ctx) return Promise.reject(new Error('AudioContext unavailable'));
+
+                    workoutTickingPromise = fetch('assets/audio/clock%20ticking.mp3')
+                        .then(res => {
+                            if (!res.ok) throw new Error('HTTP ' + res.status);
+                            return res.arrayBuffer();
+                        })
+                        .then(ab => ctx.decodeAudioData(ab))
+                        .then(decoded => {
+                            workoutTickingBuffer = decoded;
+                            return decoded;
+                        })
+                        .catch(err => {
+                            workoutTickingPromise = null;
+                            throw err;
+                        });
+                    return workoutTickingPromise;
+                }
+
+                function playClockTicking() {
+                    if (playerAudioMuted) return;
+                    workoutTickingActive = true;
+
+                    // If global audio system is ready with forced player playback, invoke it
+                    if (window.FitTrackAudio && typeof window.FitTrackAudio.playSeamlessTicking === 'function') {
+                        window.FitTrackAudio.playSeamlessTicking(0.55, true);
+                        return;
+                    }
+
+                    // Self-contained Web Audio engine fallback
+                    try {
+                        const ctx = getPlayerAudioContext();
+                        if (ctx && ctx.state === 'suspended') {
+                            ctx.resume().catch(() => {});
+                        }
+
+                        stopClockTicking();
+                        workoutTickingActive = true;
+
+                        function startBuffer(buf) {
+                            if (!workoutTickingActive || playerAudioMuted) return;
+                            try {
+                                workoutTickingSource = ctx.createBufferSource();
+                                workoutTickingSource.buffer = buf;
+                                workoutTickingSource.loop = true;
+                                workoutTickingSource.loopStart = 0;
+                                workoutTickingSource.loopEnd = (buf.duration >= 7.99) ? 7.9986 : buf.duration;
+
+                                workoutTickingGain = ctx.createGain();
+                                workoutTickingGain.gain.setValueAtTime(0.001, ctx.currentTime);
+                                workoutTickingGain.gain.linearRampToValueAtTime(0.55, ctx.currentTime + 0.04);
+
+                                workoutTickingSource.connect(workoutTickingGain);
+                                workoutTickingGain.connect(ctx.destination);
+                                workoutTickingSource.start(0);
+                            } catch (e) {
+                                fallbackHtml5();
+                            }
+                        }
+
+                        function fallbackHtml5() {
+                            if (!workoutTickingActive || playerAudioMuted) return;
+                            try {
+                                if (!workoutFallbackAudio) {
+                                    workoutFallbackAudio = new Audio('assets/audio/clock%20ticking.mp3');
+                                    workoutFallbackAudio.loop = true;
+                                    workoutFallbackAudio.volume = 0.55;
+                                }
+                                workoutFallbackAudio.currentTime = 0;
+                                workoutFallbackAudio.play().catch(() => {});
+                            } catch (err) {}
+                        }
+
+                        if (workoutTickingBuffer) {
+                            startBuffer(workoutTickingBuffer);
+                        } else {
+                            loadWorkoutTickingBuffer()
+                                .then(buf => {
+                                    startBuffer(buf);
+                                })
+                                .catch(() => {
+                                    fallbackHtml5();
+                                });
+                        }
+                    } catch (e) {
+                        try {
+                            if (!workoutFallbackAudio) {
+                                workoutFallbackAudio = new Audio('assets/audio/clock%20ticking.mp3');
+                                workoutFallbackAudio.loop = true;
+                                workoutFallbackAudio.volume = 0.55;
+                            }
+                            workoutFallbackAudio.currentTime = 0;
+                            workoutFallbackAudio.play().catch(() => {});
+                        } catch (err) {}
+                    }
+                }
+
+                function stopClockTicking() {
+                    workoutTickingActive = false;
+                    if (window.FitTrackAudio && typeof window.FitTrackAudio.stopSeamlessTicking === 'function') {
+                        window.FitTrackAudio.stopSeamlessTicking();
+                    }
+                    if (window.stopTickingSound) {
+                        window.stopTickingSound();
+                    }
+                    if (workoutTickingSource) {
+                        try {
+                            const ctx = getPlayerAudioContext();
+                            if (ctx && workoutTickingGain) {
+                                workoutTickingGain.gain.linearRampToValueAtTime(0.001, ctx.currentTime + 0.03);
+                            }
+                            const s = workoutTickingSource;
+                            setTimeout(() => {
+                                try { s.stop(); s.disconnect(); } catch (e) {}
+                            }, 40);
+                        } catch (e) {
+                            try { workoutTickingSource.stop(); } catch (err) {}
+                        }
+                        workoutTickingSource = null;
+                        workoutTickingGain = null;
+                    }
+                    if (workoutFallbackAudio) {
+                        try {
+                            workoutFallbackAudio.pause();
+                            workoutFallbackAudio.currentTime = 0;
+                        } catch (e) {}
+                    }
+                }
+
                 function togglePlayerAudio() {
                     playerAudioMuted = !playerAudioMuted;
                     const onIcon = document.getElementById('player-audio-icon-on');
@@ -299,6 +439,15 @@ let selectedDate = FT_WORKOUT_CONFIG.initialSelectedDate || '';
                     if (onIcon && offIcon) {
                         onIcon.style.display = playerAudioMuted ? 'none' : 'block';
                         offIcon.style.display = playerAudioMuted ? 'block' : 'none';
+                    }
+                    if (playerAudioMuted) {
+                        stopClockTicking();
+                        if (window.stopVictorySound) window.stopVictorySound();
+                    } else {
+                        const timerScreen = document.getElementById('player-timer-screen');
+                        if (timerScreen && timerScreen.style.display !== 'none') {
+                            playClockTicking();
+                        }
                     }
                 }
 
@@ -334,6 +483,15 @@ let selectedDate = FT_WORKOUT_CONFIG.initialSelectedDate || '';
                         modal.classList.add('is-active');
                     }
                     document.body.style.overflow = 'hidden';
+
+                    // Unlock audio context and preload ticking sound buffer for instant zero-latency playback
+                    try {
+                        const pCtx = getPlayerAudioContext();
+                        if (pCtx && pCtx.state === 'suspended') {
+                            pCtx.resume().catch(() => {});
+                        }
+                        loadWorkoutTickingBuffer().catch(() => {});
+                    } catch (e) {}
 
                     try {
                         // Suppress any floating background ratings while workout player is active
@@ -402,6 +560,10 @@ let selectedDate = FT_WORKOUT_CONFIG.initialSelectedDate || '';
                 }
 
                 function cleanupPlayerModal() {
+                    stopClockTicking();
+                    if (window.stopVictorySound) {
+                        window.stopVictorySound();
+                    }
                     const modal = document.getElementById('workout-player-modal');
                     if (modal) {
                         modal.classList.remove('is-active');
@@ -718,6 +880,8 @@ let selectedDate = FT_WORKOUT_CONFIG.initialSelectedDate || '';
                     const timerScreen = document.getElementById('player-timer-screen');
                     timerScreen.style.display = 'flex';
 
+                    playClockTicking();
+
                     // Pause video in background to save battery
                     const videoEl = document.getElementById('player-animation-video');
                     if (videoEl) {
@@ -751,6 +915,7 @@ let selectedDate = FT_WORKOUT_CONFIG.initialSelectedDate || '';
 
                         if (remainingRest <= 0) {
                             clearInterval(restTimer);
+                            stopClockTicking();
                             if (window.playNotifSound) {
                                 window.playNotifSound('ready');
                             } else {
@@ -794,6 +959,7 @@ let selectedDate = FT_WORKOUT_CONFIG.initialSelectedDate || '';
                 }
 
                 function skipRest() {
+                    stopClockTicking();
                     clearInterval(restTimer);
                     renderLiveExercise();
                 }
@@ -836,6 +1002,7 @@ let selectedDate = FT_WORKOUT_CONFIG.initialSelectedDate || '';
                 }
 
                 function finishLiveWorkout() {
+                    stopClockTicking();
                     clearInterval(workoutStopwatchInterval);
                     clearInterval(restTimer);
 
@@ -866,7 +1033,17 @@ let selectedDate = FT_WORKOUT_CONFIG.initialSelectedDate || '';
                         upgradeCard.style.display = 'none';
                     }
 
-                    if (window.playNotifSound) window.playNotifSound('ready');
+                    // Play victory sound effect from assets/audio/astralsynthesizer-11l-victory.mp3
+                    if (window.playNotifSound) {
+                        window.playNotifSound('victory');
+                    } else {
+                        try {
+                            const audio = new Audio('assets/audio/astralsynthesizer-11l-victory.mp3');
+                            audio.volume = 0.75;
+                            window._currentVictoryAudio = audio;
+                            audio.play().catch(() => {});
+                        } catch (e) {}
+                    }
                     if (navigator.vibrate) navigator.vibrate([150, 80, 200]);
 
                     const todayData = CALENDAR_DATA[TODAY_DATE];
@@ -877,6 +1054,9 @@ let selectedDate = FT_WORKOUT_CONFIG.initialSelectedDate || '';
                 }
 
                 function closeCelebrationAndFinish() {
+                    if (window.stopVictorySound) {
+                        window.stopVictorySound();
+                    }
                     cleanupPlayerModal();
                     window.location.reload();
                 }

@@ -3,6 +3,13 @@
  * Extracted from memberships.php
  */
 
+function getCsrfToken() {
+    return window.MEMBERSHIPS_CONFIG?.csrfToken
+        || document.querySelector('meta[name="csrf-token"]')?.getAttribute('content')
+        || document.querySelector('input[name="csrf_token"]')?.value
+        || '';
+}
+
 // --- Section 1: Member Pricing & View Switcher ---
                 function switchMembershipView(viewName) {
                     const plansBtn = document.getElementById('tab-btn-plans');
@@ -229,7 +236,7 @@
                             Selected: <strong style="color:var(--ink);">${safeName}</strong> • <strong style="color:var(--lime, #22c55e); font-size: 14px;">${safePrice}</strong>
                         </div>
                         <form id="subscribeForm" method="post" action="index.php?page=memberships" style="text-align: left; display: flex; flex-direction: column; gap: 8px;">
-                            <input type="hidden" name="csrf_token" value="${window.MEMBERSHIPS_CONFIG?.csrfToken || ''}">
+                            <input type="hidden" name="csrf_token" value="${getCsrfToken()}">
                             <input type="hidden" name="subscribe_plan_id" value="${planId}">
                             
                             <label style="display:block; font-size:10.5px; font-weight:700; letter-spacing:0.4px; color:var(--muted); text-transform:uppercase; margin-bottom: -2px;">
@@ -283,15 +290,26 @@
                     { id: 'cancelled', label: 'Cancelled', dotClass: 'status-dot-cancelled' }
                 ];
 
+                const isPending = (currentStatus === 'pending');
+                const pendingNoticeHtml = isPending ? `
+                    <div id="pendingActivationNotice" style="font-size: 11.5px; color: var(--muted); line-height: 1.45; padding: 9px 12px; background: rgba(34,197,94,0.08); border-radius: 8px; border: 1px solid rgba(34,197,94,0.25); display: flex; gap: 8px; align-items: flex-start;">
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--lime)" stroke-width="2.5" style="flex-shrink:0; margin-top:1px;"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                        <div>
+                            <strong style="color: var(--lime);">Automatic Date Recalibration:</strong> When set to <strong>Active</strong>, the start date will be recorded as today and the full duration will be granted so the member gets their complete term.
+                        </div>
+                    </div>
+                ` : '';
+
                 Swal.fire({
                     title: 'Update Status',
-                    width: '400px',
+                    width: '420px',
                     html: `
-                    <form id="editStatusForm" method="post" style="text-align:left;display:flex;flex-direction:column;gap:12px;margin-top:15px;min-height:120px;position:relative;">
-                        <input type="hidden" name="csrf_token" value="${window.MEMBERSHIPS_CONFIG?.csrfToken || ''}">
+                    <form id="editStatusForm" method="post" action="index.php?page=memberships" style="text-align:left;display:flex;flex-direction:column;gap:12px;margin-top:15px;min-height:120px;position:relative;">
+                        <input type="hidden" name="csrf_token" value="${getCsrfToken()}">
                         <input type="hidden" name="update_status_id" value="${membershipId}">
                         <label style="display:block;color:var(--muted);font-size:13.5px;font-weight:500;">Status</label>
                         <div id="editStatusDropdownWrap"></div>
+                        ${pendingNoticeHtml}
                     </form>
                     `,
                     showCancelButton: true,
@@ -305,9 +323,15 @@
                             container: '#editStatusDropdownWrap',
                             name: 'status',
                             id: 'editStatusInput',
-                            value: currentStatus || 'active',
+                            value: currentStatus === 'pending' ? 'active' : (currentStatus || 'active'),
                             zIndex: 90,
-                            items: statusOptions
+                            items: statusOptions,
+                            onChange: (selected) => {
+                                const notice = document.getElementById('pendingActivationNotice');
+                                if (notice) {
+                                    notice.style.display = (selected && selected.id === 'active' && isPending) ? 'flex' : 'none';
+                                }
+                            }
                         });
                     },
                     preConfirm: () => {
@@ -326,8 +350,8 @@
                     title: 'Create Membership',
                     width: '460px',
                     html: `
-                <form id="addMembershipForm" method="post" style="text-align: left; display: flex; flex-direction: column; gap: 14px; margin-top: 15px; min-height: 285px; position: relative;">
-                    <input type="hidden" name="csrf_token" value="${window.MEMBERSHIPS_CONFIG?.csrfToken || ''}">
+                <form id="addMembershipForm" method="post" action="index.php?page=memberships" style="text-align: left; display: flex; flex-direction: column; gap: 14px; margin-top: 15px; min-height: 285px; position: relative;">
+                    <input type="hidden" name="csrf_token" value="${getCsrfToken()}">
                     
                     <!-- Member Selector (Hybrid Live Search) -->
                     <div>
@@ -523,7 +547,7 @@
                     width: '480px',
                     html: `
                         <form id="recordPaymentForm" method="post" action="index.php?page=memberships&view=payments" style="text-align: left; display: flex; flex-direction: column; gap: 14px; margin-top: 15px; min-height: 380px; position: relative;">
-                            <input type="hidden" name="csrf_token" value="${window.MEMBERSHIPS_CONFIG?.csrfToken || ''}">
+                            <input type="hidden" name="csrf_token" value="${getCsrfToken()}">
                             <input type="hidden" name="action" value="record_payment">
                             <input type="hidden" name="user_id" id="modalPaymentUserId" value="">
                             <input type="hidden" name="membership_id" id="modalPaymentMembershipId" value="">
@@ -762,7 +786,7 @@
                     width: '450px',
                     html: `
                         <form id="confirmPaymentForm" method="post" action="index.php?page=memberships&view=payments" style="text-align: left; display: flex; flex-direction: column; gap: 14px; margin-top: 15px; position: relative;">
-                            <input type="hidden" name="csrf_token" value="${window.MEMBERSHIPS_CONFIG?.csrfToken || ''}">
+                            <input type="hidden" name="csrf_token" value="${getCsrfToken()}">
                             <input type="hidden" name="action" value="confirm_payment">
                             <input type="hidden" name="payment_id" value="${paymentId}">
 

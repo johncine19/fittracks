@@ -114,6 +114,7 @@ function render_header(string $title, ?array $user = null): void
     <head>
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="csrf-token" content="<?= h(csrf_token()) ?>">
         <title><?= h($title) ?> - <?= h($gym['name'] ?? 'FitTrack') ?></title>
         <link rel="manifest" href="manifest.json">
         <meta name="theme-color" content="#22c55e">
@@ -215,6 +216,7 @@ function render_header(string $title, ?array $user = null): void
         </script>
         <link rel="stylesheet" href="assets/splash.css?v=<?= file_exists(__DIR__ . '/../assets/splash.css') ? filemtime(__DIR__ . '/../assets/splash.css') : 1 ?>">
         <script src="assets/splash.js?v=<?= file_exists(__DIR__ . '/../assets/splash.js') ? filemtime(__DIR__ . '/../assets/splash.js') : 1 ?>"></script>
+        <script src="assets/audio.js?v=<?= file_exists(__DIR__ . '/../assets/audio.js') ? filemtime(__DIR__ . '/../assets/audio.js') : 1 ?>"></script>
         <?php if ($user): ?>
             <link rel="stylesheet" href="assets/gym-owner-tour.css?v=<?= file_exists(__DIR__ . '/../assets/gym-owner-tour.css') ? filemtime(__DIR__ . '/../assets/gym-owner-tour.css') : 1 ?>">
             <script src="assets/gym-owner-tour.js?v=<?= file_exists(__DIR__ . '/../assets/gym-owner-tour.js') ? filemtime(__DIR__ . '/../assets/gym-owner-tour.js') : 1 ?>" defer></script>
