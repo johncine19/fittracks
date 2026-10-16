@@ -6,6 +6,7 @@
     'use strict';
 
     const TOUR_STORAGE_KEY = 'fittrack_gym_tour_completed';
+    const MEMBER_TOUR_STORAGE_KEY = 'fittrack_member_tour_completed';
     const FEATURE_STORAGE_PREFIX = 'ft_feature_seen_';
 
     // ── CONCISE, BENEFIT-FOCUSED TOUR STEPS (Mode B) ──────────────────
@@ -68,6 +69,86 @@
         }
     ];
 
+    // ── MEMBER GUIDED TOUR STEPS (9 Steps) ───────────────────────────
+    const MEMBER_TOUR_STEPS = [
+        {
+            stepNumber: 1,
+            badge: '1 of 9',
+            title: 'Your Fitness Hub',
+            description: 'Track your attendance streak, active routine, weight changes, and upcoming group class bookings at a glance.',
+            targetSelector: '.member-stats-grid',
+            fallbackSelector: '.member-stat-card',
+            preferredPlacement: 'bottom'
+        },
+        {
+            stepNumber: 2,
+            badge: '2 of 9',
+            title: 'Contactless QR Pass',
+            description: 'Scan your personal QR code at the front desk scanner for instant hands-free gym entry and session check-ins.',
+            targetSelector: '.side-nav a[href$="page=qr_attendance"], .side-nav a[href*="page=qr_attendance"]',
+            preferredPlacement: 'right'
+        },
+        {
+            stepNumber: 3,
+            badge: '3 of 9',
+            title: 'Workouts & Routines',
+            description: 'Access coach-assigned workout splits, view exercise video guides, and log sets, reps, and rest timers in real time.',
+            targetSelector: '.side-nav a[href$="page=my_workout"], .side-nav a[href*="page=my_workout"]',
+            preferredPlacement: 'right'
+        },
+        {
+            stepNumber: 4,
+            badge: '4 of 9',
+            title: 'Personalized Nutrition',
+            description: 'Follow daily calorie and macronutrient targets tailored to your fitness goals, with meal plans and hydration tracking.',
+            targetSelector: '.side-nav a[href$="page=diet"], .side-nav a[href*="page=diet"]',
+            preferredPlacement: 'right'
+        },
+        {
+            stepNumber: 5,
+            badge: '5 of 9',
+            title: 'Personal Trainers',
+            description: 'Browse qualified coaches, book 1-on-1 personal training, and receive direct personalized guidance.',
+            targetSelector: '.side-nav a[href$="page=trainers"], .side-nav a[href*="page=trainers"], .side-nav a[href*="page=gym_selection"]',
+            preferredPlacement: 'right'
+        },
+        {
+            stepNumber: 6,
+            badge: '6 of 9',
+            title: 'Group Fitness Classes',
+            description: 'Explore scheduled sessions (HIIT, Yoga, Spinning), check remaining spots, and reserve your class in advance.',
+            targetSelector: '.side-nav a[href$="page=book_classes"], .side-nav a[href*="page=book_classes"]',
+            fallbackSelector: '.stat-card-classes, .member-dashboard-nav',
+            preferredPlacement: 'right'
+        },
+        {
+            stepNumber: 7,
+            badge: '7 of 9',
+            title: 'Live Floor Equipment',
+            description: 'Check live equipment availability on the floor, join virtual waitlists, and get notified when machines are free.',
+            targetSelector: '.side-nav a[href$="page=equipment"], .side-nav a[href*="page=equipment"], .side-nav a[href*="gym_equipment"]',
+            fallbackSelector: '.member-dashboard-nav, .topbar',
+            preferredPlacement: 'right'
+        },
+        {
+            stepNumber: 8,
+            badge: '8 of 9',
+            title: 'Membership & Passes',
+            description: 'View active subscription plan details, track expiration/renewal dates, and manage payments.',
+            targetSelector: '.side-nav a[href$="page=memberships"], .side-nav a[href*="page=memberships"]',
+            fallbackSelector: '.member-dashboard-nav, .topbar',
+            preferredPlacement: 'right'
+        },
+        {
+            stepNumber: 9,
+            badge: '9 of 9',
+            title: 'Profile & Body Progress',
+            description: 'Log body measurements, update fitness goals, switch themes, and review your milestone achievements.',
+            targetSelector: '.sidebar-bottom a[href*="page=profile"], a[href*="page=profile"]',
+            preferredPlacement: 'right'
+        }
+    ];
+
     // ── CORE ENGINE ──────────────────────────────────────────────────
     const FitTrackSpotlight = {
         overlayEl: null,
@@ -76,6 +157,7 @@
         currentTargetEl: null,
         activeTourIndex: -1,
         activeTourSteps: null,
+        activeTourType: 'gym_owner',
         repositionRaf: null,
 
         init() {
@@ -355,6 +437,12 @@
 
             this.currentTargetEl = target;
 
+            // Highlight the active target element with crisp clarity
+            document.querySelectorAll('.ft-spotlight-active-target').forEach(el => el.classList.remove('ft-spotlight-active-target'));
+            if (target && target !== document.body) {
+                target.classList.add('ft-spotlight-active-target');
+            }
+
             document.getElementById('ft-popover-badge').textContent = step.badge || `${index + 1} of ${this.activeTourSteps.length}`;
             document.getElementById('ft-popover-title').textContent = step.title;
             document.getElementById('ft-popover-desc').textContent = step.description;
@@ -422,19 +510,22 @@
             const applyStepPosition = () => {
                 if (!this.currentTargetEl || this.activeTourIndex !== index) return;
 
-                if (isMobile) {
-                    // Center the element vertically in the drawer so it's not hidden behind the bottom popover card
-                    this.currentTargetEl.scrollIntoView({ behavior: 'auto', block: 'center' });
-                } else {
+                const insideSideNav = !!(this.currentTargetEl.closest && this.currentTargetEl.closest('.side-nav'));
+                const insideSidebar = !!(this.currentTargetEl.closest && this.currentTargetEl.closest('#main-sidebar, .sidebar'));
+
+                // If inside side-nav or mobile sidebar drawer, ALWAYS center vertically so the item is never clipped by overflow
+                if (insideSideNav || (isMobile && insideSidebar)) {
+                    this.currentTargetEl.scrollIntoView({ behavior: 'auto', block: 'center', inline: 'nearest' });
+                } else if (!isMobile) {
                     const rect = this.currentTargetEl.getBoundingClientRect();
                     const inView = (
-                        rect.top >= 40 &&
-                        rect.bottom <= (window.innerHeight - 40) &&
+                        rect.top >= 60 &&
+                        rect.bottom <= (window.innerHeight - 60) &&
                         rect.left >= 0 &&
                         rect.right <= window.innerWidth
                     );
                     if (!inView) {
-                        this.currentTargetEl.scrollIntoView({ behavior: 'auto', block: 'nearest' });
+                        this.currentTargetEl.scrollIntoView({ behavior: 'auto', block: 'center', inline: 'nearest' });
                     }
                 }
 
@@ -445,6 +536,9 @@
                 requestAnimationFrame(() => {
                     this.positionAroundTarget(this.currentTargetEl);
                 });
+                setTimeout(() => {
+                    this.positionAroundTarget(this.currentTargetEl);
+                }, 60);
             };
 
             if (needsDrawerWait) {
@@ -454,13 +548,23 @@
             }
         },
 
-        startTour(steps = TOUR_STEPS) {
+        startTour(steps = TOUR_STEPS, tourType = 'gym_owner') {
+            this.activeTourType = tourType;
             this.init();
             this.activeTourSteps = steps;
+
+            // Ensure skeleton-loading is marked loaded so elements like .member-stats-grid are visible immediately
+            if (!document.body.classList.contains('loaded')) {
+                document.body.classList.add('loaded');
+            }
+
             this.renderTourStep(0);
         },
 
         close(markCompleted = false) {
+            // Remove active highlight from any spotlighted target
+            document.querySelectorAll('.ft-spotlight-active-target').forEach(el => el.classList.remove('ft-spotlight-active-target'));
+
             if (this.popoverEl) {
                 this.popoverEl.classList.remove('is-visible');
             }
@@ -478,11 +582,13 @@
             }
 
             if (markCompleted) {
+                const storageKey = this.activeTourType === 'member' ? MEMBER_TOUR_STORAGE_KEY : TOUR_STORAGE_KEY;
                 try {
-                    localStorage.setItem(TOUR_STORAGE_KEY, '1');
+                    localStorage.setItem(storageKey, '1');
                 } catch (e) {}
 
-                const banner = document.getElementById('gym-tour-welcome-banner');
+                const bannerId = this.activeTourType === 'member' ? 'member-tour-welcome-banner' : 'gym-tour-welcome-banner';
+                const banner = document.getElementById(bannerId);
                 if (banner) {
                     banner.style.transition = 'opacity 0.25s ease, transform 0.25s ease';
                     banner.style.opacity = '0';
@@ -507,10 +613,11 @@
             return;
         }
 
-        FitTrackSpotlight.startTour(TOUR_STEPS);
+        FitTrackSpotlight.startTour(TOUR_STEPS, 'gym_owner');
     };
 
     window.closeGymOwnerTour = function (markCompleted = true) {
+        FitTrackSpotlight.activeTourType = 'gym_owner';
         FitTrackSpotlight.close(markCompleted);
     };
 
@@ -519,6 +626,35 @@
             localStorage.setItem(TOUR_STORAGE_KEY, '1');
         } catch (e) {}
         const banner = document.getElementById('gym-tour-welcome-banner');
+        if (banner) {
+            banner.remove();
+        }
+    };
+
+    window.startMemberTour = function () {
+        const isDashboard = window.location.search.includes('page=dashboard') ||
+                            window.location.search === '' ||
+                            window.location.search === '?' ||
+                            (window.location.pathname.endsWith('/index.php') && !window.location.search);
+
+        if (!isDashboard) {
+            window.location.href = 'index.php?page=dashboard&start_member_tour=1';
+            return;
+        }
+
+        FitTrackSpotlight.startTour(MEMBER_TOUR_STEPS, 'member');
+    };
+
+    window.closeMemberTour = function (markCompleted = true) {
+        FitTrackSpotlight.activeTourType = 'member';
+        FitTrackSpotlight.close(markCompleted);
+    };
+
+    window.dismissMemberTourBanner = function () {
+        try {
+            localStorage.setItem(MEMBER_TOUR_STORAGE_KEY, '1');
+        } catch (e) {}
+        const banner = document.getElementById('member-tour-welcome-banner');
         if (banner) {
             banner.remove();
         }
@@ -547,30 +683,57 @@
             banner.style.display = 'none';
         }
 
-        // Handle Quick Tour launched from another page (?start_tour=1)
+        const hasCompletedMemberTour = localStorage.getItem(MEMBER_TOUR_STORAGE_KEY) === '1';
+        const memberBanner = document.getElementById('member-tour-welcome-banner');
+
+        if (hasCompletedMemberTour && memberBanner) {
+            memberBanner.style.display = 'none';
+        }
+
+        // Handle Quick Tour launched from another page (?start_tour=1 or ?start_member_tour=1)
         const urlParams = new URLSearchParams(window.location.search);
         if (urlParams.get('start_tour') === '1') {
             const url = new URL(window.location.href);
             url.searchParams.delete('start_tour');
             window.history.replaceState({}, document.title, url.pathname + (url.search ? url.search : ''));
             setTimeout(function () {
-                FitTrackSpotlight.startTour(TOUR_STEPS);
+                window.startGymOwnerTour();
             }, 350);
             return;
         }
 
-        // Auto-launch Guided Tour for First-Time Gym Owners on Dashboard
+        if (urlParams.get('start_member_tour') === '1') {
+            const url = new URL(window.location.href);
+            url.searchParams.delete('start_member_tour');
+            window.history.replaceState({}, document.title, url.pathname + (url.search ? url.search : ''));
+            setTimeout(function () {
+                window.startMemberTour();
+            }, 350);
+            return;
+        }
+
+        // Auto-launch Guided Tour for First-Time Users on Dashboard
         const isDashboard = window.location.search.includes('page=dashboard') || window.location.search === '' || window.location.search === '?';
         const isGymOwner = document.body.classList.contains('app-body') && (
             document.body.dataset.userRole === 'gym_owner' ||
             !!document.getElementById('gym-owner-tour-trigger') ||
             document.querySelector('.role-badge')?.textContent?.toLowerCase()?.includes('owner')
         );
+        const isMember = document.body.classList.contains('app-body') && (
+            document.body.dataset.userRole === 'member' ||
+            !!document.getElementById('member-tour-trigger')
+        );
 
         if (isDashboard && isGymOwner && !hasCompletedTour) {
             setTimeout(function () {
                 if (localStorage.getItem(TOUR_STORAGE_KEY) !== '1') {
-                    FitTrackSpotlight.startTour(TOUR_STEPS);
+                    window.startGymOwnerTour();
+                }
+            }, 1000);
+        } else if (isDashboard && isMember && !hasCompletedMemberTour) {
+            setTimeout(function () {
+                if (localStorage.getItem(MEMBER_TOUR_STORAGE_KEY) !== '1') {
+                    window.startMemberTour();
                 }
             }, 1000);
         }

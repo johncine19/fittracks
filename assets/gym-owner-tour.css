@@ -194,6 +194,47 @@
     }
 }
 
+/* Active Spotlight Target Enhancement (keeps highlighted element crisp, visible, and high-contrast) */
+.ft-spotlight-active-target {
+    position: relative;
+    z-index: 99982 !important;
+}
+
+.side-nav a.ft-spotlight-active-target,
+.sidebar-bottom a.ft-spotlight-active-target {
+    background: rgba(255, 255, 255, 0.08) !important;
+    color: #ffffff !important;
+    font-weight: 700 !important;
+}
+
+.side-nav a.ft-spotlight-active-target .nav-icon,
+.sidebar-bottom a.ft-spotlight-active-target .nav-icon {
+    color: var(--lime, #c7ff22) !important;
+}
+
+.side-nav a.ft-spotlight-active-target .nav-label,
+.sidebar-bottom a.ft-spotlight-active-target .nav-label {
+    color: #ffffff !important;
+    font-weight: 700 !important;
+}
+
+[data-theme="light"] .side-nav a.ft-spotlight-active-target,
+[data-theme="light"] .sidebar-bottom a.ft-spotlight-active-target {
+    background: rgba(0, 0, 0, 0.08) !important;
+    color: #0f172a !important;
+}
+
+[data-theme="light"] .side-nav a.ft-spotlight-active-target .nav-icon,
+[data-theme="light"] .sidebar-bottom a.ft-spotlight-active-target .nav-icon {
+    color: var(--lime, #4d7c0f) !important;
+}
+
+[data-theme="light"] .side-nav a.ft-spotlight-active-target .nav-label,
+[data-theme="light"] .sidebar-bottom a.ft-spotlight-active-target .nav-label {
+    color: #0f172a !important;
+    font-weight: 700 !important;
+}
+
 /* --------------------------------------------------------------------------
    03. Compact, Minimalist Anchored Popover Card
    -------------------------------------------------------------------------- */

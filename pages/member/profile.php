@@ -449,19 +449,8 @@ function profile_page(): void
                         </svg>
                         Fitness Goals
                     </h3>
-                    <div class="settings-stat-grid">
-                        <div class="settings-stat-card">
-                            <div class="settings-stat-icon" style="background: color-mix(in srgb, var(--lime) 15%, transparent); color: var(--lime);">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                    <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
-                                </svg>
-                            </div>
-                            <div class="settings-stat-body">
-                                <span class="settings-stat-label">Activity Level</span>
-                                <span class="settings-stat-value"><?= h(ucwords(str_replace('_', ' ', $profile['activity_level'] ?? '—'))) ?></span>
-                            </div>
-                        </div>
-                        <div class="settings-stat-card">
+                    <div class="settings-stat-grid settings-stat-grid-goals">
+                        <div class="settings-stat-card settings-stat-card-wide settings-stat-card-highlight">
                             <div class="settings-stat-icon" style="background: color-mix(in srgb, var(--teal) 15%, transparent); color: var(--teal);">
                                 <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                                     <circle cx="12" cy="12" r="10" />
@@ -471,6 +460,17 @@ function profile_page(): void
                             <div class="settings-stat-body">
                                 <span class="settings-stat-label">Primary Goal</span>
                                 <span class="settings-stat-value"><?= h(ucwords(str_replace('_', ' ', $profile['primary_goal'] ?? '—'))) ?></span>
+                            </div>
+                        </div>
+                        <div class="settings-stat-card">
+                            <div class="settings-stat-icon" style="background: color-mix(in srgb, var(--lime) 15%, transparent); color: var(--lime);">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
+                                </svg>
+                            </div>
+                            <div class="settings-stat-body">
+                                <span class="settings-stat-label">Activity Level</span>
+                                <span class="settings-stat-value"><?= h(ucwords(str_replace('_', ' ', $profile['activity_level'] ?? '—'))) ?></span>
                             </div>
                         </div>
                         <div class="settings-stat-card">
@@ -506,8 +506,8 @@ function profile_page(): void
                         <h3 class="settings-group-title" style="margin-top: 2rem;">
                             <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                                 <circle cx="12" cy="12" r="10" />
-                                <circle cx="12" cy="12" r="6" />
-                                <circle cx="12" cy="12" r="2" />
+                                <circle cx="12" cy="6" r="6" />
+                                <circle cx="12" cy="2" r="2" />
                             </svg>
                             Targets & Objectives
                         </h3>
@@ -515,7 +515,7 @@ function profile_page(): void
                             <?php if (!empty($profile['target_strength_max_kg'])):
                                 $stEx = $profile['target_exercise'] ?? 'Bench Press';
                             ?>
-                                <div class="settings-stat-card">
+                                <div class="settings-stat-card settings-stat-card-wide">
                                     <div class="settings-stat-icon" style="background: color-mix(in srgb, var(--lime) 15%, transparent); color: var(--lime);">
                                         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                                             <path d="m6.5 6.5 11 11" />
@@ -606,7 +606,7 @@ function profile_page(): void
                             <?php if (!empty($profile['target_endurance_distance_km']) || !empty($profile['target_endurance_time_mins'])):
                                 $act = $profile['endurance_activity'] ?? 'Running';
                             ?>
-                                <div class="settings-stat-card">
+                                <div class="settings-stat-card settings-stat-card-wide">
                                     <div class="settings-stat-icon" style="background: color-mix(in srgb, var(--teal) 15%, transparent); color: var(--teal);">
                                         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                                             <path d="M22 12h-4l-3 9L9 3l-3 9H2" />

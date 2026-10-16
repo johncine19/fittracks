@@ -1634,6 +1634,14 @@ function render_header(string $title, ?array $user = null): void
                                 </svg>
                                 <span class="tour-btn-text">Quick Tour</span>
                             </button>
+                        <?php elseif ($user && ($user['role'] ?? '') === 'member'): ?>
+                            <button type="button" class="tour-quick-btn" id="member-tour-trigger" onclick="if(window.startMemberTour){window.startMemberTour(true);}" title="Take Guided Member Tour">
+                                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                                    <circle cx="12" cy="12" r="10"></circle>
+                                    <polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"></polygon>
+                                </svg>
+                                <span class="tour-btn-text">Quick Tour</span>
+                            </button>
                         <?php endif; ?>
                         <?php render_notification_bell($user, $page, $unreadNotifsCount); ?>
                         <button class="theme-toggle" id="theme-toggle-btn" title="Toggle Light/Dark Mode" type="button">

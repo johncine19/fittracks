@@ -271,6 +271,28 @@ function member_dashboard(PDO $pdo, array $user): void
     render_announcement_carousel(get_active_announcements('members'));
     ?>
 
+    <!-- Welcome Guided Tour Banner for Members -->
+    <div class="gym-tour-welcome-banner member-tour-welcome-banner" id="member-tour-welcome-banner" style="margin-bottom: 20px;">
+        <div class="tour-banner-content">
+            <div class="tour-banner-icon">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="12" cy="12" r="10"></circle>
+                    <polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"></polygon>
+                </svg>
+            </div>
+            <div class="tour-banner-text">
+                <h3>Welcome to FitTracks!</h3>
+                <p>New to your fitness hub? Take a quick guided tour to explore your workouts, diet plan, class bookings, and contactless QR pass.</p>
+            </div>
+        </div>
+        <div class="tour-banner-actions">
+            <button type="button" class="btn-start-tour" onclick="if(window.startMemberTour){window.startMemberTour(true);}">
+                Take Quick Tour
+            </button>
+            <button type="button" class="btn-dismiss-tour" onclick="if(window.dismissMemberTourBanner){window.dismissMemberTourBanner();}" title="Dismiss banner">&times;</button>
+        </div>
+    </div>
+
     <!-- Top View Switcher with Vector SVG Icons & Responsive Labels -->
     <nav class="member-dashboard-nav" aria-label="Dashboard Views">
         <button type="button" class="member-dash-tab active" id="tab-btn-today" onclick="switchMemberDashboardTab('today')" title="Today & Workout">
