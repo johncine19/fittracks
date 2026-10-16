@@ -246,8 +246,42 @@
             const isInsideSidebar = !!(targetEl && targetEl.closest && targetEl.closest('#main-sidebar, .sidebar'));
             const padding = 5;
 
-            // Update SVG spotlight hole & focus ring
+            const popover = this.popoverEl;
+            const arrow = document.getElementById('ft-popover-arrow');
+            const winWidth = window.innerWidth;
+            const winHeight = window.innerHeight;
+            const margin = 12;
+
+            // Guardrail: if target has zero/negative dimensions or is completely invisible/detached
+            const isZeroSize = (rect.width <= 0 || rect.height <= 0 || (rect.left === 0 && rect.top === 0 && rect.width === 0));
             const holeEl = document.getElementById('ft-spotlight-hole');
+
+            if (isZeroSize || targetEl === document.body) {
+                if (holeEl) {
+                    holeEl.setAttribute('width', 0);
+                    holeEl.setAttribute('height', 0);
+                }
+                if (this.beaconRingEl) {
+                    this.beaconRingEl.style.display = 'none';
+                }
+                if (arrow) arrow.style.display = 'none';
+
+                const popWidth = popover.offsetWidth || 320;
+                const popHeight = popover.offsetHeight || 150;
+                popover.setAttribute('data-placement', 'center');
+                popover.style.left = `${Math.max(margin, Math.round((winWidth - popWidth) / 2))}px`;
+                popover.style.top = `${Math.max(margin, Math.round((winHeight - popHeight) / 2))}px`;
+                popover.style.right = '';
+                popover.style.bottom = '';
+                popover.style.width = '';
+                return;
+            }
+
+            if (this.beaconRingEl) {
+                this.beaconRingEl.style.display = '';
+            }
+
+            // Update SVG spotlight hole & focus ring
             if (holeEl && this.overlayEl.classList.contains('is-active')) {
                 const hx = Math.max(0, rect.left - padding);
                 const hy = Math.max(0, rect.top - padding);
@@ -266,13 +300,6 @@
                     this.beaconRingEl.style.height = `${hh}px`;
                 }
             }
-
-            // Position the Popover Card
-            const popover = this.popoverEl;
-            const arrow = document.getElementById('ft-popover-arrow');
-            const winWidth = window.innerWidth;
-            const winHeight = window.innerHeight;
-            const margin = 12;
 
             if (winWidth <= 640 || (rect.right + 330 > winWidth && isInsideSidebar)) {
                 // If target is in the lower half (like Profile in sidebar-bottom), dock at the TOP so the target is completely visible!
@@ -423,17 +450,40 @@
             this.activeTourIndex = index;
             const step = this.activeTourSteps[index];
 
+            // 1. Auto-switch member dashboard tab if target is inside an inactive tab panel
+            const rawTarget = document.querySelector(step.targetSelector) || (step.fallbackSelector ? document.querySelector(step.fallbackSelector) : null);
+            if (rawTarget) {
+                const hiddenTabPanel = rawTarget.closest('.member-tab-panel');
+                if (hiddenTabPanel && !hiddenTabPanel.classList.contains('active') && hiddenTabPanel.id) {
+                    const tabKey = hiddenTabPanel.id.replace('panel-', '');
+                    const tabBtn = document.getElementById('tab-btn-' + tabKey);
+                    if (typeof window.switchMemberDashboardTab === 'function') {
+                        window.switchMemberDashboardTab(tabKey);
+                    } else if (tabBtn) {
+                        tabBtn.click();
+                    }
+                }
+            }
+
             const candidates = Array.from(document.querySelectorAll(step.targetSelector));
             let target = candidates.find(el => {
                 const r = el.getBoundingClientRect();
                 const style = window.getComputedStyle(el);
-                return r.width > 30 && r.height > 20 && style.display !== 'none' && style.visibility !== 'hidden';
-            }) || candidates[0];
+                return r.width > 20 && r.height > 20 && style.display !== 'none' && style.visibility !== 'hidden';
+            });
 
             if (!target && step.fallbackSelector) {
-                target = document.querySelector(step.fallbackSelector);
+                const fallbackCandidates = Array.from(document.querySelectorAll(step.fallbackSelector));
+                target = fallbackCandidates.find(el => {
+                    const r = el.getBoundingClientRect();
+                    const style = window.getComputedStyle(el);
+                    return r.width > 20 && r.height > 20 && style.display !== 'none' && style.visibility !== 'hidden';
+                });
             }
-            if (!target) target = document.body;
+
+            if (!target) {
+                target = document.querySelector('.member-dash-tab.active') || document.querySelector('.member-dashboard-nav') || document.body;
+            }
 
             this.currentTargetEl = target;
 
@@ -558,6 +608,16 @@
                 document.body.classList.add('loaded');
             }
 
+            // If member tour, ensure 'Today & Workout' tab is active so fitness hub stats are visible
+            if (tourType === 'member') {
+                const todayBtn = document.getElementById('tab-btn-today');
+                if (typeof window.switchMemberDashboardTab === 'function') {
+                    window.switchMemberDashboardTab('today');
+                } else if (todayBtn) {
+                    todayBtn.click();
+                }
+            }
+
             this.renderTourStep(0);
         },
 
@@ -642,7 +702,17 @@
             return;
         }
 
-        FitTrackSpotlight.startTour(MEMBER_TOUR_STEPS, 'member');
+        // Switch to 'Today & Workout' tab so .member-stats-grid is rendered and measurable
+        const todayBtn = document.getElementById('tab-btn-today');
+        if (typeof window.switchMemberDashboardTab === 'function') {
+            window.switchMemberDashboardTab('today');
+        } else if (todayBtn) {
+            todayBtn.click();
+        }
+
+        setTimeout(() => {
+            FitTrackSpotlight.startTour(MEMBER_TOUR_STEPS, 'member');
+        }, 40);
     };
 
     window.closeMemberTour = function (markCompleted = true) {
