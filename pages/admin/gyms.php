@@ -239,6 +239,12 @@ function gyms_page(): void
     .gym-card-detail-value.email-value {
         color: var(--muted);
         font-size: 12.5px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        max-width: 68%;
+        display: block;
+        user-select: all;
     }
 
     .gym-card-actions {

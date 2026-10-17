@@ -847,9 +847,6 @@ function landing_page(): void
        ========================================================================== -->
         <section class="has-parallax-orbs features-section reveal-on-scroll" id="features">
             <img class="capabilities-background" src="assets/landing/hero_gym.png" alt="" aria-hidden="true" loading="lazy" decoding="async">
-            <div class="capabilities-flashlight-dim" aria-hidden="true"></div>
-            <div class="capabilities-flashlight-glow" aria-hidden="true"></div>
-            <div class="capabilities-flashlight-ripple" aria-hidden="true"></div>
             <div class="parallax-orbs" aria-hidden="true">
                 <span class="parallax-orb orb-lime" data-parallax="0.22"></span>
                 <span class="parallax-orb orb-sky" data-parallax="-0.12"></span>

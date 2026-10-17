@@ -541,6 +541,23 @@
         transform: translateX(2px);
     }
 
+    @media (max-width: 640px) {
+        .explore-card-item {
+            flex-direction: column;
+            align-items: stretch;
+            gap: 12px;
+            padding: 14px;
+        }
+        .explore-action-btn {
+            width: 100%;
+            justify-content: center;
+            padding: 9px 16px;
+            font-size: 13px;
+            box-sizing: border-box;
+            align-self: stretch;
+        }
+    }
+
     /* Light Theme Styling for Explore Buttons */
     html[data-theme="light"] .explore-browse-btn,
     [data-theme="light"] .explore-browse-btn {

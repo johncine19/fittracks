@@ -184,38 +184,6 @@
         window.addEventListener('load', updateNotchPaths, { passive: true });
     }
 
-    // ==========================================================================
-    // PLATFORM CAPABILITIES — SERPENTINE DOTTED TRACK GENERATOR
-    // ==========================================================================
-    function initCapabilitiesFlashlight() {
-        const section = document.getElementById('features');
-        if (!section || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
-        const finePointer = window.matchMedia('(hover: hover) and (pointer: fine)').matches;
-        const ripple = section.querySelector('.capabilities-flashlight-ripple');
-
-        const moveLight = (event) => {
-            const rect = section.getBoundingClientRect();
-            section.style.setProperty('--cap-light-x', `${event.clientX - rect.left}px`);
-            section.style.setProperty('--cap-light-y', `${event.clientY - rect.top}px`);
-        };
-
-        if (finePointer) {
-            section.addEventListener('pointermove', moveLight, { passive: true });
-            section.addEventListener('pointerleave', () => {
-                section.style.setProperty('--cap-light-x', '50%');
-                section.style.setProperty('--cap-light-y', '50%');
-            }, { passive: true });
-        }
-
-        section.addEventListener('pointerdown', (event) => {
-            if (event.pointerType === 'mouse' || !ripple) return;
-            moveLight(event);
-            ripple.classList.remove('is-active');
-            void ripple.offsetWidth;
-            ripple.classList.add('is-active');
-        }, { passive: true });
-    }
-
     function initCapabilitiesSerpentineTrack() {
         const container = document.getElementById('capabilitiesSerpentineTimeline');
         if (!container) return;
@@ -261,13 +229,11 @@
         document.addEventListener('DOMContentLoaded', () => {
             initArchitecturePaths();
             initFitTrackNotchedCard();
-            initCapabilitiesFlashlight();
             initCapabilitiesSerpentineTrack();
         });
     } else {
         initArchitecturePaths();
         initFitTrackNotchedCard();
-        initCapabilitiesFlashlight();
         initCapabilitiesSerpentineTrack();
     }
 })();
