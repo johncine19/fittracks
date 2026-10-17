@@ -22,3 +22,12 @@ Options -Indexes
         Deny from all
     </IfModule>
 </FilesMatch>
+
+# Route missing files and directories to FitTracks 404 handler
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    RewriteCond %{REQUEST_FILENAME} !-f
+    RewriteCond %{REQUEST_FILENAME} !-d
+    RewriteRule ^ index.php?page=404 [L,QSA]
+</IfModule>
+

@@ -247,9 +247,18 @@ try {
         'terms' => ['file' => 'pages/shared/terms.php', 'handler' => 'terms_page'],
         'privacy' => ['file' => 'pages/shared/privacy.php', 'handler' => 'privacy_page'],
         'view_permit' => ['file' => 'pages/admin/view_permit.php', 'handler' => 'view_permit_handler'],
+        '404' => ['file' => 'pages/shared/404.php', 'handler' => 'not_found_page'],
     ];
 
-    $route = $routes[$page] ?? $routes['dashboard'];
+    if (!isset($routes[$page])) {
+        http_response_code(404);
+        $route = $routes['404'];
+    } else {
+        $route = $routes[$page];
+        if ($page === '404') {
+            http_response_code(404);
+        }
+    }
     require_once __DIR__ . '/' . $route['file'];
     $route['handler']();
 
