@@ -615,7 +615,7 @@
 .term-platforms-bar {
     margin-top: clamp(2.5rem, 5vw, 3.5rem);
     display: grid;
-    grid-template-columns: repeat(4, 1fr);
+    grid-template-columns: repeat(3, 1fr);
     gap: 14px;
 }
 

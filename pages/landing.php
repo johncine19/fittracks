@@ -1609,16 +1609,6 @@ function landing_page(): void
                             <div class="term-plat-sub">Built-in or USB HD Video Input</div>
                         </div>
                     </div>
-
-                    <div class="term-platform-card">
-                        <div class="term-plat-icon">
-                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3h4v4H3zM17 3h4v4h-4zM17 17h4v4h-4zM3 17h4v4H3z"/><path d="M7 12h10"/></svg>
-                        </div>
-                        <div>
-                            <div class="term-plat-name">Barcode Laser Guns</div>
-                            <div class="term-plat-sub">Instant USB HID Keyboard Input</div>
-                        </div>
-                    </div>
                 </div>
 
                 <!-- 3 Pillars Grid -->
