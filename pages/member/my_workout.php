@@ -9,9 +9,8 @@ function my_workout_page(): void
     $userId = (int) $user['user_id'];
 
     if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
-        $hasTrainerPlan = scalar('SELECT 1 FROM training_plans WHERE member_user_id = ? AND trainer_id IS NOT NULL AND status = "active" LIMIT 1', [$userId]);
-        if ($hasTrainerPlan) {
-            flash('Your trainer has published a workout plan for you. You cannot overwrite it.', 'danger');
+        if (!is_member_self_guided($userId)) {
+            flash('Your workout program is customized and managed by your trainer/coach. Please contact your coach for routine adjustments.', 'warning');
         } else {
             generate_workout_plan($userId);
             notify_user($userId, 'system', 'Workout Plan Generated', 'Your weekly exercise schedule has been refreshed based on your current profile.');
@@ -39,8 +38,22 @@ function my_workout_page(): void
     $stmt->execute([$userId]);
     $plan = $stmt->fetch();
 
+    $isSelfGuided = is_member_self_guided($userId);
     $hasTrainerPlan = !empty($plan['trainer_id']);
-    $trainerName = $hasTrainerPlan ? h(trim(($plan['t_first'] ?? '') . ' ' . ($plan['t_last'] ?? ''))) : 'Self-Guided Workout';
+
+    if (!$isSelfGuided && !$hasTrainerPlan) {
+        $assignedTrainerName = scalar(
+            'SELECT CONCAT(u.first_name, " ", u.last_name)
+             FROM trainer_assignments ta
+             JOIN trainer_profiles tp ON ta.trainer_id = tp.trainer_id
+             JOIN users u ON tp.user_id = u.user_id
+             WHERE ta.member_user_id = ? AND ta.status = "active" LIMIT 1',
+            [$userId]
+        );
+        $trainerName = $assignedTrainerName ? h(trim($assignedTrainerName)) : 'Personal Trainer';
+    } else {
+        $trainerName = $hasTrainerPlan ? h(trim(($plan['t_first'] ?? '') . ' ' . ($plan['t_last'] ?? ''))) : 'Self-Guided Workout';
+    }
 
     // Timezone and Month Setup
     $today = date('Y-m-d');
@@ -271,12 +284,12 @@ function my_workout_page(): void
 
                 <span class="workout-assigned-pill">
                     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--muted)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-                    <span style="color: var(--muted); font-weight: 500;"><?= $hasTrainerPlan ? 'Assigned by:' : 'Mode:' ?></span>
+                    <span style="color: var(--muted); font-weight: 500;"><?= !$isSelfGuided ? 'Assigned by:' : 'Mode:' ?></span>
                     <strong style="color: var(--ink); font-weight: 600;"><?= $trainerName ?></strong>
                 </span>
             </div>
 
-            <?php if (!$hasTrainerPlan): ?>
+            <?php if ($isSelfGuided): ?>
                 <form id="regenerate-plan-form" class="workout-action-form" method="post">
                     <?= csrf_field() ?>
                     <button type="submit" data-confirm="<?= $plan ? 'This will archive your current plan and generate a new one based on your profile. Continue?' : 'Generate a new AI workout plan?' ?>" data-confirm-btn="<?= $plan ? 'Yes, Regenerate Plan' : 'Yes, Generate Plan' ?>" class="btn btn-workout-action">
@@ -284,6 +297,13 @@ function my_workout_page(): void
                         <span><?= $plan ? 'Regenerate Plan' : 'Generate Plan' ?></span>
                     </button>
                 </form>
+            <?php else: ?>
+                <div class="workout-action-form" title="Your workout routine is managed by your assigned coach (<?= $trainerName ?>). Contact your coach for plan adjustments.">
+                    <button type="button" class="btn btn-workout-action is-disabled" disabled style="opacity: 0.65; cursor: not-allowed; border-color: rgba(255,255,255,0.12); background: rgba(255,255,255,0.03);">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                        <span>Coach Managed</span>
+                    </button>
+                </div>
             <?php endif; ?>
         </div>
 

@@ -583,7 +583,15 @@ function calculate_member_goal_progress(int $memberId, array $profile, array $pr
     }
 
     // Phase 3: Evaluate and attach goal milestones
-    $result['milestones'] = evaluate_and_award_goal_milestones($memberId, $profile, $progressLogs);
+    $milestoneContext = array_merge($additionalContext, [
+        'checkins_30d' => $checkins30d,
+        'workouts_this_week' => $workoutsDoneThisWeek,
+        'exercises_30d' => $exercisesCompleted30d,
+        'weekly_target' => $weeklyTarget,
+        'raw_goal' => $rawGoal,
+        'model' => $model
+    ]);
+    $result['milestones'] = evaluate_and_award_goal_milestones($memberId, $profile, $progressLogs, $rawGoal, $milestoneContext);
 
     return $result;
 }
@@ -619,6 +627,76 @@ function get_all_goal_milestone_definitions(): array
             'desc' => 'Gained ≥ 2.0 cm on chest circumference',
             'icon' => '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>',
         ],
+        'deficit_discipline' => [
+            'name' => 'Deficit Discipline',
+            'desc' => 'Completed 8+ workouts during active fat loss',
+            'icon' => '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/></svg>',
+        ],
+        'core_builder' => [
+            'name' => 'Core Sculptor',
+            'desc' => 'Completed 8+ dedicated workouts toward core definition',
+            'icon' => '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><rect width="7" height="7" x="3" y="3" rx="1"/><rect width="7" height="7" x="14" y="3" rx="1"/><rect width="7" height="7" x="14" y="14" rx="1"/><rect width="7" height="7" x="3" y="14" rx="1"/></svg>',
+        ],
+        'hypertrophy_sets' => [
+            'name' => 'Volume Overload',
+            'desc' => 'Completed 8+ muscle-building hypertrophy sessions',
+            'icon' => '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="m6.5 6.5 11 11"/><path d="m21 21-1-1"/><path d="m3 3 1 1"/><path d="m18 22 4-4"/><path d="m2 6 4-4"/></svg>',
+        ],
+        'pr_crusher' => [
+            'name' => 'PR Crusher',
+            'desc' => 'Logged 3+ compound personal records or strength progressions',
+            'icon' => '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>',
+        ],
+        'load_master' => [
+            'name' => 'Load Master',
+            'desc' => 'Reached ≥ 90% of target working weight load',
+            'icon' => '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="4"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>',
+        ],
+        'iron_discipline' => [
+            'name' => 'Iron Discipline',
+            'desc' => 'Completed 8+ dedicated strength training sessions',
+            'icon' => '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="12" cy="8" r="6"/><path d="M15.477 12.89 17 22l-5-3-5 3 1.523-9.11"/></svg>',
+        ],
+        'aerobic_base' => [
+            'name' => 'Aerobic Engine',
+            'desc' => 'Reached ≥ 30 min duration or 80%+ of target endurance duration',
+            'icon' => '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>',
+        ],
+        'distance_crusher' => [
+            'name' => 'Distance Pioneer',
+            'desc' => 'Reached ≥ 5.0 km or 80%+ of target endurance distance',
+            'icon' => '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><polygon points="3 11 22 2 13 21 11 13 3 11"/></svg>',
+        ],
+        'stamina_streak' => [
+            'name' => 'Stamina Streak',
+            'desc' => 'Completed 8+ cardio sessions or gym visits',
+            'icon' => '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M20.42 4.58a5.4 5.4 0 0 0-7.65 0l-.77.78-.77-.78a5.4 5.4 0 0 0-7.65 7.65l.77.78L12 20.65l7.65-7.64.77-.78a5.4 5.4 0 0 0 0-7.65z"/></svg>',
+        ],
+        'mobility_pioneer' => [
+            'name' => 'Range of Motion',
+            'desc' => 'Completed 6+ mobility or stretching sessions',
+            'icon' => '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="12" cy="5" r="2"/><path d="M5 20l4-7 3 3 5-7 3 2"/></svg>',
+        ],
+        'flex_streak' => [
+            'name' => 'Fluid Mover',
+            'desc' => 'Maintained mobility routine across 3+ unique weeks',
+            'icon' => '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M2 12h20M2 6h20M2 18h20"/></svg>',
+        ],
+        'recomp_builder' => [
+            'name' => 'Tone & Definition',
+            'desc' => 'Completed 6+ workouts preserving muscle while leaning out',
+            'icon' => '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>',
+        ],
+        'gym_regular' => [
+            'name' => 'Active Gymgoer',
+            'desc' => 'Logged 8+ gym visits in the last 30 days',
+            'icon' => '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><rect width="18" height="18" x="3" y="4" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>',
+        ],
+        'healthy_rhythm' => [
+            'name' => 'Balanced Rhythm',
+            'desc' => 'Maintained positive fitness habit across 3+ unique weeks',
+            'icon' => '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>',
+        ],
         'weight_goal_met' => [
             'name' => 'Target Achieved',
             'desc' => 'Reached or passed target body weight',
@@ -633,15 +711,99 @@ function get_all_goal_milestone_definitions(): array
 }
 
 /**
- * Evaluates and awards goal milestone badges into member_badges, returning structured milestone items.
+ * Returns tailored milestone keys for a specific fitness goal
  */
-function evaluate_and_award_goal_milestones(int $memberId, array $profile, array $progressLogs = []): array
+function get_milestone_keys_for_goal(string $goal, array $profile = []): array
+{
+    $model = get_goal_metric_model($goal);
+    $g = strtolower(trim(str_replace(['_', '-'], ' ', $goal)));
+    $hasTargetWeight = !empty($profile['target_weight_kg']) && (float)$profile['target_weight_kg'] > 0;
+
+    switch ($model) {
+        case 'fat_loss':
+            $keys = ['first_log', 'waist_trimmer', 'lean_warrior', 'deficit_discipline'];
+            if ($hasTargetWeight) {
+                $keys[] = 'weight_goal_met';
+            }
+            $keys[] = 'consistency_streak';
+            return $keys;
+
+        case 'hypertrophy':
+            if (str_contains($g, 'six pack')) {
+                return ['first_log', 'waist_trimmer', 'lean_warrior', 'core_builder', 'consistency_streak'];
+            }
+            if (str_contains($g, 'biceps') || str_contains($g, 'arms')) {
+                $keys = ['first_log', 'arm_builder', 'hypertrophy_sets'];
+                if ($hasTargetWeight) {
+                    $keys[] = 'weight_goal_met';
+                }
+                $keys[] = 'consistency_streak';
+                return $keys;
+            }
+            if (str_contains($g, 'chest')) {
+                $keys = ['first_log', 'chest_sculptor', 'hypertrophy_sets'];
+                if ($hasTargetWeight) {
+                    $keys[] = 'weight_goal_met';
+                }
+                $keys[] = 'consistency_streak';
+                return $keys;
+            }
+            // General hypertrophy, lean body mass, back/v-taper, legs
+            $keys = ['first_log', 'arm_builder', 'chest_sculptor', 'hypertrophy_sets'];
+            if ($hasTargetWeight) {
+                $keys[] = 'weight_goal_met';
+            }
+            $keys[] = 'consistency_streak';
+            return $keys;
+
+        case 'strength':
+            $keys = ['first_log', 'pr_crusher', 'load_master', 'iron_discipline'];
+            if ($hasTargetWeight) {
+                $keys[] = 'weight_goal_met';
+            }
+            $keys[] = 'consistency_streak';
+            return $keys;
+
+        case 'endurance':
+            return ['first_log', 'aerobic_base', 'distance_crusher', 'stamina_streak', 'consistency_streak'];
+
+        case 'mobility':
+            return ['first_log', 'mobility_pioneer', 'flex_streak', 'consistency_streak'];
+
+        case 'recomposition':
+            $keys = ['first_log', 'waist_trimmer', 'lean_warrior', 'recomp_builder'];
+            if ($hasTargetWeight) {
+                $keys[] = 'weight_goal_met';
+            }
+            $keys[] = 'consistency_streak';
+            return $keys;
+
+        case 'lifestyle':
+        default:
+            $keys = ['first_log', 'gym_regular', 'healthy_rhythm'];
+            if ($hasTargetWeight) {
+                $keys[] = 'weight_goal_met';
+            }
+            $keys[] = 'consistency_streak';
+            return $keys;
+    }
+}
+
+/**
+ * Evaluates and awards goal milestone badges into member_badges, returning structured milestone items tailored to the active goal.
+ */
+function evaluate_and_award_goal_milestones(int $memberId, array $profile, array $progressLogs = [], string $rawGoal = '', array $context = []): array
 {
     if ($memberId <= 0) {
         return [];
     }
 
+    if ($rawGoal === '') {
+        $rawGoal = (string)($profile['primary_goal'] ?? 'general_fitness');
+    }
+
     $defs = get_all_goal_milestone_definitions();
+    $activeKeys = get_milestone_keys_for_goal($rawGoal, $profile);
     $pdo = db();
 
     // 1. Gather baseline and latest values
@@ -664,6 +826,11 @@ function evaluate_and_award_goal_milestones(int $memberId, array $profile, array
     $currChest = $latest && !empty($latest['chest_cm']) ? (float)$latest['chest_cm'] : (float)($profile['chest_cm'] ?? 0);
     $baseChest = $earliest && !empty($earliest['chest_cm']) ? (float)$earliest['chest_cm'] : (float)($profile['chest_cm'] ?? 0);
 
+    $checkins30d = (int)($context['checkins_30d'] ?? 0);
+    $exercisesCompleted30d = (int)($context['exercises_30d'] ?? 0);
+    $totalLogsCount = count($progressLogs);
+    $doneWorkouts = max($checkins30d, $totalLogsCount);
+
     // Week streak calculation: distinct calendar weeks in progress logs
     $logWeeks = [];
     foreach ($progressLogs as $pl) {
@@ -673,17 +840,17 @@ function evaluate_and_award_goal_milestones(int $memberId, array $profile, array
     }
     $totalWeeksLogged = count($logWeeks);
 
-    // 2. Evaluate criteria for each milestone
+    // 2. Evaluate criteria for all milestones
     $qualifies = [];
 
-    // Milestone 1: Journey Begun
+    // Milestone: Journey Begun
     $qualifies['first_log'] = [
-        'met' => count($progressLogs) >= 1,
-        'label' => count($progressLogs) >= 1 ? 'Logged' : '0 / 1 log',
-        'pct' => count($progressLogs) >= 1 ? 100 : 0
+        'met' => $totalLogsCount >= 1,
+        'label' => $totalLogsCount >= 1 ? 'Logged' : '0 / 1 log',
+        'pct' => $totalLogsCount >= 1 ? 100 : 0
     ];
 
-    // Milestone 2: Waist Sculptor (drop >= 3.0 cm)
+    // Milestone: Waist Sculptor (drop >= 3.0 cm)
     $waistDrop = ($baseWaist > 0 && $currWaist > 0) ? round($baseWaist - $currWaist, 1) : 0.0;
     $qualifies['waist_trimmer'] = [
         'met' => $waistDrop >= 3.0,
@@ -691,7 +858,7 @@ function evaluate_and_award_goal_milestones(int $memberId, array $profile, array
         'pct' => (int)min(100, max(0, round(($waistDrop / 3.0) * 100)))
     ];
 
-    // Milestone 3: Lean Machine (drop >= 2.5% body fat)
+    // Milestone: Lean Machine (drop >= 2.5% body fat)
     $bfDrop = ($baseBf !== null && $currBf !== null) ? round($baseBf - $currBf, 1) : 0.0;
     $qualifies['lean_warrior'] = [
         'met' => $bfDrop >= 2.5,
@@ -699,7 +866,7 @@ function evaluate_and_award_goal_milestones(int $memberId, array $profile, array
         'pct' => (int)min(100, max(0, round(($bfDrop / 2.5) * 100)))
     ];
 
-    // Milestone 4: Arm Builder (gain >= 1.5 cm)
+    // Milestone: Arm Builder (gain >= 1.5 cm)
     $armGain = ($baseArm > 0 && $currArm > 0) ? round($currArm - $baseArm, 1) : 0.0;
     $qualifies['arm_builder'] = [
         'met' => $armGain >= 1.5,
@@ -707,7 +874,7 @@ function evaluate_and_award_goal_milestones(int $memberId, array $profile, array
         'pct' => (int)min(100, max(0, round(($armGain / 1.5) * 100)))
     ];
 
-    // Milestone 5: Chest Armor (gain >= 2.0 cm)
+    // Milestone: Chest Armor (gain >= 2.0 cm)
     $chestGain = ($baseChest > 0 && $currChest > 0) ? round($currChest - $baseChest, 1) : 0.0;
     $qualifies['chest_sculptor'] = [
         'met' => $chestGain >= 2.0,
@@ -715,7 +882,124 @@ function evaluate_and_award_goal_milestones(int $memberId, array $profile, array
         'pct' => (int)min(100, max(0, round(($chestGain / 2.0) * 100)))
     ];
 
-    // Milestone 6: Target Achieved
+    // Milestone: Deficit Discipline (Fat Loss workouts)
+    $qualifies['deficit_discipline'] = [
+        'met' => $doneWorkouts >= 8,
+        'label' => min(8, $doneWorkouts) . ' / 8 sessions',
+        'pct' => (int)min(100, round(($doneWorkouts / 8) * 100))
+    ];
+
+    // Milestone: Core Sculptor (Six-Pack workouts)
+    $qualifies['core_builder'] = [
+        'met' => $doneWorkouts >= 8,
+        'label' => min(8, $doneWorkouts) . ' / 8 sessions',
+        'pct' => (int)min(100, round(($doneWorkouts / 8) * 100))
+    ];
+
+    // Milestone: Volume Overload (Hypertrophy sets/sessions)
+    $qualifies['hypertrophy_sets'] = [
+        'met' => $doneWorkouts >= 8,
+        'label' => min(8, $doneWorkouts) . ' / 8 sessions',
+        'pct' => (int)min(100, round(($doneWorkouts / 8) * 100))
+    ];
+
+    // Milestone: PR Crusher (Strength personal records)
+    $prsCount = max(1, (int)floor($exercisesCompleted30d / 6));
+    $prProgress = min(3, max(1, $prsCount));
+    $qualifies['pr_crusher'] = [
+        'met' => $exercisesCompleted30d >= 6 || $prsCount >= 3,
+        'label' => $prProgress . ' / 3 PRs',
+        'pct' => (int)min(100, round(($prProgress / 3) * 100))
+    ];
+
+    // Milestone: Load Master (Strength working max load)
+    $currStrengthMax = !empty($profile['current_strength_max_kg']) ? (float)$profile['current_strength_max_kg'] : 0.0;
+    $targetStrengthMax = !empty($profile['target_strength_max_kg']) ? (float)$profile['target_strength_max_kg'] : 0.0;
+    if ($targetStrengthMax > 0) {
+        $liftPct = (int)min(100, round(($currStrengthMax / $targetStrengthMax) * 100));
+        $qualifies['load_master'] = [
+            'met' => $liftPct >= 90,
+            'label' => $liftPct . '% / 90%',
+            'pct' => (int)min(100, round(($liftPct / 90) * 100))
+        ];
+    } else {
+        $qualifies['load_master'] = [
+            'met' => $currStrengthMax >= 60.0,
+            'label' => $currStrengthMax > 0 ? "{$currStrengthMax} kg" : 'Target not set',
+            'pct' => $currStrengthMax > 0 ? 70 : 0
+        ];
+    }
+
+    // Milestone: Iron Discipline (Strength consistency)
+    $qualifies['iron_discipline'] = [
+        'met' => $doneWorkouts >= 8,
+        'label' => min(8, $doneWorkouts) . ' / 8 sessions',
+        'pct' => (int)min(100, round(($doneWorkouts / 8) * 100))
+    ];
+
+    // Milestone: Aerobic Engine (Endurance duration)
+    $currEnduranceTime = !empty($profile['current_endurance_time_mins']) ? (int)$profile['current_endurance_time_mins'] : 25;
+    $targetEnduranceTime = !empty($profile['target_endurance_time_mins']) ? (int)$profile['target_endurance_time_mins'] : 35;
+    $timeGoal = max(25, $targetEnduranceTime > 0 ? (int)round($targetEnduranceTime * 0.8) : 30);
+    $qualifies['aerobic_base'] = [
+        'met' => $currEnduranceTime >= $timeGoal,
+        'label' => min($timeGoal, $currEnduranceTime) . ' / ' . $timeGoal . ' min',
+        'pct' => (int)min(100, round(($currEnduranceTime / max(1, $timeGoal)) * 100))
+    ];
+
+    // Milestone: Distance Pioneer (Endurance distance)
+    $currEnduranceDist = !empty($profile['current_endurance_distance_km']) ? (float)$profile['current_endurance_distance_km'] : 3.0;
+    $targetEnduranceDist = !empty($profile['target_endurance_distance_km']) ? (float)$profile['target_endurance_distance_km'] : 5.0;
+    $distGoal = max(3.0, $targetEnduranceDist > 0 ? round($targetEnduranceDist * 0.8, 1) : 5.0);
+    $qualifies['distance_crusher'] = [
+        'met' => $currEnduranceDist >= $distGoal,
+        'label' => min($distGoal, $currEnduranceDist) . ' / ' . $distGoal . ' km',
+        'pct' => (int)min(100, round(($currEnduranceDist / max(0.1, $distGoal)) * 100))
+    ];
+
+    // Milestone: Stamina Streak (Endurance consistency)
+    $qualifies['stamina_streak'] = [
+        'met' => $doneWorkouts >= 8,
+        'label' => min(8, $doneWorkouts) . ' / 8 sessions',
+        'pct' => (int)min(100, round(($doneWorkouts / 8) * 100))
+    ];
+
+    // Milestone: Range of Motion (Mobility sessions)
+    $qualifies['mobility_pioneer'] = [
+        'met' => $doneWorkouts >= 6,
+        'label' => min(6, $doneWorkouts) . ' / 6 sessions',
+        'pct' => (int)min(100, round(($doneWorkouts / 6) * 100))
+    ];
+
+    // Milestone: Fluid Mover (Mobility streak)
+    $qualifies['flex_streak'] = [
+        'met' => $totalWeeksLogged >= 3,
+        'label' => min(3, $totalWeeksLogged) . ' / 3 wks',
+        'pct' => (int)min(100, round(($totalWeeksLogged / 3) * 100))
+    ];
+
+    // Milestone: Tone & Definition (Recomposition)
+    $qualifies['recomp_builder'] = [
+        'met' => $doneWorkouts >= 6,
+        'label' => min(6, $doneWorkouts) . ' / 6 sessions',
+        'pct' => (int)min(100, round(($doneWorkouts / 6) * 100))
+    ];
+
+    // Milestone: Active Gymgoer (Lifestyle)
+    $qualifies['gym_regular'] = [
+        'met' => $checkins30d >= 8,
+        'label' => min(8, $checkins30d) . ' / 8 visits',
+        'pct' => (int)min(100, round(($checkins30d / 8) * 100))
+    ];
+
+    // Milestone: Balanced Rhythm (Lifestyle)
+    $qualifies['healthy_rhythm'] = [
+        'met' => $totalWeeksLogged >= 3,
+        'label' => min(3, $totalWeeksLogged) . ' / 3 wks',
+        'pct' => (int)min(100, round(($totalWeeksLogged / 3) * 100))
+    ];
+
+    // Milestone: Target Achieved (Weight)
     $weightMet = false;
     $weightProgressPct = 0;
     if ($targetWeight > 0 && $baseWeight > 0 && $currWeight > 0) {
@@ -737,14 +1021,14 @@ function evaluate_and_award_goal_milestones(int $memberId, array $profile, array
         'pct' => $weightMet ? 100 : $weightProgressPct
     ];
 
-    // Milestone 7: Habit Master (4+ unique weeks)
+    // Milestone: Habit Master (4+ unique weeks)
     $qualifies['consistency_streak'] = [
         'met' => $totalWeeksLogged >= 4,
         'label' => min(4, $totalWeeksLogged) . ' / 4 wks',
         'pct' => (int)min(100, round(($totalWeeksLogged / 4) * 100))
     ];
 
-    // 3. Persist newly met milestones into member_badges
+    // 3. Persist all newly met milestones into member_badges
     $badgesToInsert = [];
     foreach ($qualifies as $key => $status) {
         if ($status['met']) {
@@ -773,9 +1057,13 @@ function evaluate_and_award_goal_milestones(int $memberId, array $profile, array
         $unlockedMap[$cleanKey] = date('M j, Y', strtotime($row['unlocked_at']));
     }
 
-    // 5. Build final structured milestones list
+    // 5. Build final structured milestones list curated for the active goal
     $milestones = [];
-    foreach ($defs as $key => $d) {
+    foreach ($activeKeys as $key) {
+        if (!isset($defs[$key])) {
+            continue;
+        }
+        $d = $defs[$key];
         $isUnlocked = isset($unlockedMap[$key]) || ($qualifies[$key]['met'] ?? false);
         $unlockedAt = $unlockedMap[$key] ?? ($isUnlocked ? date('M j, Y') : null);
         $milestones[] = [
@@ -830,12 +1118,6 @@ function render_goal_hero_card(array $goalProgress, bool $canEdit = true, bool $
                         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="12" cy="12" r="10"/><path d="m4.93 4.93 4.24 4.24"/><path d="m14.83 9.17 4.24-4.24"/><path d="m14.83 14.83 4.24 4.24"/><path d="m9.17 14.83-4.24 4.24"/></svg>
                         <span><?= $isTrainer ? 'Adjust Targets' : 'Set Targets' ?></span>
                     </button>
-                    <?php if (!$isTrainer): ?>
-                        <button type="button" class="btn-change-goal" onclick="if(typeof openProfileModal === 'function'){ openProfileModal('goal'); } else { window.location.href='index.php?page=profile#goal'; }" title="Change goal">
-                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-                            <span>Change Goal</span>
-                        </button>
-                    <?php endif; ?>
                 <?php endif; ?>
             </div>
         </div>

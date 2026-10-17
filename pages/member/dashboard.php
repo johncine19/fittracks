@@ -765,6 +765,19 @@ function member_dashboard(PDO $pdo, array $user): void
                     ]
                 ];
 
+                if (function_exists('get_all_goal_milestone_definitions')) {
+                    foreach (get_all_goal_milestone_definitions() as $mKey => $mDef) {
+                        $fullKey = 'milestone_' . $mKey;
+                        if (!isset($badgeDefs[$fullKey])) {
+                            $badgeDefs[$fullKey] = [
+                                'icon' => str_replace(['width="15"', 'height="15"'], ['width="28"', 'height="28"'], $mDef['icon']),
+                                'name' => $mDef['name'],
+                                'desc' => $mDef['desc']
+                            ];
+                        }
+                    }
+                }
+
                 if ($badges) {
                     echo '<div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(88px, 1fr)); gap: 14px;">';
                     foreach ($badges as $b) {

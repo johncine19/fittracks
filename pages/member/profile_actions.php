@@ -130,11 +130,26 @@ function handle_profile_post_actions(array $user, ?array $profile, bool $is_memb
             
             save_member_profile((int) $user['user_id']);
             
-            if ($oldGoal !== $newGoal || can_recalculate_workout((int) $user['user_id'])) {
-                generate_workout_plan((int) $user['user_id']);
-                notify_user((int) $user['user_id'], 'system', 'Workout plan updated', 'Your workout plan was recalculated from your updated physical profile.');
+            $memberUserId = (int) $user['user_id'];
+            if (can_recalculate_workout($memberUserId)) {
+                generate_workout_plan($memberUserId);
+                notify_user($memberUserId, 'system', 'Workout plan updated', 'Your self-guided workout plan was recalculated from your updated physical profile.');
                 flash('Physical profile and workout plan updated.', 'success');
             } else {
+                // Member is under coach guidance: keep custom plan intact and notify trainer if goal changed
+                if ($oldGoal !== $newGoal && $newGoal) {
+                    $trainerUserId = get_member_active_trainer_user_id($memberUserId);
+                    if ($trainerUserId) {
+                        $clientName = trim(($user['first_name'] ?? '') . ' ' . ($user['last_name'] ?? '')) ?: 'Your client';
+                        $goalFormatted = ucwords(str_replace('_', ' ', (string) $newGoal));
+                        notify_user(
+                            $trainerUserId,
+                            'client_goal',
+                            'Client Fitness Goal Updated',
+                            $clientName . ' updated their primary fitness goal to "' . $goalFormatted . '". Review and update their training routine when convenient.'
+                        );
+                    }
+                }
                 flash('Physical profile updated.', 'success');
             }
             $hasMembership = scalar('SELECT 1 FROM memberships WHERE user_id = ? AND status IN ("active", "pending")', [$user['user_id']]);

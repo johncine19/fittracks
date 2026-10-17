@@ -487,6 +487,11 @@ function diet_page(): void
     
     if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($action === 'generate_plan') {
+            if (!is_member_self_guided($userId)) {
+                flash('Your meal plan is managed and assigned by your coach/trainer. Please contact your coach for diet adjustments.', 'warning');
+                redirect('diet');
+            }
+
             $profile = $pdo->query('SELECT * FROM member_profiles WHERE user_id = ' . $userId)->fetch();
             if (!$profile || !(float)$profile['weight_kg'] || !(float)$profile['height_cm'] || !(int)$profile['age']) {
                 flash('Please ensure your height, weight, and age are set in your profile before generating a plan.', 'danger');
@@ -777,15 +782,26 @@ function diet_page(): void
         </span>
     </div>
     
-    <!-- Generate a new plan overriding the current one -->
-    <form id="regenerate-plan-form" class="diet-action-form" method="post">
-        <?= csrf_field() ?>
-        <input type="hidden" name="action" value="generate_plan">
-        <button type="button" onclick="confirmRegeneratePlan()" class="btn btn-diet-action">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.92-10.26l5.67-5.67"/></svg>
-            <span>Regenerate Plan</span>
-        </button>
-    </form>
+    <?php 
+    $isDietSelfGuided = is_member_self_guided($userId) && empty($activePlan['trainer_id']);
+    if ($isDietSelfGuided): ?>
+        <!-- Generate a new plan overriding the current one -->
+        <form id="regenerate-plan-form" class="diet-action-form" method="post">
+            <?= csrf_field() ?>
+            <input type="hidden" name="action" value="generate_plan">
+            <button type="button" onclick="confirmRegeneratePlan()" class="btn btn-diet-action">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.92-10.26l5.67-5.67"/></svg>
+                <span>Regenerate Plan</span>
+            </button>
+        </form>
+    <?php else: ?>
+        <div class="diet-action-form" title="Your dietary plan is curated by your coach/trainer. Contact your coach for nutritional adjustments.">
+            <button type="button" class="btn btn-diet-action is-disabled" disabled style="opacity: 0.65; cursor: not-allowed; border-color: rgba(255,255,255,0.12); background: rgba(255,255,255,0.03);">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                <span>Coach Managed</span>
+            </button>
+        </div>
+    <?php endif; ?>
 </div>
 
 

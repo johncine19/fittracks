@@ -230,9 +230,20 @@ function progress_page(): void
 
         if (can_recalculate_workout($memberId)) {
             generate_workout_plan($memberId);
-            notify_user($memberId, 'system', 'Workout plan updated', 'Your workout plan was refreshed after logging new progress.');
+            notify_user($memberId, 'system', 'Workout plan updated', 'Your self-guided workout plan was refreshed after logging new progress.');
             $flashMsg = 'Progress logged and workout plan updated.';
         } else {
+            // Coached member: retain trainer's custom routine and notify assigned trainer
+            $trainerUserId = get_member_active_trainer_user_id($memberId);
+            if ($trainerUserId) {
+                $clientName = trim(($user['first_name'] ?? '') . ' ' . ($user['last_name'] ?? '')) ?: 'Your client';
+                notify_user(
+                    $trainerUserId,
+                    'client_progress',
+                    'Client Progress Logged',
+                    $clientName . ' logged new body measurements. Review their training program if adjustments are needed.'
+                );
+            }
             $flashMsg = 'Progress logged successfully.';
         }
         
@@ -561,23 +572,18 @@ function progress_page(): void
     // Determine goal-tailored default chart metric
     $defaultMetric = 'weight';
     $rawGoalText = strtolower(str_replace(['_', '-'], ' ', (string)($member['primary_goal'] ?? '')));
-    if (str_contains($rawGoalText, 'six pack') || str_contains($rawGoalText, 'reducing body fat')) {
-        $defaultMetric = 'waist';
-    } elseif (str_contains($rawGoalText, 'biceps') || str_contains($rawGoalText, 'arms')) {
-        $defaultMetric = 'arm';
-    } elseif (str_contains($rawGoalText, 'chest')) {
-        $defaultMetric = 'chest';
-    } elseif (str_contains($rawGoalText, 'v taper')) {
-        $defaultMetric = 'waist';
+    if (str_contains($rawGoalText, 'six pack') || str_contains($rawGoalText, 'reducing body fat') || str_contains($rawGoalText, 'biceps') || str_contains($rawGoalText, 'arms') || str_contains($rawGoalText, 'chest') || str_contains($rawGoalText, 'v taper')) {
+        $defaultMetric = 'measurements';
     }
 
     // If target metric has no logged values yet, fall back gracefully to weight
-    if ($defaultMetric !== 'weight') {
+    if ($defaultMetric === 'measurements') {
         $hasMetricLogs = false;
         foreach ($rows as $r) {
-            if ($defaultMetric === 'waist' && !empty($r['waist_cm'])) { $hasMetricLogs = true; break; }
-            if ($defaultMetric === 'arm' && !empty($r['arm_cm'])) { $hasMetricLogs = true; break; }
-            if ($defaultMetric === 'chest' && !empty($r['chest_cm'])) { $hasMetricLogs = true; break; }
+            if (!empty($r['waist_cm']) || !empty($r['arm_cm']) || !empty($r['chest_cm'])) {
+                $hasMetricLogs = true;
+                break;
+            }
         }
         if (!$hasMetricLogs) {
             $defaultMetric = 'weight';
@@ -1011,20 +1017,41 @@ function progress_page(): void
                             <p>Visual trend across key performance indicators</p>
                         </div>
 
-                        <!-- Metric Toggle (Phase 2 Goal-Specific Metrics) -->
+                        <!-- Metric Toggle (Weight, Body Fat, Combined Measurements, BMI) -->
                         <div class="metric-toggle-group">
                             <button type="button" class="toggle-btn <?= $defaultMetric === 'weight' ? 'active' : '' ?>" id="m-btn-weight" onclick="setChartMetric('weight')">Weight</button>
                             <button type="button" class="toggle-btn <?= $defaultMetric === 'body_fat' ? 'active' : '' ?>" id="m-btn-body_fat" onclick="setChartMetric('body_fat')">Body Fat</button>
-                            <button type="button" class="toggle-btn <?= $defaultMetric === 'waist' ? 'active' : '' ?>" id="m-btn-waist" onclick="setChartMetric('waist')">Waist</button>
-                            <button type="button" class="toggle-btn <?= $defaultMetric === 'arm' ? 'active' : '' ?>" id="m-btn-arm" onclick="setChartMetric('arm')">Arms</button>
-                            <button type="button" class="toggle-btn <?= $defaultMetric === 'chest' ? 'active' : '' ?>" id="m-btn-chest" onclick="setChartMetric('chest')">Chest</button>
+                            <button type="button" class="toggle-btn <?= $defaultMetric === 'measurements' ? 'active' : '' ?>" id="m-btn-measurements" onclick="setChartMetric('measurements')">Measurements</button>
                             <button type="button" class="toggle-btn <?= $defaultMetric === 'bmi' ? 'active' : '' ?>" id="m-btn-bmi" onclick="setChartMetric('bmi')">BMI</button>
                         </div>
                     </div>
 
-                    <!-- Timeframe Toggle -->
+                    <!-- Timeframe Toggle & Multi-Line Indicator Legend -->
                     <div class="chart-controls-row">
-                        <span style="font-size: 12px; color: var(--muted); font-weight: 600;" id="chartActiveMetricLabel">Progress over time</span>
+                        <div class="chart-controls-left">
+                            <span style="font-size: 12px; color: var(--muted); font-weight: 600;" id="chartActiveMetricLabel"><?= $defaultMetric === 'measurements' ? 'Waist, Arms & Chest (cm) over time' : 'Progress over time' ?></span>
+                            <!-- Live Indicators for Waist, Arms, Chest -->
+                            <div class="chart-indicators-legend" id="chartMeasurementsIndicators" style="display: <?= $defaultMetric === 'measurements' ? 'inline-flex' : 'none' ?>;">
+                                <button type="button" id="ind-btn-0" onclick="toggleMeasurementDataset(0)" class="chart-ind-badge ind-badge-waist" title="Click to toggle Waist line">
+                                    <span class="ind-name">Waist</span>
+                                    <?php if ($recentWaist !== ''): ?>
+                                        <strong class="ind-val"><span class="ind-num"><?= h($recentWaist) ?></span><span class="ind-unit">cm</span></strong>
+                                    <?php endif; ?>
+                                </button>
+                                <button type="button" id="ind-btn-1" onclick="toggleMeasurementDataset(1)" class="chart-ind-badge ind-badge-arm" title="Click to toggle Arms line">
+                                    <span class="ind-name">Arms</span>
+                                    <?php if ($recentArm !== ''): ?>
+                                        <strong class="ind-val"><span class="ind-num"><?= h($recentArm) ?></span><span class="ind-unit">cm</span></strong>
+                                    <?php endif; ?>
+                                </button>
+                                <button type="button" id="ind-btn-2" onclick="toggleMeasurementDataset(2)" class="chart-ind-badge ind-badge-chest" title="Click to toggle Chest line">
+                                    <span class="ind-name">Chest</span>
+                                    <?php if ($recentChest !== ''): ?>
+                                        <strong class="ind-val"><span class="ind-num"><?= h($recentChest) ?></span><span class="ind-unit">cm</span></strong>
+                                    <?php endif; ?>
+                                </button>
+                            </div>
+                        </div>
                         <div class="timeframe-toggle-group">
                             <button type="button" class="toggle-btn" id="tf-btn-1m" onclick="setChartTimeframe('1m')">1M</button>
                             <button type="button" class="toggle-btn" id="tf-btn-3m" onclick="setChartTimeframe('3m')">3M</button>

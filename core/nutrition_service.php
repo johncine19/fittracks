@@ -49,7 +49,16 @@ function generate_dietary_plan(int $memberUserId, ?int $trainerId = null, bool $
 {
     $pdo = db();
 
-    // 1. If not forcing regeneration, return existing active plan if present
+    // 1. Guard: Automated / system calls ($trainerId === null) must never overwrite a trainer-curated diet plan
+    if ($trainerId === null) {
+        $hasTrainerDiet = (bool) scalar('SELECT 1 FROM dietary_plans WHERE member_user_id = ? AND trainer_id IS NOT NULL AND status = "active" LIMIT 1', [$memberUserId]);
+        if ($hasTrainerDiet) {
+            $existingPlanId = (int) scalar('SELECT plan_id FROM dietary_plans WHERE member_user_id = ? AND trainer_id IS NOT NULL AND status = "active" ORDER BY plan_id DESC LIMIT 1', [$memberUserId]);
+            return $existingPlanId ?: null;
+        }
+    }
+
+    // 2. If not forcing regeneration, return existing active plan if present
     if (!$forceRegenerate) {
         $existingPlanId = (int) scalar('SELECT plan_id FROM dietary_plans WHERE member_user_id = ? AND status = "active" LIMIT 1', [$memberUserId]);
         if ($existingPlanId > 0) {

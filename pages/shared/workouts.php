@@ -119,26 +119,94 @@ function _assign_sets_reps(string $goal, int $expLevel, array $ex): array
 }
 
 /**
- * Returns true if the member does NOT have a system-generated workout plan 
- * created within the last 7 days.
+ * Checks whether a member is self-guided (not under an active personal trainer/coach).
+ * A member is considered coached/trainer-guided if:
+ *  1. They have an active trainer assignment in `trainer_assignments`, OR
+ *  2. They have an active training plan created/published by a trainer (`trainer_id IS NOT NULL`).
  */
-function can_recalculate_workout(int $memberUserId): bool
+function is_member_self_guided(int $memberUserId): bool
 {
     $pdo = db();
-    
-    // 1. If the member currently has an active plan created by a trainer, they cannot recalculate.
-    $trainerPlanExists = scalar('SELECT 1 FROM training_plans WHERE member_user_id = ? AND trainer_id IS NOT NULL AND status = "active" LIMIT 1', [$memberUserId]);
-    if ($trainerPlanExists) {
+
+    // 1. Check for active trainer assignment
+    $hasActiveAssignment = (bool) scalar(
+        'SELECT 1 FROM trainer_assignments WHERE member_user_id = ? AND status = "active" LIMIT 1',
+        [$memberUserId]
+    );
+    if ($hasActiveAssignment) {
         return false;
     }
 
-    // 2. Check if a system-generated plan was created within the last 7 days.
-    // Restriction removed per user request: allow generation anytime.
+    // 2. Check for active trainer-published workout plan
+    $hasTrainerPlan = (bool) scalar(
+        'SELECT 1 FROM training_plans WHERE member_user_id = ? AND trainer_id IS NOT NULL AND status = "active" LIMIT 1',
+        [$memberUserId]
+    );
+    if ($hasTrainerPlan) {
+        return false;
+    }
+
     return true;
 }
+
+/**
+ * Helper to fetch the user_id (in `users` table) of the active trainer assigned to a member.
+ * Checks active trainer assignments first, then active trainer plans.
+ */
+function get_member_active_trainer_user_id(int $memberUserId): ?int
+{
+    $pdo = db();
+
+    // Priority 1: From active trainer assignment
+    $trainerUserId = scalar(
+        'SELECT tp.user_id 
+         FROM trainer_assignments ta
+         JOIN trainer_profiles tp ON ta.trainer_id = tp.trainer_id
+         WHERE ta.member_user_id = ? AND ta.status = "active"
+         ORDER BY ta.assignment_id DESC LIMIT 1',
+        [$memberUserId]
+    );
+    if ($trainerUserId) {
+        return (int) $trainerUserId;
+    }
+
+    // Priority 2: From active trainer plan
+    $planTrainerUserId = scalar(
+        'SELECT tp.user_id 
+         FROM training_plans p
+         JOIN trainer_profiles tp ON p.trainer_id = tp.trainer_id
+         WHERE p.member_user_id = ? AND p.trainer_id IS NOT NULL AND p.status = "active"
+         ORDER BY p.plan_id DESC LIMIT 1',
+        [$memberUserId]
+    );
+    if ($planTrainerUserId) {
+        return (int) $planTrainerUserId;
+    }
+
+    return null;
+}
+
+/**
+ * Returns true if automated workout recalculation is allowed for this member.
+ * Only self-guided members are eligible for automated recalculation.
+ */
+function can_recalculate_workout(int $memberUserId): bool
+{
+    return is_member_self_guided($memberUserId);
+}
+
 function generate_workout_plan(int $memberUserId, ?int $coachId = null): int
 {
     $pdo = db();
+    
+    // Guard: Automated/system updates ($coachId === null) MUST NOT overwrite plans for coached members
+    if ($coachId === null && !is_member_self_guided($memberUserId)) {
+        $existingPlanId = (int) scalar(
+            'SELECT plan_id FROM training_plans WHERE member_user_id = ? AND status = "active" ORDER BY plan_id DESC LIMIT 1',
+            [$memberUserId]
+        );
+        return $existingPlanId;
+    }
     
     // Get member profile
     $stmt = $pdo->prepare('SELECT * FROM member_profiles WHERE user_id = ?');

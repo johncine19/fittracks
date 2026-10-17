@@ -79,6 +79,13 @@ const rawChartData = FT_CONFIG.rawChartData || [];
             bgColor: 'rgba(245, 158, 11, 0.12)',
             unit: 'cm'
         },
+        measurements: {
+            label: 'Measurements (cm)',
+            chartTitle: 'Waist, Arms & Chest (cm) over time',
+            color: '#38bdf8',
+            bgColor: 'rgba(56, 189, 248, 0.12)',
+            unit: 'cm'
+        },
         bmi: {
             label: 'BMI',
             chartTitle: 'Body Mass Index (BMI) over time',
@@ -89,14 +96,25 @@ const rawChartData = FT_CONFIG.rawChartData || [];
     };
 
     let currentMetric = FT_CONFIG.defaultMetric || 'weight';
+    if (currentMetric === 'waist' || currentMetric === 'arm' || currentMetric === 'chest') {
+        currentMetric = 'measurements';
+    }
     let currentTimeframe = 'all';
 
     function setChartMetric(metric) {
+        if (metric === 'waist' || metric === 'arm' || metric === 'chest') {
+            metric = 'measurements';
+        }
         currentMetric = metric;
-        ['weight', 'body_fat', 'waist', 'arm', 'chest', 'bmi'].forEach(m => {
+        ['weight', 'body_fat', 'measurements', 'bmi'].forEach(m => {
             const btn = document.getElementById('m-btn-' + m);
             if (btn) btn.classList.toggle('active', m === metric);
         });
+
+        const indEl = document.getElementById('chartMeasurementsIndicators');
+        if (indEl) {
+            indEl.style.display = (metric === 'measurements') ? 'inline-flex' : 'none';
+        }
 
         const cfg = METRIC_CONFIG[metric] || METRIC_CONFIG.weight;
         const labelEl = document.getElementById('chartActiveMetricLabel');
@@ -112,6 +130,132 @@ const rawChartData = FT_CONFIG.rawChartData || [];
             if (btn) btn.classList.toggle('active', t === tf);
         });
         renderFilteredChart();
+    }
+
+    // Toggle visibility of individual measurement lines (Waist, Arms, Chest)
+    window.toggleMeasurementDataset = function(index) {
+        if (!window.hubChartInstance || currentMetric !== 'measurements') return;
+        const ci = window.hubChartInstance;
+        const meta = ci.getDatasetMeta(index);
+        meta.hidden = meta.hidden === null ? !ci.data.datasets[index].hidden : null;
+        ci.update();
+
+        const badge = document.getElementById('ind-btn-' + index);
+        if (badge) {
+            badge.style.opacity = meta.hidden ? '0.45' : '1';
+            badge.style.filter = meta.hidden ? 'grayscale(0.7)' : 'none';
+            badge.style.textDecoration = meta.hidden ? 'line-through' : 'none';
+        }
+    };
+
+    function hexToRgba(hex, alpha = 1) {
+        let c = hex.replace('#', '');
+        if (c.length === 3) {
+            c = c.split('').map(x => x + x).join('');
+        }
+        const num = parseInt(c, 16);
+        const r = (num >> 16) & 255;
+        const g = (num >> 8) & 255;
+        const b = num & 255;
+        return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+    }
+
+    function getGradient(ctx, chartArea, colorHex, topAlpha = 0.32, bottomAlpha = 0.0) {
+        if (!chartArea || !ctx) return hexToRgba(colorHex, topAlpha);
+        const gradient = ctx.createLinearGradient(0, chartArea.top, 0, chartArea.bottom);
+        gradient.addColorStop(0, hexToRgba(colorHex, topAlpha));
+        gradient.addColorStop(0.65, hexToRgba(colorHex, topAlpha * 0.3));
+        gradient.addColorStop(1, hexToRgba(colorHex, bottomAlpha));
+        return gradient;
+    }
+
+    function getDatasetsForMetric(metric, filteredData, isDark) {
+        if (metric === 'measurements' || metric === 'waist' || metric === 'arm' || metric === 'chest') {
+            return [
+                {
+                    label: 'Waist',
+                    data: filteredData.map(d => d.waist),
+                    borderColor: '#38bdf8',
+                    glowColor: 'rgba(56, 189, 248, 0.75)',
+                    backgroundColor: function(context) {
+                        const chart = context.chart;
+                        return chart ? getGradient(chart.ctx, chart.chartArea, '#38bdf8', 0.22, 0.0) : 'transparent';
+                    },
+                    borderWidth: 3.2,
+                    pointRadius: 5,
+                    pointHoverRadius: 8.5,
+                    pointBackgroundColor: '#ffffff',
+                    pointBorderColor: '#38bdf8',
+                    pointBorderWidth: 2.8,
+                    tension: 0.38,
+                    cubicInterpolationMode: 'monotone',
+                    fill: true,
+                    spanGaps: true
+                },
+                {
+                    label: 'Arms',
+                    data: filteredData.map(d => d.arm),
+                    borderColor: '#c084fc',
+                    glowColor: 'rgba(192, 132, 252, 0.75)',
+                    backgroundColor: function(context) {
+                        const chart = context.chart;
+                        return chart ? getGradient(chart.ctx, chart.chartArea, '#c084fc', 0.16, 0.0) : 'transparent';
+                    },
+                    borderWidth: 3.2,
+                    pointRadius: 5,
+                    pointHoverRadius: 8.5,
+                    pointBackgroundColor: '#ffffff',
+                    pointBorderColor: '#c084fc',
+                    pointBorderWidth: 2.8,
+                    tension: 0.38,
+                    cubicInterpolationMode: 'monotone',
+                    fill: true,
+                    spanGaps: true
+                },
+                {
+                    label: 'Chest',
+                    data: filteredData.map(d => d.chest),
+                    borderColor: '#fbbf24',
+                    glowColor: 'rgba(251, 191, 36, 0.75)',
+                    backgroundColor: function(context) {
+                        const chart = context.chart;
+                        return chart ? getGradient(chart.ctx, chart.chartArea, '#fbbf24', 0.12, 0.0) : 'transparent';
+                    },
+                    borderWidth: 3.2,
+                    pointRadius: 5,
+                    pointHoverRadius: 8.5,
+                    pointBackgroundColor: '#ffffff',
+                    pointBorderColor: '#fbbf24',
+                    pointBorderWidth: 2.8,
+                    tension: 0.38,
+                    cubicInterpolationMode: 'monotone',
+                    fill: true,
+                    spanGaps: true
+                }
+            ];
+        }
+
+        const cfg = METRIC_CONFIG[metric] || METRIC_CONFIG.weight;
+        return [{
+            label: cfg.label,
+            data: filteredData.map(d => d[metric]),
+            borderColor: cfg.color,
+            glowColor: hexToRgba(cfg.color, 0.8),
+            backgroundColor: function(context) {
+                const chart = context.chart;
+                return chart ? getGradient(chart.ctx, chart.chartArea, cfg.color, 0.30, 0.0) : cfg.bgColor;
+            },
+            borderWidth: 3.2,
+            pointRadius: 5,
+            pointHoverRadius: 8.5,
+            pointBackgroundColor: '#ffffff',
+            pointBorderColor: cfg.color,
+            pointBorderWidth: 2.8,
+            tension: 0.38,
+            cubicInterpolationMode: 'monotone',
+            fill: true,
+            spanGaps: true
+        }];
     }
 
     function renderFilteredChart() {
@@ -137,19 +281,10 @@ const rawChartData = FT_CONFIG.rawChartData || [];
         });
 
         const labels = filtered.map(d => d.label);
-        const dataValues = filtered.map(d => d[currentMetric]);
-        const cfg = METRIC_CONFIG[currentMetric] || METRIC_CONFIG.weight;
         const isDark = document.documentElement.getAttribute('data-theme') !== 'light';
 
-        const ds = window.hubChartInstance.data.datasets[0];
         window.hubChartInstance.data.labels = labels;
-        ds.label = cfg.label;
-        ds.data = dataValues;
-        ds.borderColor = cfg.color;
-        ds.backgroundColor = cfg.bgColor;
-        ds.pointBorderColor = cfg.color;
-        ds.pointBackgroundColor = isDark ? cfg.color : '#ffffff';
-        ds.spanGaps = true;
+        window.hubChartInstance.data.datasets = getDatasetsForMetric(currentMetric, filtered, isDark);
         window.hubChartInstance.update();
     }
 
@@ -157,75 +292,190 @@ const rawChartData = FT_CONFIG.rawChartData || [];
         const ctx = document.getElementById('hubTrendChart');
         if (!ctx) return;
 
+        if (currentMetric === 'waist' || currentMetric === 'arm' || currentMetric === 'chest') {
+            currentMetric = 'measurements';
+        }
         const cfg = METRIC_CONFIG[currentMetric] || METRIC_CONFIG.weight;
         const isDark = document.documentElement.getAttribute('data-theme') !== 'light';
-        const gridColor  = isDark ? 'rgba(255,255,255,0.06)' : '#e2e8f0';
+        const gridColor  = isDark ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.04)';
         const tickColor  = isDark ? '#94a3b8' : '#64748b';
-        const axisBorder = isDark ? 'rgba(255,255,255,0.12)' : '#cbd5e1';
 
         const labels = rawChartData.map(d => d.label);
-        const values = rawChartData.map(d => d[currentMetric]);
 
         // Ensure active button and title label match currentMetric
-        ['weight', 'body_fat', 'waist', 'arm', 'chest', 'bmi'].forEach(m => {
+        ['weight', 'body_fat', 'measurements', 'bmi'].forEach(m => {
             const btn = document.getElementById('m-btn-' + m);
             if (btn) btn.classList.toggle('active', m === currentMetric);
         });
+        const indEl = document.getElementById('chartMeasurementsIndicators');
+        if (indEl) {
+            indEl.style.display = (currentMetric === 'measurements') ? 'inline-flex' : 'none';
+        }
         const labelEl = document.getElementById('chartActiveMetricLabel');
         if (labelEl) labelEl.textContent = cfg.chartTitle || 'Progress over time';
+
+        const customPlugins = [
+            // 1. Neon Line Glow Plugin
+            {
+                id: 'neonLineGlow',
+                beforeDatasetsDraw(chart) {
+                    const c = chart.ctx;
+                    c.save();
+                    chart.data.datasets.forEach((ds, i) => {
+                        if (chart.isDatasetVisible(i) && ds.glowColor) {
+                            c.shadowColor = ds.glowColor;
+                            c.shadowBlur = 14;
+                            c.shadowOffsetX = 0;
+                            c.shadowOffsetY = 4;
+                        }
+                    });
+                },
+                afterDatasetsDraw(chart) {
+                    chart.ctx.restore();
+                }
+            },
+            // 2. Vertical Crosshair Cursor Plugin
+            {
+                id: 'crosshairGuide',
+                afterDraw(chart) {
+                    if (chart.tooltip && chart.tooltip.opacity > 0 && chart.tooltip.dataPoints && chart.tooltip.dataPoints.length) {
+                        const { ctx: c, chartArea } = chart;
+                        const x = chart.tooltip.caretX;
+                        if (x >= chartArea.left && x <= chartArea.right) {
+                            c.save();
+                            c.setLineDash([4, 4]);
+                            c.lineWidth = 1.4;
+                            c.strokeStyle = isDark ? 'rgba(255, 255, 255, 0.25)' : 'rgba(0, 0, 0, 0.2)';
+                            c.beginPath();
+                            c.moveTo(x, chartArea.top);
+                            c.lineTo(x, chartArea.bottom);
+                            c.stroke();
+
+                            c.fillStyle = isDark ? 'rgba(255, 255, 255, 0.7)' : 'rgba(0, 0, 0, 0.5)';
+                            c.beginPath();
+                            c.arc(x, chartArea.bottom, 2.5, 0, Math.PI * 2);
+                            c.fill();
+                            c.restore();
+                        }
+                    }
+                }
+            },
+            // 3. Goal Target Reference Line Plugin
+            {
+                id: 'targetLine',
+                afterDraw(chart) {
+                    const targets = FT_CONFIG.targets || {};
+                    let targetVal = null;
+                    let targetLabel = '';
+                    let targetColor = '#22c55e';
+
+                    if (currentMetric === 'weight' && targets.targetWeight) {
+                        targetVal = parseFloat(targets.targetWeight);
+                        targetLabel = '🎯 Target ' + targetVal + ' kg';
+                    } else if (currentMetric === 'body_fat' && targets.targetBodyFat) {
+                        targetVal = parseFloat(targets.targetBodyFat);
+                        targetLabel = '🎯 Target ' + targetVal + '%';
+                    } else if (currentMetric === 'measurements' && targets.targetWaist) {
+                        targetVal = parseFloat(targets.targetWaist);
+                        targetLabel = '🎯 Target Waist ' + targetVal + ' cm';
+                        targetColor = '#38bdf8';
+                    }
+
+                    if (targetVal && targetVal > 0) {
+                        const { ctx: c, chartArea, scales: { y } } = chart;
+                        if (y && targetVal >= y.min && targetVal <= y.max) {
+                            const yPos = y.getPixelForValue(targetVal);
+                            c.save();
+                            c.setLineDash([5, 5]);
+                            c.lineWidth = 1.4;
+                            c.strokeStyle = hexToRgba(targetColor, 0.65);
+                            c.beginPath();
+                            c.moveTo(chartArea.left, yPos);
+                            c.lineTo(chartArea.right, yPos);
+                            c.stroke();
+
+                            c.font = '700 10.5px Inter, system-ui, sans-serif';
+                            c.fillStyle = targetColor;
+                            c.textAlign = 'right';
+                            c.fillText(targetLabel, chartArea.right - 6, yPos - 6);
+                            c.restore();
+                        }
+                    }
+                }
+            }
+        ];
 
         window.hubChartInstance = new Chart(ctx, {
             type: 'line',
             data: {
                 labels: labels,
-                datasets: [{
-                    label: cfg.label,
-                    data: values,
-                    borderColor: cfg.color,
-                    backgroundColor: cfg.bgColor,
-                    borderWidth: 2.8,
-                    pointRadius: 4.5,
-                    pointBackgroundColor: isDark ? cfg.color : '#ffffff',
-                    pointBorderColor: cfg.color,
-                    pointBorderWidth: 2,
-                    tension: 0.35,
-                    fill: true,
-                    spanGaps: true
-                }]
+                datasets: getDatasetsForMetric(currentMetric, rawChartData, isDark)
             },
+            plugins: customPlugins,
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
+                interaction: {
+                    mode: 'index',
+                    intersect: false
+                },
                 plugins: {
                     legend: { display: false },
                     tooltip: {
-                        backgroundColor: isDark ? '#1e2430' : '#ffffff',
+                        backgroundColor: isDark ? 'rgba(15, 23, 42, 0.94)' : 'rgba(255, 255, 255, 0.96)',
                         titleColor: isDark ? '#ffffff' : '#0f172a',
                         bodyColor: isDark ? '#cbd5e1' : '#334155',
-                        borderColor: isDark ? 'rgba(255,255,255,0.1)' : '#e2e8f0',
-                        borderWidth: 1,
-                        padding: 10,
-                        boxPadding: 4,
+                        borderColor: isDark ? 'rgba(255, 255, 255, 0.14)' : 'rgba(0, 0, 0, 0.1)',
+                        borderWidth: 1.5,
+                        cornerRadius: 12,
+                        padding: 12,
+                        boxPadding: 6,
+                        usePointStyle: true,
+                        titleFont: { size: 12, weight: '700', family: 'Inter, system-ui, sans-serif' },
+                        bodyFont: { size: 12, weight: '600', family: 'Inter, system-ui, sans-serif' },
                         callbacks: {
+                            labelPointStyle: function() {
+                                return {
+                                    pointStyle: 'circle',
+                                    rotation: 0
+                                };
+                            },
                             label: function(context) {
                                 const val = context.parsed.y;
-                                if (val === null || val === undefined) return 'No entry';
+                                if (val === null || val === undefined) return null;
+                                if (currentMetric === 'measurements' || currentMetric === 'waist' || currentMetric === 'arm' || currentMetric === 'chest') {
+                                    return ' ' + context.dataset.label + ': ' + val + ' cm';
+                                }
                                 const activeCfg = METRIC_CONFIG[currentMetric] || METRIC_CONFIG.weight;
-                                return activeCfg.label + ': ' + val + (activeCfg.unit ? ' ' + activeCfg.unit : '');
+                                return ' ' + activeCfg.label + ': ' + val + (activeCfg.unit ? ' ' + activeCfg.unit : '');
                             }
                         }
                     }
                 },
                 scales: {
                     y: {
-                        grid: { color: gridColor },
-                        border: { color: axisBorder },
-                        ticks: { color: tickColor, font: { weight: '600', size: 11 } }
+                        grid: {
+                            color: gridColor,
+                            borderDash: [5, 5]
+                        },
+                        border: { display: false },
+                        ticks: {
+                            color: tickColor,
+                            font: { weight: '600', size: 11, family: 'Inter, system-ui, sans-serif' },
+                            padding: 8
+                        }
                     },
                     x: {
-                        grid: { color: gridColor },
-                        border: { color: axisBorder },
-                        ticks: { color: tickColor, font: { weight: '600', size: 11 } }
+                        grid: {
+                            color: gridColor,
+                            borderDash: [5, 5]
+                        },
+                        border: { display: false },
+                        ticks: {
+                            color: tickColor,
+                            font: { weight: '600', size: 11, family: 'Inter, system-ui, sans-serif' },
+                            padding: 8
+                        }
                     }
                 }
             }

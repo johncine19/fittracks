@@ -14,6 +14,7 @@ This document records the security posture, vulnerability audit findings, remedi
 | **Disabled TLS Verification on API Uploads** | **Medium** | **Resolved** | `core/file_handler.php` | Re-enabled strict peer and host TLS certificate verification (`CURLOPT_SSL_VERIFYPEER => true`, `CURLOPT_SSL_VERIFYHOST => 2`) for ImageKit and Cloudinary API calls. |
 | **Client IP Spoofing via Forwarded Headers** | **Low to Medium** | **Resolved** | `core/bootstrap.php`, `.env.example` | Restricted `CF-Connecting-IP` and `X-Forwarded-For` header trust to explicitly configured `TRUSTED_PROXIES` IP addresses and CIDR subnets. |
 | **Unencrypted Direct Messages (Data-at-Rest)** | **High** | **Resolved** | `core/encryption.php`, `core/bootstrap.php`, `pages/shared/messages.php`, `pages/member/progress.php`, `pages/trainer/training.php` | Implemented authenticated field-level encryption (AES-256-GCM) with random 12-byte IVs and 16-byte integrity tags (`enc:v1:` prefix). Seamlessly protects sensitive health/trainer communications in the database with backward compatibility. |
+| **Cross-Tenant & IDOR Data Exposure (Row-Level Authorization)** | **High** | **Enforced** | `pages/member/progress.php`, `pages/member/my_workout.php`, `pages/admin/walk_ins.php`, `pages/admin/attendance.php` | Enforces strict row-level authorization and tenant scoping across all database queries. Members can only view their own biometric and progress data; gym staff and owners are strictly bound to their tenant `gym_id`. |
 
 ---
 
@@ -156,19 +157,51 @@ This document records the security posture, vulnerability audit findings, remedi
      - `pages/member/progress.php` (Trainer progress notes and feedback feed)
      - `pages/trainer/training.php` (Latest member feedback previews)
 
----test querry for encyted messages
+  6. **TiDB / MySQL Database Verification Query:**  
+     Run this query directly in TiDB Cloud or your MySQL console to verify that messages are stored encrypted:
+     ```sql
+     SELECT 
+         message_id,
+         sender_id,
+         recipient_id,
+         IF(message_text LIKE 'enc:v1:%', 'ENCRYPTED (AES-256-GCM)', 'PLAINTEXT') AS encryption_status,
+         message_text,
+         sent_at
+     FROM trainer_messages
+     ORDER BY message_id DESC
+     LIMIT 5;
+     ```
 
-  SELECT 
-    message_id,
-    sender_id,
-    recipient_id,
-    IF(message_text LIKE 'enc:v1:%', 'ENCRYPTED (AES-256-GCM)', 'PLAINTEXT') AS encryption_status,
-    message_text,
-    sent_at
-FROM trainer_messages
-ORDER BY message_id DESC
-LIMIT 5;
+---
 
+### 2.7 Strict Row-Level Authorization & Biometric Data Isolation
+
+* **Threat Vector & Security Principle:**  
+  In a multi-tenant gym management system, physical body measurements (weight, waist, hips, chest, body fat percentage), workout routines, and membership finances must never be exposed across tenant boundaries or leaked via Insecure Direct Object Reference (IDOR) attacks.
+* **Why Numeric Biometrics Do Not Require Column-Level Encryption:**  
+  Physical sizes are numeric telemetry values (`DECIMAL(5,2)`). Encrypting them into ciphertext strings would break SQL aggregations (`AVG()`, `MIN()`, `MAX()`), progress percentage changes, BMR/calorie generation formulas, and Chart.js timeline graphs. In FitTracks, security for biometric data is achieved through **Strict Row-Level Authorization** combined with **Storage-Layer Encryption (TDE)**:
+  1. **Member Personal Isolation (Anti-IDOR):**  
+     Personal health metrics in `progress_logs`, `member_measurements`, and workout logs are always bound directly to the authenticated session (`$user['user_id']`). Even if an attacker tampers with HTTP GET or POST parameters (`?user_id=999`), server-side queries enforce:
+     ```php
+     $memberId = (int)$user['user_id'];
+     $logs = query_all('SELECT * FROM progress_logs WHERE user_id = ? ORDER BY log_date DESC', [$memberId]);
+     ```
+  2. **Trainer-Client Relationship Scoping:**  
+     Personal trainers cannot inspect random members across the platform. A trainer is authorized to view a member's progress hub if and only if an active assignment exists in the `trainer_assignments` table:
+     ```sql
+     SELECT 1 FROM trainer_assignments 
+     WHERE trainer_id = ? AND member_user_id = ? AND status = 'active'
+     ```
+  3. **Gym Multi-Tenancy Scoping:**  
+     Gym Owners, Front Desk Staff, and Managers are strictly isolated by their gym's tenant ID:
+     - Attendance check-ins: `WHERE gym_id = ?`
+     - Walk-in drop-ins: `WHERE w.gym_id = ?`
+     - Member roster: `WHERE gm.gym_id = ?`
+     A gym owner or staff member cannot view or query transactions, visits, or metrics belonging to another facility.
+  4. **Database Storage Encryption (TDE):**  
+     The underlying database volumes in **TiDB Cloud** and cloud container environments are encrypted at rest using enterprise AES-256 Transparent Data Encryption, protecting raw disk data against physical storage theft.
+
+---
 
 ## 3. Environment Configuration Reference
 
