@@ -437,6 +437,14 @@
         .term-stat-label {
             font-size: 0.62rem;
         }
+        .btn-manual-action {
+            padding: 7px 12px;
+            font-size: 0.78rem;
+        }
+        .manual-item {
+            padding: 10px 12px;
+            gap: 10px;
+        }
     }
 
     /* Left Card: Optical Scanner Terminal */
@@ -1204,6 +1212,8 @@
         border: none;
         cursor: pointer;
         transition: all 0.2s;
+        white-space: nowrap;
+        flex-shrink: 0;
     }
     .btn-manual-action.checkin {
         background: #22c55e;

@@ -449,19 +449,18 @@
                     row.className = 'manual-item';
                     const safeName = typeof escapeHtml === 'function' ? escapeHtml(m.name) : m.name;
                     const safeRole = typeof escapeHtml === 'function' ? escapeHtml(m.role) : m.role;
-                    const safePhone = typeof escapeHtml === 'function' ? escapeHtml(m.phone) : m.phone;
                     const insideBadge = m.is_inside ? `<span style="display:inline-block; margin-top:2px; font-size:0.7rem; font-weight:700; color:#38bdf8;">Currently Inside (Offline Cache)</span>` : '';
 
                     row.innerHTML = `
-                        <div style="display:flex; align-items:center; gap:12px; min-width:0;">
+                        <div style="display:flex; align-items:center; gap:12px; min-width:0; flex:1;">
                             ${m.avatar_html}
                             <div style="min-width:0;">
-                                <p style="margin:0; font-weight:700; color:var(--ink); font-size:0.9rem;">${safeName}</p>
-                                <div style="font-size:0.75rem; color:var(--muted);">${safeRole} • ${safePhone}</div>
+                                <p style="margin:0; font-weight:700; color:var(--ink); font-size:0.9rem; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${safeName}</p>
+                                <div style="font-size:0.75rem; color:var(--muted);">${safeRole}</div>
                                 ${insideBadge}
                             </div>
                         </div>
-                        <div>
+                        <div style="flex-shrink:0;">
                             <button type="button" class="btn-manual-action ${m.is_inside ? 'checkout' : 'checkin'}" onclick="submitManualAttendance(${parseInt(m.user_id, 10)})">
                                 ${m.is_inside ? 'Check-Out' : 'Check-In'}
                             </button>
@@ -1196,20 +1195,19 @@
                         row.className = 'manual-item';
                         const safeName = typeof escapeHtml === 'function' ? escapeHtml(m.name) : m.name;
                         const safeRole = typeof escapeHtml === 'function' ? escapeHtml(m.role) : m.role;
-                        const safePhone = typeof escapeHtml === 'function' ? escapeHtml(m.phone) : m.phone;
                         const safeDuration = m.duration && typeof escapeHtml === 'function' ? escapeHtml(m.duration) : m.duration;
                         const insideBadge = m.is_inside ? `<span style="display:inline-block; margin-top:2px; font-size:0.7rem; font-weight:700; color:#38bdf8;">Currently Inside (${safeDuration || 'Active'})</span>` : '';
 
                         row.innerHTML = `
-                            <div style="display:flex; align-items:center; gap:12px; min-width:0;">
+                            <div style="display:flex; align-items:center; gap:12px; min-width:0; flex:1;">
                                 ${m.avatar_html}
                                 <div style="min-width:0;">
-                                    <p style="margin:0; font-weight:700; color:var(--ink); font-size:0.9rem;">${safeName}</p>
-                                    <div style="font-size:0.75rem; color:var(--muted);">${safeRole} • ${safePhone}</div>
+                                    <p style="margin:0; font-weight:700; color:var(--ink); font-size:0.9rem; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${safeName}</p>
+                                    <div style="font-size:0.75rem; color:var(--muted);">${safeRole}</div>
                                     ${insideBadge}
                                 </div>
                             </div>
-                            <div>
+                            <div style="flex-shrink:0;">
                                 <button type="button" class="btn-manual-action ${m.is_inside ? 'checkout' : 'checkin'}" onclick="submitManualAttendance(${parseInt(m.user_id, 10)})">
                                     ${m.is_inside ? 'Check-Out' : 'Check-In'}
                                 </button>
