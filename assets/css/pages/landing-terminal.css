@@ -1,0 +1,1387 @@
+/* ==========================================================================
+   FITTRACK — INSTALLABLE ATTENDANCE TERMINAL SPOTLIGHT
+   PWA Desktop & Tablet Kiosk Showcase with Offline Resilience Demonstration
+   Scoped namespace: .term-spotlight-*
+   ========================================================================== */
+
+.term-spotlight-section {
+    position: relative;
+    padding: clamp(75px, 10vh, 120px) 0;
+    background-color: var(--bg-dark, #080a0c);
+    border-top: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.08));
+    border-bottom: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.08));
+    overflow: hidden;
+    isolation: isolate;
+}
+
+/* Ambient glow backdrop */
+.term-backdrop-glow {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    z-index: 0;
+    background:
+        radial-gradient(ellipse 70% 50% at 50% 30%, rgba(132, 204, 22, 0.07), transparent 70%),
+        radial-gradient(circle at 12% 70%, rgba(56, 189, 248, 0.04), transparent 50%),
+        radial-gradient(circle at 88% 60%, rgba(168, 85, 247, 0.03), transparent 50%);
+}
+
+.term-spotlight-section .container {
+    position: relative;
+    z-index: 1;
+}
+
+/* ── Section Header Accent ─────────────────────────────────────────────── */
+.term-eyebrow-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 14px;
+    border-radius: var(--radius-pill, 999px);
+    background: color-mix(in srgb, var(--lime, #84cc16) 12%, transparent);
+    border: 1px solid color-mix(in srgb, var(--lime, #84cc16) 32%, transparent);
+    color: var(--lime-bright, #a3e635);
+    font-size: 12.5px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    margin-bottom: 16px;
+    box-shadow: 0 4px 16px rgba(132, 204, 22, 0.12);
+}
+
+.term-pulse-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background-color: var(--lime, #84cc16);
+    box-shadow: 0 0 10px var(--lime, #84cc16);
+    animation: termDotPulse 2s ease-in-out infinite;
+}
+
+@keyframes termDotPulse {
+    0%, 100% {
+        opacity: 1;
+        transform: scale(1);
+    }
+    50% {
+        opacity: 0.45;
+        transform: scale(0.85);
+    }
+}
+
+.term-headline-accent {
+    background: linear-gradient(135deg, var(--lime, #84cc16) 0%, #ecfccb 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    display: inline-block;
+}
+
+/* ── Interactive Terminal Device Container ─────────────────────────────── */
+.term-kiosk-wrapper {
+    margin: clamp(2.5rem, 5vw, 4rem) auto 0;
+    max-width: 1140px;
+    width: 100%;
+}
+
+.term-device-frame {
+    background: linear-gradient(180deg, #161c26 0%, #0d1118 100%);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 20px;
+    box-shadow:
+        0 30px 80px -15px rgba(0, 0, 0, 0.85),
+        0 0 0 1px rgba(132, 204, 22, 0.15),
+        0 0 35px rgba(132, 204, 22, 0.08);
+    overflow: hidden;
+    position: relative;
+    transition: transform 0.35s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.35s ease;
+}
+
+.term-device-frame:hover {
+    box-shadow:
+        0 35px 90px -15px rgba(0, 0, 0, 0.9),
+        0 0 0 1px rgba(132, 204, 22, 0.3),
+        0 0 45px rgba(132, 204, 22, 0.14);
+}
+
+/* ── Window Title Bar (PWA Style) ─────────────────────────────────────── */
+.term-device-titlebar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 18px;
+    background: rgba(11, 15, 22, 0.95);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    user-select: none;
+}
+
+.term-window-dots {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+}
+
+.term-wdot {
+    width: 11px;
+    height: 11px;
+    border-radius: 50%;
+}
+.term-wdot-red { background: #ef4444; opacity: 0.85; }
+.term-wdot-yellow { background: #f59e0b; opacity: 0.85; }
+.term-wdot-green { background: #10b981; opacity: 0.85; }
+
+.term-window-title {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-muted, #94a3b8);
+    min-width: 0;
+    white-space: nowrap;
+}
+
+.term-title-main {
+    color: #ffffff;
+    font-weight: 700;
+    white-space: nowrap;
+}
+
+.term-title-sub {
+    color: var(--text-muted, #94a3b8);
+    white-space: nowrap;
+}
+
+.term-pwa-icon {
+    width: 20px;
+    height: 20px;
+    border-radius: 5px;
+    background: var(--lime, #84cc16);
+    color: #080a0c;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 11px;
+    font-weight: 900;
+}
+
+.term-titlebar-badges {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.term-pill-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 11.5px;
+    font-weight: 600;
+    padding: 4px 10px;
+    border-radius: var(--radius-pill, 999px);
+    background: rgba(255, 255, 255, 0.06);
+    color: var(--text-muted, #94a3b8);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.term-pill-badge.pill-pwa {
+    background: color-mix(in srgb, var(--lime, #84cc16) 12%, transparent);
+    color: var(--lime-bright, #a3e635);
+    border-color: color-mix(in srgb, var(--lime, #84cc16) 30%, transparent);
+}
+
+/* ── HUD Status Bar (Live Clock, Offline Switch) ────────────────────────── */
+.term-hud-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 12px;
+    padding: 12px 20px;
+    background: rgba(18, 23, 33, 0.85);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.term-hud-left {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    flex-wrap: wrap;
+}
+
+.term-clock-display {
+    font-family: monospace;
+    font-size: 13.5px;
+    font-weight: 700;
+    color: #ffffff;
+    letter-spacing: 0.06em;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.term-clock-display svg {
+    color: var(--lime, #84cc16);
+}
+
+.term-status-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 11px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.03em;
+    transition: all 0.25s ease;
+}
+
+.term-status-pill.is-online {
+    background: rgba(34, 197, 94, 0.15);
+    color: #4ade80;
+    border: 1px solid rgba(34, 197, 94, 0.35);
+}
+
+.term-status-pill.is-offline {
+    background: rgba(245, 158, 11, 0.18);
+    color: #fbbf24;
+    border: 1px solid rgba(245, 158, 11, 0.45);
+    box-shadow: 0 0 14px rgba(245, 158, 11, 0.25);
+}
+
+.term-status-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: currentColor;
+    animation: termDotPulse 2s ease infinite;
+}
+
+.term-hud-right {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.term-cache-indicator {
+    font-size: 12px;
+    color: var(--text-muted, #94a3b8);
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.term-cache-indicator strong {
+    color: #ffffff;
+}
+
+.term-sim-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 14px;
+    font-size: 12px;
+    font-weight: 700;
+    border-radius: 8px;
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    background: rgba(255, 255, 255, 0.06);
+    color: #ffffff;
+    cursor: pointer;
+    transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.term-sim-btn:hover {
+    background: rgba(255, 255, 255, 0.12);
+    border-color: rgba(255, 255, 255, 0.25);
+    transform: translateY(-1px);
+}
+
+.term-sim-btn.is-active-offline {
+    background: rgba(245, 158, 11, 0.25);
+    border-color: #f59e0b;
+    color: #fef3c7;
+    box-shadow: 0 0 14px rgba(245, 158, 11, 0.3);
+}
+
+/* ── Main Kiosk Body (Dual View) ──────────────────────────────────────── */
+.term-device-grid {
+    display: grid;
+    grid-template-columns: 1.15fr 0.85fr;
+    min-height: 440px;
+}
+
+/* Left: Viewfinder / Camera Simulation */
+.term-viewfinder-column {
+    padding: clamp(18px, 3vw, 28px);
+    background: radial-gradient(circle at 50% 50%, rgba(17, 24, 38, 0.9) 0%, rgba(8, 11, 16, 0.98) 100%);
+    border-right: 1px solid rgba(255, 255, 255, 0.08);
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    position: relative;
+    overflow: hidden;
+}
+
+.term-camera-screen {
+    position: relative;
+    border-radius: 14px;
+    background: #05070a;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    min-height: 280px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    box-shadow: inset 0 0 30px rgba(0, 0, 0, 0.8);
+}
+
+/* Subtle video scan raster grid */
+.term-camera-screen::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: repeating-linear-gradient(
+        0deg,
+        rgba(0, 0, 0, 0.2),
+        rgba(0, 0, 0, 0.2) 2px,
+        transparent 2px,
+        transparent 4px
+    );
+    pointer-events: none;
+    z-index: 1;
+}
+
+/* Corner Reticle Brackets */
+.term-reticle-corner {
+    position: absolute;
+    width: 22px;
+    height: 22px;
+    border-color: var(--lime, #84cc16);
+    border-style: solid;
+    pointer-events: none;
+    z-index: 3;
+}
+.term-reticle-tl { top: 18px; left: 18px; border-width: 3px 0 0 3px; }
+.term-reticle-tr { top: 18px; right: 18px; border-width: 3px 3px 0 0; }
+.term-reticle-bl { bottom: 18px; left: 18px; border-width: 0 0 3px 3px; }
+.term-reticle-br { bottom: 18px; right: 18px; border-width: 0 3px 3px 0; }
+
+/* Animated Sweeping Laser Beam */
+.term-laser-beam {
+    position: absolute;
+    left: 10%;
+    right: 10%;
+    height: 2px;
+    background: linear-gradient(90deg, transparent, var(--lime-bright, #a3e635), transparent);
+    box-shadow: 0 0 16px var(--lime, #84cc16), 0 0 6px var(--lime, #84cc16);
+    z-index: 4;
+    animation: termLaserSweep 2.8s ease-in-out infinite alternate;
+}
+
+@keyframes termLaserSweep {
+    0% { top: 18%; opacity: 0.3; }
+    50% { opacity: 1; }
+    100% { top: 82%; opacity: 0.3; }
+}
+
+/* Glowing QR Code Target */
+.term-qr-target {
+    position: relative;
+    z-index: 2;
+    padding: 16px;
+    background: #ffffff;
+    border-radius: 12px;
+    box-shadow: 0 0 35px rgba(132, 204, 22, 0.35);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    transition: transform 0.3s ease;
+}
+
+.term-qr-target svg {
+    display: block;
+}
+
+/* Pop-in Verification Banner */
+.term-verify-toast {
+    margin-top: 14px;
+    padding: 12px 16px;
+    background: rgba(16, 24, 18, 0.95);
+    border: 1px solid rgba(132, 204, 22, 0.4);
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+    transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.term-verify-info {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.term-member-avatar {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #15803d, #84cc16);
+    color: #ffffff;
+    font-weight: 800;
+    font-size: 13px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.term-verify-text strong {
+    display: block;
+    font-size: 13.5px;
+    color: #ffffff;
+}
+
+.term-verify-text span {
+    font-size: 11.5px;
+    color: var(--lime-bright, #a3e635);
+    font-weight: 500;
+}
+
+.term-grant-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 5px 10px;
+    border-radius: 6px;
+    background: var(--lime, #84cc16);
+    color: #080a0c;
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    flex-shrink: 0;
+}
+
+/* Right: Control Center & Live Stats */
+.term-controls-column {
+    padding: clamp(18px, 3vw, 26px);
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    gap: 20px;
+    background: rgba(14, 18, 26, 0.96);
+}
+
+.term-stats-triple {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+}
+
+.term-stat-box {
+    background: rgba(22, 28, 40, 0.85);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 10px;
+    padding: 12px 10px;
+    text-align: center;
+}
+
+.term-stat-num {
+    font-size: clamp(20px, 3vw, 26px);
+    font-weight: 800;
+    color: #ffffff;
+    line-height: 1.1;
+    font-family: monospace;
+}
+
+.term-stat-num.stat-lime { color: var(--lime-bright, #a3e635); }
+.term-stat-num.stat-sky { color: #38bdf8; }
+.term-stat-num.stat-purple { color: #c084fc; }
+
+.term-stat-lbl {
+    font-size: 11px;
+    color: var(--text-muted, #94a3b8);
+    margin-top: 4px;
+    font-weight: 500;
+    white-space: nowrap;
+}
+
+/* Offline Sync Status Card */
+.term-offline-card {
+    background: linear-gradient(135deg, rgba(23, 29, 42, 0.95) 0%, rgba(16, 21, 30, 0.98) 100%);
+    border: 1px solid rgba(255, 255, 255, 0.09);
+    border-radius: 12px;
+    padding: 16px;
+    position: relative;
+    overflow: hidden;
+}
+
+.term-offline-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    width: 3px;
+    background: var(--lime, #84cc16);
+}
+
+.term-offline-card.is-offline::before {
+    background: #f59e0b;
+}
+
+.term-offline-head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13.5px;
+    font-weight: 700;
+    color: #ffffff;
+    margin-bottom: 6px;
+}
+
+.term-offline-head svg {
+    color: var(--lime, #84cc16);
+}
+
+.term-offline-card.is-offline .term-offline-head svg {
+    color: #f59e0b;
+}
+
+.term-offline-desc {
+    font-size: 12px;
+    color: var(--text-muted, #94a3b8);
+    line-height: 1.5;
+    margin: 0;
+}
+
+/* Action Button Grid in Terminal */
+.term-action-buttons {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.term-btn-primary {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    width: 100%;
+    padding: 11px 18px;
+    border-radius: 10px;
+    background: var(--lime, #84cc16);
+    color: #080a0c;
+    font-weight: 800;
+    font-size: 13.5px;
+    border: none;
+    cursor: pointer;
+    box-shadow: 0 4px 18px rgba(132, 204, 22, 0.28);
+    transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.term-btn-primary:hover {
+    background: var(--lime-bright, #a3e635);
+    transform: translateY(-2px);
+    box-shadow: 0 6px 22px rgba(132, 204, 22, 0.4);
+}
+
+.term-btn-secondary {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    width: 100%;
+    padding: 10px 18px;
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.05);
+    color: #ffffff;
+    font-weight: 600;
+    font-size: 13px;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    cursor: pointer;
+    transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.term-btn-secondary:hover {
+    background: rgba(255, 255, 255, 0.1);
+    border-color: rgba(255, 255, 255, 0.22);
+}
+
+/* ── Hardware & Device Compatibility Bar ───────────────────────────────── */
+.term-platforms-bar {
+    margin-top: clamp(2.5rem, 5vw, 3.5rem);
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 14px;
+}
+
+.term-platform-card {
+    background: linear-gradient(175deg, rgba(24, 29, 39, 0.8) 0%, rgba(14, 18, 25, 0.9) 100%);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 14px;
+    padding: 18px 16px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    transition: transform 0.25s ease, border-color 0.25s ease;
+}
+
+.term-platform-card:hover {
+    transform: translateY(-2px);
+    border-color: rgba(132, 204, 22, 0.35);
+}
+
+.term-plat-icon {
+    width: 40px;
+    height: 40px;
+    border-radius: 10px;
+    background: color-mix(in srgb, var(--lime, #84cc16) 12%, transparent);
+    border: 1px solid color-mix(in srgb, var(--lime, #84cc16) 25%, transparent);
+    color: var(--lime-bright, #a3e635);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.term-plat-name {
+    font-size: 13.5px;
+    font-weight: 700;
+    color: #ffffff;
+    line-height: 1.25;
+}
+
+.term-plat-sub {
+    font-size: 11.5px;
+    color: var(--text-muted, #94a3b8);
+    margin-top: 2px;
+}
+
+/* ── 3 Architecture Feature Cards ──────────────────────────────────────── */
+.term-features-grid {
+    margin-top: clamp(1.5rem, 3vw, 2.5rem);
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 20px;
+}
+
+.term-feature-item {
+    background: linear-gradient(175deg, rgba(24, 29, 39, 0.94) 0%, rgba(14, 18, 25, 0.97) 100%);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 18px;
+    padding: clamp(20px, 3vw, 26px);
+    position: relative;
+    transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.3s ease, box-shadow 0.3s ease;
+}
+
+.term-feature-item:hover {
+    transform: translateY(-3px);
+    border-color: color-mix(in srgb, var(--lime, #84cc16) 38%, transparent);
+    box-shadow: 0 16px 36px -12px rgba(0, 0, 0, 0.65), 0 0 25px rgba(132, 204, 22, 0.1);
+}
+
+.term-feat-icon-wrap {
+    width: 46px;
+    height: 46px;
+    border-radius: 12px;
+    background: color-mix(in srgb, var(--lime, #84cc16) 14%, transparent);
+    border: 1px solid color-mix(in srgb, var(--lime, #84cc16) 30%, transparent);
+    color: var(--lime-bright, #a3e635);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 16px;
+}
+
+.term-feat-title {
+    font-size: 17px;
+    font-weight: 700;
+    color: #ffffff;
+    margin-bottom: 8px;
+    line-height: 1.3;
+}
+
+.term-feat-desc {
+    font-size: 13.5px;
+    color: var(--text-muted, #94a3b8);
+    line-height: 1.6;
+    margin: 0;
+}
+
+/* ── Responsive Adaptations ────────────────────────────────────────────── */
+@media (max-width: 992px) {
+    .term-device-grid {
+        grid-template-columns: 1fr;
+    }
+    .term-viewfinder-column {
+        border-right: none;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    }
+    .term-platforms-bar {
+        grid-template-columns: repeat(2, 1fr);
+    }
+    .term-features-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+@media (max-width: 640px) {
+    .term-device-titlebar {
+        padding: 9px 12px;
+        gap: 8px;
+    }
+    .term-window-dots {
+        gap: 5px;
+        flex-shrink: 0;
+    }
+    .term-wdot {
+        width: 8.5px;
+        height: 8.5px;
+    }
+    .term-window-title {
+        gap: 6px;
+        font-size: 12px;
+        min-width: 0;
+        flex: 1;
+        overflow: hidden;
+    }
+    .term-title-main {
+        font-size: 12px;
+        white-space: nowrap;
+    }
+    .term-title-sub {
+        display: none !important;
+    }
+    .term-pwa-icon {
+        width: 18px;
+        height: 18px;
+        font-size: 9.5px;
+        flex-shrink: 0;
+    }
+    .term-badge-desktop {
+        display: none !important;
+    }
+    .term-titlebar-badges {
+        gap: 6px;
+        flex-shrink: 0;
+    }
+    .term-titlebar-install-btn {
+        padding: 4px 9px;
+        font-size: 11px;
+    }
+    .term-hud-bar {
+        padding: 10px 14px;
+        flex-direction: column;
+        align-items: stretch;
+        gap: 10px;
+    }
+    .term-hud-left {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        width: 100%;
+    }
+    .term-hud-right {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        width: 100%;
+        gap: 8px;
+    }
+    .term-cache-indicator {
+        font-size: 11.5px;
+    }
+    .term-sim-btn {
+        padding: 5px 11px;
+        font-size: 11.5px;
+        white-space: nowrap;
+    }
+    .term-stats-triple {
+        grid-template-columns: 1fr 1fr 1fr;
+        gap: 6px;
+    }
+    .term-stat-box {
+        padding: 8px 4px;
+    }
+    .term-stat-num {
+        font-size: 18px;
+    }
+    .term-stat-lbl {
+        font-size: 9.5px;
+    }
+    .term-platforms-bar {
+        grid-template-columns: 1fr;
+    }
+    .term-verify-toast {
+        flex-direction: row;
+        align-items: center;
+        justify-content: space-between;
+        padding: 9px 12px;
+        gap: 8px;
+        margin-top: 10px;
+    }
+    .term-verify-info {
+        display: flex;
+        align-items: center;
+        gap: 9px;
+        min-width: 0;
+        flex: 1;
+    }
+    .term-member-avatar {
+        width: 32px;
+        height: 32px;
+        font-size: 11.5px;
+        flex-shrink: 0;
+    }
+    .term-verify-text {
+        min-width: 0;
+        flex: 1;
+        overflow: hidden;
+    }
+    .term-verify-text strong {
+        font-size: 12px;
+        line-height: 1.25;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        display: block;
+    }
+    .term-verify-text span {
+        font-size: 10.5px;
+        line-height: 1.2;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        display: block;
+    }
+    .term-grant-badge {
+        padding: 4px 7px;
+        font-size: 10px;
+        gap: 3px;
+        border-radius: 5px;
+        flex-shrink: 0;
+    }
+    .term-grant-badge svg {
+        width: 10px;
+        height: 10px;
+    }
+}
+
+/* ==========================================================================
+   PWA INSTALL BUTTONS & MOBILE DISCOVERABILITY
+   ========================================================================== */
+
+/* ── Desktop & Mobile Header Install Buttons ────────────────────────────── */
+.nav-install-btn {
+    background: rgba(132, 204, 22, 0.12) !important;
+    color: var(--lime-bright, #a3e635) !important;
+    border: 1px solid rgba(132, 204, 22, 0.35) !important;
+    font-weight: 700 !important;
+    border-radius: 8px !important;
+    cursor: pointer;
+    transition: all 0.2s ease !important;
+}
+
+.nav-install-btn:hover {
+    background: var(--lime, #84cc16) !important;
+    color: #080a0c !important;
+    box-shadow: 0 4px 14px rgba(132, 204, 22, 0.3) !important;
+}
+
+.mobile-nav-install-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 6px 12px;
+    background: color-mix(in srgb, var(--lime, #84cc16) 15%, transparent);
+    color: var(--lime-bright, #a3e635);
+    border: 1px solid color-mix(in srgb, var(--lime, #84cc16) 40%, transparent);
+    border-radius: 8px;
+    font-size: 12px;
+    font-weight: 800;
+    cursor: pointer;
+    text-decoration: none;
+    transition: all 0.2s ease;
+    flex-shrink: 0;
+}
+
+.mobile-nav-install-btn:active {
+    background: var(--lime, #84cc16);
+    color: #080a0c;
+    transform: scale(0.97);
+}
+
+/* ── Mobile Drawer Install Card ────────────────────────────────────────── */
+.mobile-drawer-install-card {
+    background: linear-gradient(135deg, rgba(26, 33, 46, 0.95) 0%, rgba(14, 18, 25, 0.98) 100%);
+    border: 1px solid rgba(132, 204, 22, 0.3);
+    border-radius: 14px;
+    padding: 14px;
+    margin-bottom: 16px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+}
+
+.mdic-info {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 12px;
+}
+
+.mdic-logo {
+    width: 34px;
+    height: 34px;
+    border-radius: 9px;
+    background: var(--lime, #84cc16);
+    color: #080a0c;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 900;
+    font-size: 14px;
+    flex-shrink: 0;
+    box-shadow: 0 4px 12px rgba(132, 204, 22, 0.3);
+}
+
+.mdic-title {
+    font-weight: 800;
+    font-size: 14px;
+    color: #ffffff;
+    line-height: 1.2;
+}
+
+.mdic-subtitle {
+    font-size: 11.5px;
+    color: var(--text-muted, #94a3b8);
+    margin-top: 2px;
+}
+
+.mdic-btn {
+    width: 100%;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 7px;
+    padding: 9px 14px;
+    font-weight: 800;
+    font-size: 13px;
+    border-radius: 9px;
+    background: var(--lime, #84cc16);
+    color: #080a0c !important;
+    border: none;
+    cursor: pointer;
+    box-shadow: 0 4px 14px rgba(132, 204, 22, 0.25);
+}
+
+/* ── Section Header Install CTA ────────────────────────────────────────── */
+.term-install-header-actions {
+    margin-top: 20px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+}
+
+.term-install-main-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 9px;
+    padding: 12px 24px;
+    border-radius: 12px;
+    background: var(--lime, #84cc16);
+    color: #080a0c;
+    font-weight: 800;
+    font-size: 14px;
+    border: none;
+    cursor: pointer;
+    box-shadow: 0 4px 20px rgba(132, 204, 22, 0.35);
+    transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.term-install-main-btn:hover {
+    background: var(--lime-bright, #a3e635);
+    transform: translateY(-2px);
+    box-shadow: 0 8px 28px rgba(132, 204, 22, 0.45);
+}
+
+.term-install-note {
+    font-size: 12px;
+    color: var(--text-muted, #94a3b8);
+}
+
+.term-titlebar-install-btn {
+    cursor: pointer;
+    border: 1px solid color-mix(in srgb, var(--lime, #84cc16) 45%, transparent);
+    transition: all 0.2s ease;
+}
+
+.term-titlebar-install-btn:hover {
+    background: var(--lime, #84cc16);
+    color: #080a0c;
+}
+
+/* ── Mobile Floating PWA Install Banner ────────────────────────────────── */
+.mobile-floating-install {
+    position: fixed;
+    bottom: 16px;
+    left: 12px;
+    right: 12px;
+    z-index: 9998;
+    background: rgba(15, 20, 30, 0.95);
+    border: 1px solid rgba(132, 204, 22, 0.4);
+    box-shadow: 0 10px 35px rgba(0, 0, 0, 0.65), 0 0 20px rgba(132, 204, 22, 0.2);
+    border-radius: 16px;
+    padding: 10px 14px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.3s ease;
+}
+
+.mobile-floating-install.is-hidden {
+    transform: translateY(120%);
+    opacity: 0;
+    pointer-events: none;
+}
+
+.mfi-click-area {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex: 1;
+    min-width: 0;
+    cursor: pointer;
+}
+
+.mfi-logo-box {
+    width: 34px;
+    height: 34px;
+    border-radius: 9px;
+    background: var(--lime, #84cc16);
+    color: #080a0c;
+    font-weight: 900;
+    font-size: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    box-shadow: 0 2px 8px rgba(132, 204, 22, 0.35);
+}
+
+.mfi-details {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+}
+
+.mfi-title {
+    font-size: 13.5px;
+    font-weight: 800;
+    color: #ffffff;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.mfi-sub {
+    font-size: 11px;
+    color: var(--text-muted, #94a3b8);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.mfi-install-btn {
+    padding: 7px 14px;
+    border-radius: 8px;
+    background: var(--lime, #84cc16);
+    color: #080a0c;
+    font-weight: 800;
+    font-size: 12.5px;
+    border: none;
+    cursor: pointer;
+    flex-shrink: 0;
+    box-shadow: 0 2px 10px rgba(132, 204, 22, 0.3);
+}
+
+.mfi-close-btn {
+    background: none;
+    border: none;
+    color: #64748b;
+    font-size: 20px;
+    line-height: 1;
+    cursor: pointer;
+    padding: 4px;
+    flex-shrink: 0;
+}
+
+.mfi-close-btn:hover {
+    color: #ffffff;
+}
+
+@media (min-width: 769px) {
+    .mobile-floating-install {
+        display: none !important;
+    }
+}
+
+/* ── Interactive PWA Installation Modal (Guide for iOS, Android, Desktop) ─ */
+.pwa-modal-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(4, 7, 12, 0.85);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    z-index: 99999;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 16px;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.25s ease, visibility 0.25s ease;
+}
+
+.pwa-modal-backdrop.is-open {
+    opacity: 1;
+    visibility: visible;
+}
+
+.pwa-modal-card {
+    background: linear-gradient(180deg, #18202d 0%, #0d121a 100%);
+    border: 1px solid rgba(132, 204, 22, 0.35);
+    border-radius: 20px;
+    width: 100%;
+    max-width: 480px;
+    box-shadow: 0 25px 70px rgba(0, 0, 0, 0.85), 0 0 35px rgba(132, 204, 22, 0.15);
+    overflow: hidden;
+    transform: scale(0.94) translateY(15px);
+    transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.pwa-modal-backdrop.is-open .pwa-modal-card {
+    transform: scale(1) translateY(0);
+}
+
+.pwa-modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 18px 22px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.pwa-modal-title-wrap {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.pwa-modal-logo {
+    width: 38px;
+    height: 38px;
+    border-radius: 10px;
+    background: var(--lime, #84cc16);
+    color: #080a0c;
+    font-size: 16px;
+    font-weight: 900;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 4px 14px rgba(132, 204, 22, 0.35);
+}
+
+.pwa-modal-title {
+    font-size: 16px;
+    font-weight: 800;
+    color: #ffffff;
+    line-height: 1.2;
+}
+
+.pwa-modal-sub {
+    font-size: 12px;
+    color: var(--text-muted, #94a3b8);
+}
+
+.pwa-modal-close {
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    color: #ffffff;
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    font-size: 18px;
+    line-height: 1;
+}
+
+.pwa-modal-tabs {
+    display: flex;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    background: rgba(12, 16, 24, 0.6);
+}
+
+.pwa-modal-tab-btn {
+    flex: 1;
+    padding: 11px 8px;
+    background: none;
+    border: none;
+    border-bottom: 2px solid transparent;
+    color: var(--text-muted, #94a3b8);
+    font-size: 12.5px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.pwa-modal-tab-btn.is-active {
+    color: var(--lime-bright, #a3e635);
+    border-bottom-color: var(--lime, #84cc16);
+    background: rgba(132, 204, 22, 0.06);
+}
+
+.pwa-modal-body {
+    padding: 22px;
+}
+
+.pwa-modal-pane {
+    display: none;
+}
+
+.pwa-modal-pane.is-active {
+    display: block;
+}
+
+.pwa-step-list {
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    margin: 0 0 20px;
+    padding: 0;
+}
+
+.pwa-step-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+}
+
+.pwa-step-num {
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    background: rgba(132, 204, 22, 0.16);
+    border: 1px solid rgba(132, 204, 22, 0.4);
+    color: var(--lime-bright, #a3e635);
+    font-weight: 800;
+    font-size: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    margin-top: 1px;
+}
+
+.pwa-step-content {
+    font-size: 13.5px;
+    color: #e2e8f0;
+    line-height: 1.45;
+}
+
+.pwa-step-content strong {
+    color: #ffffff;
+}
+
+.pwa-step-content .highlight {
+    color: var(--lime-bright, #a3e635);
+    font-weight: 700;
+}
+
+.pwa-action-cta-wrap {
+    padding-top: 6px;
+}
+
+.pwa-native-prompt-btn {
+    width: 100%;
+    padding: 12px 18px;
+    border-radius: 10px;
+    background: var(--lime, #84cc16);
+    color: #080a0c;
+    font-weight: 800;
+    font-size: 14px;
+    border: none;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    box-shadow: 0 4px 18px rgba(132, 204, 22, 0.3);
+    transition: all 0.2s ease;
+}
+
+.pwa-native-prompt-btn:hover {
+    background: var(--lime-bright, #a3e635);
+    transform: translateY(-1px);
+}
+
+/* ── Floating Terminal Toast Notification ───────────────────────────────── */
+.term-floating-toast {
+    position: fixed;
+    bottom: 24px;
+    left: 50%;
+    transform: translateX(-50%) translateY(20px);
+    width: auto;
+    max-width: min(92vw, 440px);
+    box-sizing: border-box;
+    background: rgba(15, 23, 36, 0.96);
+    color: #ffffff;
+    border: 1px solid rgba(132, 204, 22, 0.45);
+    padding: 10px 18px;
+    border-radius: 12px;
+    font-size: 13px;
+    font-weight: 600;
+    line-height: 1.4;
+    text-align: center;
+    box-shadow: 0 12px 36px rgba(0, 0, 0, 0.75), 0 0 20px rgba(132, 204, 22, 0.25);
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+    z-index: 99999;
+    opacity: 0;
+    transition: opacity 0.25s ease, transform 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+    pointer-events: none;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    word-break: break-word;
+}
+
+.term-floating-toast.is-visible {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+}
+
+@media (max-width: 640px) {
+    .term-floating-toast {
+        bottom: 20px;
+        width: calc(100% - 32px);
+        max-width: 380px;
+        font-size: 12.5px;
+        padding: 9px 14px;
+        border-radius: 10px;
+    }
+}
+
+

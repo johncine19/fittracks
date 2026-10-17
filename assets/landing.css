@@ -235,13 +235,17 @@ video {
     display: flex;
     align-items: center;
     justify-content: space-between;
+    gap: clamp(1.5rem, 2.5vw, 3rem);
     width: 100%;
+    max-width: clamp(1260px, 94vw, 1420px);
 }
 
 .brand-logo-wrap {
     display: flex;
     align-items: center;
     gap: 0.75rem;
+    flex-shrink: 0;
+    margin-right: clamp(1.75rem, 2.5vw, 3.5rem);
 }
 
 .brand-f-logo {
@@ -292,8 +296,9 @@ video {
 .nav-menu {
     display: flex;
     align-items: center;
-    gap: 2rem;
+    gap: clamp(1.15rem, 1.6vw, 1.85rem);
     list-style: none;
+    flex-shrink: 0;
 }
 
 .nav-link {
@@ -329,7 +334,7 @@ video {
 .nav-actions {
     display: flex;
     align-items: center;
-    gap: 1rem;
+    gap: clamp(0.6rem, 1vw, 1rem);
     flex-shrink: 0;
 }
 
@@ -366,6 +371,9 @@ video {
 
 /* Medium Desktop Responsive Scaling (1025px - 1240px) */
 @media (max-width: 1240px) and (min-width: 1025px) {
+    .brand-logo-wrap {
+        margin-right: 1.25rem;
+    }
     .nav-menu {
         gap: clamp(0.75rem, 1.2vw, 1.35rem);
     }

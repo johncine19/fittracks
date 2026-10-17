@@ -223,6 +223,14 @@ function landing_page(): void
         <link rel="icon" type="image/svg+xml" href="assets/images/fittracks-icon.svg">
         <link rel="apple-touch-icon" href="assets/images/favicon.png">
 
+        <!-- Web App Manifest & Mobile PWA Configuration -->
+        <link rel="manifest" href="manifest.json">
+        <meta name="theme-color" content="#22c55e">
+        <meta name="mobile-web-app-capable" content="yes">
+        <meta name="apple-mobile-web-app-capable" content="yes">
+        <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+        <meta name="apple-mobile-web-app-title" content="FitTrack">
+
         <!-- Open Graph / Facebook / LinkedIn / WhatsApp -->
         <meta property="og:type" content="website">
         <meta property="og:url" content="https://fitworks.tech/">
@@ -281,6 +289,7 @@ function landing_page(): void
         <link rel="stylesheet" href="assets/landing.css?v=<?= filemtime(__DIR__ . '/../assets/landing.css') ?>">
         <link rel="stylesheet" href="<?= h(asset_url('css/pages/landing-hero.css')) ?>">
         <link rel="stylesheet" href="<?= h(asset_url('css/pages/landing-architecture.css')) ?>">
+        <link rel="stylesheet" href="<?= h(asset_url('css/pages/landing-terminal.css')) ?>">
         <link rel="preload" as="image" href="assets/landing/hero_gym.png" fetchpriority="high">
         <link rel="stylesheet" href="assets/splash.css?v=<?= file_exists(__DIR__ . '/../assets/splash.css') ? filemtime(__DIR__ . '/../assets/splash.css') : 1 ?>">
         <script src="assets/splash.js?v=<?= file_exists(__DIR__ . '/../assets/splash.js') ? filemtime(__DIR__ . '/../assets/splash.js') : 1 ?>"></script>
@@ -319,6 +328,7 @@ function landing_page(): void
 
                 <ul class="nav-menu">
                     <li><a href="#features" class="nav-link">Features</a></li>
+                    <li><a href="#terminal" class="nav-link">Terminal</a></li>
                     <li><a href="#how-it-works" class="nav-link">How It Works</a></li>
                     <li><a href="#testimonials" class="nav-link">Testimonials</a></li>
                     <li><a href="#pricing" class="nav-link">Pricing</a></li>
@@ -352,7 +362,23 @@ function landing_page(): void
 
         <!-- Mobile Menu Drawer -->
         <div class="mobile-drawer" id="mobileDrawer">
+            <!-- Mobile Drawer PWA Install Card -->
+            <div class="mobile-drawer-install-card">
+                <div class="mdic-info">
+                    <div class="mdic-logo">FT</div>
+                    <div>
+                        <div class="mdic-title">FitTrack Terminal</div>
+                        <div class="mdic-subtitle">Installable PWA for Mobile & Tablet</div>
+                    </div>
+                </div>
+                <button type="button" class="mdic-btn pwa-install-trigger" onclick="closeMobileMenu(); triggerPWAInstall();">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                    <span>Install App on this Device</span>
+                </button>
+            </div>
+
             <a href="#features" class="mobile-drawer-link" onclick="closeMobileMenu()">Features</a>
+            <a href="#terminal" class="mobile-drawer-link" onclick="closeMobileMenu()">Terminal</a>
             <a href="#how-it-works" class="mobile-drawer-link" onclick="closeMobileMenu()">How It Works</a>
             <a href="#testimonials" class="mobile-drawer-link" onclick="closeMobileMenu()">Testimonials</a>
             <a href="#pricing" class="mobile-drawer-link" onclick="closeMobileMenu()">Pricing</a>
@@ -1392,6 +1418,245 @@ function landing_page(): void
         </section>
 
         <!-- ==========================================================================
+       08.5. INSTALLABLE FRONT-DESK TERMINAL SPOTLIGHT
+       Styles: assets/css/pages/landing-terminal.css · Motion: assets/js/pages/landing-terminal.js
+       ========================================================================== -->
+        <section class="has-parallax-orbs term-spotlight-section reveal-on-scroll" id="terminal">
+            <div class="term-backdrop-glow" aria-hidden="true"></div>
+            <div class="parallax-orbs" aria-hidden="true">
+                <span class="parallax-orb orb-lime" data-parallax="0.2"></span>
+                <span class="parallax-orb orb-sky" data-parallax="-0.15"></span>
+            </div>
+
+            <div class="container">
+                <div class="section-header">
+                    <span class="term-eyebrow-badge">
+                        <span class="term-pulse-dot"></span>
+                        Installable Front-Desk PWA
+                    </span>
+                    <h2 class="section-title">
+                        The FitTrack Attendance Terminal.<br>
+                        <span class="term-headline-accent">Zero Downtime. Zero Paperwork.</span>
+                    </h2>
+                    <p class="section-desc">
+                        Turn any front-desk PC, Mac, or tablet into an optical check-in station with 1-click browser installation. Fully offline-resilient—so member verification continues without interruption even during complete power and internet brownouts.
+                    </p>
+                    <div class="term-install-header-actions">
+                        <button type="button" class="term-install-main-btn pwa-install-trigger" onclick="triggerPWAInstall()">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                            <span>Install FitTrack Terminal App</span>
+                        </button>
+                        <span class="term-install-note">⚡ 1-Click PWA • Runs natively with zero browser clutter</span>
+                    </div>
+                </div>
+
+                <!-- Interactive Kiosk Simulation -->
+                <div class="term-kiosk-wrapper">
+                    <div class="term-device-frame">
+                        <!-- PWA Window Title Bar -->
+                        <div class="term-device-titlebar">
+                            <div class="term-window-dots" aria-hidden="true">
+                                <span class="term-wdot term-wdot-red"></span>
+                                <span class="term-wdot term-wdot-yellow"></span>
+                                <span class="term-wdot term-wdot-green"></span>
+                            </div>
+                            <div class="term-window-title">
+                                <span class="term-pwa-icon">FT</span>
+                                <span class="term-title-main">FitTrack Terminal</span>
+                                <span class="term-title-sub">• Front Desk Kiosk</span>
+                            </div>
+                            <div class="term-titlebar-badges">
+                                <button type="button" class="term-pill-badge pill-pwa term-titlebar-install-btn pwa-install-trigger" onclick="triggerPWAInstall()" title="Install FitTrack Terminal as Standalone App">
+                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                                    <span>Install App</span>
+                                </button>
+                                <span class="term-pill-badge term-badge-desktop">Standalone PWA</span>
+                            </div>
+                        </div>
+
+                        <!-- Live Terminal HUD -->
+                        <div class="term-hud-bar">
+                            <div class="term-hud-left">
+                                <div class="term-clock-display" title="Synchronized Local Station Clock">
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                                    <span id="termDemoClock">10:42:18 AM</span>
+                                </div>
+                                <span class="term-status-pill is-online" id="termDemoNetStatus">
+                                    <span class="term-status-dot"></span>
+                                    <span id="termDemoNetText">ONLINE</span>
+                                </span>
+                            </div>
+
+                            <div class="term-hud-right">
+                                <div class="term-cache-indicator">
+                                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>
+                                    <span>Roster: <strong id="termQueueText">480 active cached</strong></span>
+                                </div>
+                                <button type="button" class="term-sim-btn" id="termSimulateOutageBtn" title="Test how FitTrack behaves during a real-world internet outage">
+                                    <span>⚡ Simulate Outage</span>
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Dual Terminal Grid -->
+                        <div class="term-device-grid">
+                            <!-- Left: Optical Scanner Viewfinder -->
+                            <div class="term-viewfinder-column">
+                                <div class="term-camera-screen">
+                                    <div class="term-reticle-corner term-reticle-tl"></div>
+                                    <div class="term-reticle-corner term-reticle-tr"></div>
+                                    <div class="term-reticle-corner term-reticle-bl"></div>
+                                    <div class="term-reticle-corner term-reticle-br"></div>
+                                    
+                                    <div class="term-laser-beam" id="termLaserBeam"></div>
+
+                                    <div class="term-qr-target">
+                                        <svg viewBox="0 0 21 21" width="130" height="130" shape-rendering="crispEdges">
+                                            <path fill="#080a0c" d="<?= landing_hero_qr_path() ?>" />
+                                        </svg>
+                                    </div>
+                                </div>
+
+                                <!-- Verified Check-in Toast Card -->
+                                <div class="term-verify-toast" id="termToastCard">
+                                    <div class="term-verify-info">
+                                        <div class="term-member-avatar" id="termToastAvatar">AS</div>
+                                        <div class="term-verify-text">
+                                            <strong id="termToastName">Andrea Salazar (#240018)</strong>
+                                            <span id="termToastPlan">Monthly Premium • Active</span>
+                                        </div>
+                                    </div>
+                                    <div class="term-grant-badge">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>
+                                        <span>Granted</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Right: Front-Desk Controls & Counters -->
+                            <div class="term-controls-column">
+                                <!-- Triple Live Stats -->
+                                <div class="term-stats-triple">
+                                    <div class="term-stat-box">
+                                        <div class="term-stat-num stat-lime" id="termStatCheckins">142</div>
+                                        <div class="term-stat-lbl">Today's Scans</div>
+                                    </div>
+                                    <div class="term-stat-box">
+                                        <div class="term-stat-num stat-sky" id="termStatActive">28</div>
+                                        <div class="term-stat-lbl">Inside Facility</div>
+                                    </div>
+                                    <div class="term-stat-box">
+                                        <div class="term-stat-num stat-purple" id="termStatWalkins">14</div>
+                                        <div class="term-stat-lbl">Walk-in Passes</div>
+                                    </div>
+                                </div>
+
+                                <!-- Offline Architecture Card -->
+                                <div class="term-offline-card" id="termDemoOfflineCard">
+                                    <div class="term-offline-head" id="termDemoOfflineHead">
+                                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><polyline points="9 12 11 14 15 10"/></svg>
+                                        Cloud Sync Worker Active
+                                    </div>
+                                    <p class="term-offline-desc" id="termDemoOfflineDesc">
+                                        Central cloud connected. Offline scans batch-synced with original timestamps preserved. 0 members interrupted.
+                                    </p>
+                                </div>
+
+                                <!-- Interactive Demo Actions -->
+                                <div class="term-action-buttons">
+                                    <button type="button" class="term-btn-primary" id="termTriggerScanBtn">
+                                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+                                        <span>Test Member Scan</span>
+                                    </button>
+                                    <button type="button" class="term-btn-secondary" id="termTriggerWalkinBtn">
+                                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>
+                                        <span>Quick Walk-in Guest (₱100)</span>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Hardware & Platform Compatibility Grid -->
+                <div class="term-platforms-bar">
+                    <div class="term-platform-card">
+                        <div class="term-plat-icon">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+                        </div>
+                        <div>
+                            <div class="term-plat-name">Windows Desktop App</div>
+                            <div class="term-plat-sub">1-Click Chrome & Edge PWA</div>
+                        </div>
+                    </div>
+
+                    <div class="term-platform-card">
+                        <div class="term-plat-icon">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="2" width="16" height="20" rx="2" ry="2"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg>
+                        </div>
+                        <div>
+                            <div class="term-plat-name">iPad & Android Tablets</div>
+                            <div class="term-plat-sub">Counter Stand & Turnstile Mount</div>
+                        </div>
+                    </div>
+
+                    <div class="term-platform-card">
+                        <div class="term-plat-icon">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+                        </div>
+                        <div>
+                            <div class="term-plat-name">Optical Webcams</div>
+                            <div class="term-plat-sub">Built-in or USB HD Video Input</div>
+                        </div>
+                    </div>
+
+                    <div class="term-platform-card">
+                        <div class="term-plat-icon">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3h4v4H3zM17 3h4v4h-4zM17 17h4v4h-4zM3 17h4v4H3z"/><path d="M7 12h10"/></svg>
+                        </div>
+                        <div>
+                            <div class="term-plat-name">Barcode Laser Guns</div>
+                            <div class="term-plat-sub">Instant USB HID Keyboard Input</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 3 Pillars Grid -->
+                <div class="term-features-grid">
+                    <div class="term-feature-item">
+                        <div class="term-feat-icon-wrap">
+                            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+                        </div>
+                        <h3 class="term-feat-title">100% Offline Resilience</h3>
+                        <p class="term-feat-desc">
+                            Service Worker and local IndexedDB store encrypted member tokens and plans. If the gym’s Wi-Fi drops or a sudden power outage strikes, the terminal validates check-ins with zero interruptions.
+                        </p>
+                    </div>
+
+                    <div class="term-feature-item">
+                        <div class="term-feat-icon-wrap">
+                            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
+                        </div>
+                        <h3 class="term-feat-title">Preserved Client Timestamps</h3>
+                        <p class="term-feat-desc">
+                            Every scan made during an outage logs its exact down-to-the-second timestamp. When internet restores, background batch syncing updates the central database—ensuring rush hour analytics remain 100% accurate.
+                        </p>
+                    </div>
+
+                    <div class="term-feature-item">
+                        <div class="term-feat-icon-wrap">
+                            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/></svg>
+                        </div>
+                        <h3 class="term-feat-title">Dedicated Kiosk Lock Mode</h3>
+                        <p class="term-feat-desc">
+                            Launch FitTrack in a distraction-free, borderless window with audio chimes. Front-desk staff can switch to full-screen kiosk mode, issue day passes, or perform manual member search in seconds.
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ==========================================================================
        09. HOW FITTRACK WORKS
        ========================================================================== -->
         <section class="has-parallax-orbs how-section reveal-on-scroll" id="how-it-works">
@@ -2414,6 +2679,7 @@ function landing_page(): void
         <script src="<?= h(asset_url('js/pages/landing.js')) ?>"></script>
         <script src="<?= h(asset_url('js/pages/landing-hero.js')) ?>"></script>
         <script src="<?= h(asset_url('js/pages/landing-architecture.js')) ?>"></script>
+        <script src="<?= h(asset_url('js/pages/landing-terminal.js')) ?>"></script>
         <script>
         if (window.location.hash) {
             window.addEventListener('load', function () {
@@ -2428,6 +2694,122 @@ function landing_page(): void
             });
         }
         </script>
+
+        <!-- Mobile Floating PWA Install Banner -->
+        <aside class="mobile-floating-install is-hidden" id="mobileFloatingInstall" aria-label="Install FitTrack Terminal App">
+            <div class="mfi-click-area" onclick="triggerPWAInstall()">
+                <div class="mfi-logo-box">FT</div>
+                <div class="mfi-details">
+                    <span class="mfi-title">FitTrack Terminal</span>
+                    <span class="mfi-sub">Install app for instant offline QR check-ins</span>
+                </div>
+                <button type="button" class="mfi-install-btn">Install</button>
+            </div>
+            <button type="button" class="mfi-close-btn" onclick="dismissFloatingInstall(event)" aria-label="Close install banner">&times;</button>
+        </aside>
+
+        <!-- PWA Installation Guide Modal (Multi-Platform Instructions) -->
+        <div class="pwa-modal-backdrop" id="pwaInstallModal" onclick="if(event.target === this) closePWAInstallModal()">
+            <div class="pwa-modal-card">
+                <div class="pwa-modal-header">
+                    <div class="pwa-modal-title-wrap">
+                        <div class="pwa-modal-logo">FT</div>
+                        <div>
+                            <div class="pwa-modal-title">Install FitTrack Terminal</div>
+                            <div class="pwa-modal-sub">Fast, offline-ready check-in kiosk</div>
+                        </div>
+                    </div>
+                    <button type="button" class="pwa-modal-close" onclick="closePWAInstallModal()" aria-label="Close modal">&times;</button>
+                </div>
+
+                <div class="pwa-modal-tabs">
+                    <button type="button" class="pwa-modal-tab-btn is-active" data-tab="android" onclick="switchPwaModalTab('android')">Android / Chrome</button>
+                    <button type="button" class="pwa-modal-tab-btn" data-tab="ios" onclick="switchPwaModalTab('ios')">iPhone / iPad</button>
+                    <button type="button" class="pwa-modal-tab-btn" data-tab="desktop" onclick="switchPwaModalTab('desktop')">Windows / Mac</button>
+                </div>
+
+                <div class="pwa-modal-body">
+                    <!-- Android Pane -->
+                    <div class="pwa-modal-pane is-active" id="pwa-pane-android">
+                        <ul class="pwa-step-list">
+                            <li class="pwa-step-item">
+                                <span class="pwa-step-num">1</span>
+                                <div class="pwa-step-content">
+                                    Tap the <strong>three dots menu (⋮)</strong> in the top-right corner of Chrome.
+                                </div>
+                            </li>
+                            <li class="pwa-step-item">
+                                <span class="pwa-step-num">2</span>
+                                <div class="pwa-step-content">
+                                    Select <strong class="highlight">"Install app"</strong> or <strong>"Add to Home screen"</strong>.
+                                </div>
+                            </li>
+                            <li class="pwa-step-item">
+                                <span class="pwa-step-num">3</span>
+                                <div class="pwa-step-content">
+                                    Tap <strong>Install</strong>. FitTrack Terminal will appear on your home screen with its own icon!
+                                </div>
+                            </li>
+                        </ul>
+                    </div>
+
+                    <!-- iOS Pane -->
+                    <div class="pwa-modal-pane" id="pwa-pane-ios">
+                        <ul class="pwa-step-list">
+                            <li class="pwa-step-item">
+                                <span class="pwa-step-num">1</span>
+                                <div class="pwa-step-content">
+                                    In Safari, tap the <strong>Share button (⎋ with arrow)</strong> at the bottom of the screen.
+                                </div>
+                            </li>
+                            <li class="pwa-step-item">
+                                <span class="pwa-step-num">2</span>
+                                <div class="pwa-step-content">
+                                    Scroll down and tap <strong class="highlight">"Add to Home Screen" (➕)</strong>.
+                                </div>
+                            </li>
+                            <li class="pwa-step-item">
+                                <span class="pwa-step-num">3</span>
+                                <div class="pwa-step-content">
+                                    Tap <strong>Add</strong> in the top-right corner. The app will launch in standalone kiosk mode!
+                                </div>
+                            </li>
+                        </ul>
+                    </div>
+
+                    <!-- Desktop Pane -->
+                    <div class="pwa-modal-pane" id="pwa-pane-desktop">
+                        <ul class="pwa-step-list">
+                            <li class="pwa-step-item">
+                                <span class="pwa-step-num">1</span>
+                                <div class="pwa-step-content">
+                                    Look at the <strong>right side of your browser URL bar</strong> (Chrome or Edge).
+                                </div>
+                            </li>
+                            <li class="pwa-step-item">
+                                <span class="pwa-step-num">2</span>
+                                <div class="pwa-step-content">
+                                    Click the <strong class="highlight">Install icon (⊞ or ⬇)</strong>.
+                                </div>
+                            </li>
+                            <li class="pwa-step-item">
+                                <span class="pwa-step-num">3</span>
+                                <div class="pwa-step-content">
+                                    Click <strong>Install</strong> to launch FitTrack as an independent desktop window!
+                                </div>
+                            </li>
+                        </ul>
+                    </div>
+
+                    <div class="pwa-action-cta-wrap">
+                        <button type="button" class="pwa-native-prompt-btn" onclick="triggerPWAInstall()">
+                            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                            <span>Trigger Install Now</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
 
     </body>
 
