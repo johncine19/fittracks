@@ -84,7 +84,8 @@ function admin_dashboard(PDO $pdo, array $user): void
         $monthLabels[]  = $month->format('M');
         $monthlyValues[] = $monthlyTotals[$month->format('Y-m')] ?? 0;
     }
-    $weeklyRows = $pdo->query('SELECT DAYOFWEEK(check_in_time) AS weekday, COUNT(*) AS total FROM attendance WHERE check_in_time >= DATE_SUB(CURDATE(), INTERVAL 6 DAY) GROUP BY weekday')->fetchAll();
+    $weeklyQuery = 'SELECT DAYOFWEEK(check_in_time) AS weekday, COUNT(*) AS total FROM attendance WHERE ' . ($isPlatformAdmin ? '' : 'gym_id = ' . (int)$gymId . ' AND ') . 'check_in_time >= DATE_SUB(CURDATE(), INTERVAL 6 DAY) GROUP BY weekday';
+    $weeklyRows = $pdo->query($weeklyQuery)->fetchAll();
     $weekMap = array_fill(1, 7, 0);
     foreach ($weeklyRows as $row) {
         $weekMap[(int) $row['weekday']] = (int) $row['total'];
@@ -98,6 +99,8 @@ function admin_dashboard(PDO $pdo, array $user): void
         'Sat' => $weekMap[7],
         'Sun' => $weekMap[1],
     ];
+    $totalWeeklyCheckins = (int) array_sum($week);
+    $hasWeeklyCheckins = $totalWeeklyCheckins > 0;
     $todayClasses = $pdo->query('SELECT c.class_name, c.capacity, s.start_datetime, COALESCE(CONCAT(u.first_name, " ", u.last_name), "Open trainer") AS trainer, (SELECT COUNT(*) FROM class_bookings b WHERE b.schedule_id = s.schedule_id AND b.booking_status = "booked") AS booked FROM class_schedules s JOIN classes c ON c.class_id = s.class_id LEFT JOIN users u ON u.user_id = c.instructor_id WHERE ' . ($isPlatformAdmin ? '' : 'c.gym_id = ' . $gymId . ' AND ') . 's.start_datetime >= CURDATE() AND s.start_datetime < CURDATE() + INTERVAL 1 DAY ORDER BY s.start_datetime LIMIT 15')->fetchAll();
     $recent = $pdo->query('SELECT a.check_in_time, CONCAT(u.first_name, " ", u.last_name) AS member, u.first_name, u.last_name, u.profile_picture FROM attendance a JOIN users u ON u.user_id = a.user_id ' . ($isPlatformAdmin ? '' : 'WHERE a.gym_id = ' . $gymId . ' ') . 'ORDER BY a.check_in_time DESC LIMIT 15')->fetchAll();
 
@@ -181,8 +184,38 @@ function admin_dashboard(PDO $pdo, array $user): void
                     <h2>Weekly Check-ins</h2>
                     <p>This week</p>
                 </div>
+                <span class="badge" style="font-size: 11px; padding: 4px 10px; border-radius: 999px; align-self: flex-start; font-weight: 700; background: <?= $hasWeeklyCheckins ? 'rgba(132, 204, 22, 0.12)' : 'rgba(255, 255, 255, 0.06)' ?>; color: <?= $hasWeeklyCheckins ? 'var(--lime, #84cc16)' : 'var(--muted, #94a3b8)' ?>; border: 1px solid <?= $hasWeeklyCheckins ? 'rgba(132, 204, 22, 0.25)' : 'rgba(255, 255, 255, 0.08)' ?>;">
+                    <?= $hasWeeklyCheckins ? number_format($totalWeeklyCheckins) . ' check-in' . ($totalWeeklyCheckins === 1 ? '' : 's') : 'No check-ins' ?>
+                </span>
             </div>
-            <div class="chart-canvas compact"><canvas id="weeklyCheckinsChart"></canvas></div>
+            <?php if ($hasWeeklyCheckins): ?>
+                <div class="chart-canvas compact"><canvas id="weeklyCheckinsChart"></canvas></div>
+            <?php else: ?>
+                <div class="dash-empty-state chart-empty-state" style="--halo-color: rgba(6, 182, 212, 0.18); --empty-bg: rgba(6, 182, 212, 0.08); --empty-border: rgba(6, 182, 212, 0.22); --empty-color: #06b6d4; --btn-bg: rgba(6, 182, 212, 0.12); --btn-border: rgba(6, 182, 212, 0.25); --btn-color: #06b6d4; height: 250px; margin-top: 18px; padding: 18px 16px;">
+                    <div class="dash-empty-halo">
+                        <div class="dash-empty-icon-circle">
+                            <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+                                <polyline points="22 4 12 14.01 9 11.01"></polyline>
+                            </svg>
+                        </div>
+                    </div>
+                    <h3 class="dash-empty-title">No Check-ins This Week</h3>
+                    <p class="dash-empty-desc" style="max-width: 320px; margin-bottom: 14px;">Member check-ins from QR scans and front desk visits will graph here automatically.</p>
+                    <?php if (!$isPlatformAdmin): ?>
+                        <a href="index.php?page=scanner" class="dash-empty-action">
+                            <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <polyline points="23 7 23 1 17 1"></polyline>
+                                <line x1="16" y1="8" x2="23" y2="1"></line>
+                                <path d="M22 13v6a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h6"></path>
+                            </svg>
+                            <span>Open QR Scanner</span>
+                        </a>
+                    <?php else: ?>
+                        <span class="dash-empty-pill" style="font-size: 11px;">Awaiting attendance activity</span>
+                    <?php endif; ?>
+                </div>
+            <?php endif; ?>
         </article>
     </section>
     <script>
