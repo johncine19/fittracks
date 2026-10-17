@@ -1523,3 +1523,154 @@ select {
     border-color: var(--lime);
 }
 
+/* ── Page Header & Action Toolbar ── */
+.food-page-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 16px;
+    margin-bottom: 20px;
+}
+
+.food-page-header-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.food-page-title-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.food-page-title {
+    margin: 0;
+    font-size: 24px;
+    font-weight: 800;
+    color: var(--ink);
+    letter-spacing: -0.3px;
+}
+
+.food-count-badge {
+    font-size: 11px;
+    font-weight: 700;
+    padding: 3px 8px;
+    border-radius: 6px;
+    background: rgba(132, 204, 22, 0.15);
+    color: var(--lime);
+    border: 1px solid rgba(132, 204, 22, 0.3);
+}
+
+.food-page-desc {
+    margin: 4px 0 0;
+    color: var(--muted);
+    font-size: 13.5px;
+    line-height: 1.5;
+}
+
+.food-page-header-actions {
+    display: flex;
+    align-items: center;
+    flex-shrink: 0;
+}
+
+.food-add-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 9px 18px;
+    border-radius: 11px;
+    background: color-mix(in srgb, var(--lime) 12%, transparent);
+    border: 1px solid color-mix(in srgb, var(--lime) 32%, transparent);
+    color: var(--lime);
+    font-size: 13.5px;
+    font-weight: 700;
+    text-decoration: none;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+
+.food-add-btn:hover {
+    background: var(--lime);
+    color: #0b0f17;
+    border-color: var(--lime);
+    box-shadow: 0 0 18px color-mix(in srgb, var(--lime) 40%, transparent);
+    transform: translateY(-1px);
+}
+
+.food-add-btn svg {
+    flex-shrink: 0;
+    transition: transform 0.2s ease;
+}
+
+.food-add-btn:hover svg {
+    transform: rotate(90deg);
+}
+
+.food-tabs-bar {
+    display: flex;
+    gap: 8px;
+    border-bottom: 1px solid var(--line);
+    margin-bottom: 20px;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    white-space: nowrap;
+    scrollbar-width: none;
+}
+
+.food-tabs-bar::-webkit-scrollbar {
+    display: none;
+}
+
+.food-tab-link {
+    padding: 10px 16px;
+    font-size: 13.5px;
+    font-weight: 600;
+    text-decoration: none;
+    border-bottom: 2px solid transparent;
+    color: var(--muted);
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    transition: all 0.2s ease;
+    flex-shrink: 0;
+}
+
+.food-tab-link.active {
+    border-bottom-color: var(--lime);
+    color: var(--lime);
+}
+
+.food-tab-link:hover:not(.active) {
+    color: var(--ink);
+}
+
+@media (max-width: 600px) {
+    .food-page-header {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 14px;
+        margin-bottom: 16px;
+    }
+
+    .food-page-header-actions {
+        width: 100%;
+    }
+
+    .food-add-btn {
+        width: 100%;
+        padding: 12px 18px;
+        font-size: 13.5px;
+        border-radius: 12px;
+        box-sizing: border-box;
+    }
+
+    .food-page-title {
+        font-size: 20px;
+    }
+}
+

@@ -58,16 +58,16 @@ function terms_page(): void
             </section>
 
             <section>
-                <h2 style="font-size: 1.25rem; font-weight: 700; color: var(--ink); margin-bottom: 10px;">4. Subscriptions, Gym Plans & Platform Fees</h2>
+                <h2 style="font-size: 1.25rem; font-weight: 700; color: var(--ink); margin-bottom: 10px;">4. Subscriptions, Gym Plans & Fees</h2>
                 <ul style="color: var(--muted); margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 8px;">
                     <li><strong>Gym Facility Subscriptions:</strong> Gym owners who utilize FitTrack to run facility operations subscribe to one of our platform tiers:
                         <ul style="margin-top: 6px; padding-left: 20px; display: flex; flex-direction: column; gap: 4px;">
-                            <li><strong>Starter Tier:</strong> &#8369;499 / month</li>
+                            <li><strong>Starter Tier:</strong> &#8369;599 / month</li>
                             <li><strong>Professional Tier:</strong> &#8369;999 / month</li>
-                            <li><strong>Business Enterprise Tier:</strong> &#8369;1,999 / month</li>
+                            <li><strong>Business Tier:</strong> &#8369;1,999 / month</li>
                         </ul>
                     </li>
-                    <li><strong>Platform Transaction Fee:</strong> FitTrack applies a standard <strong>1% platform transaction fee</strong> on total monthly recorded gym revenues (including processed memberships, walk-in day passes, and cash entries logged into the system).</li>
+                    <li><strong>Zero Platform Transaction Fees:</strong> FitTrack charges <strong>0% platform transaction fees</strong> on recorded gym revenues. Gym facilities retain 100% of their processed memberships, walk-in day passes, and cash entries logged into the system.</li>
                     <li><strong>Renewal & Cancellation:</strong> Subscriptions renew automatically at the conclusion of each billing period unless cancelled through the facility subscription portal prior to the renewal date.</li>
                 </ul>
             </section>

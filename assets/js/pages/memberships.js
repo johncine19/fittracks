@@ -54,7 +54,7 @@ function getCsrfToken() {
                         const prevBtn = document.getElementById('memberCarouselPrev');
                         const nextBtn = document.getElementById('memberCarouselNext');
 
-                        if (!cards.length) return;
+                        if (cards.length <= 1) return;
 
                         function isMobile() {
                             return window.innerWidth <= 768;

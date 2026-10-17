@@ -1127,7 +1127,7 @@ function memberships_page(): void
                             </p>
                         </div>
                     <?php else: ?>
-                        <div class="member-pricing-grid" id="memberPricingGrid">
+                        <div class="member-pricing-grid <?= count($plans) === 1 ? 'single-plan' : '' ?>" id="memberPricingGrid">
                             <?php
                             $hasCustomPopular = false;
                             foreach ($plans as $p) {

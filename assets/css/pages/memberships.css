@@ -236,6 +236,22 @@
     padding-top: 6px;
 }
 
+.member-pricing-grid.single-plan,
+.member-pricing-grid:has(> .member-pricing-card:only-child) {
+    display: flex !important;
+    justify-content: center !important;
+    align-items: center !important;
+    max-width: 440px !important;
+    margin: 0 auto !important;
+}
+
+.member-pricing-grid.single-plan .member-pricing-card,
+.member-pricing-grid .member-pricing-card:only-child {
+    max-width: 380px !important;
+    width: 100% !important;
+    margin: 0 auto !important;
+}
+
 .member-pricing-card {
     background: var(--surface);
     border: 1px solid var(--line);
@@ -258,11 +274,11 @@
 .member-pricing-card.popular {
     border: 2px solid var(--lime, #84cc16);
     background: color-mix(in srgb, var(--lime) 5%, var(--surface));
-    box-shadow: 0 0 30px rgba(132, 204, 22, 0.16), 0 16px 36px -10px rgba(0, 0, 0, 0.6);
+    box-shadow: 0 0 30px color-mix(in srgb, var(--lime) 25%, transparent), 0 16px 36px -10px rgba(0, 0, 0, 0.6);
 }
 
 .member-pricing-card.popular:hover {
-    box-shadow: 0 0 40px rgba(132, 204, 22, 0.25), 0 20px 45px -10px rgba(0, 0, 0, 0.75);
+    box-shadow: 0 0 42px color-mix(in srgb, var(--lime) 35%, transparent), 0 20px 45px -10px rgba(0, 0, 0, 0.75);
 }
 
 [data-theme="light"] .member-pricing-card {
@@ -276,13 +292,13 @@
 }
 
 [data-theme="light"] .member-pricing-card.popular {
-    background: #fcfdf9;
+    background: color-mix(in srgb, var(--lime) 3%, #ffffff);
     border: 2px solid var(--lime, #22c55e);
-    box-shadow: 0 0 30px rgba(34, 197, 94, 0.14), 0 10px 24px -5px rgba(0, 0, 0, 0.07);
+    box-shadow: 0 0 30px color-mix(in srgb, var(--lime) 22%, transparent), 0 10px 24px -5px rgba(0, 0, 0, 0.07);
 }
 
 [data-theme="light"] .member-pricing-card.popular:hover {
-    box-shadow: 0 0 40px rgba(34, 197, 94, 0.22), 0 16px 36px -8px rgba(0, 0, 0, 0.1);
+    box-shadow: 0 0 42px color-mix(in srgb, var(--lime) 32%, transparent), 0 16px 36px -8px rgba(0, 0, 0, 0.1);
 }
 
 .member-popular-badge {
@@ -304,9 +320,9 @@
 
 .member-current-badge {
     display: inline-block;
-    background: rgba(34, 197, 94, 0.15);
+    background: color-mix(in srgb, var(--lime) 15%, transparent);
     color: var(--lime, #22c55e);
-    border: 1px solid rgba(34, 197, 94, 0.3);
+    border: 1px solid color-mix(in srgb, var(--lime) 30%, transparent);
     font-size: 10.5px;
     font-weight: 800;
     letter-spacing: 0.5px;
@@ -337,7 +353,7 @@
 }
 
 [data-theme="light"] .member-pricing-title.popular-title {
-    color: #16a34a;
+    color: var(--lime, #16a34a);
 }
 
 .member-pricing-desc {
@@ -427,7 +443,7 @@
 }
 
 [data-theme="light"] .member-checkmark {
-    color: #16a34a;
+    color: var(--lime, #16a34a);
 }
 
 .member-pricing-btn {
@@ -470,12 +486,12 @@
     background: var(--lime, #84cc16);
     border: none;
     color: #0b110e;
-    box-shadow: 0 4px 18px rgba(132, 204, 22, 0.35);
+    box-shadow: 0 4px 18px color-mix(in srgb, var(--lime) 35%, transparent);
 }
 
 .member-popular-btn:hover {
-    background: #73b711;
-    box-shadow: 0 6px 24px rgba(132, 204, 22, 0.45);
+    background: color-mix(in srgb, var(--lime) 88%, #000);
+    box-shadow: 0 6px 24px color-mix(in srgb, var(--lime) 45%, transparent);
     transform: translateY(-1px);
 }
 
@@ -717,14 +733,17 @@
         flex-direction: row !important;
         flex-wrap: nowrap !important;
         overflow-x: auto !important;
+        overflow-y: hidden !important;
         scroll-snap-type: x mandatory !important;
         -webkit-overflow-scrolling: touch !important;
-        gap: 16px !important;
-        padding: 16px 24px 20px 24px !important;
-        margin: 0 -12px !important;
-        scroll-padding: 0 24px !important;
+        gap: 24px !important;
+        padding: 16px 0 20px 0 !important;
+        margin: 0 auto !important;
+        scroll-padding: 0 !important;
         scrollbar-width: none !important;
-        max-width: 100% !important;
+        width: 100% !important;
+        max-width: 380px !important;
+        box-sizing: border-box !important;
     }
 
     .member-pricing-grid::-webkit-scrollbar {
@@ -732,9 +751,10 @@
     }
 
     .member-pricing-card {
-        flex: 0 0 82% !important;
-        max-width: 320px !important;
-        min-width: 260px !important;
+        flex: 0 0 100% !important;
+        width: 100% !important;
+        max-width: 100% !important;
+        min-width: 100% !important;
         scroll-snap-align: center !important;
         scroll-snap-stop: always !important;
         min-height: auto !important;
@@ -744,8 +764,33 @@
 
     .member-pricing-card:last-child:nth-child(2n + 1) {
         grid-column: auto !important;
-        max-width: 320px !important;
+        max-width: 100% !important;
+        width: 100% !important;
         margin: 0 !important;
+    }
+
+    .member-pricing-grid.single-plan,
+    .member-pricing-grid:has(> .member-pricing-card:only-child) {
+        display: flex !important;
+        justify-content: center !important;
+        align-items: center !important;
+        margin: 0 auto !important;
+        padding: 16px 0 20px 0 !important;
+        overflow-x: visible !important;
+        scroll-snap-type: none !important;
+        width: 100% !important;
+        max-width: 380px !important;
+        box-sizing: border-box !important;
+    }
+
+    .member-pricing-grid.single-plan .member-pricing-card,
+    .member-pricing-grid .member-pricing-card:only-child,
+    .member-pricing-card:only-child:last-child {
+        flex: 1 1 100% !important;
+        max-width: 100% !important;
+        width: 100% !important;
+        margin: 0 auto !important;
+        scroll-snap-align: none !important;
     }
 
     .member-pricing-card.popular {
@@ -810,10 +855,33 @@
     }
 
     .member-pricing-card {
-        flex: 0 0 86% !important;
-        max-width: 300px !important;
+        flex: 0 0 100% !important;
+        width: 100% !important;
+        max-width: 100% !important;
+        min-width: 100% !important;
         padding: 22px 18px 18px !important;
         border-radius: 18px;
+    }
+
+    .member-pricing-grid.single-plan,
+    .member-pricing-grid:has(> .member-pricing-card:only-child) {
+        display: flex !important;
+        justify-content: center !important;
+        align-items: center !important;
+        margin: 0 auto !important;
+        padding: 14px 0 18px !important;
+        width: 100% !important;
+        max-width: 380px !important;
+        box-sizing: border-box !important;
+    }
+
+    .member-pricing-grid.single-plan .member-pricing-card,
+    .member-pricing-grid .member-pricing-card:only-child,
+    .member-pricing-card:only-child:last-child {
+        flex: 1 1 100% !important;
+        max-width: 100% !important;
+        width: 100% !important;
+        margin: 0 auto !important;
     }
 
     .member-pricing-title {

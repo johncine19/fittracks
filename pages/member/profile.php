@@ -82,8 +82,8 @@ function profile_page(): void
                     SELECT amount_paid AS revenue FROM walk_in_transactions WHERE gym_id = ' . $ownerGymId . ' AND visit_date >= DATE_FORMAT(CURDATE(), "%Y-%m-01")
                 ) AS combined'
             )->fetchColumn();
-            $platformFee = $gymRevenue * 0.01;
-            $netRevenue = $gymRevenue - $platformFee;
+            $platformFee = 0.0;
+            $netRevenue = $gymRevenue;
 
             $gymRatingStats   = get_gym_rating_stats($ownerGymId);
             $recentGymReviews = get_gym_reviews($ownerGymId, 5);
@@ -973,26 +973,32 @@ function profile_page(): void
             <!-- Tab: Subscription & Billing -->
             <div class="settings-panel" data-panel="subscription">
                 <div class="settings-section">
-                    <div class="settings-section-header">
-                        <div>
-                            <h2 class="settings-section-title">Subscription & Platform Fees</h2>
-                            <p class="settings-section-desc">Manage your commercial subscription, member/trainer limits, and platform fee breakdown.</p>
+                    <div class="settings-section-header settings-sub-header">
+                        <div class="settings-sub-header-info">
+                            <h2 class="settings-section-title">Subscription & Revenue</h2>
+                            <p class="settings-section-desc">Manage your commercial subscription, member/trainer limits, and monthly revenue overview.</p>
                         </div>
-                        <a href="index.php?page=gym_subscription" class="btn btn-primary" style="padding: 8px 18px; border-radius: 10px; font-weight: 700; text-decoration: none; font-size: 13px; display: inline-flex; align-items: center; gap: 6px;">
+                        <a href="index.php?page=gym_subscription" class="settings-sub-cta">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <rect width="20" height="14" x="2" y="5" rx="2"/>
+                                <line x1="2" x2="22" y1="10" y2="10"/>
+                            </svg>
                             <span><?= h($subCta) ?></span>
-                            <span>&rarr;</span>
+                            <svg class="sub-cta-arrow" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="m9 18 6-6-6-6"/>
+                            </svg>
                         </a>
                     </div>
 
-                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 20px; margin-top: 10px;">
+                    <div class="settings-sub-grid">
                         <!-- Card 1: Subscription & Plan -->
-                        <div style="border-radius: 14px; border: 1px solid var(--line); background: color-mix(in srgb, var(--panel-soft) 60%, transparent); padding: 22px; display: flex; flex-direction: column;">
+                        <div class="settings-sub-card">
                             <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px; gap: 10px;">
                                 <div>
                                     <span style="font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); font-weight: 700;">Current Plan</span>
                                     <h3 style="margin: 4px 0 0; font-size: 1.25rem; font-weight: 800; color: var(--ink);">
                                         <?php if ($ownerTrialInfo['is_trial_active']): ?>
-                                            Free Trial (50 Members &bull; 2 Trainers &bull; 2 Staff)
+                                             Free Trial (50 Members &bull; 2 Trainers &bull; 2 Staff)
                                         <?php elseif ($ownerTrialInfo['is_free']): ?>
                                             Free Tier
                                         <?php else: ?>
@@ -1061,10 +1067,10 @@ function profile_page(): void
                             </div>
                         </div>
 
-                        <!-- Card 2: Platform Earnings / Fees -->
-                        <div style="border-radius: 14px; border: 1px solid var(--line); background: color-mix(in srgb, var(--panel-soft) 60%, transparent); padding: 22px; display: flex; flex-direction: column;">
+                        <!-- Card 2: Revenue & Earnings -->
+                        <div class="settings-sub-card">
                             <span style="font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); font-weight: 700; margin-bottom: 4px;">Billing & Revenue</span>
-                            <h3 style="margin: 0 0 16px; font-size: 1.25rem; font-weight: 800; color: var(--ink);">Platform Earnings / Fees</h3>
+                            <h3 style="margin: 0 0 16px; font-size: 1.25rem; font-weight: 800; color: var(--ink);">Revenue & Earnings</h3>
 
                             <div style="display: flex; flex-direction: column; gap: 12px; margin-bottom: 16px;">
                                 <div style="display: flex; justify-content: space-between; align-items: center; padding-bottom: 10px; border-bottom: 1px solid var(--line); font-size: 13.5px;">
@@ -1072,18 +1078,18 @@ function profile_page(): void
                                     <strong style="color: var(--ink);"><?= money($gymRevenue) ?></strong>
                                 </div>
                                 <div style="display: flex; justify-content: space-between; align-items: center; padding-bottom: 10px; border-bottom: 1px solid var(--line); font-size: 13.5px;">
-                                    <span style="color: var(--danger, #ef4444);">Transaction Fees (1%):</span>
-                                    <strong style="color: var(--danger, #ef4444);">-<?= money($platformFee) ?></strong>
+                                    <span style="color: var(--muted);">Platform Transaction Fee:</span>
+                                    <strong style="color: var(--lime, #84cc16);">₱0.00 (0% Fee)</strong>
                                 </div>
                                 <div style="display: flex; justify-content: space-between; align-items: center; font-size: 16px; padding-top: 4px;">
                                     <span style="font-weight: 700; color: var(--ink);">Gym Net Amount:</span>
-                                    <strong style="color: var(--teal); font-size: 1.2rem;"><?= money($netRevenue) ?></strong>
+                                    <strong style="color: var(--teal); font-size: 1.2rem;"><?= money($gymRevenue) ?></strong>
                                 </div>
                             </div>
 
                             <div style="margin-top: auto; padding: 12px; border-radius: 10px; background: rgba(255,255,255,0.03); border: 1px solid var(--line);">
                                 <p style="font-size: 12px; color: var(--muted); margin: 0; line-height: 1.45;">
-                                    FitTrack platform fees are calculated as 1% of your recorded revenue (both online GCash and cash walk-ins).
+                                    FitTrack charges 0% platform transaction fees on your gym revenue. You keep 100% of your recorded earnings (both online GCash and cash walk-ins).
                                 </p>
                             </div>
                         </div>

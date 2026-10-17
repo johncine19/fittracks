@@ -386,20 +386,20 @@ function food_library_page(): void
 
 <section class="panel" style="margin-bottom: 24px;">
     <!-- Page Header & Action Toolbar -->
-    <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; flex-wrap: wrap; margin-bottom: 20px;">
-        <div style="flex: 1; min-width: 240px;">
-            <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
-                <h1 style="margin: 0; font-size: 24px; font-weight: 800; color: var(--ink);">Food & Recipe Library</h1>
-                <span style="font-size: 11px; font-weight: 700; padding: 3px 8px; border-radius: 6px; background: rgba(132, 204, 22, 0.15); color: var(--lime); border: 1px solid rgba(132, 204, 22, 0.3);">
+    <div class="food-page-header">
+        <div class="food-page-header-info">
+            <div class="food-page-title-row">
+                <h1 class="food-page-title">Food & Recipe Library</h1>
+                <span class="food-count-badge">
                     <?= $totalFoods ?> <?= $totalFoods === 1 ? 'Food' : 'Foods' ?>
                 </span>
             </div>
-            <p style="margin: 4px 0 0; color: var(--muted); font-size: 13.5px;">
+            <p class="food-page-desc">
                 Manage meal templates, customize gym food options, or import branded groceries from online nutrition databases.
             </p>
         </div>
-        <div style="display: flex; gap: 10px; align-items: center; flex-wrap: nowrap; flex-shrink: 0;">
-            <button onclick="openAddFoodModal()" class="btn" style="background: var(--lime); color: var(--bg); font-weight: 700; height: 38px; padding: 0 16px; border-radius: 8px; border: none; display: inline-flex; align-items: center; gap: 6px; font-size: 13px; cursor: pointer;">
+        <div class="food-page-header-actions">
+            <button onclick="openAddFoodModal()" class="food-add-btn">
                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
                 <span>Add Custom Food</span>
             </button>
@@ -407,12 +407,12 @@ function food_library_page(): void
     </div>
 
     <!-- Navigation Tabs: Library vs Online Search -->
-    <div style="display: flex; gap: 8px; border-bottom: 1px solid var(--line); margin-bottom: 20px;">
-        <a href="index.php?page=food_library&tab=library" style="padding: 10px 16px; font-size: 13.5px; font-weight: 600; text-decoration: none; border-bottom: 2px solid <?= $activeTab === 'library' ? 'var(--lime)' : 'transparent' ?>; color: <?= $activeTab === 'library' ? 'var(--lime)' : 'var(--muted)' ?>; display: inline-flex; align-items: center; gap: 8px; transition: all 0.2s;">
+    <div class="food-tabs-bar">
+        <a href="index.php?page=food_library&tab=library" class="food-tab-link <?= $activeTab === 'library' ? 'active' : '' ?>">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8h1a4 4 0 0 1 0 8h-1"></path><path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z"></path><line x1="6" y1="1" x2="6" y2="4"></line><line x1="10" y1="1" x2="10" y2="4"></line><line x1="14" y1="1" x2="14" y2="4"></line></svg>
             <span>Food Catalog</span>
         </a>
-        <a href="index.php?page=food_library&tab=online_import" style="padding: 10px 16px; font-size: 13.5px; font-weight: 600; text-decoration: none; border-bottom: 2px solid <?= $activeTab === 'online_import' ? 'var(--lime)' : 'transparent' ?>; color: <?= $activeTab === 'online_import' ? 'var(--lime)' : 'var(--muted)' ?>; display: inline-flex; align-items: center; gap: 8px; transition: all 0.2s;">
+        <a href="index.php?page=food_library&tab=online_import" class="food-tab-link <?= $activeTab === 'online_import' ? 'active' : '' ?>">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="2" y1="12" x2="22" y2="12"></line><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path></svg>
             <span>Online Nutrition Search (Open Food Facts)</span>
         </a>
@@ -533,8 +533,10 @@ function food_library_page(): void
             <div style="text-align: center; padding: 60px 20px; background: var(--bg); border: 1px dashed var(--line); border-radius: 12px;">
                 <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="var(--muted)" stroke-width="1.5" style="margin-bottom: 12px;"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
                 <h3 style="margin: 0; font-size: 16px; color: var(--ink);">No food items found</h3>
-                <p style="margin: 6px 0 16px; font-size: 13px; color: var(--muted);">Try adjusting your filter criteria or click below to add a new food.</p>
-                <button onclick="openAddFoodModal()" class="btn" style="background: var(--lime); color: var(--bg); font-weight: 700; padding: 8px 16px; border-radius: 8px;">+ Add Custom Food</button>
+                <button onclick="openAddFoodModal()" class="food-add-btn">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+                    <span>Add Custom Food</span>
+                </button>
             </div>
         <?php else: ?>
             <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(310px, 1fr)); gap: 16px;">
