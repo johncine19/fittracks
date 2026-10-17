@@ -68,8 +68,9 @@ function progress_page(): void
             if ($noteText !== '') {
                 // If trainer, record in trainer_messages; if member, record in progress log note or message
                 if ($user['role'] === 'trainer') {
+                    $encryptedNote = encrypt_message($noteText);
                     db()->prepare('INSERT INTO trainer_messages (sender_id, recipient_id, message_text) VALUES (?, ?, ?)')
-                        ->execute([$user['user_id'], $memberId, $noteText]);
+                        ->execute([$user['user_id'], $memberId, $encryptedNote]);
                     notify_user($memberId, 'system', 'New Trainer Note', 'Your trainer left a note on your progress hub.');
                     flash('Coach note saved.', 'success');
                 } else {
@@ -516,7 +517,7 @@ function progress_page(): void
             'author'    => $msg['first_name'] . ' ' . $msg['last_name'],
             'badge'     => $isTrainer ? 'Trainer Note' : 'Message',
             'badge_cls' => $isTrainer ? 'badge-lime' : 'badge-info',
-            'content'   => $msg['message_text'],
+            'content'   => decrypt_message($msg['message_text']),
             'date'      => date('M j, Y g:i A', strtotime($msg['sent_at'])),
             'timestamp' => strtotime($msg['sent_at'])
         ];

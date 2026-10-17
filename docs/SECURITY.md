@@ -13,6 +13,7 @@ This document records the security posture, vulnerability audit findings, remedi
 | **Unprotected KYC / Verification Documents** | **Medium** | **Resolved** | `assets/permits/`, `core/file_handler.php`, `pages/admin/view_permit.php` | Added `assets/permits/.htaccess` (`Require all denied`) to block direct public URL downloads. Implemented an authenticated and authorized viewer endpoint (`view_permit`) checking user identity and gym ownership. |
 | **Disabled TLS Verification on API Uploads** | **Medium** | **Resolved** | `core/file_handler.php` | Re-enabled strict peer and host TLS certificate verification (`CURLOPT_SSL_VERIFYPEER => true`, `CURLOPT_SSL_VERIFYHOST => 2`) for ImageKit and Cloudinary API calls. |
 | **Client IP Spoofing via Forwarded Headers** | **Low to Medium** | **Resolved** | `core/bootstrap.php`, `.env.example` | Restricted `CF-Connecting-IP` and `X-Forwarded-For` header trust to explicitly configured `TRUSTED_PROXIES` IP addresses and CIDR subnets. |
+| **Unencrypted Direct Messages (Data-at-Rest)** | **High** | **Resolved** | `core/encryption.php`, `core/bootstrap.php`, `pages/shared/messages.php`, `pages/member/progress.php`, `pages/trainer/training.php` | Implemented authenticated field-level encryption (AES-256-GCM) with random 12-byte IVs and 16-byte integrity tags (`enc:v1:` prefix). Seamlessly protects sensitive health/trainer communications in the database with backward compatibility. |
 
 ---
 
@@ -135,12 +136,47 @@ This document records the security posture, vulnerability audit findings, remedi
 
 ---
 
+### 2.6 Direct Message Field-Level At-Rest Encryption (`core/encryption.php`)
+
+* **Vulnerability & Threat Vector:**  
+  Previously, personal direct messages between gym members, personal trainers, staff, and gym owners (`trainer_messages.message_text`) were stored as plaintext in MySQL. In fitness and gym applications, chats frequently contain sensitive health data, injury reports, body weight/measurement disclosures, and personal nutrition notes. A database dump leak, rogue server inspection, or SQL injection vulnerability would expose all historical conversations.
+* **Risk:**  
+  Mass compromise of private health and personal conversations, violating user trust and privacy laws (e.g. Philippine Data Privacy Act / GDPR).
+* **Remediation & Cryptographic Architecture:**  
+  Implemented authenticated field-level encryption (AES-256-GCM) via `core/encryption.php`:
+  1. **Cipher & Key Derivation:** Uses `aes-256-gcm` with a 256-bit binary key derived via SHA-256 from `MESSAGE_ENCRYPTION_KEY` in `.env`.
+  2. **AEAD Authenticated Encryption:** Every message generates a cryptographic 96-bit (12-byte) random Initialization Vector (IV) via `random_bytes()`, along with a 128-bit (16-byte) authentication tag for tamper resistance.
+  3. **Envelope Packaging:** Encrypted payloads are formatted as:
+     ```text
+     enc:v1:<base64(12-byte IV + 16-byte TAG + CIPHERTEXT)>
+     ```
+  4. **Backward Compatibility:** `decrypt_message()` inspects incoming database values. If the string lacks the `enc:v1:` prefix, it returns the value directly as legacy plaintext. This guarantees zero-downtime and allows historical unencrypted records to coexist seamlessly with newly encrypted messages.
+  5. **Protected Endpoints:**
+     - `pages/shared/messages.php` (Direct chat sending, polling, recent conversation previews, history rendering)
+     - `pages/member/progress.php` (Trainer progress notes and feedback feed)
+     - `pages/trainer/training.php` (Latest member feedback previews)
+
+---test querry for encyted messages
+
+  SELECT 
+    message_id,
+    sender_id,
+    recipient_id,
+    IF(message_text LIKE 'enc:v1:%', 'ENCRYPTED (AES-256-GCM)', 'PLAINTEXT') AS encryption_status,
+    message_text,
+    sent_at
+FROM trainer_messages
+ORDER BY message_id DESC
+LIMIT 5;
+
+
 ## 3. Environment Configuration Reference
 
 Add or verify these environment variables in your production `.env`:
 
 | Key | Description | Example / Recommended Value |
 | :--- | :--- | :--- |
+| `MESSAGE_ENCRYPTION_KEY` | 256-bit secret key used by `core/encryption.php` for AES-256-GCM at-rest message field encryption. | Generate with `php -r "echo bin2hex(random_bytes(32));"` |
 | `REDIS_URL` | Redis connection URL on Render/cloud hosting. When present, offloads sessions from MySQL to Redis in RAM. | `redis://red-xxxx:6379` or `rediss://...` |
 | `REDIS_HOST`, `REDIS_PORT`, `REDIS_USER`, `REDIS_PASSWORD` | Discrete Redis credentials (as set on Render dashboard). Supported as an alternative to `REDIS_URL`. | Host, port (e.g. 6379), user (e.g. `default`), and password |
 | `TRUSTED_PROXIES` | Comma-separated list of trusted reverse proxy IPs or CIDR blocks. Leave blank if the app is directly internet-facing without a reverse proxy. | `127.0.0.1, 10.0.0.0/8, 172.16.0.0/12` (or Cloudflare IP ranges) |
@@ -152,6 +188,7 @@ Add or verify these environment variables in your production `.env`:
 ## 4. Production Deployment Checklist
 
 - [ ] Ensure `.env` is NOT tracked in Git and is excluded from Docker images via `.dockerignore`.
+- [ ] Set a secure, random `MESSAGE_ENCRYPTION_KEY` in production `.env` (`php -r "echo bin2hex(random_bytes(32));"`).
 - [ ] Confirm Apache has `mod_authz_core` and `mod_rewrite` enabled so `.htaccess` deny rules are enforced.
 - [ ] Verify that directory indexing (`Options -Indexes`) is disabled globally or via `.htaccess`.
 - [ ] Run database migrations exclusively via CLI: `php migrate.php` during deployment pipelines.

@@ -384,6 +384,12 @@ function messages_page(): void
              ORDER BY m.sent_at ASC',
             [$user['user_id'], $recipientId, $recipientId, $user['user_id'], $lastId]
         );
+        // Decrypt messages for client consumption
+        foreach ($newRows as &$r) {
+            $r['message_text'] = decrypt_message($r['message_text']);
+        }
+        unset($r);
+
         // Mark incoming as read
         if ($newRows) {
             db()->prepare('UPDATE trainer_messages SET is_read = 1 WHERE sender_id = ? AND recipient_id = ? AND is_read = 0')
@@ -414,8 +420,9 @@ function messages_page(): void
                 $error = 'Message is too long. Maximum 1000 characters.';
             } else {
                 $pdo = db();
+                $encryptedText = encrypt_message($text);
                 $pdo->prepare('INSERT INTO trainer_messages (sender_id, recipient_id, message_text) VALUES (?, ?, ?)')
-                   ->execute([$user['user_id'], $recipientId, $text]);
+                   ->execute([$user['user_id'], $recipientId, $encryptedText]);
                 $newMessageId = (int) $pdo->lastInsertId();
                 $senderName = $user['first_name'] . ' ' . $user['last_name'];
                 $title = 'New message from ' . $senderName;
@@ -599,6 +606,14 @@ function messages_page(): void
         );
     }
 
+    // Decrypt conversation list snippets
+    foreach ($conversations as &$c) {
+        if (!empty($c['last_message'])) {
+            $c['last_message'] = decrypt_message($c['last_message']);
+        }
+    }
+    unset($c);
+
     $activeChatId = isset($_GET['chat']) ? (int) $_GET['chat'] : null;
     $activeUser = null;
     $isTargetBlockedByMe = false;
@@ -645,6 +660,12 @@ function messages_page(): void
             [$user['user_id'], $activeChatId, $activeChatId, $user['user_id']]
         );
         
+        // Decrypt conversation messages
+        foreach ($rows as &$r) {
+            $r['message_text'] = decrypt_message($r['message_text']);
+        }
+        unset($r);
+
         // Mark as read
         db()->prepare('UPDATE trainer_messages SET is_read = 1 WHERE sender_id = ? AND recipient_id = ? AND is_read = 0')
            ->execute([$activeChatId, $user['user_id']]);

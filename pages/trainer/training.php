@@ -199,6 +199,13 @@ function training_page(): void
         ORDER BY tp.created_at DESC
     ', [$user['user_id'], $coachId]);
 
+    foreach ($plans as &$plan) {
+        if (!empty($plan['latest_feedback'])) {
+            $plan['latest_feedback'] = decrypt_message($plan['latest_feedback']);
+        }
+    }
+    unset($plan);
+
     // ----------------------------------------------------
     // TAB 2 DATA: All Gym Workouts & Inspection
     // ----------------------------------------------------

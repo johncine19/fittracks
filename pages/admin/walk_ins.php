@@ -10,7 +10,9 @@ function walk_ins_page(): void
     $gym = get_user_gym($user);
     $gymId = $gym ? (int)$gym['gym_id'] : null;
 
-    // Handle walk-in to member conversion
+    // -------------------------------------------------------------
+    // POST: Handle Walk-In to Member Conversion
+    // -------------------------------------------------------------
     if ($_SERVER['REQUEST_METHOD'] === 'POST' && post('action') === 'convert') {
         $transactionId = (int) post('transaction_id');
         $email = strtolower(trim((string) post('convert_email')));
@@ -34,7 +36,7 @@ function walk_ins_page(): void
         }
 
         // Generate a secure random password
-        $plainPassword = bin2hex(random_bytes(4)) . 'A1'; // 10 chars, guaranteed letter+digit
+        $plainPassword = bin2hex(random_bytes(4)) . 'A1';
 
         $pdo = db();
         $pdo->prepare(
@@ -50,7 +52,7 @@ function walk_ins_page(): void
             $pdo->prepare('INSERT IGNORE INTO gym_members (gym_id, user_id) VALUES (?, ?)')->execute([$walkInRecord['gym_id'], $newUserId]);
         }
 
-        // Link walk-in record to the new member and update guest name
+        // Link walk-in record to the new member
         $pdo->prepare('UPDATE walk_in_transactions SET converted_to_member_id = ?, guest_name = ? WHERE transaction_id = ?')
             ->execute([$newUserId, $firstName . ' ' . $lastName, $transactionId]);
 
@@ -84,20 +86,20 @@ function walk_ins_page(): void
         }
 
         notify_user($newUserId, 'system', 'Welcome to FITTRACKS', 'Your member account has been created. Update your profile to get started.');
-
         audit_log($user['user_id'], 'convert', 'walk_in', (string) $transactionId, json_encode(['new_user_id' => $newUserId, 'email' => $email]));
+        
         flash(
             $credMailSent
                 ? 'Walk-in converted to member! Credentials sent to ' . $email . '.'
-                : 'Walk-in converted to member, but the credentials email could not be sent. Password: ' . $plainPassword,
+                : 'Walk-in converted to member, but credentials email could not be sent. Password: ' . $plainPassword,
             $credMailSent ? 'success' : 'warning'
         );
         redirect('walk_ins');
     }
 
-
-
-    // Handle new walk-in recording
+    // -------------------------------------------------------------
+    // POST: Record New Walk-In Transaction
+    // -------------------------------------------------------------
     if ($_SERVER['REQUEST_METHOD'] === 'POST' && post('action') !== 'convert') {
         $contact_info = preg_replace('/[^0-9]/', '', (string)post('contact_info'));
         if (strlen($contact_info) !== 11) {
@@ -120,440 +122,595 @@ function walk_ins_page(): void
         redirect('walk_ins');
     }
 
+    // -------------------------------------------------------------
+    // Data Query & Pagination Setup
+    // -------------------------------------------------------------
     $perPage = 15;
     $page = max(1, (int)($_GET['p'] ?? 1));
+    $search = trim((string)($_GET['q'] ?? ''));
+    $filter = trim((string)($_GET['filter'] ?? 'all'));
 
-    $countSql = 'SELECT COUNT(*) FROM walk_in_transactions w';
-    $whereSql = '';
-    $params = [];
-    if ($user['role'] === 'gym_owner' && $gymId) {
-        $whereSql = ' WHERE w.gym_id = ?';
-        $params[] = $gymId;
+    $whereClauses = [];
+    $queryParams = [];
+
+    if (($user['role'] === 'gym_owner' || $user['role'] === 'staff') && $gymId) {
+        $whereClauses[] = 'w.gym_id = ?';
+        $queryParams[] = $gymId;
     }
-    $totalWalkIns = (int) scalar($countSql . $whereSql, $params);
+
+    if ($search !== '') {
+        $whereClauses[] = '(w.guest_name LIKE ? OR w.contact_info LIKE ?)';
+        $queryParams[] = '%' . $search . '%';
+        $queryParams[] = '%' . $search . '%';
+    }
+
+    if ($filter === 'walkin') {
+        $whereClauses[] = 'w.converted_to_member_id IS NULL';
+    } elseif ($filter === 'converted') {
+        $whereClauses[] = 'w.converted_to_member_id IS NOT NULL';
+    } elseif ($filter === 'cash') {
+        $whereClauses[] = 'LOWER(w.payment_method) = "cash"';
+    } elseif ($filter === 'gcash') {
+        $whereClauses[] = 'LOWER(w.payment_method) = "gcash"';
+    }
+
+    $whereSql = $whereClauses ? ' WHERE ' . implode(' AND ', $whereClauses) : '';
+
+    $totalWalkIns = (int) scalar('SELECT COUNT(*) FROM walk_in_transactions w' . $whereSql, $queryParams);
     $totalPages = max(1, (int)ceil($totalWalkIns / $perPage));
     $page = min($page, $totalPages);
     $offset = ($page - 1) * $perPage;
 
     $query = 'SELECT w.*, u.first_name AS member_first, u.last_name AS member_last, u.email AS member_email
          FROM walk_in_transactions w
-         LEFT JOIN users u ON u.user_id = w.converted_to_member_id' . $whereSql . ' ORDER BY w.visit_date DESC, w.transaction_id DESC LIMIT ' . $perPage . ' OFFSET ' . $offset;
+         LEFT JOIN users u ON u.user_id = w.converted_to_member_id'
+         . $whereSql . ' ORDER BY w.visit_date DESC, w.transaction_id DESC LIMIT ' . $perPage . ' OFFSET ' . $offset;
     
     $rows = db()->prepare($query);
-    $rows->execute($params);
+    $rows->execute($queryParams);
     $rows = $rows->fetchAll();
     
     $gymWalkInFee = $gymId ? (float) (scalar('SELECT walk_in_fee FROM gyms WHERE gym_id = ?', [$gymId]) ?: 100.0) : 100.0;
+    $gymName = $gym['name'] ?? 'FitTracks';
+
+    // -------------------------------------------------------------
+    // Fast Telemetry Aggregates (2 single queries)
+    // -------------------------------------------------------------
+    $statClauses = [];
+    $statParams = [];
+    if (($user['role'] === 'gym_owner' || $user['role'] === 'staff') && $gymId) {
+        $statClauses[] = 'gym_id = ?';
+        $statParams[] = $gymId;
+    }
+    $statWhere = $statClauses ? ' WHERE ' . implode(' AND ', $statClauses) : '';
+
+    // Today's metrics
+    $stmtToday = db()->prepare(
+        'SELECT 
+            COALESCE(SUM(amount_paid), 0) AS today_rev,
+            COUNT(*) AS today_cnt,
+            COALESCE(SUM(CASE WHEN LOWER(payment_method) = "cash" THEN amount_paid ELSE 0 END), 0) AS today_cash,
+            COALESCE(SUM(CASE WHEN LOWER(payment_method) = "gcash" THEN amount_paid ELSE 0 END), 0) AS today_gcash,
+            COUNT(CASE WHEN converted_to_member_id IS NOT NULL THEN 1 END) AS today_conv
+         FROM walk_in_transactions' . ($statWhere ? $statWhere . ' AND' : ' WHERE') . ' DATE(visit_date) = CURDATE()'
+    );
+    $stmtToday->execute($statParams);
+    $todayStats = $stmtToday->fetch() ?: [];
+
+    $todayRevenue   = (float) ($todayStats['today_rev'] ?? 0);
+    $todayCount     = (int) ($todayStats['today_cnt'] ?? 0);
+    $todayCash      = (float) ($todayStats['today_cash'] ?? 0);
+    $todayGcash     = (float) ($todayStats['today_gcash'] ?? 0);
+    $todayConverted = (int) ($todayStats['today_conv'] ?? 0);
+
+    // All-time totals
+    $stmtAll = db()->prepare(
+        'SELECT 
+            COUNT(*) AS all_cnt,
+            COUNT(CASE WHEN converted_to_member_id IS NOT NULL THEN 1 END) AS all_conv
+         FROM walk_in_transactions' . $statWhere
+    );
+    $stmtAll->execute($statParams);
+    $allStats = $stmtAll->fetch() ?: [];
+
+    $allTimeCount   = (int) ($allStats['all_cnt'] ?? 0);
+    $totalConverted = (int) ($allStats['all_conv'] ?? 0);
+    $convRate = $allTimeCount > 0 ? round(($totalConverted / $allTimeCount) * 100, 1) : 0;
 
     render_header('Walk-in Transactions', $user);
     ?>
-    <section class="panel">
-        <div class="page-header">
-            <div>
-                <p style="margin: 0;">Record visits and payments for non-members.</p>
-            </div>
-            <div style="display: flex; gap: 10px;">
-                <button onclick="document.getElementById('recordWalkInModal').showModal()">+ Record Walk-in</button>
-            </div>
-        </div>
-        <dialog id="recordWalkInModal" class="modal">
-            <div class="modal-header">
-                <h3>Record Walk-in</h3>
-                <button class="modal-close" onclick="this.closest('dialog').close()" aria-label="Close">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
-                </button>
-            </div>
-            <div class="modal-body">
-                <form method="post" class="form grid-form">
-                    <?= csrf_field() ?>
-                    <label>Guest Name
-                        <input name="guest_name" placeholder="John Doe" required autocapitalize="words" style="text-transform: capitalize;" onblur="this.value = this.value.trim().replace(/\b\w/g, l => l.toUpperCase())">
-                    </label>
-                    <label>Mobile Number *
-                        <input name="contact_info" type="tel" pattern="[0-9]{11}" maxlength="11" required title="Please enter exactly 11 digits" placeholder="09123456789" oninput="this.value=this.value.replace(/[^0-9]/g,'').slice(0,11)">
-                    </label>
-                    <label>Amount Paid
-                        <input name="amount_paid" type="number" step="0.01" min="0" value="<?= h((string)($gymWalkInFee ?? '100.00')) ?>" placeholder="0.00" required>
-                    </label>
-                    <label>Payment Method
-                        <select name="payment_method">
-                            <option value="cash">Cash</option>
-                            <option value="gcash">GCash</option>
-                        </select>
-                    </label>
-                    <button style="grid-column: 1 / -1; margin-top: 10px;">Record Transaction</button>
-                </form>
-            </div>
-        </dialog>
+    <link rel="stylesheet" href="<?= h(asset_url('css/pages/walk_ins.css')) ?>">
 
-        <!-- Conversion modal (reused per row via JS) -->
-        <dialog id="convertModal" class="modal">
-            <div class="modal-header">
-                <h3>Convert to Member</h3>
-                <button class="modal-close" onclick="this.closest('dialog').close()" aria-label="Close">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
-                </button>
-            </div>
-            <div class="modal-body">
-                <p class="muted" style="margin-bottom:1rem;font-size:13px;">
-                    Create a member account for this walk-in customer. Their login credentials will be emailed automatically.
+    <div class="fit-walkin-container">
+        <!-- FITTRACKS ATHLETIC HERO BANNER -->
+        <div class="fit-walkin-hero">
+            <div class="fit-hero-content">
+                <div class="fit-hero-badge-row">
+                    <span class="fit-hero-meta"><?= h($gymName) ?> &bull; <?= date('l, F j, Y') ?></span>
+                </div>
+                <h1 class="fit-hero-title">Guest Walk-In &amp; Day Pass Terminal</h1>
+                <p class="fit-hero-desc">
+                    Register guest drop-ins, collect entry passes via Cash or GCash, and fast-track visitors into permanent FitTracks members.
                 </p>
-                <form method="post" class="form grid-form">
-                    <?= csrf_field() ?>
-                    <input type="hidden" name="action" value="convert">
-                    <input type="hidden" name="transaction_id" id="convert_transaction_id">
-                    <label>First Name
-                        <input name="convert_first_name" id="convert_first_name" required placeholder="First name" autocapitalize="words" style="text-transform: capitalize;" onblur="this.value = this.value.trim().replace(/\b\w/g, l => l.toUpperCase())">
-                    </label>
-                    <label>Last Name
-                        <input name="convert_last_name" id="convert_last_name" required placeholder="Last name" autocapitalize="words" style="text-transform: capitalize;" onblur="this.value = this.value.trim().replace(/\b\w/g, l => l.toUpperCase())">
-                    </label>
-                    <label>Email Address *
-                        <input name="convert_email" type="email" required placeholder="member@example.com" style="text-transform: lowercase;" oninput="this.value = this.value.toLowerCase()" onblur="this.value = this.value.trim().toLowerCase()">
-                    </label>
-                    <label>Mobile Number *
-                        <input name="convert_phone" id="convert_phone" type="tel" pattern="[0-9]{11}" maxlength="11" required title="Please enter exactly 11 digits" placeholder="09123456789" oninput="this.value=this.value.replace(/[^0-9]/g,'').slice(0,11)">
-                    </label>
-                    <p class="muted" style="grid-column:1/-1;font-size:12px;margin:0;">
-                        A secure password will be auto-generated and sent to this email address.
-                    </p>
-                    <button type="submit" class="btn-primary" style="grid-column:1/-1;margin-top:10px;">Create Member Account & Send Credentials</button>
-                </form>
             </div>
-        </dialog>
-
-        <?php
-            $revenueQuery = 'SELECT SUM(amount_paid) FROM walk_in_transactions WHERE DATE(visit_date) = CURDATE()';
-            $countQuery = 'SELECT COUNT(*) FROM walk_in_transactions WHERE DATE(visit_date) = CURDATE()';
-            $statParams = [];
-            
-            if ($user['role'] === 'gym_owner' && $gymId) {
-                $revenueQuery .= ' AND gym_id = ?';
-                $countQuery .= ' AND gym_id = ?';
-                $statParams[] = $gymId;
-            }
-            
-            $todayRevenue = (float) scalar($revenueQuery, $statParams);
-            $todayCount = (int) scalar($countQuery, $statParams);
-        ?>
-        <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr)); gap:15px; margin-bottom: 24px;">
-            <div style="background:var(--bg); padding:16px; border-radius:8px; border:1px solid var(--line);">
-                <div style="color:var(--muted); font-size:13px; margin-bottom:4px;">Today's Walk-in Revenue</div>
-                <div style="font-size:24px; font-weight:bold; color:var(--lime);"><?= h(money($todayRevenue)) ?></div>
-            </div>
-            <div style="background:var(--bg); padding:16px; border-radius:8px; border:1px solid var(--line);">
-                <div style="color:var(--muted); font-size:13px; margin-bottom:4px;">Today's Walk-in Visitors</div>
-                <div style="font-size:24px; font-weight:bold; color:var(--ink);"><?= $todayCount ?></div>
+            <div class="fit-hero-actions">
+                <button type="button" class="fit-btn-primary" onclick="document.getElementById('recordWalkInModal').showModal()">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+                    <span class="fit-btn-text-full">Issue Walk-In Pass</span>
+                    <span class="fit-btn-text-short">Issue Pass</span>
+                </button>
+                <a href="index.php?page=scanner" class="fit-btn-secondary" title="Launch Turnstile Scanner">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect></svg>
+                    QR Scanner
+                </a>
             </div>
         </div>
 
-        <?php if (!$rows): ?>
-            <div class="empty-state">
-                <p>No walk-in transactions found.</p>
+        <!-- FITTRACKS 4-CARD ATHLETIC STAT GRID (2x2 on Mobile, Clean Vector Icons) -->
+        <div class="fit-stat-grid">
+            <!-- Stat 1: Revenue -->
+            <div class="fit-stat-card is-revenue">
+                <div class="fit-stat-top">
+                    <span class="fit-stat-label">Today's Walk-in Revenue</span>
+                </div>
+                <div class="fit-stat-number is-lime"><?= h(money($todayRevenue)) ?></div>
+                <div class="fit-stat-footer">
+                    <span class="fit-mini-pill" title="Cash collections today">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#22c55e" stroke-width="2.3"><rect x="2" y="6" width="20" height="12" rx="2"></rect><circle cx="12" cy="12" r="2"></circle><path d="M6 12h.01M18 12h.01"></path></svg>
+                        Cash: <?= h(money($todayCash)) ?>
+                    </span>
+                    <span class="fit-mini-pill" title="GCash collections today">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#38bdf8" stroke-width="2.3"><rect x="5" y="2" width="14" height="20" rx="2" ry="2"></rect><line x1="12" y1="18" x2="12.01" y2="18"></line></svg>
+                        GCash: <?= h(money($todayGcash)) ?>
+                    </span>
+                </div>
             </div>
-        <?php else: ?>
-        <div class="table-wrap walkins-desktop-table">
-            <table>
-                <thead>
-                    <tr>
-                        <th>Guest Name</th>
-                        <th>Contact Info</th>
-                        <th>Amount Paid</th>
-                        <th>Visit Date</th>
-                        <th>Payment Method</th>
-                        <th>Status</th>
-                        <th>Actions</th>
-                    </tr>
-                </thead>
-                <tbody>
-                <?php foreach ($rows as $row): ?>
-                    <tr>
-                        <td><strong><?= h($row['guest_name']) ?></strong></td>
-                        <td><?= h($row['contact_info']) ?></td>
-                        <td><?= h(money($row['amount_paid'])) ?></td>
-                        <td style="color:var(--muted);font-size:12px"><?= h(date('M j, Y g:i A', strtotime($row['visit_date']))) ?></td>
-                        <td><span style="font-size:12px; text-transform:uppercase; color:var(--muted);"><?= h($row['payment_method'] ?? 'cash') ?></span></td>
-                        <td>
-                            <?php if ($row['converted_to_member_id']): ?>
-                                <span class="badge badge-active">MEMBER</span>
+
+            <!-- Stat 2: Guest Visitors -->
+            <div class="fit-stat-card is-visitors">
+                <div class="fit-stat-top">
+                    <span class="fit-stat-label">Today's Walk-in Visitors</span>
+                </div>
+                <div class="fit-stat-number is-ink">
+                    <?= $todayCount ?> <span class="fit-stat-unit">Pass<?= $todayCount === 1 ? '' : 'es' ?></span>
+                </div>
+                <div class="fit-stat-footer">
+                    <span class="fit-pulse-dot"></span>
+                    <span class="fit-stat-subtext">Active floor drop-ins logged today</span>
+                </div>
+            </div>
+
+            <!-- Stat 3: Member Conversions -->
+            <div class="fit-stat-card is-conversion">
+                <div class="fit-stat-top">
+                    <span class="fit-stat-label">Member Conversions</span>
+                </div>
+                <div class="fit-stat-number is-amber">
+                    <?= $todayConverted ?> <span class="fit-stat-unit">Today</span>
+                </div>
+                <div class="fit-stat-footer">
+                    <span class="fit-mini-pill" title="All-time walk-ins upgraded to official members">
+                        <svg width="11" height="11" viewBox="0 0 24 24" fill="#f59e0b" stroke="none"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg>
+                        <?= $totalConverted ?> Converted (<?= $convRate ?>%)
+                    </span>
+                </div>
+            </div>
+
+            <!-- Stat 4: Day Tariff -->
+            <div class="fit-stat-card is-tariff">
+                <div class="fit-stat-top">
+                    <span class="fit-stat-label">Entry Pass Fee</span>
+                </div>
+                <div class="fit-stat-number is-lime"><?= h(money($gymWalkInFee)) ?></div>
+                <div class="fit-stat-footer">
+                    <span class="fit-stat-subtext">Standard drop-in rate per session</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- SEARCH, FILTERS & ACTION BAR -->
+        <div class="fit-filter-panel">
+            <form method="get" action="index.php" class="fit-search-form" id="walkInSearchForm">
+                <input type="hidden" name="page" value="walk_ins">
+                <input type="hidden" name="filter" value="<?= h($filter) ?>" id="filterInput">
+                <div class="fit-search-input-wrap">
+                    <svg class="fit-search-icon" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+                    <input type="text" name="q" id="walkInSearchInput" value="<?= h($search) ?>" placeholder="Search guest athlete name or 11-digit phone..." autocomplete="off">
+                    <?php if ($search !== ''): ?>
+                        <a href="index.php?page=walk_ins&filter=<?= h($filter) ?>" class="fit-search-clear" title="Clear search">&times;</a>
+                    <?php endif; ?>
+                </div>
+            </form>
+
+            <!-- Desktop Filter Chips -->
+            <div class="fit-filter-chips">
+                <button type="button" class="fit-chip <?= $filter === 'all' ? 'is-active' : '' ?>" data-filter="all">All Passes</button>
+                <button type="button" class="fit-chip <?= $filter === 'walkin' ? 'is-active' : '' ?>" data-filter="walkin">Day Passes</button>
+                <button type="button" class="fit-chip <?= $filter === 'converted' ? 'is-active' : '' ?>" data-filter="converted">Converted</button>
+                <button type="button" class="fit-chip <?= $filter === 'cash' ? 'is-active' : '' ?>" data-filter="cash">Cash</button>
+                <button type="button" class="fit-chip <?= $filter === 'gcash' ? 'is-active' : '' ?>" data-filter="gcash">GCash</button>
+            </div>
+
+            <!-- Mobile Filter Dropdown -->
+            <div class="fit-filter-dropdown-wrap">
+                <svg class="fit-filter-dropdown-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"></polygon></svg>
+                <select class="fit-filter-dropdown" id="walkInFilterDropdown" aria-label="Filter walk-in transactions">
+                    <option value="all" <?= $filter === 'all' ? 'selected' : '' ?>>All Passes (<?= $totalWalkIns ?>)</option>
+                    <option value="walkin" <?= $filter === 'walkin' ? 'selected' : '' ?>>Day Passes Only</option>
+                    <option value="converted" <?= $filter === 'converted' ? 'selected' : '' ?>>Converted to Member</option>
+                    <option value="cash" <?= $filter === 'cash' ? 'selected' : '' ?>>Cash Payments</option>
+                    <option value="gcash" <?= $filter === 'gcash' ? 'selected' : '' ?>>GCash Payments</option>
+                </select>
+            </div>
+
+            <div class="fit-record-counter" id="fitRecordCounter">
+                Showing <strong><?= count($rows) ?></strong> of <strong><?= $totalWalkIns ?></strong> entries
+            </div>
+        </div>
+
+        <!-- TRANSACTIONS CONTAINER -->
+        <section class="fit-pass-section">
+            <?php if (!$rows): ?>
+                <div class="fit-empty-state">
+                    <div class="fit-empty-icon">
+                        <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="2" y="6" width="20" height="12" rx="2"></rect><circle cx="12" cy="12" r="2"></circle><path d="M6 12h.01M18 12h.01"></path></svg>
+                    </div>
+                    <h3>No Walk-In Passes Found</h3>
+                    <p>
+                        <?= $search !== '' || $filter !== 'all' ? 'No records match your active search filter.' : 'No guest walk-in transactions have been recorded yet.' ?>
+                    </p>
+                    <div style="display:flex; gap:10px; justify-content:center; margin-top:16px;">
+                        <?php if ($search !== '' || $filter !== 'all'): ?>
+                            <a href="index.php?page=walk_ins" class="fit-btn-secondary" style="font-size:13px;">Clear All Filters</a>
+                        <?php endif; ?>
+                        <button type="button" class="fit-btn-primary" onclick="document.getElementById('recordWalkInModal').showModal()">
+                            + Issue First Walk-In Pass
+                        </button>
+                    </div>
+                </div>
+            <?php else: ?>
+                <!-- DESKTOP PASS TICKETING TABLE -->
+                <div class="table-wrap walkins-desktop-table fit-table-wrap">
+                    <table class="fit-table">
+                        <thead>
+                            <tr>
+                                <th>GUEST ATHLETE</th>
+                                <th>CONTACT NUMBER</th>
+                                <th>AMOUNT PAID</th>
+                                <th>VISIT TIMESTAMP</th>
+                                <th>PAYMENT METHOD</th>
+                                <th>STATUS</th>
+                                <th style="text-align:right;">FRONT DESK ACTION</th>
+                            </tr>
+                        </thead>
+                        <tbody id="walkInTableBody">
+                        <?php foreach ($rows as $row):
+                            $nameParts = explode(' ', trim($row['guest_name']), 2);
+                            $guestFirst = $nameParts[0] ?? '';
+                            $guestLast = $nameParts[1] ?? '';
+                            $initials = strtoupper(substr($guestFirst, 0, 1) . substr($guestLast, 0, 1)) ?: 'W';
+                            $isMember = !empty($row['converted_to_member_id']);
+                            $method = strtolower($row['payment_method'] ?? 'cash');
+                            $passId = 'TK-' . str_pad((string)$row['transaction_id'], 5, '0', STR_PAD_LEFT);
+                        ?>
+                            <tr class="fit-table-row" data-search="<?= strtolower(h($row['guest_name'] . ' ' . $row['contact_info'] . ' ' . $method)) ?>" data-status="<?= $isMember ? 'converted' : 'walkin' ?>" data-method="<?= h($method) ?>">
+                                <td>
+                                    <div class="fit-guest-cell">
+                                        <div class="fit-avatar <?= $isMember ? 'has-glow' : '' ?>">
+                                            <?= h($initials) ?>
+                                        </div>
+                                        <div>
+                                            <div class="fit-guest-name"><?= h($row['guest_name']) ?></div>
+                                            <span class="fit-pass-id"><?= $passId ?></span>
+                                        </div>
+                                    </div>
+                                </td>
+                                <td>
+                                    <div class="fit-contact-cell">
+                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path></svg>
+                                        <span><?= h($row['contact_info'] ?: 'N/A') ?></span>
+                                    </div>
+                                </td>
+                                <td>
+                                    <span class="fit-amount-cell"><?= h(money($row['amount_paid'])) ?></span>
+                                </td>
+                                <td>
+                                    <div class="fit-time-cell">
+                                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+                                        <span><?= h(date('M j, Y • g:i A', strtotime($row['visit_date']))) ?></span>
+                                    </div>
+                                </td>
+                                <td>
+                                    <?php if ($method === 'gcash'): ?>
+                                        <span class="fit-method-pill is-gcash">
+                                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><rect x="5" y="2" width="14" height="20" rx="2" ry="2"></rect><line x1="12" y1="18" x2="12.01" y2="18"></line></svg>
+                                            GCash
+                                        </span>
+                                    <?php else: ?>
+                                        <span class="fit-method-pill is-cash">
+                                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><rect x="2" y="6" width="20" height="12" rx="2"></rect><circle cx="12" cy="12" r="2"></circle></svg>
+                                            Cash
+                                        </span>
+                                    <?php endif; ?>
+                                </td>
+                                <td>
+                                    <?php if ($isMember): ?>
+                                        <span class="fit-badge is-member" title="Registered as official member">
+                                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                                            MEMBER
+                                        </span>
+                                    <?php else: ?>
+                                        <span class="fit-badge is-walkin" title="Non-member day pass">
+                                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg>
+                                            DAY PASS
+                                        </span>
+                                    <?php endif; ?>
+                                </td>
+                                <td style="text-align:right;">
+                                    <?php if (!$isMember): ?>
+                                        <button type="button" class="fit-btn-convert btn-convert-member"
+                                            data-id="<?= (int)$row['transaction_id'] ?>"
+                                            data-first="<?= h($guestFirst) ?>"
+                                            data-last="<?= h($guestLast) ?>"
+                                            data-phone="<?= h(($row['contact_info'] && $row['contact_info'] !== 'N/A') ? $row['contact_info'] : '') ?>">
+                                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg>
+                                            Convert to Member
+                                        </button>
+                                    <?php else: ?>
+                                        <span class="fit-converted-tag">
+                                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                                            Joined Member
+                                        </span>
+                                    <?php endif; ?>
+                                </td>
+                            </tr>
+                        <?php endforeach; ?>
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- MOBILE PASS CARDS VIEW -->
+                <div class="walkins-mobile-cards fit-mobile-cards">
+                    <?php foreach ($rows as $row):
+                        $nameParts = explode(' ', trim($row['guest_name']), 2);
+                        $guestFirst = $nameParts[0] ?? '';
+                        $guestLast = $nameParts[1] ?? '';
+                        $initials = strtoupper(substr($guestFirst, 0, 1) . substr($guestLast, 0, 1)) ?: 'W';
+                        $isMember = !empty($row['converted_to_member_id']);
+                        $method = strtolower($row['payment_method'] ?? 'cash');
+                        $passId = 'TK-' . str_pad((string)$row['transaction_id'], 5, '0', STR_PAD_LEFT);
+                    ?>
+                    <div class="fit-mobile-ticket <?= $isMember ? 'is-converted-ticket' : '' ?>" data-search="<?= strtolower(h($row['guest_name'] . ' ' . $row['contact_info'] . ' ' . $method)) ?>" data-status="<?= $isMember ? 'converted' : 'walkin' ?>" data-method="<?= h($method) ?>">
+                        <div class="fit-ticket-head">
+                            <div class="fit-ticket-guest">
+                                <span class="fit-avatar <?= $isMember ? 'has-glow' : '' ?>"><?= h($initials) ?></span>
+                                <div>
+                                    <div class="fit-mobile-name"><?= h($row['guest_name']) ?></div>
+                                    <span class="fit-pass-id"><?= $passId ?></span>
+                                </div>
+                            </div>
+                            <?php if ($isMember): ?>
+                                <span class="fit-badge is-member">MEMBER</span>
                             <?php else: ?>
-                                <span class="badge badge-pending">Walk-in</span>
+                                <span class="fit-badge is-walkin">DAY PASS</span>
                             <?php endif; ?>
-                        </td>
-                        <td>
-                            <?php if (!$row['converted_to_member_id']): ?>
-                                <?php
-                                    // Try to split guest_name into first/last
-                                    $nameParts = explode(' ', trim($row['guest_name']), 2);
-                                    $guestFirst = $nameParts[0] ?? '';
-                                    $guestLast = $nameParts[1] ?? '';
-                                ?>
-                                <button type="button" class="btn-sm btn-ghost btn-convert-member"
+                        </div>
+
+                        <div class="fit-ticket-divider"></div>
+
+                        <div class="fit-ticket-body">
+                            <div class="fit-ticket-row">
+                                <span class="fit-ticket-label">Amount Paid</span>
+                                <span class="fit-ticket-amount"><?= h(money($row['amount_paid'])) ?></span>
+                            </div>
+                            <div class="fit-ticket-row">
+                                <span class="fit-ticket-label">Payment Method</span>
+                                <?php if ($method === 'gcash'): ?>
+                                    <span class="fit-method-pill is-gcash">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><rect x="5" y="2" width="14" height="20" rx="2" ry="2"></rect><line x1="12" y1="18" x2="12.01" y2="18"></line></svg>
+                                        GCash
+                                    </span>
+                                <?php else: ?>
+                                    <span class="fit-method-pill is-cash">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><rect x="2" y="6" width="20" height="12" rx="2"></rect><circle cx="12" cy="12" r="2"></circle><path d="M6 12h.01M18 12h.01"></path></svg>
+                                        Cash
+                                    </span>
+                                <?php endif; ?>
+                            </div>
+                            <div class="fit-ticket-row">
+                                <span class="fit-ticket-label">Visit Timestamp</span>
+                                <span class="fit-ticket-val"><?= h(date('M j, Y • g:i A', strtotime($row['visit_date']))) ?></span>
+                            </div>
+                            <div class="fit-ticket-row">
+                                <span class="fit-ticket-label">Contact</span>
+                                <span class="fit-ticket-val"><?= h($row['contact_info'] ?: 'No phone') ?></span>
+                            </div>
+                        </div>
+
+                        <?php if (!$isMember): ?>
+                            <div class="fit-ticket-actions">
+                                <button type="button" class="fit-btn-convert btn-convert-member" style="width:100%; justify-content:center; padding:10px 14px;"
                                     data-id="<?= (int)$row['transaction_id'] ?>"
                                     data-first="<?= h($guestFirst) ?>"
                                     data-last="<?= h($guestLast) ?>"
                                     data-phone="<?= h(($row['contact_info'] && $row['contact_info'] !== 'N/A') ? $row['contact_info'] : '') ?>">
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg>
                                     Convert to Member
                                 </button>
-                            <?php else: ?>
-                                <span class="muted" style="font-size:12px;">—</span>
-                            <?php endif; ?>
-                        </td>
-                    </tr>
-                <?php endforeach; ?>
-                </tbody>
-            </table>
-        </div>
+                            </div>
+                        <?php endif; ?>
+                    </div>
+                    <?php endforeach; ?>
+                </div>
 
-        <!-- Mobile Cards View for Walk-in Transactions -->
-        <div class="walkins-mobile-cards">
-            <?php foreach ($rows as $row):
-                $nameParts = explode(' ', trim($row['guest_name']), 2);
-                $guestFirst = $nameParts[0] ?? '';
-                $guestLast = $nameParts[1] ?? '';
-                $initials = strtoupper(substr($guestFirst, 0, 1) . substr($guestLast, 0, 1)) ?: 'W';
-                $isMember = !empty($row['converted_to_member_id']);
-                $method = strtolower($row['payment_method'] ?? 'cash');
-            ?>
-            <div class="walkin-card-item">
-                <div class="walkin-card-header">
-                    <div class="user-cell" style="display:flex; align-items:center; gap:10px;">
-                        <span class="avatar small"><?= h($initials) ?></span>
-                        <div>
-                            <div class="walkin-card-name"><?= h($row['guest_name']) ?></div>
-                            <div class="walkin-card-contact"><?= h($row['contact_info'] ?: 'No contact') ?></div>
+                <!-- PAGINATION BAR -->
+                <?php if ($totalWalkIns > 0): ?>
+                    <div class="pagination-bar fit-pagination-bar">
+                        <div class="pagination-info">
+                            Showing <strong><?= $offset + 1 ?></strong> to <strong><?= min($offset + $perPage, $totalWalkIns) ?></strong> of <strong><?= $totalWalkIns ?></strong> entries
                         </div>
-                    </div>
-                    <?php if ($isMember): ?>
-                        <span class="badge badge-active">MEMBER</span>
-                    <?php else: ?>
-                        <span class="badge badge-pending">Walk-in</span>
-                    <?php endif; ?>
-                </div>
-
-                <div class="walkin-card-amount-row">
-                    <span class="walkin-card-amount"><?= h(money($row['amount_paid'])) ?></span>
-                    <span class="walkin-card-method">
-                        <?= strtoupper(h($method)) ?>
-                    </span>
-                </div>
-
-                <div class="walkin-card-details">
-                    <div class="walkin-card-detail-item">
-                        <span class="detail-label">Visit Date</span>
-                        <span class="detail-val"><?= h(date('M j, Y g:i A', strtotime($row['visit_date']))) ?></span>
-                    </div>
-                </div>
-
-                <?php if (!$isMember): ?>
-                    <div class="walkin-card-actions">
-                        <button type="button" class="btn-sm btn-ghost btn-convert-member" style="width:100%; justify-content:center; padding:9px 12px; font-weight:600;"
-                            data-id="<?= (int)$row['transaction_id'] ?>"
-                            data-first="<?= h($guestFirst) ?>"
-                            data-last="<?= h($guestLast) ?>"
-                            data-phone="<?= h(($row['contact_info'] && $row['contact_info'] !== 'N/A') ? $row['contact_info'] : '') ?>">
-                            Convert to Member
-                        </button>
+                        <?php
+                            $pageUrl = 'index.php?page=walk_ins' . ($search !== '' ? '&q=' . urlencode($search) : '') . ($filter !== 'all' ? '&filter=' . urlencode($filter) : '');
+                            render_pagination($page, $totalPages, $pageUrl, 'p');
+                        ?>
                     </div>
                 <?php endif; ?>
-            </div>
-            <?php endforeach; ?>
-        </div>
+            <?php endif; ?>
+        </section>
+    </div>
 
-        <!-- Pagination Bar -->
-        <?php if ($totalWalkIns > 0): ?>
-            <div class="pagination-bar">
-                <div class="pagination-info">
-                    Showing <strong><?= $offset + 1 ?></strong> to <strong><?= min($offset + $perPage, $totalWalkIns) ?></strong> of <strong><?= $totalWalkIns ?></strong> records
+    <!-- FITTRACKS RECORD WALK-IN MODAL -->
+    <dialog id="recordWalkInModal" class="modal fit-modal">
+        <div class="modal-header fit-modal-header">
+            <div style="display:flex; align-items:center; gap:10px;">
+                <div class="fit-modal-icon">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"></path><line x1="7" y1="7" x2="7.01" y2="7"></line></svg>
                 </div>
-                <?php render_pagination($page, $totalPages, 'index.php?page=walk_ins', 'p'); ?>
+                <div>
+                    <h3 style="margin:0; font-size:18px; font-weight:800; color:var(--ink);">Issue Guest Walk-In Pass</h3>
+                    <div style="font-size:12px; color:var(--muted); margin-top:2px;">Front desk drop-in registration</div>
+                </div>
             </div>
-        <?php endif; ?>
-        <?php endif; ?>
-    </section>
+            <button class="modal-close" onclick="this.closest('dialog').close()" aria-label="Close">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+            </button>
+        </div>
+        <div class="modal-body fit-modal-body">
+            <div class="fit-modal-banner">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
+                <span>Standard Walk-in Day Fee for <strong><?= h($gymName) ?></strong> is <strong><?= h(money($gymWalkInFee)) ?></strong>.</span>
+            </div>
+            <form method="post" class="form fit-modal-form">
+                <?= csrf_field() ?>
+                <div class="fit-input-group">
+                    <label>Guest Full Name *</label>
+                    <div class="fit-input-wrap">
+                        <svg class="fit-field-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
+                        <input name="guest_name" placeholder="e.g. John Doe" required autocapitalize="words" style="text-transform: capitalize;" onblur="this.value = this.value.trim().replace(/\b\w/g, l => l.toUpperCase())">
+                    </div>
+                </div>
 
-    <style>
-        .walkins-mobile-cards {
-            display: none;
-        }
+                <div class="fit-input-group">
+                    <label>Mobile Number (11 Digits) *</label>
+                    <div class="fit-input-wrap">
+                        <svg class="fit-field-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path></svg>
+                        <input name="contact_info" type="tel" pattern="[0-9]{11}" maxlength="11" required title="Please enter exactly 11 digits" placeholder="09123456789" oninput="this.value=this.value.replace(/[^0-9]/g,'').slice(0,11)">
+                    </div>
+                </div>
 
-        @media (max-width: 768px) {
-            .walkins-desktop-table {
-                display: none !important;
-            }
-            .walkins-mobile-cards {
-                display: flex !important;
-                flex-direction: column;
-                gap: 12px;
-                margin-top: 10px;
-                margin-bottom: 20px;
-            }
-        }
+                <div class="fit-input-group">
+                    <label>Amount Paid (₱) *</label>
+                    <div class="fit-input-wrap">
+                        <span class="fit-field-prefix" style="color:var(--lime); font-weight:800;">₱</span>
+                        <input name="amount_paid" type="number" step="0.01" min="0" value="<?= h((string)($gymWalkInFee ?? '100.00')) ?>" placeholder="0.00" required>
+                    </div>
+                </div>
 
-        .walkin-card-item {
-            background: color-mix(in srgb, var(--panel-soft) 45%, transparent);
-            border: 1px solid var(--line);
-            border-radius: 12px;
-            padding: 14px 16px;
-            display: flex;
-            flex-direction: column;
-            gap: 10px;
-            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
-            transition: all 0.2s ease;
-        }
+                <div class="fit-input-group">
+                    <label>Payment Method *</label>
+                    <div class="fit-payment-selector">
+                        <label class="fit-pay-option">
+                            <input type="radio" name="payment_method" value="cash" checked>
+                            <div class="fit-pay-box">
+                                <span class="fit-pay-icon">
+                                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#22c55e" stroke-width="2"><rect x="2" y="6" width="20" height="12" rx="2"></rect><circle cx="12" cy="12" r="2"></circle><path d="M6 12h.01M18 12h.01"></path></svg>
+                                </span>
+                                <div class="fit-pay-text">
+                                    <strong>Cash</strong>
+                                    <small>Front desk cash box</small>
+                                </div>
+                            </div>
+                        </label>
+                        <label class="fit-pay-option">
+                            <input type="radio" name="payment_method" value="gcash">
+                            <div class="fit-pay-box">
+                                <span class="fit-pay-icon">
+                                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#38bdf8" stroke-width="2"><rect x="5" y="2" width="14" height="20" rx="2" ry="2"></rect><line x1="12" y1="18" x2="12.01" y2="18"></line></svg>
+                                </span>
+                                <div class="fit-pay-text">
+                                    <strong>GCash</strong>
+                                    <small>E-Wallet QR scan</small>
+                                </div>
+                            </div>
+                        </label>
+                    </div>
+                </div>
 
-        [data-theme="light"] .walkin-card-item {
-            background: #ffffff;
-            border-color: #e2e8f0;
-            box-shadow: 0 1px 4px rgba(0, 0, 0, 0.05);
-        }
+                <button type="submit" class="fit-btn-primary fit-modal-submit">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                    Issue Pass &amp; Record Payment
+                </button>
+            </form>
+        </div>
+    </dialog>
 
-        .walkin-card-item:hover {
-            border-color: color-mix(in srgb, var(--lime) 35%, transparent);
-        }
+    <!-- FITTRACKS MEMBER CONVERSION MODAL -->
+    <dialog id="convertModal" class="modal fit-modal">
+        <div class="modal-header fit-modal-header">
+            <div style="display:flex; align-items:center; gap:10px;">
+                <div class="fit-modal-icon is-amber">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg>
+                </div>
+                <div>
+                    <h3 style="margin:0; font-size:18px; font-weight:800; color:var(--ink);">Upgrade to FitTracks Member</h3>
+                    <div style="font-size:12px; color:var(--muted); margin-top:2px;">Fast member registration with auto-sent credentials</div>
+                </div>
+            </div>
+            <button class="modal-close" onclick="this.closest('dialog').close()" aria-label="Close">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+            </button>
+        </div>
+        <div class="modal-body fit-modal-body">
+            <div class="fit-modal-banner is-amber-banner">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>
+                <span>A secure account and password will be generated automatically and dispatched to the member's email inbox.</span>
+            </div>
+            <form method="post" class="form fit-modal-form">
+                <?= csrf_field() ?>
+                <input type="hidden" name="action" value="convert">
+                <input type="hidden" name="transaction_id" id="convert_transaction_id">
+                
+                <div class="fit-form-row-2">
+                    <div class="fit-input-group">
+                        <label>First Name *</label>
+                        <div class="fit-input-wrap">
+                            <input name="convert_first_name" id="convert_first_name" required placeholder="First name" autocapitalize="words" style="text-transform: capitalize;" onblur="this.value = this.value.trim().replace(/\b\w/g, l => l.toUpperCase())">
+                        </div>
+                    </div>
+                    <div class="fit-input-group">
+                        <label>Last Name *</label>
+                        <div class="fit-input-wrap">
+                            <input name="convert_last_name" id="convert_last_name" required placeholder="Last name" autocapitalize="words" style="text-transform: capitalize;" onblur="this.value = this.value.trim().replace(/\b\w/g, l => l.toUpperCase())">
+                        </div>
+                    </div>
+                </div>
 
-        .walkin-card-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: flex-start;
-            gap: 10px;
-            padding-bottom: 10px;
-            border-bottom: 1px solid color-mix(in srgb, var(--line) 60%, transparent);
-        }
+                <div class="fit-input-group">
+                    <label>Email Address (For Member Sign In) *</label>
+                    <div class="fit-input-wrap">
+                        <svg class="fit-field-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path><polyline points="22,6 12,13 2,6"></polyline></svg>
+                        <input name="convert_email" type="email" required placeholder="member@example.com" style="text-transform: lowercase;" oninput="this.value = this.value.toLowerCase()" onblur="this.value = this.value.trim().toLowerCase()">
+                    </div>
+                </div>
 
-        [data-theme="light"] .walkin-card-header {
-            border-bottom-color: #f1f5f9;
-        }
+                <div class="fit-input-group">
+                    <label>Mobile Number (11 Digits) *</label>
+                    <div class="fit-input-wrap">
+                        <svg class="fit-field-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path></svg>
+                        <input name="convert_phone" id="convert_phone" type="tel" pattern="[0-9]{11}" maxlength="11" required title="Please enter exactly 11 digits" placeholder="09123456789" oninput="this.value=this.value.replace(/[^0-9]/g,'').slice(0,11)">
+                    </div>
+                </div>
 
-        .walkin-card-name {
-            font-weight: 700;
-            color: var(--ink);
-            font-size: 14.5px;
-        }
+                <button type="submit" class="fit-btn-primary fit-modal-submit is-amber-btn">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg>
+                    Create Member Account &amp; Send Credentials
+                </button>
+            </form>
+        </div>
+    </dialog>
 
-        .walkin-card-contact {
-            font-size: 12px;
-            color: var(--muted);
-            margin-top: 2px;
-        }
 
-        .walkin-card-amount-row {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            gap: 10px;
-        }
-
-        .walkin-card-amount {
-            font-size: 1.15rem;
-            font-weight: 800;
-            color: var(--lime);
-        }
-
-        [data-theme="light"] .walkin-card-amount {
-            color: #15803d;
-        }
-
-        .walkin-card-method {
-            display: inline-flex;
-            align-items: center;
-            font-size: 11.5px;
-            font-weight: 700;
-            letter-spacing: 0.5px;
-            color: var(--muted);
-            background: rgba(128, 128, 128, 0.08);
-            padding: 3px 8px;
-            border-radius: 6px;
-        }
-
-        .walkin-card-details {
-            display: grid;
-            grid-template-columns: 1fr;
-            gap: 8px;
-        }
-
-        .walkin-card-detail-item {
-            display: flex;
-            flex-direction: column;
-            gap: 2px;
-        }
-
-        .walkin-card-detail-item .detail-label {
-            font-size: 11px;
-            font-weight: 600;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-            color: var(--muted);
-        }
-
-        .walkin-card-detail-item .detail-val {
-            font-size: 13px;
-            font-weight: 500;
-            color: var(--ink);
-        }
-
-        .walkin-card-actions {
-            margin-top: 4px;
-            padding-top: 8px;
-            border-top: 1px solid color-mix(in srgb, var(--line) 40%, transparent);
-        }
-
-        /* Pagination Bar */
-        .pagination-bar {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            flex-wrap: wrap;
-            gap: 14px;
-            margin-top: 20px;
-            padding-top: 14px;
-            border-top: 1px solid var(--line);
-        }
-
-        .pagination-bar .pagination {
-            margin-top: 0;
-        }
-
-        .pagination-info {
-            font-size: 13px;
-            color: var(--muted);
-        }
-
-        .pagination-info strong {
-            color: var(--ink);
-            font-weight: 600;
-        }
-
-        @media (max-width: 600px) {
-            .pagination-bar {
-                flex-direction: column;
-                align-items: center;
-                text-align: center;
-            }
-        }
-    </style>
-
-    <script>
-    document.addEventListener('click', function(e) {
-        const btn = e.target.closest('.btn-convert-member');
-        if (btn) {
-            openConvertModal(
-                parseInt(btn.getAttribute('data-id'), 10),
-                btn.getAttribute('data-first') || '',
-                btn.getAttribute('data-last') || '',
-                btn.getAttribute('data-phone') || ''
-            );
-        }
-    });
-
-    function openConvertModal(transactionId, firstName, lastName, phone) {
-        document.getElementById('convert_transaction_id').value = transactionId;
-        document.getElementById('convert_first_name').value = firstName;
-        document.getElementById('convert_last_name').value = lastName;
-        document.getElementById('convert_phone').value = phone || '';
-        document.getElementById('convertModal').showModal();
-    }
-    </script>
+    <script src="<?= h(asset_url('js/pages/walk_ins.js')) ?>"></script>
     <?php
     render_footer();
 }

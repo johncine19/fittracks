@@ -421,41 +421,41 @@ function attendance_page(): void
 
 
 
-        <form method="get" action="index.php" style="display:grid; grid-template-columns:repeat(auto-fit,minmax(160px,1fr)); gap:12px; align-items:end; margin:0 0 18px; padding:16px; background:var(--surface); border:1px solid var(--line); border-radius:12px;">
+        <form method="get" action="index.php" class="attendance-filter-form">
             <input type="hidden" name="page" value="attendance">
             <?php if ($currentGymId): ?><input type="hidden" name="gym_id" value="<?= (int)$currentGymId ?>"><?php endif; ?>
-            <label style="display:grid; gap:6px; color:var(--muted); font-size:12px; font-weight:600;">
+            <label class="attendance-filter-group attendance-filter-member">
                 Member
-                <input type="search" name="attendance_search" value="<?= h($attendanceSearch) ?>" placeholder="Search member name" style="width:100%; box-sizing:border-box; padding:9px 11px; color:var(--ink); background:var(--bg); border:1px solid var(--line); border-radius:8px;">
+                <input type="search" name="attendance_search" value="<?= h($attendanceSearch) ?>" placeholder="Search member name" class="attendance-filter-input">
             </label>
-            <label style="display:grid; gap:6px; color:var(--muted); font-size:12px; font-weight:600;">
+            <label class="attendance-filter-group attendance-filter-from">
                 From
-                <span style="position:relative;display:block;width:100%;">
-                    <input type="text" name="attendance_from" data-attendance-date-text="from" value="<?= $attendanceFrom !== '' ? h(date('m/d/y', strtotime($attendanceFrom))) : '' ?>" placeholder="MM/DD/YY" inputmode="numeric" maxlength="8" pattern="\d{2}/\d{2}/\d{2}" style="width:100%; box-sizing:border-box; padding:9px 42px 9px 11px; color:var(--ink); background:var(--bg); border:1px solid var(--line); border-radius:8px;">
+                <span class="attendance-filter-date-wrap" style="position:relative;display:block;width:100%;">
+                    <input type="text" name="attendance_from" data-attendance-date-text="from" value="<?= $attendanceFrom !== '' ? h(date('m/d/y', strtotime($attendanceFrom))) : '' ?>" placeholder="MM/DD/YY" inputmode="numeric" maxlength="8" pattern="\d{2}/\d{2}/\d{2}" class="attendance-filter-input" style="padding-right:40px;">
                     <svg aria-hidden="true" viewBox="0 0 24 24" width="16" height="16" style="position:absolute;right:12px;top:50%;transform:translateY(-50%);color:var(--muted);pointer-events:none;"><rect x="3" y="5" width="18" height="16" rx="2" fill="none" stroke="currentColor" stroke-width="2"/><path d="M16 3v4M8 3v4M3 11h18" fill="none" stroke="currentColor" stroke-width="2"/></svg>
                     <input type="date" data-attendance-date-picker="from" value="<?= h($attendanceFrom) ?>" aria-label="Choose start date" style="position:absolute;right:0;top:0;width:40px;height:100%;opacity:0;cursor:pointer;">
                 </span>
             </label>
-            <label style="display:grid; gap:6px; color:var(--muted); font-size:12px; font-weight:600;">
+            <label class="attendance-filter-group attendance-filter-to">
                 To
-                <span style="position:relative;display:block;width:100%;">
-                    <input type="text" name="attendance_to" data-attendance-date-text="to" value="<?= $attendanceTo !== '' ? h(date('m/d/y', strtotime($attendanceTo))) : '' ?>" placeholder="MM/DD/YY" inputmode="numeric" maxlength="8" pattern="\d{2}/\d{2}/\d{2}" style="width:100%; box-sizing:border-box; padding:9px 42px 9px 11px; color:var(--ink); background:var(--bg); border:1px solid var(--line); border-radius:8px;">
+                <span class="attendance-filter-date-wrap" style="position:relative;display:block;width:100%;">
+                    <input type="text" name="attendance_to" data-attendance-date-text="to" value="<?= $attendanceTo !== '' ? h(date('m/d/y', strtotime($attendanceTo))) : '' ?>" placeholder="MM/DD/YY" inputmode="numeric" maxlength="8" pattern="\d{2}/\d{2}/\d{2}" class="attendance-filter-input" style="padding-right:40px;">
                     <svg aria-hidden="true" viewBox="0 0 24 24" width="16" height="16" style="position:absolute;right:12px;top:50%;transform:translateY(-50%);color:var(--muted);pointer-events:none;"><rect x="3" y="5" width="18" height="16" rx="2" fill="none" stroke="currentColor" stroke-width="2"/><path d="M16 3v4M8 3v4M3 11h18" fill="none" stroke="currentColor" stroke-width="2"/></svg>
                     <input type="date" data-attendance-date-picker="to" value="<?= h($attendanceTo) ?>" aria-label="Choose end date" style="position:absolute;right:0;top:0;width:40px;height:100%;opacity:0;cursor:pointer;">
                 </span>
             </label>
-            <label style="display:grid; gap:6px; color:var(--muted); font-size:12px; font-weight:600;">
+            <label class="attendance-filter-group attendance-filter-status">
                 Status
-                <select name="attendance_status" style="width:100%; box-sizing:border-box; padding:9px 11px; color:var(--ink); background:var(--bg); border:1px solid var(--line); border-radius:8px;">
+                <select name="attendance_status" class="attendance-filter-select">
                     <option value="">All statuses</option>
                     <option value="in_gym" <?= $attendanceStatus === 'in_gym' ? 'selected' : '' ?>>In gym</option>
                     <option value="checked_out" <?= $attendanceStatus === 'checked_out' ? 'selected' : '' ?>>Checked out</option>
                 </select>
             </label>
-            <div style="display:flex; gap:8px; align-items:center;">
-                <button type="submit" class="btn btn-primary" style="padding:9px 14px;">Filter</button>
+            <div class="attendance-filter-actions">
+                <button type="submit" class="btn btn-primary">Filter</button>
                 <?php if ($attendanceFilterActive): ?>
-                    <a href="<?= h('index.php?' . http_build_query(array_filter(['page' => 'attendance', 'gym_id' => $currentGymId]))) ?>" class="btn btn-secondary" style="padding:9px 14px; text-decoration:none;">Clear</a>
+                    <a href="<?= h('index.php?' . http_build_query(array_filter(['page' => 'attendance', 'gym_id' => $currentGymId]))) ?>" class="btn btn-secondary">Clear</a>
                 <?php endif; ?>
             </div>
         </form>
@@ -527,7 +527,7 @@ function attendance_page(): void
                                     <?= csrf_field() ?>
                                     <input type="hidden" name="action" value="checkout">
                                     <input type="hidden" name="attendance_id" value="<?= (int) $row['attendance_id'] ?>">
-                                    <button class="btn-sm btn-ghost">Check out</button>
+                                    <button class="btn-sm btn-ghost" style="background:var(--lime); border-color:var(--lime); color:var(--bg);">Check out</button>
                                 </form>
                             <?php endif; ?>
                         </td>
@@ -602,7 +602,7 @@ function attendance_page(): void
                             <?= csrf_field() ?>
                             <input type="hidden" name="action" value="checkout">
                             <input type="hidden" name="attendance_id" value="<?= (int) $row['attendance_id'] ?>">
-                            <button type="submit" class="btn-sm btn-ghost" style="width:100%; justify-content:center; padding:9px 12px; font-weight:600;">Check out</button>
+                            <button type="submit" class="btn-sm btn-ghost" style="width:100%; justify-content:center; padding:9px 12px; font-weight:600; background:var(--lime); border-color:var(--lime); color:var(--bg);">Check out</button>
                         </form>
                     </div>
                 <?php endif; ?>
@@ -630,6 +630,138 @@ function attendance_page(): void
     </section>
 
     <style>
+        /* ATTENDANCE FILTER BAR */
+        .attendance-filter-form {
+            display: grid;
+            grid-template-columns: 2fr 1.2fr 1.2fr 1.3fr auto;
+            gap: 12px;
+            align-items: end;
+            margin: 0 0 18px;
+            padding: 16px;
+            background: var(--surface);
+            border: 1px solid var(--line);
+            border-radius: 12px;
+        }
+
+        .attendance-filter-group {
+            display: grid;
+            gap: 6px;
+            color: var(--muted);
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+        .attendance-filter-input,
+        .attendance-filter-select {
+            width: 100%;
+            box-sizing: border-box;
+            padding: 9px 11px;
+            color: var(--ink);
+            background: var(--bg);
+            border: 1px solid var(--line);
+            border-radius: 8px;
+            font-size: 13px;
+            font-family: inherit;
+            height: 38px;
+            transition: border-color 0.15s ease, box-shadow 0.15s ease;
+        }
+
+        .attendance-filter-input:focus,
+        .attendance-filter-select:focus {
+            outline: none;
+            border-color: var(--lime);
+            box-shadow: 0 0 0 2px color-mix(in srgb, var(--lime) 20%, transparent);
+        }
+
+        .attendance-filter-actions {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+        }
+
+        .attendance-filter-actions .btn {
+            padding: 9px 16px;
+            height: 38px;
+            box-sizing: border-box;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            text-decoration: none;
+            white-space: nowrap;
+            font-weight: 700;
+        }
+
+        @media (max-width: 860px) {
+            .attendance-filter-form {
+                grid-template-columns: 1fr 1fr;
+                gap: 10px;
+                padding: 14px;
+            }
+
+            .attendance-filter-member {
+                grid-column: span 2;
+            }
+
+            .attendance-filter-from {
+                grid-column: 1;
+            }
+
+            .attendance-filter-to {
+                grid-column: 2;
+            }
+
+            .attendance-filter-status {
+                grid-column: 1;
+            }
+
+            .attendance-filter-actions {
+                grid-column: 2;
+                display: flex;
+                gap: 8px;
+                align-items: flex-end;
+            }
+
+            .attendance-filter-actions .btn {
+                flex: 1;
+                width: 100%;
+            }
+        }
+
+        @media (max-width: 440px) {
+            .attendance-filter-form {
+                gap: 8px;
+                padding: 12px;
+            }
+
+            .attendance-filter-group {
+                font-size: 11px;
+                gap: 4px;
+            }
+
+            .attendance-filter-input,
+            .attendance-filter-select {
+                padding: 7px 9px;
+                font-size: 12px;
+                height: 35px;
+            }
+
+            .attendance-filter-date-wrap input[type="text"] {
+                padding-right: 32px !important;
+            }
+
+            .attendance-filter-date-wrap svg {
+                right: 9px !important;
+                width: 14px !important;
+                height: 14px !important;
+            }
+
+            .attendance-filter-actions .btn {
+                padding: 7px 10px;
+                font-size: 12px;
+                height: 35px;
+            }
+        }
+
         .attendance-mobile-cards {
             display: none;
         }
