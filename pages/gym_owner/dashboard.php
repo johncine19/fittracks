@@ -14,6 +14,9 @@ function admin_dashboard(PDO $pdo, array $user): void
             $gymId = (int) $gymRow['gym_id'];
             $subPlan = $gymRow['subscription_plan'] ?: 'No Active Plan';
             $subStatus = $gymRow['subscription_status'] ?: 'inactive';
+            if ($subStatus === 'active' && !empty($gymRow['subscription_renewal_date']) && strtotime((string)$gymRow['subscription_renewal_date']) < strtotime('today')) {
+                $subStatus = 'expired';
+            }
             $subRenewal = !empty($gymRow['subscription_renewal_date']) ? date('M j, Y', strtotime($gymRow['subscription_renewal_date'])) : 'N/A';
         }
     }
@@ -21,7 +24,7 @@ function admin_dashboard(PDO $pdo, array $user): void
     if ($isPlatformAdmin) {
         $members      = (int) $pdo->query('SELECT COUNT(*) FROM users WHERE role = "member" AND status = "active"')->fetchColumn();
     } else {
-        $members      = (int) $pdo->query('SELECT COUNT(DISTINCT m.user_id) FROM memberships m JOIN membership_plans mp ON mp.plan_id = m.plan_id WHERE mp.gym_id = ' . $gymId . ' AND m.status = "active"')->fetchColumn();
+        $members      = (int) $pdo->query('SELECT COUNT(DISTINCT m.user_id) FROM memberships m JOIN membership_plans mp ON mp.plan_id = m.plan_id WHERE mp.gym_id = ' . $gymId . ' AND m.status = "active" AND m.end_date >= CURDATE()')->fetchColumn();
     }
     if ($isPlatformAdmin) {
         $revenue = (float) $pdo->query(

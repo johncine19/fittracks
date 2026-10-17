@@ -27,10 +27,17 @@ function gym_subscription_page(): void
         redirect('gym_rejected');
     }
 
+    if (function_exists('auto_expire_lapsed_gym_subscriptions')) {
+        auto_expire_lapsed_gym_subscriptions((int)$gym['gym_id']);
+        // Refresh gym state after auto-expiry check
+        $gym = $pdo->query('SELECT * FROM gyms WHERE owner_user_id = ' . (int)$user['user_id'])->fetch(PDO::FETCH_ASSOC);
+    }
+
     $plans = get_platform_subscription_plans();
     $currentPlan = strtolower((string)($gym['subscription_plan'] ?? ''));
-    $hasActiveSub = ($gym['subscription_status'] === 'active' && !empty($gym['subscription_plan']));
     $gymRenewalDate = !empty($gym['subscription_renewal_date']) ? (string)$gym['subscription_renewal_date'] : null;
+    $isGymExpired = !empty($gymRenewalDate) && strtotime($gymRenewalDate) < strtotime('today');
+    $hasActiveSub = ($gym['subscription_status'] === 'active' && !empty($gym['subscription_plan']) && !$isGymExpired);
     $gymDaysLeft = null;
     if ($hasActiveSub && $gymRenewalDate) {
         $gymDaysLeft = (int)ceil((strtotime($gymRenewalDate) - strtotime('today')) / 86400);
@@ -146,7 +153,8 @@ function gym_subscription_page(): void
 
     render_header('Choose Subscription', $user);
     $currentPlan = strtolower((string)($gym['subscription_plan'] ?? ''));
-    $hasActiveSub = ($gym['subscription_status'] === 'active' && !empty($gym['subscription_plan']));
+    $isGymExpired = !empty($gym['subscription_renewal_date']) && strtotime((string)$gym['subscription_renewal_date']) < strtotime('today');
+    $hasActiveSub = ($gym['subscription_status'] === 'active' && !empty($gym['subscription_plan']) && !$isGymExpired);
     $trialInfo = gym_trial_info($gym);
     ?>
     <link rel="stylesheet" href="<?= h(asset_url('css/pages/gym_subscription.css')) ?>">

@@ -724,15 +724,52 @@ function gym_queue_automated_eod_summaries(?string $date = null): array
  * Automatically update expired gym subscription statuses in the database.
  * Changes 'active' or 'trialing' to 'expired' if subscription_renewal_date < CURDATE().
  */
-function auto_expire_lapsed_gym_subscriptions(): int
+function auto_expire_lapsed_gym_subscriptions(?int $targetGymId = null): int
 {
     $pdo = db();
     try {
+        if ($targetGymId !== null && $targetGymId > 0) {
+            $stmt = $pdo->prepare("UPDATE gyms SET subscription_status = 'expired' WHERE gym_id = ? AND status = 'approved' AND subscription_status IN ('active', 'trialing') AND subscription_renewal_date IS NOT NULL AND subscription_renewal_date < CURDATE()");
+            $stmt->execute([$targetGymId]);
+            return (int) $stmt->rowCount();
+        }
         $stmt = $pdo->prepare("UPDATE gyms SET subscription_status = 'expired' WHERE status = 'approved' AND subscription_status IN ('active', 'trialing') AND subscription_renewal_date IS NOT NULL AND subscription_renewal_date < CURDATE()");
         $stmt->execute();
         return (int) $stmt->rowCount();
     } catch (Throwable $e) {
         error_log('Error in auto_expire_lapsed_gym_subscriptions: ' . $e->getMessage());
+        return 0;
+    }
+}
+
+/**
+ * Automatically update expired member memberships in the database.
+ * Changes 'active' to 'expired' if end_date < CURDATE().
+ * Also synchronizes trainer assignments if any plans lapsed.
+ */
+function auto_expire_lapsed_member_subscriptions(?int $targetUserId = null): int
+{
+    $pdo = db();
+    try {
+        if ($targetUserId !== null && $targetUserId > 0) {
+            $stmt = $pdo->prepare("UPDATE memberships SET status = 'expired' WHERE user_id = ? AND status = 'active' AND end_date < CURDATE()");
+            $stmt->execute([$targetUserId]);
+            $count = (int) $stmt->rowCount();
+            if ($count > 0 && function_exists('sync_trainer_assignments_with_memberships')) {
+                sync_trainer_assignments_with_memberships($targetUserId);
+            }
+            return $count;
+        }
+
+        $stmt = $pdo->prepare("UPDATE memberships SET status = 'expired' WHERE status = 'active' AND end_date < CURDATE()");
+        $stmt->execute();
+        $count = (int) $stmt->rowCount();
+        if ($count > 0 && function_exists('sync_trainer_assignments_with_memberships')) {
+            sync_trainer_assignments_with_memberships(null);
+        }
+        return $count;
+    } catch (Throwable $e) {
+        error_log('Error in auto_expire_lapsed_member_subscriptions: ' . $e->getMessage());
         return 0;
     }
 }

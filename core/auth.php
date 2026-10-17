@@ -26,6 +26,13 @@ function require_login(): array
 
     $page = $_GET['page'] ?? 'dashboard';
     
+    // Auto-expire member subscriptions on-the-fly if lapsed
+    if ($user['role'] === 'member') {
+        if (function_exists('auto_expire_lapsed_member_subscriptions')) {
+            auto_expire_lapsed_member_subscriptions((int) $user['user_id']);
+        }
+    }
+
     // Globally enforce physical profile + goal setup for members
     if ($user['role'] === 'member' && !in_array($page, ['setup_profile', 'setup_goal', 'logout'], true)) {
         $memberProfile = member_profile((int) $user['user_id']);
@@ -38,6 +45,12 @@ function require_login(): array
 
     // Handle Gym Owner onboarding & subscription interception
     if ($user['role'] === 'gym_owner' && !in_array($page, ['gym_onboarding', 'gym_pending', 'gym_rejected', 'gym_subscription', 'logout'], true)) {
+        if (function_exists('auto_expire_lapsed_gym_subscriptions')) {
+            $ownerGymId = (int) scalar('SELECT gym_id FROM gyms WHERE owner_user_id = ?', [(int)$user['user_id']]);
+            if ($ownerGymId > 0) {
+                auto_expire_lapsed_gym_subscriptions($ownerGymId);
+            }
+        }
         $gym = db()->query('SELECT gym_id, status, subscription_plan, subscription_status, subscription_renewal_date FROM gyms WHERE owner_user_id = ' . (int)$user['user_id'])->fetch();
         
         if (!$gym) {

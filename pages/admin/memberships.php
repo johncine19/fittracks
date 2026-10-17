@@ -9,6 +9,15 @@ function memberships_page(): void
 {
     $user = require_roles(['platform_admin', 'gym_owner', 'member']);
 
+    // Auto-expire lapsed memberships so statuses are up-to-date
+    if (function_exists('auto_expire_lapsed_member_subscriptions')) {
+        if ($user['role'] === 'member') {
+            auto_expire_lapsed_member_subscriptions((int)$user['user_id']);
+        } else {
+            auto_expire_lapsed_member_subscriptions();
+        }
+    }
+
     if ($user['role'] === 'member' && isset($_GET['checkout'], $_GET['ref']) && in_array($_GET['checkout'], ['returned', 'cancelled'], true)) {
         $checkoutStmt = db()->prepare('SELECT p.status FROM payments p JOIN memberships m ON m.membership_id = p.membership_id WHERE p.xendit_reference_id = ? AND m.user_id = ? LIMIT 1');
         $checkoutStmt->execute([(string)$_GET['ref'], (int)$user['user_id']]);
@@ -28,7 +37,7 @@ function memberships_page(): void
         $isGymMember = db()->prepare('SELECT 1 FROM gym_members WHERE user_id = ?');
         $isGymMember->execute([$user['user_id']]);
         if (!$isGymMember->fetchColumn()) {
-            $hasPlanGym = (int) scalar('SELECT mp.gym_id FROM memberships m JOIN membership_plans mp ON mp.plan_id = m.plan_id WHERE m.user_id = ? AND m.status = "active" ORDER BY m.membership_id DESC LIMIT 1', [$user['user_id']]);
+            $hasPlanGym = (int) scalar('SELECT mp.gym_id FROM memberships m JOIN membership_plans mp ON mp.plan_id = m.plan_id WHERE m.user_id = ? AND m.status = "active" AND m.end_date >= CURDATE() ORDER BY m.membership_id DESC LIMIT 1', [$user['user_id']]);
             if ($hasPlanGym > 0) {
                 db()->prepare('INSERT IGNORE INTO gym_members (user_id, gym_id) VALUES (?, ?)')->execute([$user['user_id'], $hasPlanGym]);
             } elseif (!empty($_GET['ref']) && in_array((string)($_GET['checkout'] ?? ''), ['returned', 'cancelled'], true)) {
@@ -615,7 +624,7 @@ function memberships_page(): void
         $where = 'WHERE m.user_id = ' . (int) $user['user_id'];
         $memberGymId = (int) scalar('SELECT gym_id FROM gym_members WHERE user_id = ? ORDER BY created_at DESC LIMIT 1', [$user['user_id']]);
         if (!$memberGymId) {
-            $memberGymId = (int) scalar('SELECT mp.gym_id FROM memberships m JOIN membership_plans mp ON mp.plan_id = m.plan_id WHERE m.user_id = ? AND m.status = "active" ORDER BY m.membership_id DESC LIMIT 1', [$user['user_id']]);
+            $memberGymId = (int) scalar('SELECT mp.gym_id FROM memberships m JOIN membership_plans mp ON mp.plan_id = m.plan_id WHERE m.user_id = ? AND m.status = "active" AND m.end_date >= CURDATE() ORDER BY m.membership_id DESC LIMIT 1', [$user['user_id']]);
             if ($memberGymId > 0) {
                 db()->prepare('INSERT IGNORE INTO gym_members (user_id, gym_id) VALUES (?, ?)')->execute([$user['user_id'], $memberGymId]);
             } elseif (!empty($_SESSION['current_gym_id']) && !empty($_GET['ref']) && in_array((string)($_GET['checkout'] ?? ''), ['returned', 'cancelled'], true)) {
@@ -708,17 +717,19 @@ function memberships_page(): void
         $last = trim((string)($m['last_name'] ?? ''));
         $name = trim($first . ' ' . $last) ?: 'Member';
         $ini = (!empty($first) ? strtoupper(substr($first, 0, 1)) : '') . (!empty($last) ? strtoupper(substr($last, 0, 1)) : '');
+        $isMExpired = (($m['status'] ?? '') === 'expired' || (($m['status'] ?? '') === 'active' && !empty($m['end_date']) && strtotime((string)$m['end_date']) < strtotime('today')));
+        $mStatus = $isMExpired ? 'expired' : (string)($m['status'] ?? 'active');
         return [
             'id' => (int) $m['membership_id'],
             'user_id' => (int) $m['user_id'],
             'plan_id' => (int) ($m['plan_id'] ?? 0),
             'name' => $name,
             'plan_name' => (string) ($m['plan_name'] ?? ''),
-            'status' => (string) ($m['status'] ?? 'active'),
+            'status' => $mStatus,
             'price' => (float) ($m['price'] ?? 0),
             'formatted_price' => function_exists('money') ? money($m['price']) : ('₱' . number_format((float) $m['price'], 2)),
             'initials' => $ini ?: 'M',
-            'label' => $name . ' — ' . ($m['plan_name'] ?? '') . ' (' . ($m['status'] ?? 'active') . ')',
+            'label' => $name . ' — ' . ($m['plan_name'] ?? '') . ' (' . $mStatus . ')',
             'end_date' => !empty($m['end_date']) ? date('M j, Y', strtotime($m['end_date'])) : ''
         ];
     }, $rows ?: []);
@@ -1055,7 +1066,7 @@ function memberships_page(): void
             $sameDayDiscount = 0;
 
             // Look for an active plan to check if they get a same-day upgrade discount & guardrails
-            $currentActive = db()->query("SELECT m.*, p.price, p.plan_name FROM memberships m JOIN membership_plans p ON p.plan_id = m.plan_id WHERE m.user_id = {$user['user_id']} AND m.status = 'active' ORDER BY m.end_date DESC LIMIT 1")->fetch();
+            $currentActive = db()->query("SELECT m.*, p.price, p.plan_name FROM memberships m JOIN membership_plans p ON p.plan_id = m.plan_id WHERE m.user_id = {$user['user_id']} AND m.status = 'active' AND m.end_date >= CURDATE() ORDER BY m.end_date DESC LIMIT 1")->fetch();
             if ($currentActive) {
                 $activePlanId = (int)$currentActive['plan_id'];
                 $activePlanName = (string)$currentActive['plan_name'];
@@ -1344,14 +1355,16 @@ function memberships_page(): void
                             </thead>
                             <tbody>
                                 <?php foreach ($rows as $row):
-                                    $statusClass = 'badge badge-' . $row['status'];
+                                    $isExpired = ($row['status'] === 'expired' || ($row['status'] === 'active' && !empty($row['end_date']) && strtotime($row['end_date']) < strtotime('today')));
+                                    $rowStatus = $isExpired ? 'expired' : $row['status'];
+                                    $statusClass = 'badge badge-' . $rowStatus;
                                 ?>
                                     <tr>
                                         <td><strong><?= h($row['plan_name']) ?></strong></td>
                                         <td><?= h(money($row['price'])) ?></td>
                                         <td><?= h(date('M j, Y', strtotime($row['start_date']))) ?></td>
                                         <td><?= h(date('M j, Y', strtotime($row['end_date']))) ?></td>
-                                        <td><span class="<?= $statusClass ?>"><?= h($row['status']) ?></span></td>
+                                        <td><span class="<?= $statusClass ?>"><?= h($rowStatus) ?></span></td>
                                     </tr>
                                 <?php endforeach; ?>
                             </tbody>
@@ -1361,7 +1374,9 @@ function memberships_page(): void
                     <!-- Mobile Cards View for Member Records -->
                     <div class="membership-mobile-cards">
                         <?php foreach ($rows as $row):
-                            $statusClass = 'badge badge-' . $row['status'];
+                            $isExpired = ($row['status'] === 'expired' || ($row['status'] === 'active' && !empty($row['end_date']) && strtotime($row['end_date']) < strtotime('today')));
+                            $rowStatus = $isExpired ? 'expired' : $row['status'];
+                            $statusClass = 'badge badge-' . $rowStatus;
                         ?>
                             <div class="membership-card-item">
                                 <div class="membership-card-header">
@@ -1369,7 +1384,7 @@ function memberships_page(): void
                                         <div class="membership-card-title"><?= h($row['plan_name']) ?></div>
                                         <div class="membership-card-price"><?= h(money($row['price'])) ?></div>
                                     </div>
-                                    <span class="<?= $statusClass ?>"><?= h($row['status']) ?></span>
+                                    <span class="<?= $statusClass ?>"><?= h($rowStatus) ?></span>
                                 </div>
                                 <div class="membership-card-details">
                                     <div class="membership-card-detail-item">
@@ -1426,7 +1441,9 @@ function memberships_page(): void
                                 </thead>
                                 <tbody>
                                     <?php foreach ($rows as $row):
-                                        $statusClass = 'badge badge-' . $row['status'];
+                                        $isExpired = ($row['status'] === 'expired' || ($row['status'] === 'active' && !empty($row['end_date']) && strtotime($row['end_date']) < strtotime('today')));
+                                        $rowStatus = $isExpired ? 'expired' : $row['status'];
+                                        $statusClass = 'badge badge-' . $rowStatus;
                                     ?>
                                         <tr>
                                             <td>
@@ -1439,9 +1456,9 @@ function memberships_page(): void
                                             <td><?= h(money($row['price'])) ?></td>
                                             <td><?= h(date('M j, Y', strtotime($row['start_date']))) ?></td>
                                             <td><?= h(date('M j, Y', strtotime($row['end_date']))) ?></td>
-                                            <td><span class="<?= $statusClass ?>"><?= h($row['status']) ?></span></td>
+                                            <td><span class="<?= $statusClass ?>"><?= h($rowStatus) ?></span></td>
                                             <td>
-                                                <button onclick="editStatus(<?= $row['membership_id'] ?>, '<?= h($row['status']) ?>')" class="btn btn-secondary" style="padding:4px 8px;font-size:12px;" title="Edit Status">Update</button>
+                                                <button onclick="editStatus(<?= $row['membership_id'] ?>, '<?= h($rowStatus) ?>')" class="btn btn-secondary" style="padding:4px 8px;font-size:12px;" title="Edit Status">Update</button>
                                             </td>
                                         </tr>
                                     <?php endforeach; ?>

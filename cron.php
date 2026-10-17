@@ -28,10 +28,14 @@ echo "Purging old notifications (Smart Tiered: 30d read, 60d unread)...\n";
 $cleanupResults = cleanup_old_notifications(30, 60);
 echo "Notification cleanup completed: {$cleanupResults['read_deleted']} read and {$cleanupResults['unread_deleted']} unread ({$cleanupResults['total']} total purged).\n";
 
-// 4. Auto-expire lapsed partner gym subscriptions
+// 4. Auto-expire lapsed partner gym subscriptions and member plans
 echo "Checking for expired partner gym subscriptions...\n";
 $expiredGymsCount = auto_expire_lapsed_gym_subscriptions();
 echo "Gym subscription expiration check completed: {$expiredGymsCount} gym(s) transitioned to expired.\n";
+
+echo "Checking for expired member memberships...\n";
+$expiredMembersCount = auto_expire_lapsed_member_subscriptions();
+echo "Member membership expiration check completed: {$expiredMembersCount} membership(s) transitioned to expired.\n";
 
 // 5. Auto-send renewal reminders and expiration notice emails (members + gym owners)
 echo "Processing automated renewal and expiration email notices...\n";

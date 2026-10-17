@@ -32,7 +32,7 @@ function profile_page(): void
             FROM memberships m 
             JOIN membership_plans p ON p.plan_id = m.plan_id 
             JOIN gyms g ON g.gym_id = p.gym_id 
-            WHERE m.user_id = {$user['user_id']} AND m.status = 'active' AND p.gym_id IS NOT NULL
+            WHERE m.user_id = {$user['user_id']} AND m.status = 'active' AND m.end_date >= CURDATE() AND p.gym_id IS NOT NULL
             ORDER BY m.end_date DESC LIMIT 1
         ")->fetch();
         if ($activeMem) {
@@ -102,7 +102,7 @@ function profile_page(): void
                    DATEDIFF(m.end_date, CURDATE()) as days_remaining
             FROM memberships m
             JOIN membership_plans mp ON mp.plan_id = m.plan_id
-            WHERE m.user_id = {$user['user_id']} AND m.status = 'active'
+            WHERE m.user_id = {$user['user_id']} AND m.status = 'active' AND m.end_date >= CURDATE()
             ORDER BY m.end_date DESC LIMIT 1
         ")->fetch();
     }
@@ -929,6 +929,9 @@ function profile_page(): void
             $ownerGymId = (int)$ownerGym['gym_id'];
             $subPlan = $ownerGym['subscription_plan'] ?: 'No Active Plan';
             $subStatus = $ownerGym['subscription_status'] ?: 'inactive';
+            if ($subStatus === 'active' && !empty($ownerGym['subscription_renewal_date']) && strtotime((string)$ownerGym['subscription_renewal_date']) < strtotime('today')) {
+                $subStatus = 'expired';
+            }
             $subRenewal = !empty($ownerGym['subscription_renewal_date']) ? date('M j, Y', strtotime($ownerGym['subscription_renewal_date'])) : 'N/A';
 
             $allPlatformPlans = get_platform_subscription_plans();

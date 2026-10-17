@@ -1467,20 +1467,29 @@ function render_header(string $title, ?array $user = null): void
                                     'type'  => 'free',
                                 ];
                             } elseif (($gym['subscription_status'] ?? '') === 'active') {
-                                $planRaw = strtolower(trim($gym['subscription_plan'] ?? ''));
-                                $planName = match (true) {
-                                    str_contains($planRaw, 'starter')      => 'Starter',
-                                    str_contains($planRaw, 'business')     => 'Business',
-                                    str_contains($planRaw, 'enterprise')   => 'Enterprise',
-                                    str_contains($planRaw, 'professional') => 'Pro',
-                                    str_contains($planRaw, 'pro')          => 'Pro',
-                                    default                                => ucfirst($gym['subscription_plan'] ?? 'Pro')
-                                };
-                                $profileSubPill = [
-                                    'text'  => strtoupper($planName),
-                                    'title' => 'Active Subscription: ' . ($gym['subscription_plan'] ?? 'Active'),
-                                    'type'  => 'active',
-                                ];
+                                $isLapsed = !empty($gym['subscription_renewal_date']) && strtotime((string)$gym['subscription_renewal_date']) < strtotime('today');
+                                if ($isLapsed) {
+                                    $profileSubPill = [
+                                        'text'  => 'EXPIRED',
+                                        'title' => 'Subscription Expired',
+                                        'type'  => 'expired',
+                                    ];
+                                } else {
+                                    $planRaw = strtolower(trim($gym['subscription_plan'] ?? ''));
+                                    $planName = match (true) {
+                                        str_contains($planRaw, 'starter')      => 'Starter',
+                                        str_contains($planRaw, 'business')     => 'Business',
+                                        str_contains($planRaw, 'enterprise')   => 'Enterprise',
+                                        str_contains($planRaw, 'professional') => 'Pro',
+                                        str_contains($planRaw, 'pro')          => 'Pro',
+                                        default                                => ucfirst($gym['subscription_plan'] ?? 'Pro')
+                                    };
+                                    $profileSubPill = [
+                                        'text'  => strtoupper($planName),
+                                        'title' => 'Active Subscription: ' . ($gym['subscription_plan'] ?? 'Active'),
+                                        'type'  => 'active',
+                                    ];
+                                }
                             } elseif (!empty($gym['subscription_status']) && in_array($gym['subscription_status'], ['cancelled', 'expired'], true)) {
                                 $profileSubPill = [
                                     'text'  => 'EXPIRED',
@@ -1489,17 +1498,25 @@ function render_header(string $title, ?array $user = null): void
                                 ];
                             }
                         } elseif ($role === 'member' && $user) {
-                            $membershipStmt = db()->prepare('SELECT mp.plan_name, m.status FROM memberships m JOIN membership_plans mp ON mp.plan_id = m.plan_id WHERE m.user_id = ? ORDER BY (m.status = "active") DESC, m.end_date DESC LIMIT 1');
+                            $membershipStmt = db()->prepare('
+                                SELECT mp.plan_name, m.status, m.end_date 
+                                FROM memberships m 
+                                JOIN membership_plans mp ON mp.plan_id = m.plan_id 
+                                WHERE m.user_id = ? 
+                                ORDER BY (m.status = "active" AND m.end_date >= CURDATE()) DESC, m.end_date DESC 
+                                LIMIT 1
+                            ');
                             $membershipStmt->execute([$user['user_id']]);
                             $membership = $membershipStmt->fetch();
                             if ($membership) {
-                                if ($membership['status'] === 'active') {
+                                $isMemActive = ($membership['status'] === 'active' && !empty($membership['end_date']) && strtotime((string)$membership['end_date']) >= strtotime('today'));
+                                if ($isMemActive) {
                                     $profileSubPill = [
                                         'text'  => strtoupper($membership['plan_name']),
                                         'title' => 'Active Membership: ' . $membership['plan_name'],
                                         'type'  => 'active',
                                     ];
-                                } elseif (in_array($membership['status'], ['cancelled', 'expired'], true)) {
+                                } else {
                                     $profileSubPill = [
                                         'text'  => 'EXPIRED',
                                         'title' => 'Membership Expired',
