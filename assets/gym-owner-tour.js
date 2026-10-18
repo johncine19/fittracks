@@ -69,52 +69,70 @@
         }
     ];
 
-    // ── MEMBER GUIDED TOUR STEPS (9 Steps) ───────────────────────────
+    // ── MEMBER GUIDED TOUR STEPS (11 Steps) ───────────────────────────
     const MEMBER_TOUR_STEPS = [
         {
             stepNumber: 1,
-            badge: '1 of 9',
-            title: 'Your Fitness Hub',
-            description: 'Track your attendance streak, active routine, weight changes, and upcoming group class bookings at a glance.',
-            targetSelector: '.member-stats-grid',
-            fallbackSelector: '.member-stat-card',
+            badge: '1 of 11',
+            title: 'Attendance Records',
+            description: 'Track your gym visits, check-in streak, and view your entry history.',
+            targetSelector: '.stat-card-attendance',
+            fallbackSelector: '.member-stat-card:first-child',
             preferredPlacement: 'bottom'
         },
         {
             stepNumber: 2,
-            badge: '2 of 9',
+            badge: '2 of 11',
+            title: 'Progress Logs',
+            description: 'Log body measurements, record weight check-ins, and monitor your physical transformation metrics.',
+            targetSelector: '.stat-card-progress',
+            fallbackSelector: '.member-stat-card:nth-child(2)',
+            preferredPlacement: 'bottom'
+        },
+        {
+            stepNumber: 3,
+            badge: '3 of 11',
+            title: 'Class Bookings',
+            description: 'View your enrolled group workouts and explore upcoming scheduled classes in real time.',
+            targetSelector: '.stat-card-classes',
+            fallbackSelector: '.member-stat-card:nth-child(3)',
+            preferredPlacement: 'bottom'
+        },
+        {
+            stepNumber: 4,
+            badge: '4 of 11',
             title: 'Contactless QR Pass',
             description: 'Scan your personal QR code at the front desk scanner for instant hands-free gym entry and session check-ins.',
             targetSelector: '.side-nav a[href$="page=qr_attendance"], .side-nav a[href*="page=qr_attendance"]',
             preferredPlacement: 'right'
         },
         {
-            stepNumber: 3,
-            badge: '3 of 9',
+            stepNumber: 5,
+            badge: '5 of 11',
             title: 'Workouts & Routines',
             description: 'Access coach-assigned workout splits, view exercise video guides, and log sets, reps, and rest timers in real time.',
             targetSelector: '.side-nav a[href$="page=my_workout"], .side-nav a[href*="page=my_workout"]',
             preferredPlacement: 'right'
         },
         {
-            stepNumber: 4,
-            badge: '4 of 9',
+            stepNumber: 6,
+            badge: '6 of 11',
             title: 'Personalized Nutrition',
             description: 'Follow daily calorie and macronutrient targets tailored to your fitness goals, with meal plans and hydration tracking.',
             targetSelector: '.side-nav a[href$="page=diet"], .side-nav a[href*="page=diet"]',
             preferredPlacement: 'right'
         },
         {
-            stepNumber: 5,
-            badge: '5 of 9',
+            stepNumber: 7,
+            badge: '7 of 11',
             title: 'Personal Trainers',
             description: 'Browse qualified coaches, book 1-on-1 personal training, and receive direct personalized guidance.',
             targetSelector: '.side-nav a[href$="page=trainers"], .side-nav a[href*="page=trainers"], .side-nav a[href*="page=gym_selection"]',
             preferredPlacement: 'right'
         },
         {
-            stepNumber: 6,
-            badge: '6 of 9',
+            stepNumber: 8,
+            badge: '8 of 11',
             title: 'Group Fitness Classes',
             description: 'Explore scheduled sessions (HIIT, Yoga, Spinning), check remaining spots, and reserve your class in advance.',
             targetSelector: '.side-nav a[href$="page=book_classes"], .side-nav a[href*="page=book_classes"]',
@@ -122,8 +140,8 @@
             preferredPlacement: 'right'
         },
         {
-            stepNumber: 7,
-            badge: '7 of 9',
+            stepNumber: 9,
+            badge: '9 of 11',
             title: 'Live Floor Equipment',
             description: 'Check live equipment availability on the floor, join virtual waitlists, and get notified when machines are free.',
             targetSelector: '.side-nav a[href$="page=equipment"], .side-nav a[href*="page=equipment"], .side-nav a[href*="gym_equipment"]',
@@ -131,8 +149,8 @@
             preferredPlacement: 'right'
         },
         {
-            stepNumber: 8,
-            badge: '8 of 9',
+            stepNumber: 10,
+            badge: '10 of 11',
             title: 'Membership & Passes',
             description: 'View active subscription plan details, track expiration/renewal dates, and manage payments.',
             targetSelector: '.side-nav a[href$="page=memberships"], .side-nav a[href*="page=memberships"]',
@@ -140,8 +158,8 @@
             preferredPlacement: 'right'
         },
         {
-            stepNumber: 9,
-            badge: '9 of 9',
+            stepNumber: 11,
+            badge: '11 of 11',
             title: 'Profile & Body Progress',
             description: 'Log body measurements, update fitness goals, switch themes, and review your milestone achievements.',
             targetSelector: '.sidebar-bottom a[href*="page=profile"], a[href*="page=profile"]',
@@ -566,7 +584,9 @@
                 // If inside side-nav or mobile sidebar drawer, ALWAYS center vertically so the item is never clipped by overflow
                 if (insideSideNav || (isMobile && insideSidebar)) {
                     this.currentTargetEl.scrollIntoView({ behavior: 'auto', block: 'center', inline: 'nearest' });
-                } else if (!isMobile) {
+                } else if (isMobile) {
+                    this.currentTargetEl.scrollIntoView({ behavior: 'auto', block: 'center', inline: 'nearest' });
+                } else {
                     const rect = this.currentTargetEl.getBoundingClientRect();
                     const inView = (
                         rect.top >= 60 &&
