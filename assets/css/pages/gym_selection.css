@@ -746,6 +746,19 @@
             grid-template-columns: repeat(auto-fit, minmax(215px, 1fr));
             gap: 16px;
             align-items: stretch;
+            justify-content: center;
+        }
+
+        .gym-plans-grid.has-single-plan,
+        .gym-plans-grid:has(> .plan-card:only-child) {
+            display: flex;
+            justify-content: center;
+        }
+
+        .gym-plans-grid.has-single-plan .plan-card,
+        .gym-plans-grid:has(> .plan-card:only-child) > .plan-card {
+            width: 100%;
+            max-width: 380px;
         }
 
         /* Mobile Plans Carousel Controls */
@@ -816,6 +829,10 @@
                 padding: 14px 4px 16px !important;
                 scrollbar-width: none !important;
                 margin: 0 -4px;
+            }
+            .gym-plans-grid.has-single-plan,
+            .gym-plans-grid:has(> .plan-card:only-child) {
+                justify-content: center !important;
             }
             .gym-plans-grid::-webkit-scrollbar { display: none !important; }
             .gym-plans-grid .plan-card {

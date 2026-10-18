@@ -104,7 +104,8 @@ function view_gym_page(): void
         $publicHeroImage = $images[0];
     }
 
-    $brandColor = !empty($gym['brand_color']) ? $gym['brand_color'] : 'var(--lime)';
+    $canCustomBrand = gym_has_feature('custom_branding', $gym);
+    $brandColor = ($canCustomBrand && !empty($gym['brand_color'])) ? $gym['brand_color'] : 'var(--lime)';
 
     $backUrl = match($user['role'] ?? null) {
         'gym_owner' => 'index.php?page=gym_profile',
@@ -279,7 +280,7 @@ function view_gym_page(): void
                     </a>
                 </div>
 
-                <div class="gym-plans-grid">
+                <div class="gym-plans-grid <?= count($plans) === 1 ? 'has-single-plan' : '' ?>">
                     <?php foreach ($plans as $p): ?>
                         <?php $isPopular = !empty($p['is_popular']); ?>
                         <div class="gym-plan-card <?= $isPopular ? 'is-popular' : '' ?>">

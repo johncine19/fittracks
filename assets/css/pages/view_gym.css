@@ -642,6 +642,17 @@
         display: grid;
         grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr));
         gap: 20px;
+        justify-content: center;
+    }
+    .gym-plans-grid.has-single-plan,
+    .gym-plans-grid:has(> .gym-plan-card:only-child) {
+        display: flex;
+        justify-content: center;
+    }
+    .gym-plans-grid.has-single-plan > .gym-plan-card,
+    .gym-plans-grid:has(> .gym-plan-card:only-child) > .gym-plan-card {
+        width: 100%;
+        max-width: 380px;
     }
     .gym-plan-card {
         background: linear-gradient(135deg, rgba(20, 26, 38, 0.7) 0%, rgba(13, 17, 25, 0.85) 100%);

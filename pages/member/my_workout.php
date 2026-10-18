@@ -26,17 +26,46 @@ function my_workout_page(): void
 
     render_header('My Workout', $user);
 
-    // Fetch active training plan for this member
-    $stmt = $pdo->prepare(
-        'SELECT p.*, tp.user_id AS t_user_id, u.first_name AS t_first, u.last_name AS t_last 
+    // Fetch all active training plans for this member (supports multi-gym / multi-trainer)
+    $plansStmt = $pdo->prepare(
+        'SELECT p.*, tp.user_id AS t_user_id, u.first_name AS t_first, u.last_name AS t_last,
+                tp.gym_id, g.name AS gym_name
          FROM training_plans p 
          LEFT JOIN trainer_profiles tp ON p.trainer_id = tp.trainer_id 
          LEFT JOIN users u ON u.user_id = tp.user_id 
+         LEFT JOIN gyms g ON g.gym_id = tp.gym_id
          WHERE p.member_user_id = ? AND p.status = "active" 
-         ORDER BY p.plan_id DESC LIMIT 1'
+         ORDER BY p.plan_id DESC'
     );
-    $stmt->execute([$userId]);
-    $plan = $stmt->fetch();
+    $plansStmt->execute([$userId]);
+    $activePlans = $plansStmt->fetchAll();
+
+    $selectedPlanId = isset($_GET['plan_id']) ? (int)$_GET['plan_id'] : 0;
+    $currentGym = get_user_gym($user);
+    $currentGymId = $currentGym ? (int)($currentGym['gym_id'] ?? 0) : 0;
+
+    $plan = null;
+    if ($selectedPlanId > 0) {
+        foreach ($activePlans as $ap) {
+            if ((int)$ap['plan_id'] === $selectedPlanId) {
+                $plan = $ap;
+                break;
+            }
+        }
+    }
+    // Prioritize current gym plan if not explicitly selected
+    if (!$plan && $currentGymId > 0) {
+        foreach ($activePlans as $ap) {
+            if ((int)($ap['gym_id'] ?? 0) === $currentGymId) {
+                $plan = $ap;
+                break;
+            }
+        }
+    }
+    // Fallback to first active plan
+    if (!$plan && !empty($activePlans)) {
+        $plan = $activePlans[0];
+    }
 
     $isSelfGuided = is_member_self_guided($userId);
     $hasTrainerPlan = !empty($plan['trainer_id']);
@@ -271,6 +300,49 @@ function my_workout_page(): void
     <link rel="stylesheet" href="<?= h(asset_url('css/pages/my_workout.css')) ?>">
 
     <div style="max-width: 1200px; margin: 0 auto; padding-bottom: 60px;">
+        <?php if (count($activePlans) > 1): ?>
+            <!-- Multi-Gym / Multi-Coach Plan Switcher -->
+            <div class="plan-switcher-container">
+                <div class="plan-switcher-header">
+                    <div class="plan-switcher-title">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M16 3h5v5"/><path d="M4 20L21 3"/><path d="M21 16v5h-5"/><path d="M15 15l6 6"/><path d="M4 4l5 5"/></svg>
+                        <span>Active Gym Routines (<?= count($activePlans) ?>)</span>
+                    </div>
+                    <span class="plan-switcher-hint">Switch between workout programs assigned across your gyms</span>
+                </div>
+                <div class="plan-switcher-pills">
+                    <?php foreach ($activePlans as $ap): 
+                        $isSelected = ((int)$ap['plan_id'] === (int)($plan['plan_id'] ?? 0));
+                        $gymTitle = !empty($ap['gym_name']) ? $ap['gym_name'] : 'Gym Routine';
+                        $coachSub = (!empty($ap['t_first']) || !empty($ap['t_last'])) ? ('Coach ' . trim($ap['t_first'] . ' ' . $ap['t_last'])) : 'Self-Guided';
+                        $isHomeGym = $currentGymId && ((int)($ap['gym_id'] ?? 0) === $currentGymId);
+                    ?>
+                        <a href="index.php?page=my_workout&plan_id=<?= (int)$ap['plan_id'] ?><?= !empty($monthParam) ? '&month=' . urlencode($monthParam) : '' ?>" 
+                           class="plan-switcher-pill <?= $isSelected ? 'is-active' : '' ?>">
+                            <div class="plan-pill-icon">
+                                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 5v14M18 5v14M2 9h4M18 9h4M2 15h4M18 15h4M6 12h12"/></svg>
+                            </div>
+                            <div class="plan-pill-body">
+                                <div class="plan-pill-gym">
+                                    <?= h($gymTitle) ?>
+                                    <?php if ($isHomeGym): ?>
+                                        <span class="plan-pill-badge-curr">Selected Gym</span>
+                                    <?php endif; ?>
+                                </div>
+                                <div class="plan-pill-coach"><?= h($coachSub) ?></div>
+                            </div>
+                            <?php if ($isSelected): ?>
+                                <span class="plan-pill-active-dot" title="Currently viewing this workout routine">
+                                    <span class="plan-dot-pulse"></span>
+                                    Viewing
+                                </span>
+                            <?php endif; ?>
+                        </a>
+                    <?php endforeach; ?>
+                </div>
+            </div>
+        <?php endif; ?>
+
         <!-- Contextual Action Strip -->
         <div class="workout-action-strip">
             <div class="workout-strip-meta">
@@ -341,15 +413,15 @@ function my_workout_page(): void
                         <div class="calendar-nav-bar">
                             <h3 class="calendar-month-title"><?= $monthDisplay ?></h3>
                             <div class="calendar-nav-actions">
-                                <a href="index.php?page=my_workout&month=<?= $prevMonth ?>" class="cal-nav-btn" title="Previous Month" aria-label="Previous Month">
+                                <a href="index.php?page=my_workout&month=<?= $prevMonth ?><?= $plan ? '&plan_id=' . (int)$plan['plan_id'] : '' ?>" class="cal-nav-btn" title="Previous Month" aria-label="Previous Month">
                                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg>
                                 </a>
                                 <?php if ($monthParam !== $currentMonthStr): ?>
-                                    <a href="index.php?page=my_workout&month=<?= $currentMonthStr ?>" class="cal-today-btn">Today</a>
+                                    <a href="index.php?page=my_workout&month=<?= $currentMonthStr ?><?= $plan ? '&plan_id=' . (int)$plan['plan_id'] : '' ?>" class="cal-today-btn">Today</a>
                                 <?php else: ?>
                                     <button type="button" onclick="selectDate('<?= $today ?>')" class="cal-today-btn">Today</button>
                                 <?php endif; ?>
-                                <a href="index.php?page=my_workout&month=<?= $nextMonth ?>" class="cal-nav-btn" title="Next Month" aria-label="Next Month">
+                                <a href="index.php?page=my_workout&month=<?= $nextMonth ?><?= $plan ? '&plan_id=' . (int)$plan['plan_id'] : '' ?>" class="cal-nav-btn" title="Next Month" aria-label="Next Month">
                                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg>
                                 </a>
                             </div>

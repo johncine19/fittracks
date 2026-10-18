@@ -118,6 +118,9 @@ function load_gym_selection_data(array $gyms): array
         $gym['rating_stats'] = $ratingsByGym[$gymId];
         $gym['xendit_enabled'] = $xenditConfigured
             && trim((string) ($gym['xendit_subaccount_id'] ?? '')) !== '';
+        if (!gym_has_feature('custom_branding', $gym)) {
+            $gym['brand_color'] = null;
+        }
     }
     unset($gym);
 

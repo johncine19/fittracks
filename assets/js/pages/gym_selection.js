@@ -312,7 +312,7 @@ const FT_CSRF_TOKEN = FT_CONFIG.csrfToken || (document.querySelector('meta[name=
         html += `</div><div class="modal-tab-panel" id="tab-plans">`;
 
         if (planCount > 0) {
-            html += `<div class="gym-plans-grid">`;
+            html += `<div class="gym-plans-grid${planCount === 1 ? ' has-single-plan' : ''}">`;
             gym.plans.forEach(p => {
                 const xenditEnabled = gym.xendit_enabled === true || gym.xendit_enabled === 1;
                 const isHighlighted = p.plan_id === highlightedPlanId && gym.plans.length > 1;
@@ -354,6 +354,11 @@ const FT_CSRF_TOKEN = FT_CONFIG.csrfToken || (document.querySelector('meta[name=
                             <input type="hidden" name="subscribe_plan_id" value="${p.plan_id}">
                             <input type="hidden" name="payment_method" value="xendit">
                             <button type="submit" class="btn btn-primary" style="width: 100%;" ${xenditEnabled ? '' : 'disabled'}>${xenditEnabled ? 'Subscribe with Xendit' : 'Online checkout unavailable'}</button>
+                            ${!xenditEnabled ? `
+                                <div style="font-size: 11.5px; color: #94a3b8; text-align: center; margin-top: 8px; line-height: 1.4;">
+                                    Online checkout is inactive for this gym. You can click <strong style="color: var(--lime);">Select Gym</strong> above to join and settle payment in-person.
+                                </div>
+                            ` : ''}
                         </form>
                     </div>
                 `;

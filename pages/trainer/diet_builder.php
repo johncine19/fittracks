@@ -40,12 +40,13 @@ function diet_builder_page(): void
 
     // Authorization & Scoping checks
     if ($user['role'] === 'trainer') {
-        $trainerProfile = $pdo->query('SELECT trainer_id FROM trainer_profiles WHERE user_id = ' . (int)$user['user_id'])->fetch();
+        $trainerProfile = $pdo->query('SELECT trainer_id, gym_id FROM trainer_profiles WHERE user_id = ' . (int)$user['user_id'])->fetch();
         if (!$trainerProfile) {
             flash('Trainer profile not found.', 'danger');
             redirect('trainer_members');
         }
         $trainerId = (int) $trainerProfile['trainer_id'];
+        $gymId = (int) ($trainerProfile['gym_id'] ?? 0);
 
         // Verify active assignment
         $isAssigned = (bool) scalar('SELECT 1 FROM trainer_assignments WHERE trainer_id = ? AND member_user_id = ? AND status = "active"', [$trainerId, $memberId]);
@@ -75,17 +76,44 @@ function diet_builder_page(): void
     } else {
         // platform_admin
         $trainerId = ensure_coach_profile((int)$user['user_id']);
+        $gymId = (int) (get_user_gym_id($user) ?? 0);
     }
     
-    // Check for draft for this member (unified so trainer and gym owner work on the same plan)
-    $stmt = $pdo->prepare('SELECT * FROM dietary_plans WHERE member_user_id = ? AND status = "draft" ORDER BY plan_id DESC LIMIT 1');
-    $stmt->execute([$memberId]);
+    // Check for draft for this member scoped to this trainer / gym facility
+    if ($gymId > 0) {
+        $stmt = $pdo->prepare('
+            SELECT dp.* 
+            FROM dietary_plans dp 
+            LEFT JOIN trainer_profiles tp ON dp.trainer_id = tp.trainer_id 
+            WHERE dp.member_user_id = ? 
+              AND (dp.trainer_id = ? OR tp.gym_id = ?) 
+              AND dp.status = "draft" 
+            ORDER BY dp.plan_id DESC LIMIT 1
+        ');
+        $stmt->execute([$memberId, $trainerId, $gymId]);
+    } else {
+        $stmt = $pdo->prepare('SELECT * FROM dietary_plans WHERE member_user_id = ? AND trainer_id = ? AND status = "draft" ORDER BY plan_id DESC LIMIT 1');
+        $stmt->execute([$memberId, $trainerId]);
+    }
     $draft = $stmt->fetch();
     
     if (!$draft) {
-        // Check if there is an active plan to clone as a draft
-        $stmtActive = $pdo->prepare('SELECT * FROM dietary_plans WHERE member_user_id = ? AND status = "active" ORDER BY plan_id DESC LIMIT 1');
-        $stmtActive->execute([$memberId]);
+        // Check if there is an active plan to clone as a draft (prioritizing same gym)
+        if ($gymId > 0) {
+            $stmtActive = $pdo->prepare('
+                SELECT dp.* 
+                FROM dietary_plans dp 
+                LEFT JOIN trainer_profiles tp ON dp.trainer_id = tp.trainer_id 
+                WHERE dp.member_user_id = ? 
+                  AND (dp.trainer_id = ? OR tp.gym_id = ?) 
+                  AND dp.status = "active" 
+                ORDER BY dp.plan_id DESC LIMIT 1
+            ');
+            $stmtActive->execute([$memberId, $trainerId, $gymId]);
+        } else {
+            $stmtActive = $pdo->prepare('SELECT * FROM dietary_plans WHERE member_user_id = ? AND trainer_id = ? AND status = "active" ORDER BY plan_id DESC LIMIT 1');
+            $stmtActive->execute([$memberId, $trainerId]);
+        }
         $activePlan = $stmtActive->fetch();
         
         if ($activePlan) {
@@ -120,8 +148,20 @@ function diet_builder_page(): void
         $action = post('action');
         
         if ($action === 'publish') {
-            // Archive old active plans
-            $pdo->prepare('UPDATE dietary_plans SET status = "completed" WHERE member_user_id = ? AND status = "active"')->execute([$memberId]);
+            // Archive old active plans strictly for this trainer or gym facility
+            if ($gymId > 0) {
+                $pdo->prepare('
+                    UPDATE dietary_plans dp
+                    LEFT JOIN trainer_profiles tp ON dp.trainer_id = tp.trainer_id
+                    SET dp.status = "completed"
+                    WHERE dp.member_user_id = ? 
+                      AND dp.status = "active" 
+                      AND (dp.trainer_id = ? OR tp.gym_id = ?)
+                ')->execute([$memberId, $trainerId, $gymId]);
+            } else {
+                $pdo->prepare('UPDATE dietary_plans SET status = "completed" WHERE member_user_id = ? AND trainer_id = ? AND status = "active"')
+                    ->execute([$memberId, $trainerId]);
+            }
             // Set draft to active and record this trainer/owner as publisher
             $pdo->prepare('UPDATE dietary_plans SET status = "active", trainer_id = ? WHERE plan_id = ?')->execute([$trainerId, $planId]);
             

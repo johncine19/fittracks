@@ -27,22 +27,42 @@ function profile_page(): void
     $homeGymId = null;
     $homeGymName = 'None';
     if ($is_member) {
-        $activeMem = db()->query("
-            SELECT g.gym_id, g.name 
-            FROM memberships m 
-            JOIN membership_plans p ON p.plan_id = m.plan_id 
-            JOIN gyms g ON g.gym_id = p.gym_id 
-            WHERE m.user_id = {$user['user_id']} AND m.status = 'active' AND m.end_date >= CURDATE() AND p.gym_id IS NOT NULL
-            ORDER BY m.end_date DESC LIMIT 1
-        ")->fetch();
-        if ($activeMem) {
-            $currentGymId = (int)$activeMem['gym_id'];
-            $currentGymName = $activeMem['name'];
-        }
         $homeGym = get_user_gym($user);
         if ($homeGym) {
             $homeGymId = (int)$homeGym['gym_id'];
             $homeGymName = $homeGym['name'];
+        }
+
+        // Active membership scoped to the active facility
+        $activeMemStmt = db()->prepare("
+            SELECT g.gym_id, g.name, mp.plan_name, mp.duration_days, m.end_date,
+                   DATEDIFF(m.end_date, CURDATE()) as days_remaining
+            FROM memberships m 
+            JOIN membership_plans mp ON mp.plan_id = m.plan_id 
+            JOIN gyms g ON g.gym_id = mp.gym_id 
+            WHERE m.user_id = ? " . ($homeGymId > 0 ? " AND mp.gym_id = ?" : "") . " 
+              AND m.status = 'active' AND m.end_date >= CURDATE()
+            ORDER BY m.end_date DESC LIMIT 1
+        ");
+        $activeMemStmt->execute($homeGymId > 0 ? [(int)$user['user_id'], $homeGymId] : [(int)$user['user_id']]);
+        $activeMem = $activeMemStmt->fetch();
+        if ($activeMem) {
+            $currentGymId = (int)$activeMem['gym_id'];
+            $currentGymName = $activeMem['name'];
+        }
+
+        $pendingMem = null;
+        if (!$activeMem && $homeGymId > 0) {
+            $pendingMemStmt = db()->prepare("
+                SELECT g.gym_id, g.name, mp.plan_name, mp.duration_days, m.status, m.created_at
+                FROM memberships m
+                JOIN membership_plans mp ON mp.plan_id = m.plan_id
+                JOIN gyms g ON g.gym_id = mp.gym_id
+                WHERE m.user_id = ? AND mp.gym_id = ? AND m.status = 'pending'
+                ORDER BY m.membership_id DESC LIMIT 1
+            ");
+            $pendingMemStmt->execute([(int)$user['user_id'], $homeGymId]);
+            $pendingMem = $pendingMemStmt->fetch();
         }
     }
 
@@ -97,12 +117,12 @@ function profile_page(): void
     // Fetch membership info for gym affiliation display
     $membershipInfo = null;
     if ($is_member && $currentGymId) {
-        $membershipInfo = db()->query("
+        $membershipInfo = $activeMem ?: db()->query("
             SELECT m.*, mp.plan_name as plan_name, mp.duration_days, m.end_date,
                    DATEDIFF(m.end_date, CURDATE()) as days_remaining
             FROM memberships m
             JOIN membership_plans mp ON mp.plan_id = m.plan_id
-            WHERE m.user_id = {$user['user_id']} AND m.status = 'active' AND m.end_date >= CURDATE()
+            WHERE m.user_id = {$user['user_id']} AND mp.gym_id = {$currentGymId} AND m.status = 'active' AND m.end_date >= CURDATE()
             ORDER BY m.end_date DESC LIMIT 1
         ")->fetch();
     }
@@ -725,6 +745,13 @@ function profile_page(): void
                                         <?php if ($membershipInfo['days_remaining'] > 0): ?>
                                             <span class="settings-gym-days"><?= (int)$membershipInfo['days_remaining'] ?> days remaining</span>
                                         <?php endif; ?>
+                                    </div>
+                                <?php elseif ($pendingMem): ?>
+                                    <div class="settings-gym-card-details">
+                                        <span class="settings-gym-badge" style="background:rgba(245, 158, 11, 0.18); color:#f59e0b; border:1px solid rgba(245, 158, 11, 0.45); font-weight:700;">
+                                            Pending Approval
+                                        </span>
+                                        <span class="settings-gym-plan"><?= h($pendingMem['plan_name']) ?></span>
                                     </div>
                                 <?php elseif (!$currentGymId): ?>
                                     <div class="settings-gym-card-details">

@@ -665,17 +665,54 @@ function diet_page(): void
         }
     }
     
-    // Fetch active diet plan
-    $plan = $pdo->prepare('SELECT dp.*, u.first_name as t_first, u.last_name as t_last, u.role as t_role FROM dietary_plans dp LEFT JOIN trainer_profiles tp ON tp.trainer_id = dp.trainer_id LEFT JOIN users u ON u.user_id = tp.user_id WHERE dp.member_user_id = ? AND dp.status = "active" ORDER BY dp.plan_id DESC LIMIT 1');
-    $plan->execute([$userId]);
-    $activePlan = $plan->fetch();
+    // Fetch active diet plans (supports multi-gym / multi-trainer)
+    $planStmt = $pdo->prepare('
+        SELECT dp.*, u.first_name as t_first, u.last_name as t_last, u.role as t_role,
+               tp.gym_id, g.name as gym_name 
+        FROM dietary_plans dp 
+        LEFT JOIN trainer_profiles tp ON tp.trainer_id = dp.trainer_id 
+        LEFT JOIN users u ON u.user_id = tp.user_id 
+        LEFT JOIN gyms g ON g.gym_id = tp.gym_id
+        WHERE dp.member_user_id = ? AND dp.status = "active" 
+        ORDER BY dp.plan_id DESC
+    ');
+    $planStmt->execute([$userId]);
+    $activePlans = $planStmt->fetchAll();
+
+    $selectedPlanId = isset($_GET['plan_id']) ? (int)$_GET['plan_id'] : 0;
+    $currentGym = get_user_gym($user);
+    $currentGymId = $currentGym ? (int)($currentGym['gym_id'] ?? 0) : 0;
+
+    $activePlan = null;
+    if ($selectedPlanId > 0) {
+        foreach ($activePlans as $ap) {
+            if ((int)$ap['plan_id'] === $selectedPlanId) {
+                $activePlan = $ap;
+                break;
+            }
+        }
+    }
+    // If not explicitly selected, prioritize current gym's plan
+    if (!$activePlan && $currentGymId > 0) {
+        foreach ($activePlans as $ap) {
+            if ((int)($ap['gym_id'] ?? 0) === $currentGymId) {
+                $activePlan = $ap;
+                break;
+            }
+        }
+    }
+    // Fallback to first active plan
+    if (!$activePlan && !empty($activePlans)) {
+        $activePlan = $activePlans[0];
+    }
 
     // Auto-generate their tailored dietary plan if they don't have one active yet
     if (!$activePlan) {
         $autoPlanId = generate_dietary_plan($userId);
         if ($autoPlanId) {
-            $plan->execute([$userId]);
-            $activePlan = $plan->fetch();
+            $planStmt->execute([$userId]);
+            $activePlans = $planStmt->fetchAll();
+            $activePlan = $activePlans[0] ?? null;
         }
     }
 
@@ -752,6 +789,48 @@ function diet_page(): void
     }
 ?>
 <link rel="stylesheet" href="<?= h(asset_url('css/pages/diet.css')) ?>">
+<?php if (count($activePlans) > 1): ?>
+    <!-- Multi-Gym / Multi-Coach Diet Plan Switcher -->
+    <div class="plan-switcher-container">
+        <div class="plan-switcher-header">
+            <div class="plan-switcher-title">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M16 3h5v5"/><path d="M4 20L21 3"/><path d="M21 16v5h-5"/><path d="M15 15l6 6"/><path d="M4 4l5 5"/></svg>
+                <span>Active Nutrition Plans (<?= count($activePlans) ?>)</span>
+            </div>
+            <span class="plan-switcher-hint">Switch between diet programs assigned across your gyms</span>
+        </div>
+        <div class="plan-switcher-pills">
+            <?php foreach ($activePlans as $ap): 
+                $isSelected = ((int)$ap['plan_id'] === (int)($activePlan['plan_id'] ?? 0));
+                $gymTitle = !empty($ap['gym_name']) ? $ap['gym_name'] : 'Nutrition Plan';
+                $coachSub = (!empty($ap['t_first']) || !empty($ap['t_last'])) ? ('Coach ' . trim($ap['t_first'] . ' ' . $ap['t_last'])) : 'Auto-generated';
+                $isHomeGym = $currentGymId && ((int)($ap['gym_id'] ?? 0) === $currentGymId);
+            ?>
+                <a href="index.php?page=diet&plan_id=<?= (int)$ap['plan_id'] ?>" 
+                   class="plan-switcher-pill <?= $isSelected ? 'is-active' : '' ?>">
+                    <div class="plan-pill-icon">
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2a10 10 0 1 0 10 10H12V2z"/><path d="M12 12L2.1 12.5"/><path d="M12 12l4.5 8"/></svg>
+                    </div>
+                    <div class="plan-pill-body">
+                        <div class="plan-pill-gym">
+                            <?= h($gymTitle) ?>
+                            <?php if ($isHomeGym): ?>
+                                <span class="plan-pill-badge-curr">Selected Gym</span>
+                            <?php endif; ?>
+                        </div>
+                        <div class="plan-pill-coach"><?= h($coachSub) ?></div>
+                    </div>
+                    <?php if ($isSelected): ?>
+                        <span class="plan-pill-active-dot" title="Currently viewing this meal plan">
+                            <span class="plan-dot-pulse"></span>
+                            Viewing
+                        </span>
+                    <?php endif; ?>
+                </a>
+            <?php endforeach; ?>
+        </div>
+    </div>
+<?php endif; ?>
 <!-- Contextual Action Strip (Goal, Assigned By, and Plan Actions) -->
 <div class="diet-action-strip">
     <div class="diet-strip-meta">

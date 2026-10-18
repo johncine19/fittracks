@@ -768,6 +768,12 @@ function ensure_coach_profile(int $userId): int
 
 function get_user_gym_id(array $user): ?int
 {
+    // 1. Resolve gym via get_user_gym which respects $_SESSION['current_gym_id'], active check-ins, memberships, and staff assignments
+    $cg = get_user_gym($user);
+    if (!empty($cg['gym_id'])) {
+        return (int)$cg['gym_id'];
+    }
+
     if (isset($user['gym_id']) && (int)$user['gym_id'] > 0) {
         return (int)$user['gym_id'];
     }
@@ -788,15 +794,6 @@ function get_user_gym_id(array $user): ?int
         return $gymId ? (int)$gymId : null;
     }
 
-    if ($role === 'member') {
-        $gymId = scalar('SELECT gym_id FROM gym_members WHERE user_id = ? LIMIT 1', [$userId]);
-        if (!$gymId) {
-            $cg = get_user_gym($user);
-            $gymId = $cg['gym_id'] ?? null;
-        }
-        return $gymId ? (int)$gymId : null;
-    }
-
     if ($role === 'trainer') {
         $gymId = scalar('SELECT gym_id FROM trainer_profiles WHERE user_id = ? AND gym_id IS NOT NULL LIMIT 1', [$userId]);
         if (!$gymId) {
@@ -805,15 +802,15 @@ function get_user_gym_id(array $user): ?int
         if (!$gymId) {
             $gymId = scalar('SELECT gym_id FROM classes WHERE instructor_id = ? AND gym_id IS NOT NULL LIMIT 1', [$userId]);
         }
-        if (!$gymId) {
-            $cg = get_user_gym($user);
-            $gymId = $cg['gym_id'] ?? null;
-        }
         return $gymId ? (int)$gymId : null;
     }
 
-    $cg = get_user_gym($user);
-    return !empty($cg['gym_id']) ? (int)$cg['gym_id'] : null;
+    if ($role === 'member') {
+        $gymId = scalar('SELECT gym_id FROM gym_members WHERE user_id = ? LIMIT 1', [$userId]);
+        return $gymId ? (int)$gymId : null;
+    }
+
+    return null;
 }
 
 function format_equipment_duration(int $seconds): string

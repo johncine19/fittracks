@@ -8,6 +8,21 @@ function member_equipment_page(): void
     $pdo = db();
     $gymId = get_user_gym_id($user);
 
+    // Support explicit ?gym_id= parameter if switching directly
+    if (!empty($_GET['gym_id'])) {
+        $reqGymId = (int)$_GET['gym_id'];
+        if ($reqGymId > 0) {
+            $isAffiliated = (bool) scalar('SELECT 1 FROM gym_members WHERE user_id = ? AND gym_id = ? LIMIT 1', [$user['user_id'], $reqGymId]);
+            if (!$isAffiliated) {
+                $isAffiliated = (bool) scalar('SELECT 1 FROM memberships m JOIN membership_plans mp ON mp.plan_id = m.plan_id WHERE m.user_id = ? AND mp.gym_id = ? AND m.status = "active" LIMIT 1', [$user['user_id'], $reqGymId]);
+            }
+            if ($isAffiliated) {
+                $_SESSION['current_gym_id'] = $reqGymId;
+                $gymId = $reqGymId;
+            }
+        }
+    }
+
     render_header('Gym Equipment', $user);
 
     if (!$gymId) {

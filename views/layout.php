@@ -121,11 +121,28 @@ function render_header(string $title, ?array $user = null): void
         <link rel="icon" type="image/svg+xml" href="assets/images/fittracks-icon.svg">
         <link rel="stylesheet" href="assets/app.css?v=<?= filemtime(__DIR__ . '/../assets/app.css') ?>">
         <link rel="stylesheet" href="assets/dropdown.css?v=<?= file_exists(__DIR__ . '/../assets/dropdown.css') ? filemtime(__DIR__ . '/../assets/dropdown.css') : 1 ?>">
-        <?php if ($gym && !empty($gym['brand_color'])): ?>
+        <?php if ($gym && !empty($gym['brand_color']) && gym_has_feature('custom_branding', $gym)): 
+            $brandHex = ltrim((string)$gym['brand_color'], '#');
+            if (strlen($brandHex) === 3) {
+                $brandHex = $brandHex[0].$brandHex[0].$brandHex[1].$brandHex[1].$brandHex[2].$brandHex[2];
+            }
+            $r = hexdec(substr($brandHex, 0, 2));
+            $g = hexdec(substr($brandHex, 2, 2));
+            $b = hexdec(substr($brandHex, 4, 2));
+            $yiq = (($r * 299) + ($g * 587) + ($b * 114)) / 1000;
+            $contrastColor = ($yiq >= 140) ? '#080b0d' : '#ffffff';
+        ?>
             <style>
                 :root, [data-theme="light"], [data-theme="dark"] {
                     --lime: <?= h($gym['brand_color']) ?> !important;
                     --lime-dark: color-mix(in srgb, <?= h($gym['brand_color']) ?> 80%, black) !important;
+                    --lime-contrast: <?= $contrastColor ?> !important;
+                }
+            </style>
+        <?php else: ?>
+            <style>
+                :root, [data-theme="light"], [data-theme="dark"] {
+                    --lime-contrast: #080b0d;
                 }
             </style>
         <?php endif; ?>
@@ -1179,6 +1196,17 @@ function render_header(string $title, ?array $user = null): void
             border: 1px solid color-mix(in srgb, var(--teal) 55%, transparent);
             box-shadow: 0 0 10px color-mix(in srgb, var(--teal) 15%, transparent);
         }
+        .nav-sub-pill-pending {
+            background: rgba(245, 158, 11, 0.18);
+            color: #f59e0b;
+            border: 1px solid rgba(245, 158, 11, 0.6);
+            box-shadow: 0 0 10px rgba(245, 158, 11, 0.15);
+        }
+        .nav-sub-pill-cancelled {
+            background: rgba(148, 163, 184, 0.15);
+            color: var(--muted, #94a3b8);
+            border: 1px solid rgba(148, 163, 184, 0.35);
+        }
         .nav-sub-pill-expired {
             background: rgba(239, 68, 68, 0.18);
             color: var(--danger, #ef4444);
@@ -1191,7 +1219,9 @@ function render_header(string $title, ?array $user = null): void
             border-color: rgba(0, 0, 0, 0.45) !important;
             box-shadow: none !important;
         }
-        .app-frame.collapsed .nav-sub-pill {
+        .app-frame.collapsed .nav-sub-pill,
+        .app-frame.collapsed .multi-gym-switcher,
+        .app-frame.collapsed .sidebar-tier-badge {
             display: none !important;
         }
     </style>
@@ -1286,12 +1316,12 @@ function render_header(string $title, ?array $user = null): void
                     }
                 ?>
                 <?php if (count($memberAffiliatedGyms) > 1): ?>
-                    <div class="multi-gym-switcher" style="margin: 8px 12px 6px; padding: 6px 10px; background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px;">
-                        <div style="font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--muted, #94a3b8); margin-bottom: 4px; font-weight: 700; display: flex; align-items: center; justify-content: space-between;">
+                    <div class="multi-gym-switcher">
+                        <div class="multi-gym-switcher-header">
                             <span>Active Facility</span>
-                            <span style="font-size: 9px; padding: 1px 4px; border-radius: 3px; background: rgba(199,255,34,0.15); color: #c7ff22;"><?= count($memberAffiliatedGyms) ?> Gyms</span>
+                            <span class="multi-gym-badge"><?= count($memberAffiliatedGyms) ?> Gyms</span>
                         </div>
-                        <select onchange="window.location.href='index.php?switch_active_gym=' + encodeURIComponent(this.value) + '&page=<?= h($page) ?>'" style="width: 100%; font-size: 11px; font-weight: 600; padding: 5px 6px; background: var(--panel-soft, #16181d); color: #f8fafc; border: 1px solid rgba(255,255,255,0.18); border-radius: 6px; cursor: pointer; outline: none;">
+                        <select class="multi-gym-select" onchange="window.location.href='index.php?switch_active_gym=' + encodeURIComponent(this.value) + '&page=<?= h($page) ?>'" aria-label="Select Active Facility">
                             <?php foreach ($memberAffiliatedGyms as $mg): ?>
                                 <option value="<?= (int)$mg['gym_id'] ?>" <?= ((int)($gym['gym_id'] ?? 0) === (int)$mg['gym_id']) ? 'selected' : '' ?>>
                                     <?= h($mg['name']) ?><?= !empty($mg['plan_name']) ? ' • ' . h($mg['plan_name']) : '' ?>
@@ -1308,7 +1338,17 @@ function render_header(string $title, ?array $user = null): void
                     if ($user) {
                         $uid = (int) $user['user_id'];
                         if ($role === 'member') {
-                            $assignmentStatus = scalar('SELECT status FROM trainer_assignments WHERE member_user_id = ? AND status IN ("active", "pending_trainer", "pending_admin") ORDER BY CASE WHEN status = "active" THEN 1 ELSE 2 END LIMIT 1', [$uid]);
+                            $activeGymId = (int)($gym['gym_id'] ?? 0);
+                            $assignmentStatus = scalar('
+                                SELECT ca.status 
+                                FROM trainer_assignments ca 
+                                JOIN trainer_profiles tp ON tp.trainer_id = ca.trainer_id 
+                                WHERE ca.member_user_id = ? ' . ($activeGymId > 0 ? ' AND tp.gym_id = ?' : '') . ' 
+                                  AND ca.status IN ("active", "pending_trainer", "pending_admin") 
+                                ORDER BY CASE WHEN ca.status = "active" THEN 1 ELSE 2 END 
+                                LIMIT 1', 
+                                $activeGymId > 0 ? [$uid, $activeGymId] : [$uid]
+                            );
                             if ($assignmentStatus === 'active') {
                                 $sidebarBadges['trainers'] = [
                                     'text' => 'Active',
@@ -1384,12 +1424,44 @@ function render_header(string $title, ?array $user = null): void
                                 }
                             }
                         } elseif ($role === 'gym_owner' && $gym) {
-                            $pendingGymTrainers = (int) scalar('SELECT COUNT(*) FROM trainer_assignments ta JOIN trainer_profiles tp ON tp.trainer_id = ta.trainer_id WHERE tp.gym_id = ? AND ta.status = "pending_admin"', [(int)$gym['gym_id']]);
+                            $gymId = (int)$gym['gym_id'];
+
+                            $pendingGymTrainers = (int) scalar('SELECT COUNT(*) FROM trainer_assignments ta JOIN trainer_profiles tp ON tp.trainer_id = ta.trainer_id WHERE tp.gym_id = ? AND ta.status = "pending_admin"', [$gymId]);
                             if ($pendingGymTrainers > 0) {
                                 $sidebarBadges['trainer_assignments'] = [
                                     'text' => (string) $pendingGymTrainers,
                                     'class' => 'sidebar-nav-badge sidebar-badge-alert',
                                     'title' => $pendingGymTrainers . ' pending trainer assignment requests'
+                                ];
+                            }
+
+                            // Memberships number badge for Gym Owner
+                            $pendingGymMemberships = (int) scalar('
+                                SELECT COUNT(DISTINCT m.membership_id) 
+                                FROM memberships m 
+                                JOIN membership_plans mp ON mp.plan_id = m.plan_id 
+                                LEFT JOIN payments p ON p.membership_id = m.membership_id 
+                                WHERE mp.gym_id = ? AND (m.status = "pending" OR p.status = "pending")
+                            ', [$gymId]);
+
+                            $activeGymMemberships = (int) scalar('
+                                SELECT COUNT(*) 
+                                FROM memberships m 
+                                JOIN membership_plans mp ON mp.plan_id = m.plan_id 
+                                WHERE mp.gym_id = ? AND m.status = "active" AND m.end_date >= CURDATE()
+                            ', [$gymId]);
+
+                            if ($pendingGymMemberships > 0) {
+                                $sidebarBadges['memberships'] = [
+                                    'text' => $pendingGymMemberships > 99 ? '99+' : (string) $pendingGymMemberships,
+                                    'class' => 'sidebar-nav-badge sidebar-badge-alert',
+                                    'title' => $pendingGymMemberships . ' pending membership' . ($pendingGymMemberships > 1 ? 's' : '') . ($activeGymMemberships > 0 ? ' (' . $activeGymMemberships . ' active)' : '')
+                                ];
+                            } elseif ($activeGymMemberships > 0) {
+                                $sidebarBadges['memberships'] = [
+                                    'text' => $activeGymMemberships > 99 ? '99+' : (string) $activeGymMemberships,
+                                    'class' => 'sidebar-nav-badge',
+                                    'title' => $activeGymMemberships . ' active membership' . ($activeGymMemberships > 1 ? 's' : '')
                                 ];
                             }
                         } elseif ($role === 'platform_admin') {
@@ -1494,28 +1566,55 @@ function render_header(string $title, ?array $user = null): void
                                 }
                             }
                         } elseif ($role === 'member' && $user) {
-                            $membershipStmt = db()->prepare('
-                                SELECT mp.plan_name, m.status, m.end_date 
-                                FROM memberships m 
-                                JOIN membership_plans mp ON mp.plan_id = m.plan_id 
-                                WHERE m.user_id = ? 
-                                ORDER BY (m.status = "active" AND m.end_date >= CURDATE()) DESC, m.end_date DESC 
-                                LIMIT 1
-                            ');
-                            $membershipStmt->execute([$user['user_id']]);
-                            $membership = $membershipStmt->fetch();
+                            $activeGymId = (int)($gym['gym_id'] ?? 0);
+                            $membership = null;
+                            if ($activeGymId > 0) {
+                                $membershipStmt = db()->prepare('
+                                    SELECT mp.plan_name, m.status, m.end_date 
+                                    FROM memberships m 
+                                    JOIN membership_plans mp ON mp.plan_id = m.plan_id 
+                                    WHERE m.user_id = ? AND mp.gym_id = ? 
+                                    ORDER BY (m.status = "active" AND m.end_date >= CURDATE()) DESC, (m.status = "pending") DESC, m.end_date DESC, m.membership_id DESC 
+                                    LIMIT 1
+                                ');
+                                $membershipStmt->execute([$user['user_id'], $activeGymId]);
+                                $membership = $membershipStmt->fetch();
+                            } else {
+                                $membershipStmt = db()->prepare('
+                                    SELECT mp.plan_name, m.status, m.end_date 
+                                    FROM memberships m 
+                                    JOIN membership_plans mp ON mp.plan_id = m.plan_id 
+                                    WHERE m.user_id = ? 
+                                    ORDER BY (m.status = "active" AND m.end_date >= CURDATE()) DESC, (m.status = "pending") DESC, m.end_date DESC, m.membership_id DESC 
+                                    LIMIT 1
+                                ');
+                                $membershipStmt->execute([$user['user_id']]);
+                                $membership = $membershipStmt->fetch();
+                            }
                             if ($membership) {
                                 $isMemActive = ($membership['status'] === 'active' && !empty($membership['end_date']) && strtotime((string)$membership['end_date']) >= strtotime('today'));
                                 if ($isMemActive) {
                                     $profileSubPill = [
                                         'text'  => strtoupper($membership['plan_name']),
-                                        'title' => 'Active Membership: ' . $membership['plan_name'],
+                                        'title' => 'Active Membership (' . ($gym['name'] ?? 'Current Facility') . '): ' . $membership['plan_name'],
                                         'type'  => 'active',
+                                    ];
+                                } elseif ($membership['status'] === 'pending') {
+                                    $profileSubPill = [
+                                        'text'  => 'PENDING',
+                                        'title' => 'Membership Pending Approval / Payment (' . ($gym['name'] ?? 'Current Facility') . '): ' . $membership['plan_name'],
+                                        'type'  => 'pending',
+                                    ];
+                                } elseif ($membership['status'] === 'cancelled') {
+                                    $profileSubPill = [
+                                        'text'  => 'CANCELLED',
+                                        'title' => 'Membership Cancelled (' . ($gym['name'] ?? 'Current Facility') . ')',
+                                        'type'  => 'cancelled',
                                     ];
                                 } else {
                                     $profileSubPill = [
                                         'text'  => 'EXPIRED',
-                                        'title' => 'Membership Expired',
+                                        'title' => 'Membership Expired (' . ($gym['name'] ?? 'Current Facility') . ')',
                                         'type'  => 'expired',
                                     ];
                                 }

@@ -12,7 +12,10 @@ function trainers_page(): void
         redirect('gym_selection');
     }
     
-    $hasActivePlan = (bool) scalar("SELECT 1 FROM memberships WHERE user_id = ? AND status = 'active' AND end_date >= CURDATE()", [$user['user_id']]);
+    $currentGym = get_user_gym($user);
+    $gymId = $currentGym ? (int) $currentGym['gym_id'] : 0;
+    
+    $hasActivePlan = (bool) scalar("SELECT 1 FROM memberships m JOIN membership_plans mp ON mp.plan_id = m.plan_id WHERE m.user_id = ? " . ($gymId > 0 ? " AND mp.gym_id = ?" : "") . " AND m.status = 'active' AND m.end_date >= CURDATE()", $gymId > 0 ? [$user['user_id'], $gymId] : [$user['user_id']]);
     
     if ($_SERVER['REQUEST_METHOD'] === 'POST' && post('action') === 'request_appointment') {
         $trainerId = (int) post('trainer_id');
@@ -29,11 +32,17 @@ function trainers_page(): void
             $endedDate = $assignedDate;
         }
         
-        // Check if there is already an active or pending assignment globally
-        $existing = scalar("SELECT assignment_id FROM trainer_assignments WHERE member_user_id = ? AND status IN ('active', 'pending_admin', 'pending_trainer')", [$user['user_id']]);
+        // Check if there is already an active or pending assignment for this facility
+        $existing = scalar("
+            SELECT ca.assignment_id 
+            FROM trainer_assignments ca 
+            JOIN trainer_profiles tp ON tp.trainer_id = ca.trainer_id 
+            WHERE ca.member_user_id = ? " . ($gymId > 0 ? " AND tp.gym_id = ?" : "") . " 
+              AND ca.status IN ('active', 'pending_admin', 'pending_trainer')
+        ", $gymId > 0 ? [$user['user_id'], $gymId] : [$user['user_id']]);
         
         if ($existing) {
-            flash('You already have an active or pending trainer appointment. You must end it before requesting a new one.', 'danger');
+            flash('You already have an active or pending trainer appointment for this facility. You must end it before requesting a new one.', 'danger');
         } else {
             db()->prepare('INSERT INTO trainer_assignments (trainer_id, member_user_id, assigned_date, ended_date, status) VALUES (?, ?, ?, ?, "pending_trainer")')->execute([$trainerId, $user['user_id'], $assignedDate, $endedDate]);
             
@@ -49,9 +58,6 @@ function trainers_page(): void
         redirect('trainers');
     }
 
-    $currentGym = get_user_gym($user);
-    $gymId = $currentGym ? (int) $currentGym['gym_id'] : 0;
-    
     $trainers = query_all('SELECT tp.trainer_id, u.user_id, u.first_name, u.last_name, u.profile_picture, tp.specialization, tp.bio, (SELECT COUNT(*) FROM attendance WHERE user_id = u.user_id AND check_out_time IS NULL AND check_in_time >= CURDATE() AND check_in_time < CURDATE() + INTERVAL 1 DAY) as is_present FROM trainer_profiles tp JOIN users u ON u.user_id = tp.user_id WHERE u.status = "active" AND tp.gym_id = ?', [$gymId]);
     
     $stmt = db()->prepare("
@@ -66,10 +72,11 @@ function trainers_page(): void
         FROM trainer_assignments ca
         JOIN trainer_profiles tp ON tp.trainer_id = ca.trainer_id
         JOIN users u ON u.user_id = tp.user_id
-        WHERE ca.member_user_id = ? AND ca.status IN ('active', 'pending_admin', 'pending_trainer')
+        WHERE ca.member_user_id = ? " . ($gymId > 0 ? " AND tp.gym_id = ?" : "") . " 
+          AND ca.status IN ('active', 'pending_admin', 'pending_trainer')
         ORDER BY ca.assigned_date DESC
     ");
-    $stmt->execute([$user['user_id']]);
+    $stmt->execute($gymId > 0 ? [$user['user_id'], $gymId] : [$user['user_id']]);
     $activeAssignments = $stmt->fetchAll();
     $existingAssignment = $activeAssignments[0] ?? null;
     

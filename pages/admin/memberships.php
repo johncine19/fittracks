@@ -124,6 +124,16 @@ function memberships_page(): void
 
                 db()->prepare('UPDATE memberships SET status = ?, start_date = ?, end_date = ? WHERE membership_id = ?')
                     ->execute([$status, $startDate, $endDate, $membershipId]);
+            } elseif ($status === 'expired') {
+                // If marking as expired, also adjust end_date to yesterday if currently today or in the future
+                $curEndDate = $mInfo['end_date'] ?? date('Y-m-d');
+                if (strtotime($curEndDate) >= strtotime('today')) {
+                    $yesterday = date('Y-m-d', strtotime('-1 day'));
+                    db()->prepare('UPDATE memberships SET status = ?, end_date = ? WHERE membership_id = ?')
+                        ->execute([$status, $yesterday, $membershipId]);
+                } else {
+                    db()->prepare('UPDATE memberships SET status = ? WHERE membership_id = ?')->execute([$status, $membershipId]);
+                }
             } else {
                 db()->prepare('UPDATE memberships SET status = ? WHERE membership_id = ?')->execute([$status, $membershipId]);
             }
@@ -154,11 +164,20 @@ function memberships_page(): void
                         $mInfo['plan_name']
                     );
                 }
+            } elseif ($status === 'cancelled') {
+                db()->prepare('UPDATE payments SET status = "cancelled" WHERE membership_id = ? AND status = "pending"')->execute([$membershipId]);
+                if ($mInfo) {
+                    notify_user((int) $mInfo['user_id'], 'system', 'Membership Request Cancelled', 'Your subscription request for ' . $mInfo['plan_name'] . ' was cancelled by the gym.');
+                }
             }
 
             audit_log($user['user_id'], 'update_status', 'membership', (string) $membershipId, json_encode(['new_status' => $status]));
             if ($isActivatingPending) {
                 flash('Membership activated successfully. Starting point recorded as today (' . date('M j, Y') . ') with full plan duration.');
+            } elseif ($status === 'expired') {
+                flash('Membership marked as expired.');
+            } elseif ($status === 'cancelled') {
+                flash('Membership request cancelled.');
             } else {
                 flash('Membership status updated.');
             }
@@ -478,6 +497,14 @@ function memberships_page(): void
             $start = new DateTime();
             $end = (clone $start)->modify('+' . $plan['duration_days'] . ' days')->format('Y-m-d');
             $planGymId = (int) ($plan['gym_id'] ?? 0);
+
+            // Guardrail: Prevent multiple pending subscription requests for this facility
+            $pendingExists = (int) scalar("SELECT m.membership_id FROM memberships m JOIN membership_plans mp ON mp.plan_id = m.plan_id WHERE m.user_id = ? AND mp.gym_id = ? AND m.status = 'pending' LIMIT 1", [$user['user_id'], $planGymId]);
+            if ($pendingExists > 0) {
+                flash('You already have a pending membership request at this gym. Please complete your payment or cancel the pending request first.', 'warning');
+                redirect('memberships');
+            }
+
             $currentActive = $planGymId > 0
                 ? db()->query("SELECT m.*, p.plan_name, p.price as old_price FROM memberships m JOIN membership_plans p ON p.plan_id = m.plan_id WHERE m.user_id = {$user['user_id']} AND p.gym_id = {$planGymId} AND m.status = 'active' ORDER BY m.end_date DESC LIMIT 1")->fetch()
                 : db()->query("SELECT m.*, p.plan_name, p.price as old_price FROM memberships m JOIN membership_plans p ON p.plan_id = m.plan_id WHERE m.user_id = {$user['user_id']} AND m.status = 'active' ORDER BY m.end_date DESC LIMIT 1")->fetch();
@@ -613,6 +640,28 @@ function memberships_page(): void
         }
     }
 
+    if ($user['role'] === 'member' && $_SERVER['REQUEST_METHOD'] === 'POST' && in_array(post('action'), ['cancel_membership', 'cancel_pending_request'], true)) {
+        $cancelMembershipId = (int) (post('membership_id') ?: post('cancel_membership_id'));
+        $check = db()->prepare("SELECT m.membership_id, m.status, p.gym_id, p.plan_name FROM memberships m JOIN membership_plans p ON p.plan_id = m.plan_id WHERE m.membership_id = ? AND m.user_id = ? AND m.status IN ('pending', 'active')");
+        $check->execute([$cancelMembershipId, $user['user_id']]);
+        $recordToCancel = $check->fetch();
+        if ($recordToCancel) {
+            $prevStatus = $recordToCancel['status'];
+            db()->prepare("UPDATE memberships SET status = 'cancelled' WHERE membership_id = ?")->execute([$cancelMembershipId]);
+            db()->prepare("UPDATE payments SET status = 'cancelled' WHERE membership_id = ? AND status = 'pending'")->execute([$cancelMembershipId]);
+            audit_log($user['user_id'], 'cancel', 'membership', (string)$cancelMembershipId, json_encode(['prev_status' => $prevStatus]));
+
+            $msg = $prevStatus === 'pending'
+                ? 'Your pending request for ' . htmlspecialchars($recordToCancel['plan_name']) . ' has been cancelled. You can now choose and subscribe to any plan.'
+                : 'Your subscription for ' . htmlspecialchars($recordToCancel['plan_name']) . ' has been cancelled.';
+            flash($msg, 'info');
+        } else {
+            flash('Subscription not found or cannot be cancelled.', 'warning');
+        }
+        redirect('memberships');
+    }
+
+
     $gymId = null;
     $gymName = '';
     if ($user['role'] === 'gym_owner') {
@@ -622,7 +671,10 @@ function memberships_page(): void
         $plans = db()->query('SELECT * FROM membership_plans WHERE is_active = 1 AND gym_id = ' . $gymId . ' ORDER BY price')->fetchAll();
     } elseif ($user['role'] === 'member') {
         $where = 'WHERE m.user_id = ' . (int) $user['user_id'];
-        $memberGymId = (int) scalar('SELECT gym_id FROM gym_members WHERE user_id = ? ORDER BY created_at DESC LIMIT 1', [$user['user_id']]);
+        $memberGymId = !empty($_SESSION['current_gym_id']) ? (int)$_SESSION['current_gym_id'] : 0;
+        if (!$memberGymId) {
+            $memberGymId = (int) scalar('SELECT gym_id FROM gym_members WHERE user_id = ? ORDER BY created_at DESC LIMIT 1', [$user['user_id']]);
+        }
         if (!$memberGymId) {
             $memberGymId = (int) scalar('SELECT mp.gym_id FROM memberships m JOIN membership_plans mp ON mp.plan_id = m.plan_id WHERE m.user_id = ? AND m.status = "active" AND m.end_date >= CURDATE() ORDER BY m.membership_id DESC LIMIT 1', [$user['user_id']]);
             if ($memberGymId > 0) {
@@ -674,7 +726,7 @@ function memberships_page(): void
             'duration' => (int) ($p['duration_days'] ?? 30)
         ];
     }, $plans ?: []);
-    $rows    = db()->query('SELECT m.*, CONCAT(u.first_name, " ", u.last_name) AS member, u.first_name, u.last_name, u.profile_picture, p.plan_name, p.price FROM memberships m JOIN users u ON u.user_id = m.user_id JOIN membership_plans p ON p.plan_id = m.plan_id ' . $where . ' ORDER BY m.created_at DESC')->fetchAll();
+    $rows    = db()->query('SELECT m.*, CONCAT(u.first_name, " ", u.last_name) AS member, u.first_name, u.last_name, u.profile_picture, p.plan_name, p.price, p.gym_id, g.name AS gym_name, g.brand_color AS gym_brand_color FROM memberships m JOIN users u ON u.user_id = m.user_id JOIN membership_plans p ON p.plan_id = m.plan_id LEFT JOIN gyms g ON g.gym_id = p.gym_id ' . $where . ' ORDER BY m.created_at DESC')->fetchAll();
 
     $adminView = $_GET['view'] ?? 'memberships';
     if (!in_array($adminView, ['memberships', 'payments'], true)) {
@@ -1066,7 +1118,7 @@ function memberships_page(): void
             $sameDayDiscount = 0;
 
             // Look for an active plan to check if they get a same-day upgrade discount & guardrails
-            $currentActive = db()->query("SELECT m.*, p.price, p.plan_name FROM memberships m JOIN membership_plans p ON p.plan_id = m.plan_id WHERE m.user_id = {$user['user_id']} AND m.status = 'active' AND m.end_date >= CURDATE() ORDER BY m.end_date DESC LIMIT 1")->fetch();
+            $currentActive = db()->query("SELECT m.*, p.price, p.plan_name, p.gym_id FROM memberships m JOIN membership_plans p ON p.plan_id = m.plan_id WHERE m.user_id = {$user['user_id']} AND p.gym_id = {$memberGymId} AND m.status = 'active' AND m.end_date >= CURDATE() ORDER BY m.end_date DESC LIMIT 1")->fetch();
             if ($currentActive) {
                 $activePlanId = (int)$currentActive['plan_id'];
                 $activePlanName = (string)$currentActive['plan_name'];
@@ -1078,6 +1130,18 @@ function memberships_page(): void
                     $sameDayDiscount = (float)$currentActive['price'];
                 }
             }
+
+            // Look for a pending subscription request at current facility
+            $currentPending = db()->query("
+                SELECT m.*, p.price, p.plan_name, p.duration_days, p.gym_id, g.name AS gym_name,
+                       pay.payment_id, pay.payment_method, pay.amount, pay.status AS payment_status, pay.receipt_number, pay.created_at AS payment_created_at
+                FROM memberships m 
+                JOIN membership_plans p ON p.plan_id = m.plan_id 
+                LEFT JOIN gyms g ON g.gym_id = p.gym_id 
+                LEFT JOIN payments pay ON pay.membership_id = m.membership_id 
+                WHERE m.user_id = {$user['user_id']} AND p.gym_id = {$memberGymId} AND m.status = 'pending'
+                ORDER BY m.membership_id DESC LIMIT 1
+            ")->fetch();
 
             $planCount = count($plans);
             $popularIndex = ($planCount === 3) ? 1 : ($planCount > 1 ? 1 : 0);
@@ -1153,12 +1217,18 @@ function memberships_page(): void
                                 $isPopular = $hasCustomPopular ? !empty($plan['is_popular']) : ($index === $popularIndex);
                                 $displayPrice = (float)$plan['price'];
 
+                                $isPendingForThisPlan = (!empty($currentPending) && ((int)$currentPending['plan_id'] === $planIdVal));
+                                $hasPendingSubscription = !empty($currentPending);
+
                                 $isRenewalLocked = false;
                                 $isDowngrade = false;
                                 $isUpgrade = false;
                                 $isDowngradeLocked = false;
 
-                                if ($isActive) {
+                                if ($hasPendingSubscription) {
+                                    $pendingRef = $currentPending['receipt_number'] ?: ('REQ-' . $currentPending['membership_id']);
+                                    $lockedPlansData[$planIdVal] = "You currently have a pending subscription request ({$pendingRef}) for {$currentPending['plan_name']}. Please wait for confirmation or cancel it before subscribing to another plan.";
+                                } elseif ($isActive) {
                                     if ($activeDaysLeft !== null && $activeDaysLeft > 7) {
                                         $isRenewalLocked = true;
                                         $renewalOpenDate = date('M j, Y', strtotime('-7 days', strtotime($activeEndDate)));
@@ -1237,7 +1307,42 @@ function memberships_page(): void
                                     </ul>
 
                                     <div style="margin-top: auto; padding-top: 14px;">
-                                        <?php if ($isActive): ?>
+                                        <?php if ($hasPendingSubscription): ?>
+                                            <?php if ($isPendingForThisPlan): ?>
+                                                <button type="button"
+                                                    class="member-pricing-btn member-locked-btn"
+                                                    disabled
+                                                    title="Subscription request pending confirmation"
+                                                    style="background: rgba(245, 158, 11, 0.15); color: #f59e0b; border: 1.5px solid rgba(245, 158, 11, 0.4); cursor: default; width: 100%; box-shadow: none; font-weight: 700; display: inline-flex; align-items: center; justify-content: center; gap: 7px;">
+                                                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round">
+                                                        <circle cx="12" cy="12" r="10"></circle>
+                                                        <polyline points="12 6 12 12 16 14"></polyline>
+                                                    </svg>
+                                                    Pending Confirmation
+                                                </button>
+                                                <div style="font-size: 11.5px; color: #f59e0b; margin-top: 6px; text-align: center; font-weight: 600;">
+                                                    Ref: <?= h($currentPending['receipt_number'] ?: ('REQ-' . $currentPending['membership_id'])) ?>
+                                                </div>
+                                                <div style="margin-top: 8px; text-align: center;">
+                                                    <button type="button"
+                                                        onclick="confirmCancelMembership(<?= (int)$currentPending['membership_id'] ?>, '<?= h(addslashes($currentPending['plan_name'])) ?>', 'pending')"
+                                                        style="background: transparent; border: none; color: #ef4444; font-size: 12px; font-weight: 600; cursor: pointer; text-decoration: underline; text-underline-offset: 3px; padding: 2px 6px;">
+                                                        Cancel Request
+                                                    </button>
+                                                </div>
+                                            <?php else: ?>
+                                                <button type="button"
+                                                    class="member-pricing-btn member-locked-btn"
+                                                    disabled
+                                                    title="You already have a pending subscription request at this gym"
+                                                    style="background: rgba(128,128,128,0.08); color: var(--muted); border: 1px solid var(--line); cursor: not-allowed; opacity: 0.75; width: 100%; box-shadow: none;">
+                                                    Subscription Pending
+                                                </button>
+                                                <div style="font-size: 11.5px; color: var(--muted); margin-top: 6px; text-align: center;">
+                                                    Resolve or <a href="javascript:void(0)" onclick="confirmCancelMembership(<?= (int)$currentPending['membership_id'] ?>, '<?= h(addslashes($currentPending['plan_name'])) ?>', 'pending')" style="color: #ef4444; text-decoration: underline;">cancel pending request</a> first
+                                                </div>
+                                            <?php endif; ?>
+                                        <?php elseif ($isActive): ?>
                                             <?php if ($isRenewalLocked): ?>
                                                 <button type="button"
                                                     class="member-pricing-btn member-locked-btn"
@@ -1346,11 +1451,13 @@ function memberships_page(): void
                         <table>
                             <thead>
                                 <tr>
+                                    <th>Gym</th>
                                     <th>Plan</th>
                                     <th>Price</th>
                                     <th>Start</th>
                                     <th>End</th>
                                     <th>Status</th>
+                                    <th style="text-align: right;">Action</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -1358,13 +1465,31 @@ function memberships_page(): void
                                     $isExpired = ($row['status'] === 'expired' || ($row['status'] === 'active' && !empty($row['end_date']) && strtotime($row['end_date']) < strtotime('today')));
                                     $rowStatus = $isExpired ? 'expired' : $row['status'];
                                     $statusClass = 'badge badge-' . $rowStatus;
+                                    $canCancel = in_array($row['status'], ['pending', 'active'], true);
                                 ?>
                                     <tr>
+                                        <td>
+                                            <span style="display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 6px; font-size: 12.5px; font-weight: 700; background: rgba(255, 255, 255, 0.05); border: 1px solid var(--line); color: var(--ink);">
+                                                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" style="color: var(--lime); flex-shrink: 0;"><path d="M3 21h18M3 7v14M21 7v14M6 11v6M10 11v6M14 11v6M18 11v6M9 3h6v4H9z"/></svg>
+                                                <?= h($row['gym_name'] ?: 'FitTrack') ?>
+                                            </span>
+                                        </td>
                                         <td><strong><?= h($row['plan_name']) ?></strong></td>
                                         <td><?= h(money($row['price'])) ?></td>
                                         <td><?= h(date('M j, Y', strtotime($row['start_date']))) ?></td>
                                         <td><?= h(date('M j, Y', strtotime($row['end_date']))) ?></td>
                                         <td><span class="<?= $statusClass ?>"><?= h($rowStatus) ?></span></td>
+                                        <td style="text-align: right;">
+                                            <?php if ($canCancel): ?>
+                                                <button type="button" 
+                                                    onclick="confirmCancelMembership(<?= (int)$row['membership_id'] ?>, '<?= h(addslashes($row['plan_name'])) ?>', '<?= h($row['status']) ?>')"
+                                                    style="padding: 4px 10px; font-size: 11.5px; font-weight: 600; border-radius: 6px; border: 1px solid rgba(239, 68, 68, 0.35); background: rgba(239, 68, 68, 0.08); color: #ef4444; cursor: pointer; transition: all 0.2s ease;">
+                                                    <?= $row['status'] === 'pending' ? 'Cancel Request' : 'Cancel Subscription' ?>
+                                                </button>
+                                            <?php else: ?>
+                                                <span style="color: var(--muted); font-size: 12px;">—</span>
+                                            <?php endif; ?>
+                                        </td>
                                     </tr>
                                 <?php endforeach; ?>
                             </tbody>
@@ -1377,16 +1502,25 @@ function memberships_page(): void
                             $isExpired = ($row['status'] === 'expired' || ($row['status'] === 'active' && !empty($row['end_date']) && strtotime($row['end_date']) < strtotime('today')));
                             $rowStatus = $isExpired ? 'expired' : $row['status'];
                             $statusClass = 'badge badge-' . $rowStatus;
+                            $canCancel = in_array($row['status'], ['pending', 'active'], true);
                         ?>
                             <div class="membership-card-item">
                                 <div class="membership-card-header">
                                     <div>
                                         <div class="membership-card-title"><?= h($row['plan_name']) ?></div>
-                                        <div class="membership-card-price"><?= h(money($row['price'])) ?></div>
+                                        <div style="font-size: 11.5px; color: var(--muted); display: inline-flex; align-items: center; gap: 4px; margin-top: 3px;">
+                                            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" style="color: var(--lime); flex-shrink: 0;"><path d="M3 21h18M3 7v14M21 7v14M6 11v6M10 11v6M14 11v6M18 11v6M9 3h6v4H9z"/></svg>
+                                            <span><?= h($row['gym_name'] ?: 'FitTrack') ?></span>
+                                        </div>
+                                        <div class="membership-card-price" style="margin-top: 4px;"><?= h(money($row['price'])) ?></div>
                                     </div>
                                     <span class="<?= $statusClass ?>"><?= h($rowStatus) ?></span>
                                 </div>
                                 <div class="membership-card-details">
+                                    <div class="membership-card-detail-item">
+                                        <span class="detail-label">Gym Facility</span>
+                                        <span class="detail-val" style="font-weight: 700; color: var(--ink);"><?= h($row['gym_name'] ?: 'FitTrack') ?></span>
+                                    </div>
                                     <div class="membership-card-detail-item">
                                         <span class="detail-label">Start Date</span>
                                         <span class="detail-val"><?= h(date('M j, Y', strtotime($row['start_date']))) ?></span>
@@ -1396,6 +1530,15 @@ function memberships_page(): void
                                         <span class="detail-val"><?= h(date('M j, Y', strtotime($row['end_date']))) ?></span>
                                     </div>
                                 </div>
+                                <?php if ($canCancel): ?>
+                                    <div style="padding: 10px 14px; border-top: 1px solid var(--line); display: flex; justify-content: flex-end;">
+                                        <button type="button" 
+                                            onclick="confirmCancelMembership(<?= (int)$row['membership_id'] ?>, '<?= h(addslashes($row['plan_name'])) ?>', '<?= h($row['status']) ?>')"
+                                            style="padding: 5px 12px; font-size: 12px; font-weight: 600; border-radius: 6px; border: 1px solid rgba(239, 68, 68, 0.35); background: rgba(239, 68, 68, 0.08); color: #ef4444; cursor: pointer; transition: all 0.2s ease;">
+                                            <?= $row['status'] === 'pending' ? 'Cancel Request' : 'Cancel Subscription' ?>
+                                        </button>
+                                    </div>
+                                <?php endif; ?>
                             </div>
                         <?php endforeach; ?>
                     </div>
@@ -1749,6 +1892,13 @@ function memberships_page(): void
         plans: <?= json_encode($plansData ?? [], JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP) ?>,
         memberships: <?= json_encode($membershipsData ?? [], JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP) ?>,
         xenditEnabled: <?= !empty($memberXenditEnabled) ? 'true' : 'false' ?>,
+        hasPending: <?= !empty($currentPending) ? 'true' : 'false' ?>,
+        pendingPlan: <?= json_encode(!empty($currentPending) ? [
+            'id' => (int)($currentPending['plan_id'] ?? 0),
+            'name' => (string)($currentPending['plan_name'] ?? ''),
+            'receipt' => (string)($currentPending['receipt_number'] ?: ('REQ-' . $currentPending['membership_id'])),
+            'price' => (float)($currentPending['price'] ?? 0)
+        ] : null, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP) ?>,
         currentPlan: <?= json_encode(!empty($currentActive) ? [
             'id' => (int)($currentActive['plan_id'] ?? 0),
             'name' => (string)($currentActive['plan_name'] ?? ''),

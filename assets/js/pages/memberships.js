@@ -175,6 +175,24 @@ function getCsrfToken() {
                         const isCurrent = btn.getAttribute('data-is-current') === '1';
                         const isUpgrade = btn.getAttribute('data-is-upgrade') === '1';
 
+                        // Guardrail: Check if user already has a pending subscription at this facility
+                        if (window.MEMBERSHIPS_CONFIG?.hasPending) {
+                            const pending = window.MEMBERSHIPS_CONFIG.pendingPlan;
+                            const refText = pending?.receipt ? ` (Ref: ${pending.receipt})` : '';
+                            const msg = `You already have a pending subscription request${refText} for ${pending?.name || 'a membership plan'}. Please complete or cancel your pending request before subscribing to another plan.`;
+                            if (typeof Swal !== 'undefined') {
+                                Swal.fire({
+                                    icon: 'warning',
+                                    title: 'Pending Request Active',
+                                    text: msg,
+                                    confirmButtonColor: 'var(--lime, #22c55e)'
+                                });
+                            } else {
+                                alert(msg);
+                            }
+                            return;
+                        }
+
                         // Check if plan is locked by guardrails (e.g. premature renewal or downgrade)
                         if (window.MEMBERSHIPS_CONFIG?.lockedPlans && window.MEMBERSHIPS_CONFIG.lockedPlans[planId]) {
                             const reason = window.MEMBERSHIPS_CONFIG.lockedPlans[planId];
@@ -281,24 +299,114 @@ function getCsrfToken() {
                     });
                 }
 
+                window.confirmCancelMembership = function(membershipId, planName, status) {
+                    const isPending = (status || '').toLowerCase() === 'pending';
+                    const title = isPending ? 'Cancel Request?' : 'Cancel Subscription?';
+                    const text = isPending
+                        ? `Are you sure you want to cancel your pending request for "${planName}"? This will allow you to choose and subscribe to another plan.`
+                        : `Are you sure you want to cancel your active subscription for "${planName}"?`;
+                    const confirmBtnText = isPending ? 'Yes, Cancel Request' : 'Yes, Cancel Plan';
+
+                    const submitCancellation = () => {
+                        const form = document.createElement('form');
+                        form.method = 'POST';
+                        form.action = 'index.php?page=memberships';
+
+                        const csrfInput = document.createElement('input');
+                        csrfInput.type = 'hidden';
+                        csrfInput.name = 'csrf_token';
+                        csrfInput.value = (typeof getCsrfToken === 'function' ? getCsrfToken() : (window.MEMBERSHIPS_CONFIG?.csrfToken || ''));
+                        form.appendChild(csrfInput);
+
+                        const actionInput = document.createElement('input');
+                        actionInput.type = 'hidden';
+                        actionInput.name = 'action';
+                        actionInput.value = 'cancel_membership';
+                        form.appendChild(actionInput);
+
+                        const idInput = document.createElement('input');
+                        idInput.type = 'hidden';
+                        idInput.name = 'membership_id';
+                        idInput.value = membershipId;
+                        form.appendChild(idInput);
+
+                        document.body.appendChild(form);
+                        form.submit();
+                    };
+
+                    if (typeof Swal !== 'undefined') {
+                        Swal.fire({
+                            title: title,
+                            text: text,
+                            icon: 'warning',
+                            showCancelButton: true,
+                            confirmButtonColor: '#ef4444',
+                            cancelButtonColor: 'var(--line)',
+                            confirmButtonText: confirmBtnText,
+                            cancelButtonText: 'Keep Subscription',
+                            background: 'var(--bg)',
+                            color: 'var(--ink)'
+                        }).then((result) => {
+                            if (result.isConfirmed) {
+                                submitCancellation();
+                            }
+                        });
+                    } else {
+                        if (confirm(text)) {
+                            submitCancellation();
+                        }
+                    }
+                };
+
 // --- Section 2: Membership Status Editor ---
             function editStatus(membershipId, currentStatus) {
-                const statusOptions = [
-                    { id: 'active', label: 'Active', dotClass: 'status-dot-active' },
-                    { id: 'pending', label: 'Pending', dotClass: 'status-dot-pending' },
-                    { id: 'expired', label: 'Expired', dotClass: 'status-dot-expired' },
-                    { id: 'cancelled', label: 'Cancelled', dotClass: 'status-dot-cancelled' }
-                ];
+                const normStatus = (currentStatus || '').toLowerCase();
+                let statusOptions = [];
+                let defaultVal = 'active';
 
-                const isPending = (currentStatus === 'pending');
-                const pendingNoticeHtml = isPending ? `
-                    <div id="pendingActivationNotice" style="font-size: 11.5px; color: var(--muted); line-height: 1.45; padding: 9px 12px; background: rgba(34,197,94,0.08); border-radius: 8px; border: 1px solid rgba(34,197,94,0.25); display: flex; gap: 8px; align-items: flex-start;">
+                if (normStatus === 'pending') {
+                    // Progressive step: from Pending, gym owner can select Active or Cancelled
+                    statusOptions = [
+                        { id: 'active', label: 'Active', dotClass: 'status-dot-active' },
+                        { id: 'cancelled', label: 'Cancelled', dotClass: 'status-dot-cancelled' }
+                    ];
+                    defaultVal = 'active';
+                } else if (normStatus === 'active') {
+                    // Progressive step: from Active, gym owner can progress to Expired
+                    statusOptions = [
+                        { id: 'expired', label: 'Expired', dotClass: 'status-dot-expired' }
+                    ];
+                    defaultVal = 'expired';
+                } else {
+                    // Fallback for expired or cancelled records
+                    statusOptions = [
+                        { id: 'active', label: 'Active', dotClass: 'status-dot-active' }
+                    ];
+                    defaultVal = 'active';
+                }
+
+                const isPending = (normStatus === 'pending');
+                const isActive = (normStatus === 'active');
+                let noticeHtml = '';
+                if (isPending) {
+                    noticeHtml = `
+                    <div id="pendingActivationNotice" style="font-size: 11.5px; color: var(--muted); line-height: 1.45; padding: 9px 12px; background: color-mix(in srgb, var(--lime) 8%, transparent); border-radius: 8px; border: 1px solid color-mix(in srgb, var(--lime) 25%, transparent); display: flex; gap: 8px; align-items: flex-start;">
                         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--lime)" stroke-width="2.5" style="flex-shrink:0; margin-top:1px;"><polyline points="20 6 9 17 4 12"></polyline></svg>
                         <div>
                             <strong style="color: var(--lime);">Automatic Date Recalibration:</strong> When set to <strong>Active</strong>, the start date will be recorded as today and the full duration will be granted so the member gets their complete term.
                         </div>
                     </div>
-                ` : '';
+                    `;
+                } else if (isActive) {
+                    noticeHtml = `
+                    <div style="font-size: 11.5px; color: var(--muted); line-height: 1.45; padding: 9px 12px; background: rgba(148,163,184,0.08); border-radius: 8px; border: 1px solid var(--line); display: flex; gap: 8px; align-items: flex-start;">
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--muted)" stroke-width="2.2" style="flex-shrink:0; margin-top:1px;"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                        <div>
+                            Progressing this active membership to <strong>Expired</strong> will conclude the member's current active cycle.
+                        </div>
+                    </div>
+                    `;
+                }
 
                 Swal.fire({
                     title: 'Update Status',
@@ -309,12 +417,12 @@ function getCsrfToken() {
                         <input type="hidden" name="update_status_id" value="${membershipId}">
                         <label style="display:block;color:var(--muted);font-size:13.5px;font-weight:500;">Status</label>
                         <div id="editStatusDropdownWrap"></div>
-                        ${pendingNoticeHtml}
+                        ${noticeHtml}
                     </form>
                     `,
                     showCancelButton: true,
                     confirmButtonText: 'Save',
-                    confirmButtonColor: 'var(--lime-dark)',
+                    confirmButtonColor: 'var(--lime)',
                     cancelButtonColor: 'var(--line)',
                     background: 'var(--bg)',
                     color: 'var(--ink)',
@@ -323,7 +431,7 @@ function getCsrfToken() {
                             container: '#editStatusDropdownWrap',
                             name: 'status',
                             id: 'editStatusInput',
-                            value: currentStatus === 'pending' ? 'active' : (currentStatus || 'active'),
+                            value: defaultVal,
                             zIndex: 90,
                             items: statusOptions,
                             onChange: (selected) => {
@@ -875,3 +983,5 @@ document.addEventListener('keydown', function(e) {
         toggleMembershipsFab(false);
     }
 });
+
+

@@ -180,8 +180,20 @@ function workout_builder_page(): void
             $startDate = post('start_date') ?: date('Y-m-d');
             $endDate = post('end_date') ?: date('Y-m-d', strtotime('+4 weeks'));
             
-            // Archive old active plans
-            $pdo->prepare('UPDATE training_plans SET status = "archived" WHERE member_user_id = ? AND status = "active"')->execute([$memberId]);
+            // Archive old active plans strictly for this trainer or this trainer's gym facility
+            if ($trainerGymId > 0) {
+                $pdo->prepare('
+                    UPDATE training_plans tp
+                    LEFT JOIN trainer_profiles tp_prof ON tp.trainer_id = tp_prof.trainer_id
+                    SET tp.status = "archived"
+                    WHERE tp.member_user_id = ? 
+                      AND tp.status = "active" 
+                      AND (tp.trainer_id = ? OR tp_prof.gym_id = ?)
+                ')->execute([$memberId, $trainerId, $trainerGymId]);
+            } else {
+                $pdo->prepare('UPDATE training_plans SET status = "archived" WHERE member_user_id = ? AND trainer_id = ? AND status = "active"')
+                    ->execute([$memberId, $trainerId]);
+            }
             // Set draft to active with the selected dates
             $pdo->prepare('UPDATE training_plans SET status = "active", start_date = ?, end_date = ? WHERE plan_id = ?')->execute([$startDate, $endDate, $planId]);
             
