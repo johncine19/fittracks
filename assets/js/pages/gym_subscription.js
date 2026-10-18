@@ -86,10 +86,19 @@ const subscriptionPlansData = window.subscriptionPlansData || {};
                 : plan.price_label;
             const periodText = (activeCycle === 'yearly') ? 'per year (Annual)' : 'per month (Monthly)';
 
-            // Upgrade Warning Banner Check
+            // Upgrade Warning Banner Check & 5-Second Security Countdown
             const upgradeBox = document.getElementById('modal-upgrade-warning');
             const upgradeText = document.getElementById('modal-upgrade-warning-text');
-            if (window.hasActiveSub && window.currentPlanKey && key !== window.currentPlanKey && window.planRanks && window.planRanks[key] > window.planRanks[window.currentPlanKey]) {
+            const isUpgradeWithDays = Boolean(
+                window.hasActiveSub &&
+                window.currentPlanKey &&
+                key !== window.currentPlanKey &&
+                window.planRanks &&
+                window.planRanks[key] > window.planRanks[window.currentPlanKey] &&
+                (window.currentPlanDaysLeft || 0) > 0
+            );
+
+            if (isUpgradeWithDays) {
                 const curPlanData = window.subscriptionPlansData[window.currentPlanKey];
                 const curName = curPlanData ? curPlanData.name : 'Current';
                 const days = window.currentPlanDaysLeft || 0;
@@ -97,8 +106,12 @@ const subscriptionPlansData = window.subscriptionPlansData || {};
                     upgradeText.innerHTML = `You have <strong>${days} days remaining</strong> on your <strong>${curName}</strong> plan. Upgrading to <strong>${name}</strong> will take effect immediately and begin a new full billing cycle starting today.`;
                     upgradeBox.style.display = 'block';
                 }
-            } else if (upgradeBox) {
-                upgradeBox.style.display = 'none';
+                startUpgradeCountdown(5);
+            } else {
+                if (upgradeBox) {
+                    upgradeBox.style.display = 'none';
+                }
+                resetUpgradeButtonState();
             }
 
             document.getElementById('form-plan-key').value = key;
@@ -112,7 +125,52 @@ const subscriptionPlansData = window.subscriptionPlansData || {};
             if (modal) modal.style.display = 'flex';
         }
 
+        let upgradeCountdownTimer = null;
+
+        function resetUpgradeButtonState() {
+            if (upgradeCountdownTimer) {
+                clearInterval(upgradeCountdownTimer);
+                upgradeCountdownTimer = null;
+            }
+            const btn = document.getElementById('btn-continue-xendit');
+            const textEl = document.getElementById('btn-continue-xendit-text');
+            const iconEl = document.getElementById('btn-continue-xendit-icon');
+            if (!btn) return;
+
+            btn.disabled = false;
+            btn.classList.remove('is-countdown-locked');
+            if (textEl) textEl.textContent = 'Continue to Xendit';
+            if (iconEl) iconEl.style.display = 'inline';
+        }
+
+        function startUpgradeCountdown(seconds = 5) {
+            if (upgradeCountdownTimer) {
+                clearInterval(upgradeCountdownTimer);
+                upgradeCountdownTimer = null;
+            }
+            const btn = document.getElementById('btn-continue-xendit');
+            const textEl = document.getElementById('btn-continue-xendit-text');
+            const iconEl = document.getElementById('btn-continue-xendit-icon');
+            if (!btn) return;
+
+            let remaining = seconds;
+            btn.disabled = true;
+            btn.classList.add('is-countdown-locked');
+            if (textEl) textEl.textContent = `Continue to Xendit (${remaining}s)`;
+            if (iconEl) iconEl.style.display = 'none';
+
+            upgradeCountdownTimer = setInterval(() => {
+                remaining--;
+                if (remaining > 0) {
+                    if (textEl) textEl.textContent = `Continue to Xendit (${remaining}s)`;
+                } else {
+                    resetUpgradeButtonState();
+                }
+            }, 1000);
+        }
+
         function closePaymentModal() {
+            resetUpgradeButtonState();
             document.getElementById('payment-modal').style.display = 'none';
         }
 
@@ -154,6 +212,17 @@ const subscriptionPlansData = window.subscriptionPlansData || {};
         }
 
         document.addEventListener('DOMContentLoaded', function() {
+            const subForm = document.getElementById('sub-form');
+            if (subForm) {
+                subForm.addEventListener('submit', function(e) {
+                    const btn = document.getElementById('btn-continue-xendit');
+                    if (btn && (btn.disabled || btn.classList.contains('is-countdown-locked'))) {
+                        e.preventDefault();
+                        return false;
+                    }
+                });
+            }
+
             const wrap = document.getElementById('distTableWrap');
             if (!wrap) return;
 

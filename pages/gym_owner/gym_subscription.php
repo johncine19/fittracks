@@ -636,13 +636,46 @@ function gym_subscription_page(): void
                 </div>
 
                 <!-- Action Buttons -->
+                <style>
+                    .btn-continue-xendit {
+                        flex: 2;
+                        padding: 12px 18px;
+                        border-radius: 10px;
+                        background: #84cc16;
+                        color: #081202;
+                        border: none;
+                        font-weight: 800;
+                        font-size: 14px;
+                        cursor: pointer;
+                        display: inline-flex;
+                        align-items: center;
+                        justify-content: center;
+                        gap: 8px;
+                        box-shadow: 0 4px 16px rgba(132, 204, 22, 0.35);
+                        transition: all 0.2s ease;
+                    }
+                    .btn-continue-xendit:not(:disabled):hover {
+                        background: #a3e635;
+                        transform: translateY(-1px);
+                    }
+                    .btn-continue-xendit:disabled,
+                    .btn-continue-xendit.is-countdown-locked {
+                        background: #1e293b !important;
+                        color: #94a3b8 !important;
+                        border: 1px solid rgba(255, 255, 255, 0.08) !important;
+                        box-shadow: none !important;
+                        cursor: not-allowed !important;
+                        pointer-events: none !important;
+                        transform: none !important;
+                    }
+                </style>
                 <div style="display:flex; gap:12px;">
                     <button type="button" onclick="closePaymentModal()" style="flex:1; padding:12px 16px; border-radius:10px; background:rgba(255,255,255,0.06); color:#f1f5f9; border:1px solid rgba(255,255,255,0.12); font-weight:700; font-size:14px; cursor:pointer; transition:all 0.15s ease;" onmouseover="this.style.background='rgba(255,255,255,0.12)'" onmouseout="this.style.background='rgba(255,255,255,0.06)'">
                         Cancel
                     </button>
-                    <button type="submit" style="flex:2; padding:12px 18px; border-radius:10px; background:#84cc16; color:#081202; border:none; font-weight:800; font-size:14px; cursor:pointer; display:inline-flex; align-items:center; justify-content:center; gap:8px; box-shadow:0 4px 16px rgba(132,204,22,0.35); transition:all 0.15s ease;" onmouseover="this.style.background='#a3e635'; this.style.transform='translateY(-1px)'" onmouseout="this.style.background='#84cc16'; this.style.transform='none'">
-                        <span>Continue to Xendit</span>
-                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"></line><polyline points="12 5 19 12 12 19"></polyline></svg>
+                    <button type="submit" id="btn-continue-xendit" class="btn-continue-xendit">
+                        <span id="btn-continue-xendit-text">Continue to Xendit</span>
+                        <svg id="btn-continue-xendit-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"></line><polyline points="12 5 19 12 12 19"></polyline></svg>
                     </button>
                 </div>
             </form>
