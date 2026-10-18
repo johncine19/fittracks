@@ -659,13 +659,78 @@ function gym_get_eod_summary(int $gymId, ?string $date = null): array
         'checkins_count' => $attCount,
         'expiring_tomorrow' => $expiringCount,
         'active_members' => $activeMemberCount,
+        'eod_window' => gym_get_eod_window_status($gymId),
     ];
+}
+
+/**
+ * Return EOD dispatch status, 5:00 PM evening window state, and sender transparency details.
+ */
+function gym_get_eod_window_status(int $gymId): array
+{
+    $pdo = db();
+    $hour = (int) date('G'); // 0 to 23 in Asia/Manila
+    $isWindowOpen = ($hour >= 17); // 5:00 PM (17:00) onwards
+
+    $stmt = $pdo->prepare('
+        SELECT g.last_eod_email_sent_at, g.last_eod_email_sent_by,
+               u.first_name, u.last_name, u.role, u.staff_role
+        FROM gyms g
+        LEFT JOIN users u ON u.user_id = g.last_eod_email_sent_by
+        WHERE g.gym_id = ?
+    ');
+    $stmt->execute([$gymId]);
+    $row = $stmt->fetch(PDO::FETCH_ASSOC);
+
+    $lastSentAt = $row['last_eod_email_sent_at'] ?? null;
+    $alreadySentToday = false;
+    $lastSentFormatted = null;
+    $sentByName = null;
+    $sentByRole = null;
+
+    if ($lastSentAt) {
+        $sentDate = date('Y-m-d', strtotime($lastSentAt));
+        $today = date('Y-m-d');
+        if ($sentDate === $today) {
+            $alreadySentToday = true;
+            $lastSentFormatted = date('g:i A', strtotime($lastSentAt));
+        } else {
+            $lastSentFormatted = date('M j, Y g:i A', strtotime($lastSentAt));
+        }
+
+        if (!empty($row['first_name'])) {
+            $sentByName = trim($row['first_name'] . ' ' . ($row['last_name'] ?? ''));
+            $sentByRole = !empty($row['staff_role']) ? $row['staff_role'] : ucfirst($row['role'] ?? 'Staff');
+        }
+    }
+
+    return [
+        'is_window_open' => $isWindowOpen,
+        'window_open_time' => '5:00 PM',
+        'current_hour' => $hour,
+        'already_sent_today' => $alreadySentToday,
+        'last_sent_at' => $lastSentAt,
+        'last_sent_formatted' => $lastSentFormatted,
+        'last_sent_by_name' => $sentByName,
+        'last_sent_by_role' => $sentByRole,
+        'can_send' => ($isWindowOpen && !$alreadySentToday),
+    ];
+}
+
+/**
+ * Update the last EOD email sent timestamp and sender user ID for a gym.
+ */
+function gym_record_eod_email_sent(int $gymId, ?int $senderUserId = null): void
+{
+    $pdo = db();
+    $stmt = $pdo->prepare('UPDATE gyms SET last_eod_email_sent_at = NOW(), last_eod_email_sent_by = ? WHERE gym_id = ?');
+    $stmt->execute([$senderUserId, $gymId]);
 }
 
 /**
  * Send executive End-of-Day Daily Settlement email to gym owner.
  */
-function gym_send_eod_summary_email(int $gymId, ?string $date = null, bool $immediate = false): bool
+function gym_send_eod_summary_email(int $gymId, ?string $date = null, bool $immediate = false, ?int $senderUserId = null): bool
 {
     $pdo = db();
     $gym = $pdo->query('SELECT g.*, u.email AS owner_email, u.first_name, u.last_name FROM gyms g JOIN users u ON u.user_id = g.owner_user_id WHERE g.gym_id = ' . (int)$gymId)->fetch(PDO::FETCH_ASSOC);
@@ -677,7 +742,25 @@ function gym_send_eod_summary_email(int $gymId, ?string $date = null, bool $imme
     $gymName = trim((string)($gym['name'] ?? 'FitTrack Gym'));
     $ownerName = trim(((string)($gym['first_name'] ?? '')) . ' ' . ((string)($gym['last_name'] ?? ''))) ?: 'Gym Owner';
 
-    return Emails::sendEODSummary($gym['owner_email'], $ownerName, $gymName, $summary, $immediate);
+    $senderInfo = null;
+    if ($senderUserId) {
+        $senderStmt = $pdo->prepare('SELECT first_name, last_name, role, staff_role FROM users WHERE user_id = ?');
+        $senderStmt->execute([$senderUserId]);
+        $sUser = $senderStmt->fetch(PDO::FETCH_ASSOC);
+        if ($sUser) {
+            $senderInfo = [
+                'name' => trim($sUser['first_name'] . ' ' . ($sUser['last_name'] ?? '')),
+                'role' => !empty($sUser['staff_role']) ? $sUser['staff_role'] : ucfirst($sUser['role'] ?? 'Staff'),
+                'time' => date('g:i A')
+            ];
+        }
+    }
+
+    $sent = Emails::sendEODSummary($gym['owner_email'], $ownerName, $gymName, $summary, $immediate, $senderInfo);
+    if ($sent) {
+        gym_record_eod_email_sent($gymId, $senderUserId);
+    }
+    return $sent;
 }
 
 /** Queue one EOD email for each eligible gym for the requested local report date. */

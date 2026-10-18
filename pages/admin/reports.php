@@ -617,7 +617,15 @@ function reports_page(): void
                 echo json_encode(['success' => false, 'error' => 'Please select a specific gym.']);
                 exit;
             }
-            $sent = gym_send_eod_summary_email($targetGymId, null, true);
+            $wStatus = gym_get_eod_window_status($targetGymId);
+            if (!$wStatus['is_window_open']) {
+                echo json_encode([
+                    'success' => false,
+                    'error' => 'The End-of-Day settlement email unlocks at 5:00 PM when daily shift closing begins.'
+                ]);
+                exit;
+            }
+            $sent = gym_send_eod_summary_email($targetGymId, null, true, (int)($user['user_id'] ?? 0));
             $msg = $sent
                 ? ($isPlatformAdmin ? 'Daily Settlement summary dispatched to gym owner email!' : 'Daily Settlement summary sent to your registered email!')
                 : 'Unable to dispatch email. Please check your SMTP settings.';

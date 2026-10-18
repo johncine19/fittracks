@@ -114,10 +114,26 @@ function dashboard(): void
                 $gymRowStmt->execute([$gymId]);
                 echo json_encode(['success' => true, 'data' => $summary, 'gym' => $gymRowStmt->fetch(PDO::FETCH_ASSOC)]);
             } else {
-                $sent = gym_send_eod_summary_email($gymId, null, true);
+                $wStatus = gym_get_eod_window_status($gymId);
+                if (!$wStatus['is_window_open']) {
+                    echo json_encode([
+                        'success' => false,
+                        'error' => 'The End-of-Day settlement email unlocks at 5:00 PM when daily shift closing begins.'
+                    ]);
+                    exit;
+                }
+                if ($wStatus['already_sent_today']) {
+                    $by = !empty($wStatus['last_sent_by_name']) ? " by {$wStatus['last_sent_by_name']}" : '';
+                    echo json_encode([
+                        'success' => false,
+                        'error' => "An EOD settlement email was already sent today at {$wStatus['last_sent_formatted']}{$by}."
+                    ]);
+                    exit;
+                }
+                $sent = gym_send_eod_summary_email($gymId, null, true, (int)($user['user_id'] ?? 0));
                 echo json_encode([
                     'success' => $sent,
-                    'message' => $sent ? 'Daily Settlement summary sent to the gym owner.' : 'Unable to send the settlement email. Please check the gym email and SMTP settings.'
+                    'message' => $sent ? 'Daily Settlement summary dispatched to the gym owner.' : 'Unable to send the settlement email. Please check the gym email and SMTP settings.'
                 ]);
             }
         } catch (Throwable $e) {

@@ -218,11 +218,17 @@ For platforms like Render without background OS daemons, schedule a single unifi
 - **URL**: `https://<your-app>.onrender.com/cron.php?key=fittracks_secret_cron_2026`
 - **Schedule**: Daily at `12:00:00 AM`
 - **Timezone**: `Asia/Manila` (PHT / UTC+8)
-- **End-of-Day Summary Emails**: At midnight, the cron queues a settlement email for the **previous Philippine calendar day**. This gives the attendance auto-checkout time to close any open sessions first.
-- Emails are sent to the owner of each approved gym whose subscription includes the Business `eod_summary` feature and whose **Midnight Daily Settlement Email** setting is enabled in Gym Profile. The setting defaults to on for eligible gyms.
-- Zero-activity days are included. The message reports zero revenue/check-ins alongside member counts and memberships expiring the following day, so the owner still gets a daily operational snapshot.
-- A unique `(gym_id, report_date)` record in `gym_eod_email_log` prevents repeat queueing if the cron endpoint runs more than once for the same day. Queued email delivery uses the normal background email worker.
-- **Database setup**: Existing installations must create `gym_eod_email_log` before running the updated cron. Apply the migration through `migrate.php` or run `database/migrations/create_gym_eod_email_log.php` once.
+- **End-of-Day Summary Emails (Automated Midnight Cron + Manual Staff Shift Close)**:
+  - **Automated Midnight Cron (12:00:00 AM PHT)**: At midnight, `cron.php` auto checks-out lingering attendance sessions at `23:59:59` and queues a finalized executive settlement email for the **previous Philippine calendar day**.
+  - **Eligibility**: Emails are sent to the owner of each approved gym whose subscription includes the Business `eod_summary` feature and whose **Midnight Daily Settlement Email** (`eod_email_summary`) setting is enabled in Gym Profile (defaults to ON).
+  - **Zero-Activity Days Included**: The message reports zero revenue and check-ins alongside active member counts and memberships expiring tomorrow, providing a daily operational heartbeat.
+  - **Duplicate Prevention**: A unique `(gym_id, report_date)` record in `gym_eod_email_log` prevents duplicate queueing if the cron endpoint runs more than once for the same day.
+  - **Manual Staff Shift-End EOD Window (5:00 PM – 11:59 PM PHT)**:
+    - **Literal EOD Gate (5:00 PM)**: Manual email sending from the Staff Portal and Reports Modal is locked during daytime hours (12:00 AM – 4:59 PM) to preserve the literal meaning of EOD and prevent premature reporting while business hours are underway. Physical slip printing at the counter remains available 24/7.
+    - **Multi-Staff Anti-Spam Guardrail**: Once a staff member emails the daily closing slip during the 5:00 PM – 11:59 PM window, the gym-wide record (`gyms.last_eod_email_sent_at` and `gyms.last_eod_email_sent_by`) locks the button for the rest of that day (`Already Sent`) so overlapping or incoming shift staff cannot spam the owner with duplicate emails.
+    - **Sender Transparency**: The settlement modal displays a live audit banner (`✓ EOD settlement already emailed today at [Time] by [Staff Name]`).
+    - **Shift Handover Signature**: The email delivered to the owner embeds a verified shift handover notice detailing the exact staff member's name, role, and dispatch timestamp.
+  - **Database setup**: Ensure `gym_eod_email_log` and the `last_eod_email_sent_at` / `last_eod_email_sent_by` columns on `gyms` are applied through `migrate.php`.
 - **Execution Order Handled Automatically by `cron.php`**:
   1. Auto check-out unclosed attendance from yesterday (`23:59:59` timestamp).
   2. Queue the previous day's End-of-Day summary emails for eligible gyms.

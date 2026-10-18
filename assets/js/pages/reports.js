@@ -1224,7 +1224,36 @@
                     window.dismissEODModal = dismissEODModal;
 
                     const isOwner = (window.REPORTS_CONFIG?.userRole === 'gym_owner');
-                    const emailBtnLabel = isOwner ? 'Send to My Email' : 'Email Owner';
+                    const win = d.eod_window || {};
+                    window._reportsEodWindow = win;
+
+                    const isOpen = Boolean(win.is_window_open);
+                    const alreadySent = Boolean(win.already_sent_today);
+                    const sentBy = win.last_sent_by_name ? win.last_sent_by_name + (win.last_sent_by_role ? ` (${win.last_sent_by_role})` : '') : 'Staff';
+                    const sentAt = win.last_sent_formatted || '';
+
+                    let statusBannerHtml = '';
+                    let emailBtnLabel = isOwner ? 'Send to My Email' : 'Email Owner';
+                    let emailBtnStyle = 'flex:1;padding:9px;font-size:12.5px;font-weight:700;border-radius:8px;display:inline-flex;align-items:center;justify-content:center;gap:6px;cursor:pointer;';
+
+                    if (alreadySent) {
+                        statusBannerHtml = `
+                            <div style="background:rgba(34,197,94,0.1);border:1px solid rgba(34,197,94,0.3);border-radius:8px;padding:9px 12px;margin-bottom:12px;font-size:12px;color:#86efac;display:flex;align-items:center;gap:8px;">
+                                <span style="font-size:14px;">✓</span>
+                                <div><strong>EOD settlement emailed today</strong> at <strong>${sentAt}</strong> by <strong>${sentBy}</strong>.</div>
+                            </div>
+                        `;
+                        emailBtnLabel += ` (${sentAt})`;
+                    } else if (!isOpen) {
+                        statusBannerHtml = `
+                            <div style="background:rgba(245,158,11,0.1);border:1px solid rgba(245,158,11,0.3);border-radius:8px;padding:9px 12px;margin-bottom:12px;font-size:12px;color:#fcd34d;display:flex;align-items:center;gap:8px;">
+                                <span style="font-size:14px;">🕒</span>
+                                <div><strong>EOD Email unlocks at 5:00 PM</strong> for daily closing. You can print a physical slip anytime below.</div>
+                            </div>
+                        `;
+                        emailBtnLabel += ' (Opens 5 PM)';
+                        emailBtnStyle += 'opacity:0.75;background:#1e293b;border-color:rgba(148,163,184,0.2);color:#94a3b8;cursor:not-allowed;';
+                    }
 
                     Swal.fire({
                         width: 'min(94vw, 480px)',
@@ -1242,6 +1271,8 @@
                                         Z-READING
                                     </span>
                                 </div>
+
+                                ${statusBannerHtml}
 
                                 <div style="background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:14px;text-align:center;margin-bottom:14px;">
                                     <div style="font-size:11.5px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.05em;">Total Daily Gross Revenue</div>
@@ -1277,7 +1308,7 @@
                                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 6 2 18 2 18 9"></polyline><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path><rect x="6" y="14" width="12" height="8"></rect></svg>
                                         Print Slip
                                     </button>
-                                    <button type="button" onclick="sendEODEmail()" class="btn btn-primary" style="flex:1;padding:9px;font-size:12.5px;font-weight:700;border-radius:8px;display:inline-flex;align-items:center;justify-content:center;gap:6px;cursor:pointer;">
+                                    <button type="button" onclick="sendEODEmail()" class="btn btn-primary" style="${emailBtnStyle}" title="${!isOpen ? 'EOD email unlocks at 5:00 PM' : (alreadySent ? `Already sent by ${sentBy}` : (isOwner ? 'Send settlement to my registered email' : 'Email full settlement to Gym Owner'))}">
                                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
                                         ${emailBtnLabel}
                                     </button>
@@ -1372,41 +1403,82 @@
     };
 
     window.sendEODEmail = function() {
-        const formData = new FormData();
-        formData.append('action', 'send_eod_email');
-        formData.append('csrf_token', window.REPORTS_CONFIG?.csrfToken || '');
-        if (window.REPORTS_CONFIG?.selectedGymId) {
-            formData.append('gym_id', window.REPORTS_CONFIG.selectedGymId);
-        }
-
+        const win = window._reportsEodWindow || {};
         const isOwner = (window.REPORTS_CONFIG?.userRole === 'gym_owner');
 
+        if (!win.is_window_open) {
+            Swal.fire({
+                icon: 'info',
+                title: 'EOD Window Closed',
+                text: 'The End-of-Day settlement email unlocks at 5:00 PM when daily shift closing begins. You can still print a physical slip anytime.',
+            });
+            return;
+        }
+        if (win.already_sent_today && !isOwner) {
+            const by = win.last_sent_by_name ? ` by ${win.last_sent_by_name}` : '';
+            Swal.fire({
+                icon: 'info',
+                title: 'Already Sent Today',
+                text: `The EOD settlement was already emailed today at ${win.last_sent_formatted || ''}${by}.`,
+            });
+            return;
+        }
+
+        const confirmTitle = isOwner ? 'Send Settlement to Your Email?' : 'Send EOD Settlement to Owner?';
+        const confirmText = isOwner
+            ? 'This will dispatch today’s executive Z-Reading settlement slip to your registered email.'
+            : 'This will officially email the Z-Reading settlement to the gym owner with your staff shift signature.';
+
         Swal.fire({
-            title: isOwner ? 'Sending Settlement to Your Email...' : 'Sending EOD Email...',
-            didOpen: () => {
-                Swal.showLoading();
-                fetch('index.php?page=reports', {
-                    method: 'POST',
-                    headers: { 'X-Requested-With': 'XMLHttpRequest' },
-                    body: formData
-                })
-                .then(r => r.json())
-                .then(res => {
-                    if (res.success) {
-                        Swal.fire({
-                            icon: 'success',
-                            title: 'Settlement Dispatched!',
-                            text: res.message || (isOwner ? 'Daily summary sent to your registered email.' : 'Daily summary dispatched to owner email.'),
-                            timer: 2500,
-                            showConfirmButton: false
-                        });
-                    } else {
-                        Swal.fire('Notice', res.message || 'Could not dispatch email.', 'info');
-                    }
-                })
-                .catch(err => {
-                    Swal.fire('Error', err.message || 'Failed to send EOD email.', 'error');
-                });
+            title: confirmTitle,
+            text: confirmText,
+            icon: 'question',
+            showCancelButton: true,
+            confirmButtonText: 'Yes, Send EOD Email',
+            cancelButtonText: 'Cancel'
+        }).then(result => {
+            if (!result.isConfirmed) return;
+
+            const formData = new FormData();
+            formData.append('action', 'send_eod_email');
+            formData.append('csrf_token', window.REPORTS_CONFIG?.csrfToken || '');
+            if (window.REPORTS_CONFIG?.selectedGymId) {
+                formData.append('gym_id', window.REPORTS_CONFIG.selectedGymId);
             }
+
+            Swal.fire({
+                title: isOwner ? 'Sending Settlement to Your Email...' : 'Sending EOD Email...',
+                didOpen: () => {
+                    Swal.showLoading();
+                    fetch('index.php?page=reports', {
+                        method: 'POST',
+                        headers: { 'X-Requested-With': 'XMLHttpRequest' },
+                        body: formData
+                    })
+                    .then(r => r.json())
+                    .then(res => {
+                        if (res.success) {
+                            window._reportsEodWindow = {
+                                ...window._reportsEodWindow,
+                                already_sent_today: true,
+                                last_sent_formatted: 'Just now',
+                                last_sent_by_name: isOwner ? 'Owner' : 'You'
+                            };
+                            Swal.fire({
+                                icon: 'success',
+                                title: 'Settlement Dispatched!',
+                                text: res.message || (isOwner ? 'Daily summary sent to your registered email.' : 'Daily summary dispatched to owner email.'),
+                                timer: 2500,
+                                showConfirmButton: false
+                            });
+                        } else {
+                            Swal.fire('Notice', res.error || res.message || 'Could not dispatch email.', 'info');
+                        }
+                    })
+                    .catch(err => {
+                        Swal.fire('Error', err.message || 'Failed to send EOD email.', 'error');
+                    });
+                }
+            });
         });
     };

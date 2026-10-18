@@ -380,7 +380,7 @@ HTML;
         queue_email($email, $firstName, 'We miss you at the gym! - FITTRACKS', self::layout($content));
     }
 
-    public static function sendEODSummary(string $email, string $ownerName, string $gymName, array $summary, bool $immediate = false): bool
+    public static function sendEODSummary(string $email, string $ownerName, string $gymName, array $summary, bool $immediate = false, ?array $senderInfo = null): bool
     {
         $subject = "Daily Settlement Summary: {$gymName} ({$summary['date_formatted']})";
         
@@ -390,12 +390,25 @@ HTML;
         $safeGymName = htmlspecialchars($gymName, ENT_QUOTES, 'UTF-8');
         $safeOwnerName = htmlspecialchars($ownerName, ENT_QUOTES, 'UTF-8');
 
+        $senderHtml = '';
+        if (!empty($senderInfo['name'])) {
+            $sName = htmlspecialchars($senderInfo['name'], ENT_QUOTES, 'UTF-8');
+            $sRole = htmlspecialchars($senderInfo['role'] ?? 'Staff', ENT_QUOTES, 'UTF-8');
+            $sTime = htmlspecialchars($senderInfo['time'] ?? date('g:i A'), ENT_QUOTES, 'UTF-8');
+            $senderHtml = <<<HTML
+            <div style="background: rgba(56, 189, 248, 0.08); border: 1px solid rgba(56, 189, 248, 0.25); border-radius: 8px; padding: 10px 14px; margin-bottom: 16px; font-size: 13px; color: #94a3b8;">
+                <span style="color: #38bdf8; font-weight: 700;">Shift Handover:</span> Dispatched by <strong style="color: #ffffff;">{$sName}</strong> ({$sRole}) at {$sTime}.
+            </div>
+HTML;
+        }
+
         $content = <<<HTML
         <div style="border-bottom: 1px solid rgba(255, 255, 255, 0.1); padding-bottom: 14px; margin-bottom: 18px;">
             <div style="font-size: 13px; font-weight: 700; color: #c7ff22; text-transform: uppercase; letter-spacing: 0.06em;">FitTrack Business Suite</div>
             <h2 style="margin: 8px 0 2px; font-size: 22px; color: #ffffff;">Daily Settlement (Z-Reading)</h2>
             <div style="font-size: 13px; color: #94a3b8;">{$safeGymName} &bull; {$summary['date_formatted']}</div>
         </div>
+        {$senderHtml}
 
         <div style="background: rgba(255, 255, 255, 0.04); border: 1px solid rgba(199, 255, 34, 0.2); border-radius: 8px; padding: 18px; margin-bottom: 20px; text-align: center;">
             <div style="font-size: 12px; color: #94a3b8; text-transform: uppercase; font-weight: 700; letter-spacing: 0.05em;">Total Daily Gross Revenue</div>
