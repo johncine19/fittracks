@@ -1168,6 +1168,11 @@ function render_header(string $title, ?array $user = null): void
             color: var(--muted);
             border: 1px solid rgba(255, 255, 255, 0.2);
         }
+        [data-theme="light"] .nav-sub-pill-free {
+            background: rgba(0, 0, 0, 0.05);
+            color: var(--muted);
+            border: 1px solid var(--line);
+        }
         .nav-sub-pill-active {
             background: color-mix(in srgb, var(--teal) 18%, transparent);
             color: var(--teal);
@@ -1409,10 +1414,11 @@ function render_header(string $title, ?array $user = null): void
                                 'classes' => 'classes',
                                 'audit_logs' => 'audit_logs',
                                 'reports' => 'reports',
+                                'food_library' => 'food_library',
                                 default => null,
                             };
                             if ($mappedFeature !== null && !gym_has_feature($mappedFeature, $gym)) {
-                                $tierBadge = in_array($mappedFeature, ['audit_logs'], true) ? 'PRO' : (in_array($mappedFeature, ['reports'], true) ? 'STARTER' : 'PRO');
+                                $tierBadge = in_array($mappedFeature, ['audit_logs'], true) ? 'PRO' : (in_array($mappedFeature, ['reports', 'food_library'], true) ? 'STARTER' : 'PRO');
                             }
                         }
                         $isActive = ($page === $key 
@@ -1444,7 +1450,7 @@ function render_header(string $title, ?array $user = null): void
                                 </span>
                             <?php endif; ?>
                             <?php if ($tierBadge): ?>
-                                <span style="margin-left: auto; font-size: 9px; font-weight: 800; padding: 1px 5px; border-radius: 4px; background: rgba(132, 204, 22, 0.12); color: #84cc16; border: 1px solid rgba(132, 204, 22, 0.25); letter-spacing: 0.5px;"><?= $tierBadge ?></span>
+                                <span class="sidebar-tier-badge" style="margin-left: auto; font-size: 8.5px; font-weight: 800; padding: 2px 5px; border-radius: 4px; background: rgba(132, 204, 22, 0.12); color: #84cc16; border: 1px solid rgba(132, 204, 22, 0.25); letter-spacing: 0.5px; flex-shrink: 0; white-space: nowrap; line-height: 1;"><?= $tierBadge ?></span>
                             <?php endif; ?>
                         </a>
                     <?php endforeach; ?>
@@ -1460,19 +1466,15 @@ function render_header(string $title, ?array $user = null): void
                                     'title' => 'Free Trial (' . $trialInfo['days_left'] . ' days left)',
                                     'type'  => 'trial',
                                 ];
-                            } elseif ($trialInfo['is_free']) {
-                                $profileSubPill = [
-                                    'text'  => 'FREE',
-                                    'title' => 'Limited Free Account',
-                                    'type'  => 'free',
-                                ];
-                            } elseif (($gym['subscription_status'] ?? '') === 'active') {
-                                $isLapsed = !empty($gym['subscription_renewal_date']) && strtotime((string)$gym['subscription_renewal_date']) < strtotime('today');
-                                if ($isLapsed) {
+                            } else {
+                                $tier = gym_subscription_tier($gym);
+                                if ($tier === 'free') {
+                                    $isExpired = (!empty($gym['subscription_status']) && in_array($gym['subscription_status'], ['cancelled', 'expired'], true))
+                                        || (!empty($gym['subscription_renewal_date']) && strtotime((string)$gym['subscription_renewal_date']) < strtotime('today'));
                                     $profileSubPill = [
-                                        'text'  => 'EXPIRED',
-                                        'title' => 'Subscription Expired',
-                                        'type'  => 'expired',
+                                        'text'  => 'FREE',
+                                        'title' => $isExpired ? 'Current Plan: Free Tier (Subscription expired — click to upgrade)' : 'Current Plan: Free Tier',
+                                        'type'  => 'free',
                                     ];
                                 } else {
                                     $planRaw = strtolower(trim($gym['subscription_plan'] ?? ''));
@@ -1490,12 +1492,6 @@ function render_header(string $title, ?array $user = null): void
                                         'type'  => 'active',
                                     ];
                                 }
-                            } elseif (!empty($gym['subscription_status']) && in_array($gym['subscription_status'], ['cancelled', 'expired'], true)) {
-                                $profileSubPill = [
-                                    'text'  => 'EXPIRED',
-                                    'title' => 'Subscription Expired',
-                                    'type'  => 'expired',
-                                ];
                             }
                         } elseif ($role === 'member' && $user) {
                             $membershipStmt = db()->prepare('

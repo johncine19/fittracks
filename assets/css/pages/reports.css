@@ -1427,6 +1427,48 @@ select option {
     color: #0f172a !important;
 }
 
+/* EOD Settlement Action Buttons Responsive Fix */
+.eod-modal-actions {
+    display: flex !important;
+    gap: 8px !important;
+    margin-top: 16px !important;
+    align-items: center !important;
+    width: 100% !important;
+    box-sizing: border-box !important;
+}
+
+.eod-modal-actions .btn {
+    flex: 1 1 0 !important;
+    min-width: 0 !important;
+    height: 38px !important;
+    min-height: 38px !important;
+    max-height: 38px !important;
+    padding: 0 10px !important;
+    font-size: 12px !important;
+    font-weight: 700 !important;
+    border-radius: 8px !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    gap: 6px !important;
+    white-space: nowrap !important;
+    box-sizing: border-box !important;
+    line-height: 1 !important;
+    cursor: pointer !important;
+}
+
+.eod-modal-actions .btn svg {
+    flex-shrink: 0 !important;
+    width: 14px !important;
+    height: 14px !important;
+}
+
+.eod-modal-actions .btn span {
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+}
+
 /* Platform SaaS Revenue Tab Responsive Styles */
 @media (max-width: 900px) {
     #platform-saas-charts-grid {

@@ -95,7 +95,11 @@ try {
         "CREATE INDEX idx_sub_payments_status_date ON gym_subscription_payments (status, payment_date)",
         "CREATE INDEX idx_notif_user_read ON notifications (user_id, is_read, created_at)",
         "CREATE INDEX idx_gym_members_gym ON gym_members (gym_id)",
-        "CREATE TABLE IF NOT EXISTS renewal_email_log (id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY, recipient_type ENUM('member', 'gym_owner') NOT NULL, target_id INT UNSIGNED NOT NULL, notice_type ENUM('reminder', 'expired') NOT NULL, reference_date DATE NOT NULL, created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP, UNIQUE KEY uq_renewal_notice (recipient_type, target_id, notice_type, reference_date)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
+        "CREATE TABLE IF NOT EXISTS renewal_email_log (id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY, recipient_type ENUM('member', 'gym_owner') NOT NULL, target_id INT UNSIGNED NOT NULL, notice_type ENUM('reminder', 'expired') NOT NULL, reference_date DATE NOT NULL, created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP, UNIQUE KEY uq_renewal_notice (recipient_type, target_id, notice_type, reference_date)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
+        "ALTER TABLE gyms ADD COLUMN eod_gate_time TIME NOT NULL DEFAULT '17:00:00'",
+        "ALTER TABLE gyms ADD COLUMN pending_eod_gate_time TIME DEFAULT NULL",
+        "ALTER TABLE gyms ADD COLUMN eod_gate_effective_date DATE DEFAULT NULL",
+        "UPDATE platform_subscription_plans SET features = CONCAT(features, '\nFood & Nutrition Library') WHERE plan_key = 'starter' AND features NOT LIKE '%Food & Nutrition Library%'"
     ];
 
     foreach ($migrations as $sql) {

@@ -63,6 +63,9 @@ function gym_profile_page(): void
         $payoutAccountName = post('payout_account_name') !== null ? trim((string) post('payout_account_name')) : ($gym['payout_account_name'] ?? null);
         $payoutAccountName = $payoutAccountName !== '' ? $payoutAccountName : null;
         
+        $pendingGateTime = $gym['pending_eod_gate_time'] ?? null;
+        $pendingGateEffectiveDate = $gym['eod_gate_effective_date'] ?? null;
+
         if ($canCustomBrand) {
             $brandColor = trim((string) post('brand_color'));
             if ($brandColor !== '' && !preg_match('/^#[0-9A-Fa-f]{6}$/', $brandColor)) {
@@ -72,6 +75,23 @@ function gym_profile_page(): void
             $eodEmailSummary = isset($_POST['eod_email_summary']) ? 1 : 0;
             $publicDescription = trim((string) post('public_description'));
             $publicDescription = mb_substr($publicDescription, 0, 1000);
+
+            if (isset($_POST['eod_gate_time'])) {
+                $postedGateTime = trim((string)post('eod_gate_time'));
+                if (preg_match('/^([01]?[0-9]|2[0-3]):[0-5][0-9]$/', $postedGateTime)) {
+                    $postedGateTimeFull = $postedGateTime . ':00';
+                    $currentActiveGate = !empty($gym['eod_gate_time']) ? (string)$gym['eod_gate_time'] : '17:00:00';
+                    if ($postedGateTimeFull !== $currentActiveGate) {
+                        // Schedule new gate time for tomorrow
+                        $pendingGateTime = $postedGateTimeFull;
+                        $pendingGateEffectiveDate = date('Y-m-d', strtotime('+1 day'));
+                    } else {
+                        // Reset pending if owner selected the currently active gate time
+                        $pendingGateTime = null;
+                        $pendingGateEffectiveDate = null;
+                    }
+                }
+            }
         } else {
             $brandColor = $gym['brand_color'] ?? null;
             $staffHideFinancials = (int)($gym['staff_hide_financials'] ?? 0);
@@ -171,8 +191,8 @@ function gym_profile_page(): void
         }
 
         if ($name && $address && $contact) {
-            $pdo->prepare('UPDATE gyms SET name = ?, address = ?, contact_info = ?, fb_page_url = ?, walk_in_fee = ?, inactivity_threshold_days = ?, inactivity_cooldown_days = ?, auto_inactivity_alerts = ?, business_permit_url = ?, barangay_clearance_url = ?, fire_safety_cert_url = ?, logo_url = ?, cover_image_url = ?, public_description = ?, brand_color = ?, staff_hide_financials = ?, eod_email_summary = ?, payout_channel = ?, payout_account_number = ?, payout_account_name = ? WHERE gym_id = ?')
-                ->execute([$name, $address, $contact, $fbPageUrl, $walkInFee, $inactivityThreshold, $inactivityCooldown, $autoInactivityAlerts, $permitUrl, $brgyUrl, $fireSafetyUrl, $logoUrl, $coverImageUrl, $publicDescription, $brandColor, $staffHideFinancials, $eodEmailSummary, $payoutChannel, $payoutAccountNumber, $payoutAccountName, $gym['gym_id']]);
+            $pdo->prepare('UPDATE gyms SET name = ?, address = ?, contact_info = ?, fb_page_url = ?, walk_in_fee = ?, inactivity_threshold_days = ?, inactivity_cooldown_days = ?, auto_inactivity_alerts = ?, business_permit_url = ?, barangay_clearance_url = ?, fire_safety_cert_url = ?, logo_url = ?, cover_image_url = ?, public_description = ?, brand_color = ?, staff_hide_financials = ?, eod_email_summary = ?, pending_eod_gate_time = ?, eod_gate_effective_date = ?, payout_channel = ?, payout_account_number = ?, payout_account_name = ? WHERE gym_id = ?')
+                ->execute([$name, $address, $contact, $fbPageUrl, $walkInFee, $inactivityThreshold, $inactivityCooldown, $autoInactivityAlerts, $permitUrl, $brgyUrl, $fireSafetyUrl, $logoUrl, $coverImageUrl, $publicDescription, $brandColor, $staffHideFinancials, $eodEmailSummary, $pendingGateTime, $pendingGateEffectiveDate, $payoutChannel, $payoutAccountNumber, $payoutAccountName, $gym['gym_id']]);
             flash('Gym settings updated successfully.', 'success');
             redirect('gym_profile');
         } else {
@@ -232,7 +252,7 @@ function gym_profile_page(): void
             </div>
         </div>
 
-        <form method="post" enctype="multipart/form-data" id="gym-profile-form" onsubmit="handleFormSubmit(this)">
+        <form method="post" enctype="multipart/form-data" id="gym-profile-form" onsubmit="return handleFormSubmit(this, event)">
             <?= csrf_field() ?>
 
             <div class="gym-settings-layout">
@@ -640,6 +660,62 @@ function gym_profile_page(): void
                                             <input type="checkbox" name="staff_hide_financials" value="1" <?= (!empty($gym['staff_hide_financials'])) ? 'checked' : '' ?>>
                                             <span class="gym-switch-slider"></span>
                                         </label>
+                                    <?php endif; ?>
+                                </div>
+                            </div>
+
+                            <!-- Item 5: EOD Gate Opening Time -->
+                            <div class="overview-doc-item">
+                                <div class="overview-doc-left">
+                                    <div class="overview-doc-icon" style="background: rgba(245, 158, 11, 0.12); color: #f59e0b;">
+                                        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                                    </div>
+                                    <div class="overview-doc-info">
+                                        <div class="overview-doc-name">EOD Settlement Gate Opening</div>
+                                        <div class="overview-doc-status">
+                                            <?php if (!$canCustomBrand): ?>
+                                                <span style="color: var(--muted);">Unlocked on Business Tier — customize the daily hour when Z-Reading settlement emails unlock</span>
+                                            <?php else: ?>
+                                                <span style="color: var(--muted);">Daily cutoff hour when EOD settlement email unlocks for staff &amp; owners (Default: 5:00 PM)</span>
+                                                <?php if (!empty($gym['pending_eod_gate_time']) && !empty($gym['eod_gate_effective_date'])): ?>
+                                                    <div style="margin-top: 5px; font-size: 11.5px; color: #f59e0b; font-weight: 600; display: flex; align-items: center; gap: 5px;">
+                                                        <span>⏱️</span>
+                                                        <span>Scheduled change to <strong><?= date('g:i A', strtotime("1970-01-01 " . $gym['pending_eod_gate_time'])) ?></strong> takes effect tomorrow (<?= date('M j, Y', strtotime((string)$gym['eod_gate_effective_date'])) ?>)</span>
+                                                    </div>
+                                                <?php endif; ?>
+                                            <?php endif; ?>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="overview-doc-right">
+                                    <?php if (!$canCustomBrand): ?>
+                                        <a href="index.php?page=gym_subscription" class="tier-pill" style="text-decoration: none; font-size: 11px; padding: 4px 10px;">
+                                            Business Plan
+                                        </a>
+                                    <?php else: ?>
+                                        <?php
+                                            $activeGate = !empty($gym['eod_gate_time']) ? substr((string)$gym['eod_gate_time'], 0, 5) : '17:00';
+                                            $selectedGate = !empty($gym['pending_eod_gate_time']) ? substr((string)$gym['pending_eod_gate_time'], 0, 5) : $activeGate;
+                                            $timeOptions = [
+                                                '12:00' => '12:00 PM (Noon)',
+                                                '13:00' => '1:00 PM',
+                                                '14:00' => '2:00 PM',
+                                                '15:00' => '3:00 PM',
+                                                '16:00' => '4:00 PM',
+                                                '17:00' => '5:00 PM (Default)',
+                                                '18:00' => '6:00 PM',
+                                                '19:00' => '7:00 PM',
+                                                '20:00' => '8:00 PM',
+                                                '21:00' => '9:00 PM',
+                                                '22:00' => '10:00 PM',
+                                                '23:00' => '11:00 PM',
+                                            ];
+                                        ?>
+                                        <select name="eod_gate_time" id="eod_gate_time_select" data-current-gate="<?= h($activeGate) ?>" style="padding: 7px 12px; border-radius: 8px; font-size: 12.5px; font-weight: 600; background: var(--surface); color: var(--ink); border: 1px solid var(--line); cursor: pointer; max-width: 170px;">
+                                            <?php foreach ($timeOptions as $val => $lbl): ?>
+                                                <option value="<?= $val ?>" <?= $val === $selectedGate ? 'selected' : '' ?>><?= $lbl ?></option>
+                                            <?php endforeach; ?>
+                                        </select>
                                     <?php endif; ?>
                                 </div>
                             </div>

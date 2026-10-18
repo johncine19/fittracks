@@ -35,15 +35,21 @@ The settlement slip can be delivered via **Automated Midnight Cron** or **Staff/
 
 ---
 
-## 3. The 5:00 PM Literal EOD Gate & Operating Hours
+## 3. The Literal EOD Gate & Operating Hours
 
-To respect the literal business meaning of an **End-of-Day (EOD)** closing report, manual email dispatches are governed by a strict daily time gate in Philippine Time (`Asia/Manila` / UTC+8):
+To respect the literal business meaning of an **End-of-Day (EOD)** closing report, manual email dispatches are governed by a daily time gate in Philippine Time (`Asia/Manila` / UTC+8). By default, this unlocks at **5:00 PM**, but can be customized by gym owners in **Gym Profile / Branding**:
 
 | Time Window | EOD Gate Status | Permitted Actions |
 | :--- | :--- | :--- |
-| **12:00:00 AM – 4:59:59 PM** | 🔒 **Locked** | Business day is underway. Email button is locked with status `Opens 5 PM`. Physical counter slip printing (`Print Slip`) is permitted 24/7. |
-| **5:00:00 PM – 11:59:59 PM** | 🔓 **Open** | Staff shift closing window. Front desk staff or owners can dispatch the official EOD settlement email. |
+| **12:00:00 AM – Gate Cutoff** | 🔒 **Locked** | Business day is underway. Email button is locked with status `Opens [Time]` (e.g. `Opens 5 PM`). Physical counter slip printing (`Print Slip`) is permitted 24/7. |
+| **Gate Cutoff – 11:59:59 PM** | 🔓 **Open** | Staff shift closing window. Front desk staff or owners can dispatch the official EOD settlement email. |
 | **12:00:00 AM (Midnight)** | ⚙️ **Automated Cron** | Calendar rolls over. `cron.php` processes finalized figures for yesterday and resets the manual gate for the new day. |
+
+### 3.1 Owner Customization & Next-Day Activation Freeze
+Gym owners (Business Tier / Custom Branding) can adjust their facility's EOD gate opening hour under **Gym Profile → Branding Settings**:
+* **Options**: `12:00 PM` to `11:00 PM` (Default: `5:00 PM`).
+* **Next-Day Activation Policy**: To safeguard financial shift integrity and prevent mid-day shift manipulation, any changes made to the EOD gate time **do not alter the current operating day**. Changes are saved as `pending_eod_gate_time` and automatically become active the **next calendar day** (`eod_gate_effective_date`).
+* **SweetAlert Confirmation**: When the owner selects a new time, an interactive SweetAlert dialog confirms the new schedule and notifies them that today's gate remains intact while the new gate takes effect tomorrow.
 
 ---
 

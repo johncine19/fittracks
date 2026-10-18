@@ -168,12 +168,65 @@
             if (form) form.requestSubmit();
         }
 
-        function handleFormSubmit(form) {
+        function handleFormSubmit(form, event) {
+            const gateSelect = document.getElementById('eod_gate_time_select');
+            if (gateSelect && !window._eodGateChangeConfirmed) {
+                const currentGate = gateSelect.getAttribute('data-current-gate') || '17:00';
+                const selectedGate = gateSelect.value;
+                if (selectedGate !== currentGate) {
+                    if (event && typeof event.preventDefault === 'function') {
+                        event.preventDefault();
+                        event.stopPropagation();
+                    }
+                    
+                    const currentOption = gateSelect.querySelector(`option[value="${currentGate}"]`);
+                    const currentLabel = currentOption ? currentOption.textContent : currentGate;
+                    const newLabel = gateSelect.options[gateSelect.selectedIndex]?.textContent || selectedGate;
+                    
+                    const tomorrow = new Date();
+                    tomorrow.setDate(tomorrow.getDate() + 1);
+                    const tomorrowFormatted = tomorrow.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+
+                    Swal.fire({
+                        title: 'Confirm EOD Gate Opening Change',
+                        icon: 'warning',
+                        html: `
+                            <div style="text-align: left; font-size: 13.5px; line-height: 1.6; color: var(--ink);">
+                                <p style="margin: 0 0 10px;">You are changing the daily End-of-Day settlement cutoff from <strong>${window.escapeHtml ? window.escapeHtml(currentLabel) : currentLabel}</strong> to <strong>${window.escapeHtml ? window.escapeHtml(newLabel) : newLabel}</strong>.</p>
+                                <div style="background: rgba(245, 158, 11, 0.12); border-left: 3px solid #f59e0b; padding: 10px 14px; border-radius: 6px; margin: 12px 0;">
+                                    <strong style="color: #f59e0b;">Daily Settlement Freeze Notice:</strong><br>
+                                    To safeguard daily financial shift integrity, this change will become active <strong>tomorrow (${window.escapeHtml ? window.escapeHtml(tomorrowFormatted) : tomorrowFormatted})</strong>.<br>
+                                    Today's cutoff will remain at <strong>${window.escapeHtml ? window.escapeHtml(currentLabel) : currentLabel}</strong>.
+                                </div>
+                                <p style="margin: 0;">Do you accept and wish to schedule this change for tomorrow?</p>
+                            </div>
+                        `,
+                        showCancelButton: true,
+                        confirmButtonText: 'Yes, Accept & Apply Tomorrow',
+                        cancelButtonText: 'Cancel',
+                        confirmButtonColor: '#f59e0b',
+                        cancelButtonColor: '#64748b',
+                        reverseButtons: true,
+                        background: 'var(--panel)',
+                        color: 'var(--ink)'
+                    }).then((result) => {
+                        if (result.isConfirmed) {
+                            window._eodGateChangeConfirmed = true;
+                            if (form) form.requestSubmit();
+                        } else {
+                            gateSelect.value = currentGate;
+                        }
+                    });
+                    return false;
+                }
+            }
+
             const saveBtn = document.getElementById('save-btn');
             if (saveBtn) {
                 saveBtn.disabled = true;
                 saveBtn.innerHTML = '<span style="display:inline-block;animation:spin 1s linear infinite;">⏳</span> Saving...';
             }
+            return true;
         }
 
         function confirmGalleryDelete(imageId) {

@@ -169,12 +169,6 @@ function gym_equipment_page(): void
                             <option value="maintenance">Under Maintenance</option>
                             <option value="out_of_service">Out of Service</option>
                         </select>
-
-                        <!-- Sound Toggle -->
-                        <button type="button" class="btn-sound-toggle equip-select-filter" style="display: inline-flex; align-items: center; gap: 6px; cursor: pointer; text-decoration: none;" aria-label="Toggle notification sounds" title="Sound: Enabled (Click to mute)">
-                            <span class="sound-toggle-icon"></span>
-                            <span class="sound-toggle-text">Sound On</span>
-                        </button>
                     </div>
                 </div>
 

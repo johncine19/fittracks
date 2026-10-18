@@ -30,6 +30,7 @@ function get_platform_subscription_plans(): array
                     'Walk-in Management & Daily Pass',
                     'Dynamic QR Check-in & Scanner',
                     'Membership Plans & GCash / Online Pay',
+                    'Food & Nutrition Library',
                     'Basic Expiration Reminders (7-Day Notice)',
                     'Basic Financial Reports & CSV Export',
                     'Basic Activity History',
@@ -226,6 +227,9 @@ function gym_subscription_tier(array|int|null $gym = null): string
         }
         if (str_contains($rawPlan, 'starter')) {
             return 'starter';
+        }
+        if (str_contains($rawPlan, 'free')) {
+            return 'free';
         }
 
         return !empty($rawPlan) ? 'starter' : 'free';
@@ -448,6 +452,7 @@ function gym_has_feature(string $feature, array|int|null $gym = null): bool
         'basic_renewal_reminders' => 'starter',
         'basic_activity' => 'starter',
         'basic_classes' => 'starter',
+        'food_library' => 'starter',
 
         // Professional & Above (Staff, Coaching, Growth, Advanced Automation)
         'trainers' => 'professional',
@@ -504,6 +509,7 @@ function require_gym_feature(string $feature): void
             'audit_logs' => 'Security Audit Logs',
             'workouts' => 'Workout Builder & Plans',
             'users' => 'Staff & User Management',
+            'food_library' => 'Food & Nutrition Library',
         ];
         $featureName = $featureTitles[$feature] ?? ucwords(str_replace('_', ' ', $feature));
         $tier = gym_subscription_tier($gym);
@@ -517,27 +523,27 @@ function require_gym_feature(string $feature): void
 
         render_header('Upgrade Required', $user);
         ?>
-        <div style="max-width: 640px; margin: 60px auto; padding: 40px 32px; background: rgba(15, 21, 18, 0.9); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 20px; box-shadow: 0 25px 60px rgba(0,0,0,0.6); text-align: center; backdrop-filter: blur(16px);">
-            <div style="width: 64px; height: 64px; margin: 0 auto 20px; background: rgba(132, 204, 22, 0.12); border: 1px solid rgba(132, 204, 22, 0.3); border-radius: 50%; display: flex; align-items: center; justify-content: center;">
-                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#84cc16" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+        <div class="upgrade-required-card">
+            <div class="upgrade-required-icon-wrap">
+                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
                     <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
                     <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
                 </svg>
             </div>
-            <span style="display: inline-block; padding: 4px 12px; background: rgba(132, 204, 22, 0.15); color: #84cc16; font-size: 11px; font-weight: 800; letter-spacing: 0.8px; border-radius: 20px; text-transform: uppercase; margin-bottom: 12px;">
+            <span class="upgrade-required-badge">
                 <?= h($neededTier) ?> Plan Feature
             </span>
-            <h1 style="font-size: 1.8rem; font-weight: 800; color: #fff; margin: 0 0 12px; letter-spacing: -0.5px;">
+            <h1 class="upgrade-required-title">
                 <?= h($featureName) ?>
             </h1>
-            <p style="color: #94a3b8; font-size: 15px; line-height: 1.6; margin: 0 auto 28px; max-width: 480px;">
-                This module is not included in your current <strong style="color: #fff;"><?= h($planName) ?></strong> plan. Upgrade to the <strong style="color: #84cc16;"><?= h($neededTier) ?></strong> tier to unlock full access.
+            <p class="upgrade-required-desc">
+                This module is not included in your current <strong class="plan-name"><?= h($planName) ?></strong> plan. Upgrade to the <strong class="tier-name"><?= h($neededTier) ?></strong> tier to unlock full access.
             </p>
-            <div style="display: flex; gap: 14px; justify-content: center; flex-wrap: wrap;">
-                <a href="index.php?page=dashboard" class="btn" style="background: rgba(255,255,255,0.06); color: #fff; border: 1px solid rgba(255,255,255,0.12); padding: 12px 24px; border-radius: 12px; font-weight: 600; text-decoration: none;">
+            <div class="upgrade-required-actions">
+                <a href="index.php?page=dashboard" class="upgrade-required-btn-secondary">
                     Back to Dashboard
                 </a>
-                <a href="index.php?page=gym_subscription" class="btn btn-primary" style="padding: 12px 28px; border-radius: 12px; font-weight: 700; text-decoration: none;">
+                <a href="index.php?page=gym_subscription" class="btn btn-primary upgrade-required-btn-primary">
                     Upgrade Subscription →
                 </a>
             </div>
@@ -669,11 +675,10 @@ function gym_get_eod_summary(int $gymId, ?string $date = null): array
 function gym_get_eod_window_status(int $gymId): array
 {
     $pdo = db();
-    $hour = (int) date('G'); // 0 to 23 in Asia/Manila
-    $isWindowOpen = ($hour >= 17); // 5:00 PM (17:00) onwards
 
     $stmt = $pdo->prepare('
         SELECT g.last_eod_email_sent_at, g.last_eod_email_sent_by,
+               g.eod_gate_time, g.pending_eod_gate_time, g.eod_gate_effective_date,
                u.first_name, u.last_name, u.role, u.staff_role
         FROM gyms g
         LEFT JOIN users u ON u.user_id = g.last_eod_email_sent_by
@@ -681,6 +686,22 @@ function gym_get_eod_window_status(int $gymId): array
     ');
     $stmt->execute([$gymId]);
     $row = $stmt->fetch(PDO::FETCH_ASSOC);
+
+    // Promote pending gate time if the scheduled effective date has arrived (today or earlier)
+    if (!empty($row['pending_eod_gate_time']) && !empty($row['eod_gate_effective_date']) && strtotime((string)$row['eod_gate_effective_date']) <= strtotime('today')) {
+        $pdo->prepare('UPDATE gyms SET eod_gate_time = pending_eod_gate_time, pending_eod_gate_time = NULL, eod_gate_effective_date = NULL WHERE gym_id = ?')
+            ->execute([$gymId]);
+        $row['eod_gate_time'] = $row['pending_eod_gate_time'];
+        $row['pending_eod_gate_time'] = null;
+        $row['eod_gate_effective_date'] = null;
+    }
+
+    $activeGateTime = !empty($row['eod_gate_time']) ? (string)$row['eod_gate_time'] : '17:00:00';
+    $currentTime = date('H:i:s');
+    $isWindowOpen = ($currentTime >= $activeGateTime);
+    $windowOpenFormatted = date('g:i A', strtotime("1970-01-01 $activeGateTime"));
+    $pendingGateFormatted = !empty($row['pending_eod_gate_time']) ? date('g:i A', strtotime("1970-01-01 " . $row['pending_eod_gate_time'])) : null;
+    $pendingEffectiveFormatted = !empty($row['eod_gate_effective_date']) ? date('M j, Y', strtotime((string)$row['eod_gate_effective_date'])) : null;
 
     $lastSentAt = $row['last_eod_email_sent_at'] ?? null;
     $alreadySentToday = false;
@@ -706,8 +727,12 @@ function gym_get_eod_window_status(int $gymId): array
 
     return [
         'is_window_open' => $isWindowOpen,
-        'window_open_time' => '5:00 PM',
-        'current_hour' => $hour,
+        'window_open_time' => $windowOpenFormatted,
+        'raw_gate_time' => substr($activeGateTime, 0, 5),
+        'has_pending_change' => !empty($pendingGateFormatted),
+        'pending_gate_time' => $pendingGateFormatted,
+        'pending_effective_date' => $pendingEffectiveFormatted,
+        'current_time' => $currentTime,
         'already_sent_today' => $alreadySentToday,
         'last_sent_at' => $lastSentAt,
         'last_sent_formatted' => $lastSentFormatted,

@@ -323,10 +323,12 @@ function staff_dashboard(PDO $pdo, array $user): void
                     const sentBy = win.last_sent_by_name ? win.last_sent_by_name + (win.last_sent_by_role ? ` (${win.last_sent_by_role})` : '') : 'Staff';
                     const sentAt = win.last_sent_formatted || '';
 
+                    const rawOpenTime = win.window_open_time || '5:00 PM';
+                    const shortOpenTime = rawOpenTime.replace(':00', '');
                     let statusBannerHtml = '';
                     let emailBtnText = 'Email Owner';
                     let emailBtnClass = 'btn-primary';
-                    let emailBtnStyle = 'flex:1;padding:9px;font-size:12.5px;font-weight:700;border-radius:8px;cursor:pointer;';
+                    let emailBtnStyle = 'flex:1;min-width:0;height:38px;padding:0 10px;font-size:12px;font-weight:700;border-radius:8px;display:inline-flex;align-items:center;justify-content:center;gap:6px;cursor:pointer;white-space:nowrap;box-sizing:border-box;';
 
                     if (alreadySent) {
                         statusBannerHtml = `
@@ -335,16 +337,16 @@ function staff_dashboard(PDO $pdo, array $user): void
                                 <div><strong>EOD settlement emailed today</strong> at <strong>${sentAt}</strong> by <strong>${sentBy}</strong>.</div>
                             </div>
                         `;
-                        emailBtnText = `Already Sent (${sentAt})`;
+                        emailBtnText = `Sent (${sentAt})`;
                         emailBtnStyle += 'opacity:0.65;background:#1e293b;border-color:rgba(148,163,184,0.2);color:#94a3b8;cursor:not-allowed;';
                     } else if (!isOpen) {
                         statusBannerHtml = `
                             <div style="background:rgba(245,158,11,0.1);border:1px solid rgba(245,158,11,0.3);border-radius:8px;padding:9px 12px;margin-bottom:12px;font-size:12px;color:#fcd34d;display:flex;align-items:center;gap:8px;">
                                 <span style="font-size:14px;">🕒</span>
-                                <div><strong>EOD Email unlocks at 5:00 PM</strong> for daily closing. You can print a physical slip anytime below.</div>
+                                <div><strong>EOD Email unlocks at ${escapeHtml(rawOpenTime)}</strong> for daily closing. You can print a physical slip anytime below.</div>
                             </div>
                         `;
-                        emailBtnText = 'Email Owner (Opens 5 PM)';
+                        emailBtnText = `Email (Opens ${escapeHtml(shortOpenTime)})`;
                         emailBtnStyle += 'opacity:0.75;background:#1e293b;border-color:rgba(148,163,184,0.2);color:#94a3b8;cursor:not-allowed;';
                     }
 
@@ -389,12 +391,14 @@ function staff_dashboard(PDO $pdo, array $user): void
                                     </tr>
                                 </table>
 
-                                <div style="display:flex;gap:8px;margin-top:16px;">
-                                    <button type="button" onclick="printStaffSlip('${gymName}', '${d.date_formatted}', '${d.total_gross_display || '••••••'}', '${d.subscriptions_revenue_display || '••••••'}', '${d.subscriptions_count}', '${d.walkins_revenue_display || '••••••'}', '${d.walkins_count}', '${d.checkins_count}', '${d.expiring_tomorrow}', '${d.active_members}', ${Boolean(d.is_masked)})" class="btn btn-secondary" style="flex:1;padding:9px;font-size:12.5px;font-weight:700;border-radius:8px;cursor:pointer;">
-                                        Print Slip
+                                <div class="eod-modal-actions" style="display:flex;gap:8px;margin-top:16px;align-items:center;">
+                                    <button type="button" onclick="printStaffSlip('${gymName}', '${d.date_formatted}', '${d.total_gross_display || '••••••'}', '${d.subscriptions_revenue_display || '••••••'}', '${d.subscriptions_count}', '${d.walkins_revenue_display || '••••••'}', '${d.walkins_count}', '${d.checkins_count}', '${d.expiring_tomorrow}', '${d.active_members}', ${Boolean(d.is_masked)})" class="btn btn-secondary eod-btn-print" style="flex:1;min-width:0;height:38px;padding:0 10px;font-size:12px;font-weight:700;border-radius:8px;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:6px;white-space:nowrap;box-sizing:border-box;">
+                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 6 2 18 2 18 9"></polyline><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path><rect x="6" y="14" width="12" height="8"></rect></svg>
+                                        <span>Print Slip</span>
                                     </button>
-                                    <button type="button" onclick="sendStaffEODEmail()" class="btn ${emailBtnClass}" style="${emailBtnStyle}" title="${alreadySent ? `Already sent by ${sentBy}` : (!isOpen ? 'EOD unlocks at 5:00 PM' : 'Email full settlement to Gym Owner')}">
-                                        ${emailBtnText}
+                                    <button type="button" onclick="sendStaffEODEmail()" class="btn ${emailBtnClass} eod-btn-email" style="${emailBtnStyle}" title="${alreadySent ? `Already sent by ${sentBy}` : (!isOpen ? `EOD unlocks at ${rawOpenTime}` : 'Email full settlement to Gym Owner')}">
+                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+                                        <span>${emailBtnText}</span>
                                     </button>
                                 </div>
                             </div>
@@ -446,10 +450,11 @@ function staff_dashboard(PDO $pdo, array $user): void
     window.sendStaffEODEmail = function() {
         const win = window._staffEodWindow || {};
         if (!win.is_window_open) {
+            const openTimeStr = win.window_open_time || '5:00 PM';
             Swal.fire({
                 icon: 'info',
                 title: 'EOD Window Closed',
-                text: 'The End-of-Day settlement email unlocks at 5:00 PM when daily shift closing begins. You can still print a physical shift slip anytime.',
+                text: `The End-of-Day settlement email unlocks at ${openTimeStr} when daily shift closing begins. You can still print a physical shift slip anytime.`,
             });
             return;
         }

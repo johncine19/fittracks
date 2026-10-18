@@ -595,8 +595,8 @@ function openAddFoodModal() {
                         <textarea name="ingredients" rows="4" placeholder="Sitaw / Yard-long beans — 150 g&#10;Firm tofu — 100 g&#10;Quinoa — 1/2 cup&#10;Garlic — 2 cloves&#10;Soy sauce — 1 tbsp&#10;Vinegar — 1 tbsp&#10;Cooking oil — 1 tsp" class="swal-form-control" style="margin-top: 4px; min-height: 90px; font-family: monospace, sans-serif; font-size: 12px; resize: vertical;"></textarea>
                     </label>
 
-                    <label class="swal-field-label" style="margin-top: 4px;">Description & Preparation Notes
-                        <textarea name="recipe_desc" rows="2" placeholder="Brief notes on preparation or cooking instructions..." class="swal-form-control" style="margin-top: 4px; min-height: 60px; resize: vertical;"></textarea>
+                    <label class="swal-field-label" style="margin-top: 4px;">Nutritional Highlights & Member Guidance Note
+                        <textarea name="recipe_desc" rows="2" placeholder="Nutritional highlights, health benefits, or member diet guidance..." class="swal-form-control" style="margin-top: 4px; min-height: 60px; resize: vertical;"></textarea>
                     </label>
 
                     <button type="button" onclick="switchSwalFoodTab(1)" style="background: transparent; border: none; color: var(--muted); font-size: 12px; cursor: pointer; display: inline-flex; align-items: center; gap: 5px; align-self: flex-start; padding: 4px 0;">
@@ -735,8 +735,8 @@ function openEditFoodModal(food) {
                         <textarea name="ingredients" rows="4" placeholder="Sitaw / Yard-long beans — 150 g&#10;Firm tofu — 100 g&#10;Quinoa — 1/2 cup&#10;Garlic — 2 cloves" class="swal-form-control" style="margin-top: 4px; min-height: 90px; font-family: monospace, sans-serif; font-size: 12px; resize: vertical;">${escapeHtml(food.ingredients_text || '')}</textarea>
                     </label>
 
-                    <label class="swal-field-label" style="margin-top: 4px;">Description & Preparation Notes
-                        <textarea name="recipe_desc" rows="2" placeholder="Brief notes on preparation or cooking instructions..." class="swal-form-control" style="margin-top: 4px; min-height: 60px; resize: vertical;">${escapeHtml(food.recipe_desc || '')}</textarea>
+                    <label class="swal-field-label" style="margin-top: 4px;">Nutritional Highlights & Member Guidance Note
+                        <textarea name="recipe_desc" rows="2" placeholder="Nutritional highlights, health benefits, or member diet guidance..." class="swal-form-control" style="margin-top: 4px; min-height: 60px; resize: vertical;">${escapeHtml(food.recipe_desc || '')}</textarea>
                     </label>
 
                     <button type="button" onclick="switchSwalFoodTab(1)" style="background: transparent; border: none; color: var(--muted); font-size: 12px; cursor: pointer; display: inline-flex; align-items: center; gap: 5px; align-self: flex-start; padding: 4px 0;">

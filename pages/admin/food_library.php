@@ -9,6 +9,7 @@ function food_library_page(): void
 
     $gymId = null;
     if ($user['role'] === 'gym_owner') {
+        require_gym_feature('food_library');
         $gymId = get_user_gym_id($user);
         if (!$gymId) {
             flash('No gym found for this gym owner.', 'danger');
@@ -759,9 +760,12 @@ function food_library_page(): void
 
             <!-- Recipe Notes & Preparation (if any) -->
             <div id="ing-modal-desc-box" class="ing-modal-desc-box" style="display: none; border-radius: 0 8px 8px 0; margin-top: 10px;">
-                <div class="ing-modal-desc-lbl" style="display: flex; align-items: center; gap: 5px;">
-                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
-                    <span>Why This Food is Good for You</span>
+                <div class="ing-modal-desc-lbl" style="display: flex; align-items: center; justify-content: space-between; gap: 6px;">
+                    <span style="display: inline-flex; align-items: center; gap: 5px;">
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+                        <span>Nutritional & Health Highlights</span>
+                    </span>
+                    <span style="font-size: 9.5px; font-weight: 700; opacity: 0.8; text-transform: uppercase; letter-spacing: 0.5px;">Member Guidance Note</span>
                 </div>
                 <div id="ing-modal-desc" style="font-size: 11.5px; color: var(--ink); line-height: 1.45;"></div>
             </div>

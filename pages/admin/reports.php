@@ -619,9 +619,10 @@ function reports_page(): void
             }
             $wStatus = gym_get_eod_window_status($targetGymId);
             if (!$wStatus['is_window_open']) {
+                $openTimeStr = $wStatus['window_open_time'] ?? '5:00 PM';
                 echo json_encode([
                     'success' => false,
-                    'error' => 'The End-of-Day settlement email unlocks at 5:00 PM when daily shift closing begins.'
+                    'error' => "The End-of-Day settlement email unlocks at {$openTimeStr} when daily shift closing begins."
                 ]);
                 exit;
             }

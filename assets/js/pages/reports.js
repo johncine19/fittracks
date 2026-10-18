@@ -1233,8 +1233,10 @@
                     const sentAt = win.last_sent_formatted || '';
 
                     let statusBannerHtml = '';
-                    let emailBtnLabel = isOwner ? 'Send to My Email' : 'Email Owner';
-                    let emailBtnStyle = 'flex:1;padding:9px;font-size:12.5px;font-weight:700;border-radius:8px;display:inline-flex;align-items:center;justify-content:center;gap:6px;cursor:pointer;';
+                    const rawOpenTime = win.window_open_time || '5:00 PM';
+                    const shortOpenTime = rawOpenTime.replace(':00', '');
+                    let emailBtnLabel = isOwner ? 'Email Report' : 'Email Owner';
+                    let emailBtnStyle = 'flex:1;min-width:0;height:38px;padding:0 10px;font-size:12px;font-weight:700;border-radius:8px;display:inline-flex;align-items:center;justify-content:center;gap:6px;cursor:pointer;white-space:nowrap;box-sizing:border-box;';
 
                     if (alreadySent) {
                         statusBannerHtml = `
@@ -1243,15 +1245,15 @@
                                 <div><strong>EOD settlement emailed today</strong> at <strong>${sentAt}</strong> by <strong>${sentBy}</strong>.</div>
                             </div>
                         `;
-                        emailBtnLabel += ` (${sentAt})`;
+                        emailBtnLabel = `Sent (${sentAt})`;
                     } else if (!isOpen) {
                         statusBannerHtml = `
                             <div style="background:rgba(245,158,11,0.1);border:1px solid rgba(245,158,11,0.3);border-radius:8px;padding:9px 12px;margin-bottom:12px;font-size:12px;color:#fcd34d;display:flex;align-items:center;gap:8px;">
                                 <span style="font-size:14px;">🕒</span>
-                                <div><strong>EOD Email unlocks at 5:00 PM</strong> for daily closing. You can print a physical slip anytime below.</div>
+                                <div><strong>EOD Email unlocks at ${escapeHtml(rawOpenTime)}</strong> for daily closing. You can print a physical slip anytime below.</div>
                             </div>
                         `;
-                        emailBtnLabel += ' (Opens 5 PM)';
+                        emailBtnLabel = `Email (Opens ${escapeHtml(shortOpenTime)})`;
                         emailBtnStyle += 'opacity:0.75;background:#1e293b;border-color:rgba(148,163,184,0.2);color:#94a3b8;cursor:not-allowed;';
                     }
 
@@ -1303,14 +1305,14 @@
                                     </tr>
                                 </table>
 
-                                <div style="display:flex;gap:8px;margin-top:16px;">
-                                    <button type="button" onclick="printEODSlip('${gymName}', '${d.date_formatted}', '${d.total_gross}', '${d.subscriptions_revenue}', '${d.subscriptions_count}', '${d.walkins_revenue}', '${d.walkins_count}', '${d.checkins_count}', '${d.expiring_tomorrow}', '${d.active_members}')" class="btn btn-secondary" style="flex:1;padding:9px;font-size:12.5px;font-weight:700;border-radius:8px;display:inline-flex;align-items:center;justify-content:center;gap:6px;cursor:pointer;">
+                                <div class="eod-modal-actions" style="display:flex;gap:8px;margin-top:16px;align-items:center;">
+                                    <button type="button" onclick="printEODSlip('${gymName}', '${d.date_formatted}', '${d.total_gross}', '${d.subscriptions_revenue}', '${d.subscriptions_count}', '${d.walkins_revenue}', '${d.walkins_count}', '${d.checkins_count}', '${d.expiring_tomorrow}', '${d.active_members}')" class="btn btn-secondary eod-btn-print" style="flex:1;min-width:0;height:38px;padding:0 10px;font-size:12px;font-weight:700;border-radius:8px;display:inline-flex;align-items:center;justify-content:center;gap:6px;cursor:pointer;white-space:nowrap;box-sizing:border-box;">
                                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 6 2 18 2 18 9"></polyline><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path><rect x="6" y="14" width="12" height="8"></rect></svg>
-                                        Print Slip
+                                        <span>Print Slip</span>
                                     </button>
-                                    <button type="button" onclick="sendEODEmail()" class="btn btn-primary" style="${emailBtnStyle}" title="${!isOpen ? 'EOD email unlocks at 5:00 PM' : (alreadySent ? `Already sent by ${sentBy}` : (isOwner ? 'Send settlement to my registered email' : 'Email full settlement to Gym Owner'))}">
+                                    <button type="button" onclick="sendEODEmail()" class="btn btn-primary eod-btn-email" style="${emailBtnStyle}" title="${!isOpen ? `EOD email unlocks at ${rawOpenTime}` : (alreadySent ? `Already sent by ${sentBy}` : (isOwner ? 'Send settlement to my registered email' : 'Email full settlement to Gym Owner'))}">
                                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
-                                        ${emailBtnLabel}
+                                        <span>${emailBtnLabel}</span>
                                     </button>
                                 </div>
                             </div>
@@ -1407,10 +1409,11 @@
         const isOwner = (window.REPORTS_CONFIG?.userRole === 'gym_owner');
 
         if (!win.is_window_open) {
+            const openTimeStr = win.window_open_time || '5:00 PM';
             Swal.fire({
                 icon: 'info',
                 title: 'EOD Window Closed',
-                text: 'The End-of-Day settlement email unlocks at 5:00 PM when daily shift closing begins. You can still print a physical slip anytime.',
+                text: `The End-of-Day settlement email unlocks at ${openTimeStr} when daily shift closing begins. You can still print a physical slip anytime.`,
             });
             return;
         }
