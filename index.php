@@ -70,7 +70,8 @@ try {
                     flash('Switched active facility to ' . ($gName ?: 'gym') . '.', 'success');
                 }
             }
-            $targetPage = in_array($_GET['page'] ?? '', ['dashboard', 'equipment', 'book_classes', 'trainers', 'gym_equipment'], true) ? $_GET['page'] : 'dashboard';
+            $allowedMemberPages = ['dashboard', 'equipment', 'book_classes', 'trainers', 'gym_equipment', 'memberships', 'my_workout', 'diet', 'dietary_tracker', 'qr_attendance', 'progress', 'classes', 'profile', 'messages', 'gym_selection'];
+            $targetPage = in_array($_GET['page'] ?? '', $allowedMemberPages, true) ? $_GET['page'] : 'dashboard';
             redirect($targetPage);
         }
     }

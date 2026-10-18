@@ -10,6 +10,24 @@ function render_header(string $title, ?array $user = null): void
     if ($user) {
         $gym = get_user_gym($user);
     }
+    $memberAffiliatedGyms = [];
+    if ($role === 'member' && !empty($user['user_id'])) {
+        $memberAffiliatedGyms = query_all('
+            SELECT DISTINCT g.gym_id, g.name,
+                   (SELECT mp.plan_name 
+                    FROM memberships m 
+                    JOIN membership_plans mp ON mp.plan_id = m.plan_id 
+                    WHERE m.user_id = ? AND mp.gym_id = g.gym_id AND m.status = "active" AND m.end_date >= CURDATE() 
+                    ORDER BY m.end_date DESC LIMIT 1) as plan_name
+            FROM gyms g
+            WHERE g.gym_id IN (
+                SELECT gym_id FROM gym_members WHERE user_id = ?
+                UNION
+                SELECT mp.gym_id FROM memberships m JOIN membership_plans mp ON mp.plan_id = m.plan_id WHERE m.user_id = ? AND m.status = "active"
+            )
+            ORDER BY g.name ASC
+        ', [(int)$user['user_id'], (int)$user['user_id'], (int)$user['user_id']]);
+    }
     $nav = [];
     if ($user) {
         $nav['dashboard'] = 'Dashboard';
@@ -932,6 +950,456 @@ function render_header(string $title, ?array $user = null): void
             margin: 0 0 6px !important;
             word-break: break-word !important;
         }
+
+        /* Responsive Topbar Cleanup for Mobile (<= 768px): Hide Topbar Switcher & Tour Button */
+        @media (max-width: 768px) {
+            .topbar #topbarFacilityDropdownWrap,
+            .topbar .tour-quick-btn {
+                display: none !important;
+            }
+            .shell {
+                padding-bottom: 84px !important;
+            }
+        }
+
+        /* ==========================================================================
+           Mobile Floating Action Pill / FAB (Facility Switcher & Quick Tour)
+           ========================================================================== */
+        .mobile-facility-fab {
+            display: none;
+        }
+
+        @media (max-width: 768px) {
+            .mobile-facility-fab {
+                display: block;
+                position: fixed;
+                bottom: max(20px, env(safe-area-inset-bottom, 20px));
+                left: max(16px, env(safe-area-inset-left, 16px));
+                z-index: 250;
+                font-family: inherit;
+            }
+
+            .mobile-facility-fab-trigger {
+                position: relative;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                width: 44px;
+                height: 44px;
+                padding: 0;
+                border-radius: 50%;
+                background: rgba(18, 24, 38, 0.94);
+                backdrop-filter: blur(20px) saturate(180%);
+                -webkit-backdrop-filter: blur(20px) saturate(180%);
+                border: 1px solid rgba(255, 255, 255, 0.14);
+                box-shadow: 0 10px 28px rgba(0, 0, 0, 0.48), 0 2px 8px rgba(0, 0, 0, 0.25);
+                color: var(--lime, #84cc16);
+                cursor: pointer;
+                outline: none;
+                user-select: none;
+                touch-action: manipulation;
+                transition: transform 0.18s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.18s ease, border-color 0.18s ease;
+            }
+
+            .mobile-facility-fab-trigger:active {
+                transform: scale(0.92);
+                box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35);
+            }
+
+            .mobile-facility-fab-icon {
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                width: 22px;
+                height: 22px;
+                color: var(--lime, #84cc16);
+                flex-shrink: 0;
+            }
+
+            .mobile-facility-fab-badge {
+                position: absolute;
+                top: -3px;
+                right: -3px;
+                min-width: 18px;
+                height: 18px;
+                padding: 0 4px;
+                border-radius: 9px;
+                background: var(--lime, #84cc16);
+                color: #080b0d;
+                font-size: 10px;
+                font-weight: 800;
+                line-height: 18px;
+                text-align: center;
+                box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
+                border: 2px solid #0d121c;
+                box-sizing: border-box;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                letter-spacing: -0.2px;
+                flex-shrink: 0;
+            }
+
+            /* Backdrop */
+            .mobile-facility-fab-backdrop {
+                position: fixed;
+                inset: 0;
+                background: rgba(0, 0, 0, 0.65);
+                backdrop-filter: blur(4px);
+                -webkit-backdrop-filter: blur(4px);
+                z-index: 991;
+                opacity: 0;
+                pointer-events: none;
+                transition: opacity 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+            }
+
+            .mobile-facility-fab-backdrop.open {
+                opacity: 1;
+                pointer-events: auto;
+            }
+
+            /* Bottom-sheet Popup */
+            .mobile-facility-fab-sheet {
+                position: fixed;
+                bottom: max(72px, calc(env(safe-area-inset-bottom, 20px) + 52px));
+                left: max(16px, env(safe-area-inset-left, 16px));
+                width: min(340px, calc(100vw - 32px));
+                max-height: calc(100vh - 120px);
+                background: rgba(18, 24, 38, 0.98);
+                backdrop-filter: blur(28px);
+                -webkit-backdrop-filter: blur(28px);
+                border: 1px solid rgba(255, 255, 255, 0.12);
+                border-radius: 18px;
+                box-shadow: 0 24px 64px rgba(0, 0, 0, 0.65), 0 4px 16px rgba(0, 0, 0, 0.35);
+                z-index: 992;
+                display: flex;
+                flex-direction: column;
+                overflow: hidden;
+                opacity: 0;
+                transform: translateY(12px) scale(0.96);
+                pointer-events: none;
+                transition: opacity 0.22s cubic-bezier(0.16, 1, 0.3, 1), transform 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+            }
+
+            .mobile-facility-fab-sheet.open {
+                opacity: 1;
+                transform: translateY(0) scale(1);
+                pointer-events: auto;
+            }
+
+            .mobile-fab-sheet-header {
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                padding: 14px 16px 12px;
+                border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+            }
+
+            .mobile-fab-sheet-header-text {
+                display: flex;
+                flex-direction: column;
+            }
+
+            .mobile-fab-sheet-title {
+                font-size: 14px;
+                font-weight: 700;
+                color: #f8fafc;
+                letter-spacing: -0.2px;
+            }
+
+            .mobile-fab-sheet-sub {
+                font-size: 11px;
+                color: var(--muted, #94a3b8);
+                margin-top: 2px;
+            }
+
+            .mobile-fab-sheet-close {
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                width: 32px;
+                height: 32px;
+                border-radius: 50%;
+                background: rgba(255, 255, 255, 0.08);
+                border: 1px solid rgba(255, 255, 255, 0.12);
+                color: #f8fafc;
+                cursor: pointer;
+                transition: all 0.15s ease;
+                padding: 0;
+                flex-shrink: 0;
+            }
+
+            .mobile-fab-sheet-close svg {
+                width: 15px;
+                height: 15px;
+                display: block;
+                stroke: currentColor;
+            }
+
+            .mobile-fab-sheet-close:hover,
+            .mobile-fab-sheet-close:active {
+                background: rgba(255, 255, 255, 0.18);
+                border-color: rgba(255, 255, 255, 0.25);
+                color: #ffffff;
+            }
+
+            .mobile-fab-sheet-body {
+                padding: 12px 14px 14px;
+                overflow-y: auto;
+                display: flex;
+                flex-direction: column;
+                gap: 10px;
+            }
+
+            .mobile-fab-section-label {
+                font-size: 10px;
+                font-weight: 800;
+                text-transform: uppercase;
+                letter-spacing: 0.6px;
+                color: var(--muted, #94a3b8);
+                padding: 0 4px 2px;
+            }
+
+            .mobile-fab-gym-list {
+                display: flex;
+                flex-direction: column;
+                gap: 6px;
+            }
+
+            .mobile-fab-gym-item {
+                display: flex;
+                align-items: center;
+                gap: 12px;
+                padding: 10px 12px;
+                border-radius: 12px;
+                background: rgba(255, 255, 255, 0.03);
+                border: 1px solid rgba(255, 255, 255, 0.08);
+                text-decoration: none;
+                color: inherit;
+                transition: all 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+                cursor: pointer;
+            }
+
+            .mobile-fab-gym-item:hover,
+            .mobile-fab-gym-item:active {
+                background: rgba(255, 255, 255, 0.08);
+                border-color: rgba(255, 255, 255, 0.18);
+                transform: translateY(-1px);
+            }
+
+            .mobile-fab-gym-item.is-active {
+                background: color-mix(in srgb, var(--lime, #84cc16) 12%, rgba(255, 255, 255, 0.03));
+                border-color: color-mix(in srgb, var(--lime, #84cc16) 45%, transparent);
+                box-shadow: 0 2px 8px color-mix(in srgb, var(--lime, #84cc16) 15%, transparent);
+            }
+
+            .mobile-fab-gym-icon {
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                width: 34px;
+                height: 34px;
+                border-radius: 8px;
+                background: rgba(255, 255, 255, 0.06);
+                color: var(--muted, #94a3b8);
+                flex-shrink: 0;
+            }
+
+            .mobile-fab-gym-item.is-active .mobile-fab-gym-icon {
+                background: color-mix(in srgb, var(--lime, #84cc16) 20%, transparent);
+                color: var(--lime, #84cc16);
+            }
+
+            .mobile-fab-gym-details {
+                flex: 1 1 auto;
+                min-width: 0;
+            }
+
+            .mobile-fab-gym-name {
+                font-size: 13.5px;
+                font-weight: 700;
+                color: #f8fafc;
+                display: flex;
+                align-items: center;
+                gap: 6px;
+            }
+
+            .mobile-fab-active-pill {
+                font-size: 9px;
+                font-weight: 800;
+                text-transform: uppercase;
+                padding: 1px 6px;
+                border-radius: 6px;
+                background: var(--lime, #84cc16);
+                color: #080b0d;
+                letter-spacing: 0.4px;
+            }
+
+            .mobile-fab-gym-plan {
+                font-size: 11px;
+                color: var(--muted, #94a3b8);
+                margin-top: 1px;
+                white-space: nowrap;
+                overflow: hidden;
+                text-overflow: ellipsis;
+            }
+
+            .mobile-fab-gym-action {
+                flex-shrink: 0;
+                display: flex;
+                align-items: center;
+            }
+
+            .mobile-fab-check-icon {
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                width: 22px;
+                height: 22px;
+                border-radius: 50%;
+                background: color-mix(in srgb, var(--lime, #84cc16) 20%, transparent);
+                color: var(--lime, #84cc16);
+            }
+
+            .mobile-fab-switch-arrow {
+                color: var(--muted, #94a3b8);
+                opacity: 0.6;
+            }
+
+            .mobile-fab-tour-section {
+                margin-top: 4px;
+                padding-top: 10px;
+                border-top: 1px solid rgba(255, 255, 255, 0.08);
+            }
+
+            .mobile-fab-tour-trigger-btn {
+                width: 100%;
+                display: flex;
+                align-items: center;
+                gap: 12px;
+                padding: 10px 12px;
+                border-radius: 12px;
+                background: rgba(255, 255, 255, 0.04);
+                border: 1px dashed rgba(255, 255, 255, 0.16);
+                color: #f8fafc;
+                cursor: pointer;
+                text-align: left;
+                transition: all 0.18s ease;
+            }
+
+            .mobile-fab-tour-trigger-btn:hover,
+            .mobile-fab-tour-trigger-btn:active {
+                background: rgba(255, 255, 255, 0.08);
+                border-color: var(--lime, #84cc16);
+            }
+
+            .mobile-fab-tour-icon {
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                width: 32px;
+                height: 32px;
+                border-radius: 8px;
+                background: color-mix(in srgb, var(--lime, #84cc16) 18%, transparent);
+                color: var(--lime, #84cc16);
+                flex-shrink: 0;
+            }
+
+            .mobile-fab-tour-text {
+                flex: 1 1 auto;
+                min-width: 0;
+                display: flex;
+                flex-direction: column;
+            }
+
+            .mobile-fab-tour-text strong {
+                font-size: 12.5px;
+                font-weight: 700;
+                color: #f8fafc;
+            }
+
+            .mobile-fab-tour-text small {
+                font-size: 10.5px;
+                color: var(--muted, #94a3b8);
+                line-height: 1.2;
+            }
+
+            .mobile-fab-tour-arrow {
+                color: var(--muted, #94a3b8);
+                flex-shrink: 0;
+            }
+
+            /* Light Theme Overrides */
+            [data-theme="light"] .mobile-facility-fab-trigger {
+                background: rgba(255, 255, 255, 0.95);
+                border-color: #cbd5e1;
+                box-shadow: 0 10px 28px rgba(0, 0, 0, 0.12), 0 2px 8px rgba(0, 0, 0, 0.06);
+                color: var(--lime-dark, #4d7c0f);
+            }
+
+            [data-theme="light"] .mobile-facility-fab-badge {
+                border-color: #ffffff;
+            }
+
+            [data-theme="light"] .mobile-facility-fab-sheet {
+                background: rgba(255, 255, 255, 0.98);
+                border-color: #cbd5e1;
+                box-shadow: 0 20px 48px rgba(0, 0, 0, 0.15), 0 4px 12px rgba(0, 0, 0, 0.08);
+            }
+
+            [data-theme="light"] .mobile-fab-sheet-header {
+                border-bottom-color: #e2e8f0;
+            }
+
+            [data-theme="light"] .mobile-fab-sheet-title {
+                color: #0f172a;
+            }
+
+            [data-theme="light"] .mobile-fab-sheet-close {
+                background: #f1f5f9;
+                color: #64748b;
+            }
+
+            [data-theme="light"] .mobile-fab-sheet-close:hover {
+                background: #e2e8f0;
+                color: #0f172a;
+            }
+
+            [data-theme="light"] .mobile-fab-gym-item {
+                background: #f8fafc;
+                border-color: #e2e8f0;
+                color: #0f172a;
+            }
+
+            [data-theme="light"] .mobile-fab-gym-item:hover,
+            [data-theme="light"] .mobile-fab-gym-item:active {
+                background: #f1f5f9;
+                border-color: #cbd5e1;
+            }
+
+            [data-theme="light"] .mobile-fab-gym-item.is-active {
+                background: color-mix(in srgb, var(--lime, #84cc16) 10%, #ffffff);
+                border-color: var(--lime, #84cc16);
+            }
+
+            [data-theme="light"] .mobile-fab-gym-name {
+                color: #0f172a;
+            }
+
+            [data-theme="light"] .mobile-fab-tour-section {
+                border-top-color: #e2e8f0;
+            }
+
+            [data-theme="light"] .mobile-fab-tour-trigger-btn {
+                background: #f8fafc;
+                border-color: #cbd5e1;
+                color: #0f172a;
+            }
+
+            [data-theme="light"] .mobile-fab-tour-text strong {
+                color: #0f172a;
+            }
+        }
         @media (max-width: 640px) {
             .topbar {
                 gap: 8px !important;
@@ -1220,7 +1688,6 @@ function render_header(string $title, ?array $user = null): void
             box-shadow: none !important;
         }
         .app-frame.collapsed .nav-sub-pill,
-        .app-frame.collapsed .multi-gym-switcher,
         .app-frame.collapsed .sidebar-tier-badge {
             display: none !important;
         }
@@ -1295,41 +1762,6 @@ function render_header(string $title, ?array $user = null): void
                 </a>
                 <!-- Role badge (replaces non-functional role-switch select) -->
                 <div class="role-badge"><?= h(ucfirst($user['role'])) ?></div>
-                <?php
-                    $memberAffiliatedGyms = [];
-                    if ($role === 'member' && !empty($user['user_id'])) {
-                        $memberAffiliatedGyms = query_all('
-                            SELECT DISTINCT g.gym_id, g.name,
-                                   (SELECT mp.plan_name 
-                                    FROM memberships m 
-                                    JOIN membership_plans mp ON mp.plan_id = m.plan_id 
-                                    WHERE m.user_id = ? AND mp.gym_id = g.gym_id AND m.status = "active" AND m.end_date >= CURDATE() 
-                                    ORDER BY m.end_date DESC LIMIT 1) as plan_name
-                            FROM gyms g
-                            WHERE g.gym_id IN (
-                                SELECT gym_id FROM gym_members WHERE user_id = ?
-                                UNION
-                                SELECT mp.gym_id FROM memberships m JOIN membership_plans mp ON mp.plan_id = m.plan_id WHERE m.user_id = ? AND m.status = "active"
-                            )
-                            ORDER BY g.name ASC
-                        ', [(int)$user['user_id'], (int)$user['user_id'], (int)$user['user_id']]);
-                    }
-                ?>
-                <?php if (count($memberAffiliatedGyms) > 1): ?>
-                    <div class="multi-gym-switcher">
-                        <div class="multi-gym-switcher-header">
-                            <span>Active Facility</span>
-                            <span class="multi-gym-badge"><?= count($memberAffiliatedGyms) ?> Gyms</span>
-                        </div>
-                        <select class="multi-gym-select" onchange="window.location.href='index.php?switch_active_gym=' + encodeURIComponent(this.value) + '&page=<?= h($page) ?>'" aria-label="Select Active Facility">
-                            <?php foreach ($memberAffiliatedGyms as $mg): ?>
-                                <option value="<?= (int)$mg['gym_id'] ?>" <?= ((int)($gym['gym_id'] ?? 0) === (int)$mg['gym_id']) ? 'selected' : '' ?>>
-                                    <?= h($mg['name']) ?><?= !empty($mg['plan_name']) ? ' • ' . h($mg['plan_name']) : '' ?>
-                                </option>
-                            <?php endforeach; ?>
-                        </select>
-                    </div>
-                <?php endif; ?>
                 <?php 
                     $unreadNotifsCount = $user ? unread_notification_count((int) $user['user_id']) : 0;
                     $unreadMsgsCount   = $user ? (int) scalar('SELECT COUNT(*) FROM trainer_messages WHERE recipient_id = ? AND is_read = 0', [(int)$user['user_id']]) : 0;
@@ -1648,6 +2080,74 @@ function render_header(string $title, ?array $user = null): void
                         </div>
                     </div>
                     <div class="user-chip">
+                        <?php if (!empty($memberAffiliatedGyms) && count($memberAffiliatedGyms) > 1): ?>
+                            <div id="topbarFacilityDropdownWrap" class="topbar-facility-dropdown-wrap"></div>
+                            <script>
+                            (function() {
+                                function initFacilityDropdown() {
+                                    if (typeof FitDropdown === 'undefined') {
+                                        setTimeout(initFacilityDropdown, 50);
+                                        return;
+                                    }
+                                    const container = document.getElementById('topbarFacilityDropdownWrap');
+                                    if (!container) return;
+
+                                    const memberGyms = <?= json_encode(array_map(function($mg) use ($gym) {
+                                        return [
+                                            'id'       => (string)$mg['gym_id'],
+                                            'label'    => $mg['name'],
+                                            'subtitle' => !empty($mg['plan_name']) ? $mg['plan_name'] : '',
+                                            'icon'     => '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 21h18"/><path d="M5 21V7l8-4v18"/><path d="M19 21V11l-6-4"/></svg>',
+                                        ];
+                                    }, $memberAffiliatedGyms)) ?>;
+
+                                    const activeGymId = <?= json_encode((string)($gym['gym_id'] ?? '')) ?>;
+                                    const totalGyms = memberGyms.length;
+
+                                    window.topbarFacilityDropdown = new FitDropdown({
+                                        container: container,
+                                        customClass: 'topbar-facility-dropdown',
+                                        value: activeGymId,
+                                        items: memberGyms,
+                                        searchable: false,
+                                        zIndex: 120,
+                                        menuAlign: 'auto',
+                                        renderTrigger: function(selected) {
+                                            const label = selected ? selected.label : 'Select Facility';
+                                            return `
+                                                <div class="topbar-facility-icon">
+                                                    <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                                                        <path d="M3 21h18"/>
+                                                        <path d="M5 21V7l8-4v18"/>
+                                                        <path d="M19 21V11l-6-4"/>
+                                                        <circle cx="9" cy="9" r="1"/>
+                                                        <circle cx="9" cy="13" r="1"/>
+                                                        <circle cx="9" cy="17" r="1"/>
+                                                    </svg>
+                                                </div>
+                                                <div class="topbar-facility-body">
+                                                    <span class="topbar-facility-label">Facility</span>
+                                                    <span class="topbar-facility-current-name">${window.escapeHtml ? window.escapeHtml(label) : label}</span>
+                                                </div>
+                                                <span class="topbar-facility-badge">${totalGyms} Gyms</span>
+                                            `;
+                                        },
+                                        onChange: function(selected) {
+                                            if (selected && selected.id && String(selected.id) !== String(activeGymId)) {
+                                                window.location.href = 'index.php?switch_active_gym=' + encodeURIComponent(selected.id) + '&page=<?= h($page) ?>';
+                                            }
+                                        }
+                                    });
+                                }
+
+                                if (document.readyState === 'loading') {
+                                    document.addEventListener('DOMContentLoaded', initFacilityDropdown);
+                                } else {
+                                    initFacilityDropdown();
+                                }
+                            })();
+                            </script>
+                        <?php endif; ?>
                         <?php if ($user && in_array($user['role'] ?? '', ['member', 'trainer'])): ?>
                             <?php 
                             auto_checkout_past_attendance((int) $user['user_id']);
@@ -1774,6 +2274,210 @@ function render_header(string $title, ?array $user = null): void
                         </div>
                     </div>
                 </header>
+
+                <?php 
+                $hasGymOrTour = $user && (
+                    (!empty($memberAffiliatedGyms) && count($memberAffiliatedGyms) >= 1) || 
+                    (!empty($gym) && in_array($user['role'] ?? '', ['member', 'gym_owner']))
+                );
+                if ($hasGymOrTour): 
+                    $gymCount = count($memberAffiliatedGyms);
+                ?>
+                    <!-- Mobile Floating Action Pill & Bottom Sheet (Facility Switcher & Quick Tour) -->
+                    <div id="mobileFacilityFab" class="mobile-facility-fab" aria-label="Active Facility & Quick Tour">
+                        <button type="button" class="mobile-facility-fab-trigger" id="mobileFacilityFabTrigger" aria-haspopup="dialog" aria-expanded="false" title="<?= $gymCount > 1 ? 'Switch facility (' . $gymCount . ' gyms) or take tour' : 'Facility & Quick Tour' ?>">
+                            <span class="mobile-facility-fab-icon">
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="M3 21h18"/>
+                                    <path d="M5 21V7l8-4v18"/>
+                                    <path d="M19 21V11l-6-4"/>
+                                    <circle cx="9" cy="9" r="1"/>
+                                    <circle cx="9" cy="13" r="1"/>
+                                    <circle cx="9" cy="17" r="1"/>
+                                </svg>
+                            </span>
+                            <?php if ($gymCount > 1): ?>
+                                <span class="mobile-facility-fab-badge"><?= $gymCount ?></span>
+                            <?php endif; ?>
+                        </button>
+
+                        <div class="mobile-facility-fab-backdrop" id="mobileFacilityFabBackdrop"></div>
+
+                        <div class="mobile-facility-fab-sheet" id="mobileFacilityFabSheet" role="dialog" aria-modal="true" aria-hidden="true">
+                            <div class="mobile-fab-sheet-header">
+                                <div class="mobile-fab-sheet-header-text">
+                                    <div class="mobile-fab-sheet-title">Active Facility</div>
+                                    <div class="mobile-fab-sheet-sub"><?= $gymCount > 1 ? 'Switch workspace or take a tour' : 'Your gym workspace & tour' ?></div>
+                                </div>
+                                <button type="button" class="mobile-fab-sheet-close" id="mobileFacilityFabClose" aria-label="Close facility menu">
+                                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="display:block;">
+                                        <line x1="18" y1="6" x2="6" y2="18"></line>
+                                        <line x1="6" y1="6" x2="18" y2="18"></line>
+                                    </svg>
+                                </button>
+                            </div>
+                            <div class="mobile-fab-sheet-body">
+                                <?php if (!empty($memberAffiliatedGyms)): ?>
+                                    <div class="mobile-fab-section-label"><?= $gymCount > 1 ? 'Your Affiliated Facilities' : 'Current Facility' ?></div>
+                                    <div class="mobile-fab-gym-list">
+                                        <?php foreach ($memberAffiliatedGyms as $mg): 
+                                            $isActive = (int)$mg['gym_id'] === (int)($gym['gym_id'] ?? 0);
+                                        ?>
+                                            <a href="<?= $gymCount > 1 ? 'index.php?switch_active_gym=' . urlencode((string)$mg['gym_id']) . '&page=' . urlencode($page) : 'javascript:void(0)' ?>" class="mobile-fab-gym-item <?= $isActive ? 'is-active' : '' ?>">
+                                                <div class="mobile-fab-gym-icon">
+                                                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                                                        <path d="M3 21h18"/>
+                                                        <path d="M5 21V7l8-4v18"/>
+                                                        <path d="M19 21V11l-6-4"/>
+                                                    </svg>
+                                                </div>
+                                                <div class="mobile-fab-gym-details">
+                                                    <div class="mobile-fab-gym-name">
+                                                        <?= h($mg['name']) ?>
+                                                        <?php if ($isActive): ?>
+                                                            <span class="mobile-fab-active-pill">Active</span>
+                                                        <?php endif; ?>
+                                                    </div>
+                                                    <div class="mobile-fab-gym-plan">
+                                                        <?= !empty($mg['plan_name']) ? h($mg['plan_name']) : 'No active membership' ?>
+                                                    </div>
+                                                </div>
+                                                <div class="mobile-fab-gym-action">
+                                                    <?php if ($isActive): ?>
+                                                        <span class="mobile-fab-check-icon">
+                                                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                                                        </span>
+                                                    <?php else: ?>
+                                                        <span class="mobile-fab-switch-arrow">
+                                                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+                                                        </span>
+                                                    <?php endif; ?>
+                                                </div>
+                                            </a>
+                                        <?php endforeach; ?>
+                                    </div>
+                                <?php elseif ($gym): ?>
+                                    <div class="mobile-fab-section-label">Current Facility</div>
+                                    <div class="mobile-fab-gym-list">
+                                        <div class="mobile-fab-gym-item is-active" style="cursor: default;">
+                                            <div class="mobile-fab-gym-icon">
+                                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                                                    <path d="M3 21h18"/>
+                                                    <path d="M5 21V7l8-4v18"/>
+                                                    <path d="M19 21V11l-6-4"/>
+                                                </svg>
+                                            </div>
+                                            <div class="mobile-fab-gym-details">
+                                                <div class="mobile-fab-gym-name">
+                                                    <?= h($gym['name']) ?>
+                                                    <span class="mobile-fab-active-pill">Active</span>
+                                                </div>
+                                                <div class="mobile-fab-gym-plan"><?= h(ucwords(str_replace('_', ' ', $user['role'] ?? ''))) ?></div>
+                                            </div>
+                                            <div class="mobile-fab-gym-action">
+                                                <span class="mobile-fab-check-icon">
+                                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                                                </span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                <?php endif; ?>
+
+                                <?php if ($user && in_array($user['role'] ?? '', ['member', 'gym_owner'])): 
+                                    $userRole = (string)($user['role'] ?? '');
+                                    $tourFn = ($userRole === 'gym_owner') ? 'startGymOwnerTour' : 'startMemberTour';
+                                    $tourTitle = ($userRole === 'gym_owner') ? 'Guided Owner Tour' : 'Guided Quick Tour';
+                                    $tourSubtitle = ($userRole === 'gym_owner') ? 'Interactive walk-through of gym management' : 'Interactive walk-through of the dashboard';
+                                ?>
+                                    <div class="mobile-fab-tour-section">
+                                        <button type="button" class="mobile-fab-tour-trigger-btn" id="mobileFabTourTriggerBtn" data-tour-fn="<?= $tourFn ?>">
+                                            <span class="mobile-fab-tour-icon">
+                                                <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                                                    <circle cx="12" cy="12" r="10"></circle>
+                                                    <polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"></polygon>
+                                                </svg>
+                                            </span>
+                                            <span class="mobile-fab-tour-text">
+                                                <strong><?= $tourTitle ?></strong>
+                                                <small><?= $tourSubtitle ?></small>
+                                            </span>
+                                            <svg class="mobile-fab-tour-arrow" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
+                                        </button>
+                                    </div>
+                                <?php endif; ?>
+                            </div>
+                        </div>
+                    </div>
+                    <script>
+                    (function() {
+                        function initMobileFacilityFab() {
+                            const trigger = document.getElementById('mobileFacilityFabTrigger');
+                            const sheet = document.getElementById('mobileFacilityFabSheet');
+                            const backdrop = document.getElementById('mobileFacilityFabBackdrop');
+                            const closeBtn = document.getElementById('mobileFacilityFabClose');
+                            const tourBtn = document.getElementById('mobileFabTourTriggerBtn');
+
+                            if (!trigger || !sheet || !backdrop) return;
+
+                            function openFab() {
+                                sheet.classList.add('open');
+                                backdrop.classList.add('open');
+                                trigger.setAttribute('aria-expanded', 'true');
+                                sheet.setAttribute('aria-hidden', 'false');
+                                document.body.style.overflow = 'hidden';
+                            }
+
+                            function closeFab() {
+                                sheet.classList.remove('open');
+                                backdrop.classList.remove('open');
+                                trigger.setAttribute('aria-expanded', 'false');
+                                sheet.setAttribute('aria-hidden', 'true');
+                                document.body.style.overflow = '';
+                            }
+
+                            trigger.addEventListener('click', function(e) {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                sheet.classList.contains('open') ? closeFab() : openFab();
+                            });
+
+                            if (closeBtn) {
+                                closeBtn.addEventListener('click', function(e) {
+                                    e.preventDefault();
+                                    closeFab();
+                                });
+                            }
+
+                            backdrop.addEventListener('click', closeFab);
+
+                            document.addEventListener('keydown', function(e) {
+                                if (e.key === 'Escape' && sheet.classList.contains('open')) {
+                                    closeFab();
+                                }
+                            });
+
+                            if (tourBtn) {
+                                tourBtn.addEventListener('click', function(e) {
+                                    e.preventDefault();
+                                    closeFab();
+                                    setTimeout(function() {
+                                        const fnName = tourBtn.getAttribute('data-tour-fn') || 'startMemberTour';
+                                        if (typeof window[fnName] === 'function') {
+                                            window[fnName](true);
+                                        }
+                                    }, 250);
+                                });
+                            }
+                        }
+
+                        if (document.readyState === 'loading') {
+                            document.addEventListener('DOMContentLoaded', initMobileFacilityFab);
+                        } else {
+                            initMobileFacilityFab();
+                        }
+                    })();
+                    </script>
+                <?php endif; ?>
                 <main class="shell">
                     <?php if ($user && $user['role'] === 'member' && array_key_exists('email_verified_at', $user) && !$user['email_verified_at']): ?>
                         <div class="panel" style="margin-bottom:16px;padding:12px 16px;display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:10px;border-left:3px solid var(--lime,#ccff00);">

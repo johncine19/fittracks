@@ -48,7 +48,10 @@
                 zIndex: 50,
                 allowClear: false,
                 onChange: null,
-                onSearch: null
+                onSearch: null,
+                customClass: '',
+                renderTrigger: null,
+                menuAlign: 'auto'
             }, options);
 
             this.wrap = typeof this.options.container === 'string'
@@ -97,6 +100,9 @@
 
         _initDOM() {
             this.wrap.classList.add('fit-dropdown-wrap');
+            if (this.options.customClass) {
+                this.wrap.classList.add(this.options.customClass);
+            }
             this.wrap.style.zIndex = this.baseZIndex;
 
             const inputId = this.options.id || ('fit_drop_' + Math.random().toString(36).substr(2, 9));
@@ -217,6 +223,12 @@
         }
 
         _renderTrigger() {
+            if (typeof this.options.renderTrigger === 'function') {
+                this.triggerContent.innerHTML = this.options.renderTrigger(this.selectedItem, this);
+                if (this.clearBtn) this.clearBtn.style.display = this.selectedItem ? 'block' : 'none';
+                return;
+            }
+
             if (this.selectedItem) {
                 let iconHtml = '';
                 if (this.selectedItem.avatar) {
@@ -348,6 +360,21 @@
             this.trigger.classList.add('open');
             this.trigger.setAttribute('aria-expanded', 'true');
             this.menu.style.display = 'block';
+
+            if (this.options.menuAlign === 'right') {
+                this.menu.style.left = 'auto';
+                this.menu.style.right = '0';
+            } else {
+                const rect = this.menu.getBoundingClientRect();
+                const viewportWidth = window.innerWidth || document.documentElement.clientWidth;
+                if (rect.right > viewportWidth) {
+                    this.menu.style.left = 'auto';
+                    this.menu.style.right = '0';
+                } else {
+                    this.menu.style.left = '0';
+                    this.menu.style.right = 'auto';
+                }
+            }
 
             if (this.searchInput) {
                 this.searchInput.value = '';
