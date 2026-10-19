@@ -2595,18 +2595,18 @@ function landing_page(): void
                         </div>
 
                         <div class="form-group">
-                            <label class="form-label">Full Name *</label>
+                            <label class="form-label">Full Name <span class="req-star">*</span></label>
                             <input type="text" name="full_name" class="form-input" placeholder="e.g. Alex Rivera" required>
                         </div>
 
                         <div class="form-grid-2">
                             <div class="form-group">
-                                <label class="form-label">Work Email *</label>
+                                <label class="form-label">Work Email <span class="req-star">*</span></label>
                                 <input type="email" name="work_email" class="form-input" placeholder="alex@yourgym.com"
                                     required>
                             </div>
                             <div class="form-group">
-                                <label class="form-label">Mobile Number *</label>
+                                <label class="form-label">Mobile Number <span class="req-star">*</span></label>
                                 <input type="tel" name="phone" class="form-input" placeholder="09123456789" required>
                             </div>
                         </div>

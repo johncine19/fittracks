@@ -52,6 +52,14 @@
     --transition-smooth: 0.4s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
+.req-star {
+    display: inline;
+    color: #ef4444 !important;
+    font-weight: 700;
+    margin-left: 2px;
+    line-height: 1;
+}
+
 /* ==========================================================================
    RESET & BASE STYLES
    ========================================================================== */

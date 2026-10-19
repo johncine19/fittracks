@@ -5370,9 +5370,9 @@ body.auth-body .auth-shell {
 /* Document Requirement Badges */
 .req-star {
     display: inline;
-    color: #ef4444;
+    color: #ef4444 !important;
     font-weight: 700;
-    margin-left: 1px;
+    margin-left: 2px;
     line-height: 1;
 }
 

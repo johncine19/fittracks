@@ -606,7 +606,7 @@ function setup_profile_page(): void
 
                         <!-- STEP 1: Core Stats -->
                         <div class="profile-step-pane active" id="pane-step-1">
-                            <label style="font-size: 13px; font-weight: 700; color: #0f172a; margin-bottom: 8px; display: block;">Biological Sex</label>
+                            <label style="font-size: 13px; font-weight: 700; color: #0f172a; margin-bottom: 8px; display: block;">Biological Sex <span class="req-star">*</span></label>
                             <div class="sex-select-grid">
                                 <label class="sex-card <?= $curSex === 'male' ? 'selected' : '' ?>" id="sex-male-btn">
                                     <input type="radio" name="biological_sex" value="male" <?= $curSex === 'male' ? 'checked' : '' ?>>
@@ -628,7 +628,7 @@ function setup_profile_page(): void
 
                             <div class="split-form-row-2col">
                                 <div class="split-form-group">
-                                    <label>Age (16–120)</label>
+                                    <label>Age (16–120) <span class="req-star">*</span></label>
                                     <div class="split-input-wrap auth-input-group input-with-unit">
                                         <svg class="split-input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                             <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 14 14"/>
@@ -639,7 +639,7 @@ function setup_profile_page(): void
                                 </div>
 
                                 <div class="split-form-group">
-                                    <label>Height (100–250)</label>
+                                    <label>Height (100–250) <span class="req-star">*</span></label>
                                     <div class="split-input-wrap auth-input-group input-with-unit">
                                         <svg class="split-input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                             <line x1="12" y1="5" x2="12" y2="19"/><polyline points="19 12 12 19 5 12"/>
@@ -651,7 +651,7 @@ function setup_profile_page(): void
                             </div>
 
                             <div class="split-form-group">
-                                <label>Current Weight (20–300)</label>
+                                <label>Current Weight (20–300) <span class="req-star">*</span></label>
                                 <div class="split-input-wrap auth-input-group input-with-unit">
                                     <svg class="split-input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                         <circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/>

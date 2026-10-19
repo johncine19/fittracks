@@ -2817,6 +2817,91 @@ document.addEventListener('DOMContentLoaded', function() {
 </script>
 HTML;
 
+    $requiredIndicatorScript = <<<HTML
+<script>
+(function() {
+    function injectRequiredAsterisks(root) {
+        var scope = (root && root.querySelectorAll) ? root : document;
+        var reqInputs = scope.querySelectorAll('input[required], select[required], textarea[required], [aria-required="true"]');
+        
+        reqInputs.forEach(function(input) {
+            if (input.type === 'hidden' || input.type === 'submit' || input.type === 'button') {
+                return;
+            }
+            
+            var label = null;
+            if (input.id) {
+                try {
+                    label = document.querySelector('label[for="' + CSS.escape(input.id) + '"]');
+                } catch(e) {}
+            }
+            if (!label) {
+                label = input.closest('label');
+            }
+            if (!label && input.parentElement) {
+                var group = input.closest('.form-group, .split-form-group, .form-row, .setup-pref-group, .input-group, div');
+                if (group) {
+                    label = group.querySelector('label');
+                }
+            }
+            
+            if (label) {
+                // Skip if already contains .req-star or text asterisk
+                if (label.querySelector('.req-star') || label.textContent.indexOf('*') !== -1) {
+                    return;
+                }
+                
+                var star = document.createElement('span');
+                star.className = 'req-star';
+                star.setAttribute('aria-hidden', 'true');
+                star.textContent = ' *';
+                
+                if (label.contains(input)) {
+                    label.insertBefore(star, input);
+                } else {
+                    label.appendChild(star);
+                }
+            }
+        });
+    }
+
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', function() {
+            injectRequiredAsterisks(document);
+        });
+    } else {
+        injectRequiredAsterisks(document);
+    }
+
+    var observer = new MutationObserver(function(mutations) {
+        for (var i = 0; i < mutations.length; i++) {
+            var m = mutations[i];
+            if (m.addedNodes && m.addedNodes.length) {
+                for (var j = 0; j < m.addedNodes.length; j++) {
+                    var node = m.addedNodes[j];
+                    if (node.nodeType === 1) {
+                        injectRequiredAsterisks(node);
+                    }
+                }
+            } else if (m.type === 'attributes' && m.attributeName === 'required') {
+                if (m.target && m.target.nodeType === 1) {
+                    injectRequiredAsterisks(m.target.parentElement || document);
+                }
+            }
+        }
+    });
+
+    if (document.body) {
+        observer.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['required'] });
+    } else {
+        document.addEventListener('DOMContentLoaded', function() {
+            observer.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['required'] });
+        });
+    }
+})();
+</script>
+HTML;
+
     $isAuthPage = defined('AUTH_PAGE') && AUTH_PAGE;
 
 
@@ -2833,6 +2918,7 @@ HTML;
         echo $confirmScript;
         echo $passwordScript;
         echo $skeletonScript;
+        echo $requiredIndicatorScript;
         echo '</body></html>';
         return;
     }
@@ -2841,6 +2927,7 @@ HTML;
     echo $confirmScript;
     echo $passwordScript;
     echo $skeletonScript;
+    echo $requiredIndicatorScript;
     echo '</body></html>';
 }
 

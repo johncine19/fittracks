@@ -366,7 +366,7 @@ function handle_login(): void
                         <?= csrf_field() ?>
 
                         <div class="split-form-group">
-                            <label>Email Address</label>
+                            <label>Email Address <span class="req-star">*</span></label>
                             <div class="split-input-wrap auth-input-group">
                                 <svg class="split-input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                                     <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
@@ -380,7 +380,7 @@ function handle_login(): void
                         </div>
 
                         <div class="split-form-group">
-                            <label>Password</label>
+                            <label>Password <span class="req-star">*</span></label>
                             <div class="split-input-wrap auth-input-group">
                                 <svg class="split-input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                                     <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>

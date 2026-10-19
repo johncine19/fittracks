@@ -184,7 +184,7 @@ function handle_reset_password(): void
                         <?= csrf_field() ?>
 
                         <div class="split-form-group">
-                            <label>6-Digit OTP Code</label>
+                            <label>6-Digit OTP Code <span class="req-star">*</span></label>
                             <div class="split-input-wrap auth-input-group">
                                 <svg class="split-input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                                     <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
@@ -199,7 +199,7 @@ function handle_reset_password(): void
                         </div>
 
                         <div class="split-form-group">
-                            <label>New Passcode</label>
+                            <label>New Passcode <span class="req-star">*</span></label>
                             <div class="split-input-wrap auth-input-group">
                                 <svg class="split-input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                                     <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>

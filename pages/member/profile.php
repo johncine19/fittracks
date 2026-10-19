@@ -1470,10 +1470,10 @@ function profile_page(): void
                             <input type="file" name="profile_picture" accept="image/*">
                         </label>
                     </div>
-                    <label>First name <input name="first_name" required value="<?= h($user['first_name']) ?>" autocapitalize="words" style="text-transform: capitalize;" onblur="this.value = this.value.trim().replace(/\b\w/g, l => l.toUpperCase())"></label>
-                    <label>Last name <input name="last_name" required value="<?= h($user['last_name']) ?>" autocapitalize="words" style="text-transform: capitalize;" onblur="this.value = this.value.trim().replace(/\b\w/g, l => l.toUpperCase())"></label>
-                    <label>Email <input type="email" name="email" required value="<?= h($user['email']) ?>" style="text-transform: lowercase;" oninput="this.value = this.value.toLowerCase()" onblur="this.value = this.value.trim().toLowerCase()"></label>
-                    <label>Mobile Number * <input name="phone" type="tel" pattern="[0-9]{11}" maxlength="11" required title="Please enter exactly 11 digits" placeholder="09123456789" value="<?= h($user['phone'] ?? '') ?>" oninput="this.value=this.value.replace(/[^0-9]/g,'').slice(0,11)"></label>
+                    <label>First name <span class="req-star">*</span> <input name="first_name" required value="<?= h($user['first_name']) ?>" autocapitalize="words" style="text-transform: capitalize;" onblur="this.value = this.value.trim().replace(/\b\w/g, l => l.toUpperCase())"></label>
+                    <label>Last name <span class="req-star">*</span> <input name="last_name" required value="<?= h($user['last_name']) ?>" autocapitalize="words" style="text-transform: capitalize;" onblur="this.value = this.value.trim().replace(/\b\w/g, l => l.toUpperCase())"></label>
+                    <label>Email <span class="req-star">*</span> <input type="email" name="email" required value="<?= h($user['email']) ?>" style="text-transform: lowercase;" oninput="this.value = this.value.toLowerCase()" onblur="this.value = this.value.trim().toLowerCase()"></label>
+                    <label>Mobile Number <span class="req-star">*</span> <input name="phone" type="tel" pattern="[0-9]{11}" maxlength="11" required title="Please enter exactly 11 digits" placeholder="09123456789" value="<?= h($user['phone'] ?? '') ?>" oninput="this.value=this.value.replace(/[^0-9]/g,'').slice(0,11)"></label>
                     <label style="grid-column:1/-1">New password
                         <input type="password" name="password" placeholder="Leave blank to keep current">
                         <small class="muted" style="font-weight:400;">Min. 8 characters, with a letter and a number.</small>
