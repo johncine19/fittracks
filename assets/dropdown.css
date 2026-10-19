@@ -102,7 +102,7 @@
     left: 0;
     min-width: 100%;
     width: max-content;
-    max-width: min(380px, 92vw);
+    max-width: min(380px, calc(100vw - 20px));
     box-sizing: border-box;
     background: #0f172a !important; /* Solid opaque dark surface - no transparency */
     opacity: 1 !important;

@@ -138,8 +138,6 @@ function gym_applications_page(): void
     }
     unset($app);
 
-    $allPolicyIdTypes = get_verification_id_types(false);
-
     render_header('Gym Applications', $user);
 ?>
     <style>
@@ -828,17 +826,6 @@ function gym_applications_page(): void
                 <h1>Gym Applications <?php if (count($applications) > 0): ?><span class="pending-count-badge"><?= count($applications) ?> Pending</span><?php endif; ?></h1>
                 <p>Review and approve pending gym registrations.</p>
             </div>
-            <div class="page-header-actions">
-                <button type="button" class="btn btn-secondary" onclick="document.getElementById('idPolicyModal').showModal()" style="display:inline-flex; align-items:center; gap:8px; font-weight:600; padding: 8px 14px; border-radius: 8px; font-size: 13px;">
-                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
-                        <line x1="16" y1="2" x2="16" y2="6"/>
-                        <line x1="8" y1="2" x2="8" y2="6"/>
-                        <line x1="3" y1="10" x2="21" y2="10"/>
-                    </svg>
-                    ID Verification Policy
-                </button>
-            </div>
         </div>
 
         <?php if (!empty($applications)): ?>
@@ -1190,119 +1177,9 @@ function gym_applications_page(): void
                 Showing <strong>1</strong> to <strong><?= min(10, count($applications)) ?></strong> of <strong><?= count($applications) ?></strong> applications
             </div>
             <div id="appPaginationControls" class="app-pagination-controls"></div>
-        </div>
         <?php endif; ?>
     </section>
 
-    <!-- ID Verification Policy Modal -->
-    <dialog id="idPolicyModal" class="modal" style="max-width: 780px;">
-        <div class="modal-header">
-            <div>
-                <h3 style="display:flex; align-items:center; gap:8px;">
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
-                        <line x1="16" y1="2" x2="16" y2="6"/>
-                        <line x1="8" y1="2" x2="8" y2="6"/>
-                        <line x1="3" y1="10" x2="21" y2="10"/>
-                    </svg>
-                    ID Verification Policy Configuration
-                </h3>
-                <p style="margin: 4px 0 0; font-size: 13px; color: var(--muted);">
-                    Configure accepted gym owner IDs and whether an additional supporting ID is required.
-                </p>
-            </div>
-            <button type="button" class="modal-close" onclick="document.getElementById('idPolicyModal').close()" aria-label="Close">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <line x1="18" y1="6" x2="6" y2="18"></line>
-                    <line x1="6" y1="6" x2="18" y2="18"></line>
-                </svg>
-            </button>
-        </div>
-        <div class="modal-body" style="padding: 20px 24px; max-height: 75vh; overflow-y: auto;">
-            <!-- Informational banner -->
-            <div style="background: rgba(132, 204, 22, 0.08); border: 1px solid rgba(132, 204, 22, 0.25); border-radius: 8px; padding: 12px 16px; margin-bottom: 20px; font-size: 13px; line-height: 1.5; color: var(--ink);">
-                <strong>Classification Rules:</strong><br>
-                • <strong>Primary IDs</strong>: 1 ID upload is sufficient to verify gym owner identity.<br>
-                • <strong>Secondary IDs</strong>: Require 1 additional supporting ID (Primary or another Secondary, non-duplicate).
-            </div>
-
-            <!-- Existing IDs Table -->
-            <div style="overflow-x: auto; border: 1px solid var(--line); border-radius: 8px;">
-                <table style="width: 100%; border-collapse: collapse; font-size: 13px; margin: 0;">
-                    <thead>
-                        <tr style="background: rgba(255,255,255,0.03); border-bottom: 1px solid var(--line); text-align: left;">
-                            <th style="padding: 10px 14px; font-weight: 600;">Accepted ID Document</th>
-                            <th style="padding: 10px 14px; font-weight: 600;">Classification</th>
-                            <th style="padding: 10px 14px; font-weight: 600; text-align: center;">Status</th>
-                            <th style="padding: 10px 14px; font-weight: 600; text-align: right;">Action</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <?php foreach ($allPolicyIdTypes as $pType): 
-                            $typeId = (int)($pType['id'] ?? $pType['id_type_id'] ?? 0);
-                        ?>
-                        <tr style="border-bottom: 1px solid color-mix(in srgb, var(--line) 40%, transparent);">
-                            <td style="padding: 10px 14px; vertical-align: middle;">
-                                <div style="font-weight: 600; color: var(--ink);"><?= h($pType['id_name']) ?></div>
-                                <div style="font-size: 11px; color: var(--muted); font-family: monospace;"><?= h($pType['id_code']) ?></div>
-                            </td>
-                            <td style="padding: 10px 14px; vertical-align: middle;">
-                                <form id="policy-form-<?= $typeId ?>" method="post" action="index.php?page=gym_applications" style="margin: 0;">
-                                    <?= csrf_field() ?>
-                                    <input type="hidden" name="action" value="update_id_policy">
-                                    <input type="hidden" name="id_type_id" value="<?= $typeId ?>">
-                                </form>
-                                <select name="category" form="policy-form-<?= $typeId ?>" class="form-control" style="padding: 5px 8px; font-size: 12px; border-radius: 6px; background: var(--bg); color: var(--ink); border: 1px solid var(--line);">
-                                    <option value="primary" <?= $pType['category'] === 'primary' ? 'selected' : '' ?>>Primary (1 ID sufficient)</option>
-                                    <option value="secondary" <?= $pType['category'] === 'secondary' ? 'selected' : '' ?>>Secondary (Requires +1 ID)</option>
-                                </select>
-                            </td>
-                            <td style="padding: 10px 14px; vertical-align: middle; text-align: center;">
-                                <label style="display: inline-flex; align-items: center; gap: 6px; cursor: pointer; font-size: 12px; margin: 0;">
-                                    <input type="checkbox" name="is_active" value="1" form="policy-form-<?= $typeId ?>" <?= !empty($pType['is_active']) ? 'checked' : '' ?>>
-                                    <span>Active</span>
-                                </label>
-                            </td>
-                            <td style="padding: 10px 14px; vertical-align: middle; text-align: right;">
-                                <button type="submit" form="policy-form-<?= $typeId ?>" class="btn-sm btn-primary" style="padding: 4px 12px; font-size: 12px; border-radius: 6px; cursor: pointer;">
-                                    Save
-                                </button>
-                            </td>
-                        </tr>
-                        <?php endforeach; ?>
-                    </tbody>
-                </table>
-            </div>
-
-            <!-- Add New ID Form -->
-            <div style="margin-top: 20px; padding: 16px; background: rgba(255,255,255,0.02); border: 1px dashed var(--line); border-radius: 8px;">
-                <h4 style="margin: 0 0 10px 0; font-size: 13px; font-weight: 600; color: var(--ink); display: flex; align-items: center; gap: 6px;">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-                    Add New Accepted Government ID
-                </h4>
-                <form method="post" action="index.php?page=gym_applications" style="display: flex; gap: 10px; align-items: flex-end; flex-wrap: wrap; margin: 0;">
-                    <?= csrf_field() ?>
-                    <input type="hidden" name="action" value="add_id_type">
-                    <div style="flex: 1; min-width: 220px;">
-                        <label style="font-size: 11px; color: var(--muted); margin-bottom: 4px; display: block;">ID Document Name *</label>
-                        <input type="text" name="new_id_name" class="form-control" placeholder="e.g. Alien Certificate of Registration (ACR)" required style="padding: 6px 10px; font-size: 12px; border-radius: 6px;">
-                    </div>
-                    <div style="width: 200px;">
-                        <label style="font-size: 11px; color: var(--muted); margin-bottom: 4px; display: block;">Classification *</label>
-                        <select name="new_category" class="form-control" style="padding: 6px 10px; font-size: 12px; border-radius: 6px;">
-                            <option value="primary">Primary (1 ID sufficient)</option>
-                            <option value="secondary" selected>Secondary (Requires +1 ID)</option>
-                        </select>
-                    </div>
-                    <div>
-                        <button type="submit" class="btn btn-primary" style="padding: 7px 14px; font-size: 12px; font-weight: 600; border-radius: 6px;">
-                            + Add ID
-                        </button>
-                    </div>
-                </form>
-            </div>
-        </div>
-    </dialog>
     <script>
     function toggleDocDropdown(gymId, event) {
         if (event) {
@@ -1643,21 +1520,6 @@ function gym_applications_page(): void
     document.addEventListener('DOMContentLoaded', initAppPagination);
     if (document.readyState === 'interactive' || document.readyState === 'complete') {
         initAppPagination();
-    }
-
-    const idPolicyModal = document.getElementById('idPolicyModal');
-    if (idPolicyModal) {
-        idPolicyModal.addEventListener('click', function(e) {
-            const rect = idPolicyModal.getBoundingClientRect();
-            if (
-                e.clientX < rect.left ||
-                e.clientX > rect.right ||
-                e.clientY < rect.top ||
-                e.clientY > rect.bottom
-            ) {
-                idPolicyModal.close();
-            }
-        });
     }
     </script>
 <?php

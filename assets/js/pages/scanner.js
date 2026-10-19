@@ -22,7 +22,8 @@
         const viewfinderWrap = document.getElementById('viewfinder-wrap');
         const standbyScreen = document.getElementById('standby-screen');
         const btnStartCamera = document.getElementById('btn-start-camera');
-        const cameraSelect = document.getElementById('camera-select');
+        const cameraDropdownContainer = document.getElementById('camera-select-dropdown');
+        let cameraDropdown = null;
         const btnFlipCam = document.getElementById('btn-flip-cam');
         const btnToggleTorch = document.getElementById('btn-toggle-torch');
         const btnPauseScanner = document.getElementById('btn-pause-scanner');
@@ -60,6 +61,23 @@
         const btnOfflineSync = document.getElementById('btn-offline-sync');
         const offlinePendingCount = document.getElementById('offline-pending-count');
         const rosterCacheText = document.getElementById('roster-cache-text');
+
+        // Manual Entry Elements & Roster Cache
+        const manualModal = document.getElementById('manual-modal');
+        const manualSearchInput = document.getElementById('manual-search-input');
+        const manualResultsList = document.getElementById('manual-results-list');
+        let manualRosterCache = [];
+        let searchDebounceTimer = null;
+
+        function escapeHtml(str) {
+            if (str === null || str === undefined) return '';
+            return String(str)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#039;');
+        }
 
         // -------------------------------------------------------------
         // FitTracks Offline-First Resilience & PWA Manager (IndexedDB)
@@ -162,6 +180,7 @@
                 const res = await fetch('index.php?page=scanner&action=get_offline_roster');
                 const data = await res.json();
                 if (data.success && Array.isArray(data.members)) {
+                    manualRosterCache = data.members;
                     const db = await getDB();
                     const tx = db.transaction('roster', 'readwrite');
                     const store = tx.objectStore('roster');
@@ -353,6 +372,13 @@
                 if (member) {
                     member.is_inside = !isCheckOut;
                     tx.objectStore('roster').put(member);
+                    if (manualRosterCache && manualRosterCache.length > 0) {
+                        const target = manualRosterCache.find(it => parseInt(it.user_id, 10) === parseInt(member.user_id, 10));
+                        if (target) {
+                            target.is_inside = !isCheckOut;
+                            target.duration = !isCheckOut ? 'Just now' : null;
+                        }
+                    }
                 }
                 await new Promise((res) => { tx.oncomplete = res; });
             } catch (e) {
@@ -418,7 +444,6 @@
         }
 
         async function searchOfflineRoster(query) {
-            manualResultsList.innerHTML = '<div style="text-align:center; padding: 20px; color: var(--muted);">Searching offline cache...</div>';
             try {
                 const db = await getDB();
                 const tx = db.transaction('roster', 'readonly');
@@ -428,48 +453,26 @@
                     req.onerror = rej;
                 });
 
-                const q = query.trim().toLowerCase();
+                if (allMembers && allMembers.length > 0) {
+                    manualRosterCache = allMembers;
+                }
+
+                const q = (query || '').trim().toLowerCase();
                 const filtered = q.length === 0
-                    ? allMembers.slice(0, 15)
+                    ? allMembers.slice(0, 50)
                     : allMembers.filter(m => {
                         const name = (m.name || '').toLowerCase();
                         const email = (m.email || '').toLowerCase();
                         const phone = (m.phone || '').toLowerCase();
-                        return name.includes(q) || email.includes(q) || phone.includes(q);
-                    }).slice(0, 15);
+                        const role = (m.role || '').toLowerCase();
+                        return name.includes(q) || email.includes(q) || phone.includes(q) || role.includes(q);
+                    }).slice(0, 50);
 
-                if (filtered.length === 0) {
-                    manualResultsList.innerHTML = '<div style="text-align:center; padding: 25px; color: var(--muted);">No matching members found in offline cache.</div>';
-                    return;
-                }
-
-                manualResultsList.innerHTML = '';
-                filtered.forEach(m => {
-                    const row = document.createElement('div');
-                    row.className = 'manual-item';
-                    const safeName = typeof escapeHtml === 'function' ? escapeHtml(m.name) : m.name;
-                    const safeRole = typeof escapeHtml === 'function' ? escapeHtml(m.role) : m.role;
-                    const insideBadge = m.is_inside ? `<span style="display:inline-block; margin-top:2px; font-size:0.7rem; font-weight:700; color:#38bdf8;">Currently Inside (Offline Cache)</span>` : '';
-
-                    row.innerHTML = `
-                        <div style="display:flex; align-items:center; gap:12px; min-width:0; flex:1;">
-                            ${m.avatar_html}
-                            <div style="min-width:0;">
-                                <p style="margin:0; font-weight:700; color:var(--ink); font-size:0.9rem; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${safeName}</p>
-                                <div style="font-size:0.75rem; color:var(--muted);">${safeRole}</div>
-                                ${insideBadge}
-                            </div>
-                        </div>
-                        <div style="flex-shrink:0;">
-                            <button type="button" class="btn-manual-action ${m.is_inside ? 'checkout' : 'checkin'}" onclick="submitManualAttendance(${parseInt(m.user_id, 10)})">
-                                ${m.is_inside ? 'Check-Out' : 'Check-In'}
-                            </button>
-                        </div>
-                    `;
-                    manualResultsList.appendChild(row);
-                });
+                renderMembersList(filtered, q.length === 0 ? 'No members or trainers found in offline cache.' : 'No matching members or trainers found in offline cache.');
             } catch (err) {
-                manualResultsList.innerHTML = '<div style="text-align:center; padding: 25px; color: var(--danger);">Failed to read offline database.</div>';
+                if (manualResultsList) {
+                    manualResultsList.innerHTML = '<div style="text-align:center; padding: 25px; color: var(--danger);">Failed to read offline database.</div>';
+                }
             }
         }
 
@@ -551,7 +554,7 @@
                 }
 
                 currentCameraId = cameraIdToUse;
-                cameraSelect.value = currentCameraId;
+                if (cameraDropdown) cameraDropdown.select(currentCameraId, false);
 
                 // Stop active stream before restarting
                 if (isScannerRunning) {
@@ -585,7 +588,7 @@
                         console.warn("Virtual camera failed, auto-failing over to physical webcam:", physicalFallback.label);
                         cameraIdToUse = physicalFallback.id;
                         currentCameraId = cameraIdToUse;
-                        cameraSelect.value = currentCameraId;
+                        if (cameraDropdown) cameraDropdown.select(currentCameraId, false);
                         localStorage.setItem('fittracks_scanner_cam', currentCameraId);
                         await html5QrCode.start(
                             cameraIdToUse,
@@ -646,12 +649,29 @@
         }
 
         function populateCameraSelect(cameras) {
-            cameraSelect.innerHTML = '';
-            cameras.forEach((cam, idx) => {
-                const opt = document.createElement('option');
-                opt.value = cam.id;
-                opt.textContent = cam.label || `Camera ${idx + 1}`;
-                cameraSelect.appendChild(opt);
+            if (!cameraDropdownContainer || typeof FitDropdown === 'undefined') return;
+
+            const items = cameras.map((cam, idx) => ({
+                id: cam.id,
+                label: cam.label || `Camera ${idx + 1}`
+            }));
+
+            if (cameraDropdown) {
+                cameraDropdown.setItems(items);
+                return;
+            }
+
+            cameraDropdown = new FitDropdown({
+                container: cameraDropdownContainer,
+                id: 'camera-select',
+                placeholder: 'Detecting cameras...',
+                items,
+                menuAlign: 'left',
+                onChange(selectedCamera) {
+                    if (!selectedCamera) return;
+                    localStorage.setItem('fittracks_scanner_cam', selectedCamera.id);
+                    startCameraScanner(selectedCamera.id);
+                }
             });
         }
 
@@ -848,6 +868,16 @@
             const isCheckIn = data.action_type === 'checkin';
             const m = data.member;
 
+            // Sync inside status with local roster cache
+            if (m && m.user_id && manualRosterCache && manualRosterCache.length > 0) {
+                const uId = parseInt(m.user_id, 10);
+                const target = manualRosterCache.find(it => parseInt(it.user_id, 10) === uId);
+                if (target) {
+                    target.is_inside = isCheckIn;
+                    target.duration = isCheckIn ? 'Just now' : null;
+                }
+            }
+
             veriCard.className = 'verification-card ' + (isCheckIn ? 'state-success-in' : 'state-success-out');
             veriTag.className = 'veri-status-tag ' + (isCheckIn ? 'tag-in' : 'tag-out');
             veriTagText.textContent = isCheckIn ? 'CHECK-IN CONFIRMED' : 'CHECK-OUT RECORDED';
@@ -1003,15 +1033,6 @@
                 });
         });
 
-        // Camera Select Dropdown Change
-        cameraSelect.addEventListener('change', function() {
-            const selectedId = this.value;
-            if (selectedId) {
-                localStorage.setItem('fittracks_scanner_cam', selectedId);
-                startCameraScanner(selectedId);
-            }
-        });
-
         // Flip Camera Button
         btnFlipCam.addEventListener('click', function() {
             if (availableCameras.length < 2) return;
@@ -1148,76 +1169,167 @@
             }
         });
 
-        // Manual Entry Modal
-        let searchDebounceTimer = null;
-        const manualModal = document.getElementById('manual-modal');
-        const manualSearchInput = document.getElementById('manual-search-input');
-        const manualResultsList = document.getElementById('manual-results-list');
+        // -------------------------------------------------------------
+        // Hybrid Search & Manual Attendance Modal Logic
+        // -------------------------------------------------------------
+        function renderMembersList(members, emptyMessage) {
+            if (!manualResultsList) return;
+            if (!members || members.length === 0) {
+                manualResultsList.innerHTML = `<div style="text-align:center; padding: 35px 15px; color: var(--muted); font-size: 0.9rem;">${escapeHtml(emptyMessage || 'No matching members or trainers found.')}</div>`;
+                return;
+            }
+
+            manualResultsList.innerHTML = '';
+            members.forEach(m => {
+                const row = document.createElement('div');
+                row.className = 'manual-item';
+                const safeName = escapeHtml(m.name || 'Unknown');
+                const roleLower = (m.role || 'Member').toLowerCase();
+                const isTrainer = roleLower.includes('trainer');
+
+                const roleClass = isTrainer ? 'trainer' : 'member';
+                const roleLabel = isTrainer ? 'TRAINER' : 'MEMBER';
+                const roleBadge = `<span class="manual-role-badge ${roleClass}">${roleLabel}</span>`;
+
+                const contact = m.email || (m.phone && m.phone !== 'N/A' ? m.phone : '');
+                const safeContact = contact ? escapeHtml(contact) : '';
+                const safeDuration = m.duration ? escapeHtml(m.duration) : '';
+
+                let subRowHtml = '';
+                if (m.is_inside) {
+                    subRowHtml = `
+                        <span class="manual-status-inside">
+                            <span class="inside-dot"></span>
+                            Inside${safeDuration ? ` (${safeDuration})` : ''}
+                        </span>
+                        ${safeContact ? `<span class="manual-sub-sep">•</span><span class="manual-sub-contact">${safeContact}</span>` : ''}
+                    `;
+                } else {
+                    subRowHtml = `<span class="manual-sub-contact">${safeContact || 'Active'}</span>`;
+                }
+
+                row.innerHTML = `
+                    <div class="manual-item-main">
+                        <div style="flex-shrink:0;">${m.avatar_html || '<div class="avatar-ph"></div>'}</div>
+                        <div class="manual-item-info">
+                            <div class="manual-item-title-row">
+                                <span class="manual-item-name">${safeName}</span>
+                                ${roleBadge}
+                            </div>
+                            <div class="manual-item-sub-row">
+                                ${subRowHtml}
+                            </div>
+                        </div>
+                    </div>
+                    <div style="flex-shrink:0;">
+                        <button type="button" class="btn-manual-action ${m.is_inside ? 'checkout' : 'checkin'}" onclick="submitManualAttendance(${parseInt(m.user_id, 10)})">
+                            ${m.is_inside ? 'Check-Out' : 'Check-In'}
+                        </button>
+                    </div>
+                `;
+                manualResultsList.appendChild(row);
+            });
+        }
 
         window.openManualModal = function() {
+            if (!manualModal) return;
             manualModal.classList.add('open');
-            manualSearchInput.value = '';
-            manualSearchInput.focus();
-            fetchMemberSearch('');
+            if (manualSearchInput) {
+                manualSearchInput.value = '';
+                manualSearchInput.focus();
+            }
+
+            // 1. Instantly render from local cache if we already have members (0ms latency!)
+            if (manualRosterCache && manualRosterCache.length > 0) {
+                renderMembersList(manualRosterCache);
+            } else {
+                if (manualResultsList) {
+                    manualResultsList.innerHTML = '<div style="text-align:center; padding: 30px; color: var(--muted);"><span class="scanner-spinner"></span> Loading members &amp; trainers...</div>';
+                }
+            }
+
+            // 2. Fetch fresh roster / attendance state from server or offline DB in background
+            fetchMemberSearch('', true);
         };
 
         window.closeManualModal = function() {
-            manualModal.classList.remove('open');
+            if (manualModal) {
+                manualModal.classList.remove('open');
+            }
         };
 
-        manualSearchInput.addEventListener('input', function() {
-            clearTimeout(searchDebounceTimer);
-            const val = this.value.trim();
-            searchDebounceTimer = setTimeout(() => {
-                fetchMemberSearch(val);
-            }, 250);
-        });
+        if (manualSearchInput) {
+            manualSearchInput.addEventListener('input', function() {
+                clearTimeout(searchDebounceTimer);
+                const val = this.value.trim();
 
-        function fetchMemberSearch(query) {
-            manualResultsList.innerHTML = '<div style="text-align:center; padding: 20px; color: var(--muted);">Searching members...</div>';
-            
+                // 1. Instant client-side hybrid search (0ms instant response)
+                if (manualRosterCache && manualRosterCache.length > 0) {
+                    if (!val) {
+                        renderMembersList(manualRosterCache);
+                    } else {
+                        const low = val.toLowerCase();
+                        const clientMatches = manualRosterCache.filter(m => {
+                            const name = (m.name || '').toLowerCase();
+                            const email = (m.email || '').toLowerCase();
+                            const phone = (m.phone || '').toLowerCase();
+                            const role = (m.role || '').toLowerCase();
+                            return name.includes(low) || email.includes(low) || phone.includes(low) || role.includes(low);
+                        });
+                        if (clientMatches.length > 0) {
+                            renderMembersList(clientMatches);
+                        }
+                    }
+                }
+
+                // 2. Debounced server fetch for complete match & fresh attendance state
+                searchDebounceTimer = setTimeout(() => {
+                    fetchMemberSearch(val, false);
+                }, 200);
+            });
+        }
+
+        function fetchMemberSearch(query, isInitial = false) {
             if (!isNetworkOnline) {
                 searchOfflineRoster(query);
                 return;
             }
 
+            if (!isInitial && manualSearchInput && manualSearchInput.value.trim() !== '' && (!manualRosterCache || manualRosterCache.length === 0)) {
+                if (manualResultsList) {
+                    manualResultsList.innerHTML = '<div style="text-align:center; padding: 25px; color: var(--muted);"><span class="scanner-spinner"></span> Searching...</div>';
+                }
+            }
+
             fetch('index.php?page=scanner&action=search_members&q=' + encodeURIComponent(query))
                 .then(r => r.json())
                 .then(data => {
-                    if (!data.success || !data.members || data.members.length === 0) {
-                        manualResultsList.innerHTML = '<div style="text-align:center; padding: 25px; color: var(--muted);">No matching members found.</div>';
+                    // Prevent race condition if user continued typing
+                    const currentVal = manualSearchInput ? manualSearchInput.value.trim() : '';
+                    if (currentVal !== query) {
                         return;
                     }
 
-                    manualResultsList.innerHTML = '';
-                    data.members.forEach(m => {
-                        const row = document.createElement('div');
-                        row.className = 'manual-item';
-                        const safeName = typeof escapeHtml === 'function' ? escapeHtml(m.name) : m.name;
-                        const safeRole = typeof escapeHtml === 'function' ? escapeHtml(m.role) : m.role;
-                        const safeDuration = m.duration && typeof escapeHtml === 'function' ? escapeHtml(m.duration) : m.duration;
-                        const insideBadge = m.is_inside ? `<span style="display:inline-block; margin-top:2px; font-size:0.7rem; font-weight:700; color:#38bdf8;">Currently Inside (${safeDuration || 'Active'})</span>` : '';
+                    if (!data.success || !data.members || data.members.length === 0) {
+                        if (query === '') {
+                            renderMembersList([], 'No active members or trainers registered to this gym.');
+                        } else {
+                            renderMembersList([], 'No matching members or trainers found.');
+                        }
+                        return;
+                    }
 
-                        row.innerHTML = `
-                            <div style="display:flex; align-items:center; gap:12px; min-width:0; flex:1;">
-                                ${m.avatar_html}
-                                <div style="min-width:0;">
-                                    <p style="margin:0; font-weight:700; color:var(--ink); font-size:0.9rem; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${safeName}</p>
-                                    <div style="font-size:0.75rem; color:var(--muted);">${safeRole}</div>
-                                    ${insideBadge}
-                                </div>
-                            </div>
-                            <div style="flex-shrink:0;">
-                                <button type="button" class="btn-manual-action ${m.is_inside ? 'checkout' : 'checkin'}" onclick="submitManualAttendance(${parseInt(m.user_id, 10)})">
-                                    ${m.is_inside ? 'Check-Out' : 'Check-In'}
-                                </button>
-                            </div>
-                        `;
-                        manualResultsList.appendChild(row);
-                    });
+                    if (query === '') {
+                        manualRosterCache = data.members;
+                    }
+
+                    renderMembersList(data.members);
                 })
                 .catch(() => {
-                    searchOfflineRoster(query);
+                    const currentVal = manualSearchInput ? manualSearchInput.value.trim() : '';
+                    if (currentVal === query) {
+                        searchOfflineRoster(query);
+                    }
                 });
         }
 
@@ -1237,6 +1349,14 @@
             .then(r => r.json())
             .then(data => {
                 if (data.success) {
+                    // Update inside status in cached roster
+                    if (manualRosterCache && manualRosterCache.length > 0) {
+                        const target = manualRosterCache.find(it => parseInt(it.user_id, 10) === parseInt(userId, 10));
+                        if (target) {
+                            target.is_inside = (data.action_type === 'checkin');
+                            target.duration = data.action_type === 'checkin' ? 'Just now' : null;
+                        }
+                    }
                     handleSuccessResponse(data);
                 } else {
                     showErrorResult('Manual Attendance Failed', data.message);
@@ -1248,6 +1368,23 @@
                 queueOfflineScan(userId, 'manual');
             });
         };
+
+        // Pre-warm manual roster cache from IndexedDB on startup
+        (async function preWarmManualRoster() {
+            try {
+                const db = await getDB();
+                const tx = db.transaction('roster', 'readonly');
+                const req = tx.objectStore('roster').getAll();
+                req.onsuccess = () => {
+                    if (req.result && req.result.length > 0 && manualRosterCache.length === 0) {
+                        manualRosterCache = req.result;
+                    }
+                };
+            } catch (e) {}
+        })();
+
+        // Render the loading state before device discovery completes.
+        populateCameraSelect([]);
 
         // Auto-check for cameras and prompt on page load
         Html5Qrcode.getCameras().then(devices => {

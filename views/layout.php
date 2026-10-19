@@ -84,6 +84,7 @@ function render_header(string $title, ?array $user = null): void
                 'qr_attendance' => 'My QR',
                 'trainer_members' => 'Clients',
                 'training' => 'Workouts',
+                'food_library' => 'Food Library',
                 'classes' => 'My Classes',
                 'my_commissions' => 'Commissions',
             ];
@@ -1907,6 +1908,16 @@ function render_header(string $title, ?array $user = null): void
                                     'title' => $pendingGyms . ' pending gym applications'
                                 ];
                             }
+                            try {
+                                $pendingFoods = (int) scalar("SELECT COUNT(*) FROM food_items WHERE verification_status = 'unverified' AND source = 'custom'");
+                                if ($pendingFoods > 0) {
+                                    $sidebarBadges['food_library'] = [
+                                        'text' => (string) $pendingFoods,
+                                        'class' => 'sidebar-nav-badge sidebar-badge-alert',
+                                        'title' => $pendingFoods . ' unverified custom foods awaiting review'
+                                    ];
+                                }
+                            } catch (Throwable) {}
                         }
                     }
                 ?>

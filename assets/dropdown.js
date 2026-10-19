@@ -346,6 +346,7 @@
         _filterList(query) {
             this.activeIndex = -1;
             this._renderList(query);
+            this._adjustMenuPosition();
         }
 
         open() {
@@ -361,21 +362,6 @@
             this.trigger.setAttribute('aria-expanded', 'true');
             this.menu.style.display = 'block';
 
-            if (this.options.menuAlign === 'right') {
-                this.menu.style.left = 'auto';
-                this.menu.style.right = '0';
-            } else {
-                const rect = this.menu.getBoundingClientRect();
-                const viewportWidth = window.innerWidth || document.documentElement.clientWidth;
-                if (rect.right > viewportWidth) {
-                    this.menu.style.left = 'auto';
-                    this.menu.style.right = '0';
-                } else {
-                    this.menu.style.left = '0';
-                    this.menu.style.right = 'auto';
-                }
-            }
-
             if (this.searchInput) {
                 this.searchInput.value = '';
                 if (this.searchBadge) this.searchBadge.textContent = '';
@@ -386,6 +372,44 @@
                 setTimeout(() => this.searchInput.focus(), 50);
             } else {
                 this._renderList('');
+            }
+
+            this._adjustMenuPosition();
+        }
+
+        _adjustMenuPosition() {
+            if (!this.isOpen || !this.menu) return;
+
+            const viewportWidth = window.innerWidth || document.documentElement.clientWidth;
+            this.menu.style.maxWidth = `min(380px, calc(${viewportWidth}px - 20px))`;
+
+            if (this.options.menuAlign === 'right') {
+                this.menu.style.left = 'auto';
+                this.menu.style.right = '0';
+            } else if (this.options.menuAlign === 'left') {
+                this.menu.style.left = '0';
+                this.menu.style.right = 'auto';
+            } else {
+                // Auto position: check if aligning left would overflow viewport
+                const wrapRect = this.wrap.getBoundingClientRect();
+                const menuWidth = this.menu.offsetWidth || 300;
+
+                if (wrapRect.left + menuWidth > viewportWidth - 12) {
+                    this.menu.style.left = 'auto';
+                    this.menu.style.right = '0';
+                } else {
+                    this.menu.style.left = '0';
+                    this.menu.style.right = 'auto';
+                }
+            }
+
+            // Ensure menu does not overflow left edge of screen
+            const finalRect = this.menu.getBoundingClientRect();
+            if (finalRect.left < 10) {
+                const shift = 10 - finalRect.left;
+                if (this.menu.style.right === '0px' || this.menu.style.right === '0') {
+                    this.menu.style.right = `-${shift}px`;
+                }
             }
         }
 

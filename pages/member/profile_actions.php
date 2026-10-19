@@ -177,7 +177,38 @@ function handle_profile_post_actions(array $user, ?array $profile, bool $is_memb
             $submittedSettings = array_map(static fn($value) => trim((string)$value), $submittedSettings);
             audit_log((int)$user['user_id'], 'edit', 'platform_settings', null, json_encode($submittedSettings));
             flash('Platform settings updated successfully.', 'success');
-            redirect('profile');
+            redirect('profile&tab=platform_settings');
+        } elseif ((isset($_POST['action']) && in_array($_POST['action'], ['update_id_policy', 'add_id_type'], true)) && $user['role'] === 'platform_admin') {
+            require_once __DIR__ . '/../../core/verification_policy.php';
+            $action = post('action');
+            $pdo = db();
+
+            if ($action === 'update_id_policy') {
+                $idTypeId = (int) post('id_type_id');
+                $category = post('category') === 'secondary' ? 'secondary' : 'primary';
+                $isActive = post('is_active') ? 1 : 0;
+                update_id_type_policy($idTypeId, $category, $isActive);
+                audit_log((int)$user['user_id'], 'edit', 'id_verification_policy', (string)$idTypeId, "Updated ID policy {$idTypeId} to {$category}, active={$isActive}");
+                flash('ID classification updated successfully.', 'success');
+            } elseif ($action === 'add_id_type') {
+                $name = trim((string) post('new_id_name'));
+                $category = post('new_category') === 'secondary' ? 'secondary' : 'primary';
+                if ($name !== '') {
+                    $code = strtolower(preg_replace('/[^a-zA-Z0-9_]/', '', str_replace(' ', '_', $name)));
+                    $check = $pdo->prepare("SELECT COUNT(*) FROM gym_verification_id_types WHERE id_name = ? OR id_code = ?");
+                    $check->execute([$name, $code]);
+                    if ((int)$check->fetchColumn() === 0) {
+                        $maxOrder = (int)$pdo->query("SELECT COALESCE(MAX(display_order), 0) FROM gym_verification_id_types")->fetchColumn();
+                        $stmt = $pdo->prepare("INSERT INTO gym_verification_id_types (id_code, id_name, category, requires_supporting_id, display_order, is_active) VALUES (?, ?, ?, ?, ?, 1)");
+                        $stmt->execute([$code, $name, $category, $category === 'secondary' ? 1 : 0, $maxOrder + 10]);
+                        audit_log((int)$user['user_id'], 'create', 'id_verification_policy', null, "Added ID document '{$name}' ({$category})");
+                        flash("Added '{$name}' to accepted ID policy.", 'success');
+                    } else {
+                        flash("ID type '{$name}' already exists in policy.", 'danger');
+                    }
+                }
+            }
+            redirect('profile&tab=platform_settings');
         } elseif (isset($_POST['switch_home_gym']) && $is_member) {
             $newGymId = (int) post('new_gym_id');
             $pdo = db();

@@ -1649,6 +1649,22 @@ select {
     color: var(--ink);
 }
 
+.food-tabs-mobile-wrap {
+    display: none;
+}
+
+.food-tabs-mobile-label {
+    display: none;
+    align-items: center;
+    gap: 6px;
+    font-size: 11.5px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--muted);
+    margin-bottom: 6px;
+}
+
 @media (max-width: 600px) {
     .food-page-header {
         flex-direction: column;
@@ -1674,3 +1690,458 @@ select {
     }
 }
 
+/* Verification Status Badges */
+.food-vbadge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2.5px 8px;
+    border-radius: 99px;
+    font-size: 11px;
+    font-weight: 700;
+    line-height: 1.2;
+    text-transform: capitalize;
+    letter-spacing: 0.2px;
+    white-space: nowrap;
+}
+
+.vbadge-unverified {
+    background: rgba(245, 158, 11, 0.16);
+    color: #f59e0b;
+    border: 1px solid rgba(245, 158, 11, 0.35);
+}
+
+.vbadge-verified {
+    background: rgba(132, 204, 22, 0.16);
+    color: #84cc16;
+    border: 1px solid rgba(132, 204, 22, 0.35);
+}
+
+.vbadge-rejected {
+    background: rgba(239, 68, 68, 0.16);
+    color: #ef4444;
+    border: 1px solid rgba(239, 68, 68, 0.35);
+}
+
+.food-rejected-alert {
+    background: rgba(239, 68, 68, 0.08);
+    border: 1px dashed rgba(239, 68, 68, 0.3);
+    border-radius: 8px;
+    padding: 8px 10px;
+    margin-top: 8px;
+    font-size: 11.5px;
+    color: var(--ink);
+    line-height: 1.35;
+}
+
+.tab-badge-pending {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 18px;
+    height: 18px;
+    padding: 0 5px;
+    border-radius: 99px;
+    background: #f59e0b;
+    color: #000000;
+    font-size: 11px;
+    font-weight: 800;
+    line-height: 1;
+    margin-left: 6px;
+}
+
+/* Platform Admin Verification Dashboard */
+.verif-stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 14px;
+    margin-bottom: 20px;
+}
+
+.verif-stat-card {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 16px 18px;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+}
+
+.verif-stat-icon {
+    width: 42px;
+    height: 42px;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.verif-stat-icon.pending {
+    background: rgba(245, 158, 11, 0.15);
+    color: #f59e0b;
+}
+
+.verif-stat-icon.verified {
+    background: rgba(132, 204, 22, 0.15);
+    color: #84cc16;
+}
+
+.verif-stat-icon.rejected {
+    background: rgba(239, 68, 68, 0.15);
+    color: #ef4444;
+}
+
+.verif-stat-val {
+    font-size: 24px;
+    font-weight: 800;
+    color: var(--ink);
+    line-height: 1.1;
+}
+
+.verif-stat-lbl {
+    font-size: 12px;
+    color: var(--muted);
+    margin-top: 2px;
+    font-weight: 500;
+}
+
+.verif-filter-bar {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    flex-wrap: wrap;
+    margin-bottom: 16px;
+    background: var(--surface);
+    padding: 12px 14px;
+    border-radius: 10px;
+    border: 1px solid var(--line);
+}
+
+.verif-pill-group {
+    display: flex;
+    gap: 6px;
+    background: var(--bg);
+    padding: 4px;
+    border-radius: 8px;
+    border: 1px solid var(--line);
+}
+
+.verif-pill-btn {
+    padding: 5px 12px;
+    border-radius: 6px;
+    font-size: 12px;
+    font-weight: 600;
+    text-decoration: none;
+    color: var(--muted);
+    transition: all 0.15s;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+}
+
+.verif-pill-btn.active {
+    background: var(--lime);
+    color: #000000;
+    font-weight: 700;
+}
+
+.verif-pill-btn:not(.active):hover {
+    color: var(--ink);
+}
+
+.verif-dropdown-mobile-wrap {
+    display: none;
+}
+
+.verif-mobile-dropdown-label {
+    display: none;
+    align-items: center;
+    gap: 6px;
+    font-size: 11.5px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--muted);
+    margin-bottom: 6px;
+}
+
+.verif-filter-search-row {
+    flex: 1;
+    min-width: 200px;
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+
+.verif-filter-search-row input {
+    flex: 1;
+    min-width: 140px;
+    padding: 7px 12px;
+    border-radius: 7px;
+    border: 1px solid var(--line);
+    background: var(--bg);
+    color: var(--ink);
+    font-size: 12.5px;
+}
+
+.verif-filter-search-row select {
+    padding: 7px 10px;
+    border-radius: 7px;
+    border: 1px solid var(--line);
+    background: var(--bg);
+    color: var(--ink);
+    font-size: 12.5px;
+    max-width: 180px;
+}
+
+.btn-verif-filter {
+    padding: 0 14px;
+    height: 33px;
+    background: var(--lime);
+    color: #000000;
+    font-weight: 700;
+    border-radius: 7px;
+    border: none;
+    font-size: 12.5px;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    transition: opacity 0.15s;
+}
+
+.btn-verif-filter:hover {
+    opacity: 0.9;
+}
+
+.verif-table-wrapper {
+    overflow-x: auto;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    background: var(--surface);
+}
+
+.verif-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+    text-align: left;
+}
+
+.verif-table th {
+    background: rgba(0, 0, 0, 0.02);
+    color: var(--muted);
+    font-size: 11px;
+    text-transform: uppercase;
+    font-weight: 700;
+    padding: 12px 16px;
+    letter-spacing: 0.4px;
+    border-bottom: 1px solid var(--line);
+}
+[data-theme="dark"] .verif-table th {
+    background: rgba(255, 255, 255, 0.03);
+}
+
+.verif-table td {
+    padding: 14px 16px;
+    border-bottom: 1px solid var(--line);
+    vertical-align: middle;
+}
+
+.verif-table tr:last-child td {
+    border-bottom: none;
+}
+
+.verif-food-cell {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.verif-food-thumb {
+    width: 52px;
+    height: 52px;
+    border-radius: 8px;
+    object-fit: cover;
+    flex-shrink: 0;
+    border: 1px solid var(--line);
+}
+
+.verif-food-info {
+    min-width: 0;
+}
+
+.verif-food-name {
+    font-weight: 700;
+    color: var(--ink);
+    font-size: 13.5px;
+    margin: 0 0 3px;
+    cursor: pointer;
+}
+.verif-food-name:hover {
+    color: var(--lime);
+}
+
+.verif-food-sub {
+    font-size: 11.5px;
+    color: var(--muted);
+    line-height: 1.35;
+}
+
+.verif-actions-col {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.btn-verif-approve {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 6px 12px;
+    border-radius: 6px;
+    font-size: 12px;
+    font-weight: 700;
+    background: #84cc16;
+    color: #000000;
+    border: none;
+    cursor: pointer;
+    transition: opacity 0.15s;
+}
+.btn-verif-approve:hover {
+    opacity: 0.88;
+}
+
+.btn-verif-reject {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 6px 12px;
+    border-radius: 6px;
+    font-size: 12px;
+    font-weight: 700;
+    background: rgba(239, 68, 68, 0.14);
+    color: #ef4444;
+    border: 1px solid rgba(239, 68, 68, 0.32);
+    cursor: pointer;
+    transition: all 0.15s;
+}
+.btn-verif-reject:hover {
+    background: #ef4444;
+    color: #ffffff;
+}
+
+.btn-verif-inspect {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 5px 10px;
+    border-radius: 6px;
+    font-size: 11.5px;
+    font-weight: 600;
+    background: var(--bg);
+    color: var(--ink);
+    border: 1px solid var(--line);
+    cursor: pointer;
+    transition: all 0.15s;
+}
+.btn-verif-inspect:hover {
+    border-color: var(--lime);
+    color: var(--lime);
+}
+
+/* Mobile Responsiveness for Food Library Navigation and Verifications */
+@media (max-width: 768px) {
+    /* Mobile Top Navigation Tabs */
+    .food-tabs-bar {
+        display: none !important;
+    }
+
+    .food-tabs-mobile-wrap {
+        display: block !important;
+        margin-bottom: 20px;
+    }
+
+    .food-tabs-mobile-label {
+        display: flex;
+    }
+
+    .food-tabs-mobile-wrap .fit-dropdown-wrap {
+        width: 100%;
+    }
+
+    .food-tabs-mobile-wrap .fit-dropdown-trigger {
+        height: 44px;
+        font-size: 14px;
+        font-weight: 600;
+        border-radius: 10px;
+        background: var(--surface);
+        border: 1px solid var(--line);
+    }
+
+    .verif-filter-bar {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 12px;
+        padding: 12px;
+    }
+
+    .verif-pill-group {
+        display: none !important;
+    }
+
+    .verif-dropdown-mobile-wrap {
+        display: block !important;
+        width: 100%;
+    }
+
+    .verif-mobile-dropdown-label {
+        display: flex;
+    }
+
+    .verif-dropdown-mobile-wrap .fit-dropdown-wrap {
+        width: 100%;
+    }
+
+    .verif-dropdown-mobile-wrap .fit-dropdown-trigger {
+        height: 42px;
+        font-size: 13.5px;
+        font-weight: 600;
+        border-radius: 8px;
+        background: var(--bg);
+        border: 1px solid var(--line);
+    }
+
+    .verif-filter-search-row {
+        flex-direction: column;
+        align-items: stretch;
+        width: 100%;
+        gap: 8px;
+    }
+
+    .verif-filter-search-row input,
+    .verif-filter-search-row select,
+    .btn-verif-filter {
+        width: 100% !important;
+        max-width: 100% !important;
+        box-sizing: border-box;
+    }
+
+    .verif-filter-search-row input,
+    .verif-filter-search-row select {
+        height: 40px;
+        font-size: 13px;
+    }
+
+    .btn-verif-filter {
+        height: 40px;
+        font-size: 13.5px;
+    }
+
+    .verif-stats-grid {
+        display: none !important;
+    }
+}

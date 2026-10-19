@@ -909,8 +909,8 @@ select option {
     }
     /* Keep the wider searchable menu inside the viewport on narrow screens. */
     #gymScopeDropdownContainer .fit-dropdown-menu {
-        left: auto;
-        right: 0;
+        left: auto !important;
+        right: 0 !important;
         max-width: min(380px, calc(100vw - 24px));
     }
     .reports-hero-scope select {

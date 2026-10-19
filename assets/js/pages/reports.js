@@ -186,6 +186,7 @@
                 container: '#gymScopeDropdownContainer',
                 name: 'gym_id',
                 id: 'gymScopeSelect',
+                menuAlign: 'right',
                 value: String(window.REPORTS_CONFIG.gymScopeId || 'platform'),
                 searchable: true,
                 searchPlaceholder: 'Search gym partner or facility...',

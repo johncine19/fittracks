@@ -1,27 +1,53 @@
 <?php
 declare(strict_types=1);
 
+require_once __DIR__ . '/../../core/file_handler.php';
+
+if (!function_exists('render_food_verification_badge')) {
+    function render_food_verification_badge(string $status, bool $isCustom = true, ?string $rejectionReason = null): string {
+        if (!$isCustom) {
+            return '<span class="food-tag-frosted" style="color: #94a3b8;">Staple</span>';
+        }
+        return match ($status) {
+            'verified' => '<span class="food-vbadge vbadge-verified" title="Reviewed and verified by Platform Administrator"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg> Verified</span>',
+            'rejected' => '<span class="food-vbadge vbadge-rejected" title="' . (!empty($rejectionReason) ? 'Rejected: ' . htmlspecialchars($rejectionReason, ENT_QUOTES, 'UTF-8') : 'Rejected by Platform Administrator') . '"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg> Rejected</span>',
+            default => '<span class="food-vbadge vbadge-unverified" title="Submitted and awaiting review by Platform Administrator"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg> Unverified</span>',
+        };
+    }
+}
+
 function food_library_page(): void
 {
-    $user = require_roles(['platform_admin', 'gym_owner']);
+    $user = require_roles(['platform_admin', 'gym_owner', 'trainer']);
     $pdo = db();
     verify_csrf();
 
     $gymId = null;
-    if ($user['role'] === 'gym_owner') {
-        require_gym_feature('food_library');
+    if ($user['role'] === 'gym_owner' || $user['role'] === 'trainer') {
         $gymId = get_user_gym_id($user);
         if (!$gymId) {
-            flash('No gym found for this gym owner.', 'danger');
+            flash('No gym assigned to your account.', 'danger');
             redirect('dashboard');
+        }
+        if ($user['role'] === 'gym_owner') {
+            require_gym_feature('food_library');
         }
     }
 
-    // Auto-migration & seed check for ingredients
+    // Auto-migration & seed check for ingredients & verification columns
     try {
         $hasCol = (bool) $pdo->query("SHOW COLUMNS FROM food_items LIKE 'ingredients'")->fetch();
         if (!$hasCol) {
             $pdo->exec("ALTER TABLE food_items ADD COLUMN ingredients TEXT NULL AFTER recipe_desc");
+        }
+        $hasVerif = (bool) $pdo->query("SHOW COLUMNS FROM food_items LIKE 'verification_status'")->fetch();
+        if (!$hasVerif) {
+            $pdo->exec("ALTER TABLE food_items ADD COLUMN verification_status ENUM('unverified', 'verified', 'rejected') NOT NULL DEFAULT 'unverified' AFTER source");
+            $pdo->exec("ALTER TABLE food_items ADD COLUMN rejection_reason TEXT DEFAULT NULL AFTER verification_status");
+            $pdo->exec("ALTER TABLE food_items ADD COLUMN verified_at DATETIME DEFAULT NULL AFTER rejection_reason");
+            $pdo->exec("ALTER TABLE food_items ADD COLUMN verified_by_user_id INT DEFAULT NULL AFTER verified_at");
+            $pdo->exec("ALTER TABLE food_items ADD COLUMN created_by_user_id INT DEFAULT NULL AFTER verified_by_user_id");
+            $pdo->exec("UPDATE food_items SET verification_status = 'verified' WHERE source = 'system' OR gym_id IS NULL");
         }
         $unseeded = $pdo->query("SELECT food_id, name FROM food_items WHERE (ingredients IS NULL OR ingredients = '') AND source = 'system'")->fetchAll(PDO::FETCH_ASSOC);
         if (!empty($unseeded)) {
@@ -105,10 +131,11 @@ function food_library_page(): void
                 flash('Food item name is required.', 'danger');
             } else {
                 $targetGymId = ($user['role'] === 'platform_admin' && post('is_global') === '1') ? null : $gymId;
+                $initialStatus = ($user['role'] === 'platform_admin') ? 'verified' : 'unverified';
                 $stmt = $pdo->prepare("
                     INSERT INTO food_items 
-                    (gym_id, name, meal_type, dietary_restriction, serving_size, calories, protein_g, carbs_g, fat_g, image_url, recipe_desc, ingredients, source)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'custom')
+                    (gym_id, name, meal_type, dietary_restriction, serving_size, calories, protein_g, carbs_g, fat_g, image_url, recipe_desc, ingredients, source, verification_status, created_by_user_id)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'custom', ?, ?)
                 ");
                 $stmt->execute([
                     $targetGymId,
@@ -122,9 +149,18 @@ function food_library_page(): void
                     $fat,
                     $imageUrl,
                     $desc,
-                    $ingredientsToSave
+                    $ingredientsToSave,
+                    $initialStatus,
+                    (int)$user['user_id']
                 ]);
-                flash('New food item added to library!', 'success');
+
+                if ($initialStatus === 'unverified') {
+                    $creatorName = $user['name'] ?? 'Gym Staff';
+                    notify_admins('system', 'New Custom Food Submitted', "A custom food '{$name}' was added by {$creatorName} and is awaiting review in the Food Library.");
+                    flash("Custom food item '{$name}' added to your library! (Status: Unverified — awaiting review by Platform Administrator)", 'success');
+                } else {
+                    flash('New food item added to library!', 'success');
+                }
                 redirect('food_library');
             }
         }
@@ -150,13 +186,15 @@ function food_library_page(): void
             }
 
             // Check permissions
-            $existing = $pdo->query("SELECT * FROM food_items WHERE food_id = {$foodId}")->fetch();
-            if (!$existing) {
+            $stmtEx = $pdo->prepare("SELECT * FROM food_items WHERE food_id = ?");
+            $stmtEx->execute([$foodId]);
+            $existing = $stmtEx->fetch(PDO::FETCH_ASSOC);
+            if (!is_array($existing)) {
                 flash('Food item not found.', 'danger');
                 redirect('food_library');
             }
 
-            if ($user['role'] === 'gym_owner' && (string)$existing['gym_id'] !== (string)$gymId) {
+            if (in_array($user['role'], ['gym_owner', 'trainer'], true) && (string)$existing['gym_id'] !== (string)$gymId) {
                 flash('Permission denied. You can only edit your own gym items.', 'danger');
                 redirect('food_library');
             }
@@ -170,9 +208,21 @@ function food_library_page(): void
                 }
             }
 
+            // Automatic Status Updates:
+            // If a rejected food is edited and resubmitted, return it to the Unverified status until it is reviewed again.
+            $newVerificationStatus = $existing['verification_status'] ?? 'verified';
+            $resetRejectionReason = false;
+
+            if ($user['role'] !== 'platform_admin') {
+                if ($existing['verification_status'] === 'rejected' || $existing['source'] === 'custom') {
+                    $newVerificationStatus = 'unverified';
+                    $resetRejectionReason = true;
+                }
+            }
+
             $stmt = $pdo->prepare("
                 UPDATE food_items 
-                SET name = ?, meal_type = ?, dietary_restriction = ?, serving_size = ?, calories = ?, protein_g = ?, carbs_g = ?, fat_g = ?, recipe_desc = ?, ingredients = ?, image_url = COALESCE(?, image_url)
+                SET name = ?, meal_type = ?, dietary_restriction = ?, serving_size = ?, calories = ?, protein_g = ?, carbs_g = ?, fat_g = ?, recipe_desc = ?, ingredients = ?, image_url = COALESCE(?, image_url), verification_status = ?, rejection_reason = CASE WHEN ? = 1 THEN NULL ELSE rejection_reason END
                 WHERE food_id = ?
             ");
             $stmt->execute([
@@ -187,10 +237,75 @@ function food_library_page(): void
                 $desc,
                 $ingredientsToSave,
                 $imageUrl,
+                $newVerificationStatus,
+                $resetRejectionReason ? 1 : 0,
                 $foodId
             ]);
-            flash('Food item updated successfully!', 'success');
+
+            if ($newVerificationStatus === 'unverified' && ($existing['verification_status'] ?? '') === 'rejected') {
+                notify_admins('system', 'Rejected Food Resubmitted', "The custom food '{$name}' was edited and resubmitted for verification.");
+                flash("Food item updated and resubmitted for Platform Admin review (Status: Unverified).", 'success');
+            } else {
+                flash('Food item updated successfully!', 'success');
+            }
             redirect('food_library');
+        }
+
+        if ($postAction === 'approve_food') {
+            if ($user['role'] !== 'platform_admin') {
+                flash('Permission denied: Only platform administrators can approve custom foods.', 'danger');
+                redirect('food_library');
+            }
+            $foodId = (int) post('food_id');
+            $stmtF = $pdo->prepare("SELECT fi.*, g.name AS gym_name FROM food_items fi LEFT JOIN gyms g ON g.gym_id = fi.gym_id WHERE fi.food_id = ?");
+            $stmtF->execute([$foodId]);
+            $foodRow = $stmtF->fetch(PDO::FETCH_ASSOC);
+            if (is_array($foodRow)) {
+                $up = $pdo->prepare("UPDATE food_items SET verification_status = 'verified', verified_at = NOW(), verified_by_user_id = ?, rejection_reason = NULL WHERE food_id = ?");
+                $up->execute([(int)$user['user_id'], $foodId]);
+
+                // Notify creator or gym owner
+                $notifyTarget = (int)($foodRow['created_by_user_id'] ?? 0);
+                if (!$notifyTarget && !empty($foodRow['gym_id'])) {
+                    $notifyTarget = (int) scalar('SELECT owner_user_id FROM gyms WHERE gym_id = ?', [(int)$foodRow['gym_id']]);
+                }
+                if ($notifyTarget > 0) {
+                    notify_user($notifyTarget, 'system', 'Custom Food Approved', "Your custom food '{$foodRow['name']}' has been reviewed and approved by Platform Administrator.");
+                }
+                flash("Custom food '{$foodRow['name']}' has been approved and marked as Verified.", 'success');
+            }
+            $returnTab = post('return_tab') === 'verifications' ? 'verifications' : 'library';
+            redirect("food_library&tab={$returnTab}");
+        }
+
+        if ($postAction === 'reject_food') {
+            if ($user['role'] !== 'platform_admin') {
+                flash('Permission denied: Only platform administrators can reject custom foods.', 'danger');
+                redirect('food_library');
+            }
+            $foodId = (int) post('food_id');
+            $reason = trim((string) post('rejection_reason'));
+            $stmtF = $pdo->prepare("SELECT fi.*, g.name AS gym_name FROM food_items fi LEFT JOIN gyms g ON g.gym_id = fi.gym_id WHERE fi.food_id = ?");
+            $stmtF->execute([$foodId]);
+            $foodRow = $stmtF->fetch(PDO::FETCH_ASSOC);
+            if (is_array($foodRow)) {
+                $savedReason = $reason !== '' ? $reason : 'Did not meet nutritional validation criteria.';
+                $up = $pdo->prepare("UPDATE food_items SET verification_status = 'rejected', verified_at = NOW(), verified_by_user_id = ?, rejection_reason = ? WHERE food_id = ?");
+                $up->execute([(int)$user['user_id'], $savedReason, $foodId]);
+
+                // Notify creator or gym owner
+                $notifyTarget = (int)($foodRow['created_by_user_id'] ?? 0);
+                if (!$notifyTarget && !empty($foodRow['gym_id'])) {
+                    $notifyTarget = (int) scalar('SELECT owner_user_id FROM gyms WHERE gym_id = ?', [(int)$foodRow['gym_id']]);
+                }
+                if ($notifyTarget > 0) {
+                    $reasonMsg = $reason !== '' ? " Reason: {$reason}" : '';
+                    notify_user($notifyTarget, 'system', 'Custom Food Rejected', "Your custom food '{$foodRow['name']}' was not approved by Platform Administrator.{$reasonMsg}");
+                }
+                flash("Custom food '{$foodRow['name']}' has been rejected.", 'info');
+            }
+            $returnTab = post('return_tab') === 'verifications' ? 'verifications' : 'library';
+            redirect("food_library&tab={$returnTab}");
         }
 
         if ($postAction === 'update_food_photo') {
@@ -200,16 +315,16 @@ function food_library_page(): void
 
             $stmtCheck = $pdo->prepare('SELECT food_id, gym_id, name, meal_type, image_url FROM food_items WHERE food_id = ? AND is_active = 1');
             $stmtCheck->execute([$foodId]);
-            $foodRow = $stmtCheck->fetch();
+            $foodRow = $stmtCheck->fetch(PDO::FETCH_ASSOC);
 
-            if (!$foodRow) {
+            if (!$foodRow || !is_array($foodRow)) {
                 if (ob_get_level()) ob_clean();
                 header('Content-Type: application/json');
                 echo json_encode(['success' => false, 'error' => 'Food item not found.']);
                 exit;
             }
 
-            if (!in_array($user['role'], ['platform_admin', 'gym_owner'], true)) {
+            if (!in_array($user['role'], ['platform_admin', 'gym_owner', 'trainer'], true)) {
                 if (ob_get_level()) ob_clean();
                 header('Content-Type: application/json');
                 echo json_encode(['success' => false, 'error' => 'Permission denied.']);
@@ -264,9 +379,11 @@ function food_library_page(): void
 
         if ($postAction === 'delete') {
             $foodId = (int) post('food_id');
-            $existing = $pdo->query("SELECT * FROM food_items WHERE food_id = {$foodId}")->fetch();
-            if ($existing) {
-                if ($user['role'] === 'gym_owner' && (string)$existing['gym_id'] !== (string)$gymId) {
+            $stmtDel = $pdo->prepare("SELECT * FROM food_items WHERE food_id = ?");
+            $stmtDel->execute([$foodId]);
+            $existing = $stmtDel->fetch(PDO::FETCH_ASSOC);
+            if (is_array($existing)) {
+                if (in_array($user['role'], ['gym_owner', 'trainer'], true) && (string)$existing['gym_id'] !== (string)$gymId) {
                     flash('Permission denied.', 'danger');
                 } else {
                     $pdo->prepare("DELETE FROM food_items WHERE food_id = ?")->execute([$foodId]);
@@ -277,11 +394,14 @@ function food_library_page(): void
         }
     }
 
+    // Verification Status Filter
+    $statusFilter = trim((string) ($_GET['status'] ?? 'all'));
+
     // Build Query for List Tab
     $where = ['is_active = 1'];
     $params = [];
 
-    if ($user['role'] === 'gym_owner') {
+    if (in_array($user['role'], ['gym_owner', 'trainer'], true)) {
         if ($scopeFilter === 'gym') {
             $where[] = 'gym_id = ?';
             $params[] = $gymId;
@@ -298,6 +418,11 @@ function food_library_page(): void
         } elseif ($scopeFilter === 'gym') {
             $where[] = 'gym_id IS NOT NULL';
         }
+    }
+
+    if (in_array($statusFilter, ['unverified', 'verified', 'rejected'], true)) {
+        $where[] = 'verification_status = ?';
+        $params[] = $statusFilter;
     }
 
     if ($mealTypeFilter) {
@@ -351,8 +476,70 @@ function food_library_page(): void
     $fromCount = $totalFoods > 0 ? $offset + 1 : 0;
     $toCount = min($offset + $perPage, $totalFoods);
 
+    // Platform Admin Food Verification Approvals Tab Data
+    $pendingVerificationsCount = 0;
+    $verifiedVerificationsCount = 0;
+    $rejectedVerificationsCount = 0;
+    $vItems = [];
+    $allGymsList = [];
+    $vStatus = 'all';
+    $vGymId = 0;
+    $vSearch = '';
+
+    if ($user['role'] === 'platform_admin') {
+        $pendingVerificationsCount = (int)$pdo->query("SELECT COUNT(*) FROM food_items WHERE gym_id IS NOT NULL AND verification_status = 'unverified' AND is_active = 1")->fetchColumn();
+        $verifiedVerificationsCount = (int)$pdo->query("SELECT COUNT(*) FROM food_items WHERE gym_id IS NOT NULL AND verification_status = 'verified' AND is_active = 1")->fetchColumn();
+        $rejectedVerificationsCount = (int)$pdo->query("SELECT COUNT(*) FROM food_items WHERE gym_id IS NOT NULL AND verification_status = 'rejected' AND is_active = 1")->fetchColumn();
+
+        if ($activeTab === 'verifications') {
+            $vStatus = trim((string) ($_GET['v_status'] ?? 'all'));
+            $vGymId = (int)($_GET['v_gym'] ?? 0);
+            $vSearch = trim((string) ($_GET['v_q'] ?? ''));
+
+            $vWhere = ['f.gym_id IS NOT NULL', 'f.is_active = 1'];
+            $vParams = [];
+
+            if (in_array($vStatus, ['unverified', 'verified', 'rejected'], true)) {
+                $vWhere[] = 'f.verification_status = ?';
+                $vParams[] = $vStatus;
+            }
+            if ($vGymId > 0) {
+                $vWhere[] = 'f.gym_id = ?';
+                $vParams[] = $vGymId;
+            }
+            if ($vSearch) {
+                $vWhere[] = '(f.name LIKE ? OR f.ingredients LIKE ? OR g.name LIKE ?)';
+                $vParams[] = "%{$vSearch}%";
+                $vParams[] = "%{$vSearch}%";
+                $vParams[] = "%{$vSearch}%";
+            }
+
+            $vWhereSql = implode(' AND ', $vWhere);
+            $vStmt = $pdo->prepare("
+                SELECT f.*, g.name as gym_name,
+                       TRIM(CONCAT(COALESCE(u.first_name, ''), ' ', COALESCE(u.last_name, ''))) as submitter_name,
+                       u.role as submitter_role,
+                       TRIM(CONCAT(COALESCE(v.first_name, ''), ' ', COALESCE(v.last_name, ''))) as reviewer_name
+                FROM food_items f
+                LEFT JOIN gyms g ON f.gym_id = g.gym_id
+                LEFT JOIN users u ON f.created_by_user_id = u.user_id
+                LEFT JOIN users v ON f.verified_by_user_id = v.user_id
+                WHERE {$vWhereSql}
+                ORDER BY CASE WHEN f.verification_status = 'unverified' THEN 0 ELSE 1 END, f.food_id DESC
+            ");
+            $vStmt->execute($vParams);
+            $vItems = $vStmt->fetchAll(PDO::FETCH_ASSOC);
+            foreach ($vItems as $idx => $item) {
+                $vItems[$idx]['ingredients_data'] = get_food_ingredients($item);
+                $vItems[$idx]['ingredients_text'] = format_ingredients_for_textarea($item['ingredients'] ?? null, $item['name']);
+            }
+
+            $allGymsList = $pdo->query("SELECT gym_id, name as gym_name FROM gyms ORDER BY name ASC")->fetchAll(PDO::FETCH_ASSOC);
+        }
+    }
+
     // Helper URL for pagination and filters
-    $buildFilterUrl = function(array $overrides = []) use ($searchQuery, $mealTypeFilter, $restrictionFilter, $scopeFilter, $page) {
+    $buildFilterUrl = function(array $overrides = []) use ($searchQuery, $mealTypeFilter, $restrictionFilter, $scopeFilter, $statusFilter, $page) {
         $q = [
             'page' => 'food_library',
             'tab' => 'library',
@@ -360,6 +547,7 @@ function food_library_page(): void
             'meal_type' => $mealTypeFilter,
             'restriction' => $restrictionFilter,
             'scope' => $scopeFilter,
+            'status' => $statusFilter,
             'p' => $page
         ];
         foreach ($overrides as $k => $v) {
@@ -372,6 +560,9 @@ function food_library_page(): void
         if (isset($q['scope']) && $q['scope'] === 'all') {
             unset($q['scope']);
         }
+        if (isset($q['status']) && $q['status'] === 'all') {
+            unset($q['status']);
+        }
         return 'index.php?' . http_build_query($q);
     };
 
@@ -380,6 +571,7 @@ function food_library_page(): void
     if ($mealTypeFilter) $paginationBaseUrl .= '&meal_type=' . urlencode($mealTypeFilter);
     if ($restrictionFilter) $paginationBaseUrl .= '&restriction=' . urlencode($restrictionFilter);
     if ($scopeFilter && $scopeFilter !== 'all') $paginationBaseUrl .= '&scope=' . urlencode($scopeFilter);
+    if ($statusFilter && $statusFilter !== 'all') $paginationBaseUrl .= '&status=' . urlencode($statusFilter);
 
     render_header('Food Library', $user);
 ?>
@@ -407,7 +599,7 @@ function food_library_page(): void
         </div>
     </div>
 
-    <!-- Navigation Tabs: Library vs Online Search -->
+    <!-- Navigation Tabs: Library vs Online Search vs Verifications -->
     <div class="food-tabs-bar">
         <a href="index.php?page=food_library&tab=library" class="food-tab-link <?= $activeTab === 'library' ? 'active' : '' ?>">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8h1a4 4 0 0 1 0 8h-1"></path><path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z"></path><line x1="6" y1="1" x2="6" y2="4"></line><line x1="10" y1="1" x2="10" y2="4"></line><line x1="14" y1="1" x2="14" y2="4"></line></svg>
@@ -417,6 +609,24 @@ function food_library_page(): void
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="2" y1="12" x2="22" y2="12"></line><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path></svg>
             <span>Online Nutrition Search (Open Food Facts)</span>
         </a>
+        <?php if ($user['role'] === 'platform_admin'): ?>
+            <a href="index.php?page=food_library&tab=verifications" class="food-tab-link <?= $activeTab === 'verifications' ? 'active' : '' ?>">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><polyline points="9 12 11 14 15 10"/></svg>
+                <span>Custom Food Approvals</span>
+                <?php if ($pendingVerificationsCount > 0): ?>
+                    <span class="tab-badge-pending"><?= $pendingVerificationsCount ?></span>
+                <?php endif; ?>
+            </a>
+        <?php endif; ?>
+    </div>
+
+    <!-- Navigation Tabs: Mobile FitDropdown -->
+    <div class="food-tabs-mobile-wrap">
+        <label class="food-tabs-mobile-label">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><polyline points="9 22 9 12 15 12 15 22"></polyline></svg>
+            <span>Food Library View</span>
+        </label>
+        <div id="mobileFoodTabDropdown"></div>
     </div>
 
     <?php if ($activeTab === 'library'): ?>
@@ -460,6 +670,15 @@ function food_library_page(): void
             </div>
 
             <div class="filter-select-wrapper">
+                <select name="status" onchange="this.form.submit()">
+                    <option value="all" <?= $statusFilter === 'all' ? 'selected' : '' ?>>All Verification Statuses</option>
+                    <option value="unverified" <?= $statusFilter === 'unverified' ? 'selected' : '' ?>>Unverified (Pending Review)</option>
+                    <option value="verified" <?= $statusFilter === 'verified' ? 'selected' : '' ?>>Verified Only</option>
+                    <option value="rejected" <?= $statusFilter === 'rejected' ? 'selected' : '' ?>>Rejected Submissions</option>
+                </select>
+            </div>
+
+            <div class="filter-select-wrapper">
                 <select name="scope" onchange="this.form.submit()">
                     <option value="all" <?= $scopeFilter === 'all' ? 'selected' : '' ?>>All Items</option>
                     <option value="gym" <?= $scopeFilter === 'gym' ? 'selected' : '' ?>>Gym Custom Foods</option>
@@ -474,7 +693,7 @@ function food_library_page(): void
                 </button>
             </div>
 
-            <?php if ($searchQuery || $mealTypeFilter || $restrictionFilter || $scopeFilter !== 'all'): ?>
+            <?php if ($searchQuery || $mealTypeFilter || $restrictionFilter || $scopeFilter !== 'all' || $statusFilter !== 'all'): ?>
                 <div class="filter-btn-col">
                     <a href="index.php?page=food_library&tab=library" class="btn btn-filter-reset" title="Reset all filters">
                         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
@@ -485,7 +704,7 @@ function food_library_page(): void
         </form>
 
         <?php 
-        $hasActiveFilters = !empty($searchQuery) || !empty($mealTypeFilter) || !empty($restrictionFilter) || ($scopeFilter && $scopeFilter !== 'all');
+        $hasActiveFilters = !empty($searchQuery) || !empty($mealTypeFilter) || !empty($restrictionFilter) || ($scopeFilter && $scopeFilter !== 'all') || ($statusFilter && $statusFilter !== 'all');
         ?>
         <?php if ($hasActiveFilters): ?>
             <div class="food-active-filters">
@@ -508,6 +727,13 @@ function food_library_page(): void
                 <?php if (!empty($restrictionFilter)): ?>
                     <a href="<?= $buildFilterUrl(['restriction' => null, 'p' => 1]) ?>" class="filter-chip" title="Remove dietary filter">
                         <span>Diet: <strong><?= h(ucwords(str_replace('-', ' ', $restrictionFilter))) ?></strong></span>
+                        <span class="chip-remove">&times;</span>
+                    </a>
+                <?php endif; ?>
+
+                <?php if (!empty($statusFilter) && $statusFilter !== 'all'): ?>
+                    <a href="<?= $buildFilterUrl(['status' => 'all', 'p' => 1]) ?>" class="filter-chip" title="Remove verification status filter">
+                        <span>Status: <strong><?= ucfirst($statusFilter) ?></strong></span>
                         <span class="chip-remove">&times;</span>
                     </a>
                 <?php endif; ?>
@@ -544,7 +770,6 @@ function food_library_page(): void
                 <?php foreach ($foods as $food): 
                     $photoUrl = get_meal_photo_url($food['image_url'], $food['name'], $food['meal_type']);
                     $isCustom = !empty($food['gym_id']);
-                    $canEditPhoto = in_array($user['role'], ['platform_admin', 'gym_owner'], true);
                 ?>
                     <div class="food-card-organic">
                         <!-- Food Card Header / Image -->
@@ -561,15 +786,7 @@ function food_library_page(): void
                                 <?php endif; ?>
                             </div>
                             <div style="position: absolute; top: 10px; right: 10px; display: flex; align-items: center; gap: 6px; z-index: 2;">
-                                <?php if ($isCustom): ?>
-                                    <span class="food-tag-frosted" style="color: #c084fc; border-color: rgba(192, 132, 252, 0.4);">
-                                        Gym Custom
-                                    </span>
-                                <?php else: ?>
-                                    <span class="food-tag-frosted" style="color: #94a3b8;">
-                                        Staple
-                                    </span>
-                                <?php endif; ?>
+                                <?= render_food_verification_badge($food['verification_status'] ?? 'unverified', $isCustom, $food['rejection_reason'] ?? null) ?>
                             </div>
                             <div class="food-calories-pill">
                                 <svg width="12" height="12" viewBox="0 0 24 24" fill="#f59e0b" stroke="#f59e0b" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0;"><path d="M8.5 14.5A2.5 2.5 0 0 0 11 17c1.38 0 2.5-1.12 2.5-2.5 0-1.63-1.04-2.88-1.78-3.77a6.8 6.8 0 0 1-1.42-2.43c-.04-.05-.1-.08-.16-.08s-.12.03-.16.08a8.87 8.87 0 0 0-1.48 2.43C8.16 11.68 8.5 13.3 8.5 14.5z"/><path d="M12 2c-.15 0-.3.06-.41.17-.11.11-.17.26-.17.41 0 1.25-.43 2.45-1.22 3.39A9.9 9.9 0 0 1 8 8.13C6.73 9.77 6 11.8 6 14c0 3.31 2.69 6 6 6s6-2.69 6-6c0-2.8-1.22-5.4-3.32-7.14C13.56 5.92 12.8 4.2 12.8 2.58c0-.15-.06-.3-.17-.41A.58.58 0 0 0 12 2z"/></svg>
@@ -585,7 +802,14 @@ function food_library_page(): void
                                     <?= h($food['recipe_desc']) ?>
                                 </p>
                             <?php else: ?>
-                                <div style="margin-bottom: 12px;"></div>
+                                <div style="margin-bottom: 8px;"></div>
+                            <?php endif; ?>
+
+                            <?php if (($food['verification_status'] ?? '') === 'rejected' && !empty($food['rejection_reason'])): ?>
+                                <div class="food-rejected-alert">
+                                    <strong style="color: #ef4444;">Admin Rejection Note:</strong> <?= h($food['rejection_reason']) ?>
+                                    <div style="font-size: 10.5px; opacity: 0.85; margin-top: 2px;">Editing and saving this food will return it to Unverified status.</div>
+                                </div>
                             <?php endif; ?>
 
                             <!-- Serving Size & Macros Pill -->
@@ -628,7 +852,10 @@ function food_library_page(): void
                                     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path><circle cx="12" cy="13" r="4"></circle></svg>
                                     Photo
                                 </button>
-                                <?php if ($user['role'] === 'platform_admin' || $isCustom): ?>
+                                <?php 
+                                $canManageFood = ($user['role'] === 'platform_admin' || ($isCustom && in_array($user['role'], ['gym_owner', 'trainer'], true) && (string)$food['gym_id'] === (string)$gymId));
+                                ?>
+                                <?php if ($canManageFood): ?>
                                     <button type="button" onclick="openEditFoodModal(<?= htmlspecialchars(json_encode($food), ENT_QUOTES, 'UTF-8') ?>)" class="btn-sm btn-ghost" style="padding: 4px 10px; font-size: 12px; border-radius: 6px;">Edit</button>
                                     <form method="post" style="margin:0;" onsubmit="return confirm('Delete this food item?');">
                                         <?= csrf_field() ?>
@@ -679,6 +906,209 @@ function food_library_page(): void
                 Type a brand, grocery item, or food name above to search online.
             </div>
         </div>
+
+    <?php elseif ($activeTab === 'verifications' && $user['role'] === 'platform_admin'): ?>
+        <!-- Dedicated Food Verification Review Interface -->
+        <div class="verif-stats-grid">
+            <div class="verif-stat-card">
+                <div class="verif-stat-icon pending">
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                </div>
+                <div>
+                    <div class="verif-stat-val" style="color: #f59e0b;"><?= $pendingVerificationsCount ?></div>
+                    <div class="verif-stat-lbl">Pending Review</div>
+                </div>
+            </div>
+            <div class="verif-stat-card">
+                <div class="verif-stat-icon verified">
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+                </div>
+                <div>
+                    <div class="verif-stat-val" style="color: #84cc16;"><?= $verifiedVerificationsCount ?></div>
+                    <div class="verif-stat-lbl">Verified Custom Foods</div>
+                </div>
+            </div>
+            <div class="verif-stat-card">
+                <div class="verif-stat-icon rejected">
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
+                </div>
+                <div>
+                    <div class="verif-stat-val" style="color: #ef4444;"><?= $rejectedVerificationsCount ?></div>
+                    <div class="verif-stat-lbl">Rejected Submissions</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Filter & Search Toolbar -->
+        <form method="get" class="verif-filter-bar">
+            <input type="hidden" name="page" value="food_library">
+            <input type="hidden" name="tab" value="verifications">
+
+            <!-- Desktop Pill Filter Group -->
+            <div class="verif-pill-group">
+                <a href="index.php?page=food_library&tab=verifications&v_status=unverified<?= $vGymId ? '&v_gym='.$vGymId : '' ?><?= $vSearch ? '&v_q='.urlencode($vSearch) : '' ?>" class="verif-pill-btn <?= ($vStatus === 'unverified') ? 'active' : '' ?>">
+                    <span>Pending Review</span>
+                    <span style="font-size: 11px; opacity: 0.85;">(<?= $pendingVerificationsCount ?>)</span>
+                </a>
+                <a href="index.php?page=food_library&tab=verifications&v_status=all<?= $vGymId ? '&v_gym='.$vGymId : '' ?><?= $vSearch ? '&v_q='.urlencode($vSearch) : '' ?>" class="verif-pill-btn <?= ($vStatus === 'all') ? 'active' : '' ?>">
+                    <span>All Submissions</span>
+                </a>
+                <a href="index.php?page=food_library&tab=verifications&v_status=verified<?= $vGymId ? '&v_gym='.$vGymId : '' ?><?= $vSearch ? '&v_q='.urlencode($vSearch) : '' ?>" class="verif-pill-btn <?= ($vStatus === 'verified') ? 'active' : '' ?>">
+                    <span>Verified</span>
+                    <span style="font-size: 11px; opacity: 0.85;">(<?= $verifiedVerificationsCount ?>)</span>
+                </a>
+                <a href="index.php?page=food_library&tab=verifications&v_status=rejected<?= $vGymId ? '&v_gym='.$vGymId : '' ?><?= $vSearch ? '&v_q='.urlencode($vSearch) : '' ?>" class="verif-pill-btn <?= ($vStatus === 'rejected') ? 'active' : '' ?>">
+                    <span>Rejected</span>
+                    <span style="font-size: 11px; opacity: 0.85;">(<?= $rejectedVerificationsCount ?>)</span>
+                </a>
+            </div>
+
+            <!-- Mobile Verification Status Dropdown (FitDropdown) -->
+            <div class="verif-dropdown-mobile-wrap">
+                <label class="verif-mobile-dropdown-label">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"></polygon></svg>
+                    <span>Status Filter</span>
+                </label>
+                <div id="mobileVerifFilterDropdown"></div>
+            </div>
+
+            <div class="verif-filter-search-row">
+                <input type="text" name="v_q" value="<?= h($vSearch) ?>" placeholder="Search custom food name or ingredients...">
+                
+                <select name="v_gym" onchange="this.form.submit()">
+                    <option value="0">All Gyms</option>
+                    <?php foreach ($allGymsList as $g): ?>
+                        <option value="<?= $g['gym_id'] ?>" <?= $vGymId === (int)$g['gym_id'] ? 'selected' : '' ?>><?= h($g['gym_name']) ?></option>
+                    <?php endforeach; ?>
+                </select>
+
+                <button type="submit" class="btn btn-verif-filter">Filter</button>
+            </div>
+        </form>
+
+        <!-- Submissions Table -->
+        <?php if (empty($vItems)): ?>
+            <div style="text-align: center; padding: 60px 20px; background: var(--surface); border: 1px dashed var(--line); border-radius: 12px;">
+                <div style="font-size: 32px; margin-bottom: 8px;">🥗</div>
+                <h3 style="margin: 0 0 6px; font-size: 16px; color: var(--ink);">No submissions found</h3>
+                <p style="margin: 0; font-size: 13px; color: var(--muted);">There are no custom foods matching the selected filter criteria.</p>
+            </div>
+        <?php else: ?>
+            <div class="verif-table-wrapper">
+                <table class="verif-table">
+                    <thead>
+                        <tr>
+                            <th>Custom Food Item</th>
+                            <th>Gym & Submitter</th>
+                            <th>Portion & Calories</th>
+                            <th>Macros (P / C / F)</th>
+                            <th>Verification Status</th>
+                            <th style="text-align: right;">Review Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <?php foreach ($vItems as $item): 
+                            $photoUrl = get_meal_photo_url($item['image_url'], $item['name'], $item['meal_type']);
+                            $itemVStatus = $item['verification_status'] ?? 'unverified';
+                        ?>
+                            <tr>
+                                <td>
+                                    <div class="verif-food-cell">
+                                        <img src="<?= h($photoUrl) ?>" alt="<?= h($item['name']) ?>" class="verif-food-thumb" onerror="this.onerror=null; this.src='https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&w=600&q=80';">
+                                        <div class="verif-food-info">
+                                            <div class="verif-food-name" onclick="openViewIngredientsModal(<?= (int)$item['food_id'] ?>)" title="Click to inspect ingredients & nutrition breakdown">
+                                                <?= h($item['name']) ?>
+                                            </div>
+                                            <div class="verif-food-sub">
+                                                <span style="color: var(--lime); font-weight: 600;"><?= h($item['meal_type']) ?></span>
+                                                <?php if ($item['dietary_restriction'] && $item['dietary_restriction'] !== 'none'): ?>
+                                                    • <?= h($item['dietary_restriction']) ?>
+                                                <?php endif; ?>
+                                            </div>
+                                            <?php if ($itemVStatus === 'rejected' && $item['rejection_reason']): ?>
+                                                <div style="margin-top: 5px; font-size: 11.5px; color: #ef4444; background: rgba(239, 68, 68, 0.08); padding: 5px 8px; border-radius: 6px; border: 1px solid rgba(239, 68, 68, 0.2);">
+                                                    <strong>Rejection Note:</strong> <?= h($item['rejection_reason']) ?>
+                                                </div>
+                                            <?php endif; ?>
+                                        </div>
+                                    </div>
+                                </td>
+                                <td>
+                                    <div style="font-weight: 700; color: var(--ink); font-size: 13px;">
+                                        <?= h($item['gym_name'] ?? 'Custom Gym') ?>
+                                    </div>
+                                    <div style="font-size: 11.5px; color: var(--muted); margin-top: 2px;">
+                                        <?= h($item['submitter_name'] ?? 'Gym Staff') ?>
+                                        <?php if ($item['submitter_role']): ?>
+                                            <span style="opacity: 0.8;">(<?= ucfirst($item['submitter_role']) ?>)</span>
+                                        <?php endif; ?>
+                                    </div>
+                                </td>
+                                <td>
+                                    <div style="font-size: 12.5px; color: var(--ink);">
+                                        <strong><?= h($item['serving_size'] ?: '1 serving') ?></strong>
+                                    </div>
+                                    <div style="font-size: 12px; color: #f59e0b; font-weight: 700; margin-top: 2px;">
+                                        <?= $item['calories'] ?> kcal
+                                    </div>
+                                </td>
+                                <td>
+                                    <div style="font-size: 12px; color: var(--muted); font-family: monospace;">
+                                        <span style="color: #2563eb; font-weight: 700;"><?= $item['protein_g'] ?>g</span> P / 
+                                        <span style="color: #d97706; font-weight: 700;"><?= $item['carbs_g'] ?>g</span> C / 
+                                        <span style="color: #dc2626; font-weight: 700;"><?= $item['fat_g'] ?>g</span> F
+                                    </div>
+                                    <div style="margin-top: 5px;">
+                                        <button type="button" onclick="openViewIngredientsModal(<?= (int)$item['food_id'] ?>)" class="btn-verif-inspect" title="Inspect full recipe breakdown">
+                                            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 2a10 10 0 1 0 10 10H12V2z"></path><path d="M12 12 2.1 10.5"></path><path d="M12 12V2"></path></svg>
+                                            <span>Inspect Recipe (<?= count($item['ingredients_data']['all'] ?? []) ?>)</span>
+                                        </button>
+                                    </div>
+                                </td>
+                                <td>
+                                    <?= render_food_verification_badge($itemVStatus, true, $item['rejection_reason'] ?? null) ?>
+                                    <?php if ($item['verified_at']): ?>
+                                        <div style="font-size: 10.5px; color: var(--muted); margin-top: 4px;">
+                                            <?= date('M d, Y', strtotime($item['verified_at'])) ?>
+                                            <?php if ($item['reviewer_name']): ?>
+                                                <br>by <?= h($item['reviewer_name']) ?>
+                                            <?php endif; ?>
+                                        </div>
+                                    <?php endif; ?>
+                                </td>
+                                <td style="text-align: right;">
+                                    <div class="verif-actions-col" style="justify-content: flex-end;">
+                                        <?php if ($itemVStatus !== 'verified'): ?>
+                                            <form method="post" style="margin: 0;">
+                                                <?= csrf_field() ?>
+                                                <input type="hidden" name="action" value="approve_food">
+                                                <input type="hidden" name="return_tab" value="verifications">
+                                                <input type="hidden" name="food_id" value="<?= (int)$item['food_id'] ?>">
+                                                <button type="submit" class="btn-verif-approve" title="Approve custom food submission">
+                                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+                                                    <span>Approve</span>
+                                                </button>
+                                            </form>
+                                        <?php endif; ?>
+
+                                        <?php if ($itemVStatus !== 'rejected'): ?>
+                                            <button type="button" onclick="promptRejectFood(<?= (int)$item['food_id'] ?>, <?= json_encode($item['name']) ?>, 'verifications')" class="btn-verif-reject" title="Reject submission with feedback note">
+                                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                                                <span>Reject</span>
+                                            </button>
+                                        <?php endif; ?>
+
+                                        <button type="button" onclick="openEditFoodModal(<?= htmlspecialchars(json_encode($item), ENT_QUOTES, 'UTF-8') ?>)" class="btn-sm btn-ghost" style="padding: 5px 8px; font-size: 11.5px; border-radius: 6px;">
+                                            Edit
+                                        </button>
+                                    </div>
+                                </td>
+                            </tr>
+                        <?php endforeach; ?>
+                    </tbody>
+                </table>
+            </div>
+        <?php endif; ?>
     <?php endif; ?>
 </section>
 
@@ -710,7 +1140,7 @@ function food_library_page(): void
                     <span class="ing-modal-portion-text">
                         Portion / Serving Size: <strong style="color: var(--ink);" id="ing-modal-serving"></strong>
                     </span>
-                    <span class="ing-modal-verified-badge">
+                    <span id="ing-modal-status-badge" class="food-vbadge vbadge-verified">
                         Verified Nutrition
                     </span>
                 </div>
@@ -739,6 +1169,8 @@ function food_library_page(): void
                     <span>Nutritional values are calculated directly from measured portion weights of ingredients below.</span>
                 </div>
             </div>
+
+            <div id="ing-modal-rejection-note" class="food-rejected-alert" style="display: none; margin-bottom: 14px;"></div>
 
             <!-- Unified Ingredients List -->
             <div style="margin-bottom: 12px;">
@@ -855,19 +1287,28 @@ function food_library_page(): void
     </div>
 </div>
 
+<?php
+// Safely prepare combined foods map for JS
+$allFoodsCombined = [];
+foreach (array_merge($foods ?? [], $vItems ?? []) as $f) {
+    if (!empty($f['food_id'])) {
+        $f['photo_url'] = get_meal_photo_url($f['image_url'] ?? null, $f['name'], $f['meal_type'] ?? 'Lunch');
+        $allFoodsCombined[(int)$f['food_id']] = $f;
+    }
+}
+?>
 <!-- Food Library Configuration & Script -->
 <script>
 window.FOOD_LIBRARY_CONFIG = {
     csrfToken: <?= json_encode(csrf_token()) ?>,
     currentUserRole: <?= json_encode($user['role']) ?>,
     currentGymId: <?= json_encode($gymId) ?>,
-    foodsMap: <?= json_encode(array_combine(
-        array_column($foods, 'food_id'),
-        array_map(function($f) {
-            $f['photo_url'] = get_meal_photo_url($f['image_url'], $f['name'], $f['meal_type']);
-            return $f;
-        }, $foods)
-    ), JSON_HEX_TAG|JSON_HEX_APOS|JSON_HEX_QUOT|JSON_HEX_AMP) ?: '{}' ?>
+    activeTab: <?= json_encode($activeTab) ?>,
+    vStatus: <?= json_encode($vStatus ?? 'all') ?>,
+    pendingCount: <?= (int)($pendingVerificationsCount ?? 0) ?>,
+    verifiedCount: <?= (int)($verifiedVerificationsCount ?? 0) ?>,
+    rejectedCount: <?= (int)($rejectedVerificationsCount ?? 0) ?>,
+    foodsMap: <?= json_encode((object)$allFoodsCombined, JSON_HEX_TAG|JSON_HEX_APOS|JSON_HEX_QUOT|JSON_HEX_AMP) ?: '{}' ?>
 };
 </script>
 <script src="<?= h(asset_url('js/pages/food_library.js')) ?>"></script>

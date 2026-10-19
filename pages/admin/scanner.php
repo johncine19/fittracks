@@ -113,14 +113,10 @@ function scanner_page(): void
         exit;
     }
 
-    // AJAX: Search members for manual check-in
+    // AJAX: Search members for manual check-in (Hybrid Search & Initial Roster)
     if ($_SERVER['REQUEST_METHOD'] === 'GET' && ($_GET['action'] ?? '') === 'search_members') {
         header('Content-Type: application/json');
         $q = trim((string) ($_GET['q'] ?? ''));
-        if (mb_strlen($q) < 1) {
-            echo json_encode(['success' => true, 'members' => []]);
-            exit;
-        }
 
         $searchSql = '
             SELECT u.user_id, u.first_name, u.last_name, u.role, u.email, u.phone, u.profile_picture,
@@ -128,12 +124,37 @@ function scanner_page(): void
                    (SELECT check_in_time FROM attendance WHERE user_id = u.user_id AND check_out_time IS NULL AND check_in_time >= CURDATE() AND check_in_time < CURDATE() + INTERVAL 1 DAY ORDER BY check_in_time DESC LIMIT 1) as active_check_in_time
             FROM users u
             WHERE u.status = "active" AND u.role IN ("member", "trainer")
-              AND (u.first_name LIKE ? OR u.last_name LIKE ? OR CONCAT(u.first_name, " ", u.last_name) LIKE ? OR u.email LIKE ? OR u.phone LIKE ?)
-            LIMIT 15
         ';
-        $term = '%' . $q . '%';
+        $params = [];
+
+        // Scoping by gym if gym_owner, trainer, staff
+        if ($currentGymId && $user['role'] !== 'platform_admin') {
+            $searchSql .= ' AND (
+                u.user_id IN (SELECT user_id FROM gym_members WHERE gym_id = ?)
+                OR u.user_id IN (SELECT user_id FROM trainer_profiles WHERE gym_id = ?)
+                OR u.user_id IN (SELECT m.user_id FROM memberships m JOIN membership_plans mp ON m.plan_id = mp.plan_id WHERE mp.gym_id = ? AND m.status = "active")
+            )';
+            $params[] = $currentGymId;
+            $params[] = $currentGymId;
+            $params[] = $currentGymId;
+        }
+
+        if (mb_strlen($q) >= 1) {
+            $searchSql .= ' AND (u.first_name LIKE ? OR u.last_name LIKE ? OR CONCAT(u.first_name, " ", u.last_name) LIKE ? OR u.email LIKE ? OR u.phone LIKE ?)';
+            $term = '%' . $q . '%';
+            $params[] = $term;
+            $params[] = $term;
+            $params[] = $term;
+            $params[] = $term;
+            $params[] = $term;
+            $searchSql .= ' ORDER BY (active_attendance_id IS NOT NULL) DESC, u.first_name ASC, u.last_name ASC LIMIT 50';
+        } else {
+            // No query: return all active members & trainers, inside members first, followed by trainers and members
+            $searchSql .= ' ORDER BY (active_attendance_id IS NOT NULL) DESC, CASE WHEN u.role = "trainer" THEN 0 ELSE 1 END, u.first_name ASC, u.last_name ASC LIMIT 100';
+        }
+
         $stmt = $pdo->prepare($searchSql);
-        $stmt->execute([$term, $term, $term, $term, $term]);
+        $stmt->execute($params);
         $matches = $stmt->fetchAll();
 
         $results = array_map(function ($m) use ($formatDuration) {
@@ -151,7 +172,7 @@ function scanner_page(): void
             ];
         }, $matches);
 
-        echo json_encode(['success' => true, 'members' => $results]);
+        echo json_encode(['success' => true, 'members' => $results, 'query' => $q]);
         exit;
     }
 
@@ -161,7 +182,8 @@ function scanner_page(): void
 
         $rosterSql = '
             SELECT u.user_id, u.first_name, u.last_name, u.role, u.email, u.phone, u.qr_token, u.profile_picture,
-                   (SELECT attendance_id FROM attendance WHERE user_id = u.user_id AND check_out_time IS NULL AND check_in_time >= CURDATE() AND check_in_time < CURDATE() + INTERVAL 1 DAY ORDER BY check_in_time DESC LIMIT 1) as active_attendance_id
+                   (SELECT attendance_id FROM attendance WHERE user_id = u.user_id AND check_out_time IS NULL AND check_in_time >= CURDATE() AND check_in_time < CURDATE() + INTERVAL 1 DAY ORDER BY check_in_time DESC LIMIT 1) as active_attendance_id,
+                   (SELECT check_in_time FROM attendance WHERE user_id = u.user_id AND check_out_time IS NULL AND check_in_time >= CURDATE() AND check_in_time < CURDATE() + INTERVAL 1 DAY ORDER BY check_in_time DESC LIMIT 1) as active_check_in_time
             FROM users u
             WHERE u.status = "active" AND u.role IN ("member", "trainer")
         ';
@@ -174,7 +196,7 @@ function scanner_page(): void
             )';
             $params = [$currentGymId, $currentGymId, $currentGymId];
         }
-        $rosterSql .= ' ORDER BY u.first_name ASC LIMIT 500';
+        $rosterSql .= ' ORDER BY (active_attendance_id IS NOT NULL) DESC, CASE WHEN u.role = "trainer" THEN 0 ELSE 1 END, u.first_name ASC LIMIT 500';
 
         $stmt = $pdo->prepare($rosterSql);
         $stmt->execute($params);
@@ -183,7 +205,8 @@ function scanner_page(): void
         $gymName = $currentGymId ? scalar('SELECT name FROM gyms WHERE gym_id = ?', [$currentGymId]) : 'FitTracks Central';
         $walkInFee = $currentGymId ? (float) (scalar('SELECT walk_in_fee FROM gyms WHERE gym_id = ?', [$currentGymId]) ?: 100.0) : 100.0;
 
-        $items = array_map(function($m) {
+        $items = array_map(function($m) use ($formatDuration) {
+            $isInside = !empty($m['active_attendance_id']);
             return [
                 'user_id' => (int) $m['user_id'],
                 'name' => trim($m['first_name'] . ' ' . $m['last_name']),
@@ -191,8 +214,10 @@ function scanner_page(): void
                 'email' => $m['email'],
                 'phone' => $m['phone'] ?: '',
                 'qr_token' => $m['qr_token'] ?: '',
-                'avatar_html' => render_avatar($m, 'medium'),
-                'is_inside' => !empty($m['active_attendance_id'])
+                'avatar_html' => render_avatar($m, 'small'),
+                'is_inside' => $isInside,
+                'active_attendance_id' => $m['active_attendance_id'],
+                'duration' => $isInside ? $formatDuration($m['active_check_in_time'], null) : null
             ];
         }, $members);
 
@@ -746,9 +771,7 @@ function scanner_page(): void
                 <!-- Toolbar controls -->
                 <div class="scanner-toolbar">
                     <div class="scanner-camera-select-wrap">
-                        <select id="camera-select" class="scanner-select" title="Select camera video input">
-                            <option value="">Detecting cameras...</option>
-                        </select>
+                        <div id="camera-select-dropdown" class="scanner-camera-dropdown" aria-label="Select camera video input"></div>
                     </div>
                     <div class="scanner-toolbar-tools">
                         <button type="button" class="term-btn-icon" id="btn-flip-cam" title="Switch between front and rear cameras" style="display: none;">
@@ -993,18 +1016,18 @@ function scanner_page(): void
     <div class="manual-modal-overlay" id="manual-modal" onclick="if(event.target === this) closeManualModal()">
         <div class="manual-modal-card">
             <div class="manual-modal-header">
-                <h3>Manual Member Entry</h3>
-                <button type="button" class="term-btn-icon" style="padding: 0 10px; height: 32px;" onclick="closeManualModal()">✕</button>
+                <h3>Manual Member &amp; Trainer Entry</h3>
+                <button type="button" class="term-btn-icon" style="padding: 0 10px; height: 32px; flex-shrink: 0;" onclick="closeManualModal()">✕</button>
             </div>
             <div class="manual-search-box">
                 <span class="manual-search-icon">
                     <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
                 </span>
-                <input type="text" id="manual-search-input" class="manual-search-input" placeholder="Type member name, email or phone number..." autocomplete="off">
+                <input type="text" id="manual-search-input" class="manual-search-input" placeholder="Search member or trainer name, email, phone..." autocomplete="off">
             </div>
             <div class="manual-results-list" id="manual-results-list">
                 <div style="text-align: center; color: var(--muted); padding: 30px 10px; font-size: 0.88rem;">
-                    Type to find members registered to this gym.
+                    Loading members &amp; trainers...
                 </div>
             </div>
         </div>

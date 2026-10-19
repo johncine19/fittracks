@@ -74,6 +74,31 @@ async function openViewIngredientsModal(foodId) {
     if (carbsEl) carbsEl.textContent = (food.carbs_g || 0) + 'g';
     if (fatEl) fatEl.textContent = (food.fat_g || 0) + 'g';
 
+    const statusBadge = document.getElementById('ing-modal-status-badge');
+    if (statusBadge) {
+        const vStatus = food.verification_status || (food.source === 'system' ? 'verified' : 'unverified');
+        if (vStatus === 'verified') {
+            statusBadge.className = 'food-vbadge vbadge-verified';
+            statusBadge.innerHTML = '<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg> Verified Nutrition';
+        } else if (vStatus === 'rejected') {
+            statusBadge.className = 'food-vbadge vbadge-rejected';
+            statusBadge.innerHTML = '<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg> Rejected Submission';
+        } else {
+            statusBadge.className = 'food-vbadge vbadge-unverified';
+            statusBadge.innerHTML = '<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg> Unverified (Pending Review)';
+        }
+    }
+
+    const rejNoteEl = document.getElementById('ing-modal-rejection-note');
+    if (rejNoteEl) {
+        if (food.verification_status === 'rejected' && food.rejection_reason) {
+            rejNoteEl.style.display = 'block';
+            rejNoteEl.innerHTML = '<strong style="color: #ef4444;">Admin Rejection Note:</strong> ' + escapeHtml(food.rejection_reason);
+        } else {
+            rejNoteEl.style.display = 'none';
+        }
+    }
+
     // Populate Single Unified Ingredients List (2x2 Grid with Show All)
     const listEl = document.getElementById('ing-modal-items-list');
     const countEl = document.getElementById('ing-modal-items-count');
@@ -134,7 +159,7 @@ async function openViewIngredientsModal(foodId) {
     // Setup Edit Button in Footer if permitted
     const editContainer = document.getElementById('ing-modal-footer-edit-container');
     const isCustom = !food.is_global && (food.gym_id !== null && food.gym_id !== undefined && food.gym_id !== '');
-    const canEdit = (FT_CURRENT_USER_ROLE === 'platform_admin' || (FT_CURRENT_USER_ROLE === 'gym_owner' && isCustom));
+    const canEdit = (FT_CURRENT_USER_ROLE === 'platform_admin' || (['gym_owner', 'trainer'].includes(FT_CURRENT_USER_ROLE) && isCustom && (!food.gym_id || String(food.gym_id) === String(window.FOOD_LIBRARY_CONFIG.currentGymId))));
     if (editContainer) {
         if (canEdit) {
             editContainer.innerHTML = `
@@ -647,6 +672,12 @@ function openEditFoodModal(food) {
                 
                 <!-- TAB 1: General Info & Macros -->
                 <div id="swal-tab-panel-1" class="swal-tab-panel" style="display: flex;">
+                    ${food.verification_status === 'rejected' ? `
+                        <div style="background: rgba(239, 68, 68, 0.12); border: 1px solid rgba(239, 68, 68, 0.3); border-radius: 8px; padding: 10px 12px; margin-bottom: 12px; font-size: 12px; color: var(--ink);">
+                            <strong style="color: #ef4444;">Admin Rejection Note:</strong> ${escapeHtml(food.rejection_reason || 'Did not meet criteria.')}
+                            <div style="margin-top: 4px; font-size: 11px; opacity: 0.9;">Editing and saving this food will automatically return its status to <strong>Unverified</strong> and resubmit it for Platform Admin review.</div>
+                        </div>
+                    ` : ''}
                     <label class="swal-field-label">Dish / Product Name *
                         <input type="text" name="name" class="swal-form-control" value="${escapeHtml(food.name)}" required style="margin-top: 4px;">
                     </label>
@@ -931,3 +962,181 @@ function importProductToGym(product) {
         }
     });
 }
+
+function promptRejectFood(foodId, foodName, returnTab = 'verifications') {
+    Swal.fire({
+        title: 'Reject Custom Food',
+        html: `Provide an administrative reason for rejecting <strong>${escapeHtml(foodName)}</strong>.<br><span style="font-size:12px; color:var(--muted);">This explanation will be shared with the gym owner and trainer so they can adjust and resubmit.</span>`,
+        input: 'textarea',
+        inputPlaceholder: 'e.g., Incomplete ingredients list, macros do not match portion size...',
+        inputAttributes: {
+            'aria-label': 'Rejection reason',
+            'style': 'height: 85px; font-size: 13px; border-radius: 8px; background: var(--surface); color: var(--ink); border: 1px solid var(--line);'
+        },
+        showCancelButton: true,
+        confirmButtonText: 'Confirm Rejection',
+        confirmButtonColor: '#ef4444',
+        cancelButtonColor: 'var(--line)',
+        background: 'var(--bg)',
+        color: 'var(--ink)',
+        preConfirm: (reason) => {
+            if (!reason || !reason.trim()) {
+                Swal.showValidationMessage('Please provide a reason for the rejection');
+                return false;
+            }
+            return reason.trim();
+        }
+    }).then((result) => {
+        if (result.isConfirmed) {
+            const form = document.createElement('form');
+            form.method = 'POST';
+            form.action = 'index.php?page=food_library&tab=' + encodeURIComponent(returnTab);
+            form.style.display = 'none';
+            form.innerHTML = `
+                <input type="hidden" name="csrf_token" value="${FT_CSRF_TOKEN}">
+                <input type="hidden" name="action" value="reject_food">
+                <input type="hidden" name="return_tab" value="${encodeURIComponent(returnTab)}">
+                <input type="hidden" name="food_id" value="${foodId}">
+                <input type="hidden" name="rejection_reason" value="${escapeHtml(result.value)}">
+            `;
+            document.body.appendChild(form);
+            form.submit();
+        }
+    });
+}
+
+/**
+ * Mobile Top Navigation Tab Dropdown
+ * Uses FitDropdown to switch between Food Catalog, Online Search, and Approvals on mobile
+ */
+function initMobileFoodTabDropdown() {
+    const container = document.getElementById('mobileFoodTabDropdown');
+    if (!container || typeof FitDropdown === 'undefined') return;
+
+    const config = window.FOOD_LIBRARY_CONFIG || {};
+    const activeTab = config.activeTab || 'library';
+    const isPlatformAdmin = (config.currentUserRole === 'platform_admin');
+    const pendingCount = parseInt(config.pendingCount, 10) || 0;
+
+    const items = [
+        {
+            id: 'library',
+            label: 'Food Catalog',
+            icon: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8h1a4 4 0 0 1 0 8h-1"></path><path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z"></path><line x1="6" y1="1" x2="6" y2="4"></line><line x1="10" y1="1" x2="10" y2="4"></line><line x1="14" y1="1" x2="14" y2="4"></line></svg>'
+        },
+        {
+            id: 'online_import',
+            label: 'Online Nutrition Search (Open Food Facts)',
+            icon: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="2" y1="12" x2="22" y2="12"></line><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path></svg>'
+        }
+    ];
+
+    if (isPlatformAdmin) {
+        items.push({
+            id: 'verifications',
+            label: pendingCount > 0 ? ('Custom Food Approvals (' + pendingCount + ')') : 'Custom Food Approvals',
+            subtitle: pendingCount > 0 ? (pendingCount + ' pending') : '',
+            icon: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><polyline points="9 12 11 14 15 10"/></svg>'
+        });
+    }
+
+    window.mobileFoodTabDropdown = new FitDropdown({
+        container: '#mobileFoodTabDropdown',
+        name: 'food_tab',
+        id: 'mobile_food_tab_select',
+        value: activeTab,
+        searchable: false,
+        zIndex: 90,
+        items: items,
+        onChange: function(item) {
+            const tabId = (item && typeof item === 'object') ? item.id : item;
+            if (!tabId) return;
+            window.location.href = 'index.php?page=food_library&tab=' + encodeURIComponent(tabId);
+        }
+    });
+}
+
+/**
+ * Mobile Filter Dropdown for Custom Food Verifications
+ * Uses FitDropdown to select verification statuses seamlessly on mobile
+ */
+function initMobileVerifDropdown() {
+    const container = document.getElementById('mobileVerifFilterDropdown');
+    if (!container || typeof FitDropdown === 'undefined') return;
+
+    const config = window.FOOD_LIBRARY_CONFIG || {};
+    const pendingCount = parseInt(config.pendingCount, 10) || 0;
+    const verifiedCount = parseInt(config.verifiedCount, 10) || 0;
+    const rejectedCount = parseInt(config.rejectedCount, 10) || 0;
+    const currentStatus = config.vStatus || 'all';
+
+    const items = [
+        {
+            id: 'unverified',
+            label: 'Pending Review (' + pendingCount + ')',
+            icon: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>'
+        },
+        {
+            id: 'all',
+            label: 'All Submissions',
+            icon: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>'
+        },
+        {
+            id: 'verified',
+            label: 'Verified (' + verifiedCount + ')',
+            icon: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#84cc16" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><polyline points="9 12 11 14 15 10"/></svg>'
+        },
+        {
+            id: 'rejected',
+            label: 'Rejected (' + rejectedCount + ')',
+            icon: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>'
+        }
+    ];
+
+    window.mobileVerifDropdown = new FitDropdown({
+        container: '#mobileVerifFilterDropdown',
+        name: 'v_status',
+        id: 'mobile_v_status_select',
+        value: currentStatus,
+        searchable: false,
+        zIndex: 80,
+        items: items,
+        onChange: function(item) {
+            const statusVal = (item && typeof item === 'object') ? item.id : item;
+            if (statusVal === undefined || statusVal === null) return;
+
+            const url = new URL(window.location.href);
+            url.searchParams.set('page', 'food_library');
+            url.searchParams.set('tab', 'verifications');
+            url.searchParams.set('v_status', statusVal);
+
+            const qInput = document.querySelector('input[name="v_q"]');
+            if (qInput && qInput.value.trim()) {
+                url.searchParams.set('v_q', qInput.value.trim());
+            } else {
+                url.searchParams.delete('v_q');
+            }
+
+            const gymSelect = document.querySelector('select[name="v_gym"]');
+            if (gymSelect && gymSelect.value && gymSelect.value !== '0') {
+                url.searchParams.set('v_gym', gymSelect.value);
+            } else {
+                url.searchParams.delete('v_gym');
+            }
+
+            window.location.href = url.toString();
+        }
+    });
+}
+
+function initMobileFoodDropdowns() {
+    initMobileFoodTabDropdown();
+    initMobileVerifDropdown();
+}
+
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initMobileFoodDropdowns);
+} else {
+    initMobileFoodDropdowns();
+}
+

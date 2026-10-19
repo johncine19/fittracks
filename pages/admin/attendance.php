@@ -473,6 +473,7 @@ function attendance_page(): void
                         <th>User</th>
                         <th>Role</th>
                         <th>Session</th>
+                        <th>Equipment</th>
                         <th>Check-in</th>
                         <th>Check-out</th>
                         <th>Method</th>
@@ -503,10 +504,12 @@ function attendance_page(): void
                             <?php else: ?>
                                 <span style="color:var(--muted);font-size:12px;">Gym visit</span>
                             <?php endif; ?>
+                        </td>
+                        <td>
                             <?php if (!$checkedOut && !empty($row['active_equipment'])): ?>
                                 <div style="margin-top: 5px;">
-                                    <span class="badge" style="background: rgba(34, 197, 94, 0.12); color: #22c55e; border: 1px solid rgba(34, 197, 94, 0.3); font-size: 11px; padding: 2px 7px; display: inline-flex; align-items: center; gap: 4px; border-radius: 4px; font-weight: 500;">
-                                        ⚡ <?= h($row['active_equipment']) ?>
+                                    <span style="background: rgba(34, 197, 94, 0.12); color: #22c55e; border: 1px solid rgba(34, 197, 94, 0.3); font-size: 11px; padding: 2px 7px; display: inline-flex; align-items: center; border-radius: 4px; font-weight: 500;">
+                                        <?= h($row['active_equipment']) ?>
                                     </span>
                                 </div>
                             <?php endif; ?>
@@ -579,8 +582,9 @@ function attendance_page(): void
 
                 <?php if (!$checkedOut && !empty($row['active_equipment'])): ?>
                     <div class="attendance-card-equip">
-                        <span class="badge" style="background: rgba(34, 197, 94, 0.12); color: #22c55e; border: 1px solid rgba(34, 197, 94, 0.3); font-size: 11px; padding: 3px 8px; display: inline-flex; align-items: center; gap: 4px; border-radius: 6px; font-weight: 600;">
-                            ⚡ <?= h($row['active_equipment']) ?>
+                        <span class="session-label">Equipment:</span>
+                        <span style="background: rgba(34, 197, 94, 0.12); color: #22c55e; border: 1px solid rgba(34, 197, 94, 0.3); font-size: 11px; padding: 3px 8px; display: inline-flex; align-items: center; border-radius: 6px; font-weight: 600;">
+                            <?= h($row['active_equipment']) ?>
                         </span>
                     </div>
                 <?php endif; ?>
@@ -841,6 +845,19 @@ function attendance_page(): void
         }
 
         .attendance-card-session .session-label {
+            color: var(--muted);
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+        .attendance-card-equip {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            margin-top: 8px;
+        }
+
+        .attendance-card-equip .session-label {
             color: var(--muted);
             font-size: 12px;
             font-weight: 600;
