@@ -44,10 +44,10 @@ function gym_onboarding_page(): void
         $addressParts = array_filter([$street, $barangay, $city, $province, $zipcode], fn($val) => $val !== '');
         $gymAddress = implode(', ', $addressParts);
 
-        if (!$gymName || !$street || !$barangay || !$city || !$province || !$zipcode || !$gymContact) {
-            flash('Facility name, mobile number, and all address fields (street, barangay, city, province, and zipcode) are required.', 'danger');
-        } elseif (strlen($gymContact) !== 11) {
-            flash('Mobile number must be exactly 11 digits (e.g. 09123456789).', 'danger');
+        if (!$gymName || !$street || !$barangay || !$city || !$province || !$zipcode) {
+            flash('Facility name and all address fields (street, barangay, city, province, and zipcode) are required.', 'danger');
+        } elseif ($gymContact !== '' && strlen($gymContact) !== 11) {
+            flash('Gym contact number must be exactly 11 digits (e.g. 09123456789) if provided.', 'danger');
         } elseif (strlen($zipcode) !== 4) {
             flash('ZIP code must be exactly 4 digits (e.g. 7214).', 'danger');
         } elseif (empty($validIdType)) {
@@ -129,7 +129,7 @@ function gym_onboarding_page(): void
                     $user['user_id'],
                     $gymName,
                     $gymAddress,
-                    $gymContact,
+                    $gymContact !== '' ? $gymContact : null,
                     $permitFilename,
                     $validIdFilename,
                     $validIdType,
@@ -807,18 +807,17 @@ function gym_onboarding_page(): void
                                 </div>
 
                                 <div class="split-form-group">
-                                    <label>Mobile Number<span class="req-star">*</span></label>
+                                    <label>Gym Contact Number <span class="opt-label">(Optional)</span></label>
                                     <div class="split-input-wrap auth-input-group">
                                         <svg class="split-input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                                             <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"></path>
                                         </svg>
-                                        <input type="tel" inputmode="numeric" name="gym_contact_info" id="gym_contact_info" required
+                                        <input type="tel" inputmode="numeric" name="gym_contact_info" id="gym_contact_info"
                                                pattern="[0-9]{11}" maxlength="11" placeholder="09123456789"
                                                value="<?= h(post('gym_contact_info')) ?>"
-                                               title="Please enter an 11-digit mobile number (e.g. 09123456789)"
+                                               title="Please enter an 11-digit mobile number (e.g. 09123456789) if provided"
                                                onkeypress="return event.charCode >= 48 && event.charCode <= 57"
-                                               oninput="this.value=this.value.replace(/[^0-9]/g,'').slice(0,11); this.setCustomValidity('');"
-                                               oninvalid="this.setCustomValidity('Please enter an 11-digit mobile number.')">
+                                               oninput="this.value=this.value.replace(/[^0-9]/g,'').slice(0,11); this.setCustomValidity('');">
                                     </div>
                                 </div>
                             </div>
@@ -1250,7 +1249,7 @@ function gym_onboarding_page(): void
                                             <span class="review-value" id="rev-gym-name">—</span>
                                         </div>
                                         <div class="review-row">
-                                            <span class="review-label">Mobile Number:</span>
+                                            <span class="review-label">Gym Contact Number:</span>
                                             <span class="review-value" id="rev-gym-contact">—</span>
                                         </div>
                                         <div class="review-row">
@@ -1815,7 +1814,7 @@ function gym_onboarding_page(): void
                 gn.reportValidity();
                 return;
             }
-            if (gc) {
+            if (gc && gc.value.trim() !== '') {
                 const phoneDigits = gc.value.replace(/[^0-9]/g, '');
                 if (phoneDigits.length !== 11) {
                     goToStepDirect(1);
@@ -1826,6 +1825,8 @@ function gym_onboarding_page(): void
                 } else {
                     gc.setCustomValidity('');
                 }
+            } else if (gc) {
+                gc.setCustomValidity('');
             }
             if (st && !st.value.trim()) {
                 goToStepDirect(1);
@@ -1954,7 +1955,7 @@ function gym_onboarding_page(): void
 
     function populateReviewData() {
         const gn = document.getElementById('gym_name')?.value || '—';
-        const gc = document.getElementById('gym_contact_info')?.value || '—';
+        const gc = document.getElementById('gym_contact_info')?.value.trim() || 'Not provided';
         const st = document.getElementById('street')?.value.trim() || '';
         const bg = document.getElementById('barangay')?.value.trim() || '';
         const ct = document.getElementById('city')?.value.trim() || '';
