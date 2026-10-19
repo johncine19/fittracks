@@ -4084,7 +4084,7 @@ function render_notification_bell(array $user, string $currentPage, ?int $cached
         const newBadge     = document.getElementById('notif-bell-new-badge');
         const markAllBtn   = document.getElementById('notif-mark-all-btn');
         const markAllForm  = document.getElementById('notif-mark-all-form');
-        const csrfToken    = markAllForm ? markAllForm.querySelector('[name="csrf_token"]').value : '';
+        const csrfToken    = (markAllForm ? markAllForm.querySelector('[name="csrf_token"]')?.value : '') || document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
 
         function updateBadges(unreadCount) {
             // Main bell badge (header button)
@@ -4148,17 +4148,33 @@ function render_notification_bell(array $user, string $currentPage, ?int $cached
         }
         window.updateSidebarMessagesBadge = updateMessagesBadges;
 
+        let activeNotifController = null;
+        window.addEventListener('beforeunload', function() {
+            if (activeNotifController) {
+                activeNotifController.abort();
+            }
+        });
+
         async function ajaxNotifAction(payload) {
             try {
+                if (activeNotifController) {
+                    activeNotifController.abort();
+                }
+                activeNotifController = new AbortController();
                 const body = new URLSearchParams(payload);
                 const res = await fetch('index.php?page=notifications', {
                     method: 'POST',
                     headers: { 'X-Requested-With': 'XMLHttpRequest',
                                'Content-Type': 'application/x-www-form-urlencoded' },
-                    body: body.toString()
+                    body: body.toString(),
+                    signal: activeNotifController.signal
                 });
+                if (!res.ok) return null;
                 return await res.json();
             } catch (_) { return null; }
+            finally {
+                activeNotifController = null;
+            }
         }
 
         // ── Mark single notification read ───────────────────────────
@@ -4224,26 +4240,32 @@ function render_notification_bell(array $user, string $currentPage, ?int $cached
         }
 
         // ── 30-second badge polling ─────────────────────────────────
+        let isPollingNotifs = false;
         let lastUnreadCount = <?= (int) $unread ?>;
         setInterval(async function() {
-            if (document.hidden) return;
-            const data = await ajaxNotifAction({
-                notification_action: 'fetch_notifications',
-                csrf_token: csrfToken
-            });
-            if (data) {
-                if (typeof data.unread === 'number') {
-                    if (data.unread > lastUnreadCount) {
-                        if (window.playNotifSound) {
-                            window.playNotifSound('chime');
+            if (document.hidden || isPollingNotifs) return;
+            isPollingNotifs = true;
+            try {
+                const data = await ajaxNotifAction({
+                    notification_action: 'fetch_notifications',
+                    csrf_token: csrfToken
+                });
+                if (data) {
+                    if (typeof data.unread === 'number') {
+                        if (data.unread > lastUnreadCount) {
+                            if (window.playNotifSound) {
+                                window.playNotifSound('chime');
+                            }
                         }
+                        lastUnreadCount = data.unread;
+                        updateBadges(data.unread);
                     }
-                    lastUnreadCount = data.unread;
-                    updateBadges(data.unread);
+                    if (typeof data.unread_messages === 'number') {
+                        updateMessagesBadges(data.unread_messages);
+                    }
                 }
-                if (typeof data.unread_messages === 'number') {
-                    updateMessagesBadges(data.unread_messages);
-                }
+            } finally {
+                isPollingNotifs = false;
             }
         }, 30000);
     })();

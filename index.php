@@ -290,6 +290,12 @@ register_shutdown_function(function() {
         return;
     }
 
+    $isAjax = (!empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest')
+        || (isset($_SERVER['HTTP_ACCEPT']) && str_contains($_SERVER['HTTP_ACCEPT'], 'application/json'));
+    if ($isAjax) {
+        return;
+    }
+
     if (function_exists('fastcgi_finish_request')) {
         fastcgi_finish_request();
     }

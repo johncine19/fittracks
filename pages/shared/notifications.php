@@ -11,12 +11,27 @@ function notifications_page(): void
 
         // ── AJAX handlers ────────────────────────────────────────────────
         if ($isAjax && $action === 'fetch_notifications') {
-            if (ob_get_level()) ob_clean();
-            header('Content-Type: application/json');
+            if (session_status() === PHP_SESSION_ACTIVE) {
+                session_write_close();
+            }
+            while (ob_get_level() > 0) {
+                ob_end_clean();
+            }
+            header('Content-Type: application/json; charset=utf-8');
             $items   = get_notifications((int) $user['user_id'], 8);
             $unread  = unread_notification_count((int) $user['user_id']);
-            $unreadMsgs = (int) scalar('SELECT COUNT(*) FROM trainer_messages WHERE recipient_id = ? AND is_read = 0', [(int)$user['user_id']]);
+            $unreadMsgs = 0;
+            try {
+                $unreadMsgs = (int) scalar('SELECT COUNT(*) FROM trainer_messages WHERE recipient_id = ? AND is_read = 0', [(int)$user['user_id']]);
+            } catch (Throwable) {
+                $unreadMsgs = 0;
+            }
             echo json_encode(['unread' => $unread, 'items' => $items, 'unread_messages' => $unreadMsgs]);
+            if (function_exists('fastcgi_finish_request')) {
+                fastcgi_finish_request();
+            } else {
+                flush();
+            }
             exit;
         }
         if ($isAjax && ($action === 'mark_read' || $action === 'mark_all_read')) {
@@ -25,10 +40,20 @@ function notifications_page(): void
             } else {
                 mark_all_notifications_read((int) $user['user_id']);
             }
-            if (ob_get_level()) ob_clean();
-            header('Content-Type: application/json');
+            if (session_status() === PHP_SESSION_ACTIVE) {
+                session_write_close();
+            }
+            while (ob_get_level() > 0) {
+                ob_end_clean();
+            }
+            header('Content-Type: application/json; charset=utf-8');
             $unread = unread_notification_count((int) $user['user_id']);
             echo json_encode(['success' => true, 'unread_count' => $unread]);
+            if (function_exists('fastcgi_finish_request')) {
+                fastcgi_finish_request();
+            } else {
+                flush();
+            }
             exit;
         }
 
