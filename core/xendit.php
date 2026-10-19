@@ -62,6 +62,63 @@ function xendit_api_request(string $method, string $path, ?array $body = null, a
     return $response;
 }
 
+function xendit_find_customer_id(string $referenceId, array $headers = []): ?string
+{
+    if ($referenceId === '') {
+        return null;
+    }
+
+    // 1. Check local users table if cached
+    if (str_starts_with($referenceId, 'user-')) {
+        $userId = (int) substr($referenceId, 5);
+        if ($userId > 0) {
+            try {
+                $stmt = db()->prepare('SELECT xendit_customer_id FROM users WHERE user_id = ? LIMIT 1');
+                $stmt->execute([$userId]);
+                $cached = trim((string) $stmt->fetchColumn());
+                if ($cached !== '') {
+                    return $cached;
+                }
+            } catch (Throwable) {
+                // Column might not exist yet on all environments
+            }
+        }
+    }
+
+    // 2. Query Xendit Customers API
+    try {
+        $res = xendit_api_request(
+            'GET',
+            '/customers?reference_id=' . rawurlencode($referenceId),
+            null,
+            array_merge(['api-version: 2020-10-31'], $headers)
+        );
+        $list = $res['data'] ?? $res;
+        if (is_array($list)) {
+            foreach ($list as $item) {
+                if (is_array($item) && !empty($item['id'])) {
+                    $foundId = (string) $item['id'];
+                    if (str_starts_with($referenceId, 'user-')) {
+                        $userId = (int) substr($referenceId, 5);
+                        if ($userId > 0) {
+                            try {
+                                db()->prepare('UPDATE users SET xendit_customer_id = ? WHERE user_id = ? AND (xendit_customer_id IS NULL OR xendit_customer_id = "")')
+                                    ->execute([$foundId, $userId]);
+                            } catch (Throwable) {
+                            }
+                        }
+                    }
+                    return $foundId;
+                }
+            }
+        }
+    } catch (Throwable $e) {
+        error_log('Xendit customer lookup note: ' . $e->getMessage());
+    }
+
+    return null;
+}
+
 function xendit_create_checkout_session(
     array $payment,
     array $customer,
@@ -108,24 +165,84 @@ function xendit_create_checkout_session(
 
     $requestHeaders = $forUserId !== null ? ['for-user-id: ' . $forUserId] : [];
     $customerEmail = trim((string)($customer['email'] ?? ''));
-    if ($customerEmail !== '') {
-        $givenNames = trim(preg_replace('/[^\p{L}\p{N} .\-]/u', '', (string)($customer['first_name'] ?? 'Member')) ?: 'Member');
-        $surname = trim(preg_replace('/[^\p{L}\p{N} .\-]/u', '', (string)($customer['last_name'] ?? '')));
-        $individualDetail = [
-            'given_names' => $givenNames,
-        ];
-        if ($surname !== '') {
-            $individualDetail['surname'] = $surname;
-        }
+    $userId = (int)($customer['user_id'] ?? 0);
+    $customerRef = 'user-' . $userId;
 
-        $payload['customer'] = [
-            'reference_id' => 'user-' . (int)($customer['user_id'] ?? 0),
-            'type' => 'INDIVIDUAL',
-            'email' => $customerEmail,
-            'individual_detail' => $individualDetail,
-        ];
+    if ($customerEmail !== '') {
+        $existingCustId = $userId > 0 ? xendit_find_customer_id($customerRef, $requestHeaders) : null;
+        if ($existingCustId !== null) {
+            $payload['customer_id'] = $existingCustId;
+        } else {
+            $givenNames = trim(preg_replace('/[^\p{L}\p{N} .\-]/u', '', (string)($customer['first_name'] ?? 'Member')) ?: 'Member');
+            $surname = trim(preg_replace('/[^\p{L}\p{N} .\-]/u', '', (string)($customer['last_name'] ?? '')));
+            $individualDetail = [
+                'given_names' => $givenNames,
+            ];
+            if ($surname !== '') {
+                $individualDetail['surname'] = $surname;
+            }
+
+            $payload['customer'] = [
+                'reference_id' => $customerRef,
+                'type' => 'INDIVIDUAL',
+                'email' => $customerEmail,
+                'individual_detail' => $individualDetail,
+            ];
+        }
     }
-    $session = xendit_api_request('POST', '/sessions', $payload, $requestHeaders);
+
+    try {
+        $session = xendit_api_request('POST', '/sessions', $payload, $requestHeaders);
+    } catch (RuntimeException $e) {
+        $msg = $e->getMessage();
+        // If Xendit reports that the customer reference_id already exists, recover automatically
+        if (str_contains($msg, 'DUPLICATE_ERROR') && str_contains(strtolower($msg), 'customer')) {
+            error_log('Xendit reported duplicate customer reference_id. Attempting automatic recovery...');
+            $fallbackCustId = null;
+            try {
+                $rawRes = xendit_api_request('GET', '/customers?reference_id=' . rawurlencode($customerRef), null, $requestHeaders);
+                $rawList = $rawRes['data'] ?? $rawRes;
+                if (is_array($rawList) && !empty($rawList)) {
+                    $first = reset($rawList);
+                    if (is_array($first) && !empty($first['id'])) {
+                        $fallbackCustId = (string)$first['id'];
+                    }
+                }
+            } catch (Throwable) {
+            }
+
+            if ($fallbackCustId !== null) {
+                unset($payload['customer']);
+                $payload['customer_id'] = $fallbackCustId;
+                if ($userId > 0) {
+                    try {
+                        db()->prepare('UPDATE users SET xendit_customer_id = ? WHERE user_id = ?')->execute([$fallbackCustId, $userId]);
+                    } catch (Throwable) {
+                    }
+                }
+                $session = xendit_api_request('POST', '/sessions', $payload, $requestHeaders);
+            } elseif (isset($payload['customer'])) {
+                // Ensure customer reference_id is unique per session if lookup could not find existing ID
+                $payload['customer']['reference_id'] = $customerRef . '-' . time() . '-' . substr(bin2hex(random_bytes(3)), 0, 6);
+                $session = xendit_api_request('POST', '/sessions', $payload, $requestHeaders);
+            } else {
+                throw $e;
+            }
+        } else {
+            throw $e;
+        }
+    }
+
+    // Cache customer ID if returned in session response
+    $returnedCustId = trim((string)($session['customer_id'] ?? ''));
+    if ($returnedCustId !== '' && $userId > 0) {
+        try {
+            db()->prepare('UPDATE users SET xendit_customer_id = ? WHERE user_id = ? AND (xendit_customer_id IS NULL OR xendit_customer_id = "")')
+                ->execute([$returnedCustId, $userId]);
+        } catch (Throwable) {
+        }
+    }
+
     $sessionId = trim((string) ($session['payment_session_id'] ?? ''));
     $checkoutUrl = trim((string) ($session['payment_link_url'] ?? ''));
     $checkoutHost = strtolower((string) parse_url($checkoutUrl, PHP_URL_HOST));

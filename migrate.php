@@ -80,6 +80,7 @@ try {
         "ALTER TABLE gym_subscription_payments ADD COLUMN xendit_session_id VARCHAR(64) DEFAULT NULL",
         "ALTER TABLE gym_subscription_payments ADD COLUMN xendit_payment_id VARCHAR(64) DEFAULT NULL",
         "ALTER TABLE gyms ADD COLUMN xendit_subaccount_id VARCHAR(64) DEFAULT NULL",
+        "ALTER TABLE users ADD COLUMN xendit_customer_id VARCHAR(64) DEFAULT NULL",
         "ALTER TABLE payments ADD COLUMN xendit_reference_id VARCHAR(64) DEFAULT NULL",
         "ALTER TABLE payments ADD COLUMN xendit_session_id VARCHAR(64) DEFAULT NULL",
         "ALTER TABLE payments ADD COLUMN xendit_payment_id VARCHAR(64) DEFAULT NULL",

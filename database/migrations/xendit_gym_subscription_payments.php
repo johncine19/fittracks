@@ -43,6 +43,9 @@ foreach ([
 if (!$columnExists('gyms', 'xendit_subaccount_id')) {
     $pdo->exec('ALTER TABLE gyms ADD COLUMN xendit_subaccount_id VARCHAR(64) NULL');
 }
+if (!$columnExists('users', 'xendit_customer_id')) {
+    $pdo->exec('ALTER TABLE users ADD COLUMN xendit_customer_id VARCHAR(64) NULL');
+}
 foreach ([
     'xendit_reference_id' => 'VARCHAR(64) NULL',
     'xendit_session_id' => 'VARCHAR(64) NULL',
