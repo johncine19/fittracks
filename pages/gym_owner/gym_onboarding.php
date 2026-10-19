@@ -36,6 +36,8 @@ function gym_onboarding_page(): void
         $gymContact = preg_replace('/[^0-9]/', '', (string) post('gym_contact_info'));
         $validIdType = trim((string) post('valid_id_type'));
         $validIdTypeOther = trim((string) post('valid_id_type_other'));
+        $secondaryValidIdType = trim((string) post('secondary_valid_id_type'));
+        $secondaryValidIdTypeOther = trim((string) post('secondary_valid_id_type_other'));
         $fbPageUrl = trim((string) post('fb_page_url'));
         $payoutChannel = trim((string) post('payout_channel')) ?: 'gcash';
         $payoutAccountNumber = preg_replace('/[^0-9]/', '', (string) post('payout_account_number'));
@@ -43,6 +45,8 @@ function gym_onboarding_page(): void
 
         $addressParts = array_filter([$street, $barangay, $city, $province, $zipcode], fn($val) => $val !== '');
         $gymAddress = implode(', ', $addressParts);
+
+        $isSecondary = is_secondary_id($validIdType);
 
         if (!$gymName || !$street || !$barangay || !$city || !$province || !$zipcode) {
             flash('Facility name and all address fields (street, barangay, city, province, and zipcode) are required.', 'danger');
@@ -52,9 +56,16 @@ function gym_onboarding_page(): void
             flash('ZIP code must be exactly 4 digits (e.g. 7214).', 'danger');
         } elseif (empty($validIdType)) {
             flash('Please select your Valid Government ID type.', 'danger');
+        } elseif ($isSecondary && empty($secondaryValidIdType)) {
+            flash('Under FitTrack policy, selecting a Secondary ID requires one additional supporting government ID.', 'danger');
+        } elseif ($isSecondary && strcasecmp($validIdType, $secondaryValidIdType) === 0) {
+            flash('Your supporting ID must be a different ID type from your first selection.', 'danger');
         } else {
             if ($validIdType === 'Other Valid Government ID' && !empty($validIdTypeOther)) {
                 $validIdType = 'Other: ' . $validIdTypeOther;
+            }
+            if ($secondaryValidIdType === 'Other Valid Government ID' && !empty($secondaryValidIdTypeOther)) {
+                $secondaryValidIdType = 'Other: ' . $secondaryValidIdTypeOther;
             }
 
             if (!empty($fbPageUrl)) {
@@ -95,12 +106,22 @@ function gym_onboarding_page(): void
                     throw new Exception('Barangay Clearance is required.');
                 }
 
-                // 3. Required: Valid ID
+                // 3. Required: Main Valid ID
                 $validIdFilename = null;
                 if (isset($_FILES['valid_id']) && $_FILES['valid_id']['error'] === UPLOAD_ERR_OK) {
                     $validIdFilename = FileUpload::storeValidId($_FILES['valid_id'], (int)$user['user_id']);
                 } else {
                     throw new Exception('Valid Government ID upload is required.');
+                }
+
+                // 3b. Required if Secondary: Supporting Government ID
+                $secondaryValidIdFilename = null;
+                if ($isSecondary) {
+                    if (isset($_FILES['secondary_valid_id']) && $_FILES['secondary_valid_id']['error'] === UPLOAD_ERR_OK) {
+                        $secondaryValidIdFilename = FileUpload::storeValidId($_FILES['secondary_valid_id'], (int)$user['user_id']);
+                    } else {
+                        throw new Exception('Supporting Government ID upload is required when using a Secondary ID.');
+                    }
                 }
 
                 // 4. Optional: Fire Safety Inspection Certificate
@@ -137,6 +158,17 @@ function gym_onboarding_page(): void
                     $fireSafetyFilename,
                     $fbPageUrl
                 ];
+
+                if (in_array('secondary_valid_id_url', $gymColumns, true)) {
+                    $fields[] = 'secondary_valid_id_url';
+                    $placeholders[] = '?';
+                    $params[] = $secondaryValidIdFilename;
+                }
+                if (in_array('secondary_valid_id_type', $gymColumns, true)) {
+                    $fields[] = 'secondary_valid_id_type';
+                    $placeholders[] = '?';
+                    $params[] = $isSecondary ? $secondaryValidIdType : null;
+                }
 
                 // Legacy column compatibility if present in table
                 if (in_array('permit_url', $gymColumns, true)) {
@@ -191,6 +223,10 @@ function gym_onboarding_page(): void
         unset($_SESSION['flash']);
     }
 
+    $idTypes = get_verification_id_types(true);
+    $primaryIdTypes = array_values(array_filter($idTypes, fn($i) => ($i['category'] ?? '') === 'primary'));
+    $secondaryIdTypes = array_values(array_filter($idTypes, fn($i) => ($i['category'] ?? '') === 'secondary'));
+
     render_header('Gym Onboarding', $user);
     ?>
     <style>
@@ -233,7 +269,7 @@ function gym_onboarding_page(): void
             max-width: 700px !important;
             box-shadow: 0 20px 50px -15px rgba(0, 0, 0, 0.65), 0 0 0 1px rgba(255, 255, 255, 0.1) !important;
             box-sizing: border-box !important;
-            overflow: hidden !important;
+            overflow: visible !important;
         }
 
         .onboarding-card .split-card-header {
@@ -330,6 +366,7 @@ function gym_onboarding_page(): void
             width: 100% !important;
             min-width: 0 !important;
             box-sizing: border-box !important;
+            position: relative !important;
         }
         .onboarding-card .split-input-wrap input,
         .onboarding-card .split-input-wrap select {
@@ -358,12 +395,183 @@ function gym_onboarding_page(): void
             text-overflow: ellipsis !important;
             white-space: nowrap !important;
             overflow: hidden !important;
+            max-width: 100% !important;
+            width: 100% !important;
+        }
+        .onboarding-card .split-input-wrap select optgroup {
+            font-size: 12px !important;
+            font-weight: 700 !important;
+            color: #475569 !important;
+            padding: 4px 0 !important;
+        }
+        .onboarding-card .split-input-wrap select option {
+            font-size: 13px !important;
+            color: #0f172a !important;
+            padding: 4px 6px !important;
         }
         .onboarding-card .split-input-icon {
+            position: absolute !important;
             left: 12px !important;
+            top: 20px !important;
+            transform: translateY(-50%) !important;
             width: 16px !important;
             height: 16px !important;
             color: #64748b !important;
+            pointer-events: none !important;
+            z-index: 10 !important;
+        }
+
+        /* FitDropdown Custom Styles for Onboarding Card */
+        .onboarding-card .fit-dropdown-wrap {
+            --ink: #0f172a !important;
+            --muted: #64748b !important;
+            width: 100% !important;
+            max-width: 100% !important;
+            min-width: 0 !important;
+            position: relative !important;
+        }
+        .onboarding-card .fit-dropdown-trigger {
+            width: 100% !important;
+            height: 40px !important;
+            padding: 7px 12px 7px 38px !important;
+            font-size: 13px !important;
+            border-radius: 9px !important;
+            background: #ffffff !important;
+            border: 1px solid #111111 !important;
+            color: #0f172a !important;
+            box-sizing: border-box !important;
+            display: flex !important;
+            align-items: center !important;
+            justify-content: space-between !important;
+            transition: border-color 0.15s ease, box-shadow 0.15s ease !important;
+        }
+        .onboarding-card .fit-dropdown-trigger:hover,
+        .onboarding-card .fit-dropdown-trigger:focus,
+        .onboarding-card .fit-dropdown-trigger.open {
+            border-color: #84cc16 !important;
+            box-shadow: 0 0 0 2px rgba(132, 204, 22, 0.2) !important;
+            outline: none !important;
+        }
+        .onboarding-card .fit-dropdown-trigger.error {
+            border-color: #ef4444 !important;
+            box-shadow: 0 0 0 2px rgba(239, 68, 68, 0.25) !important;
+        }
+        .onboarding-card .fit-dropdown-trigger-content {
+            font-size: 13px !important;
+            color: #0f172a !important;
+            overflow: hidden !important;
+            text-overflow: ellipsis !important;
+            white-space: nowrap !important;
+            flex: 1 !important;
+            text-align: left !important;
+        }
+        .onboarding-card .fit-dropdown-trigger-content span {
+            color: #0f172a !important;
+            font-size: 13px !important;
+            font-weight: 500 !important;
+        }
+        .onboarding-card .fit-dropdown-placeholder {
+            color: #64748b !important;
+            font-size: 13px !important;
+        }
+        .onboarding-card .fit-dropdown-wrap svg,
+        .onboarding-card .fit-dropdown-trigger svg,
+        .onboarding-card .fit-dropdown-chevron {
+            position: static !important;
+            left: auto !important;
+            right: auto !important;
+            top: auto !important;
+            transform: none !important;
+            width: 16px !important;
+            height: 16px !important;
+            color: #64748b !important;
+            pointer-events: none !important;
+            flex-shrink: 0 !important;
+            display: block !important;
+        }
+        .onboarding-card .fit-dropdown-trigger.open .fit-dropdown-chevron {
+            transform: rotate(180deg) !important;
+        }
+        .onboarding-card .fit-dropdown-menu {
+            position: absolute !important;
+            top: calc(100% + 4px) !important;
+            left: 0 !important;
+            right: 0 !important;
+            width: 100% !important;
+            max-width: 100% !important;
+            min-width: 100% !important;
+            box-sizing: border-box !important;
+            background: #ffffff !important;
+            border: 1px solid #cbd5e1 !important;
+            border-radius: 10px !important;
+            box-shadow: 0 12px 28px rgba(0, 0, 0, 0.15), 0 4px 10px rgba(0, 0, 0, 0.08) !important;
+            z-index: 99999 !important;
+            overflow: hidden !important;
+        }
+        .onboarding-card .fit-dropdown-list {
+            max-height: 200px !important;
+            overflow-y: auto !important;
+            padding: 4px !important;
+            background: #ffffff !important;
+            scrollbar-width: thin !important;
+            scrollbar-color: #cbd5e1 #f8fafc !important;
+        }
+        .onboarding-card .fit-dropdown-list::-webkit-scrollbar {
+            width: 6px !important;
+        }
+        .onboarding-card .fit-dropdown-list::-webkit-scrollbar-track {
+            background: #f8fafc !important;
+            border-radius: 4px !important;
+        }
+        .onboarding-card .fit-dropdown-list::-webkit-scrollbar-thumb {
+            background: #cbd5e1 !important;
+            border-radius: 4px !important;
+        }
+        .onboarding-card .fit-dropdown-list::-webkit-scrollbar-thumb:hover {
+            background: #94a3b8 !important;
+        }
+        .onboarding-card .fit-dropdown-header {
+            padding: 7px 10px 4px 10px !important;
+            font-size: 10.5px !important;
+            font-weight: 700 !important;
+            text-transform: uppercase !important;
+            letter-spacing: 0.05em !important;
+            color: #475569 !important;
+            background: #f1f5f9 !important;
+            border-radius: 4px !important;
+            margin: 4px 0 2px 0 !important;
+            border-top: none !important;
+        }
+        .onboarding-card .fit-dropdown-header:first-child {
+            margin-top: 0 !important;
+        }
+        .onboarding-card .fit-dropdown-item,
+        .onboarding-card .fit-dropdown-item span,
+        .onboarding-card .fit-dropdown-item div {
+            color: #0f172a !important;
+        }
+        .onboarding-card .fit-dropdown-item {
+            padding: 8px 10px !important;
+            border-radius: 6px !important;
+            font-size: 12.5px !important;
+            margin-bottom: 2px !important;
+            transition: background 0.15s ease !important;
+            cursor: pointer !important;
+        }
+        .onboarding-card .fit-dropdown-item:hover,
+        .onboarding-card .fit-dropdown-item.active {
+            background: #f1f5f9 !important;
+        }
+        .onboarding-card .fit-dropdown-item:hover span,
+        .onboarding-card .fit-dropdown-item.active span {
+            color: #0f172a !important;
+        }
+        .onboarding-card .fit-dropdown-item.selected {
+            background: rgba(132, 204, 22, 0.14) !important;
+        }
+        .onboarding-card .fit-dropdown-item.selected span {
+            color: #15803d !important;
+            font-weight: 700 !important;
         }
 
         /* Upload Boxes (Step 2) - Strict Ellipsis & Overflow Protection */
@@ -668,13 +876,86 @@ function gym_onboarding_page(): void
             display: block !important;
         }
 
-        @media (max-width: 520px) {
+        /* Real-time Policy Badge & Supporting ID Container */
+        .onboarding-card .id-policy-badge {
+            margin: 2px 0 12px 0 !important;
+            padding: 9px 13px !important;
+            border-radius: 9px !important;
+            font-size: 12px !important;
+            line-height: 1.45 !important;
+            display: flex !important;
+            align-items: center !important;
+            gap: 9px !important;
+            width: 100% !important;
+            box-sizing: border-box !important;
+            transition: all 0.2s ease !important;
+        }
+        .onboarding-card .id-policy-badge.is-primary {
+            color: #15803d !important;
+            background: #f0fdf4 !important;
+            border: 1px solid #bbf7d0 !important;
+        }
+        .onboarding-card .id-policy-badge.is-secondary {
+            color: #c2410c !important;
+            background: #fff7ed !important;
+            border: 1px solid #fed7aa !important;
+        }
+        .onboarding-card .id-policy-badge svg {
+            flex-shrink: 0 !important;
+            width: 16px !important;
+            height: 16px !important;
+        }
+
+        .onboarding-card .supporting-id-container {
+            margin-bottom: 14px !important;
+            padding: 13px 15px !important;
+            background: #f8fafc !important;
+            border: 1.5px dashed #cbd5e1 !important;
+            border-radius: 12px !important;
+            box-sizing: border-box !important;
+            width: 100% !important;
+        }
+        .onboarding-card .supporting-id-banner-header {
+            display: flex !important;
+            align-items: center !important;
+            justify-content: space-between !important;
+            gap: 8px !important;
+            margin-bottom: 5px !important;
+            flex-wrap: wrap !important;
+        }
+        .onboarding-card .supporting-id-banner-title {
+            font-weight: 700 !important;
+            font-size: 13px !important;
+            color: #0f172a !important;
+            display: inline-flex !important;
+            align-items: center !important;
+            gap: 6px !important;
+        }
+        .onboarding-card .supporting-id-banner-pill {
+            font-size: 11px !important;
+            font-weight: 600 !important;
+            color: #c2410c !important;
+            background: #ffedd5 !important;
+            border: 1px solid #fed7aa !important;
+            padding: 2px 8px !important;
+            border-radius: 99px !important;
+            white-space: nowrap !important;
+        }
+        .onboarding-card .supporting-id-banner-desc {
+            font-size: 11.5px !important;
+            color: #475569 !important;
+            margin: 0 0 10px 0 !important;
+            line-height: 1.4 !important;
+        }
+
+        @media (max-width: 640px) {
             body:has(.onboarding-wizard-frame) .split-login-viewport,
-            .split-login-viewport:has(.onboarding-wizard-frame) {
-                padding: 10px 8px !important;
+            .split-login-viewport:has(.onboarding-wizard-frame),
+            .split-login-viewport {
+                padding: 12px 10px !important;
             }
             .split-login-card.onboarding-card {
-                padding: 16px 14px 14px !important;
+                padding: 18px 16px 16px !important;
                 border-radius: 14px !important;
             }
             .stepper-label-short {
@@ -685,7 +966,7 @@ function gym_onboarding_page(): void
             }
             .onboarding-stepper {
                 gap: 6px !important;
-                margin-bottom: 10px !important;
+                margin-bottom: 12px !important;
             }
             .onboarding-stepper .stepper-item {
                 gap: 3px !important;
@@ -694,6 +975,60 @@ function gym_onboarding_page(): void
                 font-size: 11px !important;
                 white-space: nowrap !important;
             }
+
+            /* Stack all 2-column form rows into a single column on mobile */
+            .onboarding-card .split-form-row-2col {
+                grid-template-columns: 1fr !important;
+                gap: 10px !important;
+                margin-bottom: 10px !important;
+            }
+
+            /* Better touch targets & display for mobile file uploads */
+            .onboarding-card .split-file-upload-box {
+                min-height: 46px !important;
+                padding: 8px 12px !important;
+            }
+            .onboarding-card .doc-upload-empty {
+                gap: 10px !important;
+            }
+            .onboarding-card .doc-upload-empty .split-upload-icon {
+                width: 20px !important;
+                height: 20px !important;
+            }
+            .onboarding-card .doc-upload-text .split-upload-title {
+                font-size: 12px !important;
+            }
+            .onboarding-card .doc-upload-text .split-upload-desc {
+                font-size: 10.5px !important;
+            }
+
+            /* Mobile supporting ID container adjustments */
+            .onboarding-card .supporting-id-container {
+                padding: 12px 13px !important;
+                margin-bottom: 12px !important;
+            }
+            .onboarding-card .supporting-id-banner-header {
+                gap: 6px !important;
+            }
+            .onboarding-card .supporting-id-banner-title {
+                font-size: 12.5px !important;
+            }
+            .onboarding-card .supporting-id-banner-pill {
+                font-size: 10.5px !important;
+                padding: 2px 7px !important;
+            }
+            .onboarding-card .supporting-id-banner-desc {
+                font-size: 11px !important;
+                margin-bottom: 9px !important;
+            }
+
+            /* Policy badge mobile spacing */
+            .onboarding-card .id-policy-badge {
+                padding: 8px 11px !important;
+                font-size: 11.5px !important;
+                margin: 0 0 10px 0 !important;
+            }
+
             .onboarding-card .review-row {
                 flex-direction: column !important;
                 align-items: flex-start !important;
@@ -936,28 +1271,14 @@ function gym_onboarding_page(): void
                             <div class="split-form-row-2col">
                                 <div class="split-form-group">
                                     <label>Valid ID Type<span class="req-star">*</span></label>
-                                    <div class="split-input-wrap auth-input-group">
+                                    <div class="split-input-wrap">
                                         <svg class="split-input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                                             <rect x="3" y="4" width="18" height="16" rx="2"></rect>
                                             <circle cx="9" cy="10" r="2"></circle>
                                             <line x1="15" y1="8" x2="17" y2="8"></line>
                                             <line x1="15" y1="12" x2="17" y2="12"></line>
                                         </svg>
-                                        <select name="valid_id_type" id="valid_id_type" required onchange="handleIdTypeChange(this.value)"
-                                                oninvalid="this.setCustomValidity('Please select your valid ID type.')"
-                                                oninput="this.setCustomValidity('')">
-                                            <option value="">-- Choose ID Type --</option>
-                                            <option value="Philippine National ID (PhilSys ID)" <?= post('valid_id_type') === 'Philippine National ID (PhilSys ID)' ? 'selected' : '' ?>>Philippine National ID (PhilSys ID)</option>
-                                            <option value="Driver's License" <?= post('valid_id_type') === "Driver's License" ? 'selected' : '' ?>>Driver's License</option>
-                                            <option value="Passport" <?= post('valid_id_type') === 'Passport' ? 'selected' : '' ?>>Passport</option>
-                                            <option value="UMID (Unified Multi-Purpose ID)" <?= post('valid_id_type') === 'UMID (Unified Multi-Purpose ID)' ? 'selected' : '' ?>>UMID</option>
-                                            <option value="TIN ID" <?= post('valid_id_type') === 'TIN ID' ? 'selected' : '' ?>>TIN ID</option>
-                                            <option value="Postal ID" <?= post('valid_id_type') === 'Postal ID' ? 'selected' : '' ?>>Postal ID</option>
-                                            <option value="SSS ID" <?= post('valid_id_type') === 'SSS ID' ? 'selected' : '' ?>>SSS ID</option>
-                                            <option value="GSIS ID" <?= post('valid_id_type') === 'GSIS ID' ? 'selected' : '' ?>>GSIS ID</option>
-                                            <option value="PRC ID" <?= post('valid_id_type') === 'PRC ID' ? 'selected' : '' ?>>PRC ID</option>
-                                            <option value="Other Valid Government ID" <?= post('valid_id_type') === 'Other Valid Government ID' ? 'selected' : '' ?>>Other Valid Government ID</option>
-                                        </select>
+                                        <div id="validIdFitDropdownContainer"></div>
                                     </div>
                                     <div id="other-id-wrap" style="<?= post('valid_id_type') === 'Other Valid Government ID' ? '' : 'display: none;' ?> margin-top: 4px;">
                                         <input type="text" name="valid_id_type_other" id="valid_id_type_other"
@@ -969,7 +1290,7 @@ function gym_onboarding_page(): void
 
                                 <!-- Valid ID Upload Box -->
                                 <div class="split-form-group">
-                                    <label>Upload Valid ID<span class="req-star">*</span></label>
+                                    <label id="label-valid-id">Upload Valid ID<span class="req-star">*</span></label>
                                     <div class="split-file-upload-box <?= empty(post('valid_id_type')) ? 'box-locked' : '' ?>" id="box-valid-id" onclick="handleValidIdBoxClick(event)" title="<?= empty(post('valid_id_type')) ? 'Please choose a Valid ID Type first' : 'Click to choose file' ?>">
                                         <input type="file" name="valid_id" id="input-valid-id" required accept=".pdf,.jpg,.jpeg,.png,.webp"
                                                onclick="return handleValidIdClick(event)"
@@ -1008,6 +1329,84 @@ function gym_onboarding_page(): void
                                                     <span>View</span>
                                                 </button>
                                                 <button type="button" class="doc-action-btn remove" onclick="clearDocFile('input-valid-id', 'id', event)" title="Remove file">&times;</button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Real-time ID Policy Status Banner (Full-Width) -->
+                            <div id="id-policy-badge" class="id-policy-badge" style="display: none;"></div>
+
+                            <!-- Conditional Supporting ID Container (Shown when Secondary ID selected) -->
+                            <div id="supporting-id-container" class="supporting-id-container" style="display: none;">
+                                <div class="supporting-id-banner-header">
+                                    <div class="supporting-id-banner-title">
+                                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#ea580c" stroke-width="2.2" style="flex-shrink: 0;"><path d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+                                        <span>Supporting Government ID <span class="req-star">*</span></span>
+                                    </div>
+                                    <span class="supporting-id-banner-pill">Required (+1 ID)</span>
+                                </div>
+                                <p class="supporting-id-banner-desc">
+                                    Select and upload an additional accepted government ID (Primary or Secondary) distinct from the one selected above.
+                                </p>
+
+                                <div class="split-form-row-2col">
+                                    <div class="split-form-group">
+                                        <label>Supporting ID Type<span class="req-star">*</span></label>
+                                        <div class="split-input-wrap">
+                                            <svg class="split-input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="2"/><line x1="15" y1="8" x2="17" y2="8"/><line x1="15" y1="12" x2="17" y2="12"/></svg>
+                                            <div id="secondaryValidIdFitDropdownContainer"></div>
+                                        </div>
+                                        <div id="secondary-other-id-wrap" style="<?= post('secondary_valid_id_type') === 'Other Valid Government ID' ? '' : 'display: none;' ?> margin-top: 4px;">
+                                            <input type="text" name="secondary_valid_id_type_other" id="secondary_valid_id_type_other"
+                                                   placeholder="Specify ID (e.g. PhilHealth ID, Postal ID)"
+                                                   value="<?= h(post('secondary_valid_id_type_other')) ?>"
+                                                   style="width: 100%; border: 1.5px solid #e2e8f0; border-radius: 8px; padding: 7px 10px; font-size: 12.5px; color: #0f172a; box-sizing: border-box;">
+                                        </div>
+                                    </div>
+
+                                    <div class="split-form-group">
+                                        <label>Upload Supporting ID<span class="req-star">*</span></label>
+                                        <div class="split-file-upload-box box-locked" id="box-secondary-id" onclick="handleSecondaryIdBoxClick(event)" title="Please choose a Supporting ID Type first">
+                                            <input type="file" name="secondary_valid_id" id="input-secondary-id" accept=".pdf,.jpg,.jpeg,.png,.webp"
+                                                   onclick="return handleSecondaryIdClick(event)"
+                                                   onchange="handleDocFileChosen(this, 'sec_id', 'Supporting Government ID')"
+                                                   oninvalid="this.setCustomValidity('Please upload your supporting government ID.')"
+                                                   oninput="this.setCustomValidity('')">
+                                            
+                                            <!-- Empty State -->
+                                            <div class="doc-upload-empty" id="empty-sec_id">
+                                                <svg class="split-upload-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                                    <rect x="3" y="4" width="18" height="16" rx="2"></rect>
+                                                    <circle cx="9" cy="10" r="2"></circle>
+                                                    <line x1="15" y1="8" x2="17" y2="8"></line>
+                                                    <line x1="15" y1="12" x2="17" y2="12"></line>
+                                                    <line x1="7" y1="16" x2="17" y2="16"></line>
+                                                </svg>
+                                                <div class="doc-upload-text">
+                                                    <span class="split-upload-title" id="title-sec_id">Upload Supporting ID</span>
+                                                    <span class="split-upload-desc" id="desc-sec_id">Select ID type first</span>
+                                                </div>
+                                            </div>
+
+                                            <!-- Filled / Inline Preview State -->
+                                            <div class="doc-upload-filled" id="filled-sec_id" style="display: none;">
+                                                <div class="doc-preview-thumb-wrap" id="thumb-sec_id" onclick="openDocPreview('input-secondary-id', event)" title="Click to expand preview"></div>
+                                                <div class="doc-upload-meta">
+                                                    <div class="doc-upload-name" id="filename-sec_id">file.jpg</div>
+                                                    <div class="doc-upload-subinfo">
+                                                        <span class="doc-upload-size" id="size-sec_id">0 KB</span>
+                                                        <span class="doc-upload-badge">✓ Attached</span>
+                                                    </div>
+                                                </div>
+                                                <div class="doc-upload-actions">
+                                                    <button type="button" class="doc-action-btn view" onclick="openDocPreview('input-secondary-id', event)" title="Preview Full Document">
+                                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                                                        <span>View</span>
+                                                    </button>
+                                                    <button type="button" class="doc-action-btn remove" onclick="clearDocFile('input-secondary-id', 'sec_id', event)" title="Remove file">&times;</button>
+                                                </div>
                                             </div>
                                         </div>
                                     </div>
@@ -1276,6 +1675,13 @@ function gym_onboarding_page(): void
                                                 <span class="review-file-badge" id="rev-id-file">No file</span>
                                             </div>
                                         </div>
+                                        <div class="review-row align-top" id="rev-sec-id-row" style="display: none;">
+                                            <span class="review-label">Supporting ID:</span>
+                                            <div class="review-value-stack">
+                                                <span class="review-id-title" id="rev-sec-id-type">—</span>
+                                                <span class="review-file-badge" id="rev-sec-id-file">No file</span>
+                                            </div>
+                                        </div>
                                         <div class="review-row">
                                             <span class="review-label">Business Permit:</span>
                                             <span class="review-value">
@@ -1384,6 +1790,93 @@ function gym_onboarding_page(): void
     const ONBOARDING_IDB_NAME = 'FitTrackOnboardingDB';
     const ONBOARDING_IDB_STORE = 'draft_files';
 
+    const VERIFICATION_ID_TYPES = <?= json_encode($idTypes) ?>;
+    const INITIAL_VALID_ID_VAL = <?= json_encode((string) post('valid_id_type')) ?>;
+    const INITIAL_SEC_VALID_ID_VAL = <?= json_encode((string) post('secondary_valid_id_type')) ?>;
+
+    function buildIdDropdownItems(primaryList, secondaryList) {
+        const items = [];
+        if (primaryList && primaryList.length > 0) {
+            items.push({ label: 'Primary IDs', isHeader: true });
+            primaryList.forEach(p => {
+                let disp = p.id_name;
+                if (disp === 'Philippine National ID (PhilSys ID)') disp = 'Philippine National ID (PhilSys)';
+                else if (disp === 'UMID (Unified Multi-Purpose ID)') disp = 'UMID Card';
+                items.push({ id: p.id_name, label: disp });
+            });
+        }
+        if (secondaryList && secondaryList.length > 0) {
+            items.push({ label: 'Secondary IDs', isHeader: true });
+            secondaryList.forEach(s => {
+                items.push({ id: s.id_name, label: s.id_name });
+            });
+        }
+        return items;
+    }
+
+    const initialPrimaryTypes = VERIFICATION_ID_TYPES.filter(i => i.category === 'primary');
+    const initialSecondaryTypes = VERIFICATION_ID_TYPES.filter(i => i.category === 'secondary');
+    const mainIdDropdownItems = buildIdDropdownItems(initialPrimaryTypes, initialSecondaryTypes);
+
+    window.validIdFitDropdown = new FitDropdown({
+        container: '#validIdFitDropdownContainer',
+        name: 'valid_id_type',
+        id: 'valid_id_type',
+        placeholder: '-- Choose ID Type --',
+        searchable: false,
+        items: mainIdDropdownItems,
+        value: INITIAL_VALID_ID_VAL,
+        onChange: function(item) {
+            const val = item ? (item.id || '') : '';
+            handleIdTypeChange(val);
+            saveDraftText();
+        }
+    });
+
+    window.secondaryValidIdFitDropdown = new FitDropdown({
+        container: '#secondaryValidIdFitDropdownContainer',
+        name: 'secondary_valid_id_type',
+        id: 'secondary_valid_id_type',
+        placeholder: '-- Choose Supporting ID Type --',
+        searchable: false,
+        items: [],
+        value: INITIAL_SEC_VALID_ID_VAL,
+        onChange: function(item) {
+            const val = item ? (item.id || '') : '';
+            handleSecondaryIdTypeChange(val);
+            saveDraftText();
+        }
+    });
+
+    function getIdTypeCategory(nameOrCode) {
+        if (!nameOrCode) return null;
+        const clean = nameOrCode.trim().toLowerCase();
+        const found = VERIFICATION_ID_TYPES.find(i => i.id_name.toLowerCase() === clean || i.id_code.toLowerCase() === clean);
+        if (found) return found.category;
+        if (clean.startsWith('other')) return 'secondary';
+        return 'secondary';
+    }
+
+    function populateSecondaryIdOptions(selectedPrimaryVal) {
+        if (!window.secondaryValidIdFitDropdown) return;
+        const currentVal = window.secondaryValidIdFitDropdown.getValue();
+        const filteredPrimary = VERIFICATION_ID_TYPES.filter(i => 
+            i.category === 'primary' && (!selectedPrimaryVal || i.id_name.toLowerCase() !== selectedPrimaryVal.trim().toLowerCase())
+        );
+        const filteredSecondary = VERIFICATION_ID_TYPES.filter(i => 
+            i.category === 'secondary' && (!selectedPrimaryVal || i.id_name.toLowerCase() !== selectedPrimaryVal.trim().toLowerCase())
+        );
+
+        const items = buildIdDropdownItems(filteredPrimary, filteredSecondary);
+        window.secondaryValidIdFitDropdown.setItems(items);
+
+        if (currentVal && selectedPrimaryVal && currentVal.toLowerCase() !== selectedPrimaryVal.trim().toLowerCase()) {
+            window.secondaryValidIdFitDropdown.select(currentVal, true);
+        } else {
+            window.secondaryValidIdFitDropdown.select('', true);
+        }
+    }
+
     function getOnboardingDb() {
         return new Promise((resolve, reject) => {
             if (!window.indexedDB) {
@@ -1440,6 +1933,8 @@ function gym_onboarding_page(): void
                     zipcode: document.getElementById('zipcode')?.value || '',
                     valid_id_type: document.getElementById('valid_id_type')?.value || '',
                     valid_id_type_other: document.getElementById('valid_id_type_other')?.value || '',
+                    secondary_valid_id_type: document.getElementById('secondary_valid_id_type')?.value || '',
+                    secondary_valid_id_type_other: document.getElementById('secondary_valid_id_type_other')?.value || '',
                     fb_page_url: document.getElementById('fb_page_url')?.value || '',
                     payout_channel: document.getElementById('payout_channel')?.value || 'gcash',
                     payout_account_number: document.getElementById('payout_account_number')?.value || '',
@@ -1460,7 +1955,7 @@ function gym_onboarding_page(): void
                 if (saved && typeof saved === 'object') {
                     const fields = [
                         'gym_name', 'gym_contact_info', 'street', 'barangay', 'city', 'province',
-                        'zipcode', 'valid_id_type_other', 'fb_page_url',
+                        'zipcode', 'valid_id_type_other', 'secondary_valid_id_type_other', 'fb_page_url',
                         'payout_channel', 'payout_account_number', 'payout_account_name'
                     ];
                     fields.forEach(f => {
@@ -1472,21 +1967,38 @@ function gym_onboarding_page(): void
                         }
                     });
 
-                    // ID Type
-                    const idTypeEl = document.getElementById('valid_id_type');
-                    if (idTypeEl) {
-                        if (!idTypeEl.value && saved.valid_id_type) {
-                            idTypeEl.value = saved.valid_id_type;
-                        }
-                        if (idTypeEl.value) {
-                            handleIdTypeChange(idTypeEl.value);
-                        }
+                    // Main ID Type
+                    if (saved.valid_id_type && window.validIdFitDropdown) {
+                        window.validIdFitDropdown.select(saved.valid_id_type, true);
+                    } else if (saved.valid_id_type) {
+                        const idTypeEl = document.getElementById('valid_id_type');
+                        if (idTypeEl) idTypeEl.value = saved.valid_id_type;
+                        handleIdTypeChange(saved.valid_id_type);
+                    }
+
+                    // Supporting ID Type
+                    if (saved.secondary_valid_id_type && window.secondaryValidIdFitDropdown) {
+                        window.secondaryValidIdFitDropdown.select(saved.secondary_valid_id_type, true);
+                    } else if (saved.secondary_valid_id_type) {
+                        const secIdTypeEl = document.getElementById('secondary_valid_id_type');
+                        if (secIdTypeEl) secIdTypeEl.value = saved.secondary_valid_id_type;
+                        handleSecondaryIdTypeChange(saved.secondary_valid_id_type);
                     }
 
                     // Restore Step
                     if (saved.currentStep && saved.currentStep > 1) {
                         goToStepDirect(saved.currentStep);
                     }
+                }
+            }
+
+            // Sync ID policy UI if pre-selected via PHP post or draft
+            const currentMainId = window.validIdFitDropdown ? window.validIdFitDropdown.getValue() : (document.getElementById('valid_id_type')?.value || '');
+            if (currentMainId) {
+                handleIdTypeChange(currentMainId);
+                const currentSecId = window.secondaryValidIdFitDropdown ? window.secondaryValidIdFitDropdown.getValue() : (document.getElementById('secondary_valid_id_type')?.value || '');
+                if (currentSecId) {
+                    handleSecondaryIdTypeChange(currentSecId);
                 }
             }
         } catch (err) {
@@ -1500,6 +2012,7 @@ function gym_onboarding_page(): void
             const store = tx.objectStore(ONBOARDING_IDB_STORE);
             const docConfigs = [
                 { key: 'id', inputId: 'input-valid-id', title: 'Valid ID' },
+                { key: 'sec_id', inputId: 'input-secondary-id', title: 'Supporting Government ID' },
                 { key: 'permit', inputId: 'input-business-permit', title: 'Business Permit' },
                 { key: 'barangay', inputId: 'input-barangay-clearance', title: 'Barangay Clearance' },
                 { key: 'fire-safety', inputId: 'input-fire-safety', title: 'Fire Safety Cert.' }
@@ -1546,6 +2059,7 @@ function gym_onboarding_page(): void
         const file = input && input.files && input.files[0];
         const boxMap = {
             'id': 'box-valid-id',
+            'sec_id': 'box-secondary-id',
             'permit': 'box-permit',
             'barangay': 'box-barangay',
             'fire-safety': 'box-fire-safety'
@@ -1616,6 +2130,7 @@ function gym_onboarding_page(): void
         removeDraftFile(key);
         const boxMap = {
             'id': 'box-valid-id',
+            'sec_id': 'box-secondary-id',
             'permit': 'box-permit',
             'barangay': 'box-barangay',
             'fire-safety': 'box-fire-safety'
@@ -1654,6 +2169,7 @@ function gym_onboarding_page(): void
 
         const titleMap = {
             'input-valid-id': 'Valid Government ID',
+            'input-secondary-id': 'Supporting Government ID',
             'input-business-permit': 'Business Permit',
             'input-barangay-clearance': 'Barangay Clearance',
             'input-fire-safety': 'Fire Safety Inspection Certificate'
@@ -1701,24 +2217,25 @@ function gym_onboarding_page(): void
     });
 
     function handleValidIdClick(e) {
-        const idTypeSelect = document.getElementById('valid_id_type');
-        if (!idTypeSelect || !idTypeSelect.value.trim()) {
+        const val = window.validIdFitDropdown ? window.validIdFitDropdown.getValue() : (document.getElementById('valid_id_type')?.value || '');
+        if (!val.trim()) {
             if (e) {
                 e.preventDefault();
                 e.stopPropagation();
             }
-            idTypeSelect.focus();
-            idTypeSelect.setCustomValidity('Please choose a Valid ID Type first before uploading.');
-            idTypeSelect.reportValidity();
-
-            idTypeSelect.classList.remove('shake-highlight');
-            void idTypeSelect.offsetWidth; // trigger reflow
-            idTypeSelect.classList.add('shake-highlight');
-            setTimeout(() => idTypeSelect.classList.remove('shake-highlight'), 600);
+            if (window.validIdFitDropdown) {
+                window.validIdFitDropdown.setError(true);
+                window.validIdFitDropdown.trigger?.focus();
+                window.validIdFitDropdown.open();
+                window.validIdFitDropdown.trigger?.classList.remove('shake-highlight');
+                void window.validIdFitDropdown.trigger?.offsetWidth;
+                window.validIdFitDropdown.trigger?.classList.add('shake-highlight');
+                setTimeout(() => window.validIdFitDropdown.trigger?.classList.remove('shake-highlight'), 600);
+            }
             return false;
         }
 
-        if (idTypeSelect.value === 'Other Valid Government ID') {
+        if (val === 'Other Valid Government ID') {
             const otherInput = document.getElementById('valid_id_type_other');
             if (otherInput && !otherInput.value.trim()) {
                 if (e) {
@@ -1744,26 +2261,26 @@ function gym_onboarding_page(): void
         if (e.target && (e.target.closest('.doc-action-btn') || e.target.closest('.doc-preview-thumb-wrap'))) {
             return;
         }
-        const idTypeSelect = document.getElementById('valid_id_type');
-        if (!idTypeSelect || !idTypeSelect.value.trim()) {
+        const val = window.validIdFitDropdown ? window.validIdFitDropdown.getValue() : (document.getElementById('valid_id_type')?.value || '');
+        if (!val.trim()) {
             handleValidIdClick(e);
         }
     }
 
     function handleIdTypeChange(val) {
+        val = (val || '').trim();
         const otherWrap = document.getElementById('other-id-wrap');
         const titleValidId = document.getElementById('title-valid-id');
         const descValidId = document.getElementById('desc-valid-id');
         const otherInput = document.getElementById('valid_id_type_other');
         const box = document.getElementById('box-valid-id');
-        const idTypeSelect = document.getElementById('valid_id_type');
+        const policyBadge = document.getElementById('id-policy-badge');
+        const supportingWrap = document.getElementById('supporting-id-container');
 
-        if (idTypeSelect) {
-            idTypeSelect.setCustomValidity('');
-            idTypeSelect.classList.remove('shake-highlight');
+        if (window.validIdFitDropdown) {
+            window.validIdFitDropdown.setError(false);
+            window.validIdFitDropdown.trigger?.classList.remove('shake-highlight');
         }
-
-        val = (val || '').trim();
 
         if (val === 'Other Valid Government ID') {
             if (otherWrap) otherWrap.style.display = 'block';
@@ -1792,6 +2309,124 @@ function gym_onboarding_page(): void
                 box.classList.add('box-locked');
                 box.title = 'Please choose a Valid ID Type first';
             }
+        }
+
+        // Classification handling
+        const category = getIdTypeCategory(val);
+        if (!val) {
+            if (policyBadge) policyBadge.style.display = 'none';
+            if (supportingWrap) supportingWrap.style.display = 'none';
+        } else if (category === 'primary') {
+            if (policyBadge) {
+                policyBadge.style.display = 'flex';
+                policyBadge.className = 'id-policy-badge is-primary';
+                policyBadge.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="flex-shrink:0;"><polyline points="20 6 9 17 4 12"/></svg> <span><strong>Primary ID Accepted</strong> — Single ID is sufficient for verification.</span>';
+            }
+            if (supportingWrap) supportingWrap.style.display = 'none';
+        } else {
+            // Secondary ID: Requires supporting ID
+            if (policyBadge) {
+                policyBadge.style.display = 'flex';
+                policyBadge.className = 'id-policy-badge is-secondary';
+                policyBadge.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" style="flex-shrink:0;"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg> <span><strong>Secondary ID Selected</strong> — 1 additional supporting government ID is required below.</span>';
+            }
+            if (supportingWrap) {
+                supportingWrap.style.display = 'block';
+                populateSecondaryIdOptions(val);
+            }
+        }
+    }
+
+    function handleSecondaryIdTypeChange(val) {
+        val = (val || '').trim();
+        const otherWrap = document.getElementById('secondary-other-id-wrap');
+        const titleSecId = document.getElementById('title-sec_id');
+        const descSecId = document.getElementById('desc-sec_id');
+        const otherInput = document.getElementById('secondary_valid_id_type_other');
+        const box = document.getElementById('box-secondary-id');
+
+        if (window.secondaryValidIdFitDropdown) {
+            window.secondaryValidIdFitDropdown.setError(false);
+            window.secondaryValidIdFitDropdown.trigger?.classList.remove('shake-highlight');
+        }
+
+        if (val === 'Other Valid Government ID') {
+            if (otherWrap) otherWrap.style.display = 'block';
+            if (otherInput) otherInput.focus();
+            if (titleSecId) titleSecId.textContent = 'Upload Supporting ID';
+            if (descSecId) descSecId.textContent = 'JPG, PNG or PDF (Max 5MB)';
+            if (box) {
+                box.classList.remove('box-locked');
+                box.title = 'Click to choose file';
+            }
+        } else if (val) {
+            if (otherWrap) otherWrap.style.display = 'none';
+            if (titleSecId) {
+                titleSecId.textContent = 'Upload ' + (val.length > 22 ? val.substring(0, 20) + '...' : val);
+            }
+            if (descSecId) descSecId.textContent = 'JPG, PNG or PDF (Max 5MB)';
+            if (box) {
+                box.classList.remove('box-locked');
+                box.title = 'Click to choose file';
+            }
+        } else {
+            if (otherWrap) otherWrap.style.display = 'none';
+            if (titleSecId) titleSecId.textContent = 'Upload Supporting ID';
+            if (descSecId) descSecId.textContent = 'Select ID type first';
+            if (box) {
+                box.classList.add('box-locked');
+                box.title = 'Please choose a Supporting ID Type first';
+            }
+        }
+    }
+
+    function handleSecondaryIdClick(e) {
+        const val = window.secondaryValidIdFitDropdown ? window.secondaryValidIdFitDropdown.getValue() : (document.getElementById('secondary_valid_id_type')?.value || '');
+        if (!val.trim()) {
+            if (e) {
+                e.preventDefault();
+                e.stopPropagation();
+            }
+            if (window.secondaryValidIdFitDropdown) {
+                window.secondaryValidIdFitDropdown.setError(true);
+                window.secondaryValidIdFitDropdown.trigger?.focus();
+                window.secondaryValidIdFitDropdown.open();
+                window.secondaryValidIdFitDropdown.trigger?.classList.remove('shake-highlight');
+                void window.secondaryValidIdFitDropdown.trigger?.offsetWidth;
+                window.secondaryValidIdFitDropdown.trigger?.classList.add('shake-highlight');
+                setTimeout(() => window.secondaryValidIdFitDropdown.trigger?.classList.remove('shake-highlight'), 600);
+            }
+            return false;
+        }
+
+        if (val === 'Other Valid Government ID') {
+            const otherInput = document.getElementById('secondary_valid_id_type_other');
+            if (otherInput && !otherInput.value.trim()) {
+                if (e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                }
+                otherInput.focus();
+                otherInput.setCustomValidity('Please specify your other supporting ID type.');
+                otherInput.reportValidity();
+                otherInput.classList.remove('shake-highlight');
+                void otherInput.offsetWidth;
+                otherInput.classList.add('shake-highlight');
+                setTimeout(() => otherInput.classList.remove('shake-highlight'), 600);
+                return false;
+            }
+        }
+        return true;
+    }
+
+    function handleSecondaryIdBoxClick(e) {
+        if (!e) return;
+        if (e.target && (e.target.closest('.doc-action-btn') || e.target.closest('.doc-preview-thumb-wrap'))) {
+            return;
+        }
+        const val = window.secondaryValidIdFitDropdown ? window.secondaryValidIdFitDropdown.getValue() : (document.getElementById('secondary_valid_id_type')?.value || '');
+        if (!val.trim()) {
+            handleSecondaryIdClick(e);
         }
     }
 
@@ -1868,20 +2503,23 @@ function gym_onboarding_page(): void
 
         // Moving forward to Step 3: Validate Step 2
         if (targetStep >= 3) {
-            const idType = document.getElementById('valid_id_type');
+            const idTypeVal = window.validIdFitDropdown ? window.validIdFitDropdown.getValue() : (document.getElementById('valid_id_type')?.value || '');
             const idFile = document.getElementById('input-valid-id');
             const permitFile = document.getElementById('input-business-permit');
             const brgyFile = document.getElementById('input-barangay-clearance');
 
-            if (idType && !idType.value.trim()) {
+            if (!idTypeVal.trim()) {
                 goToStepDirect(2);
-                idType.focus();
-                idType.reportValidity();
+                if (window.validIdFitDropdown) {
+                    window.validIdFitDropdown.setError(true);
+                    window.validIdFitDropdown.trigger?.focus();
+                    window.validIdFitDropdown.open();
+                }
                 return;
             }
 
             const idOther = document.getElementById('valid_id_type_other');
-            if (idType.value === 'Other Valid Government ID' && idOther && !idOther.value.trim()) {
+            if (idTypeVal === 'Other Valid Government ID' && idOther && !idOther.value.trim()) {
                 goToStepDirect(2);
                 idOther.focus();
                 idOther.reportValidity();
@@ -1893,6 +2531,50 @@ function gym_onboarding_page(): void
                 idFile.focus();
                 idFile.reportValidity();
                 return;
+            }
+
+            // Secondary ID requirement check
+            const category = getIdTypeCategory(idTypeVal);
+            if (category === 'secondary') {
+                const secIdVal = window.secondaryValidIdFitDropdown ? window.secondaryValidIdFitDropdown.getValue() : (document.getElementById('secondary_valid_id_type')?.value || '');
+                const secIdOther = document.getElementById('secondary_valid_id_type_other');
+                const secIdFile = document.getElementById('input-secondary-id');
+
+                if (!secIdVal.trim()) {
+                    goToStepDirect(2);
+                    if (window.secondaryValidIdFitDropdown) {
+                        window.secondaryValidIdFitDropdown.setError(true);
+                        window.secondaryValidIdFitDropdown.trigger?.focus();
+                        window.secondaryValidIdFitDropdown.open();
+                    }
+                    return;
+                }
+
+                if (secIdVal.toLowerCase() === idTypeVal.toLowerCase()) {
+                    goToStepDirect(2);
+                    if (window.secondaryValidIdFitDropdown) {
+                        window.secondaryValidIdFitDropdown.setError(true);
+                        window.secondaryValidIdFitDropdown.trigger?.focus();
+                        window.secondaryValidIdFitDropdown.open();
+                    }
+                    return;
+                }
+
+                if (secIdVal === 'Other Valid Government ID' && secIdOther && !secIdOther.value.trim()) {
+                    goToStepDirect(2);
+                    secIdOther.focus();
+                    secIdOther.setCustomValidity('Please specify your other supporting valid ID type.');
+                    secIdOther.reportValidity();
+                    return;
+                }
+
+                if (!secIdFile || !secIdFile.files || !secIdFile.files.length) {
+                    goToStepDirect(2);
+                    secIdFile.focus();
+                    secIdFile.setCustomValidity('Please upload your supporting government ID document.');
+                    secIdFile.reportValidity();
+                    return;
+                }
             }
 
             if (permitFile && (!permitFile.files || !permitFile.files.length)) {
@@ -1980,12 +2662,16 @@ function gym_onboarding_page(): void
         if (revGymContact) revGymContact.textContent = gc;
         if (revGymAddress) revGymAddress.textContent = fullAddress;
 
+        const category = getIdTypeCategory(idTypeVal);
         const revIdType = document.getElementById('rev-id-type');
         const revIdFile = document.getElementById('rev-id-file');
-        const revPermitFile = document.getElementById('rev-permit-file');
-        const revBrgyFile = document.getElementById('rev-brgy-file');
+        const revSecRow = document.getElementById('rev-sec-id-row');
+        const revSecIdType = document.getElementById('rev-sec-id-type');
+        const revSecIdFile = document.getElementById('rev-sec-id-file');
+
         if (revIdType) {
-            revIdType.textContent = fullIdType;
+            const badgeLabel = category === 'primary' ? ' (Primary ID)' : ' (Secondary ID)';
+            revIdType.textContent = fullIdType + badgeLabel;
             revIdType.title = fullIdType;
         }
         if (revIdFile) {
@@ -1994,6 +2680,30 @@ function gym_onboarding_page(): void
             revIdFile.classList.add('clickable');
             revIdFile.onclick = (e) => openDocPreview('input-valid-id', e);
         }
+
+        if (category === 'secondary') {
+            if (revSecRow) revSecRow.style.display = 'flex';
+            const secIdTypeVal = document.getElementById('secondary_valid_id_type')?.value || '—';
+            const secIdOtherVal = document.getElementById('secondary_valid_id_type_other')?.value || '';
+            const fullSecIdType = (secIdTypeVal === 'Other Valid Government ID' && secIdOtherVal) ? ('Other: ' + secIdOtherVal) : secIdTypeVal;
+            const secFile = document.getElementById('input-secondary-id')?.files[0]?.name || 'Attached';
+
+            if (revSecIdType) {
+                revSecIdType.textContent = fullSecIdType;
+                revSecIdType.title = fullSecIdType;
+            }
+            if (revSecIdFile) {
+                revSecIdFile.textContent = '✓ ' + secFile;
+                revSecIdFile.title = 'Click to preview ' + secFile;
+                revSecIdFile.classList.add('clickable');
+                revSecIdFile.onclick = (e) => openDocPreview('input-secondary-id', e);
+            }
+        } else {
+            if (revSecRow) revSecRow.style.display = 'none';
+        }
+
+        const revPermitFile = document.getElementById('rev-permit-file');
+        const revBrgyFile = document.getElementById('rev-brgy-file');
         if (revPermitFile) {
             revPermitFile.textContent = '✓ ' + permitFile;
             revPermitFile.title = 'Click to preview ' + permitFile;

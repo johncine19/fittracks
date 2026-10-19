@@ -24,6 +24,7 @@ require __DIR__ . '/Queue.php';
 require __DIR__ . '/Cache.php';
 require __DIR__ . '/emails.php';
 require __DIR__ . '/xendit.php';
+require __DIR__ . '/verification_policy.php';
 
 require __DIR__ . '/seeds.php';
 $seedLockFile = __DIR__ . '/../storage/.seeded.lock';

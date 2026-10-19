@@ -100,7 +100,11 @@ try {
         "ALTER TABLE gyms ADD COLUMN eod_gate_time TIME NOT NULL DEFAULT '17:00:00'",
         "ALTER TABLE gyms ADD COLUMN pending_eod_gate_time TIME DEFAULT NULL",
         "ALTER TABLE gyms ADD COLUMN eod_gate_effective_date DATE DEFAULT NULL",
-        "UPDATE platform_subscription_plans SET features = CONCAT(features, '\nFood & Nutrition Library') WHERE plan_key = 'starter' AND features NOT LIKE '%Food & Nutrition Library%'"
+        "UPDATE platform_subscription_plans SET features = CONCAT(features, '\nFood & Nutrition Library') WHERE plan_key = 'starter' AND features NOT LIKE '%Food & Nutrition Library%'",
+        "ALTER TABLE gyms ADD COLUMN secondary_valid_id_url VARCHAR(255) DEFAULT NULL AFTER valid_id_type",
+        "ALTER TABLE gyms ADD COLUMN secondary_valid_id_type VARCHAR(100) DEFAULT NULL AFTER secondary_valid_id_url",
+        "CREATE TABLE IF NOT EXISTS gym_verification_id_types (id INT AUTO_INCREMENT PRIMARY KEY, id_code VARCHAR(50) NOT NULL UNIQUE, id_name VARCHAR(100) NOT NULL, category ENUM('primary', 'secondary') NOT NULL DEFAULT 'primary', requires_supporting_id TINYINT(1) NOT NULL DEFAULT 0, display_order INT NOT NULL DEFAULT 0, is_active TINYINT(1) NOT NULL DEFAULT 1, created_at DATETIME DEFAULT CURRENT_TIMESTAMP, updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
+        "INSERT INTO gym_verification_id_types (id_code, id_name, category, requires_supporting_id, display_order, is_active) VALUES ('philsys', 'Philippine National ID (PhilSys ID)', 'primary', 0, 10, 1), ('drivers_license', \"Driver's License\", 'primary', 0, 20, 1), ('passport', 'Passport', 'primary', 0, 30, 1), ('umid', 'UMID (Unified Multi-Purpose ID)', 'primary', 0, 40, 1), ('prc', 'PRC ID', 'primary', 0, 50, 1), ('sss', 'SSS ID', 'primary', 0, 60, 1), ('gsis', 'GSIS ID', 'primary', 0, 70, 1), ('tin', 'TIN ID', 'secondary', 1, 80, 1), ('postal', 'Postal ID', 'secondary', 1, 90, 1), ('other', 'Other Valid Government ID', 'secondary', 1, 100, 1) ON DUPLICATE KEY UPDATE id_name = VALUES(id_name), category = VALUES(category), requires_supporting_id = VALUES(requires_supporting_id), display_order = VALUES(display_order)"
     ];
 
     foreach ($migrations as $sql) {
