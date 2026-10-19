@@ -135,12 +135,14 @@ const rawChartData = FT_CONFIG.rawChartData || [];
     // Toggle visibility of individual measurement lines (Waist, Arms, Chest)
     window.toggleMeasurementDataset = function(index) {
         if (!window.hubChartInstance || currentMetric !== 'measurements') return;
+        const badge = document.getElementById('ind-btn-' + index);
+        if (badge && (badge.disabled || badge.classList.contains('is-disabled'))) return;
+
         const ci = window.hubChartInstance;
         const meta = ci.getDatasetMeta(index);
         meta.hidden = meta.hidden === null ? !ci.data.datasets[index].hidden : null;
         ci.update();
 
-        const badge = document.getElementById('ind-btn-' + index);
         if (badge) {
             badge.style.opacity = meta.hidden ? '0.45' : '1';
             badge.style.filter = meta.hidden ? 'grayscale(0.7)' : 'none';
@@ -171,10 +173,21 @@ const rawChartData = FT_CONFIG.rawChartData || [];
 
     function getDatasetsForMetric(metric, filteredData, isDark) {
         if (metric === 'measurements' || metric === 'waist' || metric === 'arm' || metric === 'chest') {
+            const hasWaist = (FT_CONFIG.hasMeasurements && FT_CONFIG.hasMeasurements.waist !== undefined)
+                ? FT_CONFIG.hasMeasurements.waist
+                : filteredData.some(d => d.waist !== null && d.waist !== undefined && d.waist > 0);
+            const hasArm = (FT_CONFIG.hasMeasurements && FT_CONFIG.hasMeasurements.arm !== undefined)
+                ? FT_CONFIG.hasMeasurements.arm
+                : filteredData.some(d => d.arm !== null && d.arm !== undefined && d.arm > 0);
+            const hasChest = (FT_CONFIG.hasMeasurements && FT_CONFIG.hasMeasurements.chest !== undefined)
+                ? FT_CONFIG.hasMeasurements.chest
+                : filteredData.some(d => d.chest !== null && d.chest !== undefined && d.chest > 0);
+
             return [
                 {
                     label: 'Waist',
                     data: filteredData.map(d => d.waist),
+                    hidden: !hasWaist,
                     borderColor: '#38bdf8',
                     glowColor: 'rgba(56, 189, 248, 0.75)',
                     backgroundColor: function(context) {
@@ -195,6 +208,7 @@ const rawChartData = FT_CONFIG.rawChartData || [];
                 {
                     label: 'Arms',
                     data: filteredData.map(d => d.arm),
+                    hidden: !hasArm,
                     borderColor: '#c084fc',
                     glowColor: 'rgba(192, 132, 252, 0.75)',
                     backgroundColor: function(context) {
@@ -215,6 +229,7 @@ const rawChartData = FT_CONFIG.rawChartData || [];
                 {
                     label: 'Chest',
                     data: filteredData.map(d => d.chest),
+                    hidden: !hasChest,
                     borderColor: '#fbbf24',
                     glowColor: 'rgba(251, 191, 36, 0.75)',
                     backgroundColor: function(context) {

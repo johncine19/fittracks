@@ -3,8 +3,9 @@ declare(strict_types=1);
 
 function progress_page(): void
 {
-    $user = require_roles(['member', 'trainer']);
-    $memberId = $user['role'] === 'trainer'
+    $user = require_roles(['member', 'trainer', 'gym_owner', 'platform_admin']);
+    $isManager = in_array($user['role'], ['trainer', 'gym_owner', 'platform_admin'], true);
+    $memberId = $isManager
         ? (int) post('member_user_id', $_GET['member_user_id'] ?? 0)
         : (int) $user['user_id'];
 
@@ -46,21 +47,30 @@ function progress_page(): void
             flash('You can only review progress for clients actively assigned to you.', 'danger');
             redirect('trainer_members');
         }
+    } elseif ($user['role'] === 'gym_owner') {
+        $ownerGymId = (int) scalar('SELECT gym_id FROM gyms WHERE owner_user_id = ?', [$user['user_id']]);
+        $isGymMember = (bool) scalar('SELECT 1 FROM gym_members WHERE gym_id = ? AND user_id = ?', [$ownerGymId, $memberId]);
+        if (!$isGymMember) {
+            flash('You can only review progress for members of your facility.', 'danger');
+            redirect('users&tab=member');
+        }
     }
 
-    if (!$member && $user['role'] === 'trainer') {
+    if (!$member && $isManager) {
+        $backLink = ($user['role'] === 'gym_owner') ? 'index.php?page=users&tab=member' : ($user['role'] === 'trainer' ? 'index.php?page=trainer' : 'index.php?page=users');
+        $backLabel = ($user['role'] === 'gym_owner') ? 'Back to Members' : ($user['role'] === 'trainer' ? 'Back to Clients' : 'Back to Users');
         render_header('Member Progress', $user);
         echo '<div class="panel" style="text-align:center; padding: 48px 24px;">
             <h3>No Member Selected</h3>
-            <p style="color:var(--muted); margin-bottom: 20px;">Please select an assigned client to review their progress hub.</p>
-            <a href="index.php?page=trainer" class="btn btn-lime">Back to Clients</a>
+            <p style="color:var(--muted); margin-bottom: 20px;">Please select a member to review their progress hub.</p>
+            <a href="' . h($backLink) . '" class="btn btn-lime">' . h($backLabel) . '</a>
         </div>';
         render_footer();
         return;
     }
 
     // POST: Log progress or update measurements
-    if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST' && in_array($user['role'], ['member', 'trainer'], true)) {
+    if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST' && in_array($user['role'], ['member', 'trainer', 'gym_owner', 'platform_admin'], true)) {
         $action = post('action', 'log_progress');
 
         if ($action === 'quick_note') {
@@ -88,7 +98,7 @@ function progress_page(): void
                     flash('Note saved to your log.', 'success');
                 }
             }
-            redirect('progress' . ($user['role'] === 'trainer' ? '&member_user_id=' . $memberId : '') . '#notes');
+            redirect('progress' . ($isManager ? '&member_user_id=' . $memberId : '') . '#notes');
         }
 
         if ($action === 'update_goal_targets') {
@@ -144,7 +154,7 @@ function progress_page(): void
                     flash('Fitness targets updated successfully.', 'success');
                 }
             }
-            redirect('progress' . ($user['role'] === 'trainer' ? '&member_user_id=' . $memberId : ''));
+            redirect('progress' . ($isManager ? '&member_user_id=' . $memberId : ''));
         }
 
         $validator = new Validator();
@@ -161,7 +171,7 @@ function progress_page(): void
 
         if (!$valid) {
             flash($validator->firstError() ?? 'Invalid input parameters.', 'danger');
-            redirect('progress' . ($user['role'] === 'trainer' ? '&member_user_id=' . $memberId : ''));
+            redirect('progress' . ($isManager ? '&member_user_id=' . $memberId : ''));
         }
 
         $logDate = post('log_date');
@@ -249,7 +259,7 @@ function progress_page(): void
         
         notify_user($memberId, 'milestone', 'Progress logged', 'Nice work — your latest measurements were saved.');
         flash($flashMsg, 'success');
-        redirect('progress' . ($user['role'] === 'trainer' ? '&member_user_id=' . $memberId : ''));
+        redirect('progress' . ($isManager ? '&member_user_id=' . $memberId : ''));
     }
 
     // Fetch progress logs in DESC order for table & cards; reverse for charts
@@ -303,6 +313,11 @@ function progress_page(): void
     if ($recentArm === '' && !empty($member['arm_cm']) && (float)$member['arm_cm'] > 0) {
         $recentArm = (float)$member['arm_cm'];
     }
+
+    // Measurement availability flags
+    $hasWaist = ($recentWaist !== '' && (float)$recentWaist > 0);
+    $hasChest = ($recentChest !== '' && (float)$recentChest > 0);
+    $hasArm   = ($recentArm !== '' && (float)$recentArm > 0);
 
     // --- SMART GENDER & ANATOMICAL BODY MEASUREMENT DETECTION ---
     $explicitSex = strtolower(trim((string)($member['biological_sex'] ?? '')));
@@ -600,7 +615,7 @@ function progress_page(): void
         <div class="profile-card-inner">
             <div class="hub-header-title-group" style="min-width: 0; flex: 1 1 auto;">
                 <h1 class="profile-name-title" style="font-size: 1.45rem;">
-                    <?= $user['role'] === 'trainer' ? h($member['first_name'] . ' ' . $member['last_name']) . "'s Progress" : 'Progress Hub' ?>
+                    <?= $isManager ? h($member['first_name'] . ' ' . $member['last_name']) . "'s Progress" : 'Progress Hub' ?>
                 </h1>
 
                 <!-- Desktop Meta Pills (Hidden on small screens) -->
@@ -650,6 +665,19 @@ function progress_page(): void
                         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
                         <span><?= $activePlan ? 'Edit Workout Plan' : 'Assign Workout' ?></span>
                     </a>
+                <?php elseif (in_array($user['role'], ['gym_owner', 'platform_admin'], true)): ?>
+                    <a href="index.php?page=users&tab=member" class="btn-hub-secondary">
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg>
+                        <span>Back to Members</span>
+                    </a>
+                    <a href="index.php?page=diet_builder&member_user_id=<?= (int)$memberId ?>&ref=users" class="btn-hub-secondary">
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+                        <span>Diet Plan</span>
+                    </a>
+                    <button type="button" class="btn-hub-primary" onclick="logProgress()">
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                        <span>Log Progress</span>
+                    </button>
                 <?php else: ?>
                     <?php if ($hasCoach): ?>
                         <button type="button" class="btn-hub-secondary" onclick="openNoteModal()">
@@ -1032,21 +1060,21 @@ function progress_page(): void
                             <span style="font-size: 12px; color: var(--muted); font-weight: 600;" id="chartActiveMetricLabel"><?= $defaultMetric === 'measurements' ? 'Waist, Arms & Chest (cm) over time' : 'Progress over time' ?></span>
                             <!-- Live Indicators for Waist, Arms, Chest -->
                             <div class="chart-indicators-legend" id="chartMeasurementsIndicators" style="display: <?= $defaultMetric === 'measurements' ? 'inline-flex' : 'none' ?>;">
-                                <button type="button" id="ind-btn-0" onclick="toggleMeasurementDataset(0)" class="chart-ind-badge ind-badge-waist" title="Click to toggle Waist line">
+                                <button type="button" id="ind-btn-0" <?= $hasWaist ? 'onclick="toggleMeasurementDataset(0)"' : 'disabled' ?> class="chart-ind-badge ind-badge-waist<?= !$hasWaist ? ' is-disabled' : '' ?>" title="<?= $hasWaist ? 'Click to toggle Waist line' : 'No Waist measurement recorded yet' ?>">
                                     <span class="ind-name">Waist</span>
-                                    <?php if ($recentWaist !== ''): ?>
+                                    <?php if ($hasWaist): ?>
                                         <strong class="ind-val"><span class="ind-num"><?= h($recentWaist) ?></span><span class="ind-unit">cm</span></strong>
                                     <?php endif; ?>
                                 </button>
-                                <button type="button" id="ind-btn-1" onclick="toggleMeasurementDataset(1)" class="chart-ind-badge ind-badge-arm" title="Click to toggle Arms line">
+                                <button type="button" id="ind-btn-1" <?= $hasArm ? 'onclick="toggleMeasurementDataset(1)"' : 'disabled' ?> class="chart-ind-badge ind-badge-arm<?= !$hasArm ? ' is-disabled' : '' ?>" title="<?= $hasArm ? 'Click to toggle Arms line' : 'No Arms measurement recorded yet' ?>">
                                     <span class="ind-name">Arms</span>
-                                    <?php if ($recentArm !== ''): ?>
+                                    <?php if ($hasArm): ?>
                                         <strong class="ind-val"><span class="ind-num"><?= h($recentArm) ?></span><span class="ind-unit">cm</span></strong>
                                     <?php endif; ?>
                                 </button>
-                                <button type="button" id="ind-btn-2" onclick="toggleMeasurementDataset(2)" class="chart-ind-badge ind-badge-chest" title="Click to toggle Chest line">
+                                <button type="button" id="ind-btn-2" <?= $hasChest ? 'onclick="toggleMeasurementDataset(2)"' : 'disabled' ?> class="chart-ind-badge ind-badge-chest<?= !$hasChest ? ' is-disabled' : '' ?>" title="<?= $hasChest ? 'Click to toggle Chest line' : 'No Chest measurement recorded yet' ?>">
                                     <span class="ind-name">Chest</span>
-                                    <?php if ($recentChest !== ''): ?>
+                                    <?php if ($hasChest): ?>
                                         <strong class="ind-val"><span class="ind-num"><?= h($recentChest) ?></span><span class="ind-unit">cm</span></strong>
                                     <?php endif; ?>
                                 </button>
@@ -1506,6 +1534,11 @@ function progress_page(): void
         memberId: <?= (int)$memberId ?>,
         rawChartData: <?= json_encode($chartDataPoints, JSON_HEX_TAG) ?>,
         defaultMetric: <?= json_encode($defaultMetric) ?>,
+        hasMeasurements: {
+            waist: <?= json_encode($hasWaist) ?>,
+            arm: <?= json_encode($hasArm) ?>,
+            chest: <?= json_encode($hasChest) ?>
+        },
         targets: {
             primaryGoal: <?= json_encode((string)($member['primary_goal'] ?? '')) ?>,
             targetWeight: <?= json_encode((string)($member['target_weight_kg'] ?? '')) ?>,

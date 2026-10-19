@@ -288,6 +288,223 @@ function users_page(): void
         redirect('users');
     }
 
+    // ── AJAX: Member Progress Quick Summary ──────────────────────────────
+    if (($_GET['action'] ?? post('action')) === 'get_member_progress') {
+        if (ob_get_level()) ob_clean();
+        header('Content-Type: application/json');
+
+        $targetMemberId = (int)($_GET['member_user_id'] ?? post('member_user_id') ?? 0);
+        if ($targetMemberId <= 0) {
+            echo json_encode(['success' => false, 'message' => 'Invalid member ID.']);
+            exit;
+        }
+
+        // Permission check: Gym owners can only view members of their gym
+        if (!$isAdmin) {
+            $isMemberOfGym = (bool) scalar('SELECT 1 FROM gym_members WHERE user_id = ? AND gym_id = ?', [$targetMemberId, $gymId]);
+            if (!$isMemberOfGym) {
+                echo json_encode(['success' => false, 'message' => 'Permission denied. Member does not belong to your facility.']);
+                exit;
+            }
+        }
+
+        $stmt = db()->prepare('
+            SELECT u.user_id, u.first_name, u.last_name, u.email, u.phone, u.profile_picture, u.created_at, u.engagement_score,
+                   mp.height_cm, mp.weight_kg AS baseline_weight, mp.target_weight_kg, mp.target_body_fat_percent,
+                   mp.neck_cm, mp.waist_cm, mp.hip_cm, mp.chest_cm, mp.arm_cm, mp.age, mp.biological_sex,
+                   mp.primary_goal, mp.weekly_workout_target, mp.fitness_tier,
+                   (SELECT mp2.plan_name FROM memberships m2 JOIN membership_plans mp2 ON m2.plan_id = mp2.plan_id WHERE m2.user_id = u.user_id ORDER BY (m2.status = "active" AND m2.end_date >= CURDATE()) DESC, m2.end_date DESC LIMIT 1) AS plan_name,
+                   (SELECT m3.status FROM memberships m3 WHERE m3.user_id = u.user_id ORDER BY (m3.status = "active" AND m3.end_date >= CURDATE()) DESC, m3.end_date DESC LIMIT 1) AS membership_status,
+                   (SELECT CONCAT(tu.first_name, " ", tu.last_name) FROM trainer_assignments ta JOIN trainer_profiles tp ON ta.trainer_id = tp.trainer_id JOIN users tu ON tp.user_id = tu.user_id WHERE ta.member_user_id = u.user_id AND ta.status = "active" LIMIT 1) AS coach_name
+            FROM users u
+            LEFT JOIN member_profiles mp ON u.user_id = mp.user_id
+            WHERE u.user_id = ? AND u.role = "member"
+        ');
+        $stmt->execute([$targetMemberId]);
+        $memberData = $stmt->fetch();
+
+        if (!$memberData) {
+            echo json_encode(['success' => false, 'message' => 'Member profile not found.']);
+            exit;
+        }
+
+        // Fetch all progress logs for this member
+        $logs = query_all('SELECT * FROM progress_logs WHERE user_id = ? ORDER BY log_date DESC, created_at DESC, log_id DESC', [$targetMemberId]);
+
+        $latestLog = $logs[0] ?? null;
+        $earliestLog = !empty($logs) ? end($logs) : null;
+
+        // Determine current weight
+        $currentWeight = null;
+        if (!empty($latestLog['weight_kg']) && (float)$latestLog['weight_kg'] > 0) {
+            $currentWeight = (float)$latestLog['weight_kg'];
+        } elseif (!empty($memberData['baseline_weight']) && (float)$memberData['baseline_weight'] > 0) {
+            $currentWeight = (float)$memberData['baseline_weight'];
+        }
+
+        // Starting weight
+        $startingWeight = null;
+        if (!empty($earliestLog['weight_kg']) && (float)$earliestLog['weight_kg'] > 0) {
+            $startingWeight = (float)$earliestLog['weight_kg'];
+        } elseif (!empty($memberData['baseline_weight']) && (float)$memberData['baseline_weight'] > 0) {
+            $startingWeight = (float)$memberData['baseline_weight'];
+        }
+
+        $targetWeight = !empty($memberData['target_weight_kg']) ? (float)$memberData['target_weight_kg'] : null;
+
+        // Weight delta
+        $weightDelta = null;
+        $weightDeltaPct = null;
+        $deltaType = 'neutral';
+        if ($currentWeight !== null && $startingWeight !== null && $startingWeight > 0) {
+            $diff = round($currentWeight - $startingWeight, 1);
+            $weightDelta = ($diff > 0 ? '+' : '') . $diff . ' kg';
+            $weightDeltaPct = round(($diff / $startingWeight) * 100, 1);
+            if ($diff > 0) {
+                $deltaType = 'gain';
+            } elseif ($diff < 0) {
+                $deltaType = 'loss';
+            }
+        }
+
+        // Body fat: check latest log or calculate Navy Formula
+        $bodyFat = null;
+        if (!empty($latestLog['body_fat_percent']) && (float)$latestLog['body_fat_percent'] > 0) {
+            $bodyFat = (float)$latestLog['body_fat_percent'];
+        } else {
+            $heightCm = (float)($memberData['height_cm'] ?? 0);
+            $waistCm = (float)($latestLog['waist_cm'] ?? $memberData['waist_cm'] ?? 0);
+            $neckCm = (float)($latestLog['neck_cm'] ?? $memberData['neck_cm'] ?? 0);
+            $hipCm = (float)($latestLog['hips_cm'] ?? $memberData['hip_cm'] ?? 0);
+            $isFemale = strtolower((string)($memberData['biological_sex'] ?? '')) === 'female';
+
+            if ($heightCm > 0 && $neckCm > 0 && $waistCm > 0) {
+                if (!$isFemale && $waistCm > $neckCm) {
+                    $est = 495 / (1.0324 - 0.19077 * log10($waistCm - $neckCm) + 0.15456 * log10($heightCm)) - 450;
+                    if ($est >= 3 && $est <= 55) $bodyFat = round($est, 1);
+                } elseif ($isFemale && ($waistCm + $hipCm) > $neckCm) {
+                    $est = 495 / (1.29579 - 0.35004 * log10($waistCm + $hipCm - $neckCm) + 0.22100 * log10($heightCm)) - 450;
+                    if ($est >= 5 && $est <= 60) $bodyFat = round($est, 1);
+                }
+            }
+        }
+
+        // BMI calculation
+        $heightCm = (float)($memberData['height_cm'] ?? 0);
+        $bmi = null;
+        $bmiCategory = '—';
+        if ($currentWeight > 0 && $heightCm > 0) {
+            $heightM = $heightCm / 100;
+            $bmi = round($currentWeight / ($heightM * $heightM), 1);
+            if ($bmi < 18.5) $bmiCategory = 'Underweight';
+            elseif ($bmi < 25.0) $bmiCategory = 'Normal Weight';
+            elseif ($bmi < 30.0) $bmiCategory = 'Overweight';
+            else $bmiCategory = 'Obese';
+        }
+
+        // Goal label
+        $goalKey = (string)($memberData['primary_goal'] ?? '');
+        $goalLabels = [
+            'weight_loss'         => 'Weight Loss',
+            'muscle_gain'         => 'Muscle Gain',
+            'increasing_strength' => 'Increasing Strength',
+            'endurance'           => 'Cardio & Endurance',
+            'general_fitness'     => 'General Fitness & Toning',
+            'rehabilitation'      => 'Rehabilitation & Mobility',
+        ];
+        $goalLabel = $goalLabels[$goalKey] ?? (!empty($goalKey) ? ucwords(str_replace('_', ' ', $goalKey)) : 'General Fitness');
+
+        // Total attendance
+        $totalCheckins = (int) scalar('SELECT COUNT(*) FROM attendance WHERE user_id = ?', [$targetMemberId]);
+
+        // Circumferences (from latest log or baseline)
+        $waistVal = !empty($latestLog['waist_cm']) ? (float)$latestLog['waist_cm'] : (!empty($memberData['waist_cm']) ? (float)$memberData['waist_cm'] : null);
+        $chestVal = !empty($latestLog['chest_cm']) ? (float)$latestLog['chest_cm'] : (!empty($memberData['chest_cm']) ? (float)$memberData['chest_cm'] : null);
+        $armVal   = !empty($latestLog['arm_cm']) ? (float)$latestLog['arm_cm'] : (!empty($memberData['arm_cm']) ? (float)$memberData['arm_cm'] : null);
+        $neckVal  = !empty($latestLog['neck_cm']) ? (float)$latestLog['neck_cm'] : (!empty($memberData['neck_cm']) ? (float)$memberData['neck_cm'] : null);
+        $hipsVal  = !empty($latestLog['hips_cm']) ? (float)$latestLog['hips_cm'] : (!empty($memberData['hip_cm']) ? (float)$memberData['hip_cm'] : null);
+
+        // Recent history (up to 5 logs)
+        $historyList = [];
+        $recentSlice = array_slice($logs, 0, 5);
+        foreach ($recentSlice as $l) {
+            $historyList[] = [
+                'log_id' => (int)$l['log_id'],
+                'date' => date('M j, Y', strtotime($l['log_date'])),
+                'weight_kg' => !empty($l['weight_kg']) ? (float)$l['weight_kg'] : null,
+                'body_fat' => !empty($l['body_fat_percent']) ? (float)$l['body_fat_percent'] : null,
+                'chest_cm' => !empty($l['chest_cm']) ? (float)$l['chest_cm'] : null,
+                'waist_cm' => !empty($l['waist_cm']) ? (float)$l['waist_cm'] : null,
+                'notes' => trim((string)($l['notes'] ?? '')),
+            ];
+        }
+
+        // Engagement score & tier
+        $engScore = (int)($memberData['engagement_score'] ?? 0);
+        $engTier = 'Moderately Engaged';
+        if ($engScore >= 75) $engTier = 'Highly Engaged';
+        elseif ($engScore < 45) $engTier = 'At-Risk';
+
+        // Milestone progress calculation
+        $progressPct = 50;
+        if ($targetWeight !== null && $startingWeight !== null && $currentWeight !== null) {
+            $totalDistance = abs($targetWeight - $startingWeight);
+            if ($totalDistance > 0) {
+                $covered = abs($currentWeight - $startingWeight);
+                $progressPct = (int) min(100, max(5, round(($covered / $totalDistance) * 100)));
+            }
+        }
+
+        echo json_encode([
+            'success' => true,
+            'member' => [
+                'user_id' => (int)$memberData['user_id'],
+                'full_name' => trim($memberData['first_name'] . ' ' . $memberData['last_name']),
+                'email' => $memberData['email'],
+                'phone' => $memberData['phone'] ?? '',
+                'avatar_html' => render_avatar($memberData),
+                'joined_date' => date('M j, Y', strtotime($memberData['created_at'])),
+                'plan_name' => $memberData['plan_name'] ?? 'No active membership',
+                'membership_status' => $memberData['membership_status'] ?? 'none',
+                'coach_name' => $memberData['coach_name'] ?? null,
+                'age' => $memberData['age'] ?? null,
+                'sex' => !empty($memberData['biological_sex']) ? ucfirst($memberData['biological_sex']) : null,
+                'height_cm' => $heightCm > 0 ? $heightCm : null,
+            ],
+            'stats' => [
+                'current_weight' => $currentWeight,
+                'starting_weight' => $startingWeight,
+                'target_weight' => $targetWeight,
+                'weight_delta' => $weightDelta,
+                'weight_delta_pct' => $weightDeltaPct,
+                'delta_type' => $deltaType,
+                'body_fat' => $bodyFat,
+                'target_body_fat' => !empty($memberData['target_body_fat_percent']) ? (float)$memberData['target_body_fat_percent'] : null,
+                'bmi' => $bmi,
+                'bmi_category' => $bmiCategory,
+                'primary_goal' => $goalLabel,
+                'weekly_target' => (int)($memberData['weekly_workout_target'] ?? 3),
+                'total_checkins' => $totalCheckins,
+                'total_logs' => count($logs),
+                'engagement_score' => $engScore,
+                'engagement_tier' => $engTier,
+                'progress_pct' => $progressPct,
+            ],
+            'measurements' => [
+                'waist_cm' => $waistVal,
+                'chest_cm' => $chestVal,
+                'arm_cm' => $armVal,
+                'neck_cm' => $neckVal,
+                'hips_cm' => $hipsVal,
+                'last_log_date' => $latestLog ? date('M j, Y', strtotime($latestLog['log_date'])) : null,
+            ],
+            'history' => $historyList,
+            'hub_url' => 'index.php?page=progress&member_user_id=' . (int)$memberData['user_id'],
+            'diet_url' => 'index.php?page=diet_builder&member_user_id=' . (int)$memberData['user_id'] . '&ref=users'
+        ]);
+        exit;
+    }
+
     // ── AJAX: Live Search Users ──────────────────────────────────────────
     if (($_GET['action'] ?? post('action')) === 'search_users') {
         if (ob_get_level()) ob_clean();
@@ -345,6 +562,11 @@ function users_page(): void
 
         $totalFound = (int) scalar('SELECT COUNT(*) FROM users u WHERE ' . $where, $params);
 
+        $p = max(1, (int)($_GET['p'] ?? 1));
+        $limit = ($searchQuery !== '') ? 50 : 10;
+        $offset = ($p - 1) * $limit;
+        $totalPages = max(1, (int) ceil($totalFound / $limit));
+
         $sql = 'SELECT u.*, tp.specialization, tp.bio, 
                 (SELECT g1.name FROM gyms g1 WHERE g1.owner_user_id = u.user_id ORDER BY g1.gym_id DESC LIMIT 1) AS owner_gym_name,
                 (SELECT g1.status FROM gyms g1 WHERE g1.owner_user_id = u.user_id ORDER BY g1.gym_id DESC LIMIT 1) AS owner_gym_status,
@@ -355,7 +577,7 @@ function users_page(): void
                 LEFT JOIN trainer_profiles tp ON u.user_id = tp.user_id 
                 WHERE ' . $where . ' 
                 ORDER BY CASE u.role WHEN "gym_owner" THEN 1 WHEN "staff" THEN 2 WHEN "trainer" THEN 3 WHEN "member" THEN 4 ELSE 5 END ASC, u.first_name ASC, u.last_name ASC 
-                LIMIT 50';
+                LIMIT ' . (int)$limit . ' OFFSET ' . (int)$offset;
 
         $stmt = db()->prepare($sql);
         $stmt->execute($params);
@@ -391,13 +613,21 @@ function users_page(): void
                 'is_trainer'       => $row['role'] === 'trainer',
                 'is_gym_owner'     => $row['role'] === 'gym_owner',
                 'is_staff'         => $row['role'] === 'staff',
+                'can_view_progress'=> in_array($user['role'], ['gym_owner', 'platform_admin'], true) && $row['role'] === 'member',
                 'raw_user'         => $row
             ];
         }
 
+        ob_start();
+        render_pagination($p, $totalPages, '?page=users&tab=' . urlencode($tab) . ($gymFilter ? '&gym_id=' . $gymFilter : '') . ($searchQuery !== '' ? '&q=' . urlencode($searchQuery) : ''));
+        $paginationHtml = ob_get_clean();
+
         echo json_encode([
             'users' => $outputUsers,
             'total' => $totalFound,
+            'page' => $p,
+            'total_pages' => $totalPages,
+            'pagination_html' => $paginationHtml,
             'csrf_token' => csrf_token(),
             'current_user_id' => (int) $user['user_id']
         ]);
@@ -458,6 +688,59 @@ function users_page(): void
         $params[] = $numId;
     }
 
+    // Calculate facility-scoped user breakdown stats
+    $baseWhere = 'u.role != "platform_admin"';
+    $baseParams = [];
+    
+    if (!$isAdmin) {
+        $baseWhere .= ' AND (
+            (u.role = "staff" AND EXISTS (SELECT 1 FROM gym_staff gs WHERE gs.user_id = u.user_id AND gs.gym_id = ?)) OR
+            (u.role = "trainer" AND EXISTS (SELECT 1 FROM trainer_profiles WHERE user_id = u.user_id AND gym_id = ?)) OR
+            (u.role = "member" AND EXISTS (SELECT 1 FROM gym_members gm WHERE gm.user_id = u.user_id AND gm.gym_id = ?))
+        )';
+        $baseParams[] = $gymId;
+        $baseParams[] = $gymId;
+        $baseParams[] = $gymId;
+        $baseWhere .= ' AND u.user_id <> ?';
+        $baseParams[] = (int)$user['user_id'];
+    }
+    
+    if ($isAdmin && $gymFilter) {
+        $baseWhere .= ' AND (
+            (u.role = "gym_owner" AND EXISTS (SELECT 1 FROM gyms WHERE owner_user_id = u.user_id AND gym_id = ?)) OR
+            (u.role = "staff" AND EXISTS (SELECT 1 FROM gym_staff gs WHERE gs.user_id = u.user_id AND gym_id = ?)) OR
+            (u.role = "trainer" AND EXISTS (SELECT 1 FROM trainer_profiles WHERE user_id = u.user_id AND gym_id = ?)) OR
+            (u.role = "member" AND EXISTS (SELECT 1 FROM gym_members gm WHERE gm.user_id = u.user_id AND gym_id = ?))
+        )';
+        $baseParams[] = $gymFilter;
+        $baseParams[] = $gymFilter;
+        $baseParams[] = $gymFilter;
+        $baseParams[] = $gymFilter;
+    }
+
+    $statsStmt = db()->prepare("
+        SELECT 
+            COUNT(*) as count_all,
+            SUM(CASE WHEN u.role = 'member' THEN 1 ELSE 0 END) as count_member,
+            SUM(CASE WHEN u.role = 'trainer' THEN 1 ELSE 0 END) as count_trainer,
+            SUM(CASE WHEN u.role = 'staff' THEN 1 ELSE 0 END) as count_staff,
+            SUM(CASE WHEN u.role = 'gym_owner' THEN 1 ELSE 0 END) as count_owner,
+            SUM(CASE WHEN u.status = 'active' THEN 1 ELSE 0 END) as count_active,
+            AVG(CASE WHEN u.role = 'member' AND u.status = 'active' AND u.engagement_score > 0 THEN u.engagement_score ELSE NULL END) as avg_member_score
+        FROM users u 
+        WHERE {$baseWhere}
+    ");
+    $statsStmt->execute($baseParams);
+    $statsData = $statsStmt->fetch() ?: [];
+
+    $countAll = (int)($statsData['count_all'] ?? 0);
+    $countMember = (int)($statsData['count_member'] ?? 0);
+    $countTrainer = (int)($statsData['count_trainer'] ?? 0);
+    $countStaff = (int)($statsData['count_staff'] ?? 0);
+    $countOwner = (int)($statsData['count_owner'] ?? 0);
+    $countActive = (int)($statsData['count_active'] ?? 0);
+    $avgMemberScore = round((float)($statsData['avg_member_score'] ?? 0));
+
     $total = (int) scalar('SELECT COUNT(*) FROM users u WHERE ' . $where, $params);
     $totalPages = max(1, (int) ceil($total / $limit));
 
@@ -500,29 +783,107 @@ function users_page(): void
     <link rel="stylesheet" href="<?= h(asset_url('css/pages/users.css')) ?>">
     <div class="skeleton-wrapper">
         <section class="panel">
-            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:24px">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
                 <div>
-                    <div class="sk sk-title" style="width:140px;margin-bottom:8px"></div>
-                    <div class="sk sk-text" style="width:200px;height:12px"></div>
+                    <div class="sk sk-title" style="width:180px;margin-bottom:8px"></div>
+                    <div class="sk sk-text" style="width:260px;height:12px"></div>
                 </div>
-                <div class="sk sk-rect" style="width:120px;height:36px;border-radius:18px"></div>
+                <div class="sk sk-rect" style="width:140px;height:38px;border-radius:10px"></div>
             </div>
-            <div style="display:flex;justify-content:space-between;margin-bottom:12px;padding-bottom:8px;border-bottom:1px solid var(--line)">
-                <div style="display:flex;gap:16px">
-                    <?php for($i=0;$i<4;$i++) echo '<div class="sk sk-text" style="width:60px;height:14px;margin:0"></div>'; ?>
+            <!-- Stats Skeleton -->
+            <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:24px;">
+                <?php for($i=0;$i<4;$i++): ?>
+                    <div class="sk sk-rect" style="height:86px;border-radius:12px"></div>
+                <?php endfor; ?>
+            </div>
+            <div style="display:flex;justify-content:space-between;margin-bottom:14px;padding-bottom:10px;border-bottom:1px solid var(--line)">
+                <div style="display:flex;gap:12px">
+                    <?php for($i=0;$i<4;$i++) echo '<div class="sk sk-rect" style="width:75px;height:28px;border-radius:20px"></div>'; ?>
                 </div>
-                <div class="sk sk-text" style="width:50px;height:12px;margin:0"></div>
+                <div class="sk sk-text" style="width:70px;height:14px;margin:0"></div>
             </div>
             <?php render_skeleton_table(6, 8); ?>
         </section>
     </div>
     <section class="panel skeleton-content sk-display-block">
-        <div class="page-header">
-            <div>
-                <h1>User Accounts</h1>
-                <p>Create and manage system users across all roles.</p>
+        <div class="page-header users-page-header">
+            <div class="users-header-title-wrap">
+                <div class="users-title-badge-row">
+                    <h1>User Accounts</h1>
+                </div>
+                <p>Manage member profiles, coaching staff, gym personnel, and system privileges.</p>
             </div>
-            <button onclick="document.getElementById('createUserModal').showModal()">+ Create User</button>
+            <button type="button" class="btn btn-lime btn-create-user-hero" onclick="document.getElementById('createUserModal').showModal()">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                    <line x1="12" y1="5" x2="12" y2="19"></line>
+                    <line x1="5" y1="12" x2="19" y2="12"></line>
+                </svg>
+                <span>Create User</span>
+            </button>
+        </div>
+
+        <!-- High-Impact Summary Stats Grid -->
+        <div class="users-stats-grid">
+            <div class="users-stat-card">
+                <div class="users-stat-icon-wrap" style="color: var(--lime); background: color-mix(in srgb, var(--lime) 12%, transparent);">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+                        <circle cx="9" cy="7" r="4"></circle>
+                        <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+                        <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+                    </svg>
+                </div>
+                <div class="users-stat-content">
+                    <span class="users-stat-label">Total Accounts</span>
+                    <div class="users-stat-value"><?= number_format($countAll) ?></div>
+                    <span class="users-stat-sub">Facility roster</span>
+                </div>
+            </div>
+
+            <div class="users-stat-card">
+                <div class="users-stat-icon-wrap" style="color: #38bdf8; background: rgba(56, 189, 248, 0.12);">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6M18 9h1.5a2.5 2.5 0 0 0 0-5H18M4 22h16M10 14.66V17c0 .55-.45 1-1 1H7c-.55 0-1-.45-1-1v-2.34M18 14.66V17c0 .55-.45 1-1 1h-2c-.55 0-1-.45-1-1v-2.34M8 2h8a2 2 0 0 1 2 2v7a6 6 0 0 1-12 0V4a2 2 0 0 1 2-2z"></path>
+                    </svg>
+                </div>
+                <div class="users-stat-content">
+                    <span class="users-stat-label">Active Members</span>
+                    <div class="users-stat-value"><?= number_format($countMember) ?></div>
+                    <span class="users-stat-sub">Athletes enrolled</span>
+                </div>
+            </div>
+
+            <div class="users-stat-card">
+                <div class="users-stat-icon-wrap" style="color: #a855f7; background: rgba(168, 85, 247, 0.12);">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                        <rect x="2" y="7" width="20" height="14" rx="2" ry="2"></rect>
+                        <path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"></path>
+                    </svg>
+                </div>
+                <div class="users-stat-content">
+                    <span class="users-stat-label">Coaches & Staff</span>
+                    <div class="users-stat-value"><?= number_format($countTrainer + $countStaff) ?></div>
+                    <span class="users-stat-sub"><?= $countTrainer ?> trainer<?= $countTrainer == 1 ? '' : 's' ?>, <?= $countStaff ?> staff</span>
+                </div>
+            </div>
+
+            <div class="users-stat-card">
+                <div class="users-stat-icon-wrap" style="color: #10b981; background: rgba(16, 185, 129, 0.12);">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="12" cy="12" r="10"></circle>
+                        <path d="M8 14s1.5 2 4 2 4-2 4-2"></path>
+                        <line x1="9" y1="9" x2="9.01" y2="9"></line>
+                        <line x1="15" y1="9" x2="15.01" y2="9"></line>
+                    </svg>
+                </div>
+                <div class="users-stat-content">
+                    <span class="users-stat-label">Avg. Engagement</span>
+                    <div class="users-stat-value"><?= $avgMemberScore ?><span class="users-stat-unit">/100</span></div>
+                    <span class="users-stat-sub">
+                        <?= $avgMemberScore >= 75 ? '🔥 High attendance' : ($avgMemberScore >= 45 ? '⚡ Consistent' : 'Steady building') ?>
+                    </span>
+                </div>
+            </div>
         </div>
 
         <?php
@@ -579,24 +940,208 @@ function users_page(): void
             </div>
         </dialog>
 
-        <div style="display:flex; justify-content:space-between; align-items:flex-end; margin-bottom: 12px; border-bottom: 1px solid var(--line); padding-bottom: 8px; flex-wrap:wrap; gap:16px;">
-            <div style="display:flex; gap:16px; overflow-x:auto;">
-                <a href="?page=users&tab=all<?= $gymFilter ? '&gym_id='.$gymFilter : '' ?>" style="white-space:nowrap; color: <?= $tab === 'all' ? 'var(--lime)' : 'var(--muted)' ?>; font-weight: <?= $tab === 'all' ? '700' : '400' ?>; text-decoration:none; padding-bottom:4px; border-bottom: 2px solid <?= $tab === 'all' ? 'var(--lime)' : 'transparent' ?>;">All Users</a>
-                <?php if ($isAdmin): ?>
-                    <a href="?page=users&tab=gym_owner<?= $gymFilter ? '&gym_id='.$gymFilter : '' ?>" style="white-space:nowrap; color: <?= $tab === 'gym_owner' ? 'var(--lime)' : 'var(--muted)' ?>; font-weight: <?= $tab === 'gym_owner' ? '700' : '400' ?>; text-decoration:none; padding-bottom:4px; border-bottom: 2px solid <?= $tab === 'gym_owner' ? 'var(--lime)' : 'transparent' ?>;">Gym Owners</a>
-                <?php endif; ?>
-                <a href="?page=users&tab=staff<?= $gymFilter ? '&gym_id='.$gymFilter : '' ?>" style="white-space:nowrap; color: <?= $tab === 'staff' ? 'var(--lime)' : 'var(--muted)' ?>; font-weight: <?= $tab === 'staff' ? '700' : '400' ?>; text-decoration:none; padding-bottom:4px; border-bottom: 2px solid <?= $tab === 'staff' ? 'var(--lime)' : 'transparent' ?>;">Staff</a>
-                <a href="?page=users&tab=trainer<?= $gymFilter ? '&gym_id='.$gymFilter : '' ?>" style="white-space:nowrap; color: <?= $tab === 'trainer' ? 'var(--lime)' : 'var(--muted)' ?>; font-weight: <?= $tab === 'trainer' ? '700' : '400' ?>; text-decoration:none; padding-bottom:4px; border-bottom: 2px solid <?= $tab === 'trainer' ? 'var(--lime)' : 'transparent' ?>;">Trainers</a>
-                <a href="?page=users&tab=member<?= $gymFilter ? '&gym_id='.$gymFilter : '' ?>" style="white-space:nowrap; color: <?= $tab === 'member' ? 'var(--lime)' : 'var(--muted)' ?>; font-weight: <?= $tab === 'member' ? '700' : '400' ?>; text-decoration:none; padding-bottom:4px; border-bottom: 2px solid <?= $tab === 'member' ? 'var(--lime)' : 'transparent' ?>;">Members</a>
+        <!-- Member Progress Modal (Quick View for Gym Owners & Admins) -->
+        <dialog id="memberProgressModal" class="modal member-progress-modal">
+            <div class="modal-header">
+                <div class="mp-modal-title-group">
+                    <h3 id="mpModalTitle">Member Progress</h3>
+                    <p id="mpModalSubtitle" class="mp-modal-sub">Live fitness tracking & metrics overview</p>
+                </div>
+                <button type="button" class="modal-close" onclick="document.getElementById('memberProgressModal').close()" aria-label="Close">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                        <line x1="18" y1="6" x2="6" y2="18"></line>
+                        <line x1="6" y1="6" x2="18" y2="18"></line>
+                    </svg>
+                </button>
             </div>
-            
+            <div class="modal-body" id="mpModalBody">
+                <!-- Loading State Skeleton -->
+                <div id="mpLoadingSkeleton" class="mp-loading-skeleton" style="display: flex; flex-direction: column; gap: 14px;">
+                    <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px;">
+                        <div class="sk sk-rect" style="height: 74px; border-radius: 10px;"></div>
+                        <div class="sk sk-rect" style="height: 74px; border-radius: 10px;"></div>
+                        <div class="sk sk-rect" style="height: 74px; border-radius: 10px;"></div>
+                        <div class="sk sk-rect" style="height: 74px; border-radius: 10px;"></div>
+                    </div>
+                    <div class="sk sk-rect" style="height: 80px; border-radius: 10px;"></div>
+                    <div class="sk sk-rect" style="height: 100px; border-radius: 10px;"></div>
+                </div>
+
+                <!-- Loaded Content State -->
+                <div id="mpLoadedContent" style="display: none; flex-direction: column; gap: 16px;">
+                    <!-- Key Metric Cards Grid (4 KPI Cards) -->
+                    <div class="mp-kpi-grid">
+                        <div class="mp-kpi-card">
+                            <div class="mp-kpi-top-row">
+                                <span class="mp-kpi-label">Weight</span>
+                                <span id="mpWeightDeltaPill" class="mp-delta-pill is-neutral">—</span>
+                            </div>
+                            <div class="mp-kpi-val-row">
+                                <span id="mpCurrentWeight" class="mp-kpi-val">—</span>
+                            </div>
+                            <span id="mpWeightSub" class="mp-kpi-sub">Baseline: —</span>
+                        </div>
+                        <div class="mp-kpi-card">
+                            <span class="mp-kpi-label">Body Fat</span>
+                            <div class="mp-kpi-val-row">
+                                <span id="mpBodyFat" class="mp-kpi-val">—</span>
+                            </div>
+                            <span id="mpTargetBfLabel" class="mp-kpi-sub">Target: —</span>
+                        </div>
+                        <div class="mp-kpi-card">
+                            <span class="mp-kpi-label">BMI & Index</span>
+                            <div class="mp-kpi-val-row">
+                                <span id="mpBmi" class="mp-kpi-val">—</span>
+                            </div>
+                            <span id="mpBmiCategory" class="mp-kpi-sub">—</span>
+                        </div>
+                        <div class="mp-kpi-card">
+                            <span class="mp-kpi-label">Engagement</span>
+                            <div class="mp-kpi-val-row">
+                                <span id="mpScore" class="mp-kpi-val" style="color: var(--lime);">—</span>
+                            </div>
+                            <span id="mpCheckinsLabel" class="mp-kpi-sub">0 Check-ins</span>
+                        </div>
+                    </div>
+
+                    <!-- Fitness Goal & Target Bar -->
+                    <div class="mp-goal-card">
+                        <div class="mp-goal-header">
+                            <div class="mp-goal-label-group">
+                                <span class="mp-section-title">Primary Fitness Goal</span>
+                                <span id="mpGoalName" class="mp-goal-name">General Fitness</span>
+                            </div>
+                            <div class="mp-goal-meta">
+                                <span id="mpWeeklyTarget" class="mp-goal-tag">3 workouts / week</span>
+                                <span id="mpTargetWeight" class="mp-goal-tag">Target: —</span>
+                            </div>
+                        </div>
+                        <div class="mp-progress-track">
+                            <div id="mpProgressBar" class="mp-progress-fill" style="width: 50%;"></div>
+                        </div>
+                        <div class="mp-progress-legend">
+                            <span id="mpStartWeightLegend">Start: —</span>
+                            <span id="mpProgressPctLegend">Progress toward target</span>
+                            <span id="mpTargetWeightLegend">Target: —</span>
+                        </div>
+                    </div>
+
+                    <!-- Body Measurements Grid -->
+                    <div class="mp-circ-section">
+                        <div class="mp-section-header">
+                            <span class="mp-section-title">Latest Body Measurements</span>
+                            <small id="mpCircLastDate" style="color: var(--muted); font-size: 11px;">Recorded —</small>
+                        </div>
+                        <div class="mp-circ-grid">
+                            <div class="mp-circ-box">
+                                <span class="mp-circ-label">Waist</span>
+                                <span id="mpCircWaist" class="mp-circ-val">—</span>
+                            </div>
+                            <div class="mp-circ-box">
+                                <span class="mp-circ-label">Chest</span>
+                                <span id="mpCircChest" class="mp-circ-val">—</span>
+                            </div>
+                            <div class="mp-circ-box">
+                                <span class="mp-circ-label">Arms</span>
+                                <span id="mpCircArms" class="mp-circ-val">—</span>
+                            </div>
+                            <div class="mp-circ-box">
+                                <span class="mp-circ-label">Neck</span>
+                                <span id="mpCircNeck" class="mp-circ-val">—</span>
+                            </div>
+                            <div class="mp-circ-box">
+                                <span class="mp-circ-label">Hips</span>
+                                <span id="mpCircHips" class="mp-circ-val">—</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Recent History Table -->
+                    <div class="mp-history-section">
+                        <div class="mp-section-header">
+                            <span class="mp-section-title">Recent Progress Logs</span>
+                            <small id="mpTotalLogsCount" style="color: var(--muted); font-size: 11px;">0 logs total</small>
+                        </div>
+                        <div id="mpHistoryEmpty" class="mp-history-empty" style="display: none;">
+                            No recorded logs yet for this member.
+                        </div>
+                        <div id="mpHistoryTableWrap" class="mp-history-table-wrap">
+                            <table class="mp-history-table">
+                                <thead>
+                                    <tr>
+                                        <th>Date</th>
+                                        <th>Weight</th>
+                                        <th>Body Fat</th>
+                                        <th>Waist / Chest</th>
+                                        <th>Notes</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="mpHistoryTableBody">
+                                    <!-- Injected by JS -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Error State -->
+                <div id="mpErrorState" style="display: none; text-align: center; padding: 32px 16px;">
+                    <p id="mpErrorMessage" style="color: var(--danger, #ef4444); margin-bottom: 12px;">Failed to load member progress.</p>
+                    <button type="button" class="btn btn-secondary btn-sm" id="mpRetryBtn">Retry</button>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <div class="modal-footer-left">
+                    <a id="mpDietPlanLink" href="#" class="btn btn-secondary btn-sm" style="display: inline-flex; align-items: center; gap: 5px;">
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+                        Diet Plan
+                    </a>
+                </div>
+                <div class="modal-footer-right">
+                    <button type="button" class="btn btn-ghost btn-sm" onclick="document.getElementById('memberProgressModal').close()">Close</button>
+                    <a id="mpFullHubLink" href="#" class="btn btn-lime btn-sm btn-mp-full-hub" style="display: inline-flex; align-items: center; gap: 5px; font-weight: 600;">
+                        <span class="mp-hub-text-desktop">Open Full Progress Hub</span>
+                        <span class="mp-hub-text-mobile">Progress Hub</span>
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+                    </a>
+                </div>
+            </div>
+        </dialog>
+
+        <!-- Modern Segmented Role Filter Tabs -->
+        <div class="users-controls-bar">
+            <div class="users-tabs-pills" role="tablist">
+                <a href="?page=users&tab=all<?= $gymFilter ? '&gym_id='.$gymFilter : '' ?>" data-tab="all" class="users-nav-pill <?= $tab === 'all' ? 'is-active' : '' ?>">
+                    <span class="pill-title">All Accounts</span>
+                    <span class="pill-chip"><?= number_format($countAll) ?></span>
+                </a>
+                <?php if ($isAdmin): ?>
+                <a href="?page=users&tab=gym_owner<?= $gymFilter ? '&gym_id='.$gymFilter : '' ?>" data-tab="gym_owner" class="users-nav-pill <?= $tab === 'gym_owner' ? 'is-active' : '' ?>">
+                    <span class="pill-title">Gym Owners</span>
+                    <span class="pill-chip"><?= number_format($countOwner) ?></span>
+                </a>
+                <?php endif; ?>
+                <a href="?page=users&tab=staff<?= $gymFilter ? '&gym_id='.$gymFilter : '' ?>" data-tab="staff" class="users-nav-pill <?= $tab === 'staff' ? 'is-active' : '' ?>">
+                    <span class="pill-title">Staff</span>
+                    <span class="pill-chip"><?= number_format($countStaff) ?></span>
+                </a>
+                <a href="?page=users&tab=trainer<?= $gymFilter ? '&gym_id='.$gymFilter : '' ?>" data-tab="trainer" class="users-nav-pill <?= $tab === 'trainer' ? 'is-active' : '' ?>">
+                    <span class="pill-title">Trainers</span>
+                    <span class="pill-chip"><?= number_format($countTrainer) ?></span>
+                </a>
+                <a href="?page=users&tab=member<?= $gymFilter ? '&gym_id='.$gymFilter : '' ?>" data-tab="member" class="users-nav-pill <?= $tab === 'member' ? 'is-active' : '' ?>">
+                    <span class="pill-title">Members</span>
+                    <span class="pill-chip"><?= number_format($countMember) ?></span>
+                </a>
+            </div>
+
             <?php if ($isAdmin): ?>
-            <div style="display:flex; align-items:center; gap: 16px;">
-                <form method="get" style="margin:0; display:flex; gap:8px; align-items:center;">
+            <div class="users-admin-gym-filter">
+                <form method="get" class="users-gym-filter-form">
                     <input type="hidden" name="page" value="users">
                     <input type="hidden" name="tab" value="<?= h($tab) ?>">
-                    <select name="gym_id" onchange="this.form.submit()" style="padding:4px 8px; font-size:13px; border-radius:6px; background:var(--bg); border:1px solid var(--line); color:var(--ink);">
-                        <option value="">All Gyms</option>
+                    <select name="gym_id" onchange="this.form.submit()" class="users-gym-select">
+                        <option value="">All Gym Facilities</option>
                         <?php foreach ($allGyms as $g): ?>
                             <option value="<?= $g['gym_id'] ?>" <?= selected((string)$g['gym_id'], (string)$gymFilter) ?>><?= h($g['name']) ?></option>
                         <?php endforeach; ?>
@@ -604,90 +1149,103 @@ function users_page(): void
                 </form>
             </div>
             <?php endif; ?>
-            <div style="display:flex; align-items:center;">
-                <p class="section-label" id="userCountLabel" style="margin:0; border:none; padding:0;"><?= $total ?> found</p>
-            </div>
         </div>
 
-        <!-- Live Search Toolbar -->
-        <div class="user-search-toolbar" style="margin-bottom: 16px; display: flex; gap: 12px; align-items: center; justify-content: space-between; flex-wrap: wrap;">
-            <div style="position: relative; flex: 1; min-width: 260px; max-width: 460px;">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"
-                     style="position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: var(--muted); pointer-events: none;">
+        <!-- Live Search & Control Toolbar -->
+        <div class="user-search-toolbar">
+            <div class="users-search-box-wrap">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="users-search-icon">
                     <circle cx="11" cy="11" r="8"></circle>
                     <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
                 </svg>
                 <input type="text"
                        id="userSearchInput"
                        value="<?= h($searchQuery) ?>"
-                       placeholder="Search by name, email, phone, or ID..."
+                       placeholder="Search by user name, email, mobile phone, or ID..."
                        autocomplete="off"
-                       style="width: 100%; box-sizing: border-box; padding: 9px 36px 9px 36px; border-radius: 8px; border: 1px solid var(--line); background: var(--panel); color: var(--ink); font-size: 0.9rem; outline: none; transition: border-color 0.2s, box-shadow 0.2s;"
-                       onfocus="this.style.borderColor='var(--lime)';"
-                       onblur="this.style.borderColor='var(--line)';"
+                       class="users-search-input"
                 >
-                <button type="button"
-                        id="userSearchClear"
-                        onclick="clearUserSearch()"
-                        title="Clear search"
-                        style="display: <?= $searchQuery !== '' ? 'flex' : 'none' ?>; position: absolute; right: 10px; top: 50%; transform: translateY(-50%); background: none; border: none; color: var(--muted); cursor: pointer; padding: 2px 6px; border-radius: 50%; font-size: 14px; line-height: 1;">
-                    ✕
-                </button>
+                <div class="users-search-hints">
+                    <button type="button"
+                            id="userSearchClear"
+                            onclick="clearUserSearch()"
+                            title="Clear search"
+                            class="users-search-clear-btn"
+                            style="display: <?= $searchQuery !== '' ? 'flex' : 'none' ?>;">
+                        ✕
+                    </button>
+                    <span class="users-kbd-hint">/</span>
+                </div>
             </div>
-            <div id="userSearchStatus" style="font-size: 13px; color: var(--muted); display: none;"></div>
+
+            <div class="users-toolbar-meta">
+                <div id="userSearchStatus" class="users-search-status" style="display: none;"></div>
+                <div class="users-counter-chip" id="userCountBadge">
+                    <span class="users-dot-pulse"></span>
+                    <span id="userCountLabel"><?= number_format($total) ?> found</span>
+                </div>
+            </div>
         </div>
         
         <!-- Empty State Container -->
-        <div id="userEmptyState" class="empty-state" style="<?= empty($rows) ? 'display: block;' : 'display: none;' ?>">
-            <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
-            <p id="userEmptyStateText">No users found.</p>
+        <div id="userEmptyState" class="empty-state users-empty-state" style="<?= empty($rows) ? 'display: block;' : 'display: none;' ?>">
+            <div class="users-empty-icon-wrap">
+                <svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+                    <circle cx="9" cy="7" r="4"></circle>
+                    <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+                    <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+                </svg>
+            </div>
+            <p id="userEmptyStateText" class="users-empty-title">No user accounts found matching your filter.</p>
         </div>
 
         <!-- Desktop / Tablet Table View (>= 769px) -->
         <div class="users-desktop-table table-wrap" style="<?= empty($rows) ? 'display: none;' : '' ?>">
-            <table>
+            <table class="users-master-table">
                 <thead>
                     <tr>
-                        <th>User</th>
-                        <th>Email</th>
-                        <th>Role</th>
+                        <th>User Profile</th>
+                        <th>Email Address</th>
+                        <th>Role & Access</th>
                         <?php if ($isAdmin): ?>
                             <th>Gym / Branch</th>
                         <?php endif; ?>
-                        <?php if ($tab === 'trainer'): ?>
-                            <th>Specialization</th>
-                        <?php endif; ?>
-                        <?php if ($tab === 'member'): ?>
-                            <th>Score</th>
-                        <?php endif; ?>
+                        <th class="col-spec" style="<?= $tab === 'trainer' ? '' : 'display: none;' ?>">Specialization</th>
+                        <th class="col-score" style="<?= $tab === 'member' ? '' : 'display: none;' ?>">Engagement</th>
                         <th>Status</th>
                         <th>Joined</th>
-                        <th>Actions</th>
+                        <th style="text-align: right;">Actions</th>
                     </tr>
                 </thead>
                 <tbody id="userTableBody">
                 <?php foreach ($rows as $row):
-                    $statusClass = 'badge badge-' . $row['status'];
                     $roleDisplayName = ucwords(str_replace('_', ' ', $row['role']));
                 ?>
                     <tr class="user-table-row" data-name="<?= strtolower(h($row['first_name'] . ' ' . $row['last_name'])) ?>" data-email="<?= strtolower(h($row['email'])) ?>" data-phone="<?= strtolower(h($row['phone'] ?? '')) ?>" data-role="<?= strtolower(h($row['role'])) ?>" data-id="<?= (int)$row['user_id'] ?>">
                         <td>
                             <div class="user-cell">
-                                <?= render_avatar($row) ?>
+                                <div class="user-cell-avatar">
+                                    <?= render_avatar($row) ?>
+                                </div>
                                 <div class="user-cell-info">
-                                    <?= h($row['first_name'] . ' ' . $row['last_name']) ?>
-                                    <small>#<?= (int) $row['user_id'] ?></small>
+                                    <span class="user-full-name"><?= h($row['first_name'] . ' ' . $row['last_name']) ?></span>
+                                    <span class="user-id-chip">#<?= (int) $row['user_id'] ?></span>
                                 </div>
                             </div>
                         </td>
-                        <td style="color:var(--muted);"><?= h($row['email']) ?></td>
                         <td>
-                            <span class="user-role-text"><?= h($roleDisplayName) ?></span>
-                            <?php if ($row['role'] === 'staff'): ?>
-                                <span class="user-staff-role-text">
-                                    <?= ($row['staff_role'] ?? '') === 'manager' ? 'Operations Manager' : 'Front Desk' ?>
-                                </span>
-                            <?php endif; ?>
+                            <span class="user-email-text" title="<?= h($row['email']) ?>"><?= h($row['email']) ?></span>
+                        </td>
+                        <td>
+                            <div class="user-role-wrap">
+                                <span class="badge-role badge-role-<?= h($row['role']) ?>"><?= h($roleDisplayName) ?></span>
+                                <?php if ($row['role'] === 'staff'): ?>
+                                    <span class="badge-staff-subrole">
+                                        <?= ($row['staff_role'] ?? '') === 'manager' ? 'Operations Manager' : 'Front Desk' ?>
+                                    </span>
+                                <?php endif; ?>
+                            </div>
                         </td>
                         <?php if ($isAdmin): ?>
                         <?php
@@ -715,55 +1273,73 @@ function users_page(): void
                             <?php endif; ?>
                         </td>
                         <?php endif; ?>
-                        <?php if ($tab === 'trainer'): ?>
-                        <td>
+                        <td class="col-spec" style="<?= $tab === 'trainer' ? '' : 'display: none;' ?>">
                             <?php if ($row['role'] === 'trainer'): ?>
-                                <span style="color:var(--ink);"><?= h($row['specialization'] ?? 'General Trainer') ?></span>
+                                <span class="user-spec-text"><?= h($row['specialization'] ?? 'General Trainer') ?></span>
                             <?php else: ?>
                                 <span class="muted">—</span>
                             <?php endif; ?>
                         </td>
-                        <?php endif; ?>
-                        <?php if ($tab === 'member'): ?>
-                        <td>
-                            <?php if ($row['role'] === 'member'): ?>
-                                <strong style="color:var(--lime);"><?= (int)$row['engagement_score'] ?></strong>
+                        <td class="col-score" style="<?= $tab === 'member' ? '' : 'display: none;' ?>">
+                            <?php if ($row['role'] === 'member'): 
+                                $score = (int)$row['engagement_score'];
+                                $scoreTierClass = $score >= 75 ? 'tier-high' : ($score >= 45 ? 'tier-mid' : 'tier-low');
+                            ?>
+                                <div class="user-score-badge <?= $scoreTierClass ?>">
+                                    <span class="score-val"><?= $score ?></span>
+                                    <span class="score-unit">/100</span>
+                                </div>
                             <?php else: ?>
                                 <span class="muted">—</span>
                             <?php endif; ?>
                         </td>
-                        <?php endif; ?>
-                        <td><span class="<?= $statusClass ?>"><?= h($row['status']) ?></span></td>
-                        <td style="color:var(--muted);font-size:12px"><?= h(date('M j, Y', strtotime($row['created_at']))) ?></td>
                         <td>
-                            <div style="display:flex;gap:4px;align-items:center;">
+                            <span class="user-status-pill is-<?= h($row['status']) ?>">
+                                <span class="status-dot"></span>
+                                <?= ucfirst(h($row['status'])) ?>
+                            </span>
+                        </td>
+                        <td>
+                            <span class="user-joined-date"><?= h(date('M j, Y', strtotime($row['created_at']))) ?></span>
+                        </td>
+                        <td style="text-align: right;">
+                            <div class="user-actions-cluster">
                                 <?php if (!$isStaff): ?>
-                                <form method="post" class="row-actions" style="margin:0;">
+                                <form method="post" class="user-quick-status-form">
                                     <?= csrf_field() ?>
                                     <input type="hidden" name="action" value="status">
                                     <input type="hidden" name="user_id" value="<?= (int) $row['user_id'] ?>">
-                                    <select name="status" style="width:auto;padding:6px 10px;font-size:12px;margin:0">
-                                        <option <?= selected('active', $row['status']) ?>>active</option>
-                                        <option <?= selected('suspended', $row['status']) ?>>suspended</option>
+                                    <select name="status" class="user-status-select-sm" onchange="this.form.submit()" title="Change Account Status">
+                                        <option value="active" <?= selected('active', $row['status']) ?>>Active</option>
+                                        <option value="suspended" <?= selected('suspended', $row['status']) ?>>Suspended</option>
                                     </select>
-                                    <button type="submit" class="btn-sm btn-ghost">Update</button>
                                 </form>
                                 <?php endif; ?>
-                                <button type="button" class="btn btn-secondary btn-edit-user" data-user="<?= htmlspecialchars(json_encode($row), ENT_QUOTES, 'UTF-8') ?>" style="padding:4px 8px;font-size:12px;margin-left:8px;">Edit</button>
-                                <?php if ($isStaff === false && $user['role'] === 'gym_owner' && $row['role'] === 'member'): ?>
-                                    <a href="index.php?page=diet_builder&member_user_id=<?= (int)$row['user_id'] ?>&ref=users" class="btn btn-secondary" style="padding:4px 8px;font-size:12px;text-decoration:none;display:inline-flex;align-items:center;gap:4px;" title="Manage Diet Plan">
-                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
-                                        Diet Plan
+
+                                <button type="button" class="btn-user-action btn-edit-user" data-user="<?= htmlspecialchars(json_encode($row), ENT_QUOTES, 'UTF-8') ?>" title="Edit User">
+                                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+                                    <span>Edit</span>
+                                </button>
+
+                                <?php if ($isStaff === false && in_array($user['role'], ['gym_owner', 'platform_admin'], true) && $row['role'] === 'member'): ?>
+                                    <button type="button" class="btn-user-action btn-user-progress btn-member-progress" data-member-id="<?= (int)$row['user_id'] ?>" data-member-name="<?= h($row['first_name'] . ' ' . $row['last_name']) ?>" title="View Member Progress">
+                                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+                                        <span>Progress</span>
+                                    </button>
+                                    <a href="index.php?page=diet_builder&member_user_id=<?= (int)$row['user_id'] ?>&ref=users" class="btn-user-action btn-user-diet" title="Manage Diet Plan">
+                                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+                                        <span>Diet</span>
                                     </a>
                                 <?php endif; ?>
+
                                 <?php if (!$isStaff && (int) $row['user_id'] !== (int) $user['user_id']): ?>
                                 <button type="button" 
-                                    class="btn btn-danger btn-delete-user" 
+                                    class="btn-user-action btn-action-delete btn-delete-user" 
                                     data-user-id="<?= (int) $row['user_id'] ?>" 
                                     data-user-name="<?= h($row['first_name'] . ' ' . $row['last_name']) ?>" 
                                     data-user-role="<?= h($row['role']) ?>" 
-                                    style="padding:4px 8px;font-size:12px;">
-                                    Delete
+                                    title="Delete User">
+                                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
                                 </button>
                                 <?php endif; ?>
                             </div>
@@ -777,7 +1353,6 @@ function users_page(): void
         <!-- Mobile Card-List View (< 768px: Zero Horizontal Scroll) -->
         <div id="userMobileCards" class="users-mobile-cards" style="<?= empty($rows) ? 'display: none;' : '' ?>">
             <?php foreach ($rows as $row):
-                $statusClass = 'badge badge-' . $row['status'];
                 $roleDisplayName = ucwords(str_replace('_', ' ', $row['role']));
                 
                 $associatedGym = null;
@@ -788,20 +1363,28 @@ function users_page(): void
                 <div class="user-card-item" data-name="<?= strtolower(h($row['first_name'] . ' ' . $row['last_name'])) ?>" data-email="<?= strtolower(h($row['email'])) ?>" data-phone="<?= strtolower(h($row['phone'] ?? '')) ?>" data-role="<?= strtolower(h($row['role'])) ?>" data-id="<?= (int)$row['user_id'] ?>">
                     <div class="user-card-header">
                         <div class="user-card-identity">
-                            <?= render_avatar($row) ?>
+                            <div class="user-card-avatar-wrap">
+                                <?= render_avatar($row) ?>
+                            </div>
                             <div class="user-card-names">
                                 <div class="user-card-fullname"><?= h($row['first_name'] . ' ' . $row['last_name']) ?></div>
-                                <div class="user-card-id">#<?= (int) $row['user_id'] ?></div>
+                                <div class="user-card-id-sub">
+                                    <span class="user-id-chip">#<?= (int) $row['user_id'] ?></span>
+                                    <span class="user-card-date"><?= h(date('M j, Y', strtotime($row['created_at']))) ?></span>
+                                </div>
                             </div>
                         </div>
                         <div class="user-card-badges">
-                            <span class="user-role-text"><?= h($roleDisplayName) ?></span>
+                            <span class="badge-role badge-role-<?= h($row['role']) ?>"><?= h($roleDisplayName) ?></span>
                             <?php if ($row['role'] === 'staff'): ?>
-                                <span class="user-staff-role-text">
-                                    <?= ($row['staff_role'] ?? '') === 'manager' ? 'Operations Manager' : 'Front Desk' ?>
+                                <span class="badge-staff-subrole">
+                                    <?= ($row['staff_role'] ?? '') === 'manager' ? 'Manager' : 'Front Desk' ?>
                                 </span>
                             <?php endif; ?>
-                            <span class="<?= $statusClass ?>"><?= h($row['status']) ?></span>
+                            <span class="user-status-pill is-<?= h($row['status']) ?>">
+                                <span class="status-dot"></span>
+                                <?= ucfirst(h($row['status'])) ?>
+                            </span>
                         </div>
                     </div>
 
@@ -843,19 +1426,11 @@ function users_page(): void
                         <div class="user-card-detail-item">
                             <span class="user-card-detail-label">
                                 <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-                                Score
+                                Engagement
                             </span>
                             <span class="user-card-detail-value"><strong style="color:var(--lime);"><?= (int)$row['engagement_score'] ?></strong> / 100</span>
                         </div>
                         <?php endif; ?>
-
-                        <div class="user-card-detail-item">
-                            <span class="user-card-detail-label">
-                                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
-                                Joined
-                            </span>
-                            <span class="user-card-detail-value"><?= h(date('M j, Y', strtotime($row['created_at']))) ?></span>
-                        </div>
                     </div>
 
                     <div class="user-card-actions">
@@ -865,33 +1440,37 @@ function users_page(): void
                             <input type="hidden" name="action" value="status">
                             <input type="hidden" name="user_id" value="<?= (int) $row['user_id'] ?>">
                             <span class="user-card-status-label">Status:</span>
-                            <select name="status">
+                            <select name="status" class="user-card-status-select" onchange="this.form.submit()">
                                 <option value="active" <?= selected('active', $row['status']) ?>>Active</option>
                                 <option value="suspended" <?= selected('suspended', $row['status']) ?>>Suspended</option>
                             </select>
-                            <button type="submit" class="btn-sm btn-ghost">Update</button>
                         </form>
                         <?php endif; ?>
                         
                         <div class="user-card-btn-group">
-                            <button type="button" class="btn btn-secondary btn-sm btn-edit-user" data-user="<?= htmlspecialchars(json_encode($row), ENT_QUOTES, 'UTF-8') ?>">
+                            <button type="button" class="btn-card-action btn-edit-user" data-user="<?= htmlspecialchars(json_encode($row), ENT_QUOTES, 'UTF-8') ?>">
                                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
-                                Edit
+                                <span>Edit</span>
                             </button>
-                            <?php if (!$isStaff && $user['role'] === 'gym_owner' && $row['role'] === 'member'): ?>
-                                <a href="index.php?page=diet_builder&member_user_id=<?= (int)$row['user_id'] ?>&ref=users" class="btn btn-secondary btn-sm" title="Manage Diet Plan">
+                            <?php if (!$isStaff && in_array($user['role'], ['gym_owner', 'platform_admin'], true) && $row['role'] === 'member'): ?>
+                                <button type="button" class="btn-card-action btn-card-progress btn-member-progress" data-member-id="<?= (int)$row['user_id'] ?>" data-member-name="<?= h($row['first_name'] . ' ' . $row['last_name']) ?>" title="View Member Progress">
+                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+                                    <span>Progress</span>
+                                </button>
+                                <a href="index.php?page=diet_builder&member_user_id=<?= (int)$row['user_id'] ?>&ref=users" class="btn-card-action btn-card-diet" title="Manage Diet Plan">
                                     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
-                                    Diet
+                                    <span>Diet</span>
                                 </a>
                             <?php endif; ?>
                             <?php if (!$isStaff && (int) $row['user_id'] !== (int) $user['user_id']): ?>
                             <button type="button" 
-                                class="btn btn-danger btn-sm btn-delete-user" 
+                                class="btn-card-action btn-card-danger btn-delete-user" 
                                 data-user-id="<?= (int) $row['user_id'] ?>" 
                                 data-user-name="<?= h($row['first_name'] . ' ' . $row['last_name']) ?>" 
-                                data-user-role="<?= h($row['role']) ?>">
+                                data-user-role="<?= h($row['role']) ?>"
+                                title="Delete User">
                                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
-                                Delete
+                                <span>Delete</span>
                             </button>
                             <?php endif; ?>
                         </div>
