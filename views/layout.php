@@ -1688,7 +1688,9 @@ function render_header(string $title, ?array $user = null): void
             box-shadow: none !important;
         }
         .app-frame.collapsed .nav-sub-pill,
-        .app-frame.collapsed .sidebar-tier-badge {
+        .app-frame.collapsed .sidebar-tier-badge,
+        .app-frame.collapsed .sidebar-nav-badge,
+        .app-frame.collapsed .sidebar-notif-badge {
             display: none !important;
         }
     </style>
@@ -1931,6 +1933,23 @@ function render_header(string $title, ?array $user = null): void
                             || ($key === 'trainer_assignments' && $page === 'diet_builder' && in_array($role, ['gym_owner', 'platform_admin'], true))
                             || ($key === 'trainer_members' && in_array($page, ['diet_builder', 'trainer_assessment'], true) && $role === 'trainer')
                         );
+
+                        // Determine if badge represents an unread / actionable notification in collapsed mode
+                        $badgeHasUnread = false;
+                        $dotModifier = '';
+                        if (!empty($sidebarBadges[$key])) {
+                            $badgeClass = $sidebarBadges[$key]['class'] ?? '';
+                            if (str_contains($badgeClass, 'sidebar-badge-alert')) {
+                                $badgeHasUnread = true;
+                                $dotModifier = 'sidebar-badge-alert';
+                            } elseif (str_contains($badgeClass, 'sidebar-badge-pending')) {
+                                $badgeHasUnread = true;
+                                $dotModifier = 'sidebar-badge-pending';
+                            } elseif (str_contains($badgeClass, 'sidebar-badge-new')) {
+                                $badgeHasUnread = true;
+                                $dotModifier = 'sidebar-badge-new';
+                            }
+                        }
                     ?>
                         <a class="<?= $isActive ? 'active' : '' ?>" href="index.php?page=<?= h($key) ?>"<?= $key === 'notifications' ? ' id="sidebar-nav-notifications"' : ($key === 'messages' ? ' id="sidebar-nav-messages"' : '') ?>>
                             <span class="nav-icon" style="position: relative;">
@@ -1939,8 +1958,8 @@ function render_header(string $title, ?array $user = null): void
                                     <span class="sidebar-notif-dot<?= $unreadNotifsCount > 0 ? ' has-unread' : '' ?>" id="sidebar-notif-dot"></span>
                                 <?php elseif ($key === 'messages'): ?>
                                     <span class="sidebar-notif-dot<?= $unreadMsgsCount > 0 ? ' has-unread' : '' ?>" id="sidebar-messages-dot"></span>
-                                <?php elseif (!empty($sidebarBadges[$key])): ?>
-                                    <span class="sidebar-nav-dot has-unread <?= h($sidebarBadges[$key]['class'] ?? '') ?>"></span>
+                                <?php elseif ($badgeHasUnread): ?>
+                                    <span class="sidebar-nav-dot has-unread <?= $dotModifier ?>"></span>
                                 <?php endif; ?>
                             </span>
                             <span class="nav-label"><?= h($label) ?></span>

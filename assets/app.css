@@ -736,24 +736,38 @@ input[type="radio"] {
     position: absolute;
     top: -2px;
     right: -3px;
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
+    width: 8px !important;
+    height: 8px !important;
+    min-width: 8px !important;
+    max-width: 8px !important;
+    min-height: 8px !important;
+    max-height: 8px !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    border-radius: 50% !important;
     background: var(--lime);
     border: 1.5px solid var(--panel, #0f131a);
     box-shadow: 0 0 6px var(--lime);
     display: none;
     pointer-events: none;
+    box-sizing: content-box !important;
+    font-size: 0 !important;
+    line-height: 0 !important;
 }
 
 .sidebar-nav-dot.sidebar-badge-alert {
-    background: #ef4444;
-    box-shadow: 0 0 6px #ef4444;
+    background: #ef4444 !important;
+    box-shadow: 0 0 6px #ef4444 !important;
 }
 
 .sidebar-nav-dot.sidebar-badge-pending {
-    background: #f59e0b;
-    box-shadow: 0 0 6px #f59e0b;
+    background: #f59e0b !important;
+    box-shadow: 0 0 6px #f59e0b !important;
+}
+
+.sidebar-nav-dot.sidebar-badge-new {
+    background: var(--lime) !important;
+    box-shadow: 0 0 6px var(--lime) !important;
 }
 
 [data-theme="light"] .sidebar-notif-dot,
