@@ -559,15 +559,9 @@ function setup_profile_page(): void
             <!-- Right Side Elevated Card Pane -->
             <div class="split-login-card-pane">
                 <div class="split-login-card onboarding-card">
-                    <div class="split-card-header" style="display: flex; justify-content: space-between; align-items: flex-start; gap: 12px;">
-                        <div>
-                            <h2 class="split-card-title">Setup Profile</h2>
-                            <p class="split-card-subtitle">Establish your physical baseline for <span class="brand-highlight">FitTrack</span></p>
-                        </div>
-                        <a href="index.php?page=logout" style="font-size: 12px; color: #64748b; text-decoration: none; display: inline-flex; align-items: center; gap: 4px; padding: 5px 9px; border-radius: 7px; background: #f1f5f9; border: 1px solid #e2e8f0; white-space: nowrap; transition: all 0.15s ease;">
-                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
-                            Log out
-                        </a>
+                    <div class="split-card-header">
+                        <h2 class="split-card-title">Setup Profile</h2>
+                        <p class="split-card-subtitle">Establish your physical baseline for <span class="brand-highlight">FitTrack</span></p>
                     </div>
 
                     <!-- Stepper Header -->
@@ -885,6 +879,16 @@ function setup_profile_page(): void
                             </div>
                         </div>
                     </form>
+
+                    <div style="text-align: center; margin-top: 18px;">
+                        <a href="index.php?page=logout" style="color: #64748b; font-size: 13px; font-weight: 500; text-decoration: none; display: inline-flex; align-items: center; gap: 6px; transition: color 0.15s ease;" onmouseover="this.style.color='#ef4444'" onmouseout="this.style.color='#64748b'">
+                            <span>Log out</span>
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                                <line x1="5" y1="12" x2="19" y2="12"></line>
+                                <polyline points="12 5 19 12 12 19"></polyline>
+                            </svg>
+                        </a>
+                    </div>
                 </div>
             </div>
         </div>
