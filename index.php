@@ -186,6 +186,7 @@ try {
         'forgot_password' => ['file' => 'pages/auth/forgot_password.php', 'handler' => 'handle_forgot_password'],
         'reset_password' => ['file' => 'pages/auth/reset_password.php', 'handler' => 'handle_reset_password'],
         'verify_email' => ['file' => 'pages/auth/verify_email.php', 'handler' => 'verify_email_page'],
+        'verify_waiting' => ['file' => 'pages/auth/verify_waiting.php', 'handler' => 'verify_waiting_page'],
         'setup_profile' => ['file' => 'pages/auth/setup_profile.php', 'handler' => 'setup_profile_page'],
         'setup_goal' => ['file' => 'pages/auth/setup_goal.php', 'handler' => 'setup_goal_page'],
         'setup_review' => ['file' => 'pages/auth/setup_review.php', 'handler' => 'setup_review_page'],

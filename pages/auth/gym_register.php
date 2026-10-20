@@ -106,7 +106,10 @@ function handle_gym_register(): void
                     ? 'Account created! Please check your email (' . post('email') . ') to verify your address before signing in.'
                     : 'Account created! We could not send a verification email right now — use the resend option on the login page.';
                 flash($msg, 'success');
-                redirect('login');
+                $_SESSION['pending_verify_uid'] = $userId;
+                $_SESSION['pending_verify_email'] = (string) post('email');
+                $_SESSION['pending_verify_name'] = $firstName;
+                redirect('verify_waiting');
             } catch (Throwable $e) {
                 $pdo->rollBack();
                 flash('Registration failed: ' . $e->getMessage(), 'danger');

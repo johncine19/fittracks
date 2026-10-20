@@ -194,7 +194,9 @@ function handle_login(): void
             if ($user['role'] === 'member' && empty($user['email_verified_at'])) {
                 $_SESSION['pending_verify_uid'] = (int) $user['user_id'];
                 flash('Please verify your email address before signing in. Check your inbox or use the resend option below.', 'danger');
-                redirect('login');
+                $_SESSION['pending_verify_email'] = (string) $user['email'];
+                $_SESSION['pending_verify_name'] = (string) $user['first_name'];
+                redirect('verify_waiting');
             }
 
             // Gym owner routing is now handled by core/auth.php require_login()
