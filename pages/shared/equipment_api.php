@@ -17,11 +17,11 @@ function equipment_api_handler(): void
     $action = $_REQUEST['action'] ?? 'poll';
     $gymId = get_user_gym_id($user);
 
-    // If equipment_id is passed, automatically adopt equipment's gym for member or platform admin
+    // If equipment_id is passed, automatically adopt equipment's gym for member, trainer, or platform admin
     if (!empty($_REQUEST['equipment_id'])) {
         $equipGym = (int)scalar("SELECT gym_id FROM gym_equipment WHERE equipment_id = ? LIMIT 1", [(int)$_REQUEST['equipment_id']]);
         if ($equipGym > 0) {
-            if (!$gymId || in_array($user['role'], ['platform_admin', 'member'], true)) {
+            if (!$gymId || in_array($user['role'], ['platform_admin', 'member', 'trainer'], true)) {
                 $gymId = $equipGym;
             }
         }
@@ -30,7 +30,7 @@ function equipment_api_handler(): void
     // Explicit gym_id support
     if (!empty($_REQUEST['gym_id'])) {
         $reqGymId = (int)$_REQUEST['gym_id'];
-        if ($user['role'] === 'platform_admin' || $user['role'] === 'member') {
+        if ($user['role'] === 'platform_admin' || $user['role'] === 'member' || $user['role'] === 'trainer') {
             $gymId = $reqGymId;
         } elseif (in_array($user['role'], ['gym_owner', 'admin'], true)) {
             $isOwner = (bool)scalar("SELECT 1 FROM gyms WHERE gym_id = ? AND owner_user_id = ?", [$reqGymId, $user['user_id']]);
@@ -221,7 +221,7 @@ function reconcile_equipment_states(PDO $pdo, int $gymId): void
         JOIN users u ON u.user_id = s.user_id
         WHERE s.session_status = 'active'
           AND (s.gym_id = ? OR ? = 0)
-          AND u.role = 'member'
+          AND u.role IN ('member', 'trainer')
           AND NOT EXISTS (
               SELECT 1 FROM attendance a
               WHERE a.user_id = s.user_id
@@ -246,7 +246,7 @@ function reconcile_equipment_states(PDO $pdo, int $gymId): void
         JOIN users u ON u.user_id = q.user_id
         WHERE q.queue_status IN ('waiting', 'notified')
           AND (q.gym_id = ? OR ? = 0)
-          AND u.role = 'member'
+          AND u.role IN ('member', 'trainer')
           AND NOT EXISTS (
               SELECT 1 FROM attendance a
               WHERE a.user_id = q.user_id
@@ -396,10 +396,19 @@ function handle_poll(PDO $pdo, int $gymId, array $user): void
     $equipStmt = $pdo->prepare("
         SELECT e.*,
                COALESCE(qc.waiting_queue_count, 0) as waiting_queue_count,
-               CASE WHEN s.session_id IS NOT NULL THEN CONCAT(su.first_name, ' ', SUBSTRING(su.last_name, 1, 1), '.') ELSE NULL END as current_user_display,
+               CASE 
+                   WHEN s.session_id IS NULL THEN NULL
+                   WHEN s.partner_user_ids IS NOT NULL AND s.partner_user_ids != '' THEN 
+                       CONCAT(su.first_name, ' + group (Coach ', COALESCE(tu.first_name, 'Trainer'), ')')
+                   WHEN s.trainer_user_id IS NOT NULL AND s.trainer_user_id != s.user_id THEN 
+                       CONCAT(su.first_name, ' ', SUBSTRING(su.last_name, 1, 1), '. (Coach ', COALESCE(tu.first_name, 'Trainer'), ')')
+                   ELSE CONCAT(su.first_name, ' ', SUBSTRING(su.last_name, 1, 1), '.') 
+               END as current_user_display,
                UNIX_TIMESTAMP(s.start_time) as session_start_ts,
                TIMESTAMPDIFF(MINUTE, s.start_time, NOW()) as session_elapsed_mins,
                s.user_id as current_session_user_id,
+               s.trainer_user_id as current_session_trainer_id,
+               s.partner_user_ids as current_session_partner_ids,
                CASE WHEN nq.queue_id IS NOT NULL THEN CONCAT(qu.first_name, ' ', SUBSTRING(qu.last_name, 1, 1), '.') ELSE NULL END as notified_user_display,
                nq.user_id as notified_user_id,
                TIMESTAMPDIFF(SECOND, NOW(), nq.claim_deadline) as claim_remaining_seconds
@@ -408,6 +417,8 @@ function handle_poll(PDO $pdo, int $gymId, array $user): void
             ON s.equipment_id = e.equipment_id AND s.session_status = 'active'
         LEFT JOIN users su 
             ON su.user_id = s.user_id
+        LEFT JOIN users tu
+            ON tu.user_id = s.trainer_user_id
         LEFT JOIN equipment_queues nq 
             ON nq.equipment_id = e.equipment_id AND nq.queue_status = 'notified' AND nq.claim_deadline >= NOW()
         LEFT JOIN users qu 
@@ -425,11 +436,59 @@ function handle_poll(PDO $pdo, int $gymId, array $user): void
     $equipment = $equipStmt->fetchAll(PDO::FETCH_ASSOC);
 
     $isCheckedIn = true;
-    if ($user['role'] === 'member') {
+    if (in_array($user['role'], ['member', 'trainer'], true)) {
         $isCheckedIn = (bool)scalar(
             "SELECT attendance_id FROM attendance WHERE user_id = ? AND gym_id = ? AND check_out_time IS NULL AND check_in_time >= CURDATE() AND check_in_time < CURDATE() + INTERVAL 1 DAY LIMIT 1",
             [$userId, $gymId]
         );
+    }
+
+    $trainerClients = [];
+    $trainerSessions = [];
+    if ($user['role'] === 'trainer') {
+        $coachId = (int)scalar('SELECT trainer_id FROM trainer_profiles WHERE user_id = ? LIMIT 1', [$userId]);
+
+        // Fetch assigned clients & today's class attendees who are checked in at this gym today
+        $clientsStmt = $pdo->prepare("
+            SELECT u.user_id, u.first_name, u.last_name, u.profile_picture,
+                   MAX(es.session_id) as active_session_id, 
+                   MAX(es.equipment_id) as active_equipment_id,
+                   MAX(eq.name) as active_equipment_name, 
+                   MAX(eq.unit_number) as active_equipment_unit
+            FROM users u
+            JOIN attendance a ON a.user_id = u.user_id 
+                AND a.gym_id = ? 
+                AND a.check_out_time IS NULL 
+                AND a.check_in_time >= CURDATE() 
+                AND a.check_in_time < CURDATE() + INTERVAL 1 DAY
+            LEFT JOIN equipment_sessions es ON (es.user_id = u.user_id OR FIND_IN_SET(u.user_id, COALESCE(es.partner_user_ids, ''))) AND es.session_status = 'active'
+            LEFT JOIN gym_equipment eq ON eq.equipment_id = es.equipment_id
+            WHERE u.role = 'member'
+              AND (
+                  EXISTS (SELECT 1 FROM trainer_assignments ta WHERE ta.trainer_id = ? AND ta.member_user_id = u.user_id AND ta.status = 'active')
+                  OR EXISTS (SELECT 1 FROM class_bookings cb JOIN class_schedules cs ON cs.schedule_id = cb.schedule_id JOIN classes c ON c.class_id = cs.class_id WHERE c.instructor_id = ? AND DATE(cs.start_datetime) = CURDATE() AND cb.user_id = u.user_id AND cb.booking_status IN ('booked', 'attended'))
+              )
+            GROUP BY u.user_id, u.first_name, u.last_name, u.profile_picture
+            ORDER BY u.first_name ASC
+        ");
+        $clientsStmt->execute([$gymId, $coachId, $userId]);
+        $trainerClients = $clientsStmt->fetchAll(PDO::FETCH_ASSOC);
+
+        // All active circuit stations initiated by this trainer
+        $trSessionsStmt = $pdo->prepare("
+            SELECT s.session_id, s.equipment_id, s.user_id, s.trainer_user_id, s.partner_user_ids,
+                   s.start_time, UNIX_TIMESTAMP(s.start_time) as start_ts,
+                   TIMESTAMPDIFF(SECOND, s.start_time, NOW()) as elapsed_seconds,
+                   e.name, e.unit_number, e.category, e.location_area, e.image_url,
+                   CONCAT(u.first_name, ' ', u.last_name) as primary_client_name
+            FROM equipment_sessions s
+            JOIN gym_equipment e ON e.equipment_id = s.equipment_id
+            JOIN users u ON u.user_id = s.user_id
+            WHERE (s.trainer_user_id = ? OR s.user_id = ?) AND s.session_status = 'active' AND (s.gym_id = ? OR ? = 0)
+            ORDER BY s.start_time DESC
+        ");
+        $trSessionsStmt->execute([$userId, $userId, $gymId, $gymId]);
+        $trainerSessions = $trSessionsStmt->fetchAll(PDO::FETCH_ASSOC);
     }
 
     echo json_encode([
@@ -438,7 +497,9 @@ function handle_poll(PDO $pdo, int $gymId, array $user): void
         'is_checked_in' => $isCheckedIn,
         'active_session' => $activeSession,
         'my_queues' => $myQueues,
-        'equipment' => $equipment
+        'equipment' => $equipment,
+        'trainer_clients' => $trainerClients,
+        'trainer_sessions' => $trainerSessions
     ]);
 }
 
@@ -464,8 +525,8 @@ function handle_start_session(PDO $pdo, int $gymId, array $user): void
 
     $eqGymId = (int)$equip['gym_id'];
 
-    // Rule: Member must be checked in at the gym to use equipment
-    if ($user['role'] === 'member') {
+    // Rule: Member or Trainer must be checked in at the gym to use equipment
+    if (in_array($user['role'], ['member', 'trainer'], true)) {
         $isCheckedIn = (bool)scalar(
             "SELECT attendance_id FROM attendance WHERE user_id = ? AND gym_id = ? AND check_out_time IS NULL AND check_in_time >= CURDATE() AND check_in_time < CURDATE() + INTERVAL 1 DAY LIMIT 1",
             [$userId, $eqGymId]
@@ -479,11 +540,114 @@ function handle_start_session(PDO $pdo, int $gymId, array $user): void
         }
     }
 
-    // Rule 8: A member cannot occupy multiple equipment sessions simultaneously
-    $hasActive = scalar("SELECT session_id FROM equipment_sessions WHERE user_id = ? AND session_status = 'active' LIMIT 1", [$userId]);
-    if ($hasActive) {
-        echo json_encode(['success' => false, 'message' => "You already have an active equipment session. Please finish it before starting another."]);
-        return;
+    $targetUserId = $userId;
+    $trainerUserId = null;
+    $partnerIdsStr = null;
+    $targetMode = $_POST['target_mode'] ?? 'self';
+    $clientIdsParam = $_POST['client_user_ids'] ?? null;
+
+    if ($user['role'] === 'trainer') {
+        $trainerUserId = $userId;
+
+        if ($targetMode === 'clients' && !empty($clientIdsParam)) {
+            $parsedClientIds = is_array($clientIdsParam) ? $clientIdsParam : array_filter(array_map('intval', explode(',', (string)$clientIdsParam)));
+            if (empty($parsedClientIds)) {
+                echo json_encode(['success' => false, 'message' => 'Please select at least one client.']);
+                return;
+            }
+
+            $coachId = (int)scalar('SELECT trainer_id FROM trainer_profiles WHERE user_id = ? LIMIT 1', [$userId]);
+            $validClientIds = [];
+            foreach ($parsedClientIds as $cId) {
+                $cId = (int)$cId;
+                if ($cId <= 0) continue;
+
+                $isCheckedInToday = (bool)scalar(
+                    "SELECT 1 FROM attendance WHERE user_id = ? AND gym_id = ? AND check_out_time IS NULL AND check_in_time >= CURDATE() AND check_in_time < CURDATE() + INTERVAL 1 DAY LIMIT 1",
+                    [$cId, $eqGymId]
+                );
+                if (!$isCheckedInToday) {
+                    $cName = scalar("SELECT CONCAT(first_name, ' ', last_name) FROM users WHERE user_id = ?", [$cId]) ?: "Client #{$cId}";
+                    echo json_encode(['success' => false, 'message' => "{$cName} is not currently checked in at {$equip['name']}."]);
+                    return;
+                }
+
+                $isMyClient = (bool)scalar(
+                    "SELECT 1 FROM trainer_assignments WHERE trainer_id = ? AND member_user_id = ? AND status = 'active' LIMIT 1",
+                    [$coachId, $cId]
+                );
+                if (!$isMyClient) {
+                    $isMyClient = (bool)scalar(
+                        "SELECT 1 FROM class_bookings cb JOIN class_schedules cs ON cs.schedule_id = cb.schedule_id JOIN classes c ON c.class_id = cs.class_id WHERE c.instructor_id = ? AND DATE(cs.start_datetime) = CURDATE() AND cb.user_id = ? AND cb.booking_status IN ('booked', 'attended') LIMIT 1",
+                        [$userId, $cId]
+                    );
+                }
+                if ($isMyClient) {
+                    $validClientIds[] = $cId;
+                }
+            }
+
+            if (empty($validClientIds)) {
+                echo json_encode(['success' => false, 'message' => 'No valid assigned clients or class attendees selected.']);
+                return;
+            }
+
+            // Anti-Hogging Rule: calculate active stations already held by this trainer
+            $activeTrainerStations = (int)scalar(
+                "SELECT COUNT(*) FROM equipment_sessions WHERE trainer_user_id = ? AND session_status = 'active' AND (gym_id = ? OR ? = 0)",
+                [$userId, $eqGymId, $eqGymId]
+            );
+
+            // Total checked-in clients for this trainer today
+            $checkedInClientsCount = (int)scalar("
+                SELECT COUNT(DISTINCT u.user_id)
+                FROM users u
+                JOIN attendance a ON a.user_id = u.user_id AND a.gym_id = ? AND a.check_out_time IS NULL AND a.check_in_time >= CURDATE() AND a.check_in_time < CURDATE() + INTERVAL 1 DAY
+                WHERE (
+                    EXISTS (SELECT 1 FROM trainer_assignments ta WHERE ta.trainer_id = ? AND ta.member_user_id = u.user_id AND ta.status = 'active')
+                    OR EXISTS (SELECT 1 FROM class_bookings cb JOIN class_schedules cs ON cs.schedule_id = cb.schedule_id JOIN classes c ON c.class_id = cs.class_id WHERE c.instructor_id = ? AND DATE(cs.start_datetime) = CURDATE() AND cb.user_id = u.user_id AND cb.booking_status IN ('booked', 'attended'))
+                )
+            ", [$eqGymId, $coachId, $userId]);
+
+            $maxAllowedStations = max(1, $checkedInClientsCount);
+            if ($activeTrainerStations >= $maxAllowedStations) {
+                echo json_encode([
+                    'success' => false,
+                    'message' => "Fair-Play Anti-Hogging Limit: You currently have {$activeTrainerStations} active station(s) for {$checkedInClientsCount} checked-in client(s). Finish an existing station or rotate clients before claiming another."
+                ]);
+                return;
+            }
+
+            $targetUserId = $validClientIds[0];
+            if (count($validClientIds) > 1) {
+                $partnerIdsStr = implode(',', array_slice($validClientIds, 1));
+            }
+
+            // Station Rotation: If any selected client is currently on another station, finish that previous station
+            foreach ($validClientIds as $vcId) {
+                $prevSessionsStmt = $pdo->prepare("SELECT session_id, equipment_id FROM equipment_sessions WHERE user_id = ? AND session_status = 'active'");
+                $prevSessionsStmt->execute([$vcId]);
+                foreach ($prevSessionsStmt->fetchAll(PDO::FETCH_ASSOC) as $prev) {
+                    $pdo->prepare("UPDATE equipment_sessions SET session_status = 'completed', end_time = NOW(), duration_seconds = TIMESTAMPDIFF(SECOND, start_time, NOW()) WHERE session_id = ?")->execute([(int)$prev['session_id']]);
+                    $pdo->prepare("UPDATE gym_equipment SET current_session_id = NULL WHERE equipment_id = ?")->execute([(int)$prev['equipment_id']]);
+                    process_next_in_queue($pdo, $eqGymId, (int)$prev['equipment_id']);
+                }
+            }
+        } else {
+            // Trainer using station for themselves
+            $hasActiveSelf = scalar("SELECT session_id FROM equipment_sessions WHERE user_id = ? AND session_status = 'active' LIMIT 1", [$userId]);
+            if ($hasActiveSelf) {
+                echo json_encode(['success' => false, 'message' => "You already have an active personal equipment session. Please finish it before starting another."]);
+                return;
+            }
+        }
+    } else {
+        // Regular member Rule 8: Cannot occupy multiple equipment sessions simultaneously
+        $hasActive = scalar("SELECT session_id FROM equipment_sessions WHERE user_id = ? AND session_status = 'active' LIMIT 1", [$userId]);
+        if ($hasActive) {
+            echo json_encode(['success' => false, 'message' => "You already have an active equipment session. Please finish it before starting another."]);
+            return;
+        }
     }
 
     if ($equip['status'] === 'maintenance' || $equip['status'] === 'out_of_service') {
@@ -496,7 +660,7 @@ function handle_start_session(PDO $pdo, int $gymId, array $user): void
     $reservedStmt->execute([$equipmentId]);
     $reserved = $reservedStmt->fetch(PDO::FETCH_ASSOC);
 
-    if ($reserved && (int)$reserved['user_id'] !== $userId) {
+    if ($reserved && (int)$reserved['user_id'] !== $targetUserId && (int)$reserved['user_id'] !== $userId) {
         echo json_encode([
             'success' => false,
             'message' => 'This equipment is currently reserved for the next member in queue.',
@@ -519,21 +683,25 @@ function handle_start_session(PDO $pdo, int $gymId, array $user): void
     }
 
     // Insert active session
-    $insertSession = $pdo->prepare("INSERT INTO equipment_sessions (gym_id, equipment_id, user_id, start_time, session_status) VALUES (?, ?, ?, NOW(), 'active')");
-    $insertSession->execute([$eqGymId, $equipmentId, $userId]);
+    $insertSession = $pdo->prepare("INSERT INTO equipment_sessions (gym_id, equipment_id, user_id, trainer_user_id, partner_user_ids, start_time, session_status) VALUES (?, ?, ?, ?, ?, NOW(), 'active')");
+    $insertSession->execute([$eqGymId, $equipmentId, $targetUserId, $trainerUserId, $partnerIdsStr]);
     $sessionId = (int)$pdo->lastInsertId();
 
     // Link session to equipment
     $pdo->prepare("UPDATE gym_equipment SET current_session_id = ? WHERE equipment_id = ?")->execute([$sessionId, $equipmentId]);
 
-    // If user was in queue for this equipment, mark claimed
-    $pdo->prepare("UPDATE equipment_queues SET queue_status = 'claimed', resolved_at = NOW() WHERE user_id = ? AND equipment_id = ? AND queue_status IN ('waiting', 'notified')")->execute([$userId, $equipmentId]);
+    // If target user or trainer was in queue for this equipment, mark claimed
+    $pdo->prepare("UPDATE equipment_queues SET queue_status = 'claimed', resolved_at = NOW() WHERE user_id IN (?, ?) AND equipment_id = ? AND queue_status IN ('waiting', 'notified')")->execute([$targetUserId, $userId, $equipmentId]);
     reorder_waiting_queues($pdo, $equipmentId);
+
+    $successMsg = ($user['role'] === 'trainer' && $targetMode === 'clients') 
+        ? 'Circuit station claimed and assigned to your client(s)!' 
+        : 'Session started! Track your workout timer below.';
 
     echo json_encode([
         'success' => true,
         'session_id' => $sessionId,
-        'message' => 'Session started! Track your workout timer below.'
+        'message' => $successMsg
     ]);
 }
 
@@ -544,7 +712,7 @@ function handle_finish_session(PDO $pdo, int $gymId, array $user): void
 
     if ($sessionId <= 0) {
         // Find user's active session
-        $sessionId = (int)scalar("SELECT session_id FROM equipment_sessions WHERE user_id = ? AND session_status = 'active' LIMIT 1", [$userId]);
+        $sessionId = (int)scalar("SELECT session_id FROM equipment_sessions WHERE (user_id = ? OR trainer_user_id = ?) AND session_status = 'active' ORDER BY session_id DESC LIMIT 1", [$userId, $userId]);
     }
 
     if ($sessionId <= 0) {
@@ -561,9 +729,10 @@ function handle_finish_session(PDO $pdo, int $gymId, array $user): void
         return;
     }
 
-    // Must be session owner or admin
+    // Must be session owner, trainer who started it, or admin
     $isAdmin = in_array($user['role'], ['gym_owner', 'admin', 'platform_admin'], true);
-    if ((int)$session['user_id'] !== $userId && !$isAdmin) {
+    $isTrainerOwner = (!empty($session['trainer_user_id']) && (int)$session['trainer_user_id'] === $userId);
+    if ((int)$session['user_id'] !== $userId && !$isAdmin && !$isTrainerOwner) {
         echo json_encode(['success' => false, 'message' => 'Permission denied.']);
         return;
     }
@@ -696,8 +865,8 @@ function handle_join_queue(PDO $pdo, int $gymId, array $user): void
 
     $eqGymId = (int)$equip['gym_id'];
 
-    // Rule: Member must be checked in at the gym to join equipment queues
-    if ($user['role'] === 'member') {
+    // Rule: Member or Trainer must be checked in at the gym to join equipment queues
+    if (in_array($user['role'], ['member', 'trainer'], true)) {
         $isCheckedIn = (bool)scalar(
             "SELECT attendance_id FROM attendance WHERE user_id = ? AND gym_id = ? AND check_out_time IS NULL AND check_in_time >= CURDATE() AND check_in_time < CURDATE() + INTERVAL 1 DAY LIMIT 1",
             [$userId, $eqGymId]

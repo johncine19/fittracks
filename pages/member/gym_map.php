@@ -111,16 +111,6 @@ function gym_map_page(): void
                         <span class="map-status-dot"></span>
                         <span id="map-status-text">Interactive Gym Map • Click a pin to preview</span>
                     </div>
-                    <div class="map-actions">
-                        <button type="button" class="map-action-btn" id="btn-recenter-user" title="Center on my location" style="display: none;">
-                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><polygon points="3 11 22 2 13 21 11 13 3 11"/></svg>
-                            <span>My Location</span>
-                        </button>
-                        <button type="button" class="map-action-btn" id="btn-fit-all-gyms" title="Fit all gyms in view">
-                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 3h6v6"/><path d="M9 21H3v-6"/><path d="M21 3l-7 7"/><path d="M3 21l7-7"/></svg>
-                            <span>Fit All</span>
-                        </button>
-                    </div>
                 </div>
                 <div id="gym-map" style="height: 600px;"></div>
             </div>

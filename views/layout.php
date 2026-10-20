@@ -82,6 +82,7 @@ function render_header(string $title, ?array $user = null): void
                 'messages' => 'Messages',
                 'notifications' => 'Notifications',
                 'qr_attendance' => 'My QR',
+                'equipment' => 'Equipment',
                 'trainer_members' => 'Clients',
                 'training' => 'Workouts',
                 'food_library' => 'Food Library',

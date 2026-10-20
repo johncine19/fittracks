@@ -579,6 +579,16 @@ function get_user_gym(array $user): ?array
     }
 
     if ($role === 'trainer') {
+        if (!empty($_SESSION['current_gym_id'])) {
+            $gymId = (int)$_SESSION['current_gym_id'];
+            $gym = $pdo->query("SELECT * FROM gyms WHERE gym_id = $gymId LIMIT 1")->fetch();
+            if ($gym) return $gym;
+        }
+
+        // Active physical check-in for trainer
+        $gym = $pdo->query("SELECT g.* FROM gyms g JOIN attendance a ON a.gym_id = g.gym_id WHERE a.user_id = $userId AND a.check_out_time IS NULL ORDER BY a.check_in_time DESC LIMIT 1")->fetch();
+        if ($gym) return $gym;
+
         $gym = $pdo->query("SELECT g.* FROM gyms g JOIN trainer_profiles tp ON tp.gym_id = g.gym_id WHERE tp.user_id = $userId LIMIT 1")->fetch();
         return $gym ?: null;
     }

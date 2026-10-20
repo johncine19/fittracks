@@ -120,7 +120,9 @@ try {
         "UPDATE gyms SET latitude = 14.5547, longitude = 121.0244 WHERE gym_id = 21 AND latitude IS NULL",
         "ALTER TABLE attendance ADD COLUMN exit_detected_at DATETIME DEFAULT NULL AFTER check_out_time",
         "ALTER TABLE attendance ADD COLUMN exit_grace_expires_at DATETIME DEFAULT NULL AFTER exit_detected_at",
-        "CREATE INDEX idx_att_exit_grace ON attendance (check_out_time, exit_grace_expires_at)"
+        "CREATE INDEX idx_att_exit_grace ON attendance (check_out_time, exit_grace_expires_at)",
+        "ALTER TABLE equipment_sessions ADD COLUMN trainer_user_id INT UNSIGNED NULL DEFAULT NULL AFTER user_id",
+        "ALTER TABLE equipment_sessions ADD COLUMN partner_user_ids TEXT NULL DEFAULT NULL AFTER trainer_user_id"
     ];
 
     foreach ($migrations as $sql) {

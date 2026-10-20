@@ -1363,15 +1363,67 @@
         }
 
         .leaflet-bar a {
+            width: 34px !important;
+            height: 34px !important;
+            line-height: 34px !important;
+            display: flex !important;
+            align-items: center !important;
+            justify-content: center !important;
             background: #111722 !important;
             color: #f8fafc !important;
             border-bottom: 1px solid rgba(255, 255, 255, 0.1) !important;
-            transition: background 0.2s, color 0.2s;
+            padding: 0 !important;
+            text-align: center !important;
+            text-decoration: none !important;
+            transition: background 0.2s ease, color 0.2s ease, border-color 0.2s ease;
+            cursor: pointer;
+        }
+
+        .leaflet-bar a:last-child {
+            border-bottom: none !important;
         }
 
         .leaflet-bar a:hover {
             background: #1a2332 !important;
             color: var(--lime) !important;
+        }
+
+        .leaflet-bar a.is-active {
+            color: var(--lime) !important;
+            background: rgba(199, 255, 34, 0.14) !important;
+        }
+
+        .leaflet-bar a svg {
+            width: 15px;
+            height: 15px;
+            display: block;
+            pointer-events: none;
+            stroke: currentColor;
+            transition: transform 0.2s ease;
+        }
+
+        .leaflet-bar a:hover svg {
+            transform: scale(1.12);
+        }
+
+        .leaflet-control-zoom-in,
+        .leaflet-control-zoom-out {
+            font-size: 18px !important;
+            font-weight: 700 !important;
+            text-indent: 0 !important;
+        }
+
+        .leaflet-control-map-tools {
+            margin-top: 8px !important;
+        }
+
+        .leaflet-bar a.is-locating svg {
+            animation: ft-spin 1s linear infinite;
+            color: var(--lime) !important;
+        }
+
+        @keyframes ft-spin {
+            100% { transform: rotate(360deg); }
         }
 
         .leaflet-control-attribution {

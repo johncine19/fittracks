@@ -186,3 +186,12 @@ Enforces strict lifecycle rules across platform and gym tiers:
    - **Stale Request Cleanup**: Supersedes abandoned pending requests automatically.
    - **365-Day Safety Ceiling**: Restricts manual front-desk queueing to 1 year maximum.
    - See detailed documentation in [SUBSCRIPTION_GUARDRAILS.md](SUBSCRIPTION_GUARDRAILS.md).
+
+### 7.9 Floor Equipment Hub & Trainer Circuit Allocation (`pages/member/equipment.php`, `pages/shared/equipment_api.php`)
+- **Dedicated Floor Equipment Hub**: Replaced small check-in modals with a dedicated page featuring responsive horizontal zone category tabs (`[ All Stations ]`, `[ Free Weights ]`, `[ Cardio ]`, etc.) with live counts and dual-face 3D flip cards.
+- **Trainer Circuit Station Allocation**: Trainers can assign equipment to one or more checked-in clients (with "Select All" toggle) or designate shared partner/group sets (`partner_user_ids`).
+- **Fair-Play Anti-Hogging Floor Rules**:
+  - Maximum active stations strictly capped to the number of physically checked-in clients present today (`maxAllowed = max(1, checkedInClients)`).
+  - Automatic client station rotation: Assigning an active client to a new machine auto-completes their prior session, freeing it immediately.
+  - Physical check-in gate enforces that remote members cannot claim floor machines.
+  - See detailed documentation in [EQUIPMENT_MANAGEMENT.md](EQUIPMENT_MANAGEMENT.md).

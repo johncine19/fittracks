@@ -20,8 +20,11 @@
             let activeSession = null;
             let myQueues = [];
             let previousNotifiedQueueIds = new Set();
+            let trainerClients = [];
+            let trainerSessions = [];
             let activeFilter = 'all';
-            let categoryFilter = 'all';
+            const urlCategoryParam = (new URLSearchParams(window.location.search)).get('category');
+            let categoryFilter = urlCategoryParam || FT_CFG.initialCategory || 'all';
             let searchQuery = '';
             let currentMemberPage = 1;
             let memberPageSize = 8;
@@ -196,6 +199,8 @@
                     allEquipment = data.equipment || [];
                     activeSession = data.active_session || null;
                     myQueues = data.my_queues || [];
+                    trainerClients = data.trainer_clients || [];
+                    trainerSessions = data.trainer_sessions || [];
 
                     if (typeof data.is_checked_in !== 'undefined') {
                         isCheckedIn = Boolean(data.is_checked_in);
@@ -241,52 +246,136 @@
 
             function renderActiveSessionBanner() {
                 const wrapper = document.getElementById('active-session-wrapper');
-                if (!activeSession) {
+                const hasMySession = Boolean(activeSession);
+                const hasTrainerSessions = Boolean(FT_CFG.isTrainer && trainerSessions && trainerSessions.length > 0);
+
+                if (!hasMySession && !hasTrainerSessions) {
                     wrapper.style.display = 'none';
                     wrapper.innerHTML = '';
                     return;
                 }
 
-                const elapsed = activeSession.elapsed_seconds || 0;
-                const startTimeStr = new Date(activeSession.start_ts * 1000).toLocaleTimeString([], {
-                    hour: '2-digit',
-                    minute: '2-digit'
-                });
-
                 wrapper.style.display = 'block';
-                wrapper.innerHTML = `
-                <div class="panel" style="background: linear-gradient(135deg, color-mix(in srgb, var(--lime) 14%, var(--panel)) 0%, var(--panel) 100%); border: 2px solid color-mix(in srgb, var(--lime) 40%, transparent); border-radius: 14px; padding: 22px 24px; box-shadow: var(--shadow); display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 16px;">
-                    <div style="flex: 1 1 300px;">
-                        <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 6px;">
-                            <span style="width: 10px; height: 10px; border-radius: 50%; background: var(--lime); display: inline-block; box-shadow: 0 0 10px var(--lime); animation: pulse 1.5s infinite;"></span>
-                            <span style="color: var(--lime); font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.05em;">Active Equipment Session</span>
+                let bannerHtml = '';
+
+                // 1. Personal Workout Session (if active)
+                if (hasMySession) {
+                    const elapsed = activeSession.elapsed_seconds || 0;
+                    const startTimeStr = new Date(activeSession.start_ts * 1000).toLocaleTimeString([], {
+                        hour: '2-digit',
+                        minute: '2-digit'
+                    });
+
+                    bannerHtml += `
+                    <div class="panel active-session-panel" style="margin-bottom: ${hasTrainerSessions ? '14px' : '0'};">
+                        <div class="active-session-info-col">
+                            <div class="active-session-kicker">
+                                <span class="active-session-pulse-dot"></span>
+                                <span class="active-session-kicker-text">${FT_CFG.isTrainer ? 'My Personal Session' : 'Active Equipment Session'}</span>
+                            </div>
+                            <h2 class="active-session-title">
+                                <span>${escapeHtml(activeSession.name)}</span> <span class="unit-pill">${escapeHtml(activeSession.unit_number)}</span>
+                            </h2>
+                            <p class="active-session-meta">
+                                ${escapeHtml(activeSession.category)} • ${escapeHtml(activeSession.location_area || 'Main Floor')} • Started at ${startTimeStr}
+                            </p>
                         </div>
-                        <h2 style="margin: 0 0 4px; font-size: 22px; color: var(--ink);">
-                            ${escapeHtml(activeSession.name)} <span class="unit-pill">${escapeHtml(activeSession.unit_number)}</span>
-                        </h2>
-                        <p style="margin: 0; color: var(--muted); font-size: 13px;">
-                            ${escapeHtml(activeSession.category)} • ${escapeHtml(activeSession.location_area || 'Main Floor')} • Started at ${startTimeStr}
-                        </p>
-                    </div>
 
-                    <div style="text-align: center; background: var(--panel-soft); padding: 12px 24px; border-radius: 12px; border: 1px solid var(--line); min-width: 140px;">
-                        <span style="display: block; font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); margin-bottom: 2px; font-weight: 700;">Workout Time</span>
-                        <strong id="session-timer-display" style="font-size: 26px; font-family: -apple-system, BlinkMacSystemFont, monospace; color: var(--ink); letter-spacing: 0.05em;">
-                            ${formatDuration(elapsed)}
-                        </strong>
-                    </div>
+                        <div class="active-session-controls-col">
+                            <div class="active-session-timer-box">
+                                <span class="active-session-timer-label">Workout Time</span>
+                                <strong id="session-timer-display" class="active-session-timer-val">
+                                    ${formatDuration(elapsed)}
+                                </strong>
+                            </div>
 
-                    <div>
-                        <button type="button" id="btn-finish-session" class="btn" style="background: #ef4444; color: #fff; font-weight: 700; padding: 10px 22px; border-radius: 8px; border: none; cursor: pointer; display: flex; align-items: center; gap: 8px; transition: opacity 0.2s;"
-                                onmouseover="this.style.opacity='0.9'" onmouseout="this.style.opacity='1'">
-                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/></svg>
-                            Finish Session
-                        </button>
+                            <button type="button" id="btn-finish-session" class="btn btn-finish-session-act">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/></svg>
+                                <span>Finish Session</span>
+                            </button>
+                        </div>
                     </div>
-                </div>
-            `;
+                    `;
+                }
 
-                document.getElementById('btn-finish-session').addEventListener('click', () => confirmFinishSession(activeSession.session_id, activeSession.name + ' ' + activeSession.unit_number));
+                // 2. Trainer Circuit Stations overview (if trainer)
+                if (hasTrainerSessions) {
+                    let cardsHtml = '';
+                    trainerSessions.forEach(ts => {
+                        const hasPartners = ts.partner_user_ids && ts.partner_user_ids.trim() !== '';
+                        const partnerBadge = hasPartners ? `<span style="font-size:10.5px; background:rgba(199,255,34,0.15); color:var(--lime); padding:2px 7px; border-radius:6px; font-weight:700; border:1px solid rgba(199,255,34,0.3);">+ Partner Set</span>` : '';
+                        const clientName = ts.primary_client_name || 'Assigned Client';
+
+                        cardsHtml += `
+                        <div style="background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 16px 18px; display: flex; flex-direction: column; justify-content: space-between; gap: 14px; box-shadow: 0 2px 8px rgba(0,0,0,0.04);">
+                            <div>
+                                <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; margin-bottom: 8px;">
+                                    <span style="font-size: 11px; text-transform: uppercase; font-weight: 700; color: var(--muted); letter-spacing: 0.04em;">${escapeHtml(ts.category)}</span>
+                                    <span style="display: inline-flex; align-items: center; gap: 5px; font-size: 11px; font-weight: 700; color: #10b981; background: rgba(16,185,129,0.12); padding: 2px 8px; border-radius: 6px; border: 1px solid rgba(16,185,129,0.25);">
+                                        <span style="width: 6px; height: 6px; border-radius: 50%; background: #10b981; display: inline-block;"></span> Active
+                                    </span>
+                                </div>
+                                <h3 style="margin: 0 0 6px; font-size: 17px; color: var(--ink); display: flex; align-items: center; justify-content: space-between; gap: 8px;">
+                                    <span>${escapeHtml(ts.name)}</span>
+                                    <span class="unit-pill">${escapeHtml(ts.unit_number)}</span>
+                                </h3>
+                                <div style="font-size: 13px; color: var(--ink); margin-bottom: 4px; display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color:var(--muted);"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                                    <strong>${escapeHtml(clientName)}</strong>
+                                    ${partnerBadge}
+                                </div>
+                                <div style="font-size: 12px; color: var(--muted);">
+                                    ${escapeHtml(ts.location_area || 'Main Floor')}
+                                </div>
+                            </div>
+
+                            <div style="display: flex; align-items: center; justify-content: space-between; gap: 10px; padding-top: 10px; border-top: 1px solid var(--line);">
+                                <div>
+                                    <span style="display: block; font-size: 10.5px; text-transform: uppercase; color: var(--muted); font-weight: 600;">Active Time</span>
+                                    <strong class="trainer-session-timer" data-session-id="${ts.session_id}" data-seconds="${ts.elapsed_seconds || 0}" style="font-family: monospace; font-size: 16px; color: var(--ink);">
+                                        ${formatDuration(ts.elapsed_seconds || 0)}
+                                    </strong>
+                                </div>
+                                <button type="button" onclick="confirmFinishSession(${ts.session_id}, '${escapeHtml(ts.name + ' ' + (ts.unit_number || ''))}')" class="btn" style="background: rgba(239,68,68,0.12); color: #ef4444; border: 1px solid rgba(239,68,68,0.3); font-weight: 700; padding: 7px 14px; border-radius: 8px; font-size: 12px; cursor: pointer; transition: all 0.2s;"
+                                        onmouseover="this.style.background='#ef4444'; this.style.color='#fff';" onmouseout="this.style.background='rgba(239,68,68,0.12)'; this.style.color='#ef4444';">
+                                    Finish / Release
+                                </button>
+                            </div>
+                        </div>
+                        `;
+                    });
+
+                    bannerHtml += `
+                    <div class="panel" style="background: var(--surface-color, #090b10); border: 1px solid var(--line); border-radius: 14px; padding: 20px 22px; box-shadow: var(--shadow);">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; flex-wrap: wrap; gap: 10px;">
+                            <div style="display: flex; align-items: center; gap: 10px;">
+                                <div style="background: color-mix(in srgb, var(--lime) 15%, transparent); border: 1px solid color-mix(in srgb, var(--lime) 30%, transparent); width: 34px; height: 34px; border-radius: 8px; display: flex; align-items: center; justify-content: center; color: var(--lime);">
+                                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="2" y="7" width="20" height="14" rx="2" ry="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>
+                                </div>
+                                <div>
+                                    <h3 style="margin: 0; font-size: 17px; color: var(--ink);">Coach Circuit Stations</h3>
+                                    <p style="margin: 0; font-size: 12px; color: var(--muted);">${trainerSessions.length} active equipment station${trainerSessions.length > 1 ? 's' : ''} for your clients</p>
+                                </div>
+                            </div>
+                            <div style="font-size: 12px; color: var(--muted); background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 6px 12px;">
+                                Fair-Play Cap: <strong>${Math.max(1, trainerClients.length)} active station${Math.max(1, trainerClients.length) > 1 ? 's' : ''} max</strong>
+                            </div>
+                        </div>
+                        <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 14px;">
+                            ${cardsHtml}
+                        </div>
+                    </div>
+                    `;
+                }
+
+                wrapper.innerHTML = bannerHtml;
+
+                if (hasMySession) {
+                    const finishBtn = document.getElementById('btn-finish-session');
+                    if (finishBtn) {
+                        finishBtn.addEventListener('click', () => confirmFinishSession(activeSession.session_id, activeSession.name + ' ' + activeSession.unit_number));
+                    }
+                }
             }
 
             function renderMyQueuesSection() {
@@ -448,11 +537,19 @@
                         '<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>' :
                         (icons[status] || icons.available);
 
+                    const trainerSessionOnThis = (FT_CFG.isTrainer && trainerSessions) ? trainerSessions.find(ts => parseInt(ts.equipment_id) === parseInt(eq.equipment_id)) : null;
+
                     let actionBtnHtml = '';
                     if (isUserUsing) {
                         actionBtnHtml = `
                         <button type="button" onclick="confirmFinishSession(${activeSession.session_id})" class="btn" style="width: 100%; background: #ef4444; color: #fff; font-weight: 700; padding: 10px; border-radius: 8px; border: none; cursor: pointer;">
                             Finish My Session
+                        </button>
+                    `;
+                    } else if (trainerSessionOnThis) {
+                        actionBtnHtml = `
+                        <button type="button" onclick="confirmFinishSession(${trainerSessionOnThis.session_id}, '${escapeHtml(trainerSessionOnThis.name + ' ' + (trainerSessionOnThis.unit_number || ''))}')" class="btn" style="width: 100%; background: #ef4444; color: #fff; font-weight: 700; padding: 10px; border-radius: 8px; border: none; cursor: pointer; box-shadow: 0 2px 8px rgba(239,68,68,0.25);">
+                            Release Station (${escapeHtml(trainerSessionOnThis.primary_client_name)})
                         </button>
                     `;
                     } else if (userQueue) {
@@ -493,10 +590,11 @@
                             </button>
                         `;
                         } else {
+                            const btnText = FT_CFG.isTrainer ? 'Use / Assign Station' : 'Use Equipment';
                             actionBtnHtml = `
                             <button type="button" onclick="confirmStartSession(${eq.equipment_id})" class="btn btn-lime" style="width: 100%; background: var(--lime); color: var(--lime-btn-text, #090b10); font-weight: 800; padding: 10px; border-radius: 8px; border: none; cursor: pointer; transition: opacity 0.2s; box-shadow: 0 2px 8px rgba(0,0,0,0.1);"
                                     onmouseover="this.style.opacity='0.9'" onmouseout="this.style.opacity='1'">
-                                Use Equipment
+                                ${btnText}
                             </button>
                         `;
                         }
@@ -796,6 +894,183 @@
                 equipName = equipName || 'Equipment';
                 unitNumber = unitNumber || '';
 
+                if (FT_CFG.isTrainer) {
+                    // Trainer Flow: Can allocate to clients or use personally
+                    const hasClients = trainerClients && trainerClients.length > 0;
+                    let clientListHtml = '';
+                    if (hasClients) {
+                        clientListHtml = trainerClients.map(c => {
+                            const isOnEquip = Boolean(c.active_equipment_name);
+                            const badge = isOnEquip
+                                ? `<span style="font-size: 11px; color: #d97706; background: rgba(217,119,6,0.12); padding: 2px 8px; border-radius: 10px; font-weight: 600;">On ${escapeHtml(c.active_equipment_name)} (will rotate)</span>`
+                                : `<span style="font-size: 11px; color: #10b981; background: rgba(16,185,129,0.12); padding: 2px 8px; border-radius: 10px; font-weight: 600;">Checked In</span>`;
+                            return `
+                            <label style="display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 12px; background: var(--panel-soft); border: 1px solid var(--line); border-radius: 8px; margin-bottom: 8px; cursor: pointer; text-align: left;">
+                                <div style="display: flex; align-items: center; gap: 10px;">
+                                    <input type="checkbox" class="tr-client-cb" value="${c.user_id}" style="width: 18px; height: 18px; accent-color: var(--lime); cursor: pointer;">
+                                    <span style="font-size: 14px; font-weight: 600; color: var(--ink);">${escapeHtml(c.first_name)} ${escapeHtml(c.last_name)}</span>
+                                </div>
+                                ${badge}
+                            </label>
+                            `;
+                        }).join('');
+                    } else {
+                        clientListHtml = `
+                        <div style="padding: 16px; background: var(--panel-soft); border-radius: 8px; border: 1px dashed var(--line); text-align: center; color: var(--muted); font-size: 13px;">
+                            No assigned clients or scheduled class attendees are currently checked in at this gym today.
+                        </div>
+                        `;
+                    }
+
+                    const defaultMode = hasClients ? 'clients' : 'self';
+
+                    Swal.fire({
+                        title: `Assign Station: ${escapeHtml(equipName)} ${escapeHtml(unitNumber)}`,
+                        html: `
+                        <div style="text-align: left; margin-bottom: 14px;">
+                            <label style="display: block; font-size: 12px; font-weight: 700; text-transform: uppercase; color: var(--muted); margin-bottom: 8px;">
+                                Who is using this equipment?
+                            </label>
+                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 16px;">
+                                <label id="label-mode-clients" style="border: 2px solid ${defaultMode === 'clients' ? 'var(--lime)' : 'var(--line)'}; background: ${defaultMode === 'clients' ? 'color-mix(in srgb, var(--lime) 10%, var(--panel))' : 'var(--panel)'}; padding: 10px; border-radius: 8px; cursor: pointer; display: flex; align-items: center; gap: 8px;">
+                                    <input type="radio" name="tr_target_mode" value="clients" ${defaultMode === 'clients' ? 'checked' : ''} style="accent-color: var(--lime);">
+                                    <span style="font-size: 13px; font-weight: 700; color: var(--ink);">Assigned Client(s)</span>
+                                </label>
+                                <label id="label-mode-self" style="border: 2px solid ${defaultMode === 'self' ? 'var(--lime)' : 'var(--line)'}; background: ${defaultMode === 'self' ? 'color-mix(in srgb, var(--lime) 10%, var(--panel))' : 'var(--panel)'}; padding: 10px; border-radius: 8px; cursor: pointer; display: flex; align-items: center; gap: 8px;">
+                                    <input type="radio" name="tr_target_mode" value="self" ${defaultMode === 'self' ? 'checked' : ''} style="accent-color: var(--lime);">
+                                    <span style="font-size: 13px; font-weight: 700; color: var(--ink);">Myself (Coach)</span>
+                                </label>
+                            </div>
+
+                            <div id="tr-clients-container" style="display: ${defaultMode === 'clients' ? 'block' : 'none'};">
+                                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                                    <span style="font-size: 12px; font-weight: 700; text-transform: uppercase; color: var(--muted);">
+                                        Select Client(s) (${trainerClients.length} Present)
+                                    </span>
+                                    ${hasClients ? `<button type="button" id="btn-toggle-all-clients" class="btn btn-sm" style="font-size: 11px; padding: 3px 8px; border-radius: 6px; background: var(--panel-soft); color: var(--ink); border: 1px solid var(--line); cursor: pointer;">Select All</button>` : ''}
+                                </div>
+                                <div style="max-height: 200px; overflow-y: auto; padding-right: 4px; margin-bottom: 12px;">
+                                    ${clientListHtml}
+                                </div>
+                                <div style="font-size: 11.5px; color: var(--muted); background: var(--surface-color, #090b10); border: 1px solid var(--line); border-radius: 8px; padding: 10px; line-height: 1.45;">
+                                    <strong style="color: var(--lime);">Floor Anti-Hogging Rule:</strong> Maximum <strong>${Math.max(1, trainerClients.length)}</strong> active station(s) for your checked-in clients. Selecting multiple clients designates a shared Partner/Group station.
+                                </div>
+                            </div>
+                        </div>
+                        `,
+                        showCancelButton: true,
+                        allowOutsideClick: false,
+                        allowEscapeKey: false,
+                        confirmButtonText: 'Start Station Session',
+                        cancelButtonText: 'Cancel',
+                        confirmButtonColor: 'var(--lime)',
+                        cancelButtonColor: '#64748b',
+                        background: 'var(--panel)',
+                        color: 'var(--ink)',
+                        didOpen: () => {
+                            const modeRadios = document.querySelectorAll('input[name="tr_target_mode"]');
+                            const clientsContainer = document.getElementById('tr-clients-container');
+                            const labelClients = document.getElementById('label-mode-clients');
+                            const labelSelf = document.getElementById('label-mode-self');
+                            const toggleAllBtn = document.getElementById('btn-toggle-all-clients');
+
+                            modeRadios.forEach(r => {
+                                r.addEventListener('change', () => {
+                                    if (r.value === 'clients') {
+                                        clientsContainer.style.display = 'block';
+                                        labelClients.style.border = '2px solid var(--lime)';
+                                        labelClients.style.background = 'color-mix(in srgb, var(--lime) 10%, var(--panel))';
+                                        labelSelf.style.border = '2px solid var(--line)';
+                                        labelSelf.style.background = 'var(--panel)';
+                                    } else {
+                                        clientsContainer.style.display = 'none';
+                                        labelSelf.style.border = '2px solid var(--lime)';
+                                        labelSelf.style.background = 'color-mix(in srgb, var(--lime) 10%, var(--panel))';
+                                        labelClients.style.border = '2px solid var(--line)';
+                                        labelClients.style.background = 'var(--panel)';
+                                    }
+                                });
+                            });
+
+                            if (toggleAllBtn) {
+                                toggleAllBtn.addEventListener('click', () => {
+                                    const cbs = document.querySelectorAll('.tr-client-cb');
+                                    const allChecked = Array.from(cbs).every(cb => cb.checked);
+                                    cbs.forEach(cb => cb.checked = !allChecked);
+                                    toggleAllBtn.textContent = allChecked ? 'Select All' : 'Deselect All';
+                                });
+                            }
+                        },
+                        preConfirm: () => {
+                            const modeRadio = document.querySelector('input[name="tr_target_mode"]:checked');
+                            const mode = modeRadio ? modeRadio.value : 'self';
+
+                            if (mode === 'clients') {
+                                const selected = Array.from(document.querySelectorAll('.tr-client-cb:checked')).map(cb => cb.value);
+                                if (selected.length === 0) {
+                                    Swal.showValidationMessage('Please select at least one client using the checkboxes.');
+                                    return false;
+                                }
+                                return { mode: 'clients', client_user_ids: selected };
+                            } else {
+                                if (activeSession) {
+                                    Swal.showValidationMessage(`You already have an active personal session on ${activeSession.name}. Finish it first.`);
+                                    return false;
+                                }
+                                return { mode: 'self', client_user_ids: [] };
+                            }
+                        }
+                    }).then(async (result) => {
+                        if (result.isConfirmed && result.value) {
+                            try {
+                                const formData = new FormData();
+                                formData.append('equipment_id', equipmentId);
+                                formData.append('target_mode', result.value.mode);
+                                if (result.value.mode === 'clients') {
+                                    result.value.client_user_ids.forEach(id => formData.append('client_user_ids[]', id));
+                                }
+
+                                const data = await memberEquipPost('start_session', formData);
+                                if (data.success) {
+                                    if (window.playNotifSound) window.playNotifSound('success');
+                                    Swal.fire({
+                                        icon: 'success',
+                                        title: 'Session Started!',
+                                        text: data.message,
+                                        background: 'var(--panel)',
+                                        color: 'var(--ink)',
+                                        confirmButtonColor: 'var(--lime)',
+                                        timer: 2000,
+                                        showConfirmButton: false
+                                    });
+                                    fetchEquipmentData();
+                                } else {
+                                    Swal.fire({
+                                        icon: 'error',
+                                        title: 'Cannot Start Session',
+                                        text: data.message || 'Unable to start session.',
+                                        background: 'var(--panel)',
+                                        color: 'var(--ink)',
+                                        confirmButtonColor: 'var(--lime)'
+                                    });
+                                    fetchEquipmentData();
+                                }
+                            } catch (e) {
+                                console.error(e);
+                                Swal.fire({
+                                    icon: 'error',
+                                    title: 'Network Error',
+                                    text: 'Failed to communicate with server.',
+                                    background: 'var(--panel)',
+                                    color: 'var(--ink)'
+                                });
+                            }
+                        }
+                    });
+                    return;
+                }
+
+                // Standard Member Flow
                 if (activeSession) {
                     Swal.fire({
                         icon: 'warning',
@@ -1370,6 +1645,14 @@
                     }
                 }
 
+                // Trainer circuit station timers
+                document.querySelectorAll('.trainer-session-timer').forEach(el => {
+                    let secs = parseInt(el.getAttribute('data-seconds') || '0', 10);
+                    secs++;
+                    el.setAttribute('data-seconds', secs);
+                    el.textContent = formatDuration(secs);
+                });
+
                 document.querySelectorAll('.claim-countdown').forEach(el => {
                     let rem = parseInt(el.getAttribute('data-remain') || '0', 10);
                     if (rem > 0) {
@@ -1386,8 +1669,8 @@
             let isTabVisible = !document.hidden;
             function getOptimalPollInterval() {
                 if (!isTabVisible) return 30000; // Tab in background: 30 seconds
-                // If user is actively in a session or waiting on a notified claim window: 5s, otherwise 8s
-                if (activeSession || (myQueues && myQueues.some(q => q.queue_status === 'notified'))) {
+                // If user is actively in a session or trainer running stations or waiting on claim: 5s, otherwise 8s
+                if (activeSession || (trainerSessions && trainerSessions.length > 0) || (myQueues && myQueues.some(q => q.queue_status === 'notified'))) {
                     return 5000;
                 }
                 return 8000;
@@ -1440,11 +1723,93 @@
                 });
             }
 
-            document.getElementById('category-filter').addEventListener('change', function() {
-                categoryFilter = this.value;
+            function setCategoryFilter(newCategory, updateUrl = true) {
+                categoryFilter = newCategory || 'all';
                 currentMemberPage = 1;
+
+                // Sync select dropdown
+                const catSelect = document.getElementById('category-filter');
+                if (catSelect) {
+                    let exists = Array.from(catSelect.options).some(o => o.value.toLowerCase() === categoryFilter.toLowerCase());
+                    if (!exists && categoryFilter !== 'all') {
+                        const opt = document.createElement('option');
+                        opt.value = categoryFilter;
+                        opt.textContent = categoryFilter;
+                        catSelect.appendChild(opt);
+                    }
+                    catSelect.value = categoryFilter;
+                }
+
+                // Sync zone tab chips
+                document.querySelectorAll('.zone-tab-chip').forEach(chip => {
+                    const chipCat = (chip.getAttribute('data-category') || '').trim();
+                    if (chipCat.toLowerCase() === categoryFilter.toLowerCase()) {
+                        chip.classList.add('active');
+                        chip.style.background = 'var(--lime)';
+                        chip.style.borderColor = 'var(--lime)';
+                        chip.style.color = '#000';
+                        const countBadge = chip.querySelector('.chip-count');
+                        if (countBadge) {
+                            countBadge.style.background = 'rgba(0,0,0,0.25)';
+                            countBadge.style.color = '#000';
+                        }
+                    } else {
+                        chip.classList.remove('active');
+                        chip.style.background = 'var(--panel)';
+                        chip.style.borderColor = 'var(--line)';
+                        chip.style.color = 'var(--ink)';
+                        const countBadge = chip.querySelector('.chip-count');
+                        if (countBadge) {
+                            countBadge.style.background = 'color-mix(in srgb, var(--lime) 18%, transparent)';
+                            countBadge.style.color = 'var(--lime)';
+                        }
+                    }
+                });
+
+                if (updateUrl) {
+                    const url = new URL(window.location);
+                    if (categoryFilter && categoryFilter !== 'all') {
+                        url.searchParams.set('category', categoryFilter);
+                    } else {
+                        url.searchParams.delete('category');
+                    }
+                    window.history.replaceState({}, '', url);
+                }
+
                 renderEquipmentGrid();
+            }
+
+            const catFilterSelect = document.getElementById('category-filter');
+            if (catFilterSelect) {
+                catFilterSelect.addEventListener('change', function() {
+                    setCategoryFilter(this.value);
+                });
+            }
+
+            // Zone tab chips event listeners
+            document.querySelectorAll('.zone-tab-chip').forEach(chip => {
+                chip.addEventListener('click', function() {
+                    const cat = this.getAttribute('data-category') || 'all';
+                    setCategoryFilter(cat);
+                });
             });
+
+            // Trainer recommendation chips
+            document.querySelectorAll('.trainer-rec-chip').forEach(chip => {
+                chip.addEventListener('click', function() {
+                    const cat = this.getAttribute('data-category') || 'all';
+                    setCategoryFilter(cat);
+                    const gridEl = document.getElementById('equipment-grid');
+                    if (gridEl) {
+                        gridEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                    }
+                });
+            });
+
+            // Initialize category filter UI on boot
+            if (categoryFilter && categoryFilter !== 'all') {
+                setCategoryFilter(categoryFilter, false);
+            }
 
             document.getElementById('equipment-search').addEventListener('input', function() {
                 searchQuery = this.value.trim().toLowerCase();

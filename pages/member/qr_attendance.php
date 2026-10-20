@@ -553,10 +553,10 @@ function qr_attendance_page(): void
                         <span><?= date('g:i A', strtotime((string)$activeAttendance['check_in_time'])) ?> (<?= max(1, (int)round((time() - strtotime((string)$activeAttendance['check_in_time'])) / 60)) ?>m)</span>
                     </div>
                     <?php if (!$activeEquipSession && !empty($checkedInEquipmentList)): ?>
-                        <button type="button" id="btn-reopen-equipment-modal" class="btn btn-primary active-visit-btn" style="font-weight:700; font-size:11.5px; display:inline-flex; align-items:center; justify-content:center; gap:5px; border-radius:7px; min-height:32px; line-height:1.2; white-space:nowrap;">
+                        <a href="index.php?page=equipment" class="btn btn-primary active-visit-btn" style="font-weight:700; font-size:11.5px; display:inline-flex; align-items:center; justify-content:center; gap:5px; border-radius:7px; min-height:32px; line-height:1.2; white-space:nowrap; text-decoration:none;">
                             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="flex-shrink:0;"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
-                            <span><?= $user['role'] === 'trainer' ? 'Training Equipment' : 'Choose Equipment' ?></span>
-                        </button>
+                            <span><?= $user['role'] === 'trainer' ? 'Floor Equipment' : 'Choose Equipment' ?></span>
+                        </a>
                     <?php endif; ?>
                     <a href="index.php?page=equipment" class="btn active-visit-btn" style="background:var(--panel-soft); border:1px solid var(--line); color:var(--ink); font-weight:600; font-size:11.5px; text-decoration:none; display:inline-flex; align-items:center; justify-content:center; gap:5px; border-radius:7px; min-height:32px; line-height:1.2; white-space:nowrap;">
                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="flex-shrink:0;"><path d="M6 4v16M18 4v16M2 8h4M2 16h4M18 8h4M18 16h4M6 12h12"/></svg>
@@ -564,6 +564,18 @@ function qr_attendance_page(): void
                     </a>
                 </div>
             </div>
+
+            <?php if (!empty($checkedInEquipmentCats)): ?>
+                <div style="display:flex; gap:6px; overflow-x:auto; padding-top:8px; margin-top:8px; border-top:1px solid var(--line); scrollbar-width:none; align-items:center;">
+                    <span style="font-size:10.5px; color:var(--muted); font-weight:700; text-transform:uppercase; letter-spacing:0.04em; white-space:nowrap;">Zones:</span>
+                    <?php foreach ($checkedInEquipmentCats as $cat => $count): ?>
+                        <a href="index.php?page=equipment&category=<?= urlencode((string)$cat) ?>" style="background:var(--panel-soft); border:1px solid var(--line); color:var(--ink); padding:3px 9px; border-radius:12px; font-size:11px; text-decoration:none; font-weight:600; display:inline-flex; align-items:center; gap:5px; white-space:nowrap; transition:all 0.15s ease;">
+                            <span><?= h($cat) ?></span>
+                            <span style="background:color-mix(in srgb, var(--lime) 20%, transparent); color:var(--lime); border-radius:8px; padding:0 5px; font-size:9.5px; font-weight:800;"><?= (int)$count ?></span>
+                        </a>
+                    <?php endforeach; ?>
+                </div>
+            <?php endif; ?>
 
             <?php if ($activeEquipSession): ?>
                 <div style="background:var(--panel-soft); border:1px solid var(--line); border-radius:8px; padding:6px 10px; margin-top:8px; display:flex; align-items:center; justify-content:space-between; gap:8px;">
@@ -867,7 +879,7 @@ function qr_attendance_page(): void
                     }
                     promptRating(data.attendance_id);
                 } else {
-                    promptEquipmentUsage(data);
+                    showCheckinSuccessAndRedirect(data);
                 }
             }
         }).catch(() => {});
@@ -877,6 +889,42 @@ function qr_attendance_page(): void
         if (!str) return '';
         return String(str).replace(/[&<>"']/g, function(m) {
             return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' }[m];
+        });
+    }
+
+    function showCheckinSuccessAndRedirect(data) {
+        const gymName = data.gym_name || 'the gym';
+        const isTrainer = (data.role === 'trainer');
+        Swal.fire({
+            title: `
+                <div style="display:flex; align-items:center; justify-content:center; gap:8px; font-size:18px; font-weight:800; color:var(--ink);">
+                    <span style="display:inline-flex; width:28px; height:28px; border-radius:50%; background:color-mix(in srgb, var(--lime) 20%, transparent); color:var(--lime); align-items:center; justify-content:center;">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>
+                    </span>
+                    <span>Checked In!</span>
+                </div>
+            `,
+            html: `
+                <p style="color:var(--muted); font-size:13px; line-height:1.4; margin:8px 0 16px;">
+                    Welcome to <strong>${escapeHtml(gymName)}</strong>.<br>
+                    ${isTrainer ? 'Opening your training floor and stations...' : 'Opening gym floor equipment hub...'}
+                </p>
+                <div style="display:flex; align-items:center; justify-content:center; gap:8px; font-size:12px; color:var(--lime); font-weight:600;">
+                    <div style="width:14px; height:14px; border:2px solid var(--lime); border-top-color:transparent; border-radius:50%; animation: spin 0.8s linear infinite;"></div>
+                    <span>Redirecting to Equipment Floor Hub...</span>
+                </div>
+            `,
+            showConfirmButton: true,
+            confirmButtonText: 'Go to Floor Now &rarr;',
+            confirmButtonColor: 'var(--lime)',
+            timer: 1600,
+            timerProgressBar: true,
+            allowOutsideClick: false,
+            allowEscapeKey: false,
+            background: 'var(--panel)',
+            color: 'var(--ink)'
+        }).then(() => {
+            window.location.href = 'index.php?page=equipment';
         });
     }
 
@@ -1696,21 +1744,11 @@ function qr_attendance_page(): void
             showQR(initialToken, initialSecondsRemaining);
         }
 
-        // Auto-restore equipment claim modal if refreshed within 5 minutes of checkin and not dismissed
-        if (shouldAutoRestore && activeCheckinData && activeCheckinData.attendance_id) {
-            const dismissedKey = 'quick_claim_dismissed_' + activeCheckinData.attendance_id;
-            if (!sessionStorage.getItem(dismissedKey)) {
-                setTimeout(() => {
-                    promptEquipmentUsage(activeCheckinData);
-                }, 350);
-            }
-        }
-
-        // Re-open equipment claim modal button handler
+        // Direct equipment floor page button handler
         const reopenBtn = document.getElementById('btn-reopen-equipment-modal');
-        if (reopenBtn && activeCheckinData) {
+        if (reopenBtn) {
             reopenBtn.addEventListener('click', () => {
-                promptEquipmentUsage(activeCheckinData);
+                window.location.href = 'index.php?page=equipment';
             });
         }
 

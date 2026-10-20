@@ -16,8 +16,6 @@
     const modalCloseBtn = document.getElementById('modal-close-btn');
 
     const btnNearMe = document.getElementById('btn-near-me');
-    const btnRecenterUser = document.getElementById('btn-recenter-user');
-    const btnFitAll = document.getElementById('btn-fit-all-gyms');
     const mapStatusText = document.getElementById('map-status-text');
     const searchInput = document.getElementById('gym-search');
     const noResultsEl = document.getElementById('gym-no-results');
@@ -374,8 +372,11 @@
             userMarker.bindTooltip("Your Location", { permanent: false, direction: 'top', offset: [0, -12] });
         }
 
-        if (btnRecenterUser) {
-            btnRecenterUser.style.display = 'inline-flex';
+        const recenterBtn = document.getElementById('btn-recenter-user');
+        if (recenterBtn) {
+            recenterBtn.classList.remove('is-locating');
+            recenterBtn.classList.add('is-active');
+            recenterBtn.setAttribute('title', 'Center on my location');
         }
     }
 
@@ -389,6 +390,13 @@
             btnNearMe.classList.add('is-active');
             const btnText = btnNearMe.querySelector('.btn-text');
             if (btnText) btnText.textContent = 'Located';
+        }
+
+        const recenterBtn = document.getElementById('btn-recenter-user');
+        if (recenterBtn) {
+            recenterBtn.classList.remove('is-locating');
+            recenterBtn.classList.add('is-active');
+            recenterBtn.setAttribute('title', 'Center on my location');
         }
 
         // Calculate distance to each gym
@@ -410,6 +418,48 @@
         if (mapStatusText) {
             mapStatusText.textContent = 'Nearest gyms sorted by your GPS location';
         }
+    }
+
+    function requestDeviceLocation() {
+        if (!navigator.geolocation) {
+            alert('Geolocation is not supported by your current browser.');
+            return;
+        }
+
+        if (btnNearMe) {
+            btnNearMe.classList.add('is-locating');
+            const btnText = btnNearMe.querySelector('.btn-text');
+            if (btnText) btnText.textContent = 'Locating...';
+        }
+
+        const recenterBtn = document.getElementById('btn-recenter-user');
+        if (recenterBtn) {
+            recenterBtn.classList.add('is-locating');
+            recenterBtn.setAttribute('title', 'Locating your GPS position...');
+        }
+
+        navigator.geolocation.getCurrentPosition(
+            applyUserLocation,
+            function (err) {
+                if (btnNearMe) {
+                    btnNearMe.classList.remove('is-locating');
+                    const btnText = btnNearMe.querySelector('.btn-text');
+                    if (btnText) btnText.textContent = 'Near Me';
+                }
+                const btn = document.getElementById('btn-recenter-user');
+                if (btn) {
+                    btn.classList.remove('is-locating');
+                    btn.setAttribute('title', 'Center on my location');
+                }
+
+                let msg = 'Unable to retrieve your location.';
+                if (err.code === 1) msg = 'Location access was declined in your browser settings.';
+                else if (err.code === 2) msg = 'Location signal unavailable.';
+                else if (err.code === 3) msg = 'Location request timed out.';
+                alert(msg);
+            },
+            { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 }
+        );
     }
 
     function initMap() {
@@ -434,6 +484,61 @@
         }).addTo(map);
 
         markersGroup = L.featureGroup().addTo(map);
+
+        // Add custom Map Action Controls (My Location & Fit All) inside the map just like zoom controls
+        const MapActionsControl = L.Control.extend({
+            options: { position: 'topleft' },
+            onAdd: function () {
+                const container = L.DomUtil.create('div', 'leaflet-bar leaflet-control leaflet-control-map-tools');
+
+                // Recenter / Locate User Button (icon only)
+                const userBtn = L.DomUtil.create('a', 'map-control-btn btn-recenter-user', container);
+                userBtn.id = 'btn-recenter-user';
+                userBtn.href = '#';
+                userBtn.setAttribute('role', 'button');
+                userBtn.title = 'My Location';
+                userBtn.setAttribute('aria-label', 'My Location');
+                userBtn.innerHTML = `
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+                        <polygon points="3 11 22 2 13 21 11 13 3 11"/>
+                    </svg>
+                `;
+
+                // Fit All Gyms Button (icon only)
+                const fitBtn = L.DomUtil.create('a', 'map-control-btn btn-fit-all', container);
+                fitBtn.id = 'btn-fit-all-gyms';
+                fitBtn.href = '#';
+                fitBtn.setAttribute('role', 'button');
+                fitBtn.title = 'Fit All Gyms';
+                fitBtn.setAttribute('aria-label', 'Fit All Gyms');
+                fitBtn.innerHTML = `
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M15 3h6v6"/><path d="M9 21H3v-6"/><path d="M21 3l-7 7"/><path d="M3 21l7-7"/>
+                    </svg>
+                `;
+
+                L.DomEvent.disableClickPropagation(container);
+                L.DomEvent.disableScrollPropagation(container);
+
+                userBtn.addEventListener('click', function (e) {
+                    e.preventDefault();
+                    if (userCoords && map) {
+                        map.flyTo([userCoords.lat, userCoords.lng], 15, { duration: 1.2 });
+                    } else {
+                        requestDeviceLocation();
+                    }
+                });
+
+                fitBtn.addEventListener('click', function (e) {
+                    e.preventDefault();
+                    fitAllGyms();
+                });
+
+                return container;
+            }
+        });
+
+        map.addControl(new MapActionsControl());
 
         renderGymMarkers();
         fitAllGyms();
@@ -477,46 +582,9 @@
         });
     }
 
-    // "Near Me" GPS Button
+    // "Near Me" GPS Button in Toolbar
     if (btnNearMe) {
-        btnNearMe.addEventListener('click', function () {
-            if (!navigator.geolocation) {
-                alert('Geolocation is not supported by your current browser.');
-                return;
-            }
-
-            btnNearMe.classList.add('is-locating');
-            const btnText = btnNearMe.querySelector('.btn-text');
-            if (btnText) btnText.textContent = 'Locating...';
-
-            navigator.geolocation.getCurrentPosition(
-                applyUserLocation,
-                function (err) {
-                    btnNearMe.classList.remove('is-locating');
-                    let msg = 'Unable to retrieve your location.';
-                    if (err.code === 1) msg = 'Location access was declined in your browser settings.';
-                    else if (err.code === 2) msg = 'Location signal unavailable.';
-                    else if (err.code === 3) msg = 'Location request timed out.';
-                    alert(msg);
-                },
-                { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 }
-            );
-        });
-    }
-
-    // Recenter & Fit Buttons
-    if (btnRecenterUser) {
-        btnRecenterUser.addEventListener('click', function () {
-            if (userCoords && map) {
-                map.flyTo([userCoords.lat, userCoords.lng], 15, { duration: 1.2 });
-            }
-        });
-    }
-
-    if (btnFitAll) {
-        btnFitAll.addEventListener('click', function () {
-            fitAllGyms();
-        });
+        btnNearMe.addEventListener('click', requestDeviceLocation);
     }
 
     // Initialize map on DOMContentLoaded

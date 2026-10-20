@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 function member_equipment_page(): void
 {
-    $user = require_roles(['member']);
+    $user = require_roles(['member', 'trainer']);
     $pdo = db();
     $gymId = get_user_gym_id($user);
 
@@ -16,6 +16,9 @@ function member_equipment_page(): void
             if (!$isAffiliated) {
                 $isAffiliated = (bool) scalar('SELECT 1 FROM memberships m JOIN membership_plans mp ON mp.plan_id = m.plan_id WHERE m.user_id = ? AND mp.gym_id = ? AND m.status = "active" LIMIT 1', [$user['user_id'], $reqGymId]);
             }
+            if (!$isAffiliated && $user['role'] === 'trainer') {
+                $isAffiliated = (bool) scalar('SELECT 1 FROM trainer_profiles WHERE user_id = ? AND gym_id = ? LIMIT 1', [$user['user_id'], $reqGymId]);
+            }
             if ($isAffiliated) {
                 $_SESSION['current_gym_id'] = $reqGymId;
                 $gymId = $reqGymId;
@@ -23,7 +26,9 @@ function member_equipment_page(): void
         }
     }
 
-    render_header('Gym Equipment', $user);
+    $isTrainer = ($user['role'] === 'trainer');
+    $pageTitle = $isTrainer ? 'Floor Equipment & Stations' : 'Gym Equipment';
+    render_header($pageTitle, $user);
 
     if (!$gymId) {
         echo '<div class="panel" style="max-width: 600px; margin: 40px auto; text-align: center; padding: 40px 24px;">';
@@ -49,47 +54,124 @@ function member_equipment_page(): void
     $recentWaist = $lastLog['waist_cm'] ?? scalar('SELECT waist_cm FROM member_profiles WHERE user_id = ?', [$userId]);
     $recentChest = $lastLog['chest_cm'] ?? null;
     $recentArm = $lastLog['arm_cm'] ?? null;
+
+    // Check for trainer's active or upcoming class today
+    $trainerClass = null;
+    if ($isTrainer) {
+        require_once __DIR__ . '/qr_attendance.php';
+        if (function_exists('get_trainer_upcoming_class')) {
+            $trainerClass = get_trainer_upcoming_class($userId);
+        }
+    }
+
+    // Fetch equipment categories with inventory counts for zone pills
+    $catStmt = $pdo->prepare('SELECT category, COUNT(*) as cnt FROM gym_equipment WHERE gym_id = ? AND status != "out_of_service" GROUP BY category ORDER BY category ASC');
+    $catStmt->execute([$gymId]);
+    $zoneCategories = $catStmt->fetchAll(PDO::FETCH_ASSOC);
+    $totalUnitsCount = array_sum(array_column($zoneCategories, 'cnt'));
+
+    $requestedCategory = trim((string)($_GET['category'] ?? ''));
 ?>
 
     <link rel="stylesheet" href="<?= h(asset_url('css/pages/member_equipment.css')) ?>">
 
     <div class="equipment-member-container" style="max-width: 1200px; margin: 0 auto; padding-bottom: 60px;">
-        <!-- Contextual Action Strip (Gym Info & Live Sync) -->
-        <div class="equip-action-strip">
-            <div class="equip-strip-meta">
-                <span class="equip-gym-pill">
-                    <span style="width: 7px; height: 7px; border-radius: 50%; background: var(--lime); display: inline-block; flex-shrink: 0;"></span>
-                    <span style="color: var(--muted); font-weight: 500;">Gym:</span>
-                    <strong class="gym-val" style="color: var(--ink); font-weight: 700;"><?= h($gymName) ?></strong>
-                </span>
-                <span class="equip-strip-desc">Live machine availability &amp; queue tracking</span>
-            </div>
-            <div class="equip-strip-status">
-                <span id="live-indicator" class="equip-live-pill">
-                    <span style="width: 8px; height: 8px; border-radius: 50%; background: var(--lime); display: inline-block; box-shadow: 0 0 8px var(--lime); animation: pulse 2s infinite; flex-shrink: 0;"></span>
-                    Live Syncing
-                </span>
-            </div>
-        </div>
 
-        <!-- CHECK-IN STATUS BANNER (shown when not checked into the gym) -->
-        <div id="checkin-gate-alert" class="remote-mode-banner" style="<?= $isCheckedIn ? 'display: none;' : 'display: flex;' ?> align-items: center; justify-content: space-between; gap: 14px; background: rgba(245, 158, 11, 0.1); border: 1px solid rgba(245, 158, 11, 0.3); border-radius: 12px; padding: 14px 18px; margin-bottom: 20px; flex-wrap: wrap;">
-            <div class="remote-mode-copy" style="display: flex; align-items: center; gap: 12px;">
-                <span style="display: flex; align-items: center; justify-content: center; width: 36px; height: 36px; border-radius: 50%; background: rgba(245, 158, 11, 0.2); color: #d97706; flex-shrink: 0;">
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-                </span>
-                <div>
-                    <h4 style="margin: 0 0 2px; font-size: 14px; color: var(--ink);">Browsing in Remote Mode</h4>
-                    <p style="margin: 0; font-size: 12.5px; color: var(--muted); line-height: 1.4;">
-                        You are viewing live availability from outside <strong><?= h($gymName) ?></strong>. Check in with your QR code at the entrance to use machines or join waitlists.
-                    </p>
+        <?php if ($isCheckedIn): ?>
+            <!-- ACTIVE CHECK-IN CONFIRMATION STRIP -->
+            <div class="panel active-checkin-strip">
+                <div style="display: flex; align-items: center; gap: 10px; min-width: 0;">
+                    <span class="checkin-strip-icon" style="display: flex; align-items: center; justify-content: center; width: 30px; height: 30px; border-radius: 50%; background: color-mix(in srgb, var(--lime) 20%, transparent); color: var(--lime); flex-shrink: 0;">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>
+                    </span>
+                    <div style="min-width: 0;">
+                        <h4 style="margin: 0; font-size: 13.5px; color: var(--ink); font-weight: 800; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+                            Checked in at <?= h($gymName) ?>
+                        </h4>
+                        <p class="checkin-strip-desc" style="margin: 2px 0 0; font-size: 12px; color: var(--muted); line-height: 1.35;">
+                            <?= $isTrainer 
+                                ? 'Full gym floor unlocked. View live station occupancy, track equipment, and plan client training.' 
+                                : 'Floor access unlocked. Claim stations directly or join waitlists in real-time.' ?>
+                        </p>
+                    </div>
+                </div>
+                <div class="checkin-strip-action" style="display: flex; align-items: center; gap: 8px; flex-shrink: 0;">
+                    <a href="index.php?page=qr_attendance" class="btn" style="padding: 6px 12px; border-radius: 8px; font-size: 11.5px; font-weight: 700; background: var(--panel-soft); border: 1px solid var(--line); color: var(--ink); text-decoration: none; display: inline-flex; align-items: center; gap: 5px; white-space: nowrap;">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect width="5" height="5" x="3" y="3" rx="1"/><rect width="5" height="5" x="16" y="3" rx="1"/><rect width="5" height="5" x="3" y="16" rx="1"/><path d="M21 16h-3a2 2 0 0 0-2 2v3"/><path d="M21 21v.01"/></svg>
+                        <span>QR / Check Out</span>
+                    </a>
                 </div>
             </div>
-            <a href="index.php?page=qr_attendance" class="btn btn-lime remote-mode-action" style="padding: 8px 16px; border-radius: 8px; font-size: 13px; text-decoration: none; white-space: nowrap; display: inline-flex; align-items: center; gap: 6px;">
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
-                Check In via QR
-            </a>
-        </div>
+        <?php else: ?>
+            <!-- CHECK-IN STATUS BANNER (shown when not checked into the gym) -->
+            <div id="checkin-gate-alert" class="remote-mode-banner" style="display: flex; align-items: center; justify-content: space-between; gap: 14px; background: rgba(245, 158, 11, 0.1); border: 1px solid rgba(245, 158, 11, 0.3); border-radius: 12px; padding: 14px 18px; margin-bottom: 20px; flex-wrap: wrap;">
+                <div class="remote-mode-copy" style="display: flex; align-items: center; gap: 12px;">
+                    <span style="display: flex; align-items: center; justify-content: center; width: 36px; height: 36px; border-radius: 50%; background: rgba(245, 158, 11, 0.2); color: #d97706; flex-shrink: 0;">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                    </span>
+                    <div>
+                        <h4 style="margin: 0 0 2px; font-size: 14px; color: var(--ink);">Browsing in Remote Mode</h4>
+                        <p style="margin: 0; font-size: 12.5px; color: var(--muted); line-height: 1.4;">
+                            You are viewing live availability from outside <strong><?= h($gymName) ?></strong>. Check in with your QR code at the entrance to use machines or join waitlists.
+                        </p>
+                    </div>
+                </div>
+                <a href="index.php?page=qr_attendance" class="btn btn-lime remote-mode-action" style="padding: 8px 16px; border-radius: 8px; font-size: 13px; text-decoration: none; white-space: nowrap; display: inline-flex; align-items: center; gap: 6px;">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+                    Check In via QR
+                </a>
+            </div>
+        <?php endif; ?>
+
+        <?php if ($isTrainer && $trainerClass): ?>
+            <!-- TRAINER CLASS SESSION & CIRCUIT HELPER BANNER -->
+            <div class="panel" style="background: color-mix(in srgb, var(--lime) 7%, var(--panel)); border: 1px solid color-mix(in srgb, var(--lime) 35%, var(--line)); border-radius: 12px; padding: 14px 18px; margin-bottom: 20px;">
+                <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; flex-wrap: wrap;">
+                    <div style="min-width: 0;">
+                        <div style="display: inline-flex; align-items: center; gap: 5px; font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.05em; color: var(--lime); background: color-mix(in srgb, var(--lime) 15%, transparent); padding: 3px 8px; border-radius: 6px; margin-bottom: 6px;">
+                            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                            Your Scheduled Class Session
+                        </div>
+                        <h3 style="margin: 0 0 4px; font-size: 16px; font-weight: 800; color: var(--ink);">
+                            <?= h($trainerClass['class_name']) ?>
+                        </h3>
+                        <div style="font-size: 12px; color: var(--muted); display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 8px;">
+                            <span>🕒 <?= h($trainerClass['start_time_fmt']) ?><?= $trainerClass['end_time_fmt'] ? ' – ' . h($trainerClass['end_time_fmt']) : '' ?></span>
+                            <span>📍 <?= h($trainerClass['room_location']) ?></span>
+                            <span>👥 <strong style="color: var(--ink);"><?= (int)$trainerClass['total_booked'] ?></strong> booked (<span style="color: var(--lime);"><?= (int)$trainerClass['attended_members'] ?> checked in</span>)</span>
+                        </div>
+                        <?php if (!empty($trainerClass['members'])): ?>
+                            <div style="display: flex; flex-wrap: wrap; gap: 5px; align-items: center;">
+                                <span style="font-size: 11px; color: var(--muted); font-weight: 600;">Roster:</span>
+                                <?php foreach ($trainerClass['members'] as $m): ?>
+                                    <?php $isHere = ($m['booking_status'] === 'attended'); ?>
+                                    <span style="font-size: 10.5px; padding: 2px 8px; border-radius: 12px; background: <?= $isHere ? 'color-mix(in srgb, var(--lime) 20%, transparent)' : 'var(--panel-soft)' ?>; color: <?= $isHere ? 'var(--lime)' : 'var(--muted)' ?>; border: 1px solid <?= $isHere ? 'var(--lime)' : 'var(--line)' ?>; font-weight: 600;">
+                                        <?= h($m['first_name'] . ' ' . (!empty($m['last_name']) ? mb_substr((string)$m['last_name'], 0, 1) . '.' : '')) ?><?= $isHere ? ' ✓' : '' ?>
+                                    </span>
+                                <?php endforeach; ?>
+                            </div>
+                        <?php endif; ?>
+                    </div>
+                    <div>
+                        <a href="index.php?page=classes" class="btn" style="padding: 7px 12px; border-radius: 8px; font-size: 12px; font-weight: 700; background: var(--panel-soft); border: 1px solid var(--line); color: var(--ink); text-decoration: none; display: inline-flex; align-items: center; gap: 5px;">
+                            <span>View Class Details &rarr;</span>
+                        </a>
+                    </div>
+                </div>
+
+                <?php if (!empty($trainerClass['recommended_categories'])): ?>
+                    <div style="margin-top: 10px; padding-top: 10px; border-top: 1px solid color-mix(in srgb, var(--lime) 20%, var(--line)); display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+                        <span style="font-size: 11px; font-weight: 700; color: var(--ink);">★ Recommended Equipment for this session:</span>
+                        <?php foreach ($trainerClass['recommended_categories'] as $rcat): ?>
+                            <button type="button" class="trainer-rec-chip" data-category="<?= h($rcat) ?>" style="background: var(--lime); border: 1px solid var(--lime); color: #000; font-size: 11px; font-weight: 800; padding: 3px 9px; border-radius: 12px; cursor: pointer; display: inline-flex; align-items: center; gap: 4px;">
+                                <span>★</span>
+                                <span><?= h($rcat) ?></span>
+                            </button>
+                        <?php endforeach; ?>
+                    </div>
+                <?php endif; ?>
+            </div>
+        <?php endif; ?>
 
         <!-- ACTIVE SESSION BANNER (Rendered dynamically) -->
         <div id="active-session-wrapper" style="display: none; margin-bottom: 24px;"></div>
@@ -110,6 +192,22 @@ function member_equipment_page(): void
                         style="width: 100%; padding: 10px 12px 10px 38px; border-radius: 8px; background: var(--bg); border: 1px solid var(--line); color: var(--ink); font-size: 13px; box-sizing: border-box; outline: none;">
                 </div>
 
+                <!-- Category Filter Dropdown (with inventory count badges) -->
+                <div class="equip-category-wrap">
+                    <select id="category-filter" aria-label="Filter equipment by category">
+                        <option value="all" <?= ($requestedCategory === '' || $requestedCategory === 'all') ? 'selected' : '' ?>>All Stations (<?= (int)$totalUnitsCount ?>)</option>
+                        <?php foreach ($zoneCategories as $zc): ?>
+                            <?php 
+                                $isRec = $trainerClass && in_array($zc['category'], $trainerClass['recommended_categories'] ?? [], true); 
+                                $star = $isRec ? '★ ' : '';
+                            ?>
+                            <option value="<?= h($zc['category']) ?>" <?= $requestedCategory === $zc['category'] ? 'selected' : '' ?>>
+                                <?= $star ?><?= h($zc['category']) ?> (<?= (int)$zc['cnt'] ?>)
+                            </option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+
                 <!-- Status Filter Pills (Desktop/Tablet) -->
                 <div class="status-filters-pills" id="status-filters">
                     <button type="button" class="filter-btn active" data-status="all">All</button>
@@ -128,18 +226,6 @@ function member_equipment_page(): void
                     </select>
                 </div>
 
-                <!-- Category Filter -->
-                <div class="equip-category-wrap" style="flex: 0 0 auto;">
-                    <select id="category-filter" style="width: auto; min-width: 150px; padding: 9px 14px; border-radius: 8px; background: var(--bg); border: 1px solid var(--line); color: var(--ink); font-size: 13px; box-sizing: border-box; cursor: pointer;">
-                        <option value="all">All Categories</option>
-                        <option value="Cardio">Cardio</option>
-                        <option value="Strength">Strength</option>
-                        <option value="Free Weights">Free Weights</option>
-                        <option value="Machines">Machines</option>
-                        <option value="Functional Training">Functional Training</option>
-                        <option value="Other">Other</option>
-                    </select>
-                </div>
                 <div class="equip-sound-wrap" style="flex: 0 0 auto;">
                     <button type="button" class="btn-sound-toggle filter-btn" style="display: inline-flex; align-items: center; gap: 7px; padding: 9px 14px; border-radius: 8px; font-size: 13px; border: 1px solid var(--line); background: var(--panel-soft); color: var(--ink); cursor: pointer; transition: all 0.2s;" aria-label="Toggle notification sounds" title="Sound: Enabled (Click to mute)">
                         <span class="sound-toggle-icon"></span>
@@ -201,7 +287,9 @@ function member_equipment_page(): void
         recentChest: <?= json_encode($recentChest !== null && $recentChest !== false ? (float)$recentChest : null) ?>,
         recentArm: <?= json_encode($recentArm !== null && $recentArm !== false ? (float)$recentArm : null) ?>,
         isCheckedIn: <?= json_encode($isCheckedIn) ?>,
-        gymName: <?= json_encode($gymName) ?>
+        gymName: <?= json_encode($gymName) ?>,
+        isTrainer: <?= json_encode($isTrainer) ?>,
+        initialCategory: <?= json_encode($requestedCategory ?: 'all') ?>
     };
     </script>
     <script src="<?= h(asset_url('js/pages/member_equipment.js')) ?>"></script>
