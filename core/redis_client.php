@@ -9,6 +9,8 @@ declare(strict_types=1);
  * return null/false without blocking execution or raising fatal errors.
  */
 
+require_once __DIR__ . '/redis.php';
+
 // IDE stub class: Prevents "Undefined type/class 'Redis'" lint warnings in editors
 // when running on local development machines without the compiled C ext-redis extension.
 if (!class_exists('Redis')) {
@@ -19,17 +21,20 @@ if (!class_exists('Redis')) {
         public function select(int $db): bool { return false; }
         public function setex(string $key, int $ttl, string $value): bool { return false; }
         public function get(string $key): mixed { return false; }
-        public function del(string ...$keys): int { return 0; }
+        public function del(string|array ...$keys): int { return 0; }
         public function ttl(string $key): int { return -2; }
     }
 }
 
 class RedisClient
 {
-    private static ?Redis $instance = null;
+    private static ?object $instance = null;
     private static bool $attempted = false;
 
-    public static function getConnection(): ?Redis
+    /**
+     * Get active Redis connection (native Redis or Predis\Client).
+     */
+    public static function getConnection(): ?object
     {
         if (self::$attempted) {
             return self::$instance;
@@ -43,57 +48,64 @@ class RedisClient
             return null;
         }
 
-        if (!extension_loaded('redis')) {
-            return null;
+        // 1. If native ext-redis is loaded, use native C extension (fastest)
+        if (extension_loaded('redis')) {
+            $redisUrl = (string)app_env('REDIS_URL', '');
+            $host = (string)app_env('REDIS_HOST', '127.0.0.1');
+            $port = (int)app_env('REDIS_PORT', 6379);
+            $password = (string)app_env('REDIS_PASSWORD', '');
+            $timeout = (float)app_env('REDIS_TIMEOUT', 0.5);
+            $dbIndex = (int)app_env('REDIS_DB', 0);
+
+            if (!empty($redisUrl)) {
+                $parsed = parse_url($redisUrl);
+                if (!empty($parsed['host'])) {
+                    $host = (string)$parsed['host'];
+                }
+                if (!empty($parsed['port'])) {
+                    $port = (int)$parsed['port'];
+                }
+                if (!empty($parsed['pass'])) {
+                    $password = (string)$parsed['pass'];
+                }
+                if (!empty($parsed['path']) && is_numeric(ltrim((string)$parsed['path'], '/'))) {
+                    $dbIndex = (int)ltrim((string)$parsed['path'], '/');
+                }
+            }
+
+            try {
+                $redis = new Redis();
+                $connected = $redis->connect($host, $port, $timeout);
+                if ($connected) {
+                    if (!empty($password)) {
+                        $redis->auth($password);
+                    }
+                    if ($dbIndex > 0) {
+                        $redis->select($dbIndex);
+                    }
+                    self::$instance = $redis;
+                    return self::$instance;
+                }
+            } catch (Throwable $e) {
+                error_log('Native Redis connection notice: ' . $e->getMessage());
+            }
         }
 
-        $redisUrl = (string)app_env('REDIS_URL', '');
-        $host = (string)app_env('REDIS_HOST', '127.0.0.1');
-        $port = (int)app_env('REDIS_PORT', 6379);
-        $password = (string)app_env('REDIS_PASSWORD', '');
-        $timeout = (float)app_env('REDIS_TIMEOUT', 0.5); // 500ms max connection timeout to prevent lag
-        $dbIndex = (int)app_env('REDIS_DB', 0);
-
-        // Render provides REDIS_URL (e.g. redis://red-xxxx:6379 or redis://default:pass@red-xxxx:6379)
-        if (!empty($redisUrl)) {
-            $parsed = parse_url($redisUrl);
-            if (!empty($parsed['host'])) {
-                $host = (string)$parsed['host'];
-            }
-            if (!empty($parsed['port'])) {
-                $port = (int)$parsed['port'];
-            }
-            if (!empty($parsed['pass'])) {
-                $password = (string)$parsed['pass'];
-            }
-            if (!empty($parsed['path']) && is_numeric(ltrim((string)$parsed['path'], '/'))) {
-                $dbIndex = (int)ltrim((string)$parsed['path'], '/');
+        // 2. Fallback to Predis (pure-PHP client bundled in composer.json)
+        if (function_exists('redis')) {
+            try {
+                $predis = redis();
+                if ($predis !== null) {
+                    self::$instance = $predis;
+                    return self::$instance;
+                }
+            } catch (Throwable $e) {
+                error_log('Predis connection notice: ' . $e->getMessage());
             }
         }
 
-        try {
-            $redis = new Redis();
-            $connected = $redis->connect($host, $port, $timeout);
-            if (!$connected) {
-                return null;
-            }
-
-            if (!empty($password)) {
-                $redis->auth($password);
-            }
-
-            // Optional DB index
-            if ($dbIndex > 0) {
-                $redis->select($dbIndex);
-            }
-
-            self::$instance = $redis;
-            return self::$instance;
-        } catch (Throwable $e) {
-            error_log('Redis connection notice: ' . $e->getMessage());
-            self::$instance = null;
-            return null;
-        }
+        self::$instance = null;
+        return null;
     }
 
     public static function isConnected(): bool
@@ -137,7 +149,10 @@ class RedisClient
             return 0;
         }
         try {
-            return (int)$conn->del(...$keys);
+            if ($conn instanceof Redis) {
+                return (int)$conn->del(...$keys);
+            }
+            return (int)$conn->del($keys);
         } catch (Throwable $e) {
             error_log('Redis del error: ' . $e->getMessage());
             return 0;
