@@ -109,7 +109,7 @@ function render_header(string $title, ?array $user = null): void
                 $nav += ['gym_selection' => 'Select Gym'];
             }
             
-            $nav += ['payments' => 'Payments', 'progress' => 'Progress'];
+            $nav += ['progress' => 'Progress'];
         }
     }
     $page = $_GET['page'] ?? 'dashboard';

@@ -42,38 +42,12 @@ function gym_map_page(): void
 
     $gymData = load_gym_selection_data($gyms);
 
-    $profile = member_profile((int) $user['user_id']);
-    $userGoal = strtolower($profile['primary_goal'] ?? '');
-
     render_header('Gym Locations Map', $user);
     ?>
     <link rel="stylesheet" href="<?= h(asset_url('css/pages/gym_selection.css')) ?>">
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 
     <div class="panel gym-select">
-        <div class="gym-hero" id="gym-header">
-            <div class="eyebrow"><span class="dot"></span> Interactive Map</div>
-            <h1>
-                <?php if ($userGoal): ?>
-                    Find Gyms for <mark><?= h(str_replace(['-', '_'], ' ', $userGoal)) ?></mark>
-                <?php else: ?>
-                    Explore <mark>Gym Locations</mark>
-                <?php endif; ?>
-            </h1>
-            <p class="sub">
-                Explore gym locations on the map. Click any pin to see distance, classes, and preview details.
-            </p>
-            <svg class="pulse-line" viewBox="0 0 460 30" preserveAspectRatio="none" aria-hidden="true">
-                <path d="M0,15 L150,15 L168,3 L184,27 L200,15 L215,15 L228,8 L240,22 L252,15 L460,15" />
-            </svg>
-            <div style="margin-top: 14px;">
-                <a href="index.php?page=dashboard" style="display: inline-flex; align-items: center; gap: 6px; padding: 7px 16px; border-radius: 999px; background: rgba(255, 255, 255, 0.06); border: 1px solid rgba(255, 255, 255, 0.15); color: #94a3b8; font-size: 12.5px; font-weight: 600; text-decoration: none; transition: all 0.2s;" onmouseover="this.style.color='#f8fafc'; this.style.borderColor='rgba(199,255,34,0.4)'; this.style.background='rgba(199,255,34,0.08)';" onmouseout="this.style.color='#94a3b8'; this.style.borderColor='rgba(255,255,255,0.15)'; this.style.background='rgba(255,255,255,0.06)';">
-                    <span>Skip gym selection for now &amp; go to Dashboard</span>
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><polyline points="9 18 15 12 9 6"/></svg>
-                </a>
-            </div>
-        </div>
-
         <?php if (empty($gymData)): ?>
             <p style="text-align: center; color: var(--muted);">No gyms are currently available on the platform.</p>
         <?php else: ?>

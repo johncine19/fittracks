@@ -232,48 +232,79 @@ function payments_page(): void
 
         render_header('Platform Subscriptions', $user);
         ?>
+        <link rel="stylesheet" href="<?= h(asset_url('css/pages/payments.css')) ?>">
         <div class="skeleton-wrapper">
             <section class="panel">
-                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:24px">
-                    <div>
-                        <div class="sk sk-title" style="width:140px;margin-bottom:8px"></div>
-                        <div class="sk sk-text" style="width:280px;height:12px"></div>
-                    </div>
+                <div class="payments-stats-grid" style="margin-bottom:24px;">
+                    <div class="sk sk-rect" style="height:76px;border-radius:14px"></div>
+                    <div class="sk sk-rect" style="height:76px;border-radius:14px"></div>
+                    <div class="sk sk-rect" style="height:76px;border-radius:14px"></div>
                 </div>
-                <div class="payments-stats-row" style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-bottom:20px;max-width:480px;">
-                    <div class="sk sk-rect" style="height:58px;border-radius:8px"></div>
-                    <div class="sk sk-rect" style="height:58px;border-radius:8px"></div>
-                </div>
-                <div class="sk sk-text short" style="margin-bottom:12px;height:14px;width:120px"></div>
+                <div class="sk sk-text short" style="margin-bottom:14px;height:14px;width:140px"></div>
                 <?php render_skeleton_table(7, 8); ?>
             </section>
         </div>
         <section class="panel skeleton-content sk-display-block">
-            <div class="page-header">
-                <div>
-                    <h1>Platform Subscriptions</h1>
-                    <p>Track all platform subscription payments collected from registered gym owners.</p>
+            <!-- Platform Subscriptions Stats Grid -->
+            <div class="payments-stats-grid">
+                <div class="payment-stat-card">
+                    <div class="payment-stat-icon revenue">
+                        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                            <line x1="12" y1="1" x2="12" y2="23"></line>
+                            <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path>
+                        </svg>
+                    </div>
+                    <div class="payment-stat-info">
+                        <div class="payment-stat-label">Total Subscriptions Collected</div>
+                        <div class="payment-stat-value lime"><?= h(money($totalCollected)) ?></div>
+                        <div class="payment-stat-sub">Lifetime platform revenue</div>
+                    </div>
+                </div>
+
+                <div class="payment-stat-card">
+                    <div class="payment-stat-icon subscriptions">
+                        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M3 21h18"></path>
+                            <path d="M5 21V7l8-4v18"></path>
+                            <path d="M19 21V11l-6-4"></path>
+                            <line x1="9" y1="9" x2="9" y2="9.01"></line>
+                            <line x1="9" y1="13" x2="9" y2="13.01"></line>
+                            <line x1="9" y1="17" x2="9" y2="17.01"></line>
+                        </svg>
+                    </div>
+                    <div class="payment-stat-info">
+                        <div class="payment-stat-label">Active Subscriptions</div>
+                        <div class="payment-stat-value"><?= number_format($activeSubs) ?> <span style="font-size:14px;font-weight:600;color:var(--muted);">Gyms</span></div>
+                        <div class="payment-stat-sub">Currently active facilities</div>
+                    </div>
+                </div>
+
+                <div class="payment-stat-card">
+                    <div class="payment-stat-icon transactions">
+                        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                            <rect x="2" y="5" width="20" height="14" rx="2"></rect>
+                            <line x1="2" y1="10" x2="22" y2="10"></line>
+                        </svg>
+                    </div>
+                    <div class="payment-stat-info">
+                        <div class="payment-stat-label">Recorded Transactions</div>
+                        <div class="payment-stat-value"><?= number_format($total) ?> <span style="font-size:14px;font-weight:600;color:var(--muted);">Records</span></div>
+                        <div class="payment-stat-sub">All-time payment entries</div>
+                    </div>
                 </div>
             </div>
 
-            <div class="payments-stats-row">
-                <div class="payment-stat-card">
-                    <div class="payment-stat-label">Total Subscriptions Collected</div>
-                    <div class="payment-stat-value" style="color:var(--lime);"><?= h(money($totalCollected)) ?></div>
-                </div>
-                <div class="payment-stat-card">
-                    <div class="payment-stat-label">Active Subscriptions</div>
-                    <div class="payment-stat-value" style="color:var(--ink);"><?= $activeSubs ?> Gyms</div>
-                </div>
+            <div class="payments-section-header">
+                <span class="payments-section-title">Subscription Transactions</span>
             </div>
 
-            <p class="section-label">Subscription Transactions</p>
             <?php if (!$rows): ?>
                 <div class="empty-state">
                     <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>
                     <p>No subscription payment records yet.</p>
                 </div>
             <?php else: ?>
+            <!-- Desktop Table View -->
             <div class="table-wrap payments-desktop-table">
                 <table>
                     <thead>
@@ -291,27 +322,33 @@ function payments_page(): void
                     <tbody>
                     <?php foreach ($rows as $row):
                         $initials = strtoupper(substr($row['first_name'], 0, 1) . substr($row['last_name'], 0, 1));
-                        $statusClass = 'badge badge-' . ($row['status'] === 'paid' ? 'paid' : 'pending');
+                        $statusKey = strtolower((string)$row['status']);
+                        $statusClass = 'status-pill status-' . ($statusKey === 'paid' ? 'paid' : ($statusKey === 'pending' ? 'pending' : 'cancelled'));
                     ?>
                         <tr>
                             <td>
-                                <strong><?= h($row['gym_name']) ?></strong>
+                                <strong style="color:var(--ink);"><?= h($row['gym_name']) ?></strong>
                             </td>
                             <td>
                                 <div class="user-cell">
-                                    <span class="avatar small"><?= h($initials) ?></span>
-                                    <span><?= h($row['first_name'] . ' ' . $row['last_name']) ?></span>
+                                    <span class="avatar"><?= h($initials) ?></span>
+                                    <div class="user-name-wrap">
+                                        <span class="user-name"><?= h($row['first_name'] . ' ' . $row['last_name']) ?></span>
+                                        <?php if (!empty($row['email'])): ?>
+                                            <span class="user-email"><?= h($row['email']) ?></span>
+                                        <?php endif; ?>
+                                    </div>
                                 </div>
                             </td>
                             <td>
-                                <span class="badge" style="background: rgba(34,197,94,0.1); color: var(--lime);"><?= h($row['plan_name']) ?></span>
-                                <span class="badge" style="background: rgba(255,255,255,0.06); color: var(--muted); font-size: 10px; margin-left: 4px;"><?= ($row['billing_cycle'] ?? '') === 'yearly' ? 'Annual' : 'Monthly' ?></span>
+                                <span class="badge-plan"><?= h($row['plan_name']) ?></span>
+                                <span class="badge-cycle"><?= ($row['billing_cycle'] ?? '') === 'yearly' ? 'Annual' : 'Monthly' ?></span>
                             </td>
-                            <td><strong><?= h(money((float)$row['amount'])) ?></strong></td>
-                            <td><?= h(date('M j, Y', strtotime($row['payment_date']))) ?></td>
-                            <td><span style="color:var(--muted);font-size:12px"><?= strtoupper(h($row['payment_method'])) ?></span></td>
+                            <td><strong style="color:var(--ink);font-size:14px;"><?= h(money((float)$row['amount'])) ?></strong></td>
+                            <td><span style="color:var(--ink);"><?= h(date('M j, Y', strtotime($row['payment_date']))) ?></span></td>
+                            <td><span class="method-chip"><?= strtoupper(h($row['payment_method'])) ?></span></td>
                             <td><span class="<?= $statusClass ?>"><?= h(ucfirst($row['status'])) ?></span></td>
-                            <td><span style="color:var(--muted);font-size:12px;font-family:monospace"><?= h($row['receipt_number']) ?></span></td>
+                            <td><span class="receipt-chip"><?= h($row['receipt_number']) ?></span></td>
                         </tr>
                     <?php endforeach; ?>
                     </tbody>
@@ -322,45 +359,57 @@ function payments_page(): void
             <div class="payments-mobile-cards">
                 <?php foreach ($rows as $row):
                     $initials = strtoupper(substr($row['first_name'], 0, 1) . substr($row['last_name'], 0, 1));
-                    $statusClass = 'badge badge-' . ($row['status'] === 'paid' ? 'paid' : 'pending');
+                    $statusKey = strtolower((string)$row['status']);
+                    $statusClass = 'status-pill status-' . ($statusKey === 'paid' ? 'paid' : ($statusKey === 'pending' ? 'pending' : 'cancelled'));
                 ?>
                 <div class="payment-card-item">
                     <div class="payment-card-header">
-                        <div class="user-cell">
-                            <span class="avatar small"><?= h($initials) ?></span>
-                            <div>
-                                <div style="font-weight: 700; color: var(--ink);"><?= h($row['gym_name']) ?></div>
-                                <div style="font-size: 12px; color: var(--muted);"><?= h($row['first_name'] . ' ' . $row['last_name']) ?></div>
+                        <div class="payment-card-gym-owner">
+                            <div class="avatar" style="width:36px;height:36px;font-size:13px;border-radius:50%;background:color-mix(in srgb,var(--lime) 18%,transparent);color:var(--lime);font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0;border:1px solid color-mix(in srgb,var(--lime) 30%,transparent);"><?= h($initials) ?></div>
+                            <div style="min-width:0;">
+                                <div class="payment-card-gym-name"><?= h($row['gym_name']) ?></div>
+                                <div class="payment-card-owner-name"><?= h($row['first_name'] . ' ' . $row['last_name']) ?><?= !empty($row['email']) ? ' &bull; ' . h($row['email']) : '' ?></div>
                             </div>
                         </div>
                         <span class="<?= $statusClass ?>"><?= h(ucfirst($row['status'])) ?></span>
                     </div>
                     
                     <div class="payment-card-amount-row">
-                        <div>
+                        <div class="payment-card-amount-wrap">
                             <span class="payment-card-amount"><?= h(money((float)$row['amount'])) ?></span>
-                            <span class="badge" style="background: rgba(34,197,94,0.1); color: var(--lime); margin-left: 6px; font-size: 11px;"><?= h($row['plan_name']) ?></span>
-                            <span class="badge" style="background: rgba(255,255,255,0.06); color: var(--muted); font-size: 10px; margin-left: 4px;"><?= ($row['billing_cycle'] ?? '') === 'yearly' ? 'Annual' : 'Monthly' ?></span>
+                            <span class="badge-plan"><?= h($row['plan_name']) ?></span>
+                            <span class="badge-cycle"><?= ($row['billing_cycle'] ?? '') === 'yearly' ? 'Annual' : 'Monthly' ?></span>
                         </div>
-                        <span class="payment-card-method">
-                            <?= strtoupper(h($row['payment_method'])) ?>
-                        </span>
+                        <span class="method-chip"><?= strtoupper(h($row['payment_method'])) ?></span>
                     </div>
 
-                    <div class="payment-card-details">
+                    <div class="payment-card-details-grid">
                         <div class="payment-card-detail-item">
                             <span class="detail-label">Payment Date</span>
                             <span class="detail-val"><?= h(date('M j, Y', strtotime($row['payment_date']))) ?></span>
                         </div>
                         <div class="payment-card-detail-item">
                             <span class="detail-label">Receipt #</span>
-                            <span class="detail-val receipt-pill"><?= h($row['receipt_number']) ?></span>
+                            <span class="detail-val receipt-chip" style="display:inline-block;max-width:fit-content;"><?= h($row['receipt_number']) ?></span>
                         </div>
                     </div>
                 </div>
                 <?php endforeach; ?>
             </div>
-            <?php render_pagination($page, $totalPages, '?page=payments'); ?>
+            <div class="payments-pagination-wrap">
+                <div class="pagination-info">
+                    Showing <strong><?= $total > 0 ? $offset + 1 : 0 ?></strong> to <strong><?= min($offset + $limit, $total) ?></strong> of <strong><?= number_format($total) ?></strong> entries
+                </div>
+                <?php if ($totalPages > 1): ?>
+                    <?php render_pagination($page, $totalPages, '?page=payments'); ?>
+                <?php else: ?>
+                    <div class="pagination">
+                        <span class="page-link disabled">← Prev</span>
+                        <span class="page-current">1</span>
+                        <span class="page-link disabled">Next →</span>
+                    </div>
+                <?php endif; ?>
+            </div>
             <?php endif; ?>
         </section>
         <?php
@@ -445,6 +494,7 @@ function payments_page(): void
 
     render_header('Payments', $user);
     ?>
+    <link rel="stylesheet" href="<?= h(asset_url('css/pages/payments.css')) ?>">
     <div class="skeleton-wrapper">
         <section class="panel">
             <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:24px">
@@ -589,7 +639,20 @@ function payments_page(): void
             </div>
             <?php endforeach; ?>
         </div>
-        <?php render_pagination($page, $totalPages, '?page=payments'); ?>
+        <div class="payments-pagination-wrap">
+            <div class="pagination-info">
+                Showing <strong><?= $total > 0 ? $offset + 1 : 0 ?></strong> to <strong><?= min($offset + $limit, $total) ?></strong> of <strong><?= number_format($total) ?></strong> entries
+            </div>
+            <?php if ($totalPages > 1): ?>
+                <?php render_pagination($page, $totalPages, '?page=payments'); ?>
+            <?php else: ?>
+                <div class="pagination">
+                    <span class="page-link disabled">← Prev</span>
+                    <span class="page-current">1</span>
+                    <span class="page-link disabled">Next →</span>
+                </div>
+            <?php endif; ?>
+        </div>
         <?php endif; ?>
     </section>
     
@@ -840,157 +903,6 @@ function payments_page(): void
     </script>
     <?php endif; ?>
 
-    <style>
-    /* ============================================================
-       Responsive Mobile Cards for Payments & Subscriptions
-       ============================================================ */
-    .payments-mobile-cards {
-        display: none;
-    }
-
-    @media (max-width: 768px) {
-        .payments-desktop-table {
-            display: none !important;
-        }
-        .payments-mobile-cards {
-            display: flex !important;
-            flex-direction: column;
-            gap: 12px;
-            margin-top: 10px;
-            margin-bottom: 20px;
-        }
-    }
-
-    .payment-card-item {
-        background: color-mix(in srgb, var(--panel-soft) 45%, transparent);
-        border: 1px solid var(--line);
-        border-radius: 12px;
-        padding: 14px 16px;
-        display: flex;
-        flex-direction: column;
-        gap: 10px;
-        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
-        transition: all 0.2s ease;
-    }
-    [data-theme="light"] .payment-card-item {
-        background: #ffffff;
-        border-color: #e2e8f0;
-        box-shadow: 0 1px 4px rgba(0, 0, 0, 0.05);
-    }
-    .payment-card-item:hover {
-        border-color: color-mix(in srgb, var(--lime) 35%, transparent);
-    }
-
-    .payment-card-header {
-        display: flex;
-        justify-content: space-between;
-        align-items: flex-start;
-        gap: 10px;
-        padding-bottom: 10px;
-        border-bottom: 1px solid color-mix(in srgb, var(--line) 60%, transparent);
-    }
-    [data-theme="light"] .payment-card-header {
-        border-bottom-color: #f1f5f9;
-    }
-
-    .payment-card-amount-row {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        gap: 10px;
-    }
-    .payment-card-amount {
-        font-size: 1.15rem;
-        font-weight: 800;
-        color: var(--lime);
-    }
-    [data-theme="light"] .payment-card-amount {
-        color: #15803d;
-    }
-
-    .payment-card-method {
-        display: inline-flex;
-        align-items: center;
-        font-size: 12px;
-        color: var(--muted);
-        background: rgba(128, 128, 128, 0.08);
-        padding: 3px 8px;
-        border-radius: 6px;
-    }
-
-    .payment-card-details {
-        display: grid;
-        grid-template-columns: 1fr 1fr;
-        gap: 8px;
-    }
-    .payment-card-detail-item {
-        display: flex;
-        flex-direction: column;
-        gap: 2px;
-    }
-    .payment-card-detail-item .detail-label {
-        font-size: 11px;
-        font-weight: 600;
-        text-transform: uppercase;
-        letter-spacing: 0.5px;
-        color: var(--muted);
-    }
-    .payment-card-detail-item .detail-val {
-        font-size: 13px;
-        font-weight: 500;
-        color: var(--ink);
-    }
-    .receipt-pill {
-        font-family: monospace;
-        font-size: 11.5px !important;
-        color: var(--muted) !important;
-    }
-
-    /* Compact 2-column Stat Cards */
-    .payments-stats-row {
-        display: grid;
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-        gap: 12px;
-        margin-bottom: 20px;
-        max-width: 480px;
-    }
-    .payment-stat-card {
-        background: var(--bg);
-        padding: 10px 14px;
-        border-radius: 8px;
-        border: 1px solid var(--line);
-        display: flex;
-        flex-direction: column;
-        justify-content: center;
-        min-width: 0;
-        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
-        transition: border-color 0.15s ease;
-    }
-    .payment-stat-label {
-        color: var(--muted);
-        font-size: 11.5px;
-        font-weight: 600;
-        margin-bottom: 3px;
-        text-transform: uppercase;
-        letter-spacing: 0.35px;
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
-    }
-    .payment-stat-value {
-        font-size: 18px;
-        font-weight: 700;
-        line-height: 1.25;
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
-    }
-    [data-theme="light"] .payment-stat-card {
-        background: #ffffff;
-        border-color: #cbd5e1;
-        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03);
-    }
-    </style>
     <?php
     render_footer();
 }
