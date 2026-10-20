@@ -694,6 +694,16 @@ function scanner_page(): void
 
     $initialStats = $getStats();
     $initialActivity = $getRecentActivity(15);
+    $countFeedAll = count($initialActivity);
+    $countFeedIn = count(array_filter($initialActivity, fn($a) => empty($a['is_checkout'])));
+    $countFeedOut = count(array_filter($initialActivity, fn($a) => !empty($a['is_checkout'])));
+
+    $formatBadgeCount = function(int $n): string {
+        if ($n < 1000) return (string) $n;
+        if ($n < 10000) return rtrim(rtrim(number_format($n / 1000, 1), '0'), '.') . 'k';
+        if ($n < 1000000) return round($n / 1000) . 'k';
+        return rtrim(rtrim(number_format($n / 1000000, 1), '0'), '.') . 'M';
+    };
     $currentGymWalkInFee = $currentGymId 
         ? (float) (scalar('SELECT walk_in_fee FROM gyms WHERE gym_id = ?', [$currentGymId]) ?: 100.0)
         : 100.0;
@@ -974,9 +984,18 @@ function scanner_page(): void
                             <span>Today's Attendance Feed</span>
                         </h3>
                         <div class="activity-feed-filter">
-                            <button type="button" class="filter-tab active" data-filter="all" onclick="filterActivity('all', this)">All</button>
-                            <button type="button" class="filter-tab" data-filter="in" onclick="filterActivity('in', this)">Inside</button>
-                            <button type="button" class="filter-tab" data-filter="out" onclick="filterActivity('out', this)">Checkouts</button>
+                            <button type="button" class="filter-tab active" data-filter="all" onclick="filterActivity('all', this)">
+                                <span>All</span>
+                                <span class="filter-count-badge" id="filter-badge-all" title="<?= number_format($countFeedAll) ?> records"><?= $formatBadgeCount($countFeedAll) ?></span>
+                            </button>
+                            <button type="button" class="filter-tab" data-filter="in" onclick="filterActivity('in', this)">
+                                <span>Inside</span>
+                                <span class="filter-count-badge badge-in" id="filter-badge-in" title="<?= number_format($countFeedIn) ?> inside"><?= $formatBadgeCount($countFeedIn) ?></span>
+                            </button>
+                            <button type="button" class="filter-tab" data-filter="out" onclick="filterActivity('out', this)">
+                                <span>Checkouts</span>
+                                <span class="filter-count-badge badge-out" id="filter-badge-out" title="<?= number_format($countFeedOut) ?> checkouts"><?= $formatBadgeCount($countFeedOut) ?></span>
+                            </button>
                         </div>
                     </div>
 

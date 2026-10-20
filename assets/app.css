@@ -1859,8 +1859,10 @@ code {
 
 @media (max-width: 640px) {
     .shell {
-        width: min(100% - 24px, 1308px);
-        margin-top: 14px;
+        width: calc(100% - 24px);
+        max-width: 1308px;
+        margin: 14px auto 56px;
+        box-sizing: border-box;
     }
 
     .topbar {

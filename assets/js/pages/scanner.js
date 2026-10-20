@@ -996,6 +996,51 @@
             `;
 
             activityList.insertBefore(row, activityList.firstChild);
+
+            // Limit feed DOM elements to prevent memory leakage while keeping feed snappy
+            const maxFeedItems = 50;
+            const currentItems = activityList.querySelectorAll('.activity-item');
+            if (currentItems.length > maxFeedItems) {
+                for (let i = maxFeedItems; i < currentItems.length; i++) {
+                    currentItems[i].remove();
+                }
+            }
+
+            updateFeedFilterBadges();
+        }
+
+        function formatBadgeNum(n) {
+            if (n < 1000) return String(n);
+            if (n < 10000) return (n / 1000).toFixed(1).replace(/\.0$/, '') + 'k';
+            if (n < 1000000) return Math.round(n / 1000) + 'k';
+            return (n / 1000000).toFixed(1).replace(/\.0$/, '') + 'M';
+        }
+
+        function updateFeedFilterBadges() {
+            const items = document.querySelectorAll('#activity-list .activity-item');
+            let total = items.length;
+            let inCount = 0;
+            let outCount = 0;
+            items.forEach(it => {
+                const st = it.getAttribute('data-status');
+                if (st === 'in') inCount++;
+                else if (st === 'out') outCount++;
+            });
+            const bAll = document.getElementById('filter-badge-all');
+            const bIn = document.getElementById('filter-badge-in');
+            const bOut = document.getElementById('filter-badge-out');
+            if (bAll) {
+                bAll.textContent = formatBadgeNum(total);
+                bAll.title = total.toLocaleString() + ' records';
+            }
+            if (bIn) {
+                bIn.textContent = formatBadgeNum(inCount);
+                bIn.title = inCount.toLocaleString() + ' inside';
+            }
+            if (bOut) {
+                bOut.textContent = formatBadgeNum(outCount);
+                bOut.title = outCount.toLocaleString() + ' checkouts';
+            }
         }
 
         // Dedicated offscreen instance for file scans (does not interfere with active camera stream)
@@ -1431,6 +1476,7 @@
         getDB().then(() => {
             updateQueueBadgeUI();
             updateRosterCacheCountUI();
+            updateFeedFilterBadges();
             if (navigator.onLine) {
                 setNetworkStatus(true);
                 refreshOfflineRoster(false);
@@ -1440,6 +1486,7 @@
             }
         }).catch(err => {
             console.warn('IndexedDB initialization failed:', err);
+            updateFeedFilterBadges();
         });
 
     })();
