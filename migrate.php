@@ -111,7 +111,13 @@ try {
         "ALTER TABLE food_items ADD COLUMN verified_by_user_id INT DEFAULT NULL AFTER verified_at",
         "ALTER TABLE food_items ADD COLUMN created_by_user_id INT DEFAULT NULL AFTER verified_by_user_id",
         "CREATE INDEX idx_food_verification ON food_items (verification_status, gym_id)",
-        "UPDATE food_items SET verification_status = 'verified' WHERE source = 'system' OR gym_id IS NULL"
+        "UPDATE food_items SET verification_status = 'verified' WHERE source = 'system' OR gym_id IS NULL",
+        "ALTER TABLE gyms ADD COLUMN latitude DECIMAL(10, 8) DEFAULT NULL",
+        "ALTER TABLE gyms ADD COLUMN longitude DECIMAL(11, 8) DEFAULT NULL",
+        "ALTER TABLE gyms ADD COLUMN geofence_radius_meters SMALLINT UNSIGNED DEFAULT 100",
+        "UPDATE gyms SET latitude = 35.6762, longitude = 139.6503 WHERE gym_id = 5 AND latitude IS NULL",
+        "UPDATE gyms SET latitude = 35.6895, longitude = 139.6917 WHERE gym_id = 9 AND latitude IS NULL",
+        "UPDATE gyms SET latitude = 14.5547, longitude = 121.0244 WHERE gym_id = 21 AND latitude IS NULL"
     ];
 
     foreach ($migrations as $sql) {

@@ -47,13 +47,14 @@ function gym_selection_page(): void
     render_header('Select Your Gym', $user);
     ?>
     <link rel="stylesheet" href="<?= h(asset_url('css/pages/gym_selection.css')) ?>">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 
     <div class="panel gym-select">
         <div class="gym-hero" id="gym-header">
             <div class="eyebrow"><span class="dot"></span> Membership</div>
             <h1>
                 <?php if ($userGoal): ?>
-                    Gyms matched to your <mark><?= h(str_replace('-', ' ', $userGoal)) ?></mark> goal
+                    Gyms matched to your <mark><?= h(str_replace(['-', '_'], ' ', $userGoal)) ?></mark> goal
                 <?php else: ?>
                     Find your <mark>perfect</mark> gym
                 <?php endif; ?>
@@ -79,15 +80,35 @@ function gym_selection_page(): void
         <?php if (empty($gymData)): ?>
             <p style="text-align: center; color: var(--muted);">No gyms are currently available on the platform.</p>
         <?php else: ?>
-            <div class="gym-search-wrap">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <circle cx="11" cy="11" r="7"></circle>
-                    <path d="M21 21l-3.8-3.8"></path>
-                </svg>
-                <input type="text" id="gym-search" placeholder="Search gyms by name or location..." autocomplete="off">
+            <div class="gym-toolbar">
+                <div class="gym-search-wrap">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="11" cy="11" r="7"></circle>
+                        <path d="M21 21l-3.8-3.8"></path>
+                    </svg>
+                    <input type="text" id="gym-search" placeholder="Search gyms by name or location..." autocomplete="off">
+                </div>
+                <div class="gym-toolbar-actions">
+                    <button type="button" class="btn-gym-tool" id="btn-near-me" title="Sort gyms nearest to your location">
+                        <svg class="geo-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+                            <polygon points="3 11 22 2 13 21 11 13 3 11"/>
+                        </svg>
+                        <span class="btn-text">Near Me</span>
+                    </button>
+                    <div class="gym-view-switcher" role="tablist" aria-label="View switch">
+                        <button type="button" class="view-btn is-active" id="btn-view-cards" aria-label="Cards View" title="Show cards carousel">
+                            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+                            <span>Cards</span>
+                        </button>
+                        <button type="button" class="view-btn" id="btn-view-map" aria-label="Map View" title="Show interactive map">
+                            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6"/><line x1="8" y1="2" x2="8" y2="18"/><line x1="16" y1="6" x2="16" y2="22"/></svg>
+                            <span>Map</span>
+                        </button>
+                    </div>
+                </div>
             </div>
 
-            <div class="carousel-wrap">
+            <div class="carousel-wrap" id="gym-carousel-wrap">
                 <button type="button" class="carousel-nav prev" id="carousel-prev" aria-label="Previous gym">
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"></path></svg>
                 </button>
@@ -107,7 +128,7 @@ function gym_selection_page(): void
                             }
                         }
                     ?>
-                        <div class="gym-card" tabindex="0" role="button" style="--lime: <?= !empty($gym['brand_color']) ? h($gym['brand_color']) : '#c7ff22' ?>;" onclick="openGymModal(<?= (int)$index ?>)" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openGymModal(<?= (int)$index ?>);}" data-search="<?= h(mb_strtolower($gym['name'] . ' ' . $gym['address'])) ?>">
+                        <div class="gym-card" tabindex="0" role="button" style="--lime: <?= !empty($gym['brand_color']) ? h($gym['brand_color']) : '#c7ff22' ?>;" onclick="openGymModal(<?= (int)$index ?>)" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openGymModal(<?= (int)$index ?>);}" data-index="<?= (int)$index ?>" data-gym-id="<?= (int)$gym['gym_id'] ?>" data-lat="<?= $gym['latitude'] !== null ? (float)$gym['latitude'] : '' ?>" data-lng="<?= $gym['longitude'] !== null ? (float)$gym['longitude'] : '' ?>" data-search="<?= h(mb_strtolower($gym['name'] . ' ' . $gym['address'])) ?>">
                             <?php if ($isMatch): ?>
                                 <div class="gym-badge"><span class="dot"></span> Recommended</div>
                             <?php endif; ?>
@@ -122,6 +143,7 @@ function gym_selection_page(): void
                             <p class="addr-row">
                                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle></svg>
                                 <span><?= h($gym['address']) ?></span>
+                                <span class="gym-distance-badge" id="dist-badge-<?= (int)$gym['gym_id'] ?>" style="display: none;"></span>
                             </p>
                             <div class="gym-chip-row">
                                 <?php $gStats = $gym['rating_stats'] ?? ['avg_rating' => 0, 'total_reviews' => 0]; ?>
@@ -152,6 +174,27 @@ function gym_selection_page(): void
 
             <div class="carousel-dots" id="carousel-dots"></div>
 
+            <!-- Interactive Map Wrapper -->
+            <div class="gym-map-wrapper" id="gym-map-wrapper" style="display: none;">
+                <div class="gym-map-header">
+                    <div class="map-status-info">
+                        <span class="map-status-dot"></span>
+                        <span id="map-status-text">Interactive Gym Map • Click a pin to preview</span>
+                    </div>
+                    <div class="map-actions">
+                        <button type="button" class="map-action-btn" id="btn-recenter-user" title="Center on my location" style="display: none;">
+                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><polygon points="3 11 22 2 13 21 11 13 3 11"/></svg>
+                            <span>My Location</span>
+                        </button>
+                        <button type="button" class="map-action-btn" id="btn-fit-all-gyms" title="Fit all gyms in view">
+                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 3h6v6"/><path d="M9 21H3v-6"/><path d="M21 3l-7 7"/><path d="M3 21l7-7"/></svg>
+                            <span>Fit All</span>
+                        </button>
+                    </div>
+                </div>
+                <div id="gym-map"></div>
+            </div>
+
             <div class="gym-no-results" id="gym-no-results">No gyms match your search.</div>
         <?php endif; ?>
 
@@ -170,6 +213,7 @@ function gym_selection_page(): void
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/gsap.min.js"></script>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <!-- Gym Selection Configuration & Script -->
     <script>
     window.GYM_SELECTION_CONFIG = {

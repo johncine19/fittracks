@@ -121,6 +121,8 @@ function load_gym_selection_data(array $gyms): array
         if (!gym_has_feature('custom_branding', $gym)) {
             $gym['brand_color'] = null;
         }
+        $gym['latitude'] = isset($gym['latitude']) && $gym['latitude'] !== null ? (float) $gym['latitude'] : null;
+        $gym['longitude'] = isset($gym['longitude']) && $gym['longitude'] !== null ? (float) $gym['longitude'] : null;
     }
     unset($gym);
 

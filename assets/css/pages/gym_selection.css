@@ -126,6 +126,8 @@
             position: relative;
             max-width: 420px;
             margin: 0 auto 10px;
+            height: 44px;
+            box-sizing: border-box;
         }
         .gym-search-wrap svg {
             position: absolute;
@@ -137,15 +139,18 @@
             color: var(--muted);
             pointer-events: none;
             transition: color 0.2s;
+            z-index: 2;
         }
         #gym-search {
             width: 100%;
+            height: 44px;
+            box-sizing: border-box;
             background: rgba(14, 18, 17, 0.82);
             backdrop-filter: blur(12px);
             -webkit-backdrop-filter: blur(12px);
             border: 1px solid rgba(255, 255, 255, 0.1);
             border-radius: 10px;
-            padding: 12px 14px 12px 42px;
+            padding: 0 14px 0 42px;
             color: var(--ink);
             font-size: 0.92rem;
             outline: none;
@@ -1084,3 +1089,548 @@
             .pulse-line path { animation: none; stroke-dashoffset: 0; }
             .gym-badge .dot, .gym-hero .eyebrow .dot { animation: none; }
         }
+
+        /* ---------------- Toolbar & Actions ---------------- */
+        .gym-toolbar {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+            max-width: 720px;
+            margin: 0 auto 24px;
+            flex-wrap: wrap;
+        }
+
+        .gym-toolbar .gym-search-wrap {
+            flex: 1 1 280px;
+            min-width: 240px;
+            margin: 0;
+            max-width: none;
+            height: 44px;
+        }
+
+        .gym-toolbar-actions {
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+            flex-shrink: 0;
+        }
+
+        .btn-gym-tool {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            height: 44px;
+            padding: 0 16px;
+            border-radius: 10px;
+            background: rgba(18, 23, 33, 0.85);
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            color: #f8fafc;
+            font-size: 0.88rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.22s ease;
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+        }
+
+        .btn-gym-tool:hover {
+            border-color: var(--lime);
+            color: var(--lime);
+            background: rgba(199, 255, 34, 0.08);
+            box-shadow: 0 0 14px rgba(199, 255, 34, 0.2);
+            transform: translateY(-1px);
+        }
+
+        .btn-gym-tool.is-locating .geo-icon {
+            animation: spin-geo 1s linear infinite;
+            color: var(--lime);
+        }
+
+        @keyframes spin-geo {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .btn-gym-tool.is-active {
+            border-color: var(--lime);
+            color: var(--lime);
+            background: rgba(199, 255, 34, 0.12);
+            box-shadow: 0 0 12px rgba(199, 255, 34, 0.25);
+        }
+
+        /* ---------------- View Switcher ---------------- */
+        .gym-view-switcher {
+            display: inline-flex;
+            align-items: center;
+            background: rgba(14, 18, 26, 0.9);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 10px;
+            padding: 3px;
+            height: 44px;
+            box-sizing: border-box;
+            backdrop-filter: blur(12px);
+        }
+
+        .gym-view-switcher .view-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 0 14px;
+            height: 36px;
+            border-radius: 7px;
+            border: none;
+            background: transparent;
+            color: #94a3b8;
+            font-size: 0.84rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .gym-view-switcher .view-btn:hover {
+            color: #f8fafc;
+        }
+
+        .gym-view-switcher .view-btn.is-active {
+            background: var(--lime);
+            color: #0d121a;
+            font-weight: 700;
+            box-shadow: 0 2px 8px rgba(199, 255, 34, 0.35);
+        }
+
+        /* ---------------- Distance Badge ---------------- */
+        .gym-distance-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            margin-left: auto;
+            padding: 3px 8px;
+            border-radius: 999px;
+            background: rgba(199, 255, 34, 0.12);
+            border: 1px solid rgba(199, 255, 34, 0.35);
+            color: var(--lime);
+            font-size: 11.5px;
+            font-weight: 700;
+            letter-spacing: 0.02em;
+            white-space: nowrap;
+        }
+
+        /* ---------------- Interactive Map Wrapper ---------------- */
+        .gym-map-wrapper {
+            max-width: 1200px;
+            margin: 0 auto 30px;
+            border-radius: 18px;
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            background: #0d121b;
+            overflow: hidden;
+            box-shadow: 0 20px 45px rgba(0, 0, 0, 0.65);
+            position: relative;
+        }
+
+        .gym-map-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 12px 20px;
+            background: rgba(14, 18, 27, 0.95);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+            font-size: 0.85rem;
+            color: #94a3b8;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+
+        .map-status-info {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-weight: 500;
+        }
+
+        .map-status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--lime);
+            display: inline-block;
+            box-shadow: 0 0 8px var(--lime);
+            animation: pulse-dot 2s ease-out infinite;
+        }
+
+        .map-actions {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .map-action-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 12px;
+            border-radius: 6px;
+            background: rgba(255, 255, 255, 0.06);
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            color: #cbd5e1;
+            font-size: 12px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .map-action-btn:hover {
+            color: #f8fafc;
+            border-color: var(--lime);
+            background: rgba(199, 255, 34, 0.08);
+        }
+
+        #gym-map {
+            width: 100%;
+            height: 540px;
+            background: #090c12;
+            position: relative;
+            z-index: 1;
+        }
+
+        @media (max-width: 768px) {
+            #gym-map {
+                height: 400px;
+            }
+            .gym-toolbar {
+                flex-direction: column;
+                align-items: stretch;
+                gap: 12px;
+                margin-bottom: 20px;
+                width: 100%;
+                max-width: 100%;
+            }
+            .gym-toolbar .gym-search-wrap {
+                flex: none !important;
+                width: 100% !important;
+                height: 44px !important;
+                min-width: 0 !important;
+                margin: 0 !important;
+            }
+            #gym-search {
+                width: 100% !important;
+                height: 44px !important;
+                box-sizing: border-box !important;
+            }
+            .gym-toolbar-actions {
+                display: flex !important;
+                justify-content: space-between;
+                align-items: center;
+                width: 100%;
+                gap: 10px;
+            }
+            .btn-gym-tool {
+                flex: 1;
+                justify-content: center;
+                height: 42px;
+                padding: 0 12px;
+                font-size: 0.84rem;
+            }
+            .gym-view-switcher {
+                flex: 1;
+                justify-content: center;
+                height: 42px;
+            }
+            .gym-view-switcher .view-btn {
+                flex: 1;
+                justify-content: center;
+                padding: 0 10px;
+                font-size: 0.8rem;
+            }
+        }
+
+        /* ---------------- Leaflet Overrides (Dark Mode) ---------------- */
+        .leaflet-container {
+            font-family: var(--font-ui) !important;
+            background: #090c12 !important;
+        }
+
+        .leaflet-tile-pane {
+            filter: invert(100%) hue-rotate(180deg) brightness(88%) contrast(90%);
+        }
+
+        .leaflet-bar {
+            border: 1px solid rgba(255, 255, 255, 0.15) !important;
+            border-radius: 10px !important;
+            overflow: hidden !important;
+            box-shadow: 0 4px 14px rgba(0, 0, 0, 0.45) !important;
+        }
+
+        .leaflet-bar a {
+            background: #111722 !important;
+            color: #f8fafc !important;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1) !important;
+            transition: background 0.2s, color 0.2s;
+        }
+
+        .leaflet-bar a:hover {
+            background: #1a2332 !important;
+            color: var(--lime) !important;
+        }
+
+        .leaflet-control-attribution {
+            background: rgba(10, 14, 20, 0.75) !important;
+            color: #64748b !important;
+            font-size: 10px !important;
+            backdrop-filter: blur(4px);
+        }
+
+        .leaflet-control-attribution a {
+            color: #94a3b8 !important;
+        }
+
+        /* Leaflet Dark Glassmorphism Popup */
+        .leaflet-popup-content-wrapper {
+            background: rgba(13, 18, 27, 0.96) !important;
+            backdrop-filter: blur(14px) !important;
+            -webkit-backdrop-filter: blur(14px) !important;
+            border: 1px solid rgba(199, 255, 34, 0.35) !important;
+            border-radius: 14px !important;
+            color: #f8fafc !important;
+            box-shadow: 0 16px 36px rgba(0, 0, 0, 0.65) !important;
+            padding: 0 !important;
+            overflow: hidden;
+        }
+
+        .leaflet-popup-tip-container {
+            margin-top: -1px;
+        }
+
+        .leaflet-popup-tip {
+            background: rgba(13, 18, 27, 0.96) !important;
+            border: 1px solid rgba(199, 255, 34, 0.35) !important;
+            border-top: none;
+            border-left: none;
+        }
+
+        .leaflet-popup-close-button {
+            color: #94a3b8 !important;
+            top: 10px !important;
+            right: 12px !important;
+            font-size: 18px !important;
+            transition: color 0.2s;
+        }
+
+        .leaflet-popup-close-button:hover {
+            color: var(--lime) !important;
+        }
+
+        .leaflet-popup-content {
+            margin: 0 !important;
+            line-height: 1.4 !important;
+            min-width: 250px;
+            max-width: 320px;
+        }
+
+        /* Map Pin Popup Inner Content */
+        .map-popup-card {
+            padding: 16px;
+        }
+
+        .map-popup-top {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 10px;
+        }
+
+        .map-popup-logo {
+            width: 44px;
+            height: 44px;
+            border-radius: 10px;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+            flex-shrink: 0;
+            font-size: 1.2rem;
+            font-weight: 700;
+            color: var(--lime);
+        }
+
+        .map-popup-logo img {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+        }
+
+        .map-popup-meta h4 {
+            margin: 0 0 3px;
+            font-size: 1rem;
+            font-weight: 700;
+            color: #f8fafc;
+        }
+
+        .map-popup-meta p.addr {
+            margin: 0;
+            font-size: 11.5px;
+            color: #94a3b8;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            white-space: normal;
+        }
+
+        .map-popup-stats {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 12px;
+            flex-wrap: wrap;
+        }
+
+        .map-popup-chip {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            padding: 3px 8px;
+            border-radius: 6px;
+            font-size: 11px;
+            font-weight: 600;
+            background: rgba(255, 255, 255, 0.06);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            color: #cbd5e1;
+        }
+
+        .map-popup-chip.rating {
+            background: rgba(251, 191, 36, 0.1);
+            border-color: rgba(251, 191, 36, 0.3);
+            color: #fbbf24;
+        }
+
+        .map-popup-chip.dist {
+            background: rgba(199, 255, 34, 0.1);
+            border-color: rgba(199, 255, 34, 0.3);
+            color: var(--lime);
+        }
+
+        .map-popup-actions {
+            display: flex;
+            gap: 8px;
+        }
+
+        .map-popup-btn {
+            flex: 1;
+            padding: 8px 12px;
+            border-radius: 8px;
+            font-size: 12.5px;
+            font-weight: 700;
+            text-align: center;
+            cursor: pointer;
+            text-decoration: none;
+            transition: all 0.2s ease;
+            border: none;
+        }
+
+        .map-popup-btn.primary {
+            background: var(--lime);
+            color: #0b0f17;
+            box-shadow: 0 4px 12px rgba(199, 255, 34, 0.25);
+        }
+
+        .map-popup-btn.primary:hover {
+            box-shadow: 0 6px 16px rgba(199, 255, 34, 0.4);
+            transform: translateY(-1px);
+        }
+
+        .map-popup-btn.secondary {
+            background: rgba(255, 255, 255, 0.08);
+            color: #f8fafc;
+            border: 1px solid rgba(255, 255, 255, 0.15);
+        }
+
+        .map-popup-btn.secondary:hover {
+            background: rgba(255, 255, 255, 0.14);
+            color: #fff;
+        }
+
+        /* ---------------- Custom Leaflet Markers ---------------- */
+        .gym-map-pin {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 38px;
+            height: 38px;
+            border-radius: 50% 50% 50% 0;
+            transform: rotate(-45deg);
+            background: #111722;
+            border: 2px solid var(--lime);
+            box-shadow: 0 6px 16px rgba(0, 0, 0, 0.5), 0 0 12px rgba(199, 255, 34, 0.4);
+            transition: transform 0.25s ease, box-shadow 0.25s ease;
+            cursor: pointer;
+        }
+
+        .gym-map-pin:hover {
+            transform: rotate(-45deg) scale(1.15);
+            box-shadow: 0 8px 22px rgba(0, 0, 0, 0.6), 0 0 20px rgba(199, 255, 34, 0.65);
+        }
+
+        .gym-map-pin .pin-content {
+            transform: rotate(45deg);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            color: var(--lime);
+            font-weight: 700;
+            font-size: 13px;
+        }
+
+        .gym-map-pin.is-recommended {
+            border-color: #fbbf24;
+            box-shadow: 0 6px 16px rgba(0, 0, 0, 0.5), 0 0 14px rgba(251, 191, 36, 0.5);
+        }
+
+        .gym-map-pin.is-recommended .pin-content {
+            color: #fbbf24;
+        }
+
+        /* User Pulse Radar Marker */
+        .user-pulse-marker {
+            position: relative;
+            width: 22px;
+            height: 22px;
+        }
+
+        .user-pulse-dot {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 14px;
+            height: 14px;
+            border-radius: 50%;
+            background: #38bdf8;
+            border: 2.5px solid #ffffff;
+            box-shadow: 0 0 12px #38bdf8;
+            transform: translate(-50%, -50%);
+            z-index: 2;
+        }
+
+        .user-pulse-ring {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 38px;
+            height: 38px;
+            border-radius: 50%;
+            background: rgba(56, 189, 248, 0.25);
+            border: 1.5px solid rgba(56, 189, 248, 0.6);
+            transform: translate(-50%, -50%);
+            animation: user-radar 2s ease-out infinite;
+            z-index: 1;
+        }
+
+        @keyframes user-radar {
+            0% { transform: translate(-50%, -50%) scale(0.4); opacity: 1; }
+            100% { transform: translate(-50%, -50%) scale(1.6); opacity: 0; }
+        }
+

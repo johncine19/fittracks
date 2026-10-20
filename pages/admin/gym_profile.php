@@ -33,6 +33,11 @@ function gym_profile_page(): void
     if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && !isset($_POST['delete_gallery_image'])) {
         $name = trim((string) post('name'));
         $address = trim((string) post('address'));
+        $latitude = post('latitude') !== null && post('latitude') !== '' ? (float)post('latitude') : null;
+        $longitude = post('longitude') !== null && post('longitude') !== '' ? (float)post('longitude') : null;
+        $geofenceRadius = post('geofence_radius_meters') !== null && post('geofence_radius_meters') !== '' 
+            ? max(20, min(1000, (int)post('geofence_radius_meters'))) 
+            : 100;
         $contact = trim((string) post('contact_info'));
         $walkInFee = max(0.0, (float) (post('walk_in_fee') !== null ? post('walk_in_fee') : 100.0));
         $inactivityThreshold = post('inactivity_threshold_days') !== '' && post('inactivity_threshold_days') !== null 
@@ -192,8 +197,8 @@ function gym_profile_page(): void
 
         if ($name && $address) {
             $contactInfoVal = $contact !== '' ? $contact : null;
-            $pdo->prepare('UPDATE gyms SET name = ?, address = ?, contact_info = ?, fb_page_url = ?, walk_in_fee = ?, inactivity_threshold_days = ?, inactivity_cooldown_days = ?, auto_inactivity_alerts = ?, business_permit_url = ?, barangay_clearance_url = ?, fire_safety_cert_url = ?, logo_url = ?, cover_image_url = ?, public_description = ?, brand_color = ?, staff_hide_financials = ?, eod_email_summary = ?, pending_eod_gate_time = ?, eod_gate_effective_date = ?, payout_channel = ?, payout_account_number = ?, payout_account_name = ? WHERE gym_id = ?')
-                ->execute([$name, $address, $contactInfoVal, $fbPageUrl, $walkInFee, $inactivityThreshold, $inactivityCooldown, $autoInactivityAlerts, $permitUrl, $brgyUrl, $fireSafetyUrl, $logoUrl, $coverImageUrl, $publicDescription, $brandColor, $staffHideFinancials, $eodEmailSummary, $pendingGateTime, $pendingGateEffectiveDate, $payoutChannel, $payoutAccountNumber, $payoutAccountName, $gym['gym_id']]);
+            $pdo->prepare('UPDATE gyms SET name = ?, address = ?, contact_info = ?, fb_page_url = ?, walk_in_fee = ?, inactivity_threshold_days = ?, inactivity_cooldown_days = ?, auto_inactivity_alerts = ?, business_permit_url = ?, barangay_clearance_url = ?, fire_safety_cert_url = ?, logo_url = ?, cover_image_url = ?, public_description = ?, brand_color = ?, staff_hide_financials = ?, eod_email_summary = ?, pending_eod_gate_time = ?, eod_gate_effective_date = ?, payout_channel = ?, payout_account_number = ?, payout_account_name = ?, latitude = ?, longitude = ?, geofence_radius_meters = ? WHERE gym_id = ?')
+                ->execute([$name, $address, $contactInfoVal, $fbPageUrl, $walkInFee, $inactivityThreshold, $inactivityCooldown, $autoInactivityAlerts, $permitUrl, $brgyUrl, $fireSafetyUrl, $logoUrl, $coverImageUrl, $publicDescription, $brandColor, $staffHideFinancials, $eodEmailSummary, $pendingGateTime, $pendingGateEffectiveDate, $payoutChannel, $payoutAccountNumber, $payoutAccountName, $latitude, $longitude, $geofenceRadius, $gym['gym_id']]);
             flash('Gym settings updated successfully.', 'success');
             redirect('gym_profile');
         } else {
@@ -226,6 +231,12 @@ function gym_profile_page(): void
     render_header('Gym Profile & Settings', $user);
 ?>
     <link rel="stylesheet" href="<?= h(asset_url('css/pages/gym_profile.css')) ?>">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <style>
+    #owner-pin-map .leaflet-tile-pane {
+        filter: invert(100%) hue-rotate(180deg) brightness(88%) contrast(90%);
+    }
+    </style>
 
     <div class="profile-settings-wrapper">
         <div class="profile-page-header">
@@ -396,14 +407,76 @@ function gym_profile_page(): void
                             </div>
 
                             <div>
-                                <label class="field-label">Physical Address / Location <span style="color: var(--danger, #ef4444);">*</span></label>
+                                <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; flex-wrap: wrap; gap: 6px;">
+                                    <label class="field-label" style="margin: 0;">Physical Address / Location <span style="color: var(--danger, #ef4444);">*</span></label>
+                                    <button type="button" class="btn-detect-loc-trigger" id="btn-address-use-loc" style="background: rgba(132, 204, 22, 0.12); border: 1px solid rgba(132, 204, 22, 0.35); color: var(--lime, #84cc16); font-size: 11.5px; font-weight: 700; padding: 3px 10px; border-radius: 6px; cursor: pointer; display: inline-flex; align-items: center; gap: 5px; transition: all 0.2s;" title="Fill physical address and map pin from current device location">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><polygon points="3 11 22 2 13 21 11 13 3 11"/></svg>
+                                        <span class="btn-loc-text">Use My Current Location</span>
+                                    </button>
+                                </div>
                                 <div class="input-icon-wrap has-textarea">
                                     <span class="input-icon">
                                         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle></svg>
                                     </span>
-                                    <textarea name="address" class="input-with-icon" rows="2" required placeholder="e.g. 123 Fitness Ave, District 4"><?= h($gym['address']) ?></textarea>
+                                    <textarea name="address" id="gym_address" class="input-with-icon" rows="2" required placeholder="e.g. 123 Fitness Ave, District 4"><?= h($gym['address']) ?></textarea>
                                 </div>
                                 <span class="field-hint">Street address, building number, and city.</span>
+                            </div>
+
+                            <div class="span-full" style="grid-column: 1 / -1; background: rgba(255, 255, 255, 0.02); border: 1px solid var(--line, rgba(255, 255, 255, 0.1)); border-radius: 12px; padding: 18px; margin-top: 4px; margin-bottom: 6px;">
+                                <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; flex-wrap: wrap; gap: 8px;">
+                                    <div>
+                                        <label class="field-label" style="font-size: 13.5px; font-weight: 700; color: var(--ink); margin: 0; display: flex; align-items: center; gap: 6px;">
+                                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color: var(--lime, #84cc16);"><polygon points="3 11 22 2 13 21 11 13 3 11"/></svg>
+                                            Geolocation Coordinates &amp; Map Pin
+                                        </label>
+                                        <span class="field-hint" style="margin-top: 2px;">
+                                            Used for the Member <em>"Nearest to Me"</em> interactive map view and attendance QR geofencing.
+                                        </span>
+                                    </div>
+                                    <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+                                        <button type="button" class="btn btn-secondary" id="btn-detect-owner-loc" style="padding: 6px 14px; font-size: 12px; display: inline-flex; align-items: center; gap: 6px; border-radius: 8px;" title="Autodetect GPS position from this device">
+                                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"/></svg>
+                                            <span id="btn-detect-loc-text">Use My Current Location</span>
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 14px; margin-top: 10px;">
+                                    <div>
+                                        <label class="field-label" style="font-size: 12px;">Latitude</label>
+                                        <div class="input-icon-wrap">
+                                            <span class="input-icon" style="font-size: 11px; font-weight: 800; color: var(--lime, #84cc16);">LAT</span>
+                                            <input type="number" step="0.00000001" name="latitude" id="gym_latitude" class="input-with-icon" value="<?= h((string)($gym['latitude'] ?? '')) ?>" placeholder="e.g. 14.599512">
+                                        </div>
+                                    </div>
+
+                                    <div>
+                                        <label class="field-label" style="font-size: 12px;">Longitude</label>
+                                        <div class="input-icon-wrap">
+                                            <span class="input-icon" style="font-size: 11px; font-weight: 800; color: var(--lime, #84cc16);">LNG</span>
+                                            <input type="number" step="0.00000001" name="longitude" id="gym_longitude" class="input-with-icon" value="<?= h((string)($gym['longitude'] ?? '')) ?>" placeholder="e.g. 120.984222">
+                                        </div>
+                                    </div>
+
+                                    <div>
+                                        <label class="field-label" style="font-size: 12px;">QR Check-In Geofence Radius (meters)</label>
+                                        <div class="input-icon-wrap">
+                                            <span class="input-icon" style="font-size: 11px; font-weight: 800; color: var(--muted);">±m</span>
+                                            <input type="number" min="20" max="1000" name="geofence_radius_meters" id="gym_geofence" class="input-with-icon" value="<?= h((string)($gym['geofence_radius_meters'] ?? '100')) ?>" placeholder="100">
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Interactive Pin Picker Map -->
+                                <div style="margin-top: 14px;">
+                                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                                        <span style="font-size: 11.5px; color: var(--muted); font-weight: 600;">
+                                            Drag the pin or click anywhere on the map to set your gym's physical location:
+                                        </span>
+                                    </div>
+                                    <div id="owner-pin-map" style="height: 250px; width: 100%; border-radius: 10px; border: 1px solid rgba(255,255,255,0.12); background: #0c1017; overflow: hidden; position: relative; z-index: 1;"></div>
+                                </div>
                             </div>
 
                             <div>
@@ -1334,6 +1407,176 @@ function gym_profile_page(): void
     };
     </script>
     <script src="<?= h(asset_url('js/pages/gym_profile.js')) ?>"></script>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script>
+    document.addEventListener('DOMContentLoaded', function () {
+        const mapContainer = document.getElementById('owner-pin-map');
+        const latInput = document.getElementById('gym_latitude');
+        const lngInput = document.getElementById('gym_longitude');
+        const btnDetect = document.getElementById('btn-detect-owner-loc');
+        const btnDetectText = document.getElementById('btn-detect-loc-text');
+
+        if (!mapContainer || typeof L === 'undefined') return;
+
+        let initLat = parseFloat(latInput.value);
+        let initLng = parseFloat(lngInput.value);
+        let hasCoords = !isNaN(initLat) && !isNaN(initLng);
+
+        // Fallback default: Manila Metro Center
+        const center = hasCoords ? [initLat, initLng] : [14.5995, 120.9842];
+        const zoom = hasCoords ? 15 : 12;
+
+        const map = L.map('owner-pin-map', {
+            center: center,
+            zoom: zoom,
+            zoomControl: true,
+            attributionControl: false
+        });
+
+        L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            maxZoom: 19,
+            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> contributors'
+        }).addTo(map);
+
+        let marker = null;
+
+        function setPin(lat, lng, pan = false) {
+            lat = parseFloat(lat.toFixed(8));
+            lng = parseFloat(lng.toFixed(8));
+            latInput.value = lat;
+            lngInput.value = lng;
+
+            if (marker) {
+                marker.setLatLng([lat, lng]);
+            } else {
+                const icon = L.divIcon({
+                    className: 'gym-marker-wrap',
+                    html: '<div style="background:#c7ff22; width:28px; height:28px; border-radius:50% 50% 50% 0; transform:rotate(-45deg); display:flex; align-items:center; justify-content:center; box-shadow:0 0 12px rgba(199,255,34,0.6); border:2px solid #000; cursor:grab;"><span style="transform:rotate(45deg); font-weight:800; font-size:12px; color:#000;">🏋️</span></div>',
+                    iconSize: [28, 28],
+                    iconAnchor: [14, 28]
+                });
+                marker = L.marker([lat, lng], { draggable: true, icon: icon }).addTo(map);
+
+                marker.on('dragend', function (e) {
+                    const pos = e.target.getLatLng();
+                    setPin(pos.lat, pos.lng, false);
+                });
+            }
+
+            if (pan) {
+                map.flyTo([lat, lng], Math.max(map.getZoom(), 15), { duration: 0.8 });
+            }
+        }
+
+        if (hasCoords) {
+            setPin(initLat, initLng, false);
+        }
+
+        map.on('click', function (e) {
+            setPin(e.latlng.lat, e.latlng.lng, false);
+        });
+
+        [latInput, lngInput].forEach(inp => {
+            inp.addEventListener('input', function () {
+                const lat = parseFloat(latInput.value);
+                const lng = parseFloat(lngInput.value);
+                if (!isNaN(lat) && !isNaN(lng)) {
+                    setPin(lat, lng, true);
+                }
+            });
+        });
+
+        const addressInput = document.getElementById('gym_address');
+        const btnAddressLoc = document.getElementById('btn-address-use-loc');
+
+        async function fetchAddressFromCoords(lat, lng) {
+            try {
+                const url = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}`;
+                const res = await fetch(url, { headers: { 'Accept': 'application/json' } });
+                if (!res.ok) return null;
+                const data = await res.json();
+                if (data && data.display_name) {
+                    return data.display_name;
+                }
+            } catch (err) {
+                console.warn('Reverse geocoding error:', err);
+            }
+            return null;
+        }
+
+        function triggerLocationAndAddressDetection(triggerBtn) {
+            if (!navigator.geolocation) {
+                alert('Geolocation is not supported by your browser.');
+                return;
+            }
+
+            const allLocBtns = document.querySelectorAll('.btn-detect-loc-trigger, #btn-detect-owner-loc');
+            allLocBtns.forEach(b => {
+                const txt = b.querySelector('.btn-loc-text') || b.querySelector('#btn-detect-loc-text') || b;
+                txt.textContent = 'Detecting GPS & Address...';
+            });
+
+            navigator.geolocation.getCurrentPosition(
+                async function (pos) {
+                    const lat = pos.coords.latitude;
+                    const lng = pos.coords.longitude;
+
+                    // 1. Move map pin & update Lat/Lng inputs
+                    setPin(lat, lng, true);
+
+                    // 2. Reverse-geocode to get street address
+                    const resolvedAddress = await fetchAddressFromCoords(lat, lng);
+                    if (resolvedAddress && addressInput) {
+                        addressInput.value = resolvedAddress;
+                        addressInput.style.borderColor = 'var(--lime, #84cc16)';
+                        setTimeout(() => { addressInput.style.borderColor = ''; }, 2000);
+                    }
+
+                    allLocBtns.forEach(b => {
+                        const txt = b.querySelector('.btn-loc-text') || b.querySelector('#btn-detect-loc-text') || b;
+                        txt.textContent = '✓ Location & Address Set!';
+                    });
+
+                    setTimeout(() => {
+                        allLocBtns.forEach(b => {
+                            const txt = b.querySelector('.btn-loc-text') || b.querySelector('#btn-detect-loc-text') || b;
+                            txt.textContent = 'Use My Current Location';
+                        });
+                    }, 2500);
+                },
+                function (err) {
+                    allLocBtns.forEach(b => {
+                        const txt = b.querySelector('.btn-loc-text') || b.querySelector('#btn-detect-loc-text') || b;
+                        txt.textContent = 'Use My Current Location';
+                    });
+                    let msg = 'Unable to retrieve device position: ' + err.message;
+                    if (err.code === 1) {
+                        msg = 'Location permission was denied in your browser. Please allow location access in your address bar.';
+                    }
+                    alert(msg);
+                },
+                { enableHighAccuracy: true, timeout: 10000 }
+            );
+        }
+
+        if (btnDetect) {
+            btnDetect.addEventListener('click', function () {
+                triggerLocationAndAddressDetection(this);
+            });
+        }
+
+        if (btnAddressLoc) {
+            btnAddressLoc.addEventListener('click', function () {
+                triggerLocationAndAddressDetection(this);
+            });
+        }
+
+        // Invalidate map size after DOM settles
+        setTimeout(function () {
+            map.invalidateSize();
+        }, 300);
+    });
+    </script>
 <?php
     render_footer();
 }

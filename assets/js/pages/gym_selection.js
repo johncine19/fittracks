@@ -21,17 +21,17 @@ const FT_CSRF_TOKEN = FT_CONFIG.csrfToken || (document.querySelector('meta[name=
     // ---------------------------------------------------------------
     (function initEntrance() {
         const header = document.getElementById('gym-header');
-        const searchWrap = document.querySelector('.gym-search-wrap');
+        const toolbar = document.querySelector('.gym-toolbar') || document.querySelector('.gym-search-wrap');
         const cards = document.querySelectorAll('.gym-card');
         if (!hasGSAP) return;
 
         gsap.set(header, { opacity: 0, y: 16 });
-        if (searchWrap) gsap.set(searchWrap, { opacity: 0, y: 12 });
+        if (toolbar) gsap.set(toolbar, { opacity: 0, y: 12 });
         gsap.set(cards, { opacity: 0, y: 24 });
 
         const tl = gsap.timeline({ defaults: { ease: 'power3.out' } });
         tl.to(header, { opacity: 1, y: 0, duration: 0.45 });
-        if (searchWrap) tl.to(searchWrap, { opacity: 1, y: 0, duration: 0.35 }, '-=0.2');
+        if (toolbar) tl.to(toolbar, { opacity: 1, y: 0, duration: 0.35 }, '-=0.2');
         tl.to(cards, { opacity: 1, y: 0, duration: 0.4, stagger: 0.08 }, '-=0.15');
 
         cards.forEach(function (c) {
@@ -616,3 +616,415 @@ const FT_CSRF_TOKEN = FT_CONFIG.csrfToken || (document.querySelector('meta[name=
              .replace(/"/g, "&quot;")
              .replace(/'/g, "&#039;");
     }
+
+    // ---------------------------------------------------------------
+    // Expose Modal Controllers globally for inline click / popup hooks
+    // ---------------------------------------------------------------
+    window.openGymModal = openGymModal;
+    window.closeGymModal = closeGymModal;
+
+    // ---------------------------------------------------------------
+    // Geolocation & Interactive Map View Controller
+    // ---------------------------------------------------------------
+    (function initGeoAndMap() {
+        const btnNearMe = document.getElementById('btn-near-me');
+        const btnViewCards = document.getElementById('btn-view-cards');
+        const btnViewMap = document.getElementById('btn-view-map');
+        const carouselWrap = document.getElementById('gym-carousel-wrap');
+        const dotsWrap = document.getElementById('carousel-dots');
+        const mapWrapper = document.getElementById('gym-map-wrapper');
+        const mapContainer = document.getElementById('gym-map');
+        const btnRecenterUser = document.getElementById('btn-recenter-user');
+        const btnFitAll = document.getElementById('btn-fit-all-gyms');
+        const mapStatusText = document.getElementById('map-status-text');
+        const searchInput = document.getElementById('gym-search');
+
+        let map = null;
+        let markersGroup = null;
+        const gymMarkersMap = new Map(); // gym_id => marker
+        let userMarker = null;
+        let userCoords = null; // { lat, lng }
+        let currentView = 'cards';
+
+        // Haversine Great-Circle Distance (in km)
+        function haversineDistance(lat1, lon1, lat2, lon2) {
+            const R = 6371; // Earth's mean radius in km
+            const dLat = (lat2 - lat1) * Math.PI / 180;
+            const dLon = (lon2 - lon1) * Math.PI / 180;
+            const a =
+                Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+                Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+                Math.sin(dLon / 2) * Math.sin(dLon / 2);
+            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+            return R * c;
+        }
+
+        function formatDistance(distKm) {
+            if (distKm === null || isNaN(distKm)) return '';
+            if (distKm < 1) {
+                return Math.round(distKm * 1000) + ' m away';
+            }
+            return distKm.toFixed(1) + ' km away';
+        }
+
+        // Initialize Leaflet Map (Lazy loaded on first map view click or after coords received)
+        function initMap() {
+            if (map || !mapContainer || typeof L === 'undefined') return;
+
+            // Default center: First gym with coords or Manila metro center
+            let defaultCenter = [14.5995, 120.9842];
+            const firstWithCoords = gymData.find(g => g.latitude && g.longitude);
+            if (firstWithCoords) {
+                defaultCenter = [parseFloat(firstWithCoords.latitude), parseFloat(firstWithCoords.longitude)];
+            }
+
+            map = L.map('gym-map', {
+                center: defaultCenter,
+                zoom: 13,
+                zoomControl: true,
+                attributionControl: true
+            });
+
+            // OpenStreetMap tiles with sleek dark mode filter
+            L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> contributors',
+                maxZoom: 19
+            }).addTo(map);
+
+            markersGroup = L.featureGroup().addTo(map);
+
+            // Populate Gym Markers
+            renderGymMarkers();
+            fitAllGyms();
+        }
+
+        function buildPopupContent(gym, index) {
+            const brandColor = gym.brand_color || '#c7ff22';
+            const ratingScore = gym.rating_stats ? parseFloat(gym.rating_stats.avg_rating).toFixed(1) : '0.0';
+            const reviewCount = gym.rating_stats ? parseInt(gym.rating_stats.total_reviews, 10) : 0;
+            const distText = gym._distanceKm ? formatDistance(gym._distanceKm) : '';
+
+            let logoHtml = gym.logo_url
+                ? `<img src="${getImageUrl(gym.logo_url)}" alt="Logo" loading="lazy" onerror="this.outerHTML='<span>${escapeHtml(gym.name.charAt(0))}</span>';">`
+                : `<span>${escapeHtml(gym.name.charAt(0))}</span>`;
+
+            return `
+                <div class="map-popup-card">
+                    <div class="map-popup-top">
+                        <div class="map-popup-logo" style="border-color: ${brandColor}40;">${logoHtml}</div>
+                        <div class="map-popup-meta">
+                            <h4>${escapeHtml(gym.name)}</h4>
+                            <p class="addr">
+                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle></svg>
+                                <span>${escapeHtml(gym.address)}</span>
+                            </p>
+                        </div>
+                    </div>
+                    <div class="map-popup-stats">
+                        <span class="map-popup-chip rating">★ ${ratingScore} (${reviewCount})</span>
+                        <span class="map-popup-chip">${gym.classes ? gym.classes.length : 0} Classes</span>
+                        ${distText ? `<span class="map-popup-chip dist">📍 ${distText}</span>` : ''}
+                    </div>
+                    <div class="map-popup-actions">
+                        <form method="post" action="index.php?page=gym_selection" style="margin: 0; flex: 1;">
+                            <input type="hidden" name="csrf_token" value="${FT_CSRF_TOKEN}">
+                            <input type="hidden" name="action" value="select_gym">
+                            <input type="hidden" name="gym_id" value="${gym.gym_id}">
+                            <button type="submit" class="map-popup-btn primary" style="width: 100%;">Select Gym</button>
+                        </form>
+                        <button type="button" class="map-popup-btn secondary" onclick="openGymModal(${index})">Details</button>
+                    </div>
+                </div>
+            `;
+        }
+
+        function renderGymMarkers() {
+            if (!map || !markersGroup) return;
+            markersGroup.clearLayers();
+            gymMarkersMap.clear();
+
+            gymData.forEach(function (gym, idx) {
+                if (!gym.latitude || !gym.longitude) return;
+
+                const lat = parseFloat(gym.latitude);
+                const lng = parseFloat(gym.longitude);
+                if (isNaN(lat) || isNaN(lng)) return;
+
+                const brandColor = gym.brand_color || '#c7ff22';
+                const initial = gym.name ? gym.name.charAt(0).toUpperCase() : 'G';
+
+                const icon = L.divIcon({
+                    className: 'gym-marker-wrap',
+                    html: `
+                        <div class="gym-map-pin" style="--lime: ${brandColor};" title="${escapeHtml(gym.name)}">
+                            <div class="pin-content">${escapeHtml(initial)}</div>
+                        </div>
+                    `,
+                    iconSize: [38, 38],
+                    iconAnchor: [19, 38],
+                    popupAnchor: [0, -38]
+                });
+
+                const marker = L.marker([lat, lng], { icon: icon, title: gym.name });
+                marker.bindPopup(buildPopupContent(gym, idx), {
+                    maxWidth: 320,
+                    minWidth: 260,
+                    className: 'gym-dark-popup'
+                });
+
+                markersGroup.addLayer(marker);
+                gymMarkersMap.set(gym.gym_id, marker);
+            });
+        }
+
+        function fitAllGyms() {
+            if (!map || !markersGroup || markersGroup.getLayers().length === 0) return;
+            const boundsGroup = L.featureGroup(markersGroup.getLayers());
+            if (userMarker) {
+                boundsGroup.addLayer(userMarker);
+            }
+            map.fitBounds(boundsGroup.getBounds().pad(0.18));
+        }
+
+        function updateUserMarkerOnMap(lat, lng) {
+            if (!map) return;
+
+            const userIcon = L.divIcon({
+                className: 'user-marker-wrap',
+                html: `
+                    <div class="user-pulse-marker">
+                        <div class="user-pulse-ring"></div>
+                        <div class="user-pulse-dot"></div>
+                    </div>
+                `,
+                iconSize: [24, 24],
+                iconAnchor: [12, 12]
+            });
+
+            if (userMarker) {
+                userMarker.setLatLng([lat, lng]);
+            } else {
+                userMarker = L.marker([lat, lng], { icon: userIcon, zIndexOffset: 1000 }).addTo(map);
+                userMarker.bindTooltip("Your Location", { permanent: false, direction: 'top', offset: [0, -12] });
+            }
+
+            if (btnRecenterUser) {
+                btnRecenterUser.style.display = 'inline-flex';
+            }
+        }
+
+        function reorderCardsByDistance() {
+            if (!carousel) return;
+            const cardList = Array.from(carousel.querySelectorAll('.gym-card'));
+            if (!cardList.length) return;
+
+            // Sort cards by calculated distance
+            cardList.sort((a, b) => {
+                const distA = parseFloat(a.dataset.distKm || Infinity);
+                const distB = parseFloat(b.dataset.distKm || Infinity);
+                return distA - distB;
+            });
+
+            // Re-append in sorted order
+            cardList.forEach(card => carousel.appendChild(card));
+
+            // Smooth scroll to first card
+            carousel.scrollTo({ left: 0, behavior: 'smooth' });
+
+            if (hasGSAP) {
+                gsap.fromTo(cardList, { opacity: 0.6, scale: 0.98 }, { opacity: 1, scale: 1, duration: 0.35, stagger: 0.05, ease: 'power2.out' });
+            }
+        }
+
+        function applyUserLocation(pos) {
+            const lat = pos.coords.latitude;
+            const lng = pos.coords.longitude;
+            userCoords = { lat, lng };
+
+            if (btnNearMe) {
+                btnNearMe.classList.remove('is-locating');
+                btnNearMe.classList.add('is-active');
+                const btnText = btnNearMe.querySelector('.btn-text');
+                if (btnText) btnText.textContent = 'Nearest Gyms';
+            }
+
+            // Calculate distance for all gyms
+            gymData.forEach(gym => {
+                if (gym.latitude && gym.longitude) {
+                    const gLat = parseFloat(gym.latitude);
+                    const gLng = parseFloat(gym.longitude);
+                    if (!isNaN(gLat) && !isNaN(gLng)) {
+                        const dist = haversineDistance(lat, lng, gLat, gLng);
+                        gym._distanceKm = dist;
+
+                        // Update distance badge on card
+                        const badge = document.getElementById('dist-badge-' + gym.gym_id);
+                        if (badge) {
+                            badge.textContent = '📍 ' + formatDistance(dist);
+                            badge.style.display = 'inline-flex';
+                        }
+
+                        // Update dataset on card
+                        const card = carousel ? carousel.querySelector(`[data-gym-id="${gym.gym_id}"]`) : null;
+                        if (card) {
+                            card.dataset.distKm = dist;
+                        }
+
+                        // Update marker popup content if map exists
+                        const marker = gymMarkersMap.get(gym.gym_id);
+                        if (marker) {
+                            const idx = gymData.findIndex(g => g.gym_id === gym.gym_id);
+                            marker.setPopupContent(buildPopupContent(gym, idx));
+                        }
+                    }
+                }
+            });
+
+            // Re-order carousel cards
+            reorderCardsByDistance();
+
+            // If map is initialized, update user marker & bounds
+            if (map) {
+                updateUserMarkerOnMap(lat, lng);
+                fitAllGyms();
+            }
+
+            if (mapStatusText) {
+                mapStatusText.textContent = 'Nearest gyms sorted by your GPS location';
+            }
+        }
+
+        function handleGeolocationError(err) {
+            if (btnNearMe) {
+                btnNearMe.classList.remove('is-locating');
+            }
+            let msg = 'Unable to retrieve your location.';
+            if (err.code === 1) {
+                msg = 'Location access was declined in your browser settings. You can still browse all gyms.';
+            } else if (err.code === 2) {
+                msg = 'Location signal unavailable. Please try again.';
+            } else if (err.code === 3) {
+                msg = 'Location request timed out. Please try again.';
+            }
+            alert(msg);
+        }
+
+        // Event: "Near Me" button clicked
+        if (btnNearMe) {
+            btnNearMe.addEventListener('click', function () {
+                if (!navigator.geolocation) {
+                    alert('Geolocation is not supported by your current browser.');
+                    return;
+                }
+
+                btnNearMe.classList.add('is-locating');
+                const btnText = btnNearMe.querySelector('.btn-text');
+                if (btnText) btnText.textContent = 'Locating...';
+
+                navigator.geolocation.getCurrentPosition(
+                    function (pos) {
+                        applyUserLocation(pos);
+                    },
+                    function (err) {
+                        handleGeolocationError(err);
+                    },
+                    {
+                        enableHighAccuracy: true,
+                        timeout: 10000,
+                        maximumAge: 60000
+                    }
+                );
+            });
+        }
+
+        // View Switching (Cards <-> Map)
+        function switchView(view) {
+            if (view === currentView) return;
+            currentView = view;
+
+            if (view === 'map') {
+                if (btnViewCards) btnViewCards.classList.remove('is-active');
+                if (btnViewMap) btnViewMap.classList.add('is-active');
+                if (carouselWrap) carouselWrap.style.display = 'none';
+                if (dotsWrap) dotsWrap.style.display = 'none';
+                if (mapWrapper) mapWrapper.style.display = 'block';
+
+                // Initialize map if needed
+                if (!map) {
+                    initMap();
+                }
+
+                // Invalidate size on display transition
+                setTimeout(function () {
+                    if (map) {
+                        map.invalidateSize();
+                        if (userCoords) {
+                            updateUserMarkerOnMap(userCoords.lat, userCoords.lng);
+                        }
+                        fitAllGyms();
+                    }
+                }, 100);
+
+                if (hasGSAP && mapWrapper) {
+                    gsap.fromTo(mapWrapper, { opacity: 0, y: 15 }, { opacity: 1, y: 0, duration: 0.35, ease: 'power2.out' });
+                }
+            } else {
+                if (btnViewCards) btnViewCards.classList.add('is-active');
+                if (btnViewMap) btnViewMap.classList.remove('is-active');
+                if (mapWrapper) mapWrapper.style.display = 'none';
+                if (carouselWrap) carouselWrap.style.display = 'block';
+                if (dotsWrap) dotsWrap.style.display = 'flex';
+
+                if (hasGSAP && carouselWrap) {
+                    gsap.fromTo(carouselWrap, { opacity: 0, y: 15 }, { opacity: 1, y: 0, duration: 0.35, ease: 'power2.out' });
+                }
+            }
+        }
+
+        if (btnViewCards) {
+            btnViewCards.addEventListener('click', function () { switchView('cards'); });
+        }
+        if (btnViewMap) {
+            btnViewMap.addEventListener('click', function () { switchView('map'); });
+        }
+
+        // Map Actions
+        if (btnRecenterUser) {
+            btnRecenterUser.addEventListener('click', function () {
+                if (map && userCoords) {
+                    map.flyTo([userCoords.lat, userCoords.lng], 15, { duration: 1.2 });
+                }
+            });
+        }
+
+        if (btnFitAll) {
+            btnFitAll.addEventListener('click', function () {
+                fitAllGyms();
+            });
+        }
+
+        // Filter Map Markers when user types in search input
+        if (searchInput) {
+            searchInput.addEventListener('input', function () {
+                const q = this.value.trim().toLowerCase();
+                gymData.forEach(gym => {
+                    const marker = gymMarkersMap.get(gym.gym_id);
+                    if (!marker) return;
+
+                    const match = !q || (gym.name + ' ' + gym.address).toLowerCase().indexOf(q) !== -1;
+                    if (match) {
+                        marker.setOpacity(1);
+                        if (marker.getElement()) {
+                            marker.getElement().style.display = '';
+                        }
+                    } else {
+                        marker.setOpacity(0.2);
+                        if (marker.getElement()) {
+                            marker.getElement().style.display = 'none';
+                        }
+                    }
+                });
+            });
+        }
+    })();
+

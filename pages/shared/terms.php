@@ -54,6 +54,7 @@ function terms_page(): void
                     <li><strong>Account Accuracy:</strong> You agree to provide true, accurate, and current information during registration, whether registering via email/password or third-party authentication (Google Sign-In).</li>
                     <li><strong>Credential Protection:</strong> You are responsible for safeguarding your login credentials and personal session. Notify FitTrack immediately upon discovering unauthorized account activity.</li>
                     <li><strong>Non-Transferability of QR Passes:</strong> Your digital QR check-in pass and member identity are strictly personal. Sharing, reproducing, transferring, or selling your access QR code to facilitate unauthorized admission to any partner gym facility is considered fraud and grounds for immediate termination.</li>
+                    <li><strong>Location-Based Services & Verification:</strong> FitTracks provides optional geolocation features, including nearest-gym sorting, interactive facility maps, and proximity verification during dynamic QR check-ins. Location accuracy depends on device hardware and connectivity. You retain the right to deny or revoke device location permissions at any time through your browser or device settings.</li>
                 </ul>
             </section>
 
