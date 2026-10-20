@@ -423,7 +423,7 @@ function handle_register(): void
                         <div class="split-card-footer">
                             <div>Already have an account? <a href="index.php?page=login" class="signup-link">Sign in</a></div>
                             <div>
-                                <a href="index.php" class="home-link">
+                                <a href="index.php?page=landing" class="home-link">
                                     <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>
                                     Back to Home
                                 </a>

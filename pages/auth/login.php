@@ -146,7 +146,7 @@ function handle_login(): void
                             </div>
 
                             <div class="split-card-footer">
-                                <a href="index.php" class="home-link">
+                                <a href="index.php?page=landing" class="home-link">
                                     <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>
                                     Back to Home
                                 </a>
@@ -363,6 +363,26 @@ function handle_login(): void
                         <p class="split-card-subtitle">Log in to your <span class="brand-highlight">FitTrack</span> account</p>
                     </div>
 
+                    <?php if ($curActiveUser = current_user()): ?>
+                        <div style="background: rgba(132, 204, 22, 0.12); border: 1px solid rgba(132, 204, 22, 0.35); border-radius: 12px; padding: 14px 16px; margin-bottom: 20px; font-size: 13.5px; color: #f1f5f9;">
+                            <div style="font-weight: 700; color: #bef264; margin-bottom: 4px; display: flex; align-items: center; gap: 6px;">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 14 14"/></svg>
+                                You are already signed in
+                            </div>
+                            <div style="color: #cbd5e1; margin-bottom: 10px;">
+                                Currently logged in as <strong><?= h($curActiveUser['email']) ?></strong>.
+                            </div>
+                            <div style="display: flex; gap: 12px; align-items: center;">
+                                <a href="index.php" style="background: #84cc16; color: #000; font-weight: 700; font-size: 12.5px; padding: 6px 14px; border-radius: 8px; text-decoration: none;">
+                                    Continue Setup &rarr;
+                                </a>
+                                <a href="index.php?page=logout" style="color: #f87171; font-weight: 600; font-size: 12.5px; text-decoration: underline;">
+                                    Sign Out
+                                </a>
+                            </div>
+                        </div>
+                    <?php endif; ?>
+
                     <?php $googleClientId = (string) app_env('GOOGLE_CLIENT_ID', ''); ?>
                     <form method="post" class="split-card-form" novalidate onsubmit="const btn = this.querySelector('button[type=submit]'); btn.disabled = true; btn.innerHTML = '<svg class=\'fitness-loader mini\' viewBox=\'0 0 24 24\' fill=\'none\' stroke=\'currentColor\' stroke-width=\'2\' stroke-linecap=\'round\' stroke-linejoin=\'round\' style=\'margin-right:8px;\'><line x1=\'6\' y1=\'12\' x2=\'18\' y2=\'12\'></line><rect x=\'4\' y=\'8\' width=\'2\' height=\'8\' rx=\'1\'></rect><rect x=\'18\' y=\'8\' width=\'2\' height=\'8\' rx=\'1\'></rect><rect x=\'2\' y=\'10\' width=\'2\' height=\'4\' rx=\'1\'></rect><rect x=\'20\' y=\'10\' width=\'2\' height=\'4\' rx=\'1\'></rect></svg> SIGNING IN...';">
                         <?= csrf_field() ?>
@@ -433,7 +453,7 @@ function handle_login(): void
                         <div class="split-card-footer">
                             <div>Don't have an account? <a href="index.php?page=register" class="signup-link">Sign up here</a></div>
                             <div>
-                                <a href="index.php" class="home-link">
+                                <a href="index.php?page=landing" class="home-link">
                                     <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>
                                     Back to Home
                                 </a>
