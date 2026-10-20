@@ -558,7 +558,7 @@ window.confirmRegeneratePlan = confirmRegeneratePlan;
             if (calculated > 0 && inCals) {
                 inCals.value = calculated;
                 inCals.style.transition = 'background 0.3s ease';
-                inCals.style.background = 'rgba(199,255,34,0.25)';
+                inCals.style.background = 'color-mix(in srgb, var(--lime, #84cc16) 25%, transparent)';
                 setTimeout(() => { inCals.style.background = ''; }, 400);
             }
         });
@@ -577,7 +577,7 @@ window.confirmRegeneratePlan = confirmRegeneratePlan;
     }
 
     function fireCelebrationModal({
-        themeColor,
+        themeColor = 'var(--lime, #84cc16)',
         themeGlow,
         badgeText,
         iconSvg,
@@ -586,11 +586,13 @@ window.confirmRegeneratePlan = confirmRegeneratePlan;
         loggedVal,
         targetVal,
         description,
-        btnText,
-        btnBg,
+        btnText = 'Got it, continue!',
+        btnBg = 'var(--lime, #84cc16)',
         isAll = false,
         allStats = null
     }) {
+        const effectiveGlow = themeGlow || `color-mix(in srgb, ${themeColor} 45%, transparent)`;
+
         let statsCardHtml = '';
         if (isAll && allStats) {
             statsCardHtml = `
@@ -640,14 +642,14 @@ window.confirmRegeneratePlan = confirmRegeneratePlan;
         }
 
         const modalHtml = `
-            <div style="text-align: center; padding: 6px 4px;">
+            <div style="text-align: center; padding: 6px 4px; --celeb-glow: ${effectiveGlow};">
                 <!-- Glowing Hero Icon -->
-                <div class="celebration-hero-pulse" style="width: 76px; height: 76px; margin: 0 auto 16px; border-radius: 50%; background: radial-gradient(circle, ${themeGlow} 0%, rgba(15,20,17,0.92) 100%); border: 2px solid ${themeColor}; display: flex; align-items: center; justify-content: center; box-shadow: 0 0 40px ${themeGlow};">
+                <div class="celebration-hero-pulse" style="--celeb-glow: ${effectiveGlow}; width: 76px; height: 76px; margin: 0 auto 16px; border-radius: 50%; background: radial-gradient(circle, ${effectiveGlow} 0%, rgba(12,16,22,0.92) 100%); border: 2px solid ${themeColor}; display: flex; align-items: center; justify-content: center; box-shadow: 0 0 38px ${effectiveGlow};">
                     ${iconSvg}
                 </div>
 
                 <!-- Milestone Tag -->
-                <div style="display: inline-flex; align-items: center; gap: 6px; padding: 4px 12px; background: rgba(255,255,255,0.05); border: 1px solid ${themeColor}50; border-radius: 20px; font-size: 11px; font-weight: 800; color: ${themeColor}; letter-spacing: 0.8px; text-transform: uppercase; margin-bottom: 10px;">
+                <div style="display: inline-flex; align-items: center; gap: 6px; padding: 4px 12px; background: color-mix(in srgb, ${themeColor} 12%, transparent); border: 1px solid color-mix(in srgb, ${themeColor} 38%, transparent); border-radius: 20px; font-size: 11px; font-weight: 800; color: ${themeColor}; letter-spacing: 0.8px; text-transform: uppercase; margin-bottom: 10px;">
                     <span style="width: 6px; height: 6px; border-radius: 50%; background: ${themeColor};"></span>
                     ${badgeText}
                 </div>
@@ -667,8 +669,8 @@ window.confirmRegeneratePlan = confirmRegeneratePlan;
 
                 <!-- Action Buttons: Clear Affirmative + Explicit Close -->
                 <div style="display: flex; justify-content: center; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 4px;">
-                    <button type="button" class="celebration-action-btn celebration-close-trigger" style="background: ${btnBg}; color: var(--macro-btn-ink); font-weight: 800; font-size: 13.5px; border: none; padding: 11px 24px; border-radius: 9px; cursor: pointer; display: inline-flex; align-items: center; gap: 8px; box-shadow: 0 8px 24px ${themeGlow};">
-                        <span>Got it, continue!</span>
+                    <button type="button" class="celebration-action-btn celebration-close-trigger" style="--celeb-glow: ${effectiveGlow}; background: ${btnBg}; color: var(--lime-contrast, #090b10); font-weight: 800; font-size: 13.5px; border: none; padding: 11px 24px; border-radius: 9px; cursor: pointer; display: inline-flex; align-items: center; gap: 8px; box-shadow: 0 8px 24px ${effectiveGlow};">
+                        <span>${btnText || 'Got it, continue!'}</span>
                         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
                     </button>
                     <button type="button" class="celebration-secondary-btn celebration-close-trigger" style="background: transparent; color: var(--muted); font-weight: 600; font-size: 13px; border: 1px solid var(--line); padding: 10px 18px; border-radius: 9px; cursor: pointer; display: inline-flex; align-items: center; gap: 6px;">
@@ -871,14 +873,14 @@ window.confirmRegeneratePlan = confirmRegeneratePlan;
             shootConfetti(120);
             setTimeout(() => {
                 fireCelebrationModal({
-                    themeColor: 'var(--lime, #c7ff22)',
-                    themeGlow: 'rgba(199, 255, 34, 0.45)',
+                    themeColor: 'var(--lime, #84cc16)',
+                    themeGlow: 'color-mix(in srgb, var(--lime, #84cc16) 45%, transparent)',
                     badgeText: 'DAILY TARGETS COMPLETED',
-                    iconSvg: '<svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="var(--lime)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"></path><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"></path><path d="M4 22h16"></path><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"></path><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"></path><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"></path></svg>',
+                    iconSvg: '<svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="var(--lime, #84cc16)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"></path><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"></path><path d="M4 22h16"></path><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"></path><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"></path><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"></path></svg>',
                     title: 'Perfect Macro Day!',
                     description: 'Incredible dedication! You have successfully reached every single nutritional target scheduled for today.',
-                    btnText: 'Keep the Streak',
-                    btnBg: 'var(--lime, #c7ff22)',
+                    btnText: 'Got it, continue!',
+                    btnBg: 'var(--lime, #84cc16)',
                     isAll: true,
                     allStats: { cals: newCals, pro: newPro, carbs: newCarbs, fat: newFat }
                 });
@@ -887,68 +889,68 @@ window.confirmRegeneratePlan = confirmRegeneratePlan;
             shootConfetti(80);
             setTimeout(() => {
                 fireCelebrationModal({
-                    themeColor: '#38bdf8',
-                    themeGlow: 'rgba(56, 189, 248, 0.45)',
+                    themeColor: 'var(--macro-pro, #38bdf8)',
+                    themeGlow: 'color-mix(in srgb, var(--macro-pro, #38bdf8) 45%, transparent)',
                     badgeText: 'PROTEIN GOAL ACHIEVED',
-                    iconSvg: '<svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="#38bdf8" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m6.5 6.5 11 11"/><path d="m21 21-1-1"/><path d="m3 3 1 1"/><path d="m18 22 4-4"/><path d="m2 6 4-4"/><path d="m3 10 7-7"/><path d="m14 21 7-7"/></svg>',
+                    iconSvg: '<svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="var(--macro-pro, #38bdf8)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m6.5 6.5 11 11"/><path d="m21 21-1-1"/><path d="m3 3 1 1"/><path d="m18 22 4-4"/><path d="m2 6 4-4"/><path d="m3 10 7-7"/><path d="m14 21 7-7"/></svg>',
                     title: 'Protein Target Crushed!',
                     metricLabel: 'Protein',
                     loggedVal: newPro + 'g',
                     targetVal: targetPro + 'g',
                     description: 'Hitting your daily protein goal accelerates muscle recovery, preserves lean tissue, and sustains your strength.',
-                    btnText: 'Keep Building',
-                    btnBg: '#38bdf8'
+                    btnText: 'Got it, continue!',
+                    btnBg: 'var(--macro-pro, #38bdf8)'
                 });
             }, 250);
         } else if (reachedCals) {
             shootConfetti(70);
             setTimeout(() => {
                 fireCelebrationModal({
-                    themeColor: 'var(--lime, #c7ff22)',
-                    themeGlow: 'rgba(199, 255, 34, 0.45)',
+                    themeColor: 'var(--lime, #84cc16)',
+                    themeGlow: 'color-mix(in srgb, var(--lime, #84cc16) 45%, transparent)',
                     badgeText: 'CALORIE GOAL ACHIEVED',
-                    iconSvg: '<svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="var(--lime)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z"/></svg>',
+                    iconSvg: '<svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="var(--lime, #84cc16)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z"/></svg>',
                     title: 'Calorie Target Reached!',
                     metricLabel: 'Calories',
                     loggedVal: newCals + ' kcal',
                     targetVal: targetCals + ' kcal',
                     description: 'You reached your planned daily energy intake, keeping your nutrition perfectly aligned with your fitness goal.',
-                    btnText: 'Continue',
-                    btnBg: 'var(--lime, #c7ff22)'
+                    btnText: 'Got it, continue!',
+                    btnBg: 'var(--lime, #84cc16)'
                 });
             }, 250);
         } else if (reachedCarbs) {
             shootConfetti(60);
             setTimeout(() => {
                 fireCelebrationModal({
-                    themeColor: '#fbbf24',
-                    themeGlow: 'rgba(251, 191, 36, 0.45)',
+                    themeColor: 'var(--macro-carbs, #fbbf24)',
+                    themeGlow: 'color-mix(in srgb, var(--macro-carbs, #fbbf24) 45%, transparent)',
                     badgeText: 'CARBOHYDRATES TARGET MET',
-                    iconSvg: '<svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="#fbbf24" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg>',
+                    iconSvg: '<svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="var(--macro-carbs, #fbbf24)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg>',
                     title: 'Carbs Target Met!',
                     metricLabel: 'Carbs',
                     loggedVal: newCarbs + 'g',
                     targetVal: targetCarbs + 'g',
                     description: 'Your glycogen stores are refueled and ready to power your next training session.',
-                    btnText: 'Awesome',
-                    btnBg: '#fbbf24'
+                    btnText: 'Got it, continue!',
+                    btnBg: 'var(--macro-carbs, #fbbf24)'
                 });
             }, 250);
         } else if (reachedFat) {
             shootConfetti(60);
             setTimeout(() => {
                 fireCelebrationModal({
-                    themeColor: '#f43f5e',
-                    themeGlow: 'rgba(244, 63, 94, 0.45)',
+                    themeColor: 'var(--macro-fat, #f43f5e)',
+                    themeGlow: 'color-mix(in srgb, var(--macro-fat, #f43f5e) 45%, transparent)',
                     badgeText: 'HEALTHY FATS TARGET MET',
-                    iconSvg: '<svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="#f43f5e" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path><path d="m9 12 2 2 4-4"></path></svg>',
+                    iconSvg: '<svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="var(--macro-fat, #f43f5e)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path><path d="m9 12 2 2 4-4"></path></svg>',
                     title: 'Healthy Fat Target Met!',
                     metricLabel: 'Fat',
                     loggedVal: newFat + 'g',
                     targetVal: targetFat + 'g',
                     description: 'Healthy fats optimize hormone balance, joint health, and steady long-term energy.',
-                    btnText: 'Awesome',
-                    btnBg: '#f43f5e'
+                    btnText: 'Got it, continue!',
+                    btnBg: 'var(--macro-fat, #f43f5e)'
                 });
             }, 250);
         } else if (isManual) {
@@ -1299,6 +1301,39 @@ async function quickLogPlannedMeal(mealId, customTotals = null) {
         return;
     }
 
+    // Confirmation Alert before logging meal
+    const mealNameDisplay = card.dataset.food || normType;
+    const isCustomized = customTotals && customTotals.count !== undefined;
+    const confirmResult = await Swal.fire({
+        title: `Log ${normType}?`,
+        html: `
+            <div style="font-size: 13.5px; color: var(--muted); margin-bottom: 12px; line-height: 1.45;">
+                Do you want to log <strong>${escapeHtml(mealNameDisplay)}</strong> to your nutrition tracker today?
+                ${isCustomized ? `<div style="font-size: 12px; color: var(--lime); margin-top: 6px; font-weight: 600;">(${customTotals.count} ingredients selected)</div>` : ''}
+            </div>
+            <div style="display: flex; align-items: center; justify-content: center; gap: 8px; flex-wrap: wrap; padding: 10px 14px; background: rgba(255,255,255,0.04); border: 1px solid var(--line); border-radius: 8px;">
+                <span style="font-size: 14.5px; font-weight: 800; color: var(--lime);">+${cals} kcal</span>
+                <span style="font-size: 12px; color: var(--muted); font-weight: 600;">(${pro}g P • ${carbs}g C • ${fat}g F)</span>
+            </div>
+        `,
+        icon: 'question',
+        showCancelButton: true,
+        confirmButtonText: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="vertical-align: -2px; margin-right: 4px;"><polyline points="20 6 9 17 4 12"/></svg> Yes, Log Meal',
+        cancelButtonText: 'Cancel',
+        confirmButtonColor: 'var(--lime, #84cc16)',
+        cancelButtonColor: 'rgba(255, 255, 255, 0.12)',
+        background: getComputedStyle(document.documentElement).getPropertyValue('--bg').trim() || '#121721',
+        color: getComputedStyle(document.documentElement).getPropertyValue('--ink').trim() || '#ffffff',
+        customClass: {
+            confirmButton: 'btn-swal-confirm-lime',
+            cancelButton: 'btn-swal-cancel-dark'
+        }
+    });
+
+    if (!confirmResult.isConfirmed) {
+        return;
+    }
+
     const btn = card.querySelector('.btn-log-meal');
     const originalHtml = btn ? btn.innerHTML : '';
     if (btn) {
@@ -1372,29 +1407,33 @@ async function quickLogPlannedMeal(mealId, customTotals = null) {
                 window.applyMacroLogResultToUI(data, false);
             }
 
-            // Toast feedback with subtle, modern notification
+            // Toast feedback with clean, unified, unstacked layout
             const isMobile = window.innerWidth <= 768;
             Swal.fire({
                 toast: true,
-                position: isMobile ? 'bottom' : 'top-end',
+                position: isMobile ? 'top' : 'top-end',
                 icon: 'success',
-                title: `${normType} Logged!`,
-                html: `<div style="display:flex; flex-direction:column; gap:3px; margin-top:2px;">
-                    <span style="font-size:12px; opacity:0.8;">${normType} logged today at ${loggedTime}.</span>
-                    <span style="font-size:12.5px;">
-                        <strong style="color:var(--lime, #bef264); font-weight:700;">+${cals} kcal</strong>
-                        <span style="opacity:0.8; font-size:11.5px; margin-left:2px;">(${pro}g P • ${carbs}g C • ${fat}g F)</span>
-                    </span>
-                    <div style="display:inline-flex; align-items:center; gap:5px; margin-top:4px; font-size:11.5px; font-weight:700; color:var(--lime, #bef264);">
-                        <span>View Tracker</span>
-                        <i class="fa-solid fa-arrow-right" style="font-size:10px;"></i>
+                width: isMobile ? 'calc(100vw - 28px)' : '420px',
+                html: `<div class="diet-toast-body">
+                    <div class="diet-toast-header">
+                        <span class="diet-toast-title">${normType} Log</span>
+                        <strong class="diet-toast-cals">+${cals} kcal</strong>
+                        <span class="diet-toast-macro-breakdown">(${pro}g P • ${carbs}g C • ${fat}g F)</span>
+                    </div>
+                    <div class="diet-toast-footer">
+                        <span>Logged at ${loggedTime}</span>
+                        <span class="diet-toast-link">View Tracker <i class="fa-solid fa-arrow-right"></i></span>
                     </div>
                 </div>`,
                 showConfirmButton: false,
-                timer: 4000,
+                timer: 4500,
                 timerProgressBar: true,
                 background: getComputedStyle(document.documentElement).getPropertyValue('--bg').trim() || '#121721',
                 color: getComputedStyle(document.documentElement).getPropertyValue('--ink').trim() || '#ffffff',
+                customClass: {
+                    container: 'diet-log-toast-container',
+                    popup: 'diet-log-toast'
+                },
                 didOpen: (toast) => {
                     toast.style.cursor = 'pointer';
                     toast.onmouseenter = Swal.stopTimer;
@@ -1571,10 +1610,10 @@ async function inspectPlannedMeal(mealId) {
                             </div>
                         </div>
                         <div class="inspect-item-macros">
-                            <span class="inspect-chip chip-cals">${item.calories} kcal</span>
-                            <span class="inspect-chip chip-pro">${item.protein_g}g P</span>
-                            <span class="inspect-chip chip-carbs">${item.carbs_g}g C</span>
-                            <span class="inspect-chip chip-fat">${item.fat_g}g F</span>
+                            <span class="inspect-chip chip-cals" title="Calories: ${item.calories} kcal">${item.calories} kcal</span>
+                            <span class="inspect-chip chip-pro" title="Protein: ${item.protein_g}g">${item.protein_g}g P</span>
+                            <span class="inspect-chip chip-carbs" title="Carbohydrates: ${item.carbs_g}g">${item.carbs_g}g C</span>
+                            <span class="inspect-chip chip-fat" title="Fat: ${item.fat_g}g">${item.fat_g}g F</span>
                         </div>
                     </label>
                 `;

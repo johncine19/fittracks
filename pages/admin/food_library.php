@@ -973,7 +973,13 @@ function food_library_page(): void
             </div>
 
             <div class="verif-filter-search-row">
-                <input type="text" name="v_q" value="<?= h($vSearch) ?>" placeholder="Search custom food name or ingredients...">
+                <div class="verif-search-input-wrap">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="verif-search-icon"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+                    <input type="text" name="v_q" id="verifSearchInput" value="<?= h($vSearch) ?>" placeholder="Search custom food name or ingredients...">
+                    <?php if ($vSearch): ?>
+                        <button type="button" onclick="document.getElementById('verifSearchInput').value=''; this.form.submit();" class="filter-search-clear" title="Clear search">&times;</button>
+                    <?php endif; ?>
+                </div>
                 
                 <select name="v_gym" onchange="this.form.submit()">
                     <option value="0">All Gyms</option>
@@ -981,8 +987,6 @@ function food_library_page(): void
                         <option value="<?= $g['gym_id'] ?>" <?= $vGymId === (int)$g['gym_id'] ? 'selected' : '' ?>><?= h($g['gym_name']) ?></option>
                     <?php endforeach; ?>
                 </select>
-
-                <button type="submit" class="btn btn-verif-filter">Filter</button>
             </div>
         </form>
 
@@ -998,12 +1002,12 @@ function food_library_page(): void
                 <table class="verif-table">
                     <thead>
                         <tr>
-                            <th>Custom Food Item</th>
-                            <th>Gym & Submitter</th>
-                            <th>Portion & Calories</th>
-                            <th>Macros (P / C / F)</th>
-                            <th>Verification Status</th>
-                            <th style="text-align: right;">Review Actions</th>
+                            <th class="verif-col-food">Custom Food Item</th>
+                            <th class="verif-col-gym">Gym & Submitter</th>
+                            <th class="verif-col-portion">Portion & Calories</th>
+                            <th class="verif-col-macros">Macros (P / C / F)</th>
+                            <th class="verif-col-status">Verification Status</th>
+                            <th class="verif-col-actions" style="text-align: right;">Review Actions</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -1011,8 +1015,8 @@ function food_library_page(): void
                             $photoUrl = get_meal_photo_url($item['image_url'], $item['name'], $item['meal_type']);
                             $itemVStatus = $item['verification_status'] ?? 'unverified';
                         ?>
-                            <tr>
-                                <td>
+                            <tr class="verif-row">
+                                <td class="verif-cell verif-cell-food" data-label="Custom Food Item">
                                     <div class="verif-food-cell">
                                         <img src="<?= h($photoUrl) ?>" alt="<?= h($item['name']) ?>" class="verif-food-thumb" onerror="this.onerror=null; this.src='https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&w=600&q=80';">
                                         <div class="verif-food-info">
@@ -1026,80 +1030,89 @@ function food_library_page(): void
                                                 <?php endif; ?>
                                             </div>
                                             <?php if ($itemVStatus === 'rejected' && $item['rejection_reason']): ?>
-                                                <div style="margin-top: 5px; font-size: 11.5px; color: #ef4444; background: rgba(239, 68, 68, 0.08); padding: 5px 8px; border-radius: 6px; border: 1px solid rgba(239, 68, 68, 0.2);">
+                                                <div class="verif-rejection-box">
                                                     <strong>Rejection Note:</strong> <?= h($item['rejection_reason']) ?>
                                                 </div>
                                             <?php endif; ?>
                                         </div>
                                     </div>
                                 </td>
-                                <td>
-                                    <div style="font-weight: 700; color: var(--ink); font-size: 13px;">
-                                        <?= h($item['gym_name'] ?? 'Custom Gym') ?>
-                                    </div>
-                                    <div style="font-size: 11.5px; color: var(--muted); margin-top: 2px;">
-                                        <?= h($item['submitter_name'] ?? 'Gym Staff') ?>
-                                        <?php if ($item['submitter_role']): ?>
-                                            <span style="opacity: 0.8;">(<?= ucfirst($item['submitter_role']) ?>)</span>
-                                        <?php endif; ?>
-                                    </div>
-                                </td>
-                                <td>
-                                    <div style="font-size: 12.5px; color: var(--ink);">
-                                        <strong><?= h($item['serving_size'] ?: '1 serving') ?></strong>
-                                    </div>
-                                    <div style="font-size: 12px; color: #f59e0b; font-weight: 700; margin-top: 2px;">
-                                        <?= $item['calories'] ?> kcal
-                                    </div>
-                                </td>
-                                <td>
-                                    <div style="font-size: 12px; color: var(--muted); font-family: monospace;">
-                                        <span style="color: #2563eb; font-weight: 700;"><?= $item['protein_g'] ?>g</span> P / 
-                                        <span style="color: #d97706; font-weight: 700;"><?= $item['carbs_g'] ?>g</span> C / 
-                                        <span style="color: #dc2626; font-weight: 700;"><?= $item['fat_g'] ?>g</span> F
-                                    </div>
-                                    <div style="margin-top: 5px;">
-                                        <button type="button" onclick="openViewIngredientsModal(<?= (int)$item['food_id'] ?>)" class="btn-verif-inspect" title="Inspect full recipe breakdown">
-                                            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 2a10 10 0 1 0 10 10H12V2z"></path><path d="M12 12 2.1 10.5"></path><path d="M12 12V2"></path></svg>
-                                            <span>Inspect Recipe (<?= count($item['ingredients_data']['all'] ?? []) ?>)</span>
-                                        </button>
-                                    </div>
-                                </td>
-                                <td>
-                                    <?= render_food_verification_badge($itemVStatus, true, $item['rejection_reason'] ?? null) ?>
-                                    <?php if ($item['verified_at']): ?>
-                                        <div style="font-size: 10.5px; color: var(--muted); margin-top: 4px;">
-                                            <?= date('M d, Y', strtotime($item['verified_at'])) ?>
-                                            <?php if ($item['reviewer_name']): ?>
-                                                <br>by <?= h($item['reviewer_name']) ?>
+                                <td class="verif-cell verif-cell-gym" data-label="Gym & Submitter">
+                                    <div class="verif-cell-inner">
+                                        <div class="verif-cell-label">Gym & Submitter</div>
+                                        <div style="font-weight: 700; color: var(--ink); font-size: 13px;">
+                                            <?= h($item['gym_name'] ?? 'Custom Gym') ?>
+                                        </div>
+                                        <div style="font-size: 11.5px; color: var(--muted); margin-top: 2px;">
+                                            <?= h($item['submitter_name'] ?? 'Gym Staff') ?>
+                                            <?php if ($item['submitter_role']): ?>
+                                                <span style="opacity: 0.8;">(<?= ucfirst($item['submitter_role']) ?>)</span>
                                             <?php endif; ?>
                                         </div>
-                                    <?php endif; ?>
+                                    </div>
                                 </td>
-                                <td style="text-align: right;">
+                                <td class="verif-cell verif-cell-portion" data-label="Portion & Calories">
+                                    <div class="verif-cell-inner">
+                                        <div class="verif-cell-label">Portion & Calories</div>
+                                        <div style="font-size: 12.5px; color: var(--ink);">
+                                            <strong><?= h($item['serving_size'] ?: '1 serving') ?></strong>
+                                        </div>
+                                        <div style="font-size: 12px; color: #f59e0b; font-weight: 700; margin-top: 2px;">
+                                            <?= $item['calories'] ?> kcal
+                                        </div>
+                                    </div>
+                                </td>
+                                <td class="verif-cell verif-cell-macros" data-label="Macros (P / C / F)">
+                                    <div class="verif-cell-inner">
+                                        <div class="verif-cell-label">Nutrition & Recipe</div>
+                                        <div class="verif-macro-badges">
+                                            <span class="vmacro-badge vmacro-p" title="Protein: <?= $item['protein_g'] ?>g"><strong><?= $item['protein_g'] ?>g</strong> P</span>
+                                            <span class="vmacro-badge vmacro-c" title="Carbs: <?= $item['carbs_g'] ?>g"><strong><?= $item['carbs_g'] ?>g</strong> C</span>
+                                            <span class="vmacro-badge vmacro-f" title="Fat: <?= $item['fat_g'] ?>g"><strong><?= $item['fat_g'] ?>g</strong> F</span>
+                                        </div>
+                                        <div style="margin-top: 5px;">
+                                            <button type="button" onclick="openViewIngredientsModal(<?= (int)$item['food_id'] ?>)" class="btn-verif-inspect" title="Inspect full recipe breakdown">
+                                                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 2a10 10 0 1 0 10 10H12V2z"></path><path d="M12 12 2.1 10.5"></path><path d="M12 12V2"></path></svg>
+                                                <span>Inspect Recipe (<?= count($item['ingredients_data']['all'] ?? []) ?>)</span>
+                                            </button>
+                                        </div>
+                                    </div>
+                                </td>
+                                <td class="verif-cell verif-cell-status" data-label="Verification Status">
+                                    <div class="verif-cell-inner verif-cell-status-inner">
+                                        <div class="verif-cell-label">Status</div>
+                                        <div class="verif-status-display">
+                                            <?= render_food_verification_badge($itemVStatus, true, $item['rejection_reason'] ?? null) ?>
+                                            <?php if ($item['verified_at']): ?>
+                                                <div style="font-size: 10.5px; color: var(--muted); margin-top: 4px;">
+                                                    <?= date('M d, Y', strtotime($item['verified_at'])) ?>
+                                                    <?php if ($item['reviewer_name']): ?>
+                                                        <br class="desktop-only-br">by <?= h($item['reviewer_name']) ?>
+                                                    <?php endif; ?>
+                                                </div>
+                                            <?php endif; ?>
+                                        </div>
+                                    </div>
+                                </td>
+                                <td class="verif-cell verif-cell-actions" style="text-align: right;" data-label="Review Actions">
                                     <div class="verif-actions-col" style="justify-content: flex-end;">
                                         <?php if ($itemVStatus !== 'verified'): ?>
-                                            <form method="post" style="margin: 0;">
-                                                <?= csrf_field() ?>
-                                                <input type="hidden" name="action" value="approve_food">
-                                                <input type="hidden" name="return_tab" value="verifications">
-                                                <input type="hidden" name="food_id" value="<?= (int)$item['food_id'] ?>">
-                                                <button type="submit" class="btn-verif-approve" title="Approve custom food submission">
-                                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
-                                                    <span>Approve</span>
-                                                </button>
-                                            </form>
-                                        <?php endif; ?>
-
-                                        <?php if ($itemVStatus !== 'rejected'): ?>
-                                            <button type="button" onclick="promptRejectFood(<?= (int)$item['food_id'] ?>, <?= json_encode($item['name']) ?>, 'verifications')" class="btn-verif-reject" title="Reject submission with feedback note">
-                                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-                                                <span>Reject</span>
+                                            <button type="button" onclick="confirmApproveFood(<?= (int)$item['food_id'] ?>, <?= htmlspecialchars(json_encode($item['name']), ENT_QUOTES, 'UTF-8') ?>, 'verifications')" class="btn-verif-approve" title="Approve custom food submission">
+                                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+                                                <span>Approve</span>
                                             </button>
                                         <?php endif; ?>
 
-                                        <button type="button" onclick="openEditFoodModal(<?= htmlspecialchars(json_encode($item), ENT_QUOTES, 'UTF-8') ?>)" class="btn-sm btn-ghost" style="padding: 5px 8px; font-size: 11.5px; border-radius: 6px;">
-                                            Edit
+                                        <?php if ($itemVStatus !== 'rejected'): ?>
+                                            <button type="button" onclick="promptRejectFood(<?= (int)$item['food_id'] ?>, <?= htmlspecialchars(json_encode($item['name']), ENT_QUOTES, 'UTF-8') ?>, 'verifications', <?= $itemVStatus === 'verified' ? 'true' : 'false' ?>)" class="btn-verif-reject" title="<?= $itemVStatus === 'verified' ? 'Revoke approval and reject submission' : 'Reject submission with feedback note' ?>">
+                                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                                                <span><?= $itemVStatus === 'verified' ? 'Revoke' : 'Reject' ?></span>
+                                            </button>
+                                        <?php endif; ?>
+
+                                        <button type="button" onclick="openEditFoodModal(<?= htmlspecialchars(json_encode($item), ENT_QUOTES, 'UTF-8') ?>)" class="btn-verif-edit" title="Edit custom food details" aria-label="Edit custom food details">
+                                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+                                            <span>Edit</span>
                                         </button>
                                     </div>
                                 </td>

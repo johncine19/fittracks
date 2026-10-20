@@ -1562,6 +1562,10 @@
 .celebration-action-btn:hover {
     transform: translateY(-2px);
     filter: brightness(1.08);
+    box-shadow: 0 10px 28px var(--celeb-glow, rgba(0, 0, 0, 0.25)) !important;
+}
+[data-theme="light"] .celebration-hero-pulse {
+    background: radial-gradient(circle, var(--celeb-glow, rgba(0, 0, 0, 0.06)) 0%, rgba(245, 247, 250, 0.95) 100%) !important;
 }
 .celebration-secondary-btn {
     transition: all 0.18s ease !important;
@@ -2214,6 +2218,317 @@
     border-color: color-mix(in srgb, #f43f5e 30%, transparent);
 }
 
+/* Macro Legend Guide Strip */
+.inspect-macro-legend {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px 12px;
+    padding: 8px 14px;
+    margin-bottom: 14px;
+    background: var(--bg);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    font-size: 11.5px;
+    flex-wrap: wrap;
+}
+
+.inspect-legend-label {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--muted);
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+}
+
+.inspect-legend-pills {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+}
+
+.inspect-legend-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 11px;
+    padding: 2.5px 8.5px;
+    border-radius: 6px;
+    font-weight: 500;
+    line-height: 1.2;
+}
+
+.inspect-legend-tag strong {
+    font-weight: 800;
+}
+
+/* ==================================================== */
+/* MEAL LOGGING: UNSTACKED TOAST & CONFIRMATION ALERT   */
+/* ==================================================== */
+.swal2-container.diet-log-toast-container,
+.swal2-container:has(.diet-log-toast) {
+    overflow: visible !important;
+    overflow-x: visible !important;
+    overflow-y: visible !important;
+    padding: 12px 14px !important;
+    box-sizing: border-box !important;
+    width: auto !important;
+    pointer-events: none !important;
+}
+
+.swal2-popup.diet-log-toast {
+    width: 420px !important;
+    max-width: calc(100vw - 28px) !important;
+    padding: 12px 16px !important;
+    border-radius: 12px !important;
+    border: 1px solid var(--line) !important;
+    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45) !important;
+    display: flex !important;
+    flex-direction: row !important;
+    align-items: center !important;
+    box-sizing: border-box !important;
+    pointer-events: auto !important;
+}
+
+.swal2-popup.swal2-toast.diet-log-toast .swal2-icon.swal2-success,
+.swal2-toast.diet-log-toast .swal2-icon.swal2-success {
+    margin: 0 12px 0 0 !important;
+    width: 28px !important;
+    height: 28px !important;
+    min-width: 28px !important;
+    max-width: 28px !important;
+    flex-shrink: 0 !important;
+    border-radius: 50% !important;
+    border: 1.5px solid color-mix(in srgb, var(--lime, #84cc16) 45%, transparent) !important;
+    background-color: color-mix(in srgb, var(--lime, #84cc16) 15%, transparent) !important;
+    background-image: none !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+}
+
+.swal2-popup.swal2-toast.diet-log-toast .swal2-icon.swal2-success::before,
+.swal2-popup.swal2-toast.diet-log-toast .swal2-icon.swal2-success::after,
+.diet-log-toast .swal2-icon.swal2-success::before,
+.diet-log-toast .swal2-icon.swal2-success::after {
+    display: none !important;
+    content: none !important;
+}
+
+.diet-log-toast .swal2-icon.swal2-success .swal2-icon-content {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    width: 100% !important;
+    height: 100% !important;
+}
+
+.diet-log-toast .swal2-icon.swal2-success .swal2-icon-content svg,
+.diet-log-toast .swal2-icon.swal2-success svg {
+    display: block !important;
+    width: 15px !important;
+    height: 15px !important;
+    stroke: var(--lime, #84cc16) !important;
+    color: var(--lime, #84cc16) !important;
+}
+
+.swal2-popup.swal2-toast.diet-log-toast .swal2-timer-progress-bar,
+.swal2-toast.diet-log-toast .swal2-timer-progress-bar,
+.diet-log-toast .swal2-timer-progress-bar {
+    background: var(--lime, #84cc16) !important;
+    height: 3px !important;
+}
+
+.diet-log-toast .swal2-title {
+    display: none !important;
+}
+
+.diet-log-toast .swal2-html-container {
+    margin: 0 !important;
+    padding: 0 !important;
+    font-size: 12.5px !important;
+    text-align: left !important;
+    overflow: visible !important;
+    width: 100% !important;
+    flex: 1 1 auto !important;
+}
+
+.diet-toast-body {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    width: 100%;
+}
+
+.diet-toast-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: nowrap;
+    line-height: 1.25;
+}
+
+.diet-toast-title {
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--ink);
+    white-space: nowrap;
+}
+
+.diet-toast-cals {
+    color: var(--lime, #bef264);
+    font-size: 13.5px;
+    font-weight: 800;
+    white-space: nowrap;
+}
+
+.diet-toast-macro-breakdown {
+    font-size: 12px;
+    color: var(--muted);
+    font-weight: 500;
+    white-space: nowrap;
+}
+
+.diet-toast-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    font-size: 11.5px;
+    color: var(--muted);
+    margin-top: 2px;
+    padding-top: 4px;
+    border-top: 1px dashed color-mix(in srgb, var(--line) 70%, transparent);
+}
+
+.diet-toast-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    color: var(--lime, #bef264);
+    font-weight: 700;
+    white-space: nowrap;
+    flex-shrink: 0;
+    transition: transform 0.15s ease;
+}
+
+.diet-log-toast:hover .diet-toast-link {
+    transform: translateX(2px);
+}
+
+/* Mobile Responsive Optimization for Diet Log Toast */
+@media (max-width: 768px) {
+    .swal2-container.diet-log-toast-container,
+    .swal2-container:has(.diet-log-toast),
+    .swal2-container.swal2-top.diet-log-toast-container {
+        top: calc(env(safe-area-inset-top, 0px) + 12px) !important;
+        left: 0 !important;
+        right: 0 !important;
+        width: 100% !important;
+        max-width: 100vw !important;
+        padding: 0 14px !important;
+        box-sizing: border-box !important;
+        display: flex !important;
+        justify-content: center !important;
+        pointer-events: none !important;
+    }
+
+    .swal2-popup.swal2-toast.diet-log-toast,
+    .swal2-container.diet-log-toast-container .swal2-popup.swal2-toast,
+    .swal2-container .swal2-popup.diet-log-toast {
+        width: 100% !important;
+        max-width: 440px !important;
+        min-width: min(300px, calc(100vw - 28px)) !important;
+        margin: 0 auto !important;
+        padding: 11px 15px !important;
+        box-sizing: border-box !important;
+        pointer-events: auto !important;
+    }
+
+    .diet-toast-header {
+        display: flex !important;
+        align-items: center !important;
+        gap: 6px 8px !important;
+        flex-wrap: nowrap !important;
+    }
+
+    .diet-toast-title {
+        font-size: 13.5px !important;
+        white-space: nowrap !important;
+    }
+
+    .diet-toast-cals {
+        font-size: 13px !important;
+        white-space: nowrap !important;
+    }
+
+    .diet-toast-macro-breakdown {
+        font-size: 11.5px !important;
+        white-space: nowrap !important;
+    }
+
+    .diet-toast-footer {
+        display: flex !important;
+        align-items: center !important;
+        justify-content: space-between !important;
+        gap: 10px !important;
+        white-space: nowrap !important;
+    }
+
+    .diet-toast-link {
+        white-space: nowrap !important;
+        flex-shrink: 0 !important;
+    }
+}
+
+@media (max-width: 380px) {
+    .diet-toast-header {
+        flex-wrap: wrap !important;
+    }
+}
+
+.btn-swal-confirm-lime {
+    background: var(--lime, #84cc16) !important;
+    color: #000000 !important;
+    font-weight: 700 !important;
+    border-radius: 8px !important;
+    padding: 10px 20px !important;
+    font-size: 13.5px !important;
+    border: none !important;
+    box-shadow: none !important;
+    cursor: pointer !important;
+    transition: opacity 0.15s ease;
+}
+.btn-swal-confirm-lime:hover {
+    background: #65a30d !important;
+    color: #000000 !important;
+    opacity: 0.95;
+}
+
+.btn-swal-cancel-dark {
+    background: rgba(255, 255, 255, 0.08) !important;
+    color: var(--ink) !important;
+    font-weight: 600 !important;
+    border-radius: 8px !important;
+    padding: 10px 18px !important;
+    font-size: 13.5px !important;
+    border: 1px solid var(--line) !important;
+    box-shadow: none !important;
+    cursor: pointer !important;
+    transition: background 0.15s ease;
+}
+.btn-swal-cancel-dark:hover {
+    background: rgba(255, 255, 255, 0.14) !important;
+    color: var(--ink) !important;
+}
+[data-theme="light"] .btn-swal-cancel-dark {
+    background: rgba(0, 0, 0, 0.05) !important;
+}
+
 .inspect-items-wrap {
     display: flex;
     flex-direction: column;
@@ -2729,6 +3044,17 @@
         padding: 9px 16px;
         font-size: 12.5px;
         border-radius: 8px;
+    }
+    .inspect-macro-legend {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 6px;
+        padding: 8px 10px;
+    }
+    .inspect-legend-pills {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 5px;
     }
 }
 

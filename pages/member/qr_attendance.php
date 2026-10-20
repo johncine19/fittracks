@@ -131,12 +131,21 @@ function qr_attendance_page(): void
                     $equipmentCats = [];
                     $equipmentList = [];
                     if ($gymId > 0) {
-                        $catStmt = db()->prepare('SELECT category, COUNT(*) as cnt FROM gym_equipment WHERE gym_id = ? AND status = "available" GROUP BY category');
+                        $catStmt = db()->prepare('SELECT category, COUNT(*) as cnt FROM gym_equipment WHERE gym_id = ? AND status IN ("available", "in_use") GROUP BY category');
                         $catStmt->execute([$gymId]);
                         $equipmentCats = $catStmt->fetchAll(PDO::FETCH_KEY_PAIR);
 
-                        $eqStmt = db()->prepare('SELECT equipment_id, name, unit_number, category, location_area FROM gym_equipment WHERE gym_id = ? AND status = "available" ORDER BY category ASC, name ASC LIMIT 150');
-                        $eqStmt->execute([$gymId]);
+                        $eqStmt = db()->prepare('
+                            SELECT e.equipment_id, e.name, e.unit_number, e.category, e.location_area, e.status,
+                                   (SELECT COUNT(*) FROM equipment_queues q WHERE q.equipment_id = e.equipment_id AND q.queue_status IN ("waiting", "notified")) AS queue_count,
+                                   (SELECT COUNT(*) FROM equipment_queues q WHERE q.equipment_id = e.equipment_id AND q.user_id = ? AND q.queue_status IN ("waiting", "notified")) AS is_user_queued,
+                                   (SELECT user_id FROM equipment_sessions s WHERE s.equipment_id = e.equipment_id AND s.session_status = "active" LIMIT 1) AS active_user_id
+                            FROM gym_equipment e
+                            WHERE e.gym_id = ? AND e.status IN ("available", "in_use")
+                            ORDER BY e.category ASC, (CASE WHEN e.status = "available" THEN 0 ELSE 1 END) ASC, e.name ASC, e.unit_number ASC
+                            LIMIT 150
+                        ');
+                        $eqStmt->execute([(int)$user['user_id'], $gymId]);
                         $equipmentList = $eqStmt->fetchAll(PDO::FETCH_ASSOC);
                     }
 
@@ -231,12 +240,21 @@ function qr_attendance_page(): void
 
         $gymId = (int)$activeAttendance['gym_id'];
         if ($gymId > 0) {
-            $catStmt = db()->prepare('SELECT category, COUNT(*) as cnt FROM gym_equipment WHERE gym_id = ? AND status = "available" GROUP BY category');
+            $catStmt = db()->prepare('SELECT category, COUNT(*) as cnt FROM gym_equipment WHERE gym_id = ? AND status IN ("available", "in_use") GROUP BY category');
             $catStmt->execute([$gymId]);
             $checkedInEquipmentCats = $catStmt->fetchAll(PDO::FETCH_KEY_PAIR);
 
-            $eqStmt = db()->prepare('SELECT equipment_id, name, unit_number, category, location_area FROM gym_equipment WHERE gym_id = ? AND status = "available" ORDER BY category ASC, name ASC LIMIT 150');
-            $eqStmt->execute([$gymId]);
+            $eqStmt = db()->prepare('
+                SELECT e.equipment_id, e.name, e.unit_number, e.category, e.location_area, e.status,
+                       (SELECT COUNT(*) FROM equipment_queues q WHERE q.equipment_id = e.equipment_id AND q.queue_status IN ("waiting", "notified")) AS queue_count,
+                       (SELECT COUNT(*) FROM equipment_queues q WHERE q.equipment_id = e.equipment_id AND q.user_id = ? AND q.queue_status IN ("waiting", "notified")) AS is_user_queued,
+                       (SELECT user_id FROM equipment_sessions s WHERE s.equipment_id = e.equipment_id AND s.session_status = "active" LIMIT 1) AS active_user_id
+                FROM gym_equipment e
+                WHERE e.gym_id = ? AND e.status IN ("available", "in_use")
+                ORDER BY e.category ASC, (CASE WHEN e.status = "available" THEN 0 ELSE 1 END) ASC, e.name ASC, e.unit_number ASC
+                LIMIT 150
+            ');
+            $eqStmt->execute([(int)$user['user_id'], $gymId]);
             $checkedInEquipmentList = $eqStmt->fetchAll(PDO::FETCH_ASSOC);
         }
 
@@ -302,6 +320,95 @@ function qr_attendance_page(): void
             margin: auto !important;
             padding: 18px 16px !important;
         }
+        .active-visit-banner-card {
+            background: var(--panel);
+            border: 1px solid color-mix(in srgb, var(--lime) 30%, var(--line));
+            border-radius: 12px;
+            padding: 10px 14px;
+            margin-bottom: 12px;
+            text-align: left;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.04);
+            position: relative;
+            overflow: hidden;
+        }
+        .active-visit-main-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+        }
+        .active-visit-header-wrap {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            min-width: 0;
+        }
+        .active-visit-info {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            min-width: 0;
+        }
+        .active-visit-time-badge {
+            font-size: 11px;
+            font-weight: 600;
+            color: var(--muted);
+            background: var(--panel-soft);
+            padding: 4px 9px;
+            border-radius: 8px;
+            border: 1px solid var(--line);
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            white-space: nowrap;
+            flex-shrink: 0;
+        }
+        .active-visit-actions {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex-shrink: 0;
+        }
+        .active-visit-actions .active-visit-btn {
+            width: auto;
+            flex: 0 0 auto;
+            padding: 6px 14px;
+            min-height: 32px;
+        }
+        .active-visit-time-badge.mobile-only {
+            display: none;
+        }
+        .active-visit-time-badge.desktop-only {
+            display: inline-flex;
+        }
+
+        @media (max-width: 680px) {
+            .active-visit-main-row {
+                flex-direction: column;
+                align-items: stretch;
+                gap: 8px;
+            }
+            .active-visit-header-wrap {
+                width: 100%;
+                justify-content: space-between;
+            }
+            .active-visit-actions {
+                display: grid;
+                grid-template-columns: 1fr 1fr;
+                gap: 6px;
+                width: 100%;
+            }
+            .active-visit-actions .active-visit-btn {
+                width: 100%;
+                padding: 6px 8px;
+            }
+            .active-visit-time-badge.mobile-only {
+                display: inline-flex;
+            }
+            .active-visit-time-badge.desktop-only {
+                display: none;
+            }
+        }
     </style>
     <div class="skeleton-wrapper">
         <section class="panel" style="text-align: center; display:flex; flex-direction:column; align-items:center; padding: 40px 20px;">
@@ -322,27 +429,49 @@ function qr_attendance_page(): void
 
     <?php if ($activeAttendance): ?>
         <!-- ACTIVE GYM VISIT BANNER (COMPACT THEME-ADAPTIVE) -->
-        <div class="panel skeleton-content sk-display-block" style="background: var(--panel); border: 1px solid color-mix(in srgb, var(--lime) 30%, var(--line)); border-radius: 12px; padding: 10px 13px; margin-bottom: 12px; text-align: left; box-shadow: 0 2px 10px rgba(0,0,0,0.04); position: relative; overflow: hidden;">
+        <div class="panel skeleton-content sk-display-block active-visit-banner-card">
             <div style="position: absolute; top: 0; left: 0; right: 0; height: 3px; background: linear-gradient(90deg, var(--lime), #22c55e);"></div>
-            <div style="display:flex; justify-content:space-between; align-items:center; gap:8px; margin-bottom:8px;">
-                <div style="display:flex; align-items:center; gap:7px; min-width:0;">
-                    <div style="position:relative; width:10px; height:10px; flex-shrink:0; display:flex; align-items:center; justify-content:center;">
-                        <span style="position:absolute; width:12px; height:12px; border-radius:50%; background:#22c55e; animation: pulseDot 2s cubic-bezier(0, 0, 0.2, 1) infinite;"></span>
-                        <span style="position:relative; width:6px; height:6px; border-radius:50%; background:#22c55e;"></span>
+            
+            <div class="active-visit-main-row">
+                <div class="active-visit-header-wrap">
+                    <div class="active-visit-info">
+                        <div style="position:relative; width:10px; height:10px; flex-shrink:0; display:flex; align-items:center; justify-content:center;">
+                            <span style="position:absolute; width:12px; height:12px; border-radius:50%; background:#22c55e; animation: pulseDot 2s cubic-bezier(0, 0, 0.2, 1) infinite;"></span>
+                            <span style="position:relative; width:6px; height:6px; border-radius:50%; background:#22c55e;"></span>
+                        </div>
+                        <div style="min-width:0;">
+                            <div style="font-size:9.5px; font-weight:800; text-transform:uppercase; letter-spacing:0.04em; color:var(--lime); line-height:1.2;">Currently Checked In</div>
+                            <h2 style="font-size:15px; margin:0; color:var(--ink); font-weight:800; letter-spacing:-0.01em; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; line-height:1.2;"><?= h($activeAttendance['gym_name'] ?: 'Fitness Gym') ?></h2>
+                        </div>
                     </div>
-                    <div style="min-width:0;">
-                        <div style="font-size:9.5px; font-weight:800; text-transform:uppercase; letter-spacing:0.04em; color:var(--lime); line-height:1.2;">Currently Checked In</div>
-                        <h2 style="font-size:15px; margin:0; color:var(--ink); font-weight:800; letter-spacing:-0.01em; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; line-height:1.2;"><?= h($activeAttendance['gym_name'] ?: 'Fitness Gym') ?></h2>
+                    <!-- Time badge on mobile header -->
+                    <div class="active-visit-time-badge mobile-only">
+                        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                        <span><?= date('g:i A', strtotime((string)$activeAttendance['check_in_time'])) ?> (<?= max(1, (int)round((time() - strtotime((string)$activeAttendance['check_in_time'])) / 60)) ?>m)</span>
                     </div>
                 </div>
-                <div style="font-size:11px; font-weight:600; color:var(--muted); background:var(--panel-soft); padding:3px 8px; border-radius:12px; border:1px solid var(--line); display:inline-flex; align-items:center; gap:4px; white-space:nowrap; flex-shrink:0;">
-                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-                    <span><?= date('g:i A', strtotime((string)$activeAttendance['check_in_time'])) ?> (<?= max(1, (int)round((time() - strtotime((string)$activeAttendance['check_in_time'])) / 60)) ?>m)</span>
+
+                <!-- Actions cluster (with time badge on desktop) -->
+                <div class="active-visit-actions">
+                    <div class="active-visit-time-badge desktop-only">
+                        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                        <span><?= date('g:i A', strtotime((string)$activeAttendance['check_in_time'])) ?> (<?= max(1, (int)round((time() - strtotime((string)$activeAttendance['check_in_time'])) / 60)) ?>m)</span>
+                    </div>
+                    <?php if (!$activeEquipSession && !empty($checkedInEquipmentList)): ?>
+                        <button type="button" id="btn-reopen-equipment-modal" class="btn btn-primary active-visit-btn" style="font-weight:700; font-size:11.5px; display:inline-flex; align-items:center; justify-content:center; gap:5px; border-radius:7px; min-height:32px; line-height:1.2; white-space:nowrap;">
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="flex-shrink:0;"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+                            <span><?= $user['role'] === 'trainer' ? 'Training Equipment' : 'Choose Equipment' ?></span>
+                        </button>
+                    <?php endif; ?>
+                    <a href="index.php?page=equipment" class="btn active-visit-btn" style="background:var(--panel-soft); border:1px solid var(--line); color:var(--ink); font-weight:600; font-size:11.5px; text-decoration:none; display:inline-flex; align-items:center; justify-content:center; gap:5px; border-radius:7px; min-height:32px; line-height:1.2; white-space:nowrap;">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="flex-shrink:0;"><path d="M6 4v16M18 4v16M2 8h4M2 16h4M18 8h4M18 16h4M6 12h12"/></svg>
+                        <span>Floor &amp; Queue</span>
+                    </a>
                 </div>
             </div>
 
             <?php if ($activeEquipSession): ?>
-                <div style="background:var(--panel-soft); border:1px solid var(--line); border-radius:8px; padding:6px 10px; margin-bottom:8px; display:flex; align-items:center; justify-content:space-between; gap:8px;">
+                <div style="background:var(--panel-soft); border:1px solid var(--line); border-radius:8px; padding:6px 10px; margin-top:8px; display:flex; align-items:center; justify-content:space-between; gap:8px;">
                     <div style="display:flex; align-items:center; gap:7px; min-width:0;">
                         <div style="width:24px; height:24px; border-radius:6px; background:color-mix(in srgb, var(--lime) 18%, transparent); color:var(--lime); display:flex; align-items:center; justify-content:center; flex-shrink:0;">
                             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
@@ -359,7 +488,7 @@ function qr_attendance_page(): void
             <?php endif; ?>
 
             <?php if ($activeTrainerClass): ?>
-                <div style="background:var(--panel-soft); border:1px solid color-mix(in srgb, var(--lime) 40%, var(--line)); border-radius:8px; padding:7px 10px; margin-bottom:8px; display:flex; align-items:center; justify-content:space-between; gap:8px;">
+                <div style="background:var(--panel-soft); border:1px solid color-mix(in srgb, var(--lime) 40%, var(--line)); border-radius:8px; padding:7px 10px; margin-top:8px; display:flex; align-items:center; justify-content:space-between; gap:8px;">
                     <div style="display:flex; align-items:center; gap:8px; min-width:0;">
                         <div style="width:26px; height:26px; border-radius:6px; background:color-mix(in srgb, var(--lime) 20%, transparent); color:var(--lime); display:flex; align-items:center; justify-content:center; flex-shrink:0;">
                             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
@@ -374,19 +503,6 @@ function qr_attendance_page(): void
                     </a>
                 </div>
             <?php endif; ?>
-
-            <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap:6px;">
-                <?php if (!$activeEquipSession && !empty($checkedInEquipmentList)): ?>
-                    <button type="button" id="btn-reopen-equipment-modal" class="btn btn-primary" style="font-weight:700; font-size:11.5px; padding:6px 8px; display:inline-flex; align-items:center; justify-content:center; gap:5px; border-radius:7px; min-height:32px; line-height:1.2; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
-                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="flex-shrink:0;"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
-                        <span><?= $user['role'] === 'trainer' ? 'Training Equipment' : 'Choose Equipment' ?></span>
-                    </button>
-                <?php endif; ?>
-                <a href="index.php?page=equipment" class="btn" style="background:var(--panel-soft); border:1px solid var(--line); color:var(--ink); font-weight:600; font-size:11.5px; padding:6px 8px; text-decoration:none; display:inline-flex; align-items:center; justify-content:center; gap:5px; border-radius:7px; min-height:32px; line-height:1.2; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="flex-shrink:0;"><path d="M6 4v16M18 4v16M2 8h4M2 16h4M18 8h4M18 16h4M6 12h12"/></svg>
-                    <span>Floor &amp; Queue</span>
-                </a>
-            </div>
         </div>
     <?php endif; ?>
 
@@ -742,15 +858,17 @@ function qr_attendance_page(): void
 
         let quickSelectHtml = '';
         if (equipList.length > 0 && !isTrainer) {
+            const availCount = equipList.filter(e => e.status === 'available').length;
+            const inUseCount = equipList.filter(e => e.status === 'in_use').length;
             quickSelectHtml = `
                 <div style="background: color-mix(in srgb, var(--panel-soft) 40%, var(--panel)); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; margin: 6px 0; text-align: left;">
                     <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom: 6px;">
                         <span style="font-size: 10.5px; font-weight: 800; color: var(--lime); text-transform: uppercase; letter-spacing: 0.04em;">Quick-Claim Machine</span>
-                        <span id="quick-equip-live-count" style="font-size: 10.5px; color: var(--muted); font-weight: 600;">${equipList.length} available</span>
+                        <span id="quick-equip-live-count" style="font-size: 10.5px; color: var(--muted); font-weight: 600;">${availCount} available${inUseCount > 0 ? ` · ${inUseCount} in use` : ''}</span>
                     </div>
 
                     <div style="position:relative; margin-bottom: 8px;">
-                        <input type="text" id="quick-search-equip" placeholder="Type to filter (e.g. Bench, Treadmill)..." style="width:100%; box-sizing:border-box; padding:7px 28px 7px 28px; border-radius:7px; background:var(--panel); border:1px solid var(--line); color:var(--ink); font-size:12px; outline:none;" autocomplete="off">
+                        <input type="text" id="quick-search-equip" placeholder="Type to filter (e.g. Bench, Rowing Machine)..." style="width:100%; box-sizing:border-box; padding:7px 28px 7px 28px; border-radius:7px; background:var(--panel); border:1px solid var(--line); color:var(--ink); font-size:12px; outline:none;" autocomplete="off">
                         <svg style="position:absolute; left:9px; top:50%; transform:translateY(-50%); color:var(--muted); pointer-events:none;" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
                         <button type="button" id="quick-search-clear" style="display:none; position:absolute; right:8px; top:50%; transform:translateY(-50%); background:none; border:none; color:var(--muted); cursor:pointer; font-size:12px; line-height:1; padding:2px;">✕</button>
                     </div>
@@ -759,11 +877,11 @@ function qr_attendance_page(): void
                         <!-- Custom Mobile-Optimized Dropdown -->
                         <div id="custom-equip-dropdown" style="position: relative; width: 100%;">
                             <input type="hidden" id="quick-checkin-equip-id" value="">
+                            <input type="hidden" id="quick-checkin-equip-status" value="">
                             
                             <button type="button" id="quick-equip-trigger" style="width: 100%; box-sizing: border-box; display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 8.5px 12px; border-radius: 8px; background: var(--panel); border: 1.5px solid var(--line); color: var(--ink); font-size: 12px; cursor: pointer; text-align: left; transition: all 0.2s ease;">
-                                <div style="display:flex; align-items:center; gap:7px; min-width:0; overflow:hidden;">
-                                    <span style="font-size:13px; opacity:0.85;">🏋️</span>
-                                    <span id="quick-equip-trigger-text" style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--muted); font-weight: 500;">-- Choose an available machine (${equipList.length}) --</span>
+                                <div style="display:flex; align-items:center; min-width:0; overflow:hidden;">
+                                    <span id="quick-equip-trigger-text" style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--muted); font-weight: 500;">-- Choose a machine (${equipList.length}) --</span>
                                 </div>
                                 <svg id="quick-equip-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="flex-shrink:0; transition: transform 0.2s ease;"><polyline points="6 9 12 15 18 9"/></svg>
                             </button>
@@ -772,9 +890,9 @@ function qr_attendance_page(): void
                             </div>
                         </div>
 
-                        <button type="button" id="btn-quick-claim" style="width: 100%; padding: 9px 14px; border-radius: 8px; background: var(--lime); color: #000; font-weight: 800; font-size: 12px; border: none; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 6px; box-shadow: 0 2px 8px rgba(132, 204, 22, 0.2); transition: opacity 0.15s;">
-                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
-                            <span>Claim &amp; Start Station</span>
+                        <button type="button" id="btn-quick-claim" style="width: 100%; padding: 9px 14px; border-radius: 8px; background: var(--lime); color: #000; font-weight: 800; font-size: 12px; border: none; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 6px; box-shadow: 0 2px 8px rgba(132, 204, 22, 0.2); transition: all 0.15s;">
+                            <span id="btn-quick-claim-icon" style="display:inline-flex; align-items:center;"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg></span>
+                            <span id="btn-quick-claim-text">Claim &amp; Start Station</span>
                         </button>
                     </div>
                 </div>
@@ -847,6 +965,7 @@ function qr_attendance_page(): void
                 const claimBtn = document.getElementById('btn-quick-claim');
 
                 let activeCategory = '';
+                let selectedItemData = null;
 
                 function cleanUnitNumber(val) {
                     if (!val) return '';
@@ -889,16 +1008,84 @@ function qr_attendance_page(): void
                     }
                 });
 
-                function selectItem(id, name, unit, cat) {
+                function selectItem(id, name, unit, cat, status, queueCount, isQueued, isUsing) {
+                    queueCount = Number(queueCount) || 0;
+                    isQueued = Boolean(Number(isQueued) > 0);
+                    isUsing = Boolean(Number(isUsing) > 0);
+                    status = status || 'available';
+
+                    selectedItemData = { id, name, unit, cat, status, queueCount, isQueued, isUsing };
+
                     if (hiddenInput) hiddenInput.value = id;
+                    const statusInput = document.getElementById('quick-checkin-equip-status');
+                    if (statusInput) statusInput.value = status;
+
                     if (triggerText) {
                         const unitBadge = unit ? ` #${unit}` : '';
-                        triggerText.innerHTML = `<strong style="color:var(--ink); font-weight:800;">${escapeHtml(name)}${unitBadge}</strong> <span style="font-size:10.5px; color:var(--lime); font-weight:600; margin-left:4px;">(${escapeHtml(cat)})</span>`;
+                        if (status === 'in_use') {
+                            const queueBadgeText = isUsing ? 'In Use by You' : (isQueued ? 'In Waitlist' : 'In Use · Queue Available');
+                            triggerText.innerHTML = `<strong style="color:var(--ink); font-weight:800;">${escapeHtml(name)}${unitBadge}</strong> <span style="font-size:9.5px; color:#f59e0b; font-weight:800; margin-left:5px; padding:1.5px 6px; border-radius:4px; background:rgba(245,158,11,0.18); border:1px solid rgba(245,158,11,0.35); text-transform:uppercase;">${queueBadgeText}</span>`;
+                        } else {
+                            triggerText.innerHTML = `<strong style="color:var(--ink); font-weight:800;">${escapeHtml(name)}${unitBadge}</strong> <span style="font-size:10.5px; color:var(--lime); font-weight:600; margin-left:4px;">(${escapeHtml(cat)})</span>`;
+                        }
                     }
+
                     if (triggerBtn) {
-                        triggerBtn.style.borderColor = 'var(--lime)';
-                        triggerBtn.style.background = 'color-mix(in srgb, var(--lime) 8%, var(--panel))';
+                        if (status === 'in_use') {
+                            triggerBtn.style.borderColor = 'rgba(245, 158, 11, 0.7)';
+                            triggerBtn.style.background = 'color-mix(in srgb, #f59e0b 8%, var(--panel))';
+                        } else {
+                            triggerBtn.style.borderColor = 'var(--lime)';
+                            triggerBtn.style.background = 'color-mix(in srgb, var(--lime) 8%, var(--panel))';
+                        }
                     }
+
+                    if (claimBtn) {
+                        const claimText = document.getElementById('btn-quick-claim-text');
+                        const claimIcon = document.getElementById('btn-quick-claim-icon');
+
+                        if (status === 'in_use') {
+                            if (isUsing) {
+                                claimBtn.disabled = true;
+                                claimBtn.style.background = 'rgba(14, 165, 233, 0.2)';
+                                claimBtn.style.color = '#38bdf8';
+                                claimBtn.style.border = '1px solid rgba(14, 165, 233, 0.4)';
+                                claimBtn.style.cursor = 'not-allowed';
+                                claimBtn.style.boxShadow = 'none';
+                                if (claimText) claimText.textContent = 'Currently in Use by You';
+                                if (claimIcon) claimIcon.innerHTML = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>';
+                            } else if (isQueued) {
+                                claimBtn.disabled = true;
+                                claimBtn.style.background = 'rgba(245, 158, 11, 0.2)';
+                                claimBtn.style.color = '#fbbf24';
+                                claimBtn.style.border = '1px solid rgba(245, 158, 11, 0.4)';
+                                claimBtn.style.cursor = 'not-allowed';
+                                claimBtn.style.boxShadow = 'none';
+                                if (claimText) claimText.textContent = 'Already in Waitlist Queue';
+                                if (claimIcon) claimIcon.innerHTML = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>';
+                            } else {
+                                claimBtn.disabled = false;
+                                claimBtn.style.background = '#f59e0b';
+                                claimBtn.style.color = '#000';
+                                claimBtn.style.border = 'none';
+                                claimBtn.style.cursor = 'pointer';
+                                claimBtn.style.boxShadow = '0 2px 10px rgba(245, 158, 11, 0.35)';
+                                const nextPos = queueCount + 1;
+                                if (claimText) claimText.textContent = `Join Queue (#${nextPos} in line)`;
+                                if (claimIcon) claimIcon.innerHTML = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>';
+                            }
+                        } else {
+                            claimBtn.disabled = false;
+                            claimBtn.style.background = 'var(--lime)';
+                            claimBtn.style.color = '#000';
+                            claimBtn.style.border = 'none';
+                            claimBtn.style.cursor = 'pointer';
+                            claimBtn.style.boxShadow = '0 2px 8px rgba(132, 204, 22, 0.2)';
+                            if (claimText) claimText.textContent = 'Claim & Start Station';
+                            if (claimIcon) claimIcon.innerHTML = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>';
+                        }
+                    }
+
                     closeMenu();
                     updateItemHighlight();
                 }
@@ -908,13 +1095,47 @@ function qr_attendance_page(): void
                     const curId = hiddenInput.value;
                     menu.querySelectorAll('.custom-equip-opt').forEach(opt => {
                         const isMatch = opt.getAttribute('data-id') === curId;
-                        opt.style.background = isMatch ? 'color-mix(in srgb, var(--lime) 15%, transparent)' : 'transparent';
-                        opt.style.borderColor = isMatch ? 'var(--lime)' : 'transparent';
+                        const optStatus = opt.getAttribute('data-status') || 'available';
+                        const isQueued = opt.getAttribute('data-is-queued') === '1';
+                        const isUsing = opt.getAttribute('data-is-using') === '1';
+                        const qCount = Number(opt.getAttribute('data-queue-count') || 0);
+
+                        const highlightColor = (optStatus === 'in_use') ? '#f59e0b' : 'var(--lime)';
+
+                        opt.style.background = isMatch ? `color-mix(in srgb, ${highlightColor} 18%, transparent)` : 'transparent';
+                        opt.style.borderColor = isMatch ? highlightColor : 'transparent';
+
                         const badge = opt.querySelector('.custom-equip-select-badge');
                         if (badge) {
-                            badge.textContent = isMatch ? '✓ Selected' : 'Select';
-                            badge.style.background = isMatch ? 'var(--lime)' : 'color-mix(in srgb, var(--lime) 15%, transparent)';
-                            badge.style.color = isMatch ? '#000' : 'var(--lime)';
+                            if (optStatus === 'in_use') {
+                                if (isUsing) {
+                                    badge.textContent = 'In Use';
+                                    badge.style.background = 'rgba(14, 165, 233, 0.18)';
+                                    badge.style.color = '#38bdf8';
+                                } else if (isQueued) {
+                                    badge.textContent = '✓ Queued';
+                                    badge.style.background = 'rgba(245, 158, 11, 0.2)';
+                                    badge.style.color = '#fbbf24';
+                                } else if (isMatch) {
+                                    badge.textContent = '✓ Queuing';
+                                    badge.style.background = '#f59e0b';
+                                    badge.style.color = '#000';
+                                } else {
+                                    badge.textContent = qCount > 0 ? `Queue (${qCount})` : 'Queue';
+                                    badge.style.background = 'rgba(245, 158, 11, 0.15)';
+                                    badge.style.color = '#f59e0b';
+                                }
+                            } else {
+                                if (isMatch) {
+                                    badge.textContent = '✓ Selected';
+                                    badge.style.background = 'var(--lime)';
+                                    badge.style.color = '#000';
+                                } else {
+                                    badge.textContent = 'Select';
+                                    badge.style.background = 'color-mix(in srgb, var(--lime) 15%, transparent)';
+                                    badge.style.color = 'var(--lime)';
+                                }
+                            }
                         }
                     });
                 }
@@ -943,7 +1164,7 @@ function qr_attendance_page(): void
 
                     let itemsHtml = '';
                     if (filtered.length === 0) {
-                        itemsHtml = `<div style="padding: 14px 10px; text-align: center; color: var(--muted); font-size: 11.5px;">No available machines matching ${q ? '"' + escapeHtml(q) + '"' : 'filter'}</div>`;
+                        itemsHtml = `<div style="padding: 14px 10px; text-align: center; color: var(--muted); font-size: 11.5px;">No equipment matching ${q ? '"' + escapeHtml(q) + '"' : 'filter'}</div>`;
                     } else {
                         for (const [catName, items] of Object.entries(byCat)) {
                             itemsHtml += `
@@ -955,13 +1176,60 @@ function qr_attendance_page(): void
                             items.forEach(eq => {
                                 const unit = cleanUnitNumber(eq.unit_number);
                                 const isSel = (hiddenInput && hiddenInput.value === String(eq.equipment_id));
+                                const isInUse = (eq.status === 'in_use');
+                                const qCount = Number(eq.queue_count || 0);
+                                const isQueued = (Number(eq.is_user_queued) > 0);
+                                const isUsing = (eq.active_user_id && String(eq.active_user_id) === String(userId));
+
+                                let badgeText = 'Select';
+                                let badgeColor = isSel ? '#000' : 'var(--lime)';
+                                let badgeBg = isSel ? 'var(--lime)' : 'color-mix(in srgb, var(--lime) 15%, transparent)';
+                                let badgeBorder = '1px solid transparent';
+
+                                if (isInUse) {
+                                    if (isUsing) {
+                                        badgeText = 'In Use';
+                                        badgeColor = '#38bdf8';
+                                        badgeBg = 'rgba(14, 165, 233, 0.18)';
+                                        badgeBorder = '1px solid rgba(14, 165, 233, 0.35)';
+                                    } else if (isQueued) {
+                                        badgeText = '✓ Queued';
+                                        badgeColor = '#fbbf24';
+                                        badgeBg = 'rgba(245, 158, 11, 0.2)';
+                                        badgeBorder = '1px solid rgba(245, 158, 11, 0.35)';
+                                    } else if (isSel) {
+                                        badgeText = '✓ Queuing';
+                                        badgeColor = '#000';
+                                        badgeBg = '#f59e0b';
+                                    } else {
+                                        badgeText = qCount > 0 ? `Queue (${qCount})` : 'Queue';
+                                        badgeColor = '#f59e0b';
+                                        badgeBg = 'rgba(245, 158, 11, 0.15)';
+                                        badgeBorder = '1px solid rgba(245, 158, 11, 0.35)';
+                                    }
+                                }
+
+                                const highlightColor = isInUse ? '#f59e0b' : 'var(--lime)';
+                                const itemHighlightBg = isSel ? `color-mix(in srgb, ${highlightColor} 18%, transparent)` : 'transparent';
+                                const itemHighlightBorder = isSel ? highlightColor : 'transparent';
+
                                 itemsHtml += `
-                                    <div class="custom-equip-opt" data-id="${eq.equipment_id}" data-name="${escapeHtml(eq.name)}" data-unit="${escapeHtml(unit)}" data-cat="${escapeHtml(eq.category || '')}" style="padding: 7px 10px; margin-bottom: 2px; border-radius: 6px; display: flex; align-items: center; justify-content: space-between; gap: 8px; cursor: pointer; transition: all 0.15s; background: ${isSel ? 'color-mix(in srgb, var(--lime) 15%, transparent)' : 'transparent'}; border: 1px solid ${isSel ? 'var(--lime)' : 'transparent'};">
+                                    <div class="custom-equip-opt"
+                                         data-id="${eq.equipment_id}"
+                                         data-name="${escapeHtml(eq.name)}"
+                                         data-unit="${escapeHtml(unit)}"
+                                         data-cat="${escapeHtml(eq.category || '')}"
+                                         data-status="${escapeHtml(eq.status || 'available')}"
+                                         data-queue-count="${qCount}"
+                                         data-is-queued="${isQueued ? '1' : '0'}"
+                                         data-is-using="${isUsing ? '1' : '0'}"
+                                         style="padding: 7px 10px; margin-bottom: 2px; border-radius: 6px; display: flex; align-items: center; justify-content: space-between; gap: 8px; cursor: pointer; transition: all 0.15s; background: ${itemHighlightBg}; border: 1px solid ${itemHighlightBorder};">
                                         <div style="display:flex; align-items:center; gap:6px; min-width:0;">
                                             <span style="font-weight: 700; color: var(--ink); font-size: 12px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${escapeHtml(eq.name)}</span>
                                             ${unit ? `<span style="font-size: 10px; font-weight: 800; padding: 1px 5px; border-radius: 4px; background: rgba(148,163,184,0.18); color: var(--ink); flex-shrink:0;">#${unit}</span>` : ''}
+                                            ${isInUse ? `<span style="font-size: 9.5px; font-weight: 700; padding: 1px 5px; border-radius: 4px; background: rgba(245,158,11,0.15); color: #f59e0b; border: 1px solid rgba(245,158,11,0.3); flex-shrink:0;">In Use</span>` : ''}
                                         </div>
-                                        <span class="custom-equip-select-badge" style="font-size: 9.5px; font-weight: 800; color: ${isSel ? '#000' : 'var(--lime)'}; background: ${isSel ? 'var(--lime)' : 'color-mix(in srgb, var(--lime) 15%, transparent)'}; padding: 2px 7px; border-radius: 4px; flex-shrink:0; text-transform:uppercase;">${isSel ? '✓ Selected' : 'Select'}</span>
+                                        <span class="custom-equip-select-badge" style="font-size: 9.5px; font-weight: 800; color: ${badgeColor}; background: ${badgeBg}; border: ${badgeBorder}; padding: 2px 7px; border-radius: 4px; flex-shrink:0; text-transform:uppercase;">${badgeText}</span>
                                     </div>
                                 `;
                             });
@@ -978,7 +1246,11 @@ function qr_attendance_page(): void
                                 opt.getAttribute('data-id'),
                                 opt.getAttribute('data-name'),
                                 opt.getAttribute('data-unit'),
-                                opt.getAttribute('data-cat')
+                                opt.getAttribute('data-cat'),
+                                opt.getAttribute('data-status'),
+                                opt.getAttribute('data-queue-count'),
+                                opt.getAttribute('data-is-queued'),
+                                opt.getAttribute('data-is-using')
                             );
                         });
                         opt.addEventListener('mouseenter', () => {
@@ -995,14 +1267,19 @@ function qr_attendance_page(): void
 
                     if (filtered.length === 1 && !hiddenInput.value) {
                         const sole = filtered[0];
-                        selectItem(sole.equipment_id, sole.name, cleanUnitNumber(sole.unit_number), sole.category || '');
+                        const qCount = Number(sole.queue_count || 0);
+                        const isQueued = (Number(sole.is_user_queued) > 0);
+                        const isUsing = (sole.active_user_id && String(sole.active_user_id) === String(userId));
+                        selectItem(sole.equipment_id, sole.name, cleanUnitNumber(sole.unit_number), sole.category || '', sole.status, qCount, isQueued, isUsing);
                     }
 
                     if (liveCount) {
+                        const availCount = filtered.filter(e => e.status === 'available').length;
+                        const inUseCount = filtered.filter(e => e.status === 'in_use').length;
                         if (q || activeCategory) {
-                            liveCount.textContent = `${filtered.length} of ${rawEquipList.length} available`;
+                            liveCount.textContent = `${filtered.length} matching (${availCount} avail · ${inUseCount} in use)`;
                         } else {
-                            liveCount.textContent = `${rawEquipList.length} available`;
+                            liveCount.textContent = `${availCount} available · ${inUseCount} in use`;
                         }
                     }
 
@@ -1087,13 +1364,87 @@ function qr_attendance_page(): void
                             Swal.fire({
                                 icon: 'info',
                                 title: 'Select a Machine',
-                                text: 'Please choose an available machine from the list or search for one.',
+                                text: 'Please choose a machine from the list or search for one.',
                                 background: 'var(--panel)',
                                 color: 'var(--ink)',
                                 confirmButtonColor: 'var(--lime)'
                             });
                             return;
                         }
+
+                        const isQueueAction = selectedItemData && selectedItemData.status === 'in_use';
+
+                        if (isQueueAction) {
+                            if (selectedItemData.isUsing) {
+                                Swal.fire({
+                                    icon: 'info',
+                                    title: 'Already in Use',
+                                    text: 'You are currently using this equipment.',
+                                    background: 'var(--panel)',
+                                    color: 'var(--ink)',
+                                    confirmButtonColor: 'var(--lime)'
+                                });
+                                return;
+                            }
+                            if (selectedItemData.isQueued) {
+                                Swal.fire({
+                                    icon: 'info',
+                                    title: 'Already Queued',
+                                    text: 'You are already in the waitlist queue for this machine.',
+                                    background: 'var(--panel)',
+                                    color: 'var(--ink)',
+                                    confirmButtonColor: 'var(--lime)'
+                                });
+                                return;
+                            }
+
+                            claimBtn.disabled = true;
+                            const originalHtml = claimBtn.innerHTML;
+                            claimBtn.textContent = 'Joining Queue...';
+
+                            try {
+                                const fd = new FormData();
+                                fd.append('equipment_id', equipId);
+                                fd.append('csrf_token', csrfToken);
+                                fd.append('gym_id', data.gym_id);
+                                const res = await fetch(`index.php?page=equipment_api&action=join_queue&gym_id=${data.gym_id}`, {
+                                    method: 'POST',
+                                    headers: { 'X-Requested-With': 'XMLHttpRequest' },
+                                    body: fd
+                                });
+                                const qData = await res.json();
+                                if (qData.success) {
+                                    Swal.fire({
+                                        icon: 'success',
+                                        title: 'Joined Waitlist!',
+                                        html: `You are <strong>#${qData.position}</strong> in line for <strong>${escapeHtml(selectedItemData.name)}${selectedItemData.unit ? ' #' + escapeHtml(selectedItemData.unit) : ''}</strong>.<br><div style="font-size:12px; color:var(--muted); margin-top:6px;">⏱️ ${escapeHtml(qData.estimated_wait || 'We will notify you when it is ready.')}</div>`,
+                                        background: 'var(--panel)',
+                                        color: 'var(--ink)',
+                                        confirmButtonColor: 'var(--lime)',
+                                        confirmButtonText: 'View Equipment Floor'
+                                    }).then(() => {
+                                        window.location.href = 'index.php?page=equipment';
+                                    });
+                                } else {
+                                    claimBtn.disabled = false;
+                                    claimBtn.innerHTML = originalHtml;
+                                    Swal.fire({
+                                        icon: 'warning',
+                                        title: 'Cannot Join Queue',
+                                        text: qData.message || 'Could not join the queue.',
+                                        background: 'var(--panel)',
+                                        color: 'var(--ink)',
+                                        confirmButtonColor: 'var(--lime)'
+                                    });
+                                }
+                            } catch (e) {
+                                console.error(e);
+                                window.location.href = 'index.php?page=equipment';
+                            }
+                            return;
+                        }
+
+                        // Standard Claim & Start Station action for available machines
                         claimBtn.disabled = true;
                         claimBtn.textContent = 'Claiming...';
                         try {

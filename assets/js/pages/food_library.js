@@ -963,47 +963,120 @@ function importProductToGym(product) {
     });
 }
 
-function promptRejectFood(foodId, foodName, returnTab = 'verifications') {
-    Swal.fire({
-        title: 'Reject Custom Food',
-        html: `Provide an administrative reason for rejecting <strong>${escapeHtml(foodName)}</strong>.<br><span style="font-size:12px; color:var(--muted);">This explanation will be shared with the gym owner and trainer so they can adjust and resubmit.</span>`,
-        input: 'textarea',
-        inputPlaceholder: 'e.g., Incomplete ingredients list, macros do not match portion size...',
-        inputAttributes: {
-            'aria-label': 'Rejection reason',
-            'style': 'height: 85px; font-size: 13px; border-radius: 8px; background: var(--surface); color: var(--ink); border: 1px solid var(--line);'
-        },
-        showCancelButton: true,
-        confirmButtonText: 'Confirm Rejection',
-        confirmButtonColor: '#ef4444',
-        cancelButtonColor: 'var(--line)',
-        background: 'var(--bg)',
-        color: 'var(--ink)',
-        preConfirm: (reason) => {
-            if (!reason || !reason.trim()) {
-                Swal.showValidationMessage('Please provide a reason for the rejection');
-                return false;
+/**
+ * Confirmation Alert for Approving a Custom Food Submission
+ */
+function confirmApproveFood(foodId, foodName, returnTab = 'verifications') {
+    const csrfToken = (window.FOOD_LIBRARY_CONFIG && window.FOOD_LIBRARY_CONFIG.csrfToken)
+        ? window.FOOD_LIBRARY_CONFIG.csrfToken
+        : (document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '');
+
+    if (typeof Swal !== 'undefined') {
+        Swal.fire({
+            title: 'Approve Custom Food?',
+            html: `Are you sure you want to approve <strong>${escapeHtml(foodName)}</strong>?<br><span style="font-size:12.5px; color:var(--muted); margin-top:6px; display:inline-block;">This custom food will be verified and published to the gym catalog.</span>`,
+            icon: 'question',
+            showCancelButton: true,
+            confirmButtonText: 'Yes, Approve',
+            cancelButtonText: 'Cancel',
+            confirmButtonColor: '#84cc16',
+            cancelButtonColor: '#64748b',
+            background: 'var(--surface)',
+            color: 'var(--ink)',
+            customClass: {
+                confirmButton: 'btn-swal-approve'
             }
-            return reason.trim();
+        }).then((result) => {
+            if (result.isConfirmed) {
+                submitFoodVerificationForm('approve_food', foodId, returnTab, csrfToken);
+            }
+        });
+    } else {
+        if (confirm(`Are you sure you want to approve "${foodName}"?`)) {
+            submitFoodVerificationForm('approve_food', foodId, returnTab, csrfToken);
         }
-    }).then((result) => {
-        if (result.isConfirmed) {
-            const form = document.createElement('form');
-            form.method = 'POST';
-            form.action = 'index.php?page=food_library&tab=' + encodeURIComponent(returnTab);
-            form.style.display = 'none';
-            form.innerHTML = `
-                <input type="hidden" name="csrf_token" value="${FT_CSRF_TOKEN}">
-                <input type="hidden" name="action" value="reject_food">
-                <input type="hidden" name="return_tab" value="${encodeURIComponent(returnTab)}">
-                <input type="hidden" name="food_id" value="${foodId}">
-                <input type="hidden" name="rejection_reason" value="${escapeHtml(result.value)}">
-            `;
-            document.body.appendChild(form);
-            form.submit();
-        }
-    });
+    }
 }
+
+/**
+ * Confirmation & Reason Alert for Rejecting a Custom Food Submission
+ */
+function promptRejectFood(foodId, foodName, returnTab = 'verifications', isCurrentlyVerified = false) {
+    const csrfToken = (window.FOOD_LIBRARY_CONFIG && window.FOOD_LIBRARY_CONFIG.csrfToken)
+        ? window.FOOD_LIBRARY_CONFIG.csrfToken
+        : (document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '');
+
+    const title = isCurrentlyVerified ? 'Revoke Approval & Reject?' : 'Reject Custom Food?';
+    const subtext = isCurrentlyVerified
+        ? `This custom food is currently <strong>Verified</strong>. Are you sure you want to revoke its approval and reject it?<br><span class="food-reject-feedback-hint">Provide a feedback reason explaining why verification is being revoked:</span>`
+        : `Are you sure you want to reject <strong>${escapeHtml(foodName)}</strong>?<br><span class="food-reject-feedback-hint">Provide a feedback reason so the submitter can adjust and resubmit:</span>`;
+    const confirmBtnText = isCurrentlyVerified ? 'Yes, Revoke & Reject' : 'Confirm Rejection';
+
+    if (typeof Swal !== 'undefined') {
+        Swal.fire({
+            title: title,
+            html: subtext,
+            icon: 'warning',
+            input: 'textarea',
+            inputPlaceholder: 'e.g., Incomplete ingredients list, inaccurate calorie or macro breakdown...',
+            inputAttributes: {
+                'aria-label': 'Rejection reason',
+                'style': 'height: 85px; font-size: 13px; border-radius: 8px; background: var(--bg); color: var(--ink); border: 1px solid var(--line);'
+            },
+            showCancelButton: true,
+            confirmButtonText: confirmBtnText,
+            cancelButtonText: 'Cancel',
+            confirmButtonColor: '#ef4444',
+            cancelButtonColor: '#64748b',
+            background: 'var(--surface)',
+            color: 'var(--ink)',
+            customClass: {
+                popup: 'food-verification-reject-modal'
+            },
+            preConfirm: (reason) => {
+                if (!reason || !reason.trim()) {
+                    Swal.showValidationMessage('Please provide a reason for the rejection');
+                    return false;
+                }
+                return reason.trim();
+            }
+        }).then((result) => {
+            if (result.isConfirmed) {
+                submitFoodVerificationForm('reject_food', foodId, returnTab, csrfToken, result.value);
+            }
+        });
+    } else {
+        const reason = prompt(isCurrentlyVerified ? `Provide a reason for revoking approval of "${foodName}":` : `Provide a reason for rejecting "${foodName}":`);
+        if (reason && reason.trim()) {
+            submitFoodVerificationForm('reject_food', foodId, returnTab, csrfToken, reason.trim());
+        }
+    }
+}
+
+function submitFoodVerificationForm(action, foodId, returnTab, csrfToken, rejectionReason = null) {
+    const form = document.createElement('form');
+    form.method = 'POST';
+    form.action = 'index.php?page=food_library&tab=' + encodeURIComponent(returnTab);
+    form.style.display = 'none';
+
+    let html = `
+        <input type="hidden" name="csrf_token" value="${csrfToken}">
+        <input type="hidden" name="action" value="${escapeHtml(action)}">
+        <input type="hidden" name="return_tab" value="${encodeURIComponent(returnTab)}">
+        <input type="hidden" name="food_id" value="${foodId}">
+    `;
+    if (rejectionReason !== null) {
+        html += `<input type="hidden" name="rejection_reason" value="${escapeHtml(rejectionReason)}">`;
+    }
+    form.innerHTML = html;
+    document.body.appendChild(form);
+    form.submit();
+}
+
+window.confirmApproveFood = confirmApproveFood;
+window.promptApproveFood = confirmApproveFood;
+window.confirmRejectFood = promptRejectFood;
+window.promptRejectFood = promptRejectFood;
 
 /**
  * Mobile Top Navigation Tab Dropdown

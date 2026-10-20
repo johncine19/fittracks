@@ -1080,6 +1080,32 @@ select {
         padding: 0 !important;
         overflow-x: hidden !important;
     }
+
+    /* Keep the rejection flow readable without competing text sizes on phones. */
+    .food-verification-reject-modal .swal2-icon {
+        transform: scale(0.78);
+        margin: 0.35em auto 0 !important;
+    }
+    .food-verification-reject-modal .swal2-title {
+        font-size: 20px !important;
+        line-height: 1.2 !important;
+        margin-top: 4px !important;
+    }
+    .food-verification-reject-modal .swal2-html-container {
+        font-size: 15px !important;
+        line-height: 1.45 !important;
+        margin-top: 8px !important;
+    }
+    .food-verification-reject-modal .food-reject-feedback-hint {
+        display: inline-block;
+        margin-top: 6px;
+        color: var(--muted);
+        font-size: 12px;
+        line-height: 1.35;
+    }
+    .food-verification-reject-modal .swal2-textarea {
+        font-size: 12px !important;
+    }
 }
 
 /* SweetAlert Tab Switcher System */
@@ -1875,45 +1901,86 @@ select {
     align-items: center;
 }
 
-.verif-filter-search-row input {
+.verif-search-input-wrap {
+    position: relative;
     flex: 1;
-    min-width: 140px;
-    padding: 7px 12px;
-    border-radius: 7px;
+    min-width: 220px;
+    display: flex;
+    align-items: center;
+}
+
+.verif-search-input-wrap input {
+    width: 100%;
+    height: 42px;
+    padding: 0 32px 0 38px;
+    border-radius: 9px;
     border: 1px solid var(--line);
     background: var(--bg);
     color: var(--ink);
-    font-size: 12.5px;
+    font-size: 13.5px;
+    box-sizing: border-box;
+    transition: all 0.2s ease;
+}
+.verif-search-input-wrap input:focus {
+    border-color: var(--lime);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--lime) 15%, transparent);
+    outline: none;
+}
+
+.verif-search-icon {
+    position: absolute;
+    left: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--muted);
+    pointer-events: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 2;
 }
 
 .verif-filter-search-row select {
-    padding: 7px 10px;
-    border-radius: 7px;
+    height: 42px;
+    padding: 0 14px;
+    border-radius: 9px;
     border: 1px solid var(--line);
     background: var(--bg);
     color: var(--ink);
-    font-size: 12.5px;
+    font-size: 13.5px;
     max-width: 180px;
+    box-sizing: border-box;
+    cursor: pointer;
+    transition: border-color 0.15s;
+}
+.verif-filter-search-row select:focus {
+    border-color: var(--lime);
+    outline: none;
 }
 
 .btn-verif-filter {
-    padding: 0 14px;
-    height: 33px;
+    padding: 0 20px;
+    height: 42px;
     background: var(--lime);
     color: #000000;
     font-weight: 700;
-    border-radius: 7px;
+    border-radius: 9px;
     border: none;
-    font-size: 12.5px;
+    font-size: 13.5px;
     cursor: pointer;
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    transition: opacity 0.15s;
+    box-sizing: border-box;
+    white-space: nowrap;
+    transition: all 0.15s ease;
 }
 
 .btn-verif-filter:hover {
-    opacity: 0.9;
+    background: #65a30d !important;
+    color: #000000 !important;
+    opacity: 0.95;
+    transform: translateY(-1px);
 }
 
 .verif-table-wrapper {
@@ -1939,6 +2006,7 @@ select {
     padding: 12px 16px;
     letter-spacing: 0.4px;
     border-bottom: 1px solid var(--line);
+    white-space: nowrap;
 }
 [data-theme="dark"] .verif-table th {
     background: rgba(255, 255, 255, 0.03);
@@ -1952,6 +2020,46 @@ select {
 
 .verif-table tr:last-child td {
     border-bottom: none;
+}
+
+/* Dedicated Desktop Table Column Proportions */
+.verif-table th.verif-col-food,
+.verif-table td.verif-cell-food {
+    min-width: 200px;
+}
+
+.verif-table th.verif-col-gym,
+.verif-table td.verif-cell-gym {
+    width: 140px;
+    min-width: 130px;
+}
+
+.verif-table th.verif-col-portion,
+.verif-table td.verif-cell-portion {
+    width: 130px;
+    min-width: 120px;
+    white-space: nowrap;
+}
+
+.verif-table th.verif-col-macros,
+.verif-table td.verif-cell-macros {
+    width: 195px;
+    min-width: 190px;
+    white-space: nowrap;
+}
+
+.verif-table th.verif-col-status,
+.verif-table td.verif-cell-status {
+    width: 145px;
+    min-width: 135px;
+}
+
+.verif-table th.verif-col-actions,
+.verif-table td.verif-cell-actions {
+    width: 250px;
+    min-width: 245px;
+    text-align: right;
+    white-space: nowrap;
 }
 
 .verif-food-cell {
@@ -1990,54 +2098,81 @@ select {
     line-height: 1.35;
 }
 
+/* Desktop Review Actions: Never wrap, stay on one clean line */
 .verif-actions-col {
     display: flex;
     align-items: center;
-    gap: 8px;
-    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 6px;
+    flex-wrap: nowrap !important;
+    white-space: nowrap;
+}
+
+/* Review Action Buttons: Unified Height, Alignment & Border Radius */
+.btn-verif-approve,
+.btn-verif-reject,
+.btn-verif-edit {
+    height: 32px !important;
+    min-height: 32px !important;
+    padding: 0 10px !important;
+    border-radius: 6px !important;
+    font-size: 11.5px !important;
+    font-weight: 700 !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    gap: 4px !important;
+    box-sizing: border-box !important;
+    cursor: pointer !important;
+    transition: all 0.15s ease !important;
+    text-decoration: none !important;
+    line-height: 1 !important;
+    white-space: nowrap !important;
+    flex-shrink: 0 !important;
 }
 
 .btn-verif-approve {
-    display: inline-flex;
-    align-items: center;
-    gap: 5px;
-    padding: 6px 12px;
-    border-radius: 6px;
-    font-size: 12px;
-    font-weight: 700;
     background: #84cc16;
     color: #000000;
-    border: none;
-    cursor: pointer;
-    transition: opacity 0.15s;
+    border: 1px solid #84cc16;
 }
 .btn-verif-approve:hover {
-    opacity: 0.88;
+    background: #65a30d !important;
+    border-color: #65a30d !important;
+    color: #000000 !important;
+    opacity: 0.95;
 }
 
 .btn-verif-reject {
-    display: inline-flex;
-    align-items: center;
-    gap: 5px;
-    padding: 6px 12px;
-    border-radius: 6px;
-    font-size: 12px;
-    font-weight: 700;
     background: rgba(239, 68, 68, 0.14);
     color: #ef4444;
     border: 1px solid rgba(239, 68, 68, 0.32);
-    cursor: pointer;
-    transition: all 0.15s;
 }
 .btn-verif-reject:hover {
-    background: #ef4444;
-    color: #ffffff;
+    background: #ef4444 !important;
+    color: #ffffff !important;
+    border-color: #ef4444 !important;
 }
 
+.btn-verif-edit {
+    background: var(--bg);
+    color: var(--ink);
+    border: 1px solid var(--line);
+}
+.btn-verif-edit:hover {
+    background: rgba(255, 255, 255, 0.08) !important;
+    border-color: var(--muted) !important;
+    color: var(--ink) !important;
+}
+[data-theme="light"] .btn-verif-edit:hover {
+    background: rgba(0, 0, 0, 0.05) !important;
+}
+
+/* Soft, elegant hover for Inspect Recipe button */
 .btn-verif-inspect {
     display: inline-flex;
     align-items: center;
-    gap: 4px;
+    gap: 5px;
     padding: 5px 10px;
     border-radius: 6px;
     font-size: 11.5px;
@@ -2046,11 +2181,97 @@ select {
     color: var(--ink);
     border: 1px solid var(--line);
     cursor: pointer;
-    transition: all 0.15s;
+    transition: all 0.2s ease;
 }
 .btn-verif-inspect:hover {
-    border-color: var(--lime);
-    color: var(--lime);
+    background: rgba(132, 204, 22, 0.09) !important;
+    border-color: rgba(132, 204, 22, 0.5) !important;
+    color: var(--lime) !important;
+    transform: translateY(-1px);
+}
+[data-theme="dark"] .btn-verif-inspect:hover {
+    background: rgba(132, 204, 22, 0.12) !important;
+    border-color: rgba(132, 204, 22, 0.45) !important;
+    color: #a3e635 !important;
+}
+
+/* Macros Badges Layout & Color Accents */
+.verif-macro-badges {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    white-space: nowrap;
+}
+
+.vmacro-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    padding: 2.5px 6.5px;
+    border-radius: 5px;
+    font-size: 11px;
+    font-weight: 500;
+    line-height: 1.2;
+    letter-spacing: 0.2px;
+}
+
+.vmacro-badge strong {
+    font-weight: 700;
+}
+
+.vmacro-badge.vmacro-p {
+    background: rgba(37, 99, 235, 0.12);
+    color: #3b82f6;
+    border: 1px solid rgba(37, 99, 235, 0.25);
+}
+
+.vmacro-badge.vmacro-c {
+    background: rgba(217, 119, 6, 0.12);
+    color: #f59e0b;
+    border: 1px solid rgba(217, 119, 6, 0.25);
+}
+
+.vmacro-badge.vmacro-f {
+    background: rgba(239, 68, 68, 0.12);
+    color: #ef4444;
+    border: 1px solid rgba(239, 68, 68, 0.25);
+}
+
+[data-theme="dark"] .vmacro-badge.vmacro-p {
+    background: rgba(59, 130, 246, 0.14);
+    color: #60a5fa;
+    border-color: rgba(59, 130, 246, 0.3);
+}
+[data-theme="dark"] .vmacro-badge.vmacro-c {
+    background: rgba(245, 158, 11, 0.14);
+    color: #fbbf24;
+    border-color: rgba(245, 158, 11, 0.3);
+}
+[data-theme="dark"] .vmacro-badge.vmacro-f {
+    background: rgba(239, 68, 68, 0.14);
+    color: #f87171;
+    border-color: rgba(239, 68, 68, 0.3);
+}
+
+.verif-cell-label {
+    display: none;
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--muted);
+    margin-bottom: 4px;
+}
+
+.verif-rejection-box {
+    margin-top: 6px;
+    font-size: 11.5px;
+    color: #ef4444;
+    background: rgba(239, 68, 68, 0.08);
+    padding: 6px 10px;
+    border-radius: 6px;
+    border: 1px solid rgba(239, 68, 68, 0.2);
+    line-height: 1.35;
 }
 
 /* Mobile Responsiveness for Food Library Navigation and Verifications */
@@ -2107,41 +2328,307 @@ select {
     }
 
     .verif-dropdown-mobile-wrap .fit-dropdown-trigger {
-        height: 42px;
-        font-size: 13.5px;
-        font-weight: 600;
-        border-radius: 8px;
-        background: var(--bg);
-        border: 1px solid var(--line);
+        height: 44px !important;
+        min-height: 44px !important;
+        font-size: 14px !important;
+        font-weight: 600 !important;
+        border-radius: 10px !important;
+        background: var(--bg) !important;
+        border: 1px solid var(--line) !important;
     }
 
     .verif-filter-search-row {
-        flex-direction: column;
-        align-items: stretch;
-        width: 100%;
-        gap: 8px;
+        flex-direction: column !important;
+        align-items: stretch !important;
+        width: 100% !important;
+        gap: 10px !important;
     }
 
-    .verif-filter-search-row input,
-    .verif-filter-search-row select,
+    .verif-search-input-wrap {
+        width: 100% !important;
+        position: relative !important;
+        display: flex !important;
+        align-items: center !important;
+    }
+
+    .verif-search-input-wrap input {
+        width: 100% !important;
+        max-width: 100% !important;
+        height: 44px !important;
+        min-height: 44px !important;
+        line-height: normal !important;
+        padding: 0 34px 0 42px !important;
+        font-size: 14px !important;
+        border-radius: 10px !important;
+        box-sizing: border-box !important;
+    }
+
+    .verif-search-icon {
+        left: 14px !important;
+    }
+
+    .verif-filter-search-row select {
+        width: 100% !important;
+        max-width: 100% !important;
+        height: 44px !important;
+        min-height: 44px !important;
+        padding: 0 14px !important;
+        font-size: 14px !important;
+        border-radius: 10px !important;
+        box-sizing: border-box !important;
+    }
+
     .btn-verif-filter {
         width: 100% !important;
         max-width: 100% !important;
-        box-sizing: border-box;
-    }
-
-    .verif-filter-search-row input,
-    .verif-filter-search-row select {
-        height: 40px;
-        font-size: 13px;
-    }
-
-    .btn-verif-filter {
-        height: 40px;
-        font-size: 13.5px;
+        height: 44px !important;
+        min-height: 44px !important;
+        font-size: 14px !important;
+        font-weight: 700 !important;
+        border-radius: 10px !important;
     }
 
     .verif-stats-grid {
         display: none !important;
     }
+
+    /* Mobile Verification Table transformed into Modern Cards */
+    .verif-table-wrapper {
+        border: none !important;
+        background: transparent !important;
+        overflow-x: visible !important;
+        border-radius: 0 !important;
+        box-shadow: none !important;
+    }
+
+    .verif-table {
+        display: block !important;
+        width: 100% !important;
+        border-collapse: separate !important;
+        border: none !important;
+    }
+
+    .verif-table thead {
+        display: none !important;
+    }
+
+    .verif-table tbody {
+        display: flex !important;
+        flex-direction: column !important;
+        gap: 14px !important;
+        width: 100% !important;
+    }
+
+    .verif-table tr.verif-row {
+        display: grid !important;
+        grid-template-columns: 1fr 1fr !important;
+        gap: 10px !important;
+        background: var(--surface) !important;
+        border: 1px solid var(--line) !important;
+        border-radius: 14px !important;
+        padding: 14px !important;
+        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.04) !important;
+        box-sizing: border-box !important;
+        width: 100% !important;
+        position: relative !important;
+        transition: border-color 0.2s, box-shadow 0.2s;
+    }
+
+    [data-theme="dark"] .verif-table tr.verif-row {
+        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25) !important;
+    }
+
+    .verif-table tr.verif-row:hover {
+        border-color: rgba(132, 204, 22, 0.4) !important;
+    }
+
+    .verif-table td.verif-cell {
+        display: block !important;
+        padding: 0 !important;
+        border: none !important;
+        width: 100% !important;
+        max-width: 100% !important;
+        min-width: 0 !important;
+        box-sizing: border-box !important;
+    }
+
+    .verif-cell-label {
+        display: block !important;
+        font-size: 10px !important;
+        font-weight: 700 !important;
+        text-transform: uppercase !important;
+        letter-spacing: 0.5px !important;
+        color: var(--muted) !important;
+        margin-bottom: 4px !important;
+    }
+
+    /* Food Cell (Top header of the card) */
+    .verif-cell-food {
+        grid-column: 1 / -1 !important;
+        margin-bottom: 2px !important;
+    }
+
+    .verif-food-cell {
+        display: flex !important;
+        align-items: flex-start !important;
+        gap: 12px !important;
+    }
+
+    .verif-food-thumb {
+        width: 60px !important;
+        height: 60px !important;
+        border-radius: 10px !important;
+    }
+
+    .verif-food-name {
+        font-size: 14.5px !important;
+        line-height: 1.3 !important;
+        margin-bottom: 4px !important;
+    }
+
+    .verif-food-sub {
+        font-size: 12px !important;
+    }
+
+    /* Verification Status Banner */
+    .verif-cell-status {
+        grid-column: 1 / -1 !important;
+        background: var(--bg) !important;
+        border: 1px dashed var(--line) !important;
+        border-radius: 10px !important;
+        padding: 8px 12px !important;
+    }
+
+    .verif-cell-status-inner {
+        display: flex !important;
+        align-items: center !important;
+        justify-content: space-between !important;
+        width: 100% !important;
+        flex-wrap: wrap !important;
+        gap: 6px !important;
+    }
+
+    .verif-cell-status-inner .verif-cell-label {
+        margin-bottom: 0 !important;
+    }
+
+    .verif-status-display {
+        display: flex !important;
+        align-items: center !important;
+        gap: 8px !important;
+        flex-wrap: wrap !important;
+        justify-content: flex-end !important;
+    }
+
+    .verif-status-display div {
+        margin-top: 0 !important;
+        display: inline-flex !important;
+        gap: 4px !important;
+    }
+
+    .desktop-only-br {
+        display: none !important;
+    }
+
+    /* Gym & Submitter Box (Left 50%) */
+    .verif-cell-gym {
+        grid-column: 1 / 2 !important;
+        background: var(--bg) !important;
+        border: 1px solid var(--line) !important;
+        border-radius: 10px !important;
+        padding: 10px 12px !important;
+        overflow-wrap: break-word !important;
+        word-break: break-word !important;
+        box-sizing: border-box !important;
+        width: 100% !important;
+    }
+
+    /* Portion & Calories Box (Right 50%) */
+    .verif-cell-portion {
+        grid-column: 2 / 3 !important;
+        background: var(--bg) !important;
+        border: 1px solid var(--line) !important;
+        border-radius: 10px !important;
+        padding: 10px 12px !important;
+        overflow-wrap: break-word !important;
+        word-break: break-word !important;
+        box-sizing: border-box !important;
+        width: 100% !important;
+    }
+
+    /* Nutrition & Recipe Box */
+    .verif-cell-macros {
+        grid-column: 1 / -1 !important;
+        background: var(--bg) !important;
+        border: 1px solid var(--line) !important;
+        border-radius: 10px !important;
+        padding: 10px 12px !important;
+    }
+
+    .verif-cell-macros .btn-verif-inspect {
+        width: 100% !important;
+        justify-content: center !important;
+        height: 34px !important;
+        font-size: 12px !important;
+        margin-top: 6px !important;
+        border-radius: 7px !important;
+    }
+
+    /* Action Buttons Row: Keep the 3 bottom buttons aligned at the exact same baseline */
+    .verif-cell-actions {
+        grid-column: 1 / -1 !important;
+        padding-top: 10px !important;
+        border-top: 1px solid var(--line) !important;
+        margin-top: 4px !important;
+        width: 100% !important;
+    }
+
+    .verif-cell-actions .verif-actions-col {
+        display: flex !important;
+        align-items: center !important;
+        gap: 8px !important;
+        width: 100% !important;
+        justify-content: stretch !important;
+        flex-wrap: nowrap !important;
+    }
+
+    .verif-cell-actions .btn-verif-approve,
+    .verif-cell-actions .btn-verif-reject,
+    .verif-cell-actions .btn-verif-edit {
+        flex: 1 1 0 !important;
+        width: 0 !important;
+        min-width: 0 !important;
+        height: 40px !important;
+        min-height: 40px !important;
+        display: inline-flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        gap: 6px !important;
+        padding: 0 8px !important;
+        font-size: 13px !important;
+        font-weight: 700 !important;
+        border-radius: 8px !important;
+        box-sizing: border-box !important;
+        line-height: 1 !important;
+        vertical-align: middle !important;
+        white-space: nowrap !important;
+        text-decoration: none !important;
+    }
+
+    .verif-cell-actions .btn-verif-approve svg,
+    .verif-cell-actions .btn-verif-reject svg,
+    .verif-cell-actions .btn-verif-edit svg {
+        width: 13px !important;
+        height: 13px !important;
+        flex-shrink: 0 !important;
+    }
+
+    .verif-cell-actions .btn-verif-edit span {
+        display: inline !important;
+    }
+}
+
+.btn-swal-approve {
+    color: #000000 !important;
+    font-weight: 700 !important;
 }

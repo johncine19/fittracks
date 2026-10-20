@@ -1542,10 +1542,24 @@ $stFat   = $calcMacroStatus($loggedFat, $targetFat, 'fat');
                     <div style="font-size: 11px; color: var(--muted); margin-top: 3px;" id="inspect-meal-status-hint">Calculated based on selected ingredients below</div>
                 </div>
                 <div class="inspect-macro-chips">
-                    <span class="inspect-chip chip-cals" id="inspect-chip-cals">0 kcal</span>
-                    <span class="inspect-chip chip-pro" id="inspect-chip-pro">0g P</span>
-                    <span class="inspect-chip chip-carbs" id="inspect-chip-carbs">0g C</span>
-                    <span class="inspect-chip chip-fat" id="inspect-chip-fat">0g F</span>
+                    <span class="inspect-chip chip-cals" id="inspect-chip-cals" title="Total Calories (kcal)">0 kcal</span>
+                    <span class="inspect-chip chip-pro" id="inspect-chip-pro" title="Total Protein (P)">0g P</span>
+                    <span class="inspect-chip chip-carbs" id="inspect-chip-carbs" title="Total Carbohydrates (C)">0g C</span>
+                    <span class="inspect-chip chip-fat" id="inspect-chip-fat" title="Total Fat (F)">0g F</span>
+                </div>
+            </div>
+
+            <!-- Macro Legend Guide -->
+            <div class="inspect-macro-legend">
+                <span class="inspect-legend-label">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+                    <span>Macro Legend:</span>
+                </span>
+                <div class="inspect-legend-pills">
+                    <span class="inspect-legend-tag chip-cals" title="Calories"><strong>kcal</strong> Calories</span>
+                    <span class="inspect-legend-tag chip-pro" title="Protein"><strong>P</strong> Protein</span>
+                    <span class="inspect-legend-tag chip-carbs" title="Carbohydrates"><strong>C</strong> Carbs</span>
+                    <span class="inspect-legend-tag chip-fat" title="Fat"><strong>F</strong> Fat</span>
                 </div>
             </div>
 
