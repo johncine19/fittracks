@@ -536,6 +536,7 @@ function verify_waiting_page(): void
         let pollTimer = null;
         let countdownTimer = null;
         let cooldownSeconds = 0;
+        const csrfToken = "<?= h(csrf_token()) ?>";
 
         const checkEndpoint = 'index.php?page=verify_waiting&action=check';
         const resendEndpoint = 'index.php?page=verify_waiting&action=resend';
@@ -630,10 +631,15 @@ function verify_waiting_page(): void
             try {
                 const formData = new FormData();
                 formData.append('action', 'resend');
+                formData.append('csrf_token', csrfToken);
 
                 const res = await fetch(resendEndpoint, {
                     method: 'POST',
-                    headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+                    headers: {
+                        'Accept': 'application/json',
+                        'X-Requested-With': 'XMLHttpRequest',
+                        'X-CSRF-TOKEN': csrfToken
+                    },
                     body: formData
                 });
                 const data = await res.json();
