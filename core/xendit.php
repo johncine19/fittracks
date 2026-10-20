@@ -271,7 +271,11 @@ function handle_xendit_subscription_webhook(): void
     }
 
     $expectedToken = (string) app_env('XENDIT_WEBHOOK_TOKEN');
-    $providedToken = (string) ($_SERVER['HTTP_X_CALLBACK_TOKEN'] ?? '');
+    $providedToken = (string) ($_SERVER['HTTP_X_CALLBACK_TOKEN'] ?? $_SERVER['REDIRECT_HTTP_X_CALLBACK_TOKEN'] ?? '');
+    if ($providedToken === '' && function_exists('getallheaders')) {
+        $headers = array_change_key_case(getallheaders(), CASE_LOWER);
+        $providedToken = (string) ($headers['x-callback-token'] ?? '');
+    }
     if ($expectedToken === '' || $providedToken === '' || !hash_equals($expectedToken, $providedToken)) {
         http_response_code(401);
         echo json_encode(['success' => false, 'message' => 'Invalid webhook token.']);
