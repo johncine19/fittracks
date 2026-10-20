@@ -244,6 +244,7 @@ try {
         'gym_profile' => ['file' => 'pages/admin/gym_profile.php', 'handler' => 'gym_profile_page'],
         'view_gym' => ['file' => 'pages/member/view_gym.php', 'handler' => 'view_gym_page'],
         'gym_selection' => ['file' => 'pages/member/gym_selection.php', 'handler' => 'gym_selection_page'],
+        'gym_map' => ['file' => 'pages/member/gym_map.php', 'handler' => 'gym_map_page'],
         'settings' => ['file' => 'pages/admin/settings.php', 'handler' => 'settings_page'],
         'announcements' => ['file' => 'pages/admin/announcements.php', 'handler' => 'announcements_page'],
         'terms' => ['file' => 'pages/shared/terms.php', 'handler' => 'terms_page'],

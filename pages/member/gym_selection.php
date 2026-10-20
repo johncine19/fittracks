@@ -96,14 +96,14 @@ function gym_selection_page(): void
                         <span class="btn-text">Near Me</span>
                     </button>
                     <div class="gym-view-switcher" role="tablist" aria-label="View switch">
-                        <button type="button" class="view-btn is-active" id="btn-view-cards" aria-label="Cards View" title="Show cards carousel">
+                        <a href="index.php?page=gym_selection" class="view-btn is-active" id="btn-view-cards" aria-label="Cards View" title="Show cards carousel">
                             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
                             <span>Cards</span>
-                        </button>
-                        <button type="button" class="view-btn" id="btn-view-map" aria-label="Map View" title="Show interactive map">
+                        </a>
+                        <a href="index.php?page=gym_map" class="view-btn" id="btn-view-map" aria-label="Map View" title="Open Interactive Gym Map">
                             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6"/><line x1="8" y1="2" x2="8" y2="18"/><line x1="16" y1="6" x2="16" y2="22"/></svg>
                             <span>Map</span>
-                        </button>
+                        </a>
                     </div>
                 </div>
             </div>
@@ -174,27 +174,6 @@ function gym_selection_page(): void
 
             <div class="carousel-dots" id="carousel-dots"></div>
 
-            <!-- Interactive Map Wrapper -->
-            <div class="gym-map-wrapper" id="gym-map-wrapper" style="display: none;">
-                <div class="gym-map-header">
-                    <div class="map-status-info">
-                        <span class="map-status-dot"></span>
-                        <span id="map-status-text">Interactive Gym Map • Click a pin to preview</span>
-                    </div>
-                    <div class="map-actions">
-                        <button type="button" class="map-action-btn" id="btn-recenter-user" title="Center on my location" style="display: none;">
-                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><polygon points="3 11 22 2 13 21 11 13 3 11"/></svg>
-                            <span>My Location</span>
-                        </button>
-                        <button type="button" class="map-action-btn" id="btn-fit-all-gyms" title="Fit all gyms in view">
-                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 3h6v6"/><path d="M9 21H3v-6"/><path d="M21 3l-7 7"/><path d="M3 21l7-7"/></svg>
-                            <span>Fit All</span>
-                        </button>
-                    </div>
-                </div>
-                <div id="gym-map"></div>
-            </div>
-
             <div class="gym-no-results" id="gym-no-results">No gyms match your search.</div>
         <?php endif; ?>
 
@@ -213,7 +192,6 @@ function gym_selection_page(): void
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/gsap.min.js"></script>
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <!-- Gym Selection Configuration & Script -->
     <script>
     window.GYM_SELECTION_CONFIG = {

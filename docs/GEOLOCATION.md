@@ -21,8 +21,12 @@ FitTracks utilizes device geolocation to improve member convenience, prevent att
 The Interactive Map View and Proximity features are fully deployed in the application:
 - **Database Schema**: [migrate.php](file:///c:/xampp/htdocs/Fittracks_before_test/migrate.php) (added `latitude`, `longitude`, and `geofence_radius_meters` to the `gyms` table).
 - **Service Layer**: [core/gym_selection_service.php](file:///c:/xampp/htdocs/Fittracks_before_test/core/gym_selection_service.php) (loads and types coordinates for frontend client data).
-- **Frontend View**: [pages/member/gym_selection.php](file:///c:/xampp/htdocs/Fittracks_before_test/pages/member/gym_selection.php) (includes modern `.gym-toolbar`, `#btn-near-me`, view switcher, distance badges, and `#gym-map-wrapper`).
-- **Interactive Script**: [assets/js/pages/gym_selection.js](file:///c:/xampp/htdocs/Fittracks_before_test/assets/js/pages/gym_selection.js) (Leaflet map initialization, CartoDB Dark Matter tiles, user radar pulse marker, distance re-ordering, search filter integration).
+- **Frontend Views**: 
+  - [pages/member/gym_selection.php](file:///c:/xampp/htdocs/Fittracks_before_test/pages/member/gym_selection.php) (Cards carousel view with modern `.gym-toolbar`, `#btn-near-me`, and view switcher link).
+  - [pages/member/gym_map.php](file:///c:/xampp/htdocs/Fittracks_before_test/pages/member/gym_map.php) (Dedicated full-page interactive map view with real-time marker filtering, user GPS pin, and popups).
+- **Interactive Scripts**: 
+  - [assets/js/pages/gym_selection.js](file:///c:/xampp/htdocs/Fittracks_before_test/assets/js/pages/gym_selection.js) (Cards carousel navigation, search filtering, GPS distance re-ordering, and gym preview modals).
+  - [assets/js/pages/gym_map.js](file:///c:/xampp/htdocs/Fittracks_before_test/assets/js/pages/gym_map.js) (Dedicated Leaflet map initialization, live pin filtering, GPS radar marker, and popups).
 - **Gym Owner Profile Settings**: [pages/admin/gym_profile.php](file:///c:/xampp/htdocs/Fittracks_before_test/pages/admin/gym_profile.php) (UI for gym owners to manually enter Lat/Lng, detect device GPS, and drag/click on an interactive Leaflet pin picker map).
 - **Design System Styling**: [assets/css/pages/gym_selection.css](file:///c:/xampp/htdocs/Fittracks_before_test/assets/css/pages/gym_selection.css) (dark glassmorphism popups, neon lime gym pins, animated user radar marker, responsive toolbar).
 - **Statutory Compliance**: [pages/shared/privacy.php](file:///c:/xampp/htdocs/Fittracks_before_test/pages/shared/privacy.php) (Section 2) & [pages/shared/terms.php](file:///c:/xampp/htdocs/Fittracks_before_test/pages/shared/terms.php) (Section 3).
@@ -189,7 +193,24 @@ When a member is actively checked into a fitness club, strict geofence auto-chec
 
 Immediately closing the session would split attendance records, disrupt engagement streak scoring, and needlessly revoke claimed equipment or floor access.
 
-### 9.2 Architecture & State Flow
+
+### 9.2 What is the Check-Out / Exit Radius?
+There is no separate static "check-out radius" constant. Instead, **the check-out (stepping-out) boundary is governed by the gym's configured geofence radius (`geofence_radius_meters`)**:
+- **Default Radius**: **100 meters** (database default on the `gyms` table).
+- **Admin Configurable**: Each gym administrator can customize their facility's geofence perimeter in **Admin &rarr; Gym Profile** (`pages/admin/gym_profile.php`) anywhere between **20 meters** and **1,000 meters** to match the size of their property or gym campus.
+- **Client Floor Minimum**: The member client enforces a minimum fallback of `50 meters` (`max(50, gym.geofence_radius_meters)`).
+
+#### How the Perimeter Threshold Works:
+1. **On-Site (`distance <= radius`)**:
+   - The member is considered inside the facility. No exit timer is running.
+2. **Exit Triggered / Stepped Out (`distance > radius`)**:
+   - The moment GPS measures `distance > radius`, the system detects an exit (`geofence_exit`).
+   - The **20-minute grace period buffer** starts (tracked in Redis and MySQL).
+3. **Checkout Finalized**:
+   - If the member stays outside (`distance > radius`) for the full 20 minutes without returning, the session is officially checked out (`check_out_time = exit_detected_at`).
+   - If the member returns inside (`distance <= radius`) within 20 minutes, the grace period is cancelled and the session continues uninterrupted.
+
+### 9.3 Architecture & State Flow
 
 ```
                       +-----------------------------+
@@ -222,7 +243,7 @@ Immediately closing the session would split attendance records, disrupt engageme
     +-------------------------------+   +-------------------------------+
 ```
 
-### 9.3 Client-Side Experience
+### 9.4 Client-Side Experience
 1. **Interactive Floating Banner (`#gym-stepping-out-banner`)**:
    - Displayed in warm amber/gold hues with an animated radar pulse icon.
    - Shows live countdown clock: `🏃 Stepping Out • Outside Gym • 19:45`.

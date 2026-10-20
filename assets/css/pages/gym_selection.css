@@ -1184,6 +1184,7 @@
             color: #94a3b8;
             font-size: 0.84rem;
             font-weight: 600;
+            text-decoration: none;
             cursor: pointer;
             transition: all 0.2s ease;
         }
