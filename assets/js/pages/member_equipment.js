@@ -1021,17 +1021,17 @@
                             </div>
 
                             <div>
-                                <label style="margin: 0; font-size: 13px; color: var(--muted); font-weight: 600;">
-                                    Body Fat % <span style="font-size: 11px; font-weight: 400; color: var(--muted);">(optional)</span>
-                                    <input type="number" id="qp-bodyfat" step="0.1" min="1" max="70" placeholder="e.g. 18.5" value="${bfVal}" class="form-control" style="width: 100%; box-sizing: border-box; margin-top: 4px; padding: 8px 10px; border-radius: 8px; border: 1px solid var(--line); background: var(--panel-soft); color: var(--ink); font-size: 13px;">
+                                <label for="qp-bodyfat" style="display: block; margin: 0 0 5px; font-size: 13px; color: var(--muted); font-weight: 600;">
+                                    Body Fat % <span style="font-size: 11px; font-weight: 400; color: var(--muted); margin-left: 2px;">(optional)</span>
                                 </label>
+                                <input type="number" id="qp-bodyfat" step="0.1" min="1" max="70" placeholder="e.g. 18.5" value="${bfVal}" class="form-control" style="width: 100%; box-sizing: border-box; padding: 8px 10px; border-radius: 8px; border: 1px solid var(--line); background: var(--panel-soft); color: var(--ink); font-size: 13px;">
                             </div>
 
                             <div>
-                                <label style="margin: 0; font-size: 13px; color: var(--muted); font-weight: 600;">
-                                    Workout Notes / Sets &amp; Reps <span style="font-size: 11px; font-weight: 400; color: var(--muted);">(optional)</span>
-                                    <textarea id="qp-notes" rows="2" placeholder="e.g., 3 sets of 12 reps at 40kg" class="form-control" style="width: 100%; box-sizing: border-box; margin-top: 4px; padding: 8px 10px; border-radius: 8px; border: 1px solid var(--line); background: var(--panel-soft); color: var(--ink); font-size: 13px; resize: vertical;">${escapeHtml(defaultNotes)}</textarea>
+                                <label for="qp-notes" style="display: block; margin: 0 0 5px; font-size: 13px; color: var(--muted); font-weight: 600;">
+                                    Workout Notes / Sets &amp; Reps <span style="font-size: 11px; font-weight: 400; color: var(--muted); margin-left: 2px;">(optional)</span>
                                 </label>
+                                <textarea id="qp-notes" rows="2" placeholder="e.g., 3 sets of 12 reps at 40kg" class="form-control" style="width: 100%; box-sizing: border-box; padding: 8px 10px; border-radius: 8px; border: 1px solid var(--line); background: var(--panel-soft); color: var(--ink); font-size: 13px; resize: vertical;">${escapeHtml(defaultNotes)}</textarea>
                             </div>
 
                             <!-- Optional Expandable Body Circumference Section -->
@@ -1041,18 +1041,24 @@
                                 </button>
                                 <div id="extra-measurements" style="display: none; flex-direction: column; gap: 10px; margin-top: 8px; padding: 12px; border-radius: 8px; background: rgba(255,255,255,0.03); border: 1px solid var(--line);">
                                     <div style="display: flex; gap: 10px;">
-                                        <label style="flex: 1; margin: 0; font-size: 12.5px; color: var(--muted); font-weight: 600;">
-                                            Waist (cm) <span style="font-size: 11px; font-weight: 400;">(optional)</span>
-                                            <input type="number" id="qp-waist" step="0.1" min="30" max="250" placeholder="e.g. 85" value="${waistVal}" class="form-control" style="width: 100%; box-sizing: border-box; margin-top: 4px; padding: 8px 10px; border-radius: 8px; border: 1px solid var(--line); background: var(--panel-soft); color: var(--ink); font-size: 13px;">
-                                        </label>
-                                        <label style="flex: 1; margin: 0; font-size: 12.5px; color: var(--muted); font-weight: 600;">
-                                            Chest (cm) <span style="font-size: 11px; font-weight: 400;">(optional)</span>
-                                            <input type="number" id="qp-chest" step="0.1" min="30" max="250" placeholder="optional" value="${chestVal}" class="form-control" style="width: 100%; box-sizing: border-box; margin-top: 4px; padding: 8px 10px; border-radius: 8px; border: 1px solid var(--line); background: var(--panel-soft); color: var(--ink); font-size: 13px;">
-                                        </label>
-                                        <label style="flex: 1; margin: 0; font-size: 12.5px; color: var(--muted); font-weight: 600;">
-                                            Arms (cm) <span style="font-size: 11px; font-weight: 400;">(optional)</span>
-                                            <input type="number" id="qp-arm" step="0.1" min="15" max="100" placeholder="optional" value="${armVal}" class="form-control" style="width: 100%; box-sizing: border-box; margin-top: 4px; padding: 8px 10px; border-radius: 8px; border: 1px solid var(--line); background: var(--panel-soft); color: var(--ink); font-size: 13px;">
-                                        </label>
+                                        <div style="flex: 1;">
+                                            <label for="qp-waist" style="display: block; margin: 0 0 5px; font-size: 12.5px; color: var(--muted); font-weight: 600;">
+                                                Waist (cm) <span style="font-size: 11px; font-weight: 400; color: var(--muted); margin-left: 2px;">(optional)</span>
+                                            </label>
+                                            <input type="number" id="qp-waist" step="0.1" min="30" max="250" placeholder="e.g. 85" value="${waistVal}" class="form-control" style="width: 100%; box-sizing: border-box; padding: 8px 10px; border-radius: 8px; border: 1px solid var(--line); background: var(--panel-soft); color: var(--ink); font-size: 13px;">
+                                        </div>
+                                        <div style="flex: 1;">
+                                            <label for="qp-chest" style="display: block; margin: 0 0 5px; font-size: 12.5px; color: var(--muted); font-weight: 600;">
+                                                Chest (cm) <span style="font-size: 11px; font-weight: 400; color: var(--muted); margin-left: 2px;">(optional)</span>
+                                            </label>
+                                            <input type="number" id="qp-chest" step="0.1" min="30" max="250" placeholder="optional" value="${chestVal}" class="form-control" style="width: 100%; box-sizing: border-box; padding: 8px 10px; border-radius: 8px; border: 1px solid var(--line); background: var(--panel-soft); color: var(--ink); font-size: 13px;">
+                                        </div>
+                                        <div style="flex: 1;">
+                                            <label for="qp-arm" style="display: block; margin: 0 0 5px; font-size: 12.5px; color: var(--muted); font-weight: 600;">
+                                                Arms (cm) <span style="font-size: 11px; font-weight: 400; color: var(--muted); margin-left: 2px;">(optional)</span>
+                                            </label>
+                                            <input type="number" id="qp-arm" step="0.1" min="15" max="100" placeholder="optional" value="${armVal}" class="form-control" style="width: 100%; box-sizing: border-box; padding: 8px 10px; border-radius: 8px; border: 1px solid var(--line); background: var(--panel-soft); color: var(--ink); font-size: 13px;">
+                                        </div>
                                     </div>
                                 </div>
                             </div>

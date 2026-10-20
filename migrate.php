@@ -117,7 +117,10 @@ try {
         "ALTER TABLE gyms ADD COLUMN geofence_radius_meters SMALLINT UNSIGNED DEFAULT 100",
         "UPDATE gyms SET latitude = 35.6762, longitude = 139.6503 WHERE gym_id = 5 AND latitude IS NULL",
         "UPDATE gyms SET latitude = 35.6895, longitude = 139.6917 WHERE gym_id = 9 AND latitude IS NULL",
-        "UPDATE gyms SET latitude = 14.5547, longitude = 121.0244 WHERE gym_id = 21 AND latitude IS NULL"
+        "UPDATE gyms SET latitude = 14.5547, longitude = 121.0244 WHERE gym_id = 21 AND latitude IS NULL",
+        "ALTER TABLE attendance ADD COLUMN exit_detected_at DATETIME DEFAULT NULL AFTER check_out_time",
+        "ALTER TABLE attendance ADD COLUMN exit_grace_expires_at DATETIME DEFAULT NULL AFTER exit_detected_at",
+        "CREATE INDEX idx_att_exit_grace ON attendance (check_out_time, exit_grace_expires_at)"
     ];
 
     foreach ($migrations as $sql) {

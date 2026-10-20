@@ -220,12 +220,99 @@ function member_dashboard(PDO $pdo, array $user): void
 
     $actInitialData = get_dashboard_attendance_activity_data($user, ['date' => date('Y-m-d'), 'range' => 'day']);
 
+    // Check geofence status for member's affiliated gym
+    $userGym = get_user_gym($user);
+    $userIsCheckedIn = (int) scalar('SELECT COUNT(*) FROM attendance WHERE user_id = ? AND check_out_time IS NULL', [(int)$user['user_id']]) > 0;
+    require_once __DIR__ . '/../../core/attendance_geofence_service.php';
+    $graceStatus = null;
+    if ($userIsCheckedIn) {
+        $graceStatus = get_attendance_exit_grace_status((int)$user['user_id']);
+    }
+
+    $geofenceConfig = null;
+    if ($userGym && !empty($userGym['latitude']) && !empty($userGym['longitude'])) {
+        $geofenceConfig = [
+            'gym_id'          => (int)$userGym['gym_id'],
+            'name'            => (string)$userGym['name'],
+            'latitude'        => (float)$userGym['latitude'],
+            'longitude'       => (float)$userGym['longitude'],
+            'radius'          => max(50, (int)($userGym['geofence_radius_meters'] ?? 100)),
+            'is_checked_in'   => $userIsCheckedIn,
+            'is_in_grace'     => !empty($graceStatus['is_in_grace']),
+            'grace_remaining' => (int)($graceStatus['remaining_seconds'] ?? 0),
+            'grace_expires_at'=> (string)($graceStatus['expires_at'] ?? ''),
+        ];
+    }
+
     // Skeleton for member dashboard
     render_skeleton_banner();
     render_skeleton_stats(3);
     ?>
 
     <link rel="stylesheet" href="<?= h(asset_url('css/pages/member_dashboard.css')) ?>">
+
+    <?php if ($geofenceConfig): ?>
+        <?php if ($userIsCheckedIn): ?>
+            <!-- Floating In-App Stepping Out 20-min Grace Buffer Banner -->
+            <div id="gym-stepping-out-banner" class="gym-arrival-banner gym-grace-banner <?= !empty($graceStatus['is_in_grace']) ? 'banner-visible' : '' ?>" style="<?= !empty($graceStatus['is_in_grace']) ? 'display:block;' : 'display:none;' ?>" role="alert" aria-live="polite">
+                <div class="arrival-banner-card grace-banner-card">
+                    <div class="arrival-banner-pulse grace-banner-pulse">
+                        <span class="arrival-pulse-ring grace-pulse-ring"></span>
+                        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                            <circle cx="12" cy="12" r="10"></circle>
+                            <polyline points="12 6 12 12 16 14"></polyline>
+                        </svg>
+                    </div>
+                    <div class="arrival-banner-content">
+                        <div class="arrival-banner-badge grace-banner-badge">
+                            <span>🏃 Stepping Out</span>
+                            <span class="arrival-badge-sep">&bull;</span>
+                            <span id="grace-dist-badge">Outside Gym</span>
+                            <span class="arrival-badge-sep">&bull;</span>
+                            <span id="grace-timer-display" style="font-weight: 800; color: #fbbf24;"><?= !empty($graceStatus['is_in_grace']) ? gmdate('i:s', max(0, (int)$graceStatus['remaining_seconds'])) : '20:00' ?></span>
+                        </div>
+                        <h4 class="arrival-banner-title">Temporary Exit Grace Active</h4>
+                        <p class="arrival-banner-sub" id="grace-banner-sub-text">Grabbed something or stepped out? Your check-in session is kept active. Return within 20 mins to resume uninterrupted.</p>
+                    </div>
+                    <div class="arrival-banner-actions">
+                        <button type="button" class="btn btn-warning arrival-btn-checkout" onclick="confirmGeofenceCheckout()" title="Check out now if you are finished">
+                            <span>Check Out</span>
+                        </button>
+                        <button type="button" class="arrival-btn-dismiss" onclick="dismissGraceBanner()" title="Keep Active / Minimize">&times;</button>
+                    </div>
+                </div>
+            </div>
+        <?php else: ?>
+            <!-- Floating In-App Geofence Arrival Banner -->
+            <div id="gym-arrival-banner" class="gym-arrival-banner" style="display:none;" role="alert" aria-live="polite">
+                <div class="arrival-banner-card">
+                    <div class="arrival-banner-pulse">
+                        <span class="arrival-pulse-ring"></span>
+                        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
+                            <circle cx="12" cy="10" r="3"></circle>
+                        </svg>
+                    </div>
+                    <div class="arrival-banner-content">
+                        <div class="arrival-banner-badge">
+                            <span>📍 Near You</span>
+                            <span class="arrival-badge-sep">&bull;</span>
+                            <span id="arrival-dist-badge">At the gym</span>
+                        </div>
+                        <h4 class="arrival-banner-title">Welcome to <?= h($geofenceConfig['name']) ?>!</h4>
+                        <p class="arrival-banner-sub">You are within check-in range. Tap to open your turnstile QR pass.</p>
+                    </div>
+                    <div class="arrival-banner-actions">
+                        <a href="index.php?page=qr_attendance" class="arrival-btn-qr">
+                            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><path d="M14 14h.01M18 14h.01M14 18h.01M18 18h.01M14 21h.01M21 14h.01M21 18h.01M21 21h.01"/></svg>
+                            <span>Check In</span>
+                        </a>
+                        <button type="button" class="arrival-btn-dismiss" onclick="dismissArrivalBanner()" title="Dismiss">&times;</button>
+                    </div>
+                </div>
+            </div>
+        <?php endif; ?>
+    <?php endif; ?>
 
     <?php
     $catSlug = strtolower(str_replace(' ', '_', $category));
@@ -981,8 +1068,239 @@ function member_dashboard(PDO $pdo, array $user): void
     window.MEMBER_DASHBOARD_CONFIG = {
         initialData: <?= json_encode($actInitialData, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP) ?>
     };
+    window.FT_GEOFENCE_CONFIG = <?= json_encode($geofenceConfig, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP) ?>;
     </script>
     <script src="<?= h(asset_url('js/pages/member_dashboard.js')) ?>"></script>
+    <script>
+    (function() {
+        const config = window.FT_GEOFENCE_CONFIG;
+        if (!config || !('geolocation' in navigator)) return;
+
+        function haversineMeters(lat1, lon1, lat2, lon2) {
+            const R = 6371e3;
+            const phi1 = lat1 * Math.PI / 180;
+            const phi2 = lat2 * Math.PI / 180;
+            const deltaPhi = (lat2 - lat1) * Math.PI / 180;
+            const deltaLambda = (lon2 - lon1) * Math.PI / 180;
+            const a = Math.sin(deltaPhi / 2) * Math.sin(deltaPhi / 2) +
+                      Math.cos(phi1) * Math.cos(phi2) *
+                      Math.sin(deltaLambda / 2) * Math.sin(deltaLambda / 2);
+            return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+        }
+
+        /* ----------------------------------------------------
+           SCENARIO A: MEMBER IS CHECKED IN -> 20m EXIT BUFFER
+           ---------------------------------------------------- */
+        if (config.is_checked_in) {
+            let isInGrace = Boolean(config.is_in_grace);
+            let remainingSecs = Number(config.grace_remaining) || 1200;
+            let timerInterval = null;
+            let isApiBusy = false;
+
+            function formatTimer(totalSecs) {
+                const mins = Math.floor(Math.max(0, totalSecs) / 60);
+                const secs = Math.max(0, totalSecs) % 60;
+                return String(mins).padStart(2, '0') + ':' + String(secs).padStart(2, '0');
+            }
+
+            function startTimer() {
+                if (timerInterval) clearInterval(timerInterval);
+                const timerEl = document.getElementById('grace-timer-display');
+                if (timerEl) timerEl.textContent = formatTimer(remainingSecs);
+
+                timerInterval = setInterval(() => {
+                    remainingSecs--;
+                    if (timerEl) timerEl.textContent = formatTimer(remainingSecs);
+
+                    if (remainingSecs <= 0) {
+                        clearInterval(timerInterval);
+                        timerInterval = null;
+                        const sub = document.getElementById('grace-banner-sub-text');
+                        if (sub) {
+                            sub.textContent = 'Grace period ended. Your attendance has been auto-checked out.';
+                        }
+                        setTimeout(() => { window.location.reload(); }, 2500);
+                    }
+                }, 1000);
+            }
+
+            function showGraceBanner(distMeters) {
+                const banner = document.getElementById('gym-stepping-out-banner');
+                if (!banner) return;
+                const distBadge = document.getElementById('grace-dist-badge');
+                if (distBadge && typeof distMeters === 'number') {
+                    distBadge.textContent = distMeters >= 1000 ? (distMeters / 1000).toFixed(1) + 'km away' : Math.round(distMeters) + 'm away';
+                }
+                banner.style.display = 'block';
+                requestAnimationFrame(() => banner.classList.add('banner-visible'));
+            }
+
+            function hideGraceBanner() {
+                const banner = document.getElementById('gym-stepping-out-banner');
+                if (banner) {
+                    banner.classList.remove('banner-visible');
+                    setTimeout(() => { banner.style.display = 'none'; }, 350);
+                }
+                if (timerInterval) {
+                    clearInterval(timerInterval);
+                    timerInterval = null;
+                }
+            }
+
+            window.dismissGraceBanner = function() {
+                hideGraceBanner();
+            };
+
+            window.confirmGeofenceCheckout = function() {
+                fetch('index.php?page=attendance_geofence_api&action=confirm_checkout', {
+                    method: 'POST',
+                    headers: { 'X-Requested-With': 'XMLHttpRequest' }
+                }).then(r => r.json()).then(data => {
+                    hideGraceBanner();
+                    window.location.reload();
+                }).catch(() => {
+                    window.location.reload();
+                });
+            };
+
+            // If already in grace when page loaded, start countdown immediately
+            if (isInGrace) {
+                showGraceBanner();
+                startTimer();
+            }
+
+            function handleCheckedInLocation(dist) {
+                if (dist > config.radius) {
+                    // Outside gym perimeter
+                    if (!isInGrace && !isApiBusy) {
+                        isApiBusy = true;
+                        fetch('index.php?page=attendance_geofence_api&action=geofence_exit&gym_id=' + encodeURIComponent(config.gym_id), {
+                            headers: { 'X-Requested-With': 'XMLHttpRequest' }
+                        }).then(r => r.json()).then(res => {
+                            isApiBusy = false;
+                            if (res.success) {
+                                isInGrace = true;
+                                remainingSecs = Number(res.remaining_seconds) || 1200;
+                                showGraceBanner(dist);
+                                startTimer();
+                            }
+                        }).catch(() => { isApiBusy = false; });
+                    } else if (isInGrace) {
+                        const distBadge = document.getElementById('grace-dist-badge');
+                        if (distBadge) {
+                            distBadge.textContent = dist >= 1000 ? (dist / 1000).toFixed(1) + 'km away' : Math.round(dist) + 'm away';
+                        }
+                    }
+                } else {
+                    // Inside gym perimeter (re-entered)
+                    if (isInGrace && !isApiBusy) {
+                        isApiBusy = true;
+                        fetch('index.php?page=attendance_geofence_api&action=geofence_reenter&gym_id=' + encodeURIComponent(config.gym_id), {
+                            headers: { 'X-Requested-With': 'XMLHttpRequest' }
+                        }).then(r => r.json()).then(res => {
+                            isApiBusy = false;
+                            if (res.success) {
+                                isInGrace = false;
+                                hideGraceBanner();
+                                if (typeof Swal !== 'undefined') {
+                                    Swal.fire({
+                                        toast: true,
+                                        position: 'top',
+                                        icon: 'success',
+                                        title: 'Welcome back! Your check-in session continues uninterrupted.',
+                                        showConfirmButton: false,
+                                        timer: 3000
+                                    });
+                                }
+                            }
+                        }).catch(() => { isApiBusy = false; });
+                    }
+                }
+            }
+
+            navigator.geolocation.getCurrentPosition(
+                pos => {
+                    const dist = haversineMeters(pos.coords.latitude, pos.coords.longitude, config.latitude, config.longitude);
+                    handleCheckedInLocation(dist);
+                },
+                () => {},
+                { enableHighAccuracy: true, timeout: 8000, maximumAge: 15000 }
+            );
+
+            navigator.geolocation.watchPosition(
+                pos => {
+                    const dist = haversineMeters(pos.coords.latitude, pos.coords.longitude, config.latitude, config.longitude);
+                    handleCheckedInLocation(dist);
+                },
+                () => {},
+                { enableHighAccuracy: true, maximumAge: 10000 }
+            );
+
+            return;
+        }
+
+        /* ----------------------------------------------------
+           SCENARIO B: MEMBER NOT CHECKED IN -> ARRIVAL PROXIMITY
+           ---------------------------------------------------- */
+        const storageDismissKey = 'ft_arrival_dismissed_' + config.gym_id;
+        if (sessionStorage.getItem(storageDismissKey)) {
+            return;
+        }
+
+        function triggerArrival(distanceMeters) {
+            const banner = document.getElementById('gym-arrival-banner');
+            if (!banner) return;
+
+            const badge = document.getElementById('arrival-dist-badge');
+            if (badge) {
+                const distRound = Math.round(distanceMeters);
+                badge.textContent = distRound <= 30 ? 'At the gym' : (distRound + 'm away');
+            }
+
+            banner.style.display = 'block';
+            requestAnimationFrame(() => {
+                banner.classList.add('banner-visible');
+            });
+
+            // Trigger background push notification if permitted
+            const pushKey = 'ft_arrival_notified_' + config.gym_id;
+            if (!sessionStorage.getItem(pushKey) && 'Notification' in window && Notification.permission === 'granted') {
+                sessionStorage.setItem(pushKey, '1');
+                try {
+                    const notif = new Notification('Welcome to ' + config.name + '!', {
+                        body: "You're within check-in range. Tap here to open your QR check-in pass.",
+                        icon: '/favicon.ico',
+                        tag: 'gym-arrival-' + config.gym_id
+                    });
+                    notif.onclick = function() {
+                        window.focus();
+                        window.location.href = 'index.php?page=qr_attendance';
+                    };
+                } catch (e) {}
+            }
+        }
+
+        window.dismissArrivalBanner = function() {
+            const banner = document.getElementById('gym-arrival-banner');
+            if (banner) {
+                banner.classList.remove('banner-visible');
+                setTimeout(() => { banner.style.display = 'none'; }, 350);
+            }
+            sessionStorage.setItem(storageDismissKey, '1');
+        };
+
+        navigator.geolocation.getCurrentPosition(
+            function(pos) {
+                const dist = haversineMeters(pos.coords.latitude, pos.coords.longitude, config.latitude, config.longitude);
+                if (dist <= config.radius) {
+                    triggerArrival(dist);
+                }
+            },
+            function(err) {},
+            { enableHighAccuracy: true, timeout: 8000, maximumAge: 30000 }
+        );
+    })();
+    </script>
 
     <?php
     $wAtt = (int) get_setting('engagement_weight_attendance', '10');

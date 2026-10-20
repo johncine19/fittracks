@@ -982,6 +982,18 @@ function auto_checkout_past_attendance(mixed $userId = null, bool $force = false
 
         // 1. Single User Check-Out (Targeted & Ultra-Fast)
         if ($userId !== null && $userId > 0) {
+            // First check if user's geofence exit grace period has expired
+            $graceStmt = $pdo->prepare("
+                UPDATE attendance 
+                SET check_out_time = COALESCE(exit_detected_at, NOW()),
+                    exit_grace_expires_at = NULL
+                WHERE user_id = ? 
+                  AND check_out_time IS NULL 
+                  AND exit_grace_expires_at IS NOT NULL 
+                  AND exit_grace_expires_at <= NOW()
+            ");
+            $graceStmt->execute([$userId]);
+
             $stmt = $pdo->prepare("
                 UPDATE attendance 
                 SET check_out_time = CONCAT(DATE(check_in_time), ' 23:59:59')
@@ -1000,6 +1012,10 @@ function auto_checkout_past_attendance(mixed $userId = null, bool $force = false
             return 0;
         }
         $lastGlobalRun = $now;
+
+        // Process expired geofence exit grace sessions
+        require_once __DIR__ . '/attendance_geofence_service.php';
+        process_expired_geofence_sessions();
 
         $stmt = $pdo->prepare("
             UPDATE attendance 

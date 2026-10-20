@@ -279,12 +279,107 @@ function qr_attendance_page(): void
     $attendanceHistory = $historyStmt->fetchAll(PDO::FETCH_ASSOC);
     $totalVisits = (int) scalar('SELECT COUNT(*) FROM attendance WHERE user_id = ?', [(int)$user['user_id']]);
 
+    // Resolve target gym for geofence verification
+    $targetGym = null;
+    if ($activeAttendance && !empty($activeAttendance['gym_id'])) {
+        $gymRow = db()->query('SELECT gym_id, name, latitude, longitude, geofence_radius_meters FROM gyms WHERE gym_id = ' . (int)$activeAttendance['gym_id'])->fetch(PDO::FETCH_ASSOC);
+        if ($gymRow) {
+            $targetGym = $gymRow;
+        }
+    }
+    if (!$targetGym) {
+        $userGym = get_user_gym($user);
+        if ($userGym && !empty($userGym['latitude']) && !empty($userGym['longitude'])) {
+            $targetGym = $userGym;
+        }
+    }
+    require_once __DIR__ . '/../../core/attendance_geofence_service.php';
+    $graceInfo = null;
+    if ($activeAttendance) {
+        $graceInfo = get_attendance_exit_grace_status((int)$user['user_id']);
+    }
+
+    $attendanceGeofenceConfig = null;
+    if ($targetGym && !empty($targetGym['latitude']) && !empty($targetGym['longitude'])) {
+        $attendanceGeofenceConfig = [
+            'gym_id'          => (int)$targetGym['gym_id'],
+            'name'            => (string)$targetGym['name'],
+            'latitude'        => (float)$targetGym['latitude'],
+            'longitude'       => (float)$targetGym['longitude'],
+            'radius'          => max(50, (int)($targetGym['geofence_radius_meters'] ?? 100)),
+            'is_checked_in'   => !empty($activeAttendance),
+            'is_in_grace'     => !empty($graceInfo['is_in_grace']),
+            'grace_remaining' => (int)($graceInfo['remaining_seconds'] ?? 0),
+        ];
+    }
+
     render_header('My QR Code', $user);
     ?>
     <style>
         @keyframes pulseDot {
             0%, 100% { transform: scale(1); opacity: 1; }
             50% { transform: scale(1.6); opacity: 0.4; }
+        }
+        /* Geofence Proximity Verification Badge */
+        .geofence-status-badge {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            padding: 8px 16px;
+            border-radius: 30px;
+            font-size: 12.5px;
+            font-weight: 600;
+            transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+            width: fit-content;
+            margin: 0 auto 16px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.15);
+        }
+        .geofence-indicator-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            flex-shrink: 0;
+            transition: background 0.3s ease, box-shadow 0.3s ease;
+        }
+        .geofence-checking {
+            background: var(--panel-soft);
+            border: 1px solid var(--line);
+            color: var(--muted);
+        }
+        .geofence-checking .geofence-indicator-dot {
+            background: var(--muted);
+            animation: pulseDot 1.4s infinite;
+        }
+        .geofence-on-site {
+            background: rgba(34, 197, 94, 0.12);
+            border: 1px solid rgba(34, 197, 94, 0.45);
+            color: #22c55e;
+        }
+        .geofence-on-site .geofence-indicator-dot {
+            background: #22c55e;
+            box-shadow: 0 0 10px #22c55e;
+            animation: pulseDot 2s infinite;
+        }
+        .geofence-off-site {
+            background: rgba(245, 158, 11, 0.12);
+            border: 1px solid rgba(245, 158, 11, 0.4);
+            color: #f59e0b;
+        }
+        .geofence-off-site .geofence-indicator-dot {
+            background: #f59e0b;
+        }
+        .geofence-denied {
+            background: var(--panel-soft);
+            border: 1px solid var(--line);
+            color: var(--muted);
+        }
+        .geofence-denied .geofence-indicator-dot {
+            background: var(--line);
+        }
+        #qr-container.on-site-glow {
+            box-shadow: 0 0 0 3px rgba(34, 197, 94, 0.4), 0 12px 30px rgba(34, 197, 94, 0.25) !important;
+            border: 2px solid #22c55e !important;
         }
         .hist-page-btn {
             background: var(--panel-soft);
@@ -514,6 +609,14 @@ function qr_attendance_page(): void
             </div>
         </div>
 
+        <?php if ($attendanceGeofenceConfig): ?>
+            <!-- Proximity Geofence Status Badge -->
+            <div id="geofence-status-banner" class="geofence-status-badge geofence-checking" style="margin: 0 auto 16px; max-width: 480px;">
+                <span class="geofence-indicator-dot"></span>
+                <span id="geofence-status-text">Checking proximity to <?= h($attendanceGeofenceConfig['name']) ?>...</span>
+            </div>
+        <?php endif; ?>
+
         <!-- Initial prompt shown before any QR is generated -->
         <div id="qr-prompt" style="margin: 30px auto;">
             <svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="var(--muted)" stroke-width="1.5" style="margin-bottom: 16px;"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><path d="M14 14h.01M18 14h.01M14 18h.01M18 18h.01M14 21h.01M21 14h.01M21 18h.01M21 21h.01"/></svg>
@@ -664,6 +767,7 @@ function qr_attendance_page(): void
         'trainer_class' => $activeTrainerClass
     ] : null) ?>;
     const shouldAutoRestore = <?= $shouldAutoRestoreModal ? 'true' : 'false' ?>;
+    const attendanceGeofence = <?= json_encode($attendanceGeofenceConfig, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP) ?>;
 
     function generateQR(text) {
         const container = document.getElementById('qr-container');
@@ -1678,6 +1782,87 @@ function qr_attendance_page(): void
             }
 
             showPage(1);
+        })();
+
+        // Geofence proximity verification watcher
+        (function initGeofenceWatcher() {
+            if (!attendanceGeofence || !('geolocation' in navigator)) return;
+
+            const bannerEl = document.getElementById('geofence-status-banner');
+            const textEl = document.getElementById('geofence-status-text');
+            const qrBox = document.getElementById('qr-container');
+
+            function haversineMeters(lat1, lon1, lat2, lon2) {
+                const R = 6371e3;
+                const phi1 = lat1 * Math.PI / 180;
+                const phi2 = lat2 * Math.PI / 180;
+                const deltaPhi = (lat2 - lat1) * Math.PI / 180;
+                const deltaLambda = (lon2 - lon1) * Math.PI / 180;
+                const a = Math.sin(deltaPhi / 2) * Math.sin(deltaPhi / 2) +
+                          Math.cos(phi1) * Math.cos(phi2) *
+                          Math.sin(deltaLambda / 2) * Math.sin(deltaLambda / 2);
+                return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+            }
+
+            let isInGrace = Boolean(attendanceGeofence.is_in_grace);
+            let isApiBusy = false;
+
+            function updateGeofenceDisplay(pos) {
+                if (!bannerEl || !textEl) return;
+                const userLat = pos.coords.latitude;
+                const userLng = pos.coords.longitude;
+                const distMeters = haversineMeters(userLat, userLng, attendanceGeofence.latitude, attendanceGeofence.longitude);
+                const radius = attendanceGeofence.radius;
+
+                bannerEl.classList.remove('geofence-checking', 'geofence-on-site', 'geofence-off-site', 'geofence-denied');
+
+                if (distMeters <= radius) {
+                    bannerEl.classList.add('geofence-on-site');
+                    const distStr = Math.round(distMeters) <= 30 ? 'At ' + attendanceGeofence.name : Math.round(distMeters) + 'm away';
+                    textEl.innerHTML = `<strong>On-Site Verified</strong> (${distStr}) &bull; Ready for turnstile scan`;
+                    if (qrBox) qrBox.classList.add('on-site-glow');
+
+                    // If member returned from stepping out, restore session
+                    if (attendanceGeofence.is_checked_in && isInGrace && !isApiBusy) {
+                        isApiBusy = true;
+                        fetch('index.php?page=attendance_geofence_api&action=geofence_reenter&gym_id=' + encodeURIComponent(attendanceGeofence.gym_id), {
+                            headers: { 'X-Requested-With': 'XMLHttpRequest' }
+                        }).then(r => r.json()).then(res => {
+                            isApiBusy = false;
+                            if (res.success) isInGrace = false;
+                        }).catch(() => { isApiBusy = false; });
+                    }
+                } else {
+                    bannerEl.classList.add('geofence-off-site');
+                    const distLabel = distMeters >= 1000 ? (distMeters / 1000).toFixed(1) + ' km' : Math.round(distMeters) + ' m';
+                    if (qrBox) qrBox.classList.remove('on-site-glow');
+
+                    if (attendanceGeofence.is_checked_in) {
+                        textEl.innerHTML = `<strong>🏃 Stepping Out • 20m Grace Buffer Active</strong> (${distLabel} away) &bull; Session kept active`;
+                        if (!isInGrace && !isApiBusy) {
+                            isApiBusy = true;
+                            fetch('index.php?page=attendance_geofence_api&action=geofence_exit&gym_id=' + encodeURIComponent(attendanceGeofence.gym_id), {
+                                headers: { 'X-Requested-With': 'XMLHttpRequest' }
+                            }).then(r => r.json()).then(res => {
+                                isApiBusy = false;
+                                if (res.success) isInGrace = true;
+                            }).catch(() => { isApiBusy = false; });
+                        }
+                    } else {
+                        textEl.innerHTML = `<strong>Off-Site</strong> (${distLabel} from ${attendanceGeofence.name})`;
+                    }
+                }
+            }
+
+            function handleGeofenceError() {
+                if (!bannerEl || !textEl) return;
+                bannerEl.classList.remove('geofence-checking', 'geofence-on-site', 'geofence-off-site');
+                bannerEl.classList.add('geofence-denied');
+                textEl.innerHTML = `<strong>Location Off</strong> &bull; Please ensure you are at ${attendanceGeofence.name}`;
+            }
+
+            navigator.geolocation.getCurrentPosition(updateGeofenceDisplay, handleGeofenceError, { enableHighAccuracy: true, timeout: 8000 });
+            navigator.geolocation.watchPosition(updateGeofenceDisplay, () => {}, { enableHighAccuracy: true, maximumAge: 10000 });
         })();
     });
     </script>

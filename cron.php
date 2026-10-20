@@ -18,6 +18,12 @@ echo "Checking for unclosed attendance records from past days...\n";
 $autoCheckedOutCount = auto_checkout_past_attendance(null, true);
 echo "Auto check-out completed: {$autoCheckedOutCount} session(s) closed at 23:59:59.\n";
 
+// 1b. Auto check-out visits whose 20-minute geofence exit grace period expired
+echo "Sweeping expired geofence exit grace periods...\n";
+require_once __DIR__ . '/core/attendance_geofence_service.php';
+$geofenceExpiredCount = process_expired_geofence_sessions();
+echo "Geofence exit sweep completed: {$geofenceExpiredCount} session(s) closed.\n";
+
 // 2. Queue the previous day's EOD summary for eligible Business gyms.
 echo "Queueing automated End-of-Day summaries for yesterday...\n";
 $eodResults = gym_queue_automated_eod_summaries(date('Y-m-d', strtotime('yesterday')));

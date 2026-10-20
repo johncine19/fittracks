@@ -235,6 +235,7 @@ try {
         'gym_equipment' => ['file' => 'pages/admin/equipment.php', 'handler' => 'gym_equipment_page'],
         'equipment' => ['file' => 'pages/member/equipment.php', 'handler' => 'member_equipment_page'],
         'equipment_api' => ['file' => 'pages/shared/equipment_api.php', 'handler' => 'equipment_api_handler'],
+        'attendance_geofence_api' => ['file' => 'pages/shared/attendance_geofence_api.php', 'handler' => 'attendance_geofence_api_handler'],
         'audit_logs' => ['file' => 'pages/admin/audit_logs.php', 'handler' => 'audit_logs_page'],
         'admin_workouts' => ['file' => 'pages/admin/workout_plans.php', 'handler' => 'admin_workouts_page'],
         'gym_applications' => ['file' => 'pages/admin/gym_applications.php', 'handler' => 'gym_applications_page'],

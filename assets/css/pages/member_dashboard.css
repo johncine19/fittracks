@@ -2527,3 +2527,269 @@
         border-color: #e9d5ff !important;
     }
 
+    /* ============================================================
+       GEOFENCE ARRIVAL ALERT BANNER
+       ============================================================ */
+    .gym-arrival-banner {
+        position: fixed;
+        top: 20px;
+        left: 50%;
+        transform: translateX(-50%) translateY(-24px);
+        width: min(95vw, 600px);
+        z-index: 99999;
+        opacity: 0;
+        pointer-events: none;
+        transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.35s ease;
+    }
+    .gym-arrival-banner.banner-visible {
+        transform: translateX(-50%) translateY(0);
+        opacity: 1;
+        pointer-events: auto;
+    }
+    .arrival-banner-card {
+        background: rgba(18, 24, 38, 0.95);
+        backdrop-filter: blur(16px);
+        -webkit-backdrop-filter: blur(16px);
+        border: 1.5px solid color-mix(in srgb, var(--lime) 50%, rgba(255, 255, 255, 0.15));
+        border-radius: 16px;
+        padding: 14px 18px;
+        box-shadow: 0 16px 40px rgba(0, 0, 0, 0.5), 0 0 24px rgba(199, 255, 34, 0.15);
+        display: flex;
+        align-items: center;
+        gap: 14px;
+    }
+    .arrival-banner-pulse {
+        position: relative;
+        width: 44px;
+        height: 44px;
+        border-radius: 12px;
+        background: rgba(199, 255, 34, 0.12);
+        border: 1px solid rgba(199, 255, 34, 0.35);
+        color: var(--lime);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+    }
+    .arrival-pulse-ring {
+        position: absolute;
+        inset: -3px;
+        border-radius: 14px;
+        border: 2px solid var(--lime);
+        animation: arrivalRadarPulse 2s infinite ease-out;
+    }
+    @keyframes arrivalRadarPulse {
+        0% { transform: scale(0.9); opacity: 0.9; }
+        70% { transform: scale(1.35); opacity: 0; }
+        100% { transform: scale(1.35); opacity: 0; }
+    }
+    .arrival-banner-content {
+        flex: 1 1 auto;
+        min-width: 0;
+    }
+    .arrival-banner-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 10px;
+        font-weight: 800;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        color: var(--lime);
+        background: rgba(199, 255, 34, 0.1);
+        border: 1px solid rgba(199, 255, 34, 0.25);
+        padding: 3px 9px;
+        border-radius: 20px;
+        margin-bottom: 4px;
+        white-space: nowrap;
+        line-height: 1.2;
+    }
+    .arrival-banner-badge * {
+        white-space: nowrap;
+    }
+    .arrival-badge-sep {
+        opacity: 0.45;
+        font-size: 10px;
+    }
+    .arrival-banner-title {
+        margin: 0;
+        font-size: 14.5px;
+        font-weight: 800;
+        color: #fff;
+        line-height: 1.25;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+    .arrival-banner-sub {
+        margin: 2px 0 0;
+        font-size: 12px;
+        color: rgba(255, 255, 255, 0.7);
+        line-height: 1.35;
+    }
+    .arrival-banner-actions {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex-shrink: 0;
+    }
+    .arrival-btn-qr {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        background: var(--lime);
+        color: #0b0f19;
+        font-size: 12.5px;
+        font-weight: 800;
+        padding: 8px 14px;
+        border-radius: 10px;
+        text-decoration: none;
+        transition: all 0.2s ease;
+        box-shadow: 0 4px 14px rgba(199, 255, 34, 0.35);
+        white-space: nowrap;
+    }
+    .arrival-btn-qr:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 6px 18px rgba(199, 255, 34, 0.5);
+        color: #000;
+    }
+    .arrival-btn-dismiss {
+        background: rgba(255, 255, 255, 0.08);
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        color: rgba(255, 255, 255, 0.6);
+        width: 28px;
+        height: 28px;
+        border-radius: 8px;
+        font-size: 18px;
+        line-height: 1;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        transition: all 0.2s ease;
+    }
+    .arrival-btn-dismiss:hover {
+        background: rgba(255, 255, 255, 0.18);
+        color: #fff;
+    }
+    @media (max-width: 540px) {
+        .gym-arrival-banner {
+            top: 12px;
+            width: calc(100% - 20px);
+        }
+        .arrival-banner-card {
+            padding: 12px 14px;
+            gap: 10px;
+        }
+        .arrival-banner-pulse {
+            width: 38px;
+            height: 38px;
+        }
+        .arrival-btn-qr {
+            padding: 7px 11px;
+            font-size: 11.5px;
+        }
+    }
+
+    /* Light Theme overrides for arrival banner */
+    html[data-theme="light"] .arrival-banner-card,
+    [data-theme="light"] .arrival-banner-card {
+        background: rgba(255, 255, 255, 0.96);
+        border-color: rgba(34, 197, 94, 0.4);
+        box-shadow: 0 16px 40px rgba(0, 0, 0, 0.12), 0 0 20px rgba(34, 197, 94, 0.15);
+    }
+    html[data-theme="light"] .arrival-banner-title,
+    [data-theme="light"] .arrival-banner-title {
+        color: #0f172a;
+    }
+    html[data-theme="light"] .arrival-banner-sub,
+    [data-theme="light"] .arrival-banner-sub {
+        color: #64748b;
+    }
+    html[data-theme="light"] .arrival-banner-pulse,
+    [data-theme="light"] .arrival-banner-pulse {
+        background: rgba(34, 197, 94, 0.12);
+        border-color: rgba(34, 197, 94, 0.3);
+        color: #16a34a;
+    }
+    html[data-theme="light"] .arrival-pulse-ring,
+    [data-theme="light"] .arrival-pulse-ring {
+        border-color: #16a34a;
+    }
+    html[data-theme="light"] .arrival-banner-badge,
+    [data-theme="light"] .arrival-banner-badge {
+        color: #16a34a;
+        background: rgba(22, 163, 74, 0.1);
+        border-color: rgba(22, 163, 74, 0.25);
+    }
+    html[data-theme="light"] .arrival-btn-qr,
+    [data-theme="light"] .arrival-btn-qr {
+        background: #16a34a;
+        color: #fff;
+        box-shadow: 0 4px 14px rgba(22, 163, 74, 0.3);
+    }
+    html[data-theme="light"] .arrival-btn-dismiss,
+    [data-theme="light"] .arrival-btn-dismiss {
+        background: #f1f5f9;
+        border-color: #e2e8f0;
+        color: #64748b;
+    }
+
+    /* Stepping Out (Grace Period) Banner Customizations */
+    .gym-grace-banner .grace-banner-card {
+        border-color: color-mix(in srgb, #f59e0b 60%, rgba(255, 255, 255, 0.15));
+        box-shadow: 0 16px 40px rgba(0, 0, 0, 0.5), 0 0 24px rgba(245, 158, 11, 0.2);
+    }
+    .gym-grace-banner .grace-banner-pulse {
+        background: rgba(245, 158, 11, 0.15);
+        border: 1px solid rgba(245, 158, 11, 0.4);
+        color: #f59e0b;
+    }
+    .gym-grace-banner .grace-pulse-ring {
+        border-color: #f59e0b;
+        animation: graceRadarPulse 2s infinite ease-out;
+    }
+    @keyframes graceRadarPulse {
+        0% { transform: scale(0.9); opacity: 0.9; }
+        70% { transform: scale(1.35); opacity: 0; }
+        100% { transform: scale(1.35); opacity: 0; }
+    }
+    .gym-grace-banner .grace-banner-badge {
+        color: #fbbf24;
+        background: rgba(245, 158, 11, 0.14);
+        border-color: rgba(245, 158, 11, 0.35);
+    }
+    .arrival-btn-checkout {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        background: #f59e0b;
+        color: #0b0f19;
+        font-size: 12.5px;
+        font-weight: 800;
+        padding: 8px 14px;
+        border-radius: 10px;
+        border: none;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        box-shadow: 0 4px 14px rgba(245, 158, 11, 0.35);
+        white-space: nowrap;
+    }
+    .arrival-btn-checkout:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 6px 18px rgba(245, 158, 11, 0.5);
+        background: #fbbf24;
+    }
+    html[data-theme="light"] .gym-grace-banner .grace-banner-card,
+    [data-theme="light"] .gym-grace-banner .grace-banner-card {
+        border-color: rgba(245, 158, 11, 0.45);
+        box-shadow: 0 16px 40px rgba(0, 0, 0, 0.12), 0 0 20px rgba(245, 158, 11, 0.2);
+    }
+    html[data-theme="light"] .arrival-btn-checkout,
+    [data-theme="light"] .arrival-btn-checkout {
+        background: #d97706;
+        color: #fff;
+    }
+
+
+

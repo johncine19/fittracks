@@ -144,3 +144,150 @@ Documented under **Section 3 ("Location-Based Services & Verification")**:
 > 1. Location accuracy depends on your device hardware, mobile network, and satellite availability.
 > 2. Certain security features, such as remote-fraud prevention during check-in or equipment waitlist reservations, may require verified physical presence within the gym's designated perimeter.
 > 3. You retain the right to disable device location access at any time; however, certain proximity-dependent features may require manual address selection or staff check-in assistance.
+
+---
+
+## 8. Proximity Arrival Alerts & QR Geofence Verification
+
+To create an effortless gym arrival experience and prevent remote QR attendance sharing, FitTracks integrates a non-intrusive arrival detection system paired with live geofence verification.
+
+### 8.1 In-App Arrival Banner on Member Dashboard (`pages/member/dashboard.php`)
+When a member arrives within the designated perimeter of their affiliated gym (`geofence_radius_meters`, default 100m):
+1. **Intelligent Suppression**:
+   - The banner only triggers if the member has an active affiliated gym with GPS coordinates and is **not already checked in** (`check_out_time IS NULL`).
+   - If dismissed by the user, the dismissal is stored in `sessionStorage` (`ft_arrival_dismissed_{gym_id}`) so members are not repeatedly nagged during their visit.
+2. **Design & Micro-Animations**:
+   - Fixed slide-down card with high z-index (`#gym-arrival-banner`), neon radar pulse ring, and distance indicator badge (*"📍 Near You • At the gym"*).
+   - Fast 1-tap action button: **"Check In"** &rarr; immediately routes the member to their dynamic QR attendance code (`index.php?page=qr_attendance`).
+3. **OS Push Notification Trigger**:
+   - If the user has granted browser notification permissions (`Notification.permission === 'granted'`), the system fires a native desktop/mobile OS notification:
+     - Title: *"Welcome to [Gym Name]!"*
+     - Body: *"You're within check-in range. Tap here to open your QR check-in pass."*
+     - Tag: `gym-arrival-{gym_id}` (prevents duplicate spam).
+
+### 8.2 Real-Time Proximity Badge on QR Attendance (`pages/member/qr_attendance.php`)
+On the QR code display page, an interactive proximity pill (`#geofence-status-banner`) is situated right above the QR generation container:
+1. **On-Site Verified (`.geofence-on-site`)**:
+   - Shown when the member is within the gym's perimeter (`distance <= radius`).
+   - Displays: `On-Site Verified (X m away) • Ready for turnstile scan` with a glowing animated pulse dot.
+   - Adds an energetic emerald glow border to the QR code box (`#qr-container.on-site-glow`), assuring the user and front-desk staff that the device is present on site.
+2. **Off-Site Indicator (`.geofence-off-site`)**:
+   - Shown when the member is outside the perimeter.
+   - Displays: `Off-Site (X km from [Gym Name])`.
+3. **Live Geolocation Watcher**:
+   - Uses `navigator.geolocation.watchPosition(...)` so if a member opens their pass while walking in from the parking lot, the badge automatically transitions from *Off-Site* to *On-Site Verified* in real time as they step through the door!
+
+---
+
+## 9. 20-Minute Temporary Exit Grace Period Buffer ("Stepping Out")
+
+### 9.1 The Problem
+When a member is actively checked into a fitness club, strict geofence auto-checkout introduces unwanted friction in real-world scenarios:
+- Stepping out to a parked vehicle to grab wrist wraps, weightlifting belts, or a shaker bottle.
+- Stepping across the street or running home briefly (within 5–10 minutes) for forgotten gear.
+- Taking an urgent phone call outside where reception is better or background music is quieter.
+
+Immediately closing the session would split attendance records, disrupt engagement streak scoring, and needlessly revoke claimed equipment or floor access.
+
+### 9.2 Architecture & State Flow
+
+```
+                      +-----------------------------+
+                      |   Member Checked In         |
+                      | (check_out_time IS NULL)    |
+                      +--------------+--------------+
+                                     |
+                         Member exits perimeter
+                        (distance > gym.radius)
+                                     |
+                                     v
+                      +-----------------------------+
+                      | Start 20-Min Exit Grace     |
+                      | exit_detected_at = NOW()    |
+                      | expires_at = NOW() + 20m    |
+                      | Set Redis TTL = 1200s       |
+                      +--------------+--------------+
+                                     |
+                    +----------------+----------------+
+                    |                                 |
+         Member re-enters perimeter         20 minutes expire
+           within 20-min window             without re-entry
+                    |                                 |
+                    v                                 v
+    +-------------------------------+   +-------------------------------+
+    | Cancel Grace Period           |   | Auto-Checkout Finalized       |
+    | Clear Redis Keys              |   | check_out_time = exit_time    |
+    | exit_grace_expires_at = NULL  |   | Release equipment sessions    |
+    | Session Resumes Unbroken      |   | Attendance session closed     |
+    +-------------------------------+   +-------------------------------+
+```
+
+### 9.3 Client-Side Experience
+1. **Interactive Floating Banner (`#gym-stepping-out-banner`)**:
+   - Displayed in warm amber/gold hues with an animated radar pulse icon.
+   - Shows live countdown clock: `🏃 Stepping Out • Outside Gym • 19:45`.
+   - Clear explanatory text: *"Grabbed something or stepped out? Your check-in session is kept active. Return within 20 mins to resume uninterrupted."*
+2. **One-Tap Early Checkout Option**:
+   - If the member actually intended to leave for good, they can tap **"Check Out"** on the banner to close their session immediately without waiting for the 20-minute buffer to expire.
+3. **Automatic Restoration on Return**:
+   - As soon as GPS detects `distance <= radius`, the client notifies the API (`action: 'geofence_reenter'`), removes the grace banner, and displays an unobtrusive toast notification: *"Welcome back! Your check-in session continues uninterrupted."*
+
+---
+
+## 10. Redis In-Memory TTL Architecture & Live System Scaling
+
+To support high-concurrency production environments with thousands of simultaneous members walking in and out of gym perimeters, FitTracks implements a **Hybrid Redis + MySQL Architecture**.
+
+### 10.1 High-Speed In-Memory Layer (`core/redis_client.php`)
+- **Key Namespace**:
+  - `ft:exit_grace:{attendance_id}` &rarr; JSON string `{ attendance_id, user_id, gym_id, exit_detected_at, expires_at }` with self-expiring TTL = 1200 seconds (20 minutes).
+  - `ft:user_exit_grace:{user_id}` &rarr; `attendance_id` with TTL = 1200 seconds.
+- **Sub-Millisecond Polling**:
+  - When the client requests grace status (`action: 'get_status'`), the backend queries Redis directly:
+    ```php
+    $ttl = RedisClient::ttl("ft:exit_grace:{$attendanceId}");
+    ```
+  - This eliminates millions of repetitive `SELECT` queries against MariaDB during peak rush hours (5:00 PM – 8:00 PM).
+
+### 10.2 Automatic Graceful Fallback (Zero-Downtime Resilience)
+If the Redis server is unreachable, undergoing maintenance, or running in an environment without `ext-redis` (such as local development XAMPP):
+- `RedisClient::isConnected()` detects this immediately (with a 0.5-second non-blocking connection timeout) and returns `false`.
+- All operations seamlessly and transparently fall back to MySQL columns in the `attendance` table:
+  - `exit_detected_at DATETIME DEFAULT NULL`
+  - `exit_grace_expires_at DATETIME DEFAULT NULL`
+  - Indexed via `idx_att_exit_grace (check_out_time, exit_grace_expires_at)` for high-performance index-only scans.
+- No exceptions or errors are raised; the system continues operating normally.
+
+### 10.3 Background Cron & Sweeper Integration (`cron.php`)
+In addition to on-demand client checks, the automated scheduler runs a sweep:
+```bash
+# Production Crontab (Runs every 5 minutes)
+*/5 * * * * php /path/to/fittracks/cron.php >> /path/to/logs/cron.log 2>&1
+```
+- **Step 1b**: Sweeps any active attendance records where `exit_grace_expires_at <= NOW() AND check_out_time IS NULL`.
+- Sets `check_out_time = exit_detected_at`.
+- Invokes `release_user_equipment_on_checkout($userId)` to ensure gym equipment queue slots are freed up for waiting members.
+
+### 10.4 Production Environment Configuration
+Configure the Redis connection settings via environment variables (e.g. on Render):
+
+#### Option A: Single Render Connection String (Recommended for Render)
+When you spin up a Redis service on Render, copy the **Internal Redis URL** into your web service's Environment tab:
+```env
+REDIS_URL=redis://default:your_password@red-cu1234567890:6379
+```
+
+#### Option B: Discrete Parameters
+```env
+REDIS_ENABLED=true
+REDIS_HOST=red-cu1234567890
+REDIS_PORT=6379
+REDIS_PASSWORD=your_password
+```
+
+#### Note on Optional Variables:
+- **`REDIS_TIMEOUT`**: **Optional** (defaults to `0.5` seconds). You do **not** need to add this in Render unless you want a different socket timeout.
+- **`REDIS_ENABLED`**: **Optional** (defaults to `true`). If Redis is temporarily disabled or not provisioned, the system gracefully falls back to MySQL.
+
+
+

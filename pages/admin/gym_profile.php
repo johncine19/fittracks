@@ -406,19 +406,19 @@ function gym_profile_page(): void
                                 <span class="field-hint">Rate charged for visitors at scanner.</span>
                             </div>
 
-                            <div>
-                                <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; flex-wrap: wrap; gap: 6px;">
-                                    <label class="field-label" style="margin: 0;">Physical Address / Location <span style="color: var(--danger, #ef4444);">*</span></label>
-                                    <button type="button" class="btn-detect-loc-trigger" id="btn-address-use-loc" style="background: rgba(132, 204, 22, 0.12); border: 1px solid rgba(132, 204, 22, 0.35); color: var(--lime, #84cc16); font-size: 11.5px; font-weight: 700; padding: 3px 10px; border-radius: 6px; cursor: pointer; display: inline-flex; align-items: center; gap: 5px; transition: all 0.2s;" title="Fill physical address and map pin from current device location">
-                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><polygon points="3 11 22 2 13 21 11 13 3 11"/></svg>
+                            <div class="span-full" style="grid-column: 1 / -1;">
+                                <label class="field-label">Physical Address / Location <span style="color: var(--danger, #ef4444);">*</span></label>
+                                <div class="address-input-action-row">
+                                    <div class="input-icon-wrap has-textarea">
+                                        <span class="input-icon">
+                                            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle></svg>
+                                        </span>
+                                        <textarea name="address" id="gym_address" class="input-with-icon" rows="2" required placeholder="e.g. 123 Fitness Ave, District 4"><?= h($gym['address']) ?></textarea>
+                                    </div>
+                                    <button type="button" class="btn-detect-loc-trigger" id="btn-address-use-loc" title="Fill physical address and map pin from current device location">
+                                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><polygon points="3 11 22 2 13 21 11 13 3 11"/></svg>
                                         <span class="btn-loc-text">Use My Current Location</span>
                                     </button>
-                                </div>
-                                <div class="input-icon-wrap has-textarea">
-                                    <span class="input-icon">
-                                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle></svg>
-                                    </span>
-                                    <textarea name="address" id="gym_address" class="input-with-icon" rows="2" required placeholder="e.g. 123 Fitness Ave, District 4"><?= h($gym['address']) ?></textarea>
                                 </div>
                                 <span class="field-hint">Street address, building number, and city.</span>
                             </div>
