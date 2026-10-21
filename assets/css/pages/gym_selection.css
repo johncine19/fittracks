@@ -670,32 +670,14 @@
         .gallery-arrow.next { right: 12px; }
 
         .gallery-dots {
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            gap: 8px;
-            padding: 4px 0;
-        }
-        .gallery-dot {
-            width: 8px;
-            height: 8px;
-            border-radius: 999px;
-            background: rgba(255, 255, 255, 0.25);
-            border: none;
-            cursor: pointer;
-            padding: 0;
-            transition: all 0.25s ease;
-        }
-        .gallery-dot.is-active {
-            width: 22px;
-            background: var(--lime);
-            box-shadow: 0 0 10px rgba(199, 255, 34, 0.4);
+            display: none !important;
         }
 
         .gallery-thumbs {
             display: flex;
             gap: 10px;
             overflow-x: auto;
+            margin-top: 10px;
             padding: 2px 0 6px;
             scrollbar-width: none;
         }
@@ -812,19 +794,32 @@
             gap: 8px;
         }
         .plan-carousel-dot {
-            width: 8px;
-            height: 8px;
-            border-radius: 999px;
-            background: rgba(255, 255, 255, 0.25);
-            border: none;
-            padding: 0;
-            cursor: pointer;
-            transition: all 0.25s ease;
+            width: 8px !important;
+            height: 8px !important;
+            min-height: 8px !important;
+            max-height: 8px !important;
+            min-width: 8px !important;
+            border-radius: 999px !important;
+            background: rgba(255, 255, 255, 0.25) !important;
+            border: none !important;
+            padding: 0 !important;
+            margin: 0 !important;
+            line-height: 0 !important;
+            appearance: none !important;
+            -webkit-appearance: none !important;
+            flex-shrink: 0 !important;
+            box-sizing: border-box !important;
+            cursor: pointer !important;
+            transition: all 0.25s ease !important;
         }
         .plan-carousel-dot.is-active {
-            width: 22px;
-            background: var(--lime);
-            box-shadow: 0 0 8px rgba(199, 255, 34, 0.4);
+            width: 22px !important;
+            min-width: 22px !important;
+            height: 8px !important;
+            min-height: 8px !important;
+            max-height: 8px !important;
+            background: var(--lime) !important;
+            box-shadow: 0 0 8px rgba(199, 255, 34, 0.4) !important;
         }
         .plan-nav-arrow {
             width: 32px;
