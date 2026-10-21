@@ -4,8 +4,62 @@ declare(strict_types=1);
 function get_dashboard_attendance_activity_data(array $user, array $params = []): array
 {
     $pdo = db();
-    $date = !empty($params['date']) && preg_match('/^\d{4}-\d{2}-\d{2}$/', $params['date']) ? $params['date'] : date('Y-m-d');
+    $today = date('Y-m-d');
+
+    // Parse Start Date and End Date with fallback support
+    $startDate = null;
+    if (!empty($params['start_date']) && preg_match('/^\d{4}-\d{2}-\d{2}$/', $params['start_date'])) {
+        $startDate = $params['start_date'];
+    } elseif (!empty($params['date_from']) && preg_match('/^\d{4}-\d{2}-\d{2}$/', $params['date_from'])) {
+        $startDate = $params['date_from'];
+    } elseif (!empty($params['date']) && preg_match('/^\d{4}-\d{2}-\d{2}$/', $params['date'])) {
+        $startDate = $params['date'];
+    } else {
+        $startDate = $today;
+    }
+
+    $endDate = null;
+    if (!empty($params['end_date']) && preg_match('/^\d{4}-\d{2}-\d{2}$/', $params['end_date'])) {
+        $endDate = $params['end_date'];
+    } elseif (!empty($params['date_to']) && preg_match('/^\d{4}-\d{2}-\d{2}$/', $params['date_to'])) {
+        $endDate = $params['date_to'];
+    } else {
+        $endDate = $startDate;
+    }
+
+    // Ensure start date is not after end date
+    if ($startDate > $endDate) {
+        $temp = $startDate;
+        $startDate = $endDate;
+        $endDate = $temp;
+    }
+
     $range = in_array($params['range'] ?? '', ['day', 'week', 'month'], true) ? $params['range'] : 'day';
+
+    // If quick range mode is triggered from Peak Hours controls
+    if ($range === 'week' && empty($params['end_date']) && empty($params['date_to'])) {
+        $targetDt = new DateTime($startDate);
+        $startDate = (clone $targetDt)->modify('-6 days')->format('Y-m-d');
+        $endDate = $targetDt->format('Y-m-d');
+    } elseif ($range === 'month' && empty($params['end_date']) && empty($params['date_to'])) {
+        $targetDt = new DateTime($startDate);
+        $startDate = $targetDt->format('Y-m-01');
+        $endDate = $targetDt->format('Y-m-t');
+    }
+
+    // Format human-readable date / date range label
+    $isRange = ($startDate !== $endDate);
+    if (!$isRange) {
+        $dateFormatted = date('F j, Y', strtotime($startDate));
+    } else {
+        $startYear = date('Y', strtotime($startDate));
+        $endYear = date('Y', strtotime($endDate));
+        if ($startYear === $endYear) {
+            $dateFormatted = date('M j', strtotime($startDate)) . ' – ' . date('M j, Y', strtotime($endDate));
+        } else {
+            $dateFormatted = date('M j, Y', strtotime($startDate)) . ' – ' . date('M j, Y', strtotime($endDate));
+        }
+    }
 
     $gymId = isset($params['gym_id']) ? (int)$params['gym_id'] : (int)(get_user_gym_id($user) ?? 0);
     if ($gymId <= 0) {
@@ -18,7 +72,7 @@ function get_dashboard_attendance_activity_data(array $user, array $params = [])
         if ($gName) $gymName = (string)$gName;
     }
 
-    // Attendance Roster Query for the selected date
+    // Attendance Roster Query for the selected date range
     $rosterStmt = $pdo->prepare("
         SELECT 
             a.attendance_id,
@@ -36,11 +90,14 @@ function get_dashboard_attendance_activity_data(array $user, array $params = [])
         FROM attendance a
         JOIN users u ON u.user_id = a.user_id
         LEFT JOIN gyms g ON g.gym_id = a.gym_id
-        WHERE (DATE(a.check_in_time) = :date OR DATE(a.check_out_time) = :date)
+        WHERE (
+            (DATE(a.check_in_time) BETWEEN :start_date AND :end_date)
+            OR (a.check_out_time IS NOT NULL AND DATE(a.check_out_time) BETWEEN :start_date AND :end_date)
+        )
           AND (:gym_id = 0 OR a.gym_id = :gym_id)
         ORDER BY a.check_in_time DESC
     ");
-    $rosterStmt->execute(['date' => $date, 'gym_id' => $gymId]);
+    $rosterStmt->execute(['start_date' => $startDate, 'end_date' => $endDate, 'gym_id' => $gymId]);
     $rawRoster = $rosterStmt->fetchAll(PDO::FETCH_ASSOC);
 
     $nowTs = time();
@@ -54,11 +111,17 @@ function get_dashboard_attendance_activity_data(array $user, array $params = [])
         $outTs = !empty($row['check_out_time']) ? strtotime($row['check_out_time']) : null;
         
         $isCheckedIn = empty($outTs);
-        if ($inTs && date('Y-m-d', $inTs) === $date) {
-            $totalCheckins++;
+        if ($inTs) {
+            $inDate = date('Y-m-d', $inTs);
+            if ($inDate >= $startDate && $inDate <= $endDate) {
+                $totalCheckins++;
+            }
         }
-        if ($outTs && date('Y-m-d', $outTs) === $date) {
-            $totalCheckouts++;
+        if ($outTs) {
+            $outDate = date('Y-m-d', $outTs);
+            if ($outDate >= $startDate && $outDate <= $endDate) {
+                $totalCheckouts++;
+            }
         }
         if ($isCheckedIn) {
             $currentlyInside++;
@@ -87,6 +150,16 @@ function get_dashboard_attendance_activity_data(array $user, array $params = [])
         $memberIdStr = '#MEM-' . str_pad((string)$row['user_id'], 4, '0', STR_PAD_LEFT);
         $fullName = trim($row['first_name'] . ' ' . $row['last_name']);
 
+        // Check in / Check out display: show date prefix if range is multi-day
+        $inFormatted = '—';
+        if ($inTs) {
+            $inFormatted = $isRange ? date('M j, h:i A', $inTs) : date('h:i A', $inTs);
+        }
+        $outFormatted = 'Still Inside';
+        if ($outTs) {
+            $outFormatted = $isRange ? date('M j, h:i A', $outTs) : date('h:i A', $outTs);
+        }
+
         $roster[] = [
             'attendance_id'       => (int) $row['attendance_id'],
             'user_id'             => (int) $row['user_id'],
@@ -95,9 +168,9 @@ function get_dashboard_attendance_activity_data(array $user, array $params = [])
             'email'               => $row['email'],
             'profile_picture'     => $row['profile_picture'] ?? null,
             'check_in_time'       => $row['check_in_time'],
-            'check_in_formatted'  => $inTs ? date('h:i A', $inTs) : '—',
+            'check_in_formatted'  => $inFormatted,
             'check_out_time'      => $row['check_out_time'],
-            'check_out_formatted' => $outTs ? date('h:i A', $outTs) : 'Still Inside',
+            'check_out_formatted' => $outFormatted,
             'is_checked_in'       => $isCheckedIn,
             'status'              => $isCheckedIn ? 'checked_in' : 'checked_out',
             'status_label'        => $isCheckedIn ? 'Checked In' : 'Checked Out',
@@ -106,47 +179,21 @@ function get_dashboard_attendance_activity_data(array $user, array $params = [])
         ];
     }
 
-    // Peak Hours Analysis
+    // Peak Hours Analysis across the selected date range
     $chartLabels = [];
     $chartData = [];
     $peakHourLabel = 'No Activity';
     $peakMaxCount = 0;
     $peakIndices = [];
 
-    if ($range === 'day') {
-        $hrStmt = $pdo->prepare("
-            SELECT HOUR(check_in_time) AS hr, COUNT(*) AS cnt
-            FROM attendance
-            WHERE DATE(check_in_time) = :date
-              AND (:gym_id = 0 OR gym_id = :gym_id)
-            GROUP BY HOUR(check_in_time)
-        ");
-        $hrStmt->execute(['date' => $date, 'gym_id' => $gymId]);
-    } elseif ($range === 'week') {
-        $targetDt = new DateTime($date);
-        $dStart = (clone $targetDt)->modify('-6 days')->format('Y-m-d');
-        $dEnd = $targetDt->format('Y-m-d');
-
-        $hrStmt = $pdo->prepare("
-            SELECT HOUR(check_in_time) AS hr, COUNT(*) AS cnt
-            FROM attendance
-            WHERE DATE(check_in_time) BETWEEN :d_start AND :d_end
-              AND (:gym_id = 0 OR gym_id = :gym_id)
-            GROUP BY HOUR(check_in_time)
-        ");
-        $hrStmt->execute(['d_start' => $dStart, 'd_end' => $dEnd, 'gym_id' => $gymId]);
-    } elseif ($range === 'month') {
-        $yearMonth = date('Y-m', strtotime($date));
-
-        $hrStmt = $pdo->prepare("
-            SELECT HOUR(check_in_time) AS hr, COUNT(*) AS cnt
-            FROM attendance
-            WHERE DATE_FORMAT(check_in_time, '%Y-%m') = :ym
-              AND (:gym_id = 0 OR gym_id = :gym_id)
-            GROUP BY HOUR(check_in_time)
-        ");
-        $hrStmt->execute(['ym' => $yearMonth, 'gym_id' => $gymId]);
-    }
+    $hrStmt = $pdo->prepare("
+        SELECT HOUR(check_in_time) AS hr, COUNT(*) AS cnt
+        FROM attendance
+        WHERE DATE(check_in_time) BETWEEN :start_date AND :end_date
+          AND (:gym_id = 0 OR gym_id = :gym_id)
+        GROUP BY HOUR(check_in_time)
+    ");
+    $hrStmt->execute(['start_date' => $startDate, 'end_date' => $endDate, 'gym_id' => $gymId]);
 
     $hourCounts = array_fill(5, 19, 0); // 5 AM to 11 PM
     if (isset($hrStmt)) {
@@ -178,8 +225,11 @@ function get_dashboard_attendance_activity_data(array $user, array $params = [])
     }
 
     return [
-        'date'               => $date,
-        'date_formatted'     => date('F j, Y', strtotime($date)),
+        'date'               => $startDate,
+        'start_date'         => $startDate,
+        'end_date'           => $endDate,
+        'date_formatted'     => $dateFormatted,
+        'is_range'           => $isRange,
         'range'              => $range,
         'gym_id'             => $gymId,
         'gym_name'           => $gymName,
@@ -218,7 +268,8 @@ function member_dashboard(PDO $pdo, array $user): void
     $tier = (int) ($stmt->fetchColumn() ?: 1);
     $tierName = get_fitness_tier_name($tier);
 
-    $actInitialData = get_dashboard_attendance_activity_data($user, ['date' => date('Y-m-d'), 'range' => 'day']);
+    $today = date('Y-m-d');
+    $actInitialData = get_dashboard_attendance_activity_data($user, ['start_date' => $today, 'end_date' => $today, 'range' => 'day']);
 
     // Check geofence status for member's affiliated gym
     $userGym = get_user_gym($user);
@@ -538,15 +589,57 @@ function member_dashboard(PDO $pdo, array $user): void
                         </div>
                         <span id="act-roster-count" style="display: none;"><?= count($actInitialData['roster']) ?> Records</span>
                         <div class="act-toolbar" style="margin: 0;">
-                            <label class="act-calendar-btn" title="Select Date (<?= h($actInitialData['date']) ?>)">
-                                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-                                    <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
-                                    <line x1="16" y1="2" x2="16" y2="6"/>
-                                    <line x1="8" y1="2" x2="8" y2="6"/>
-                                    <line x1="3" y1="10" x2="21" y2="10"/>
-                                </svg>
-                                <input type="date" class="act-date-picker-native" value="<?= h($actInitialData['date']) ?>" max="<?= date('Y-m-d') ?>" aria-label="Select Date" onchange="actOnDateChange(this)">
-                            </label>
+                            <!-- Upgraded Date Range Picker -->
+                            <div class="act-range-picker-wrap">
+                                <button type="button" class="act-range-trigger-btn" onclick="actToggleRangeDropdown(event, this)" title="Choose date range" aria-haspopup="true" aria-expanded="false">
+                                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                                        <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
+                                        <line x1="16" y1="2" x2="16" y2="6"/>
+                                        <line x1="8" y1="2" x2="8" y2="6"/>
+                                        <line x1="3" y1="10" x2="21" y2="10"/>
+                                    </svg>
+                                    <span class="act-range-display-text"><?= h($actInitialData['date_formatted']) ?></span>
+                                    <svg class="act-range-chevron" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
+                                </button>
+
+                                <div class="act-range-dropdown" style="display: none;">
+                                    <div class="act-range-dropdown-header">
+                                        <span>Select Date Range</span>
+                                        <button type="button" class="act-range-close-btn" onclick="actCloseAllRangeDropdowns(event)">&times;</button>
+                                    </div>
+                                    
+                                    <div class="act-range-presets">
+                                        <button type="button" class="act-preset-pill active" data-preset="today" onclick="actApplyPreset('today', this)">Today</button>
+                                        <button type="button" class="act-preset-pill" data-preset="yesterday" onclick="actApplyPreset('yesterday', this)">Yesterday</button>
+                                        <button type="button" class="act-preset-pill" data-preset="week" onclick="actApplyPreset('week', this)">Last 7 Days</button>
+                                        <button type="button" class="act-preset-pill" data-preset="month" onclick="actApplyPreset('month', this)">Last 30 Days</button>
+                                        <button type="button" class="act-preset-pill" data-preset="this_month" onclick="actApplyPreset('this_month', this)">This Month</button>
+                                    </div>
+
+                                    <div class="act-range-inputs-row">
+                                        <div class="act-range-input-group">
+                                            <label>Start Date</label>
+                                            <input type="date" class="act-start-date-input" value="<?= h($actInitialData['start_date']) ?>" max="<?= date('Y-m-d') ?>" onchange="actOnCustomDateChange(this)">
+                                        </div>
+                                        <div class="act-range-input-sep">
+                                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+                                        </div>
+                                        <div class="act-range-input-group">
+                                            <label>End Date</label>
+                                            <input type="date" class="act-end-date-input" value="<?= h($actInitialData['end_date']) ?>" max="<?= date('Y-m-d') ?>" onchange="actOnCustomDateChange(this)">
+                                        </div>
+                                    </div>
+
+                                    <div class="act-range-actions">
+                                        <button type="button" class="act-range-cancel-btn" onclick="actCloseAllRangeDropdowns(event)">Close</button>
+                                        <button type="button" class="act-range-apply-btn" onclick="actApplyRangeFromDropdown(this)">
+                                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><polyline points="20 6 9 17 4 12"/></svg>
+                                            <span>Apply Range</span>
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+
                             <button type="button" class="act-refresh-btn" onclick="actReloadData(this)" title="Refresh attendance data">
                                 <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2"/></svg>
                                 <span>Refresh</span>
@@ -605,7 +698,7 @@ function member_dashboard(PDO $pdo, array $user): void
                                             <?php else: ?>
                                                 <div class="act-avatar"><?= h(mb_substr($m['name'], 0, 1)) ?></div>
                                             <?php endif; ?>
-                                            <div>
+                                            <div class="act-member-meta">
                                                 <div class="act-member-name"><?= h($m['name']) ?></div>
                                                 <div class="act-member-sub"><?= h($m['email']) ?></div>
                                             </div>
@@ -694,15 +787,57 @@ function member_dashboard(PDO $pdo, array $user): void
                             <p class="act-panel-sub" id="act-peak-panel-sub">Traffic distribution and gym congestion patterns</p>
                         </div>
                         <div class="act-toolbar" style="margin: 0;">
-                            <label class="act-calendar-btn" title="Select Date (<?= h($actInitialData['date']) ?>)">
-                                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-                                    <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
-                                    <line x1="16" y1="2" x2="16" y2="6"/>
-                                    <line x1="8" y1="2" x2="8" y2="6"/>
-                                    <line x1="3" y1="10" x2="21" y2="10"/>
-                                </svg>
-                                <input type="date" class="act-date-picker-native" value="<?= h($actInitialData['date']) ?>" max="<?= date('Y-m-d') ?>" aria-label="Select Date" onchange="actOnDateChange(this)">
-                            </label>
+                            <!-- Upgraded Date Range Picker -->
+                            <div class="act-range-picker-wrap">
+                                <button type="button" class="act-range-trigger-btn" onclick="actToggleRangeDropdown(event, this)" title="Choose date range" aria-haspopup="true" aria-expanded="false">
+                                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                                        <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
+                                        <line x1="16" y1="2" x2="16" y2="6"/>
+                                        <line x1="8" y1="2" x2="8" y2="6"/>
+                                        <line x1="3" y1="10" x2="21" y2="10"/>
+                                    </svg>
+                                    <span class="act-range-display-text"><?= h($actInitialData['date_formatted']) ?></span>
+                                    <svg class="act-range-chevron" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
+                                </button>
+
+                                <div class="act-range-dropdown" style="display: none;">
+                                    <div class="act-range-dropdown-header">
+                                        <span>Select Date Range</span>
+                                        <button type="button" class="act-range-close-btn" onclick="actCloseAllRangeDropdowns(event)">&times;</button>
+                                    </div>
+                                    
+                                    <div class="act-range-presets">
+                                        <button type="button" class="act-preset-pill active" data-preset="today" onclick="actApplyPreset('today', this)">Today</button>
+                                        <button type="button" class="act-preset-pill" data-preset="yesterday" onclick="actApplyPreset('yesterday', this)">Yesterday</button>
+                                        <button type="button" class="act-preset-pill" data-preset="week" onclick="actApplyPreset('week', this)">Last 7 Days</button>
+                                        <button type="button" class="act-preset-pill" data-preset="month" onclick="actApplyPreset('month', this)">Last 30 Days</button>
+                                        <button type="button" class="act-preset-pill" data-preset="this_month" onclick="actApplyPreset('this_month', this)">This Month</button>
+                                    </div>
+
+                                    <div class="act-range-inputs-row">
+                                        <div class="act-range-input-group">
+                                            <label>Start Date</label>
+                                            <input type="date" class="act-start-date-input" value="<?= h($actInitialData['start_date']) ?>" max="<?= date('Y-m-d') ?>" onchange="actOnCustomDateChange(this)">
+                                        </div>
+                                        <div class="act-range-input-sep">
+                                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+                                        </div>
+                                        <div class="act-range-input-group">
+                                            <label>End Date</label>
+                                            <input type="date" class="act-end-date-input" value="<?= h($actInitialData['end_date']) ?>" max="<?= date('Y-m-d') ?>" onchange="actOnCustomDateChange(this)">
+                                        </div>
+                                    </div>
+
+                                    <div class="act-range-actions">
+                                        <button type="button" class="act-range-cancel-btn" onclick="actCloseAllRangeDropdowns(event)">Close</button>
+                                        <button type="button" class="act-range-apply-btn" onclick="actApplyRangeFromDropdown(this)">
+                                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><polyline points="20 6 9 17 4 12"/></svg>
+                                            <span>Apply Range</span>
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+
                             <button type="button" class="act-refresh-btn" onclick="actReloadData(this)" title="Refresh attendance data">
                                 <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2"/></svg>
                                 <span>Refresh</span>

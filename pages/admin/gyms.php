@@ -33,20 +33,27 @@ function gyms_page(): void
                 $plan = null;
             }
             $subStatus = trim((string) post('subscription_status')) ?: 'inactive';
+            $billingCycle = strtolower(trim((string) post('subscription_billing_cycle'))) === 'yearly' ? 'yearly' : 'monthly';
             $renewalDate = trim((string) post('subscription_renewal_date')) ?: null;
-            $xenditSubaccountId = trim((string)post('xendit_subaccount_id'));
-            $xenditSubaccountId = $xenditSubaccountId !== '' ? $xenditSubaccountId : null;
-            $payoutChannel = trim((string) post('payout_channel')) ?: 'gcash';
-            $payoutNumber = trim((string) post('payout_account_number')) ?: null;
-            $payoutName = trim((string) post('payout_account_name')) ?: null;
             $recordPayment = (post('record_payment') === '1');
             $amount = (float) post('amount');
             $paymentMethod = trim((string) post('payment_method')) ?: 'cash';
 
+            // Guardrail: if active or trialing, ensure the renewal date is a safe future date so the gym does not immediately lapse
+            if ($subStatus === 'active') {
+                if (empty($renewalDate) || strtotime($renewalDate) < strtotime('today')) {
+                    $renewalDate = date('Y-m-d', strtotime($billingCycle === 'yearly' ? '+1 year' : '+1 month'));
+                }
+            } elseif ($subStatus === 'trialing') {
+                if (empty($renewalDate) || strtotime($renewalDate) < strtotime('today')) {
+                    $renewalDate = date('Y-m-d', strtotime('+14 days'));
+                }
+            }
+
             $pdo->beginTransaction();
 
-            $pdo->prepare('UPDATE gyms SET subscription_plan = ?, subscription_status = ?, subscription_renewal_date = ?, xendit_subaccount_id = ?, payout_channel = ?, payout_account_number = ?, payout_account_name = ? WHERE gym_id = ?')
-                ->execute([$plan, $subStatus, $renewalDate, $xenditSubaccountId, $payoutChannel, $payoutNumber, $payoutName, $gymId]);
+            $pdo->prepare('UPDATE gyms SET subscription_plan = ?, subscription_status = ?, subscription_renewal_date = ?, subscription_billing_cycle = ? WHERE gym_id = ?')
+                ->execute([$plan, $subStatus, $renewalDate, $billingCycle, $gymId]);
 
             $ownerId = (int) $pdo->query('SELECT owner_user_id FROM gyms WHERE gym_id = ' . $gymId)->fetchColumn();
             $gymName = (string) $pdo->query('SELECT name FROM gyms WHERE gym_id = ' . $gymId)->fetchColumn();
@@ -54,17 +61,18 @@ function gyms_page(): void
             if ($recordPayment && $plan && $amount > 0) {
                 $receiptNumber = 'SUB-ADM-' . date('Ymd') . '-' . strtoupper(substr(bin2hex(random_bytes(3)), 0, 5));
                 $startDate = date('Y-m-d');
-                $endDate = $renewalDate ?: date('Y-m-d', strtotime('+1 month'));
+                $endDate = $renewalDate ?: date('Y-m-d', strtotime($billingCycle === 'yearly' ? '+1 year' : '+1 month'));
 
                 $pdo->prepare('
                     INSERT INTO gym_subscription_payments 
                     (gym_id, owner_user_id, plan_name, amount, billing_cycle, payment_method, status, receipt_number, payment_date, start_date, end_date)
-                    VALUES (?, ?, ?, ?, "monthly", ?, "paid", ?, NOW(), ?, ?)
+                    VALUES (?, ?, ?, ?, ?, ?, "paid", ?, NOW(), ?, ?)
                 ')->execute([
                     $gymId,
                     $ownerId,
                     $plan,
                     $amount,
+                    $billingCycle,
                     $paymentMethod,
                     $receiptNumber,
                     $startDate,
@@ -77,18 +85,48 @@ function gyms_page(): void
             audit_log($user['user_id'], 'update_subscription', 'gym', (string) $gymId, json_encode([
                 'plan' => $plan,
                 'status' => $subStatus,
+                'billing_cycle' => $billingCycle,
                 'renewal_date' => $renewalDate,
                 'recorded_payment' => $recordPayment ? $amount : false
+            ]));
+
+            $cycleLabel = $billingCycle === 'yearly' ? 'Annual' : 'Monthly';
+            notify_user(
+                $ownerId,
+                'system',
+                'Subscription Updated',
+                "Your subscription for '{$gymName}' has been updated by Platform Admin to " . ($plan ? "{$plan} Plan ({$cycleLabel}, {$subStatus})" : "No Plan") . "."
+            );
+
+            flash("Subscription for '{$gymName}' updated successfully.", 'success');
+        } elseif ($action === 'update_payout') {
+            $xenditSubaccountId = trim((string) post('xendit_subaccount_id'));
+            $xenditSubaccountId = $xenditSubaccountId !== '' ? $xenditSubaccountId : null;
+            $payoutChannel = trim((string) post('payout_channel')) ?: 'gcash';
+            $payoutNumber = trim((string) post('payout_account_number')) ?: null;
+            $payoutName = trim((string) post('payout_account_name')) ?: null;
+
+            $pdo->prepare('UPDATE gyms SET xendit_subaccount_id = ?, payout_channel = ?, payout_account_number = ?, payout_account_name = ? WHERE gym_id = ?')
+                ->execute([$xenditSubaccountId, $payoutChannel, $payoutNumber, $payoutName, $gymId]);
+
+            $ownerId = (int) $pdo->query('SELECT owner_user_id FROM gyms WHERE gym_id = ' . $gymId)->fetchColumn();
+            $gymName = (string) $pdo->query('SELECT name FROM gyms WHERE gym_id = ' . $gymId)->fetchColumn();
+
+            audit_log($user['user_id'], 'update_payout_settings', 'gym', (string) $gymId, json_encode([
+                'xendit_subaccount_id' => $xenditSubaccountId,
+                'payout_channel' => $payoutChannel,
+                'payout_account_number' => $payoutNumber,
+                'payout_account_name' => $payoutName
             ]));
 
             notify_user(
                 $ownerId,
                 'system',
-                'Subscription Updated',
-                "Your subscription for '{$gymName}' has been updated by Platform Admin to " . ($plan ? "{$plan} Plan ({$subStatus})" : "No Plan") . "."
+                'Payout Destination Updated',
+                "Platform Admin updated payout destination settings for '{$gymName}' (" . strtoupper($payoutChannel) . ($payoutNumber ? " - {$payoutNumber}" : "") . ")."
             );
 
-            flash("Subscription for '{$gymName}' updated successfully.", 'success');
+            flash("Payout settings for '{$gymName}' updated successfully.", 'success');
         }
         redirect('gyms');
     }
@@ -115,6 +153,16 @@ function gyms_page(): void
         display: none;
     }
 
+    /* Keep page header title inline / unstacked on all screens */
+    .gyms-page-header h1,
+    .gyms-page-title {
+        white-space: nowrap;
+        font-size: clamp(1.15rem, 5vw, 1.75rem);
+        letter-spacing: -0.02em;
+        line-height: 1.25;
+        margin: 0 0 4px;
+    }
+
     @media (max-width: 768px) {
         .gyms-desktop-table {
             display: none !important;
@@ -123,6 +171,19 @@ function gyms_page(): void
             display: flex !important;
             flex-direction: column;
             gap: 12px;
+        }
+        .gyms-page-header h1,
+        .gyms-page-title {
+            white-space: nowrap;
+            font-size: clamp(1.02rem, 4.5vw, 1.35rem);
+        }
+    }
+
+    @media (max-width: 420px) {
+        .gyms-page-header h1,
+        .gyms-page-title {
+            white-space: nowrap;
+            font-size: clamp(0.9rem, 4.2vw, 1.15rem);
         }
     }
 
@@ -248,8 +309,8 @@ function gyms_page(): void
     }
 
     .gym-card-actions {
-        display: flex;
-        align-items: center;
+        display: grid;
+        grid-template-columns: 1fr 1fr;
         gap: 8px;
         padding-top: 10px;
         border-top: 1px solid color-mix(in srgb, var(--line) 60%, transparent);
@@ -281,9 +342,9 @@ function gyms_page(): void
     </style>
 
     <section class="panel">
-        <div class="page-header">
+        <div class="page-header gyms-page-header">
             <div>
-                <h1>All Gyms & Subscriptions</h1>
+                <h1 class="gyms-page-title">All Gyms & Subscriptions</h1>
                 <p>Manage registered gym facilities, accounts, and subscription tiers.</p>
             </div>
         </div>
@@ -307,7 +368,7 @@ function gyms_page(): void
                         <th>Subscription Plan</th>
                         <th>Sub Status</th>
                         <th>Renewal Date</th>
-                        <th style="width: 220px;">Actions</th>
+                        <th style="width: 270px;">Actions</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -352,6 +413,9 @@ function gyms_page(): void
                             <td>
                                 <span class="badge" style="<?= $planBadgeStyle ?>; font-weight:700;">
                                     <?= h($subPlan) ?>
+                                    <?php if (in_array(strtolower($subPlan), ['starter', 'professional', 'business'], true)): ?>
+                                        <span style="font-size: 10px; opacity: 0.85; font-weight: 600; text-transform: uppercase;">(<?= ($gym['subscription_billing_cycle'] ?? 'monthly') === 'yearly' ? 'Yearly' : 'Monthly' ?>)</span>
+                                    <?php endif; ?>
                                 </span>
                             </td>
                             <td>
@@ -361,7 +425,7 @@ function gyms_page(): void
                             </td>
                             <td><small style="color:var(--muted);"><?= h($renewal) ?></small></td>
                             <td>
-                                <div style="display: flex; gap: 6px; align-items: center;">
+                                <div style="display: flex; gap: 6px; align-items: center; flex-wrap: wrap;">
                                     <button type="button" 
                                             class="btn-sm btn-primary" 
                                             style="padding: 4px 10px; font-size: 12px; font-weight: 700;"
@@ -371,12 +435,24 @@ function gyms_page(): void
                                             data-plan="<?= h($gym['subscription_plan'] ?? '') ?>"
                                             data-status="<?= h($subStatus) ?>"
                                             data-renewal="<?= h($gym['subscription_renewal_date'] ?? '') ?>"
+                                            data-cycle="<?= h($gym['subscription_billing_cycle'] ?? 'monthly') ?>"
+                                            onclick="handleEditSubClick(this)">
+                                        Edit Sub
+                                    </button>
+
+                                    <button type="button" 
+                                            class="btn-sm btn-secondary" 
+                                            style="padding: 4px 10px; font-size: 12px; font-weight: 700; display: inline-flex; align-items: center; gap: 4px;"
+                                            data-gym-id="<?= (int)$gym['gym_id'] ?>"
+                                            data-gym-name="<?= h($gym['name']) ?>"
+                                            data-owner-name="<?= h($gym['first_name'] . ' ' . $gym['last_name']) ?>"
                                             data-xendit-account="<?= h((string)($gym['xendit_subaccount_id'] ?? '')) ?>"
                                             data-payout-channel="<?= h((string)($gym['payout_channel'] ?? 'gcash')) ?>"
                                             data-payout-number="<?= h((string)($gym['payout_account_number'] ?? '')) ?>"
                                             data-payout-name="<?= h((string)($gym['payout_account_name'] ?? '')) ?>"
-                                            onclick="handleEditSubClick(this)">
-                                        Edit Sub
+                                            onclick="handleEditPayoutClick(this)">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>
+                                        Payout
                                     </button>
 
                                     <?php if ($gym['status'] === 'approved'): ?>
@@ -451,6 +527,9 @@ function gyms_page(): void
                             <?php endif; ?>
                             <span class="badge" style="<?= $planBadgeStyle ?>; font-weight:700;">
                                 <?= h($subPlan) ?>
+                                <?php if (in_array(strtolower($subPlan), ['starter', 'professional', 'business'], true)): ?>
+                                    <span style="font-size: 10px; opacity: 0.85; font-weight: 600; text-transform: uppercase;">(<?= ($gym['subscription_billing_cycle'] ?? 'monthly') === 'yearly' ? 'Yearly' : 'Monthly' ?>)</span>
+                                <?php endif; ?>
                             </span>
                         </div>
                     </div>
@@ -512,13 +591,24 @@ function gyms_page(): void
                                 data-plan="<?= h($gym['subscription_plan'] ?? '') ?>"
                                 data-status="<?= h($subStatus) ?>"
                                 data-renewal="<?= h($gym['subscription_renewal_date'] ?? '') ?>"
+                                data-cycle="<?= h($gym['subscription_billing_cycle'] ?? 'monthly') ?>"
+                                onclick="handleEditSubClick(this)">
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+                            Edit Sub
+                        </button>
+
+                        <button type="button" 
+                                class="btn-sm btn-secondary" 
+                                data-gym-id="<?= (int)$gym['gym_id'] ?>"
+                                data-gym-name="<?= h($gym['name']) ?>"
+                                data-owner-name="<?= h($gym['first_name'] . ' ' . $gym['last_name']) ?>"
                                 data-xendit-account="<?= h((string)($gym['xendit_subaccount_id'] ?? '')) ?>"
                                 data-payout-channel="<?= h((string)($gym['payout_channel'] ?? 'gcash')) ?>"
                                 data-payout-number="<?= h((string)($gym['payout_account_number'] ?? '')) ?>"
                                 data-payout-name="<?= h((string)($gym['payout_account_name'] ?? '')) ?>"
-                                onclick="handleEditSubClick(this)">
-                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
-                            Edit Sub
+                                onclick="handleEditPayoutClick(this)">
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>
+                            Payout
                         </button>
 
                         <?php if ($gym['status'] === 'approved'): ?>
@@ -565,24 +655,51 @@ function gyms_page(): void
         <input type="hidden" name="action" value="update_subscription">
         <input type="hidden" name="gym_id" id="modal-sub-gym-id" value="">
         <input type="hidden" name="subscription_plan" id="modal-sub-plan" value="">
+        <input type="hidden" name="subscription_billing_cycle" id="modal-sub-cycle" value="monthly">
         <input type="hidden" name="subscription_status" id="modal-sub-status" value="">
         <input type="hidden" name="subscription_renewal_date" id="modal-sub-renewal-date" value="">
         <input type="hidden" name="record_payment" id="modal-sub-record-payment" value="0">
         <input type="hidden" name="amount" id="modal-sub-amount" value="0">
         <input type="hidden" name="payment_method" id="modal-sub-method" value="cash">
-        <input type="hidden" name="xendit_subaccount_id" id="modal-sub-xendit-account" value="">
-        <input type="hidden" name="payout_channel" id="modal-sub-payout-channel" value="gcash">
-        <input type="hidden" name="payout_account_number" id="modal-sub-payout-number" value="">
-        <input type="hidden" name="payout_account_name" id="modal-sub-payout-name" value="">
+    </form>
+
+    <!-- Hidden Form for Edit Payout Settings Submission -->
+    <form id="edit-payout-form" method="post" action="index.php?page=gyms" style="display:none;">
+        <?= csrf_field() ?>
+        <input type="hidden" name="action" value="update_payout">
+        <input type="hidden" name="gym_id" id="modal-payout-gym-id" value="">
+        <input type="hidden" name="xendit_subaccount_id" id="modal-payout-xendit-account" value="">
+        <input type="hidden" name="payout_channel" id="modal-payout-channel" value="gcash">
+        <input type="hidden" name="payout_account_number" id="modal-payout-number" value="">
+        <input type="hidden" name="payout_account_name" id="modal-payout-name" value="">
     </form>
 
     <script>
     const platformPlans = <?= json_encode(get_platform_subscription_plans()) ?>;
-    const planPrices = {};
+    const planMonthlyPrices = {};
+    const planAnnualPrices = {};
     for (const [k, p] of Object.entries(platformPlans)) {
-        planPrices[p.name] = p.price;
+        planMonthlyPrices[p.name] = Number(p.price) || 0;
+        planAnnualPrices[p.name] = Number(p.annual_price) || (Number(p.price) * 10);
     }
-    planPrices['Free Trial'] = 0;
+    planMonthlyPrices['Free Trial'] = 0;
+    planAnnualPrices['Free Trial'] = 0;
+
+    function getFutureDate(type) {
+        const d = new Date();
+        if (type === 'trial' || type === '14days') {
+            d.setDate(d.getDate() + 14);
+        } else if (type === 'yearly' || type === 'annual') {
+            d.setFullYear(d.getFullYear() + 1);
+        } else {
+            // Default 1 month
+            d.setMonth(d.getMonth() + 1);
+        }
+        const yyyy = d.getFullYear();
+        const mm = String(d.getMonth() + 1).padStart(2, '0');
+        const dd = String(d.getDate()).padStart(2, '0');
+        return `${yyyy}-${mm}-${dd}`;
+    }
 
     function handleEditSubClick(btn) {
         if (!btn) return;
@@ -592,40 +709,43 @@ function gyms_page(): void
         const currentPlan = btn.getAttribute('data-plan') || '';
         const currentStatus = btn.getAttribute('data-status') || 'inactive';
         const currentRenewal = btn.getAttribute('data-renewal') || '';
-        const currentXenditAccount = btn.getAttribute('data-xendit-account') || '';
-        const currentPayoutChannel = btn.getAttribute('data-payout-channel') || 'gcash';
-        const currentPayoutNumber = btn.getAttribute('data-payout-number') || '';
-        const currentPayoutName = btn.getAttribute('data-payout-name') || '';
-        openEditSubModal(gymId, gymName, ownerName, currentPlan, currentStatus, currentRenewal, currentXenditAccount, currentPayoutChannel, currentPayoutNumber, currentPayoutName);
+        const currentCycle = btn.getAttribute('data-cycle') || 'monthly';
+        openEditSubModal(gymId, gymName, ownerName, currentPlan, currentStatus, currentRenewal, currentCycle);
     }
 
-    function openEditSubModal(gymId, gymName, ownerName, currentPlan, currentStatus, currentRenewal, currentXenditAccount, currentPayoutChannel, currentPayoutNumber, currentPayoutName) {
+    function openEditSubModal(gymId, gymName, ownerName, currentPlan, currentStatus, currentRenewal, currentCycle) {
         currentPlan = currentPlan || '';
         currentStatus = currentStatus || 'inactive';
-        currentPayoutChannel = currentPayoutChannel || 'gcash';
+        currentCycle = (currentCycle === 'yearly') ? 'yearly' : 'monthly';
 
-        // Default renewal date to 1 month from now if empty
+        const todayStr = (new Date()).toISOString().split('T')[0];
         let defaultRenewal = currentRenewal;
-        if (!defaultRenewal) {
-            const d = new Date();
-            d.setMonth(d.getMonth() + 1);
-            defaultRenewal = d.toISOString().split('T')[0];
+
+        // Automatically detect next renewal date if empty OR if the existing date is already in the past
+        if (!defaultRenewal || defaultRenewal < todayStr) {
+            if (currentPlan === 'Free Trial' || currentStatus === 'trialing') {
+                defaultRenewal = getFutureDate('trial');
+            } else if (currentCycle === 'yearly') {
+                defaultRenewal = getFutureDate('yearly');
+            } else {
+                defaultRenewal = getFutureDate('monthly');
+            }
         }
 
         const safePlanLower = currentPlan.toLowerCase();
-        const currentPrice = planPrices[currentPlan] !== undefined ? planPrices[currentPlan] : (platformPlans['professional'] ? platformPlans['professional'].price : 999);
-        const safeXenditAccount = String(currentXenditAccount || '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-        const safePayoutChannel = String(currentPayoutChannel || 'gcash').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-        const safePayoutNumber = String(currentPayoutNumber || '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-        const safePayoutName = String(currentPayoutName || '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+        const prices = (currentCycle === 'yearly') ? planAnnualPrices : planMonthlyPrices;
+        const currentPrice = prices[currentPlan] !== undefined 
+            ? prices[currentPlan] 
+            : (platformPlans['professional'] ? (currentCycle === 'yearly' ? platformPlans['professional'].annual_price : platformPlans['professional'].price) : 999);
 
         let planOptions = '';
         for (const [k, p] of Object.entries(platformPlans)) {
             const isSelected = (safePlanLower === p.name.toLowerCase() || safePlanLower === k.toLowerCase());
-            planOptions += `<option value="${p.name}" ${isSelected ? 'selected' : ''}>${p.name} Plan (${p.price_label} / mo${p.popular ? ' - Most Popular' : ''})</option>`;
+            const popularTag = p.popular ? ' - Most Popular' : '';
+            planOptions += `<option value="${p.name}" ${isSelected ? 'selected' : ''}>${p.name} Plan (${p.price_label}/mo · ${p.annual_price_label}/yr${popularTag})</option>`;
         }
         if (safePlanLower.includes('trial')) {
-            planOptions = `<option value="Free Trial" selected>Free Trial</option>` + planOptions;
+            planOptions = `<option value="Free Trial" selected>Free Trial (14 Days)</option>` + planOptions;
         }
         planOptions += `<option value="None" ${!currentPlan || safePlanLower === 'none' ? 'selected' : ''}>None / Unsubscribed</option>`;
 
@@ -638,50 +758,27 @@ function gyms_page(): void
                         <div style="font-size: 12px; color: var(--muted);">Owner: ${ownerName}</div>
                     </div>
 
-                    <!-- Owner Payout / Settlement Destination Info Card -->
-                    <div style="padding: 10px 14px; border-radius: 8px; background: rgba(132, 204, 22, 0.08); border: 1px solid rgba(132, 204, 22, 0.25);">
-                        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px;">
-                            <span style="font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: var(--lime);">Owner Payout Destination</span>
-                            <span style="font-size: 11px; font-weight: 700; color: var(--ink); text-transform: uppercase;">${safePayoutChannel}</span>
-                        </div>
-                        <div style="font-size: 13px; font-weight: 700; color: var(--ink);">${safePayoutNumber || '<span style="color:var(--muted); font-weight:normal;">Not provided yet</span>'}</div>
-                        ${safePayoutName ? `<div style="font-size: 11.5px; color: var(--muted); margin-top: 2px;">Registered Name: <strong style="color:var(--ink);">${safePayoutName}</strong></div>` : ''}
-                    </div>
-
-                    <label style="display:block; font-size: 13px; color: var(--muted);">Subscription Plan *
-                        <select id="swal-sub-plan" class="form-control" style="width: 100%; box-sizing: border-box; margin-top: 4px;" onchange="onPlanChange(this.value)">
-                            ${planOptions}
-                        </select>
-                    </label>
-
-                    <label style="display:block; font-size:13px; color:var(--muted);">XenPlatform sub-account User ID
-                        <input id="swal-xendit-account" class="form-control" style="width:100%; box-sizing:border-box; margin-top:4px;" value="${safeXenditAccount}" placeholder="Leave blank until the gym sub-account is verified">
-                        <small style="display:block; margin-top:4px;">Members can pay online only after this gym has a verified XenPlatform sub-account.</small>
-                    </label>
-
                     <div style="display: flex; gap: 10px;">
-                        <label style="flex: 1; display:block; font-size: 12px; color: var(--muted);">Payout Channel
-                            <select id="swal-payout-channel" class="form-control" style="width: 100%; box-sizing: border-box; margin-top: 4px;">
-                                <option value="gcash" ${currentPayoutChannel === 'gcash' ? 'selected' : ''}>GCash</option>
-                                <option value="maya" ${currentPayoutChannel === 'maya' ? 'selected' : ''}>Maya</option>
-                                <option value="bank_transfer" ${currentPayoutChannel === 'bank_transfer' ? 'selected' : ''}>Bank Transfer</option>
+                        <label style="flex: 1.5; display:block; font-size: 13px; color: var(--muted);">Subscription Plan *
+                            <select id="swal-sub-plan" class="form-control" style="width: 100%; box-sizing: border-box; margin-top: 4px;" onchange="onPlanOrCycleChange()">
+                                ${planOptions}
                             </select>
                         </label>
-                        <label style="flex: 1.5; display:block; font-size: 12px; color: var(--muted);">Payout Account / GCash #
-                            <input id="swal-payout-number" class="form-control" style="width: 100%; box-sizing: border-box; margin-top: 4px;" value="${safePayoutNumber}" placeholder="09171234567">
+
+                        <label style="flex: 1; display:block; font-size: 13px; color: var(--muted);">Billing Cycle *
+                            <select id="swal-sub-cycle" class="form-control" style="width: 100%; box-sizing: border-box; margin-top: 4px;" onchange="onPlanOrCycleChange()">
+                                <option value="monthly" ${currentCycle === 'monthly' ? 'selected' : ''}>Monthly</option>
+                                <option value="yearly" ${currentCycle === 'yearly' ? 'selected' : ''}>Yearly (Annual)</option>
+                            </select>
                         </label>
                     </div>
-
-                    <label style="display:block; font-size: 12px; color: var(--muted);">Payout Account Holder Full Name
-                        <input id="swal-payout-name" class="form-control" style="width: 100%; box-sizing: border-box; margin-top: 4px;" value="${safePayoutName}" placeholder="Exact Name on GCash/Bank">
-                    </label>
 
                     <div style="display: flex; gap: 12px;">
                         <label style="flex: 1; display:block; font-size: 13px; color: var(--muted);">Subscription Status *
-                            <select id="swal-sub-status" class="form-control" style="width: 100%; box-sizing: border-box; margin-top: 4px;">
+                            <select id="swal-sub-status" class="form-control" style="width: 100%; box-sizing: border-box; margin-top: 4px;" onchange="onStatusChange(this.value)">
+                                <option value="active" ${currentStatus === 'active' ? 'selected' : ''}>Active (Paid)</option>
                                 <option value="trialing" ${currentStatus === 'trialing' ? 'selected' : ''}>Trialing (Free Trial)</option>
                                 <option value="free" ${currentStatus === 'free' ? 'selected' : ''}>Free Tier (Limited)</option>
-                                <option value="active" ${currentStatus === 'active' ? 'selected' : ''}>Active (Paid)</option>
                                 <option value="inactive" ${currentStatus === 'inactive' ? 'selected' : ''}>Inactive</option>
                                 <option value="expired" ${currentStatus === 'expired' ? 'selected' : ''}>Expired</option>
                             </select>
@@ -690,6 +787,13 @@ function gyms_page(): void
                         <label style="flex: 1; display:block; font-size: 13px; color: var(--muted);">Renewal / Expiration Date
                             <input type="date" id="swal-sub-renewal" class="form-control" style="width: 100%; box-sizing: border-box; margin-top: 4px;" value="${defaultRenewal}">
                         </label>
+                    </div>
+
+                    <div style="display: flex; gap: 6px; justify-content: flex-end; align-items: center; margin-top: -6px;">
+                        <span style="font-size: 11px; color: var(--muted); margin-right: auto;">Quick auto-detect:</span>
+                        <button type="button" style="background: rgba(255,255,255,0.06); border: 1px solid var(--line); color: var(--muted); padding: 3px 8px; border-radius: 6px; font-size: 11px; font-weight: 600; cursor: pointer;" onclick="calcRenewalDate('monthly')">+1 Month</button>
+                        <button type="button" style="background: rgba(255,255,255,0.06); border: 1px solid var(--line); color: var(--muted); padding: 3px 8px; border-radius: 6px; font-size: 11px; font-weight: 600; cursor: pointer;" onclick="calcRenewalDate('yearly')">+1 Year</button>
+                        <button type="button" style="background: rgba(255,255,255,0.06); border: 1px solid var(--line); color: var(--muted); padding: 3px 8px; border-radius: 6px; font-size: 11px; font-weight: 600; cursor: pointer;" onclick="calcRenewalDate('trial')">+14 Days</button>
                     </div>
 
                     <div style="padding: 12px; border-radius: 8px; background: rgba(34, 197, 94, 0.04); border: 1px dashed rgba(34, 197, 94, 0.25);">
@@ -724,40 +828,181 @@ function gyms_page(): void
             cancelButtonColor: 'var(--line)',
             background: 'var(--bg)',
             color: 'var(--ink)',
-            width: '490px',
+            width: '510px',
             preConfirm: () => {
                 const plan = document.getElementById('swal-sub-plan').value;
+                const cycle = document.getElementById('swal-sub-cycle').value;
                 const status = document.getElementById('swal-sub-status').value;
                 const renewal = document.getElementById('swal-sub-renewal').value;
                 const recordPay = document.getElementById('swal-record-payment').checked;
                 const amount = document.getElementById('swal-sub-amount').value;
                 const method = document.getElementById('swal-sub-method').value;
-                const xenditAccount = document.getElementById('swal-xendit-account').value.trim();
-                const payoutChan = document.getElementById('swal-payout-channel').value;
-                const payoutNum = document.getElementById('swal-payout-number').value.trim();
-                const payoutName = document.getElementById('swal-payout-name').value.trim();
 
                 document.getElementById('modal-sub-gym-id').value = gymId;
                 document.getElementById('modal-sub-plan').value = plan;
+                document.getElementById('modal-sub-cycle').value = cycle;
                 document.getElementById('modal-sub-status').value = status;
                 document.getElementById('modal-sub-renewal-date').value = renewal;
                 document.getElementById('modal-sub-record-payment').value = recordPay ? '1' : '0';
                 document.getElementById('modal-sub-amount').value = amount || '0';
                 document.getElementById('modal-sub-method').value = method;
-                document.getElementById('modal-sub-xendit-account').value = xenditAccount;
-                document.getElementById('modal-sub-payout-channel').value = payoutChan;
-                document.getElementById('modal-sub-payout-number').value = payoutNum;
-                document.getElementById('modal-sub-payout-name').value = payoutName;
 
                 document.getElementById('edit-sub-form').submit();
             }
         });
     }
 
-    function onPlanChange(plan) {
-        const amountInput = document.getElementById('swal-sub-amount');
-        if (amountInput && planPrices[plan] !== undefined) {
-            amountInput.value = planPrices[plan];
+    function handleEditPayoutClick(btn) {
+        if (!btn) return;
+        const gymId = parseInt(btn.getAttribute('data-gym-id') || '0', 10);
+        const gymName = btn.getAttribute('data-gym-name') || '';
+        const ownerName = btn.getAttribute('data-owner-name') || '';
+        const currentXenditAccount = btn.getAttribute('data-xendit-account') || '';
+        const currentPayoutChannel = btn.getAttribute('data-payout-channel') || 'gcash';
+        const currentPayoutNumber = btn.getAttribute('data-payout-number') || '';
+        const currentPayoutName = btn.getAttribute('data-payout-name') || '';
+        openEditPayoutModal(gymId, gymName, ownerName, currentXenditAccount, currentPayoutChannel, currentPayoutNumber, currentPayoutName);
+    }
+
+    function openEditPayoutModal(gymId, gymName, ownerName, currentXenditAccount, currentPayoutChannel, currentPayoutNumber, currentPayoutName) {
+        currentPayoutChannel = currentPayoutChannel || 'gcash';
+
+        const safeXenditAccount = String(currentXenditAccount || '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+        const safePayoutChannel = String(currentPayoutChannel || 'gcash').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+        const safePayoutNumber = String(currentPayoutNumber || '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+        const safePayoutName = String(currentPayoutName || '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+        Swal.fire({
+            title: 'Payout Destination Settings',
+            html: `
+                <div style="text-align: left; display: flex; flex-direction: column; gap: 14px; margin-top: 10px;">
+                    <div style="padding: 10px 14px; border-radius: 8px; background: color-mix(in srgb, var(--panel-soft) 50%, transparent); border: 1px solid var(--line);">
+                        <div style="font-size: 14px; font-weight: 700; color: var(--ink);">${gymName}</div>
+                        <div style="font-size: 12px; color: var(--muted);">Owner: ${ownerName}</div>
+                    </div>
+
+                    <div style="display: flex; gap: 10px;">
+                        <label style="flex: 1; display:block; font-size: 12px; font-weight: 600; color: var(--muted);">Payout Channel
+                            <select id="swal-payout-channel" class="form-control" style="width: 100%; box-sizing: border-box; margin-top: 4px;">
+                                <option value="gcash" ${safePayoutChannel.toLowerCase() === 'gcash' ? 'selected' : ''}>GCash</option>
+                                <option value="maya" ${safePayoutChannel.toLowerCase() === 'maya' ? 'selected' : ''}>Maya</option>
+                                <option value="bank_transfer" ${safePayoutChannel.toLowerCase() === 'bank_transfer' ? 'selected' : ''}>Bank Transfer</option>
+                            </select>
+                        </label>
+                        <label style="flex: 1.5; display:block; font-size: 12px; font-weight: 600; color: var(--muted);">Payout Account / GCash #
+                            <input id="swal-payout-number" class="form-control" style="width: 100%; box-sizing: border-box; margin-top: 4px;" value="${safePayoutNumber}" placeholder="09171234567">
+                        </label>
+                    </div>
+
+                    <label style="display:block; font-size: 12px; font-weight: 600; color: var(--muted);">Payout Account Holder Full Name
+                        <input id="swal-payout-name" class="form-control" style="width: 100%; box-sizing: border-box; margin-top: 4px;" value="${safePayoutName}" placeholder="Exact Name on GCash/Bank">
+                    </label>
+
+                    <label style="display:block; font-size: 12px; font-weight: 600; color: var(--muted);">XenPlatform Sub-Account User ID
+                        <input id="swal-xendit-account" class="form-control" style="width: 100%; box-sizing: border-box; margin-top: 4px;" value="${safeXenditAccount}" placeholder="e.g. user_64a... (or leave blank if unlinked)">
+                        <small style="display:block; margin-top: 4px; font-size: 11px; color: var(--muted); font-weight: normal;">Members can pay online via payment gateway only after this gym has a verified XenPlatform sub-account.</small>
+                    </label>
+
+                    <div style="padding: 10px 12px; border-radius: 8px; background: rgba(59, 130, 246, 0.08); border: 1px solid rgba(59, 130, 246, 0.2); font-size: 11.5px; color: var(--muted); line-height: 1.45;">
+                        <strong style="color: #60a5fa;">Disbursement Note:</strong> These settlement details receive disbursed member dues, walk-in fees, and coach session payouts.
+                    </div>
+                </div>
+            `,
+            showCancelButton: true,
+            confirmButtonText: 'Save Payout Details',
+            confirmButtonColor: 'var(--lime-dark)',
+            cancelButtonColor: 'var(--line)',
+            background: 'var(--bg)',
+            color: 'var(--ink)',
+            width: '490px',
+            preConfirm: () => {
+                const payoutChan = document.getElementById('swal-payout-channel').value;
+                const payoutNum = document.getElementById('swal-payout-number').value.trim();
+                const payoutName = document.getElementById('swal-payout-name').value.trim();
+                const xenditAccount = document.getElementById('swal-xendit-account').value.trim();
+
+                document.getElementById('modal-payout-gym-id').value = gymId;
+                document.getElementById('modal-payout-channel').value = payoutChan;
+                document.getElementById('modal-payout-number').value = payoutNum;
+                document.getElementById('modal-payout-name').value = payoutName;
+                document.getElementById('modal-payout-xendit-account').value = xenditAccount;
+
+                document.getElementById('edit-payout-form').submit();
+            }
+        });
+    }
+
+    function onPlanOrCycleChange() {
+        const planEl = document.getElementById('swal-sub-plan');
+        const cycleEl = document.getElementById('swal-sub-cycle');
+        const statusEl = document.getElementById('swal-sub-status');
+        const renewalEl = document.getElementById('swal-sub-renewal');
+        const amountEl = document.getElementById('swal-sub-amount');
+
+        if (!planEl || !cycleEl) return;
+        const plan = planEl.value;
+        const cycle = cycleEl.value;
+
+        if (plan === 'Free Trial') {
+            cycleEl.disabled = true;
+            if (statusEl) statusEl.value = 'trialing';
+            if (renewalEl) renewalEl.value = getFutureDate('trial');
+            if (amountEl) amountEl.value = '0';
+        } else if (plan === 'None' || plan === 'free') {
+            cycleEl.disabled = true;
+            if (statusEl) statusEl.value = 'inactive';
+            if (renewalEl) renewalEl.value = '';
+            if (amountEl) amountEl.value = '0';
+        } else {
+            cycleEl.disabled = false;
+            if (statusEl && (statusEl.value === 'inactive' || statusEl.value === 'expired' || statusEl.value === 'trialing')) {
+                statusEl.value = 'active';
+            }
+            if (renewalEl) {
+                renewalEl.value = getFutureDate(cycle === 'yearly' ? 'yearly' : 'monthly');
+            }
+            if (amountEl) {
+                const prices = (cycle === 'yearly') ? planAnnualPrices : planMonthlyPrices;
+                if (prices[plan] !== undefined) {
+                    amountEl.value = prices[plan];
+                }
+            }
+        }
+    }
+
+    function onStatusChange(status) {
+        const renewalEl = document.getElementById('swal-sub-renewal');
+        const cycleEl = document.getElementById('swal-sub-cycle');
+        const todayStr = (new Date()).toISOString().split('T')[0];
+
+        if (status === 'active') {
+            if (renewalEl && (!renewalEl.value || renewalEl.value < todayStr)) {
+                const cycle = cycleEl ? cycleEl.value : 'monthly';
+                renewalEl.value = getFutureDate(cycle === 'yearly' ? 'yearly' : 'monthly');
+            }
+        } else if (status === 'trialing') {
+            if (renewalEl && (!renewalEl.value || renewalEl.value < todayStr)) {
+                renewalEl.value = getFutureDate('trial');
+            }
+        }
+    }
+
+    function calcRenewalDate(type) {
+        const renewalEl = document.getElementById('swal-sub-renewal');
+        if (renewalEl) {
+            renewalEl.value = getFutureDate(type);
+        }
+        const cycleEl = document.getElementById('swal-sub-cycle');
+        if (cycleEl && (type === 'monthly' || type === 'yearly')) {
+            cycleEl.value = type;
+            const planEl = document.getElementById('swal-sub-plan');
+            const amountEl = document.getElementById('swal-sub-amount');
+            if (planEl && amountEl) {
+                const prices = (type === 'yearly') ? planAnnualPrices : planMonthlyPrices;
+                if (prices[planEl.value] !== undefined) {
+                    amountEl.value = prices[planEl.value];
+                }
+            }
         }
     }
 

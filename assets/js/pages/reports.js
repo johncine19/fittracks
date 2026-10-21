@@ -82,8 +82,17 @@
 
         const csvBtn = document.getElementById('btn-export-' + type + '-csv');
         const printBtn = document.getElementById('btn-export-' + type + '-print');
-        if (csvBtn) csvBtn.href = 'index.php?page=reports&type=' + type + '&timeframe=' + timeframe + '&export=csv';
-        if (printBtn) printBtn.href = 'index.php?page=reports&type=' + type + '&timeframe=' + timeframe + '&export=print';
+        const urlParams = new URLSearchParams(window.location.search);
+        const sDate = urlParams.get('start_date');
+        const eDate = urlParams.get('end_date');
+        const gymId = urlParams.get('gym_id');
+        let extraParams = '';
+        if (gymId) extraParams += '&gym_id=' + encodeURIComponent(gymId);
+        if (sDate) extraParams += '&start_date=' + encodeURIComponent(sDate);
+        if (eDate) extraParams += '&end_date=' + encodeURIComponent(eDate);
+
+        if (csvBtn) csvBtn.href = 'index.php?page=reports&type=' + type + '&timeframe=' + timeframe + extraParams + '&export=csv';
+        if (printBtn) printBtn.href = 'index.php?page=reports&type=' + type + '&timeframe=' + timeframe + extraParams + '&export=print';
 
         if (chartsData[type] && chartsData[type][timeframe]) {
             if (type === 'revenue') {
@@ -1015,6 +1024,13 @@
                     setTimeout(applyThemeToCharts, 50);
                 });
             }
+
+            if (window.REPORTS_CONFIG?.defaultTimeframe) {
+                const initTf = window.REPORTS_CONFIG.defaultTimeframe;
+                window.setTimeframe('revenue', initTf);
+                window.setTimeframe('attendance', initTf);
+                window.setTimeframe('walkin', initTf);
+            }
         }
     });
 
@@ -1486,3 +1502,128 @@
             });
         });
     };
+
+    /* ----------------------------------------------------
+       Reports Date Range Picker Interactive Controller
+       ---------------------------------------------------- */
+    window.toggleReportRangeDropdown = function(event, btn) {
+        if (event) event.stopPropagation();
+        const wrap = btn.closest('.report-range-picker-wrap');
+        if (!wrap) return;
+        const dropdown = wrap.querySelector('.report-range-dropdown');
+        if (!dropdown) return;
+
+        const isShown = dropdown.style.display !== 'none';
+        window.closeAllReportRangeDropdowns();
+        if (!isShown) {
+            dropdown.style.display = 'block';
+            btn.classList.add('is-open');
+        }
+    };
+
+    window.closeAllReportRangeDropdowns = function() {
+        document.querySelectorAll('.report-range-dropdown').forEach(d => d.style.display = 'none');
+        document.querySelectorAll('.report-range-trigger-btn').forEach(b => b.classList.remove('is-open'));
+    };
+
+    window.formatDateYmd = function(dateObj) {
+        const y = dateObj.getFullYear();
+        const m = String(dateObj.getMonth() + 1).padStart(2, '0');
+        const d = String(dateObj.getDate()).padStart(2, '0');
+        return `${y}-${m}-${d}`;
+    };
+
+    window.applyReportPreset = function(preset, btn) {
+        const today = new Date();
+        let sStr = '';
+        let eStr = window.formatDateYmd(today);
+
+        if (preset === 'today') {
+            sStr = eStr;
+        } else if (preset === 'yesterday') {
+            const y = new Date(today);
+            y.setDate(today.getDate() - 1);
+            sStr = window.formatDateYmd(y);
+            eStr = sStr;
+        } else if (preset === 'last7') {
+            const d = new Date(today);
+            d.setDate(today.getDate() - 6);
+            sStr = window.formatDateYmd(d);
+        } else if (preset === 'last14') {
+            const d = new Date(today);
+            d.setDate(today.getDate() - 13);
+            sStr = window.formatDateYmd(d);
+        } else if (preset === 'this_month') {
+            const d = new Date(today.getFullYear(), today.getMonth(), 1);
+            sStr = window.formatDateYmd(d);
+        } else if (preset === 'last30') {
+            const d = new Date(today);
+            d.setDate(today.getDate() - 29);
+            sStr = window.formatDateYmd(d);
+        } else if (preset === 'last12m') {
+            const d = new Date(today.getFullYear(), today.getMonth() - 11, 1);
+            sStr = window.formatDateYmd(d);
+        } else if (preset === 'this_year') {
+            const d = new Date(today.getFullYear(), 0, 1);
+            sStr = window.formatDateYmd(d);
+        } else if (preset === 'all') {
+            window.clearReportDateRange();
+            return;
+        }
+
+        const wrap = btn ? btn.closest('.report-range-picker-wrap') : null;
+        if (wrap) {
+            const sInput = wrap.querySelector('.report-start-date-input');
+            const eInput = wrap.querySelector('.report-end-date-input');
+            if (sInput) sInput.value = sStr;
+            if (eInput) eInput.value = eStr;
+        }
+
+        window.navigateToDateRange(sStr, eStr);
+    };
+
+    window.applyCustomReportDateRange = function(btn) {
+        const wrap = btn.closest('.report-range-picker-wrap');
+        if (!wrap) return;
+        const sInput = wrap.querySelector('.report-start-date-input');
+        const eInput = wrap.querySelector('.report-end-date-input');
+        if (!sInput || !eInput) return;
+
+        let sVal = sInput.value;
+        let eVal = eInput.value;
+        if (!sVal && !eVal) {
+            window.clearReportDateRange();
+            return;
+        }
+        if (sVal && !eVal) eVal = sVal;
+        if (!sVal && eVal) sVal = eVal;
+        if (sVal > eVal) {
+            const tmp = sVal; sVal = eVal; eVal = tmp;
+        }
+
+        window.navigateToDateRange(sVal, eVal);
+    };
+
+    window.clearReportDateRange = function() {
+        const url = new URL(window.location.href);
+        url.searchParams.delete('start_date');
+        url.searchParams.delete('end_date');
+        const hash = window.location.hash;
+        if (hash) url.hash = hash;
+        window.location.href = url.toString();
+    };
+
+    window.navigateToDateRange = function(startDate, endDate) {
+        const url = new URL(window.location.href);
+        url.searchParams.set('start_date', startDate);
+        url.searchParams.set('end_date', endDate);
+        const hash = window.location.hash;
+        if (hash) url.hash = hash;
+        window.location.href = url.toString();
+    };
+
+    document.addEventListener('click', function(e) {
+        if (!e.target.closest('.report-range-picker-wrap')) {
+            window.closeAllReportRangeDropdowns();
+        }
+    });

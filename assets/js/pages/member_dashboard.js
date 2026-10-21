@@ -23,9 +23,16 @@ window.toggleMissions = toggleMissions;
 let actCurrentData = (window.MEMBER_DASHBOARD_CONFIG && window.MEMBER_DASHBOARD_CONFIG.initialData)
     ? window.MEMBER_DASHBOARD_CONFIG.initialData
     : {};
-    let actCurrentRange = 'day';
-    window.actPeakChart = null;
-    let actAutoRefreshTimer = null;
+let actCurrentRange = 'day';
+let actCurrentStartDate = (actCurrentData && actCurrentData.start_date)
+    ? actCurrentData.start_date
+    : new Date().toISOString().split('T')[0];
+let actCurrentEndDate = (actCurrentData && actCurrentData.end_date)
+    ? actCurrentData.end_date
+    : new Date().toISOString().split('T')[0];
+let actCurrentPreset = 'today';
+window.actPeakChart = null;
+let actAutoRefreshTimer = null;
 
     function switchMemberDashboardTab(tabId) {
         const tabs = ['today', 'activity', 'missions', 'explore'];
@@ -206,94 +213,209 @@ let actCurrentData = (window.MEMBER_DASHBOARD_CONFIG && window.MEMBER_DASHBOARD_
         });
     }
 
-    // Set peak hours range (day, week, month)
-    function actSetRange(range) {
-        if (!['day', 'week', 'month'].includes(range)) range = 'day';
-        actCurrentRange = range;
+    // Format Date object to YYYY-MM-DD
+    function actFormatDateYmd(d) {
+        const yyyy = d.getFullYear();
+        const mm = String(d.getMonth() + 1).padStart(2, '0');
+        const dd = String(d.getDate()).padStart(2, '0');
+        return `${yyyy}-${mm}-${dd}`;
+    }
 
-        ['day', 'week', 'month'].forEach(r => {
-            const btn = document.getElementById('act-range-' + r);
-            if (btn) {
-                if (r === range) btn.classList.add('active');
-                else btn.classList.remove('active');
+    // Toggle Range Dropdown Popover
+    function actToggleRangeDropdown(e, triggerBtn) {
+        if (e) {
+            e.stopPropagation();
+        }
+        const wrap = triggerBtn ? triggerBtn.closest('.act-range-picker-wrap') : null;
+        if (!wrap) return;
+
+        const dropdown = wrap.querySelector('.act-range-dropdown');
+        if (!dropdown) return;
+
+        const isOpen = dropdown.style.display !== 'none';
+
+        // Close any other open dropdowns first
+        document.querySelectorAll('.act-range-dropdown').forEach(d => {
+            if (d !== dropdown) d.style.display = 'none';
+        });
+        document.querySelectorAll('.act-range-trigger-btn').forEach(b => {
+            if (b !== triggerBtn) {
+                b.setAttribute('aria-expanded', 'false');
+                b.classList.remove('open');
             }
         });
 
-        const dateInput = document.querySelector('.act-date-picker-native');
-        const selectedDate = dateInput ? dateInput.value : '';
-        actFetchData(selectedDate, actCurrentRange);
+        if (isOpen) {
+            dropdown.style.display = 'none';
+            triggerBtn.setAttribute('aria-expanded', 'false');
+            triggerBtn.classList.remove('open');
+        } else {
+            dropdown.style.display = 'block';
+            triggerBtn.setAttribute('aria-expanded', 'true');
+            triggerBtn.classList.add('open');
+
+            // Sync input values to current range
+            const startInput = dropdown.querySelector('.act-start-date-input');
+            const endInput = dropdown.querySelector('.act-end-date-input');
+            if (startInput && actCurrentStartDate) startInput.value = actCurrentStartDate;
+            if (endInput && actCurrentEndDate) endInput.value = actCurrentEndDate;
+        }
     }
 
-    // Quick Date Pills (Today, Yesterday)
-    function actSetQuickDate(type) {
-        const today = new Date();
-        let targetDate = new Date(today);
+    // Close all range dropdowns
+    function actCloseAllRangeDropdowns(e) {
+        if (e && e.stopPropagation) e.stopPropagation();
+        document.querySelectorAll('.act-range-dropdown').forEach(d => d.style.display = 'none');
+        document.querySelectorAll('.act-range-trigger-btn').forEach(b => {
+            b.setAttribute('aria-expanded', 'false');
+            b.classList.remove('open');
+        });
+    }
 
-        if (type === 'yesterday') {
-            targetDate.setDate(today.getDate() - 1);
+    // Apply Quick Preset (Today, Yesterday, Last 7 Days, Last 30 Days, This Month)
+    function actApplyPreset(preset, triggerEl) {
+        const today = new Date();
+        let startDateStr = '';
+        let endDateStr = actFormatDateYmd(today);
+
+        if (preset === 'today') {
+            startDateStr = endDateStr;
+        } else if (preset === 'yesterday') {
+            const yesterday = new Date(today);
+            yesterday.setDate(today.getDate() - 1);
+            startDateStr = actFormatDateYmd(yesterday);
+            endDateStr = startDateStr;
+        } else if (preset === 'week') {
+            const weekAgo = new Date(today);
+            weekAgo.setDate(today.getDate() - 6);
+            startDateStr = actFormatDateYmd(weekAgo);
+        } else if (preset === 'month') {
+            const monthAgo = new Date(today);
+            monthAgo.setDate(today.getDate() - 29);
+            startDateStr = actFormatDateYmd(monthAgo);
+        } else if (preset === 'this_month') {
+            const firstOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+            startDateStr = actFormatDateYmd(firstOfMonth);
+        } else {
+            startDateStr = endDateStr;
+            preset = 'today';
         }
 
-        const yyyy = targetDate.getFullYear();
-        const mm = String(targetDate.getMonth() + 1).padStart(2, '0');
-        const dd = String(targetDate.getDate()).padStart(2, '0');
-        const dateStr = `${yyyy}-${mm}-${dd}`;
+        actCurrentPreset = preset;
+        actCurrentStartDate = startDateStr;
+        actCurrentEndDate = endDateStr;
 
-        document.querySelectorAll('.act-date-picker-native').forEach(el => el.value = dateStr);
-        document.querySelectorAll('.act-calendar-btn').forEach(btn => btn.title = 'Select Date (' + dateStr + ')');
+        // Sync all date inputs across both subpanels
+        document.querySelectorAll('.act-start-date-input').forEach(el => el.value = startDateStr);
+        document.querySelectorAll('.act-end-date-input').forEach(el => el.value = endDateStr);
 
-        actFetchData(dateStr, actCurrentRange);
+        // Highlight preset pills
+        document.querySelectorAll('.act-preset-pill').forEach(pill => {
+            if (pill.getAttribute('data-preset') === preset) {
+                pill.classList.add('active');
+            } else {
+                pill.classList.remove('active');
+            }
+        });
+
+        // Close dropdown
+        actCloseAllRangeDropdowns();
+
+        // Fetch data
+        actFetchData(startDateStr, endDateStr, preset);
     }
 
-    // Prev / Next Day navigation
-    function actStepDate(offset) {
-        const dateInput = document.querySelector('.act-date-picker-native');
-        if (!dateInput || !dateInput.value) return;
-
-        const parts = dateInput.value.split('-');
-        if (parts.length !== 3) return;
-
-        const current = new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10));
-        current.setDate(current.getDate() + offset);
-
-        const today = new Date();
-        today.setHours(23, 59, 59, 999);
-        if (current > today) return; // Prevent picking future date
-
-        const yyyy = current.getFullYear();
-        const mm = String(current.getMonth() + 1).padStart(2, '0');
-        const dd = String(current.getDate()).padStart(2, '0');
-        const dateStr = `${yyyy}-${mm}-${dd}`;
-
-        document.querySelectorAll('.act-date-picker-native').forEach(el => el.value = dateStr);
-        document.querySelectorAll('.act-calendar-btn').forEach(btn => btn.title = 'Select Date (' + dateStr + ')');
-        actFetchData(dateStr, actCurrentRange);
+    // User edits start or end date directly
+    function actOnCustomDateChange(changedInput) {
+        const wrap = changedInput ? changedInput.closest('.act-range-picker-wrap') : null;
+        if (wrap) {
+            wrap.querySelectorAll('.act-preset-pill').forEach(pill => pill.classList.remove('active'));
+        }
+        actCurrentPreset = 'custom';
     }
 
-    // When the user changes date via calendar icon picker
-    function actOnDateChange(changedInput) {
-        const val = changedInput ? changedInput.value : (document.querySelector('.act-date-picker-native') ? document.querySelector('.act-date-picker-native').value : '');
-        if (!val) return;
-        document.querySelectorAll('.act-date-picker-native').forEach(el => el.value = val);
-        document.querySelectorAll('.act-calendar-btn').forEach(btn => btn.title = 'Select Date (' + val + ')');
-        actFetchData(val, actCurrentRange);
+    // Apply Range button inside dropdown
+    function actApplyRangeFromDropdown(btn) {
+        const wrap = btn ? btn.closest('.act-range-picker-wrap') : null;
+        if (!wrap) return;
+
+        const startInput = wrap.querySelector('.act-start-date-input');
+        const endInput = wrap.querySelector('.act-end-date-input');
+
+        let sVal = startInput ? startInput.value : '';
+        let eVal = endInput ? endInput.value : '';
+
+        const todayStr = actFormatDateYmd(new Date());
+        if (!sVal) sVal = eVal || todayStr;
+        if (!eVal) eVal = sVal || todayStr;
+
+        // Auto-swap if start > end
+        if (sVal > eVal) {
+            const temp = sVal;
+            sVal = eVal;
+            eVal = temp;
+        }
+
+        // Cap at today
+        if (sVal > todayStr) sVal = todayStr;
+        if (eVal > todayStr) eVal = todayStr;
+
+        actCurrentStartDate = sVal;
+        actCurrentEndDate = eVal;
+        actCurrentPreset = 'custom';
+
+        // Sync inputs everywhere
+        document.querySelectorAll('.act-start-date-input').forEach(el => el.value = sVal);
+        document.querySelectorAll('.act-end-date-input').forEach(el => el.value = eVal);
+
+        // Update active preset pills
+        document.querySelectorAll('.act-preset-pill').forEach(pill => {
+            pill.classList.remove('active');
+        });
+
+        // Check if matching preset
+        if (sVal === todayStr && eVal === todayStr) {
+            document.querySelectorAll('.act-preset-pill[data-preset="today"]').forEach(p => p.classList.add('active'));
+            actCurrentPreset = 'today';
+        }
+
+        actCloseAllRangeDropdowns();
+        actFetchData(sVal, eVal, 'custom');
+    }
+
+    // Legacy helper for quick date pills (Today, Yesterday)
+    function actSetQuickDate(type) {
+        actApplyPreset(type);
     }
 
     // Manual Refresh button
     function actReloadData(btn) {
-        const dateInput = document.querySelector('.act-date-picker-native');
-        const selectedDate = dateInput ? dateInput.value : '';
-        actFetchData(selectedDate, actCurrentRange, btn);
+        actFetchData(actCurrentStartDate, actCurrentEndDate, actCurrentRange, btn);
     }
 
     // Fetch Activity & Peak Hours data via AJAX
-    function actFetchData(date, range, triggerBtn) {
+    function actFetchData(startDate, endDate, range, triggerBtn) {
+        // Handle single date or undefined args
+        if (typeof startDate === 'object' && startDate !== null) {
+            startDate = actCurrentStartDate;
+            endDate = actCurrentEndDate;
+        }
+        if (!startDate && !endDate) {
+            startDate = actCurrentStartDate;
+            endDate = actCurrentEndDate;
+        } else if (startDate && !endDate) {
+            endDate = startDate;
+        }
+
         document.querySelectorAll('.act-refresh-btn').forEach(b => b.classList.add('loading'));
 
         const params = new URLSearchParams({
             page: 'dashboard',
             action: 'attendance_activity_api',
-            date: date || '',
-            range: range || 'day'
+            start_date: startDate || '',
+            end_date: endDate || '',
+            date: startDate || '',
+            range: range || actCurrentRange || 'day'
         });
 
         fetch('index.php?' + params.toString(), {
@@ -305,6 +427,8 @@ let actCurrentData = (window.MEMBER_DASHBOARD_CONFIG && window.MEMBER_DASHBOARD_
         })
         .then(data => {
             actCurrentData = data;
+            if (data.start_date) actCurrentStartDate = data.start_date;
+            if (data.end_date) actCurrentEndDate = data.end_date;
             actUpdateUI(data);
         })
         .catch(err => {
@@ -317,41 +441,50 @@ let actCurrentData = (window.MEMBER_DASHBOARD_CONFIG && window.MEMBER_DASHBOARD_
 
     // Update Dashboard DOM with fetched activity data
     function actUpdateUI(data) {
-        // 1. Date input & calendar trigger button
-        if (data.date) {
-            document.querySelectorAll('.act-date-picker-native').forEach(el => el.value = data.date);
-            document.querySelectorAll('.act-calendar-btn').forEach(btn => btn.title = 'Select Date (' + data.date + ')');
+        // 1. Update Date range text & inputs
+        const rangeText = data.date_formatted || (data.start_date ? data.start_date + (data.end_date && data.end_date !== data.start_date ? ' – ' + data.end_date : '') : 'Today');
+
+        document.querySelectorAll('.act-range-display-text').forEach(el => {
+            el.textContent = rangeText;
+        });
+
+        document.querySelectorAll('.act-date-formatted-label').forEach(el => {
+            el.textContent = rangeText;
+        });
+
+        if (data.start_date) {
+            document.querySelectorAll('.act-start-date-input').forEach(el => el.value = data.start_date);
+        }
+        if (data.end_date) {
+            document.querySelectorAll('.act-end-date-input').forEach(el => el.value = data.end_date);
         }
 
-        const todayStr = (new Date()).toISOString().split('T')[0];
+        const todayStr = actFormatDateYmd(new Date());
         const yesterdayObj = new Date();
         yesterdayObj.setDate(yesterdayObj.getDate() - 1);
-        const yesterdayStr = yesterdayObj.toISOString().split('T')[0];
+        const yesterdayStr = actFormatDateYmd(yesterdayObj);
 
-        const todayBtn = document.getElementById('act-btn-today');
-        const yesterdayBtn = document.getElementById('act-btn-yesterday');
-        if (todayBtn) {
-            if (data.date === todayStr) todayBtn.classList.add('active');
-            else todayBtn.classList.remove('active');
-        }
-        if (yesterdayBtn) {
-            if (data.date === yesterdayStr) yesterdayBtn.classList.add('active');
-            else yesterdayBtn.classList.remove('active');
-        }
-
-        const nextBtn = document.getElementById('act-next-day-btn');
-        if (nextBtn) {
-            nextBtn.disabled = (data.date >= todayStr);
-        }
-
-        // Date labels
-        document.querySelectorAll('.act-date-formatted-label').forEach(el => {
-            el.textContent = data.date_formatted;
+        // Highlight preset pills if matching
+        document.querySelectorAll('.act-preset-pill').forEach(pill => {
+            const p = pill.getAttribute('data-preset');
+            let isMatch = false;
+            if (p === 'today' && data.start_date === todayStr && data.end_date === todayStr) {
+                isMatch = true;
+            } else if (p === 'yesterday' && data.start_date === yesterdayStr && data.end_date === yesterdayStr) {
+                isMatch = true;
+            }
+            if (isMatch) pill.classList.add('active');
+            else if (actCurrentPreset !== p) pill.classList.remove('active');
         });
+
         const shortDateLabel = document.getElementById('act-stat-date-label');
-        if (shortDateLabel && data.date) {
-            const dObj = new Date(data.date + 'T00:00:00');
-            shortDateLabel.textContent = dObj.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+        if (shortDateLabel) {
+            if (data.start_date === data.end_date && data.start_date) {
+                const dObj = new Date(data.start_date + 'T00:00:00');
+                shortDateLabel.textContent = dObj.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+            } else {
+                shortDateLabel.textContent = 'Custom Range';
+            }
         }
 
         // 2. Status filter pill count badges & Peak stat
@@ -381,7 +514,9 @@ let actCurrentData = (window.MEMBER_DASHBOARD_CONFIG && window.MEMBER_DASHBOARD_
         if (peakBannerText) {
             if (data.peak_max_count > 0) {
                 let rangePrefix = 'Peak check-ins occurred at ';
-                if (data.range === 'week') {
+                if (data.start_date !== data.end_date) {
+                    rangePrefix = 'Across the selected date range, peak rush occurred at ';
+                } else if (data.range === 'week') {
                     rangePrefix = 'Over the past 7 days, peak rush occurred at ';
                 } else if (data.range === 'month') {
                     rangePrefix = 'Across this month, peak rush occurred at ';
@@ -394,7 +529,9 @@ let actCurrentData = (window.MEMBER_DASHBOARD_CONFIG && window.MEMBER_DASHBOARD_
 
         const peakSub = document.getElementById('act-peak-panel-sub');
         if (peakSub) {
-            if (data.range === 'week') {
+            if (data.start_date !== data.end_date) {
+                peakSub.textContent = 'Hourly traffic distribution aggregated across ' + (data.date_formatted || 'selected dates');
+            } else if (data.range === 'week') {
                 peakSub.textContent = 'Hourly traffic distribution aggregated over the past 7 days';
             } else if (data.range === 'month') {
                 peakSub.textContent = 'Hourly traffic distribution aggregated across the month';
@@ -445,7 +582,7 @@ let actCurrentData = (window.MEMBER_DASHBOARD_CONFIG && window.MEMBER_DASHBOARD_
                             <td data-label="Member">
                                 <div class="act-member-info">
                                     ${avatarHtml}
-                                    <div>
+                                    <div class="act-member-meta">
                                         <div class="act-member-name">${escapeHtml(m.name)}</div>
                                         <div class="act-member-sub">${escapeHtml(m.email || '')}</div>
                                     </div>
@@ -672,13 +809,35 @@ let actCurrentData = (window.MEMBER_DASHBOARD_CONFIG && window.MEMBER_DASHBOARD_
         switchMemberDashboardTab(initialTab);
         actApplyFilter();
 
-        // Auto-refresh timer every 60s when on today's date
+        // Close range picker popover on outside click
+        document.addEventListener('click', function(e) {
+            if (!e.target.closest('.act-range-picker-wrap')) {
+                actCloseAllRangeDropdowns();
+            }
+        });
+
+        // Auto-refresh timer every 60s when displaying today's single date
         setInterval(() => {
             const activeTabBtn = document.querySelector('.member-dash-tab.active');
-            const dateInput = document.getElementById('act-date-input');
-            const todayStr = (new Date()).toISOString().split('T')[0];
-            if (activeTabBtn && activeTabBtn.id === 'tab-btn-activity' && dateInput && dateInput.value === todayStr) {
-                actFetchData(todayStr, actCurrentRange);
+            const todayStr = actFormatDateYmd(new Date());
+            if (activeTabBtn && activeTabBtn.id === 'tab-btn-activity' && actCurrentStartDate === todayStr && actCurrentEndDate === todayStr) {
+                actFetchData(todayStr, todayStr, 'today');
             }
         }, 60000);
     });
+
+    // Window Exports for HTML Event Handlers
+    window.switchMemberDashboardTab = switchMemberDashboardTab;
+    window.actSwitchSubTab = actSwitchSubTab;
+    window.actToggleRangeDropdown = actToggleRangeDropdown;
+    window.actCloseAllRangeDropdowns = actCloseAllRangeDropdowns;
+    window.actApplyPreset = actApplyPreset;
+    window.actOnCustomDateChange = actOnCustomDateChange;
+    window.actApplyRangeFromDropdown = actApplyRangeFromDropdown;
+    window.actSetQuickDate = actSetQuickDate;
+    window.actReloadData = actReloadData;
+    window.actFetchData = actFetchData;
+    window.actSetFilterStatus = actSetFilterStatus;
+    window.actChangePageSize = actChangePageSize;
+    window.actGoToPage = actGoToPage;
+    window.actApplyFilter = actApplyFilter;

@@ -1127,6 +1127,215 @@
         padding: 6px 8px;
         box-sizing: border-box;
     }
+    /* Upgraded Date Range Picker Component */
+    .act-range-picker-wrap {
+        position: relative;
+        display: inline-flex;
+    }
+    .act-range-trigger-btn {
+        height: 36px;
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 0 12px;
+        border-radius: 8px;
+        background: rgba(255, 255, 255, 0.04);
+        border: 1px solid var(--line);
+        color: var(--ink);
+        font-family: inherit;
+        font-size: 12.5px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        white-space: nowrap;
+        user-select: none;
+    }
+    .act-range-trigger-btn svg:first-child {
+        color: var(--lime);
+        flex-shrink: 0;
+    }
+    .act-range-chevron {
+        color: var(--muted);
+        transition: transform 0.2s ease;
+        margin-left: 2px;
+    }
+    .act-range-trigger-btn:hover,
+    .act-range-trigger-btn.is-open,
+    .act-range-trigger-btn.open {
+        background: color-mix(in srgb, var(--ink) 8%, transparent);
+        border-color: color-mix(in srgb, var(--lime) 50%, var(--line));
+        color: var(--ink);
+    }
+    .act-range-trigger-btn.is-open .act-range-chevron,
+    .act-range-trigger-btn.open .act-range-chevron {
+        transform: rotate(180deg);
+        color: var(--lime);
+    }
+    .act-range-dropdown {
+        position: absolute;
+        top: calc(100% + 8px);
+        right: 0;
+        width: 320px;
+        max-width: 90vw;
+        background: rgba(13, 18, 27, 0.98);
+        backdrop-filter: blur(18px);
+        -webkit-backdrop-filter: blur(18px);
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        border-radius: 14px;
+        box-shadow: 0 20px 48px rgba(0, 0, 0, 0.7), 0 0 16px rgba(199, 255, 34, 0.08);
+        padding: 16px;
+        z-index: 150;
+        box-sizing: border-box;
+        animation: act-dropdown-fade 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    @keyframes act-dropdown-fade {
+        from { opacity: 0; transform: translateY(-6px) scale(0.98); }
+        to { opacity: 1; transform: translateY(0) scale(1); }
+    }
+    .act-range-dropdown-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 12px;
+        font-size: 13px;
+        font-weight: 700;
+        color: var(--ink);
+    }
+    .act-range-close-btn {
+        background: transparent;
+        border: none;
+        color: var(--muted);
+        font-size: 18px;
+        cursor: pointer;
+        padding: 0 4px;
+        line-height: 1;
+        transition: color 0.15s;
+    }
+    .act-range-close-btn:hover {
+        color: var(--ink);
+    }
+    .act-range-presets {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+        margin-bottom: 14px;
+        padding-bottom: 12px;
+        border-bottom: 1px solid var(--line);
+    }
+    .act-preset-pill {
+        padding: 4px 10px;
+        border-radius: 6px;
+        background: color-mix(in srgb, var(--panel-soft) 80%, transparent);
+        border: 1px solid var(--line);
+        color: var(--muted);
+        font-size: 11px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        font-family: inherit;
+    }
+    .act-preset-pill:hover {
+        color: var(--ink);
+        border-color: color-mix(in srgb, var(--lime) 40%, var(--line));
+        background: color-mix(in srgb, var(--panel-soft) 95%, transparent);
+    }
+    .act-preset-pill.active {
+        background: rgba(199, 255, 34, 0.15);
+        color: var(--lime);
+        border-color: rgba(199, 255, 34, 0.45);
+        font-weight: 700;
+    }
+    .act-range-inputs-row {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-bottom: 14px;
+    }
+    .act-range-input-group {
+        flex: 1;
+        min-width: 0;
+    }
+    .act-range-input-group label {
+        display: block;
+        font-size: 10px;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        color: var(--muted);
+        margin-bottom: 4px;
+    }
+    .act-start-date-input,
+    .act-end-date-input {
+        width: 100%;
+        height: 36px;
+        border-radius: 8px;
+        background: rgba(0, 0, 0, 0.35);
+        border: 1px solid var(--line);
+        color: var(--ink);
+        padding: 0 8px;
+        font-size: 12px;
+        font-weight: 600;
+        font-family: inherit;
+        outline: none;
+        box-sizing: border-box;
+        transition: border-color 0.2s ease;
+    }
+    .act-start-date-input:focus,
+    .act-end-date-input:focus {
+        border-color: var(--lime);
+        box-shadow: 0 0 0 2px rgba(199, 255, 34, 0.2);
+    }
+    .act-range-input-sep {
+        color: var(--muted);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin-top: 16px;
+        flex-shrink: 0;
+    }
+    .act-range-actions {
+        display: flex;
+        align-items: center;
+        justify-content: flex-end;
+        gap: 8px;
+        padding-top: 10px;
+        border-top: 1px solid var(--line);
+    }
+    .act-range-cancel-btn {
+        padding: 7px 12px;
+        border-radius: 7px;
+        background: transparent;
+        border: 1px solid var(--line);
+        color: var(--muted);
+        font-size: 12px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        font-family: inherit;
+    }
+    .act-range-cancel-btn:hover {
+        color: var(--ink);
+        background: rgba(255, 255, 255, 0.05);
+    }
+    .act-range-apply-btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        padding: 7px 14px;
+        border-radius: 7px;
+        background: var(--lime);
+        border: 1px solid var(--lime);
+        color: #080b0d !important;
+        font-size: 12px;
+        font-weight: 700;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        font-family: inherit;
+    }
+    .act-range-apply-btn:hover {
+        filter: brightness(1.1);
+        transform: translateY(-1px);
+    }
     .act-calendar-btn {
         position: relative;
         display: inline-flex;
@@ -1331,6 +1540,71 @@
             font-size: 11.5px;
             width: 100%;
         }
+
+        /* Stack Panel Header & Full-Width Toolbar on Mobile/Tablet */
+        .act-panel-header {
+            flex-direction: column !important;
+            align-items: stretch !important;
+            gap: 12px !important;
+            width: 100% !important;
+        }
+        .act-heading {
+            width: 100% !important;
+            flex: none !important;
+        }
+        .act-panel-title {
+            font-size: 16px !important;
+            line-height: 1.35 !important;
+            flex-wrap: wrap !important;
+        }
+        .act-panel-sub {
+            font-size: 12px !important;
+            line-height: 1.45 !important;
+            width: 100% !important;
+            display: block !important;
+            word-break: break-word !important;
+        }
+        .act-panel-header .act-toolbar {
+            width: 100% !important;
+            display: flex !important;
+            align-items: center !important;
+            justify-content: space-between !important;
+            gap: 8px !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            background: transparent !important;
+            border: none !important;
+        }
+        .act-range-picker-wrap {
+            flex: 1 1 auto !important;
+            min-width: 0 !important;
+            position: relative !important;
+        }
+        .act-range-trigger-btn {
+            width: 100% !important;
+            display: flex !important;
+            align-items: center !important;
+            justify-content: space-between !important;
+            gap: 8px !important;
+            padding: 0 10px !important;
+            height: 38px !important;
+            font-size: 12px !important;
+            box-sizing: border-box !important;
+        }
+        .act-range-display-text {
+            flex: 1 1 auto !important;
+            overflow: hidden !important;
+            text-overflow: ellipsis !important;
+            white-space: nowrap !important;
+            text-align: left !important;
+        }
+        .act-refresh-btn {
+            flex: 0 0 auto !important;
+            height: 38px !important;
+            padding: 0 12px !important;
+            font-size: 12px !important;
+            box-sizing: border-box !important;
+        }
     }
 
     @media (max-width: 640px) {
@@ -1339,31 +1613,41 @@
             justify-content: flex-end;
             margin-bottom: 14px;
         }
-        .act-toolbar {
-            padding: 4px 6px;
-            gap: 6px;
-        }
-        .act-calendar-btn {
-            height: 32px !important;
-            width: 32px !important;
-            min-width: 32px !important;
-        }
-        .act-refresh-btn {
-            height: 32px !important;
-            padding: 0 10px !important;
-            font-size: 11.5px;
-        }
         .act-panel {
             padding: 16px 14px;
         }
-        .act-panel-header {
-            gap: 8px;
-        }
         .act-panel-title {
-            font-size: 15px;
+            font-size: 15px !important;
         }
         .act-panel-sub {
-            font-size: 11.5px;
+            font-size: 11.5px !important;
+        }
+
+        /* Centered Mobile Modal for Date Range Picker */
+        .act-range-dropdown {
+            position: fixed !important;
+            top: 50% !important;
+            left: 50% !important;
+            transform: translate(-50%, -50%) !important;
+            right: auto !important;
+            bottom: auto !important;
+            width: calc(100vw - 32px) !important;
+            max-width: 360px !important;
+            max-height: 85vh !important;
+            overflow-y: auto !important;
+            z-index: 9999 !important;
+            box-shadow: 0 24px 64px rgba(0, 0, 0, 0.85), 0 0 0 100vmax rgba(0, 0, 0, 0.6) !important;
+            border-radius: 16px !important;
+            padding: 18px !important;
+            animation: act-modal-fade 0.2s cubic-bezier(0.16, 1, 0.3, 1) !important;
+        }
+        @keyframes act-modal-fade {
+            from { opacity: 0; transform: translate(-50%, -46%) scale(0.96); }
+            to { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+        }
+        html[data-theme="light"] .act-range-dropdown,
+        [data-theme="light"] .act-range-dropdown {
+            box-shadow: 0 24px 64px rgba(0, 0, 0, 0.22), 0 0 0 100vmax rgba(0, 0, 0, 0.4) !important;
         }
 
         /* Subnav Mobile View */
@@ -1950,21 +2234,31 @@
         overflow: hidden;
     }
     .act-avatar {
-        width: 34px;
-        height: 34px;
-        border-radius: 50%;
-        object-fit: cover;
+        width: 36px !important;
+        height: 36px !important;
+        min-width: 36px !important;
+        max-width: 36px !important;
+        min-height: 36px !important;
+        max-height: 36px !important;
+        aspect-ratio: 1 / 1 !important;
+        border-radius: 50% !important;
+        object-fit: cover !important;
         background: var(--panel-soft);
         border: 1px solid var(--line);
-        flex-shrink: 0;
-        display: flex;
-        align-items: center;
-        justify-content: center;
+        flex: 0 0 36px !important;
+        flex-shrink: 0 !important;
+        flex-grow: 0 !important;
+        display: inline-flex !important;
+        align-items: center !important;
+        justify-content: center !important;
         font-weight: 700;
-        font-size: 12px;
+        font-size: 13px;
         color: var(--lime);
+        box-sizing: border-box !important;
+        overflow: hidden;
     }
-    .act-member-info > div {
+    .act-member-info > div:not(.act-avatar),
+    .act-member-meta {
         min-width: 0;
         flex: 1 1 auto;
         overflow: hidden;
@@ -2200,6 +2494,59 @@
         background: #ffffff !important;
         border-color: #cbd5e1 !important;
         box-shadow: 0 2px 6px rgba(0, 0, 0, 0.04) !important;
+    }
+    html[data-theme="light"] .act-range-trigger-btn,
+    [data-theme="light"] .act-range-trigger-btn {
+        background: #ffffff !important;
+        border-color: #cbd5e1 !important;
+        color: #0f172a !important;
+    }
+    html[data-theme="light"] .act-range-trigger-btn:hover,
+    html[data-theme="light"] .act-range-trigger-btn.is-open,
+    html[data-theme="light"] .act-range-trigger-btn.open,
+    [data-theme="light"] .act-range-trigger-btn:hover,
+    [data-theme="light"] .act-range-trigger-btn.is-open,
+    [data-theme="light"] .act-range-trigger-btn.open {
+        background: #f8fafc !important;
+        border-color: #94a3b8 !important;
+    }
+    html[data-theme="light"] .act-range-dropdown,
+    [data-theme="light"] .act-range-dropdown {
+        background: #ffffff !important;
+        border-color: #cbd5e1 !important;
+        box-shadow: 0 16px 36px rgba(0, 0, 0, 0.12) !important;
+        color: #0f172a !important;
+    }
+    html[data-theme="light"] .act-preset-pill,
+    [data-theme="light"] .act-preset-pill {
+        background: #f1f5f9 !important;
+        border-color: #e2e8f0 !important;
+        color: #475569 !important;
+    }
+    html[data-theme="light"] .act-preset-pill:hover,
+    [data-theme="light"] .act-preset-pill:hover {
+        background: #e2e8f0 !important;
+        color: #0f172a !important;
+    }
+    html[data-theme="light"] .act-preset-pill.active,
+    [data-theme="light"] .act-preset-pill.active {
+        background: #dcfce7 !important;
+        color: #166534 !important;
+        border-color: #86efac !important;
+    }
+    html[data-theme="light"] .act-start-date-input,
+    html[data-theme="light"] .act-end-date-input,
+    [data-theme="light"] .act-start-date-input,
+    [data-theme="light"] .act-end-date-input {
+        background: #f8fafc !important;
+        border-color: #cbd5e1 !important;
+        color: #0f172a !important;
+    }
+    html[data-theme="light"] .act-range-cancel-btn,
+    [data-theme="light"] .act-range-cancel-btn {
+        background: #f8fafc !important;
+        border-color: #cbd5e1 !important;
+        color: #475569 !important;
     }
     html[data-theme="light"] .act-calendar-btn,
     [data-theme="light"] .act-calendar-btn {

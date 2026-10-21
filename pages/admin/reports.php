@@ -102,6 +102,85 @@ function handle_export(string $type, string $format, array $data, ?array $gym = 
     }
 }
 
+function render_report_tf_group(
+    string $type,
+    bool $isCustomDateRange,
+    string $activeDateRangeLabel,
+    string $activePreset,
+    string $startDateInputVal,
+    string $endDateInputVal,
+    string $defaultTimeframe
+): void {
+    $dailyActive = ($defaultTimeframe === 'daily') ? 'active' : '';
+    $monthlyActive = ($defaultTimeframe === 'monthly') ? 'active' : '';
+    $yearlyActive = ($defaultTimeframe === 'yearly') ? 'active' : '';
+
+    $hintText = match($type) {
+        'revenue' => ($defaultTimeframe === 'daily') ? 'Viewing daily revenue stream breakdown' : (($defaultTimeframe === 'yearly') ? 'Viewing 5-year macro revenue trends' : 'Viewing last 12 months rolling run-rate'),
+        'attendance' => ($defaultTimeframe === 'daily') ? 'Viewing daily check-in trail' : (($defaultTimeframe === 'yearly') ? 'Viewing 5-year check-in history' : 'Viewing monthly check-in volume'),
+        'walkin' => ($defaultTimeframe === 'daily') ? 'Viewing daily walk-in trail' : (($defaultTimeframe === 'yearly') ? 'Viewing 5-year walk-in trajectory' : 'Viewing monthly walk-in volume'),
+        default => 'Viewing time series'
+    };
+    ?>
+    <div class="tf-group">
+        <div class="report-range-picker-wrap">
+            <button type="button" class="report-range-trigger-btn <?= $isCustomDateRange ? 'active' : '' ?>" onclick="toggleReportRangeDropdown(event, this)" aria-label="Select Date Range">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
+                <span><?= h($activeDateRangeLabel) ?></span>
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg>
+            </button>
+            <?php if ($isCustomDateRange): ?>
+                <button type="button" class="report-active-range-clear" onclick="clearReportDateRange()" title="Clear date filter">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                </button>
+            <?php endif; ?>
+
+            <div class="report-range-dropdown" style="display: none;">
+                <div class="report-range-presets">
+                    <button type="button" class="report-preset-pill <?= $activePreset === 'today' ? 'active' : '' ?>" onclick="applyReportPreset('today', this)">Today</button>
+                    <button type="button" class="report-preset-pill <?= $activePreset === 'yesterday' ? 'active' : '' ?>" onclick="applyReportPreset('yesterday', this)">Yesterday</button>
+                    <button type="button" class="report-preset-pill <?= $activePreset === 'last7' ? 'active' : '' ?>" onclick="applyReportPreset('last7', this)">Last 7 Days</button>
+                    <button type="button" class="report-preset-pill <?= $activePreset === 'last14' ? 'active' : '' ?>" onclick="applyReportPreset('last14', this)">Last 14 Days</button>
+                    <button type="button" class="report-preset-pill <?= $activePreset === 'this_month' ? 'active' : '' ?>" onclick="applyReportPreset('this_month', this)">This Month</button>
+                    <button type="button" class="report-preset-pill <?= $activePreset === 'last30' ? 'active' : '' ?>" onclick="applyReportPreset('last30', this)">Last 30 Days</button>
+                    <button type="button" class="report-preset-pill <?= $activePreset === 'last12m' ? 'active' : '' ?>" onclick="applyReportPreset('last12m', this)">Last 12 Mos</button>
+                    <button type="button" class="report-preset-pill <?= $activePreset === 'this_year' ? 'active' : '' ?>" onclick="applyReportPreset('this_year', this)">This Year</button>
+                    <button type="button" class="report-preset-pill <?= $activePreset === 'all' ? 'active' : '' ?>" onclick="applyReportPreset('all', this)">All Time</button>
+                </div>
+                <div class="report-range-inputs-row">
+                    <div class="report-range-field">
+                        <label>Start Date</label>
+                        <input type="date" class="report-start-date-input" value="<?= h($startDateInputVal) ?>">
+                    </div>
+                    <div class="report-range-input-sep">→</div>
+                    <div class="report-range-field">
+                        <label>End Date</label>
+                        <input type="date" class="report-end-date-input" value="<?= h($endDateInputVal) ?>">
+                    </div>
+                </div>
+                <div class="report-range-actions">
+                    <button type="button" class="report-range-cancel-btn" onclick="closeAllReportRangeDropdowns()">Cancel</button>
+                    <?php if ($isCustomDateRange): ?>
+                        <button type="button" class="report-range-clear-btn" onclick="clearReportDateRange()">Reset</button>
+                    <?php endif; ?>
+                    <button type="button" class="report-range-apply-btn" onclick="applyCustomReportDateRange(this)">Apply Range</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="tf-controls">
+            <button class="tf-btn tf-btn-<?= $type ?> <?= $dailyActive ?>" onclick="setTimeframe('<?= $type ?>', 'daily')" id="tf-<?= $type ?>-daily">Daily</button>
+            <button class="tf-btn tf-btn-<?= $type ?> <?= $monthlyActive ?>" onclick="setTimeframe('<?= $type ?>', 'monthly')" id="tf-<?= $type ?>-monthly">Monthly</button>
+            <button class="tf-btn tf-btn-<?= $type ?> <?= $yearlyActive ?>" onclick="setTimeframe('<?= $type ?>', 'yearly')" id="tf-<?= $type ?>-yearly">Yearly</button>
+        </div>
+        <span class="tf-hint" id="tf-hint-<?= $type ?>">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+            <span id="tf-hint-text-<?= $type ?>"><?= h($hintText) ?></span>
+        </span>
+    </div>
+    <?php
+}
+
 function reports_page(): void
 {
     $user = require_roles(['platform_admin', 'gym_owner']);
@@ -257,6 +336,82 @@ function reports_page(): void
         }
     }
 
+    // Parse Date Range filter for Custom Timeframes
+    $rawStartDate = trim((string)($_GET['start_date'] ?? ''));
+    $rawEndDate = trim((string)($_GET['end_date'] ?? ''));
+    $isCustomDateRange = false;
+    $startDate = null;
+    $endDate = null;
+    $activeDateRangeLabel = 'Date Range';
+    $activePreset = '';
+    $startDateInputVal = '';
+    $endDateInputVal = '';
+
+    if ($rawStartDate !== '' && preg_match('/^\d{4}-\d{2}-\d{2}$/', $rawStartDate)) {
+        $startDate = $rawStartDate;
+    }
+    if ($rawEndDate !== '' && preg_match('/^\d{4}-\d{2}-\d{2}$/', $rawEndDate)) {
+        $endDate = $rawEndDate;
+    }
+
+    if ($startDate && $endDate) {
+        if ($startDate > $endDate) {
+            $temp = $startDate;
+            $startDate = $endDate;
+            $endDate = $temp;
+        }
+        $isCustomDateRange = true;
+        $startDateInputVal = $startDate;
+        $endDateInputVal = $endDate;
+
+        $todayStr = date('Y-m-d');
+        $yesterdayStr = date('Y-m-d', strtotime('-1 day'));
+        $last7Str = date('Y-m-d', strtotime('-6 days'));
+        $last14Str = date('Y-m-d', strtotime('-13 days'));
+        $last30Str = date('Y-m-d', strtotime('-29 days'));
+        $thisMonthStart = date('Y-m-01');
+        $last12mStart = date('Y-m-01', strtotime('-11 months'));
+        $thisYearStart = date('Y-01-01');
+
+        if ($startDate === $todayStr && $endDate === $todayStr) {
+            $activePreset = 'today';
+            $activeDateRangeLabel = 'Today';
+        } elseif ($startDate === $yesterdayStr && $endDate === $yesterdayStr) {
+            $activePreset = 'yesterday';
+            $activeDateRangeLabel = 'Yesterday';
+        } elseif ($startDate === $last7Str && $endDate === $todayStr) {
+            $activePreset = 'last7';
+            $activeDateRangeLabel = 'Last 7 Days';
+        } elseif ($startDate === $last14Str && $endDate === $todayStr) {
+            $activePreset = 'last14';
+            $activeDateRangeLabel = 'Last 14 Days';
+        } elseif ($startDate === $thisMonthStart && $endDate === $todayStr) {
+            $activePreset = 'this_month';
+            $activeDateRangeLabel = 'This Month';
+        } elseif ($startDate === $last30Str && $endDate === $todayStr) {
+            $activePreset = 'last30';
+            $activeDateRangeLabel = 'Last 30 Days';
+        } elseif ($startDate === $last12mStart && $endDate === $todayStr) {
+            $activePreset = 'last12m';
+            $activeDateRangeLabel = 'Last 12 Mos';
+        } elseif ($startDate === $thisYearStart && $endDate === $todayStr) {
+            $activePreset = 'this_year';
+            $activeDateRangeLabel = 'This Year';
+        } else {
+            $activeDateRangeLabel = date('M j, Y', strtotime($startDate)) . ' – ' . date('M j, Y', strtotime($endDate));
+        }
+    }
+
+    $defaultTimeframe = $_GET['timeframe'] ?? ($isCustomDateRange ? ((strtotime((string)$endDate) - strtotime((string)$startDate) <= 32 * 86400) ? 'daily' : 'monthly') : 'monthly');
+    if (!in_array($defaultTimeframe, ['daily', 'monthly', 'yearly'], true)) {
+        $defaultTimeframe = 'monthly';
+    }
+
+    $dateFilterPayment = $isCustomDateRange ? " AND p.payment_date BETWEEN '{$startDate} 00:00:00' AND '{$endDate} 23:59:59'" : "";
+    $dateFilterWalkin = $isCustomDateRange ? " AND visit_date BETWEEN '{$startDate}' AND '{$endDate}'" : "";
+    $dateFilterAttendance = $isCustomDateRange ? " AND check_in_time BETWEEN '{$startDate} 00:00:00' AND '{$endDate} 23:59:59'" : "";
+    $dateFilterSaaS = $isCustomDateRange ? " AND sp.payment_date BETWEEN '{$startDate} 00:00:00' AND '{$endDate} 23:59:59'" : "";
+
     // Build SQL condition filters
     if ($isPlatformAdmin) {
         if ($isGymSpecific) {
@@ -264,11 +419,11 @@ function reports_page(): void
                 FROM payments p
                 JOIN memberships m ON m.membership_id = p.membership_id
                 JOIN membership_plans mp ON mp.plan_id = m.plan_id
-                WHERE p.status = "paid" AND mp.gym_id = ' . (int)$selectedGymId;
+                WHERE p.status = "paid" AND mp.gym_id = ' . (int)$selectedGymId . $dateFilterPayment;
             $walkRevCondition = 'SELECT DATE(visit_date) AS day, DATE_FORMAT(visit_date, "%Y-%m") AS month, YEAR(visit_date) AS year, amount_paid AS revenue 
-                FROM walk_in_transactions WHERE gym_id = ' . (int)$selectedGymId;
-            $attendanceCondition = 'SELECT check_in_time, DATE(check_in_time) AS day, DATE_FORMAT(check_in_time, "%Y-%m") AS month, YEAR(check_in_time) AS year FROM attendance WHERE gym_id = ' . (int)$selectedGymId;
-            $walkinCondition = 'SELECT DATE(visit_date) AS day, DATE_FORMAT(visit_date, "%Y-%m") AS month, YEAR(visit_date) AS year, amount_paid FROM walk_in_transactions WHERE gym_id = ' . (int)$selectedGymId;
+                FROM walk_in_transactions WHERE gym_id = ' . (int)$selectedGymId . $dateFilterWalkin;
+            $attendanceCondition = 'SELECT check_in_time, DATE(check_in_time) AS day, DATE_FORMAT(check_in_time, "%Y-%m") AS month, YEAR(check_in_time) AS year FROM attendance WHERE gym_id = ' . (int)$selectedGymId . $dateFilterAttendance;
+            $walkinCondition = 'SELECT DATE(visit_date) AS day, DATE_FORMAT(visit_date, "%Y-%m") AS month, YEAR(visit_date) AS year, amount_paid FROM walk_in_transactions WHERE gym_id = ' . (int)$selectedGymId . $dateFilterWalkin;
             $members = query_all('SELECT DISTINCT u.user_id, u.first_name, u.last_name, u.email, u.profile_picture,
                 COALESCE((SELECT g.name FROM gyms g WHERE g.gym_id = ' . (int)$selectedGymId . '), "FitTrack") AS gym_name
                 FROM users u 
@@ -279,21 +434,21 @@ function reports_page(): void
                   AND (gm.gym_id = ' . (int)$selectedGymId . ' OR mp.gym_id = ' . (int)$selectedGymId . ')');
             $activeMembersCount = count($members);
             $mrr = (float) scalar('SELECT COALESCE(SUM(mp.price), 0) FROM memberships m JOIN membership_plans mp ON mp.plan_id = m.plan_id WHERE m.status = "active" AND mp.gym_id = ' . (int)$selectedGymId);
-            $attGymFilter = 'gym_id = ' . (int)$selectedGymId;
+            $attGymFilter = 'gym_id = ' . (int)$selectedGymId . $dateFilterAttendance;
             $trainerGymFilter = 'WHERE tp.gym_id = ' . (int)$selectedGymId;
         } else {
             $subRevCondition = 'SELECT DATE(p.payment_date) AS day, DATE_FORMAT(p.payment_date, "%Y-%m") AS month, YEAR(p.payment_date) AS year, p.amount AS revenue 
-                FROM payments p WHERE p.status = "paid"';
+                FROM payments p WHERE p.status = "paid"' . $dateFilterPayment;
             $walkRevCondition = 'SELECT DATE(visit_date) AS day, DATE_FORMAT(visit_date, "%Y-%m") AS month, YEAR(visit_date) AS year, amount_paid AS revenue 
-                FROM walk_in_transactions';
-            $attendanceCondition = 'SELECT check_in_time, DATE(check_in_time) AS day, DATE_FORMAT(check_in_time, "%Y-%m") AS month, YEAR(check_in_time) AS year FROM attendance';
-            $walkinCondition = 'SELECT DATE(visit_date) AS day, DATE_FORMAT(visit_date, "%Y-%m") AS month, YEAR(visit_date) AS year, amount_paid FROM walk_in_transactions';
+                FROM walk_in_transactions WHERE 1=1' . $dateFilterWalkin;
+            $attendanceCondition = 'SELECT check_in_time, DATE(check_in_time) AS day, DATE_FORMAT(check_in_time, "%Y-%m") AS month, YEAR(check_in_time) AS year FROM attendance WHERE 1=1' . $dateFilterAttendance;
+            $walkinCondition = 'SELECT DATE(visit_date) AS day, DATE_FORMAT(visit_date, "%Y-%m") AS month, YEAR(visit_date) AS year, amount_paid FROM walk_in_transactions WHERE 1=1' . $dateFilterWalkin;
             $members = query_all('SELECT DISTINCT u.user_id, u.first_name, u.last_name, u.email, u.profile_picture,
                 COALESCE((SELECT g.name FROM gym_members gm JOIN gyms g ON g.gym_id = gm.gym_id WHERE gm.user_id = u.user_id LIMIT 1), "Independent") AS gym_name
                 FROM users u WHERE u.role = "member" AND u.status = "active"');
             $activeMembersCount = count($members);
             $mrr = (float) scalar('SELECT COALESCE(SUM(mp.price), 0) FROM memberships m JOIN membership_plans mp ON mp.plan_id = m.plan_id WHERE m.status = "active"');
-            $attGymFilter = '1=1';
+            $attGymFilter = '1=1' . $dateFilterAttendance;
             $trainerGymFilter = '';
         }
     } else {
@@ -301,11 +456,11 @@ function reports_page(): void
             FROM payments p
             JOIN memberships m ON m.membership_id = p.membership_id
             JOIN membership_plans mp ON mp.plan_id = m.plan_id
-            WHERE p.status = "paid" AND mp.gym_id = ' . (int)$gymId;
+            WHERE p.status = "paid" AND mp.gym_id = ' . (int)$gymId . $dateFilterPayment;
         $walkRevCondition = 'SELECT DATE(visit_date) AS day, DATE_FORMAT(visit_date, "%Y-%m") AS month, YEAR(visit_date) AS year, amount_paid AS revenue 
-            FROM walk_in_transactions WHERE gym_id = ' . (int)$gymId;
-        $attendanceCondition = 'SELECT check_in_time, DATE(check_in_time) AS day, DATE_FORMAT(check_in_time, "%Y-%m") AS month, YEAR(check_in_time) AS year FROM attendance WHERE (gym_id = ' . (int)$gymId . ' OR (gym_id IS NULL AND recorded_by = ' . (int)$user['user_id'] . '))';
-        $walkinCondition = 'SELECT DATE(visit_date) AS day, DATE_FORMAT(visit_date, "%Y-%m") AS month, YEAR(visit_date) AS year, amount_paid FROM walk_in_transactions WHERE gym_id = ' . (int)$gymId;
+            FROM walk_in_transactions WHERE gym_id = ' . (int)$gymId . $dateFilterWalkin;
+        $attendanceCondition = 'SELECT check_in_time, DATE(check_in_time) AS day, DATE_FORMAT(check_in_time, "%Y-%m") AS month, YEAR(check_in_time) AS year FROM attendance WHERE (gym_id = ' . (int)$gymId . ' OR (gym_id IS NULL AND recorded_by = ' . (int)$user['user_id'] . '))' . $dateFilterAttendance;
+        $walkinCondition = 'SELECT DATE(visit_date) AS day, DATE_FORMAT(visit_date, "%Y-%m") AS month, YEAR(visit_date) AS year, amount_paid FROM walk_in_transactions WHERE gym_id = ' . (int)$gymId . $dateFilterWalkin;
         $members = query_all('SELECT DISTINCT u.user_id, u.first_name, u.last_name, u.email, u.profile_picture,
             COALESCE((SELECT g.name FROM gyms g WHERE g.gym_id = ' . (int)$gymId . '), "FitTrack") AS gym_name
             FROM users u 
@@ -316,7 +471,7 @@ function reports_page(): void
               AND (gm.gym_id = ' . (int)$gymId . ' OR mp.gym_id = ' . (int)$gymId . ')');
         $activeMembersCount = count($members);
         $mrr = (float) scalar('SELECT COALESCE(SUM(mp.price), 0) FROM memberships m JOIN membership_plans mp ON mp.plan_id = m.plan_id WHERE m.status = "active" AND mp.gym_id = ' . (int)$gymId);
-        $attGymFilter = '(gym_id = ' . (int)$gymId . ' OR (gym_id IS NULL AND recorded_by = ' . (int)$user['user_id'] . '))';
+        $attGymFilter = '(gym_id = ' . (int)$gymId . ' OR (gym_id IS NULL AND recorded_by = ' . (int)$user['user_id'] . '))' . $dateFilterAttendance;
         $trainerGymFilter = 'WHERE tp.gym_id = ' . (int)$gymId;
     }
 
@@ -338,7 +493,7 @@ function reports_page(): void
     $saasLedger = [];
 
     if ($isPlatformAdmin) {
-        $saasGymFilter = $isGymSpecific ? 'AND sp.gym_id = ' . (int)$selectedGymId : '';
+        $saasGymFilter = ($isGymSpecific ? 'AND sp.gym_id = ' . (int)$selectedGymId : '') . $dateFilterSaaS;
 
         $platformSaaSRevenueCurMonth = (float) scalar(
             "SELECT COALESCE(SUM(amount), 0) FROM gym_subscription_payments sp WHERE sp.status = 'paid' AND sp.payment_date >= DATE_FORMAT(CURDATE(), '%Y-%m-01') $saasGymFilter"
@@ -406,8 +561,13 @@ function reports_page(): void
         }
     }
 
-    $curMonthSub = (float) scalar("SELECT COALESCE(SUM(revenue), 0) FROM ($subRevCondition) AS s WHERE s.month = ?", [$curMonth]);
-    $curMonthWalk = (float) scalar("SELECT COALESCE(SUM(revenue), 0) FROM ($walkRevCondition) AS w WHERE w.month = ?", [$curMonth]);
+    if ($isCustomDateRange) {
+        $curMonthSub = (float) scalar("SELECT COALESCE(SUM(revenue), 0) FROM ($subRevCondition) AS s");
+        $curMonthWalk = (float) scalar("SELECT COALESCE(SUM(revenue), 0) FROM ($walkRevCondition) AS w");
+    } else {
+        $curMonthSub = (float) scalar("SELECT COALESCE(SUM(revenue), 0) FROM ($subRevCondition) AS s WHERE s.month = ?", [$curMonth]);
+        $curMonthWalk = (float) scalar("SELECT COALESCE(SUM(revenue), 0) FROM ($walkRevCondition) AS w WHERE w.month = ?", [$curMonth]);
+    }
     $curMonthGross = $curMonthSub + $curMonthWalk;
 
     $prevMonthSub = (float) scalar("SELECT COALESCE(SUM(revenue), 0) FROM ($subRevCondition) AS s WHERE s.month = ?", [$prevMonth]);
@@ -427,29 +587,33 @@ function reports_page(): void
     $arpu = $activeMembersCount > 0 ? round($curMonthGross / $activeMembersCount, 2) : 0.0;
 
     // Multi-Stream Revenue Time Series
+    $dailyLimit = $isCustomDateRange ? '' : ' LIMIT 14';
+    $monthlyLimit = $isCustomDateRange ? '' : ' LIMIT 12';
+    $yearlyLimit = $isCustomDateRange ? '' : ' LIMIT 5';
+
     $rawSubRevenue = [
-        'daily' => query_all('SELECT day, SUM(revenue) AS revenue FROM (' . $subRevCondition . ') AS s GROUP BY day ORDER BY day DESC LIMIT 14'),
-        'monthly' => query_all('SELECT month, SUM(revenue) AS revenue FROM (' . $subRevCondition . ') AS s GROUP BY month ORDER BY month DESC LIMIT 12'),
-        'yearly' => query_all('SELECT year, SUM(revenue) AS revenue FROM (' . $subRevCondition . ') AS s GROUP BY year ORDER BY year DESC LIMIT 5')
+        'daily' => query_all('SELECT day, SUM(revenue) AS revenue FROM (' . $subRevCondition . ') AS s GROUP BY day ORDER BY day DESC' . $dailyLimit),
+        'monthly' => query_all('SELECT month, SUM(revenue) AS revenue FROM (' . $subRevCondition . ') AS s GROUP BY month ORDER BY month DESC' . $monthlyLimit),
+        'yearly' => query_all('SELECT year, SUM(revenue) AS revenue FROM (' . $subRevCondition . ') AS s GROUP BY year ORDER BY year DESC' . $yearlyLimit)
     ];
     $rawWalkRevenue = [
-        'daily' => query_all('SELECT day, SUM(revenue) AS revenue FROM (' . $walkRevCondition . ') AS w GROUP BY day ORDER BY day DESC LIMIT 14'),
-        'monthly' => query_all('SELECT month, SUM(revenue) AS revenue FROM (' . $walkRevCondition . ') AS w GROUP BY month ORDER BY month DESC LIMIT 12'),
-        'yearly' => query_all('SELECT year, SUM(revenue) AS revenue FROM (' . $walkRevCondition . ') AS w GROUP BY year ORDER BY year DESC LIMIT 5')
+        'daily' => query_all('SELECT day, SUM(revenue) AS revenue FROM (' . $walkRevCondition . ') AS w GROUP BY day ORDER BY day DESC' . $dailyLimit),
+        'monthly' => query_all('SELECT month, SUM(revenue) AS revenue FROM (' . $walkRevCondition . ') AS w GROUP BY month ORDER BY month DESC' . $monthlyLimit),
+        'yearly' => query_all('SELECT year, SUM(revenue) AS revenue FROM (' . $walkRevCondition . ') AS w GROUP BY year ORDER BY year DESC' . $yearlyLimit)
     ];
 
     // Attendance Time Series
     $attendance = [
-        'daily' => query_all('SELECT day, COUNT(*) AS visits FROM (' . $attendanceCondition . ') AS a GROUP BY day ORDER BY day DESC LIMIT 14'),
-        'monthly' => query_all('SELECT month, COUNT(*) AS visits FROM (' . $attendanceCondition . ') AS a GROUP BY month ORDER BY month DESC LIMIT 12'),
-        'yearly' => query_all('SELECT year, COUNT(*) AS visits FROM (' . $attendanceCondition . ') AS a GROUP BY year ORDER BY year DESC LIMIT 5')
+        'daily' => query_all('SELECT day, COUNT(*) AS visits FROM (' . $attendanceCondition . ') AS a GROUP BY day ORDER BY day DESC' . $dailyLimit),
+        'monthly' => query_all('SELECT month, COUNT(*) AS visits FROM (' . $attendanceCondition . ') AS a GROUP BY month ORDER BY month DESC' . $monthlyLimit),
+        'yearly' => query_all('SELECT year, COUNT(*) AS visits FROM (' . $attendanceCondition . ') AS a GROUP BY year ORDER BY year DESC' . $yearlyLimit)
     ];
 
     // Walk-In Visits Time Series
     $walkin = [
-        'daily' => query_all('SELECT day, COUNT(*) AS visits, COALESCE(SUM(amount_paid), 0) AS revenue FROM (' . $walkinCondition . ') AS w GROUP BY day ORDER BY day DESC LIMIT 14'),
-        'monthly' => query_all('SELECT month, COUNT(*) AS visits, COALESCE(SUM(amount_paid), 0) AS revenue FROM (' . $walkinCondition . ') AS w GROUP BY month ORDER BY month DESC LIMIT 12'),
-        'yearly' => query_all('SELECT year, COUNT(*) AS visits, COALESCE(SUM(amount_paid), 0) AS revenue FROM (' . $walkinCondition . ') AS w GROUP BY year ORDER BY year DESC LIMIT 5')
+        'daily' => query_all('SELECT day, COUNT(*) AS visits, COALESCE(SUM(amount_paid), 0) AS revenue FROM (' . $walkinCondition . ') AS w GROUP BY day ORDER BY day DESC' . $dailyLimit),
+        'monthly' => query_all('SELECT month, COUNT(*) AS visits, COALESCE(SUM(amount_paid), 0) AS revenue FROM (' . $walkinCondition . ') AS w GROUP BY month ORDER BY month DESC' . $monthlyLimit),
+        'yearly' => query_all('SELECT year, COUNT(*) AS visits, COALESCE(SUM(amount_paid), 0) AS revenue FROM (' . $walkinCondition . ') AS w GROUP BY year ORDER BY year DESC' . $yearlyLimit)
     ];
 
     // Hourly Attendance Peak Analysis (5 AM - 11 PM)
@@ -638,28 +802,50 @@ function reports_page(): void
     }
 
     // Pad time series data helper
-    $pad_time_series = function(array $data, string $key, string $valKey, string $tf): array {
+    $pad_time_series = function(array $data, string $key, string $valKey, string $tf) use ($isCustomDateRange, $startDate, $endDate): array {
         $padded = [];
-        $today = new DateTime();
-        $limit = ($tf === 'daily') ? 14 : (($tf === 'monthly') ? 12 : 5);
-        $modifier = ($tf === 'daily') ? '-1 day' : (($tf === 'monthly') ? '-1 month' : '-1 year');
-        $format = ($tf === 'daily') ? 'Y-m-d' : (($tf === 'monthly') ? 'Y-m' : 'Y');
-
         $dataMap = [];
         foreach ($data as $row) {
             $dataMap[$row[$key]] = $row[$valKey];
         }
 
-        $current = clone $today;
-        for ($i = 0; $i < $limit; $i++) {
-            $dateStr = $current->format($format);
-            $padded[] = [
-                $key => $dateStr,
-                $valKey => (float)($dataMap[$dateStr] ?? 0)
-            ];
-            $current->modify($modifier);
+        if ($isCustomDateRange && $startDate && $endDate) {
+            $startObj = new DateTime($startDate);
+            $endObj = new DateTime($endDate);
+            $modifier = ($tf === 'daily') ? '-1 day' : (($tf === 'monthly') ? '-1 month' : '-1 year');
+            $format = ($tf === 'daily') ? 'Y-m-d' : (($tf === 'monthly') ? 'Y-m' : 'Y');
+
+            $current = clone $endObj;
+            $safety = 0;
+            while ($current >= $startObj && $safety < 1000) {
+                $dateStr = $current->format($format);
+                if (!isset($padded[$dateStr])) {
+                    $padded[$dateStr] = [
+                        $key => $dateStr,
+                        $valKey => (float)($dataMap[$dateStr] ?? 0)
+                    ];
+                }
+                $current->modify($modifier);
+                $safety++;
+            }
+            return array_values($padded);
+        } else {
+            $today = new DateTime();
+            $limit = ($tf === 'daily') ? 14 : (($tf === 'monthly') ? 12 : 5);
+            $modifier = ($tf === 'daily') ? '-1 day' : (($tf === 'monthly') ? '-1 month' : '-1 year');
+            $format = ($tf === 'daily') ? 'Y-m-d' : (($tf === 'monthly') ? 'Y-m' : 'Y');
+
+            $current = clone $today;
+            for ($i = 0; $i < $limit; $i++) {
+                $dateStr = $current->format($format);
+                $padded[] = [
+                    $key => $dateStr,
+                    $valKey => (float)($dataMap[$dateStr] ?? 0)
+                ];
+                $current->modify($modifier);
+            }
+            return $padded;
         }
-        return $padded;
     };
 
     // Construct multi-stream revenue tables
@@ -1048,7 +1234,7 @@ function reports_page(): void
             <!-- 1. Network GMV Volume -->
             <div class="kpi-card">
                 <div class="kpi-card-header">
-                    <span class="kpi-title">Network GMV Volume</span>
+                    <span class="kpi-title"><?= $isCustomDateRange ? 'Network GMV (' . h($activeDateRangeLabel) . ')' : 'Network GMV Volume' ?></span>
                     <span class="pill-badge blue">All Gyms</span>
                 </div>
                 <div class="kpi-value">₱<?= number_format($curMonthGross, 2) ?></div>
@@ -1106,7 +1292,7 @@ function reports_page(): void
             <!-- 1. Gross Revenue -->
             <div class="kpi-card">
                 <div class="kpi-card-header">
-                    <span class="kpi-title">Gross Revenue (This Month)</span>
+                    <span class="kpi-title"><?= $isCustomDateRange ? 'Gross Revenue (' . h($activeDateRangeLabel) . ')' : 'Gross Revenue (This Month)' ?></span>
                     <?php if ($isStaffRestricted): ?>
                         <span class="pill-badge red">🔒 Restricted</span>
                     <?php elseif ($curMonthGross > 0 && $momGrowth !== null): ?>
@@ -1522,17 +1708,7 @@ function reports_page(): void
                 </div>
             </div>
             
-            <div class="tf-group">
-                <div class="tf-controls">
-                    <button class="tf-btn tf-btn-revenue" onclick="setTimeframe('revenue', 'daily')" id="tf-revenue-daily">Daily</button>
-                    <button class="tf-btn tf-btn-revenue active" onclick="setTimeframe('revenue', 'monthly')" id="tf-revenue-monthly">Monthly</button>
-                    <button class="tf-btn tf-btn-revenue" onclick="setTimeframe('revenue', 'yearly')" id="tf-revenue-yearly">Yearly</button>
-                </div>
-                <span class="tf-hint" id="tf-hint-revenue">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
-                    <span id="tf-hint-text-revenue">Viewing last 12 months rolling run-rate</span>
-                </span>
-            </div>
+            <?php render_report_tf_group('revenue', $isCustomDateRange, $activeDateRangeLabel, $activePreset, $startDateInputVal, $endDateInputVal, $defaultTimeframe); ?>
 
             <div class="dash-grid report-dash-grid" style="grid-template-columns: 2.2fr 1.1fr; gap: 24px; align-items: start;">
                 <!-- Main Stacked Bar Chart with Empty State Handler -->
@@ -1830,17 +2006,7 @@ function reports_page(): void
             </div>
 
             <!-- Timeframe controls -->
-            <div class="tf-group">
-                <div class="tf-controls">
-                    <button class="tf-btn tf-btn-attendance active" onclick="setTimeframe('attendance', 'daily')" id="tf-attendance-daily">Daily</button>
-                    <button class="tf-btn tf-btn-attendance" onclick="setTimeframe('attendance', 'monthly')" id="tf-attendance-monthly">Monthly</button>
-                    <button class="tf-btn tf-btn-attendance" onclick="setTimeframe('attendance', 'yearly')" id="tf-attendance-yearly">Yearly</button>
-                </div>
-                <span class="tf-hint" id="tf-hint-attendance">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
-                    <span id="tf-hint-text-attendance">Viewing last 14 days check-in trail</span>
-                </span>
-            </div>
+            <?php render_report_tf_group('attendance', $isCustomDateRange, $activeDateRangeLabel, $activePreset, $startDateInputVal, $endDateInputVal, $defaultTimeframe); ?>
 
             <div class="dash-grid report-dash-grid" style="grid-template-columns: 2fr 1.1fr; gap: 24px; align-items: start; margin-bottom: 30px;">
                 <div class="report-card-box">
@@ -1989,17 +2155,7 @@ function reports_page(): void
                 </div>
             </div>
 
-            <div class="tf-group">
-                <div class="tf-controls">
-                    <button class="tf-btn tf-btn-walkin active" onclick="setTimeframe('walkin', 'daily')" id="tf-walkin-daily">Daily</button>
-                    <button class="tf-btn tf-btn-walkin" onclick="setTimeframe('walkin', 'monthly')" id="tf-walkin-monthly">Monthly</button>
-                    <button class="tf-btn tf-btn-walkin" onclick="setTimeframe('walkin', 'yearly')" id="tf-walkin-yearly">Yearly</button>
-                </div>
-                <span class="tf-hint" id="tf-hint-walkin">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
-                    <span id="tf-hint-text-walkin">Viewing last 14 days walk-in trail</span>
-                </span>
-            </div>
+            <?php render_report_tf_group('walkin', $isCustomDateRange, $activeDateRangeLabel, $activePreset, $startDateInputVal, $endDateInputVal, $defaultTimeframe); ?>
 
             <div class="dash-grid report-dash-grid" style="grid-template-columns: 2fr 1.1fr; gap: 24px; align-items: start;">
                 <div class="report-card-box">
@@ -2421,6 +2577,10 @@ function reports_page(): void
         gymScopeItems: <?= json_encode($gymScopeDropdownItems ?? [], JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP) ?>,
         brandColor: <?= json_encode($gymBrandColor) ?>,
         chartsData: <?= $chartsDataJson ?>,
+        defaultTimeframe: <?= json_encode($defaultTimeframe) ?>,
+        isCustomDateRange: <?= json_encode($isCustomDateRange) ?>,
+        startDate: <?= json_encode($startDate) ?>,
+        endDate: <?= json_encode($endDate) ?>,
         engagement: {
             labels: <?= $engagementLabels ?>,
             data: <?= $engagementJson ?>
