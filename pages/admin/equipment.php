@@ -370,7 +370,7 @@ function gym_equipment_page(): void
     <!-- MODAL: ADD / EDIT EQUIPMENT -->
     <div id="equipment-modal" class="modal-overlay" style="display: none;">
         <div class="modal-box" style="max-width: 540px;">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+            <div class="modal-header-wrap" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
                 <h3 id="modal-title" style="margin: 0; font-size: 18px; color: var(--ink);">Add Equipment</h3>
                 <button type="button" onclick="closeModal()" style="background: none; border: none; color: var(--muted); font-size: 22px; cursor: pointer; line-height: 1;">&times;</button>
             </div>
@@ -378,16 +378,16 @@ function gym_equipment_page(): void
             <form id="equipment-form">
                 <input type="hidden" name="equipment_id" id="form-equip-id" value="0">
 
-                <div style="margin-bottom: 14px;">
-                    <label style="display: block; font-size: 12px; color: var(--muted); margin-bottom: 6px; font-weight: 600;">Equipment Name *</label>
+                <div class="equip-form-group">
+                    <label class="equip-form-label">Equipment Name *</label>
                     <input type="text" name="name" id="form-name" placeholder="e.g. Treadmill, Bench Press, Leg Press" required
-                           style="width: 100%; padding: 10px 12px; border-radius: 8px; background: var(--bg); border: 1px solid var(--line); color: var(--ink); font-size: 14px; box-sizing: border-box;">
+                           class="equip-form-input">
                 </div>
 
-                <div class="modal-two-col" style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 14px;">
+                <div class="modal-two-col">
                     <div>
-                        <label style="display: block; font-size: 12px; color: var(--muted); margin-bottom: 6px; font-weight: 600;">Category</label>
-                        <select name="category" id="form-category" style="width: 100%; padding: 10px 12px; border-radius: 8px; background: var(--bg); border: 1px solid var(--line); color: var(--ink); font-size: 13px; box-sizing: border-box;">
+                        <label class="equip-form-label">Category</label>
+                        <select name="category" id="form-category" class="equip-form-input">
                             <option value="Machines">Machines</option>
                             <option value="Cardio">Cardio</option>
                             <option value="Strength">Strength</option>
@@ -398,8 +398,8 @@ function gym_equipment_page(): void
                     </div>
 
                     <div>
-                        <label style="display: block; font-size: 12px; color: var(--muted); margin-bottom: 6px; font-weight: 600;">Condition</label>
-                        <select name="equipment_condition" id="form-condition" style="width: 100%; padding: 10px 12px; border-radius: 8px; background: var(--bg); border: 1px solid var(--line); color: var(--ink); font-size: 13px; box-sizing: border-box;">
+                        <label class="equip-form-label">Condition</label>
+                        <select name="equipment_condition" id="form-condition" class="equip-form-input">
                             <option value="Excellent">Excellent</option>
                             <option value="Good" selected>Good</option>
                             <option value="Fair">Fair</option>
@@ -409,55 +409,55 @@ function gym_equipment_page(): void
                 </div>
 
                 <!-- Unit Identifier vs Batch Quantity -->
-                <div id="unit-group" class="modal-two-col" style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 14px;">
+                <div id="unit-group" class="modal-two-col">
                     <div id="unit-num-container">
-                        <label style="display: block; font-size: 12px; color: var(--muted); margin-bottom: 6px; font-weight: 600;">Unit Identifier</label>
+                        <label class="equip-form-label">Unit Identifier</label>
                         <input type="text" name="unit_number" id="form-unit-number" placeholder="e.g. #1, Unit A" value="#1"
-                               style="width: 100%; padding: 10px 12px; border-radius: 8px; background: var(--bg); border: 1px solid var(--line); color: var(--ink); font-size: 14px; box-sizing: border-box;">
+                               class="equip-form-input">
                     </div>
 
                     <div id="batch-qty-container">
-                        <label style="display: block; font-size: 12px; color: var(--muted); margin-bottom: 6px; font-weight: 600;">Quantity to Create</label>
+                        <label class="equip-form-label">Quantity to Create</label>
                         <input type="number" name="quantity" id="form-quantity" min="1" max="50" value="1"
-                               style="width: 100%; padding: 10px 12px; border-radius: 8px; background: var(--bg); border: 1px solid var(--line); color: var(--ink); font-size: 14px; box-sizing: border-box;">
-                        <span style="font-size: 11px; color: var(--muted); display: block; margin-top: 3px;">Auto-names #1, #2...</span>
+                               class="equip-form-input">
+                        <span class="equip-form-hint">Auto-names #1, #2...</span>
                     </div>
                 </div>
 
-                <div class="modal-two-col" style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 14px;">
+                <div class="modal-two-col">
                     <div>
-                        <label style="display: block; font-size: 12px; color: var(--muted); margin-bottom: 6px; font-weight: 600;">Location / Area</label>
+                        <label class="equip-form-label">Location / Area</label>
                         <input type="text" name="location_area" id="form-location" placeholder="e.g. Cardio Deck, Floor 2" value="Main Gym Floor"
-                               style="width: 100%; padding: 10px 12px; border-radius: 8px; background: var(--bg); border: 1px solid var(--line); color: var(--ink); font-size: 14px; box-sizing: border-box;">
+                               class="equip-form-input">
                     </div>
 
                     <div>
-                        <label style="display: block; font-size: 12px; color: var(--muted); margin-bottom: 6px; font-weight: 600;">Next Maintenance</label>
+                        <label class="equip-form-label">Next Maintenance</label>
                         <input type="date" name="next_maintenance_date" id="form-next-maint"
-                               style="width: 100%; padding: 10px 12px; border-radius: 8px; background: var(--bg); border: 1px solid var(--line); color: var(--ink); font-size: 13px; box-sizing: border-box;">
+                               class="equip-form-input">
                     </div>
                 </div>
 
                 <!-- Image Upload (ImageKit 5MB) and Direct URL -->
-                <div class="modal-two-col" style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px;">
+                <div class="modal-two-col">
                     <div>
-                        <label style="display: block; font-size: 12px; color: var(--muted); margin-bottom: 6px; font-weight: 600;">
-                            Upload Image <span style="font-size: 10.5px; opacity: 0.8; font-weight: normal;">(Max 5MB • ImageKit)</span>
+                        <label class="equip-form-label">
+                            Upload Image <span class="equip-sub-label">(Max 5MB • ImageKit)</span>
                         </label>
                         <input type="file" name="image_file" id="form-image-file" accept="image/png, image/jpeg, image/webp, image/gif"
-                               style="width: 100%; padding: 7px 9px; border-radius: 8px; background: var(--bg); border: 1px solid var(--line); color: var(--ink); font-size: 12px; box-sizing: border-box; cursor: pointer;">
+                               class="equip-form-input equip-file-input">
                     </div>
                     <div>
-                        <label style="display: block; font-size: 12px; color: var(--muted); margin-bottom: 6px; font-weight: 600;">
-                            Or Image URL <span style="font-size: 10.5px; opacity: 0.8; font-weight: normal;">(Direct link)</span>
+                        <label class="equip-form-label">
+                            Or Image URL <span class="equip-sub-label">(Direct link)</span>
                         </label>
                         <input type="url" name="image_url" id="form-image-url" placeholder="https://ik.imagekit.io/... or https://..."
-                               style="width: 100%; padding: 8px 12px; border-radius: 8px; background: var(--bg); border: 1px solid var(--line); color: var(--ink); font-size: 13px; box-sizing: border-box;">
+                               class="equip-form-input">
                     </div>
                 </div>
 
                 <!-- Live Thumbnail Preview -->
-                <div id="image-preview-container" style="display: none; align-items: center; gap: 12px; margin-bottom: 14px; padding: 8px 12px; background: var(--panel-soft); border-radius: 8px; border: 1px solid var(--line);">
+                <div id="image-preview-container" style="display: none; align-items: center; gap: 12px; margin-bottom: 12px; padding: 8px 12px; background: var(--panel-soft); border-radius: 8px; border: 1px solid var(--line);">
                     <img id="form-image-preview" src="" alt="Equipment preview" style="width: 44px; height: 44px; object-fit: cover; border-radius: 6px; border: 1px solid var(--line); background: var(--bg);">
                     <div style="flex: 1; min-width: 0;">
                         <div id="image-preview-name" style="font-size: 12px; font-weight: 600; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Equipment Image</div>
@@ -466,17 +466,17 @@ function gym_equipment_page(): void
                     <button type="button" onclick="clearImageSelection()" style="background: none; border: none; color: var(--danger); cursor: pointer; font-size: 11px; font-weight: 600; padding: 4px 6px;">Clear</button>
                 </div>
 
-                <div style="margin-bottom: 20px;">
-                    <label style="display: block; font-size: 12px; color: var(--muted); margin-bottom: 6px; font-weight: 600;">Description (optional)</label>
+                <div class="equip-form-group">
+                    <label class="equip-form-label">Description (optional)</label>
                     <textarea name="description" id="form-description" rows="2" placeholder="Notes, brand model, specifications..."
-                              style="width: 100%; padding: 10px 12px; border-radius: 8px; background: var(--bg); border: 1px solid var(--line); color: var(--ink); font-size: 13px; box-sizing: border-box;"></textarea>
+                              class="equip-form-input equip-form-textarea"></textarea>
                 </div>
 
-                <div style="display: flex; justify-content: flex-end; gap: 10px;">
-                    <button type="button" onclick="closeModal()" class="btn" style="background: transparent; color: var(--muted); border: 1px solid var(--line); padding: 9px 18px; border-radius: 8px; cursor: pointer;">
+                <div class="modal-actions" style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 14px;">
+                    <button type="button" onclick="closeModal()" class="btn" style="background: transparent; color: var(--muted); border: 1px solid var(--line); padding: 8px 18px; border-radius: 8px; cursor: pointer;">
                         Cancel
                     </button>
-                    <button type="submit" class="btn" style="background: var(--lime); color: #fff; font-weight: 700; padding: 9px 22px; border-radius: 8px; border: none; cursor: pointer;">
+                    <button type="submit" class="btn" style="background: var(--lime); color: #fff; font-weight: 700; padding: 8px 22px; border-radius: 8px; border: none; cursor: pointer;">
                         Save Equipment
                     </button>
                 </div>

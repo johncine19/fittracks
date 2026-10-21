@@ -1229,12 +1229,9 @@ function food_library_page(): void
 <div class="ft-modal-overlay" id="modal-food-photo" style="display: none;" onclick="if(event.target===this) closeFoodPhotoModal()">
     <div class="ft-modal-box">
         <div class="ft-modal-header">
-            <div style="display: flex; align-items: center; gap: 10px;">
-                <span style="font-size: 20px; line-height: 1;">📷</span>
-                <div>
-                    <h3 class="ft-modal-title">Customize Meal Photo</h3>
-                    <p class="ft-modal-subtitle">Upload to ImageKit or enter a custom link</p>
-                </div>
+            <div>
+                <h3 class="ft-modal-title">Customize Meal Photo</h3>
+                <p class="ft-modal-subtitle">Upload to ImageKit or enter a custom link</p>
             </div>
             <button type="button" class="ft-modal-close" onclick="closeFoodPhotoModal()" title="Close">&times;</button>
         </div>

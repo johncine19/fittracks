@@ -563,6 +563,61 @@
             box-shadow: 0 20px 50px rgba(0,0,0,0.3);
             max-height: 90vh;
             overflow-y: auto;
+            overscroll-behavior: contain;
+            -webkit-overflow-scrolling: touch;
+        }
+
+        /* Modal Equipment Form Elements */
+        .modal-two-col {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+            margin-bottom: 12px;
+        }
+        .equip-form-group {
+            margin-bottom: 12px;
+        }
+        .equip-form-label {
+            display: block;
+            font-size: 12px;
+            color: var(--muted);
+            margin-bottom: 5px;
+            font-weight: 600;
+        }
+        .equip-sub-label {
+            font-size: 10.5px;
+            opacity: 0.8;
+            font-weight: normal;
+        }
+        .equip-form-hint {
+            font-size: 11px;
+            color: var(--muted);
+            display: block;
+            margin-top: 3px;
+        }
+        .equip-form-input {
+            width: 100%;
+            padding: 9px 12px;
+            border-radius: 8px;
+            background: var(--bg);
+            border: 1px solid var(--line);
+            color: var(--ink);
+            font-size: 13.5px;
+            box-sizing: border-box;
+            transition: border-color 0.2s;
+        }
+        .equip-form-input:focus {
+            outline: none;
+            border-color: var(--lime);
+        }
+        .equip-file-input {
+            padding: 6px 8px;
+            font-size: 12px;
+            cursor: pointer;
+        }
+        .equip-form-textarea {
+            resize: vertical;
+            min-height: 52px;
         }
 
         /* ==================================================== */
@@ -889,13 +944,69 @@
                 padding: 6px 10px;
             }
             .modal-box {
-                padding: 18px 16px;
+                padding: 16px 14px 18px !important;
+                max-height: 88vh !important;
+                border-radius: 12px !important;
+            }
+            .modal-two-col {
+                grid-template-columns: 1fr 1fr !important;
+                gap: 8px !important;
+                margin-bottom: 8px !important;
+            }
+            .equip-form-group {
+                margin-bottom: 8px !important;
+            }
+            .equip-form-label {
+                font-size: 11px !important;
+                margin-bottom: 3px !important;
+            }
+            .equip-sub-label {
+                display: none !important;
+            }
+            .equip-form-hint {
+                font-size: 10px !important;
+                margin-top: 2px !important;
+            }
+            .equip-form-input {
+                padding: 7px 9px !important;
+                font-size: 12.5px !important;
+            }
+            .equip-file-input {
+                padding: 4px 6px !important;
+                font-size: 11px !important;
+            }
+            .equip-form-textarea {
+                min-height: 40px !important;
+                padding: 6px 9px !important;
+                font-size: 12.5px !important;
+            }
+            .modal-actions {
+                margin-top: 10px !important;
+            }
+            .modal-actions .btn {
+                padding: 8px 16px !important;
+                font-size: 12.5px !important;
             }
         }
 
         @media (max-width: 480px) {
+            .modal-overlay {
+                padding: 10px !important;
+            }
+            .modal-box {
+                padding: 14px 12px 16px !important;
+                max-height: 90vh !important;
+            }
+            .modal-header-wrap {
+                margin-bottom: 10px !important;
+            }
+            .modal-header-wrap h3 {
+                font-size: 16px !important;
+            }
             .modal-two-col {
-                grid-template-columns: 1fr !important;
+                grid-template-columns: 1fr 1fr !important;
+                gap: 8px !important;
+                margin-bottom: 8px !important;
             }
         }
 
