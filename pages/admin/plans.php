@@ -151,12 +151,12 @@ function plans_page(): void
 
                             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; align-items: end;">
                                 <label class="plan-label" style="display: flex; flex-direction: column; gap: 5px;">
-                                    Comm. Rate (%)
+                                    <span>Comm. Rate (%) <span class="req-star">*</span></span>
                                     <input type="number" step="0.01" name="commission_rate" class="form-control plan-input" style="margin-top: 0;" value="<?= h((string)$plan['commission_rate']) ?>" required>
                                 </label>
 
                                 <label class="plan-label" style="display: flex; flex-direction: column; gap: 5px;">
-                                    Status
+                                    <span>Status</span>
                                     <label class="popular-checkbox-label" style="padding: 0 12px; margin: 0; height: 42px; box-sizing: border-box; display: flex; align-items: center;">
                                         <input type="checkbox" name="is_active" value="1" <?= $plan['is_active'] ? 'checked' : '' ?> class="popular-checkbox">
                                         <span class="popular-checkbox-text">Active Plan</span>
