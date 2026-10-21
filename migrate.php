@@ -122,7 +122,9 @@ try {
         "ALTER TABLE attendance ADD COLUMN exit_grace_expires_at DATETIME DEFAULT NULL AFTER exit_detected_at",
         "CREATE INDEX idx_att_exit_grace ON attendance (check_out_time, exit_grace_expires_at)",
         "ALTER TABLE equipment_sessions ADD COLUMN trainer_user_id INT UNSIGNED NULL DEFAULT NULL AFTER user_id",
-        "ALTER TABLE equipment_sessions ADD COLUMN partner_user_ids TEXT NULL DEFAULT NULL AFTER trainer_user_id"
+        "ALTER TABLE equipment_sessions ADD COLUMN partner_user_ids TEXT NULL DEFAULT NULL AFTER trainer_user_id",
+        "ALTER TABLE membership_plans ADD COLUMN is_popular TINYINT(1) NOT NULL DEFAULT 0",
+        "ALTER TABLE platform_subscription_plans ADD COLUMN is_popular TINYINT(1) NOT NULL DEFAULT 0"
     ];
 
     foreach ($migrations as $sql) {

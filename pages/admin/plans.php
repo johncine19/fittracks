@@ -9,6 +9,14 @@ function plans_page(): void
     $gymId = (int) scalar('SELECT gym_id FROM gyms WHERE owner_user_id = ?', [$user['user_id']]);
     
     if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+        try {
+            $pdo->query("SELECT is_popular FROM membership_plans LIMIT 0");
+        } catch (Throwable) {
+            try {
+                $pdo->exec("ALTER TABLE membership_plans ADD COLUMN is_popular TINYINT(1) NOT NULL DEFAULT 0");
+            } catch (Throwable) {}
+        }
+
         $action = post('action', 'add');
         if ($action === 'delete') {
             $pdo->prepare('DELETE FROM membership_plans WHERE plan_id = ? AND gym_id = ?')->execute([post('id'), $gymId]);

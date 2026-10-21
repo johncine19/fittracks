@@ -475,7 +475,8 @@ CREATE TABLE `membership_plans` (
   `is_active` tinyint(1) NOT NULL DEFAULT '1',
   `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `commission_rate` decimal(5,2) NOT NULL DEFAULT '5.00',
-  `gym_id` int UNSIGNED DEFAULT NULL
+  `gym_id` int UNSIGNED DEFAULT NULL,
+  `is_popular` tinyint(1) NOT NULL DEFAULT 0
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 --

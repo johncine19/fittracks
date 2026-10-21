@@ -7,6 +7,14 @@ function platform_subscription_plans_page(): void
     $pdo = db();
 
     if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+        try {
+            $pdo->query("SELECT is_popular FROM platform_subscription_plans LIMIT 0");
+        } catch (Throwable) {
+            try {
+                $pdo->exec("ALTER TABLE platform_subscription_plans ADD COLUMN is_popular TINYINT(1) NOT NULL DEFAULT 0");
+            } catch (Throwable) {}
+        }
+
         verify_csrf();
         $planKey = trim((string) post('plan_key'));
         $name = trim((string) post('name'));
