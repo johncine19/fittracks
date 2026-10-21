@@ -351,6 +351,12 @@ function check_and_upgrade_tier(int $userId, int $planId = 0): ?array {
 function process_trainer_commission(int $paymentId, float $amount): void
 {
     $pdo = db();
+    // Idempotency: Ensure commission is not credited multiple times for the same payment
+    $alreadyCredited = (bool) scalar('SELECT 1 FROM trainer_commissions WHERE payment_id = ? LIMIT 1', [(int)$paymentId]);
+    if ($alreadyCredited) {
+        return;
+    }
+
     // 1. Get the membership ID and plan commission rate from the payment
     $paymentInfo = $pdo->query("
         SELECT m.user_id, m.membership_id, mp.commission_rate

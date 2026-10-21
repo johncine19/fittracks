@@ -283,6 +283,13 @@ function scanner_page(): void
                 continue;
             }
 
+            // Idempotency: skip if this exact offline scan timestamp was already recorded
+            $alreadyRecorded = scalar('SELECT attendance_id FROM attendance WHERE user_id = ? AND (check_in_time = ? OR check_out_time = ?) LIMIT 1', [$userId, $scannedAt, $scannedAt]);
+            if ($alreadyRecorded) {
+                $syncedIds[] = $tempId;
+                continue;
+            }
+
             // Check for open attendance record on that specific date
             $stmt = $pdo->prepare('
                 SELECT attendance_id, check_in_time 
@@ -382,6 +389,29 @@ function scanner_page(): void
         $sessionDuration = null;
 
         if ($openRecord) {
+            // Idempotency guard: If checked in less than 30 seconds ago, treat as duplicate scan
+            $secondsSinceCheckIn = time() - strtotime($openRecord['check_in_time']);
+            if ($secondsSinceCheckIn < 30) {
+                echo json_encode([
+                    'success' => true,
+                    'action' => 'checkin',
+                    'is_duplicate' => true,
+                    'message' => $member['first_name'] . ' ' . $member['last_name'] . ' was already checked in ' . max(1, $secondsSinceCheckIn) . 's ago.',
+                    'member' => [
+                        'user_id' => $member['user_id'],
+                        'name' => $member['first_name'] . ' ' . $member['last_name'],
+                        'role' => $member['role'],
+                        'profile_picture' => $member['profile_picture']
+                    ],
+                    'action_type' => 'checkin',
+                    'session_duration' => null,
+                    'class_title' => null,
+                    'stats' => $getStats(),
+                    'recent' => $getRecentActivity(15)
+                ]);
+                exit;
+            }
+
             // Check-out
             $pdo->prepare('UPDATE attendance SET check_out_time = NOW() WHERE attendance_id = ?')->execute([$openRecord['attendance_id']]);
             if (function_exists('release_user_equipment_on_checkout')) {
@@ -530,6 +560,29 @@ function scanner_page(): void
         $sessionDuration = null;
 
         if ($openRecord) {
+            // Idempotency guard: If checked in less than 30 seconds ago, treat as duplicate scan
+            $secondsSinceCheckIn = time() - strtotime($openRecord['check_in_time']);
+            if ($secondsSinceCheckIn < 30) {
+                echo json_encode([
+                    'success' => true,
+                    'action' => 'checkin',
+                    'is_duplicate' => true,
+                    'message' => $member['first_name'] . ' ' . $member['last_name'] . ' was already checked in ' . max(1, $secondsSinceCheckIn) . 's ago.',
+                    'member' => [
+                        'user_id' => $member['user_id'],
+                        'name' => $member['first_name'] . ' ' . $member['last_name'],
+                        'role' => $member['role'],
+                        'profile_picture' => $member['profile_picture']
+                    ],
+                    'action_type' => 'checkin',
+                    'session_duration' => null,
+                    'class_title' => null,
+                    'stats' => $getStats(),
+                    'recent' => $getRecentActivity(15)
+                ]);
+                exit;
+            }
+
             // Check out
             $pdo->prepare('UPDATE attendance SET check_out_time = NOW() WHERE attendance_id = ?')->execute([$openRecord['attendance_id']]);
             if (function_exists('release_user_equipment_on_checkout')) {

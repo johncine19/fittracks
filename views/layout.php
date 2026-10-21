@@ -2928,6 +2928,45 @@ HTML;
 </script>
 HTML;
 
+    $idempotencyScript = <<<HTML
+<script>
+(function() {
+    // Global Form Double-Submit & Rapid Tap Protection
+    document.addEventListener('submit', function(e) {
+        var form = e.target;
+        if (!form || form.tagName !== 'FORM') return;
+
+        var method = (form.method || 'GET').toUpperCase();
+        if (method !== 'POST') return;
+
+        if (form.dataset.submitting === 'true') {
+            e.preventDefault();
+            e.stopPropagation();
+            return false;
+        }
+
+        form.dataset.submitting = 'true';
+
+        var submitButtons = form.querySelectorAll('button[type="submit"], input[type="submit"]');
+        submitButtons.forEach(function(btn) {
+            btn.dataset.prevPointerEvents = btn.style.pointerEvents || '';
+            btn.style.pointerEvents = 'none';
+            btn.classList.add('is-submitting');
+        });
+
+        // Re-enable after 3.5s in case of client validation failure or AJAX error
+        setTimeout(function() {
+            delete form.dataset.submitting;
+            submitButtons.forEach(function(btn) {
+                btn.style.pointerEvents = btn.dataset.prevPointerEvents || '';
+                btn.classList.remove('is-submitting');
+            });
+        }, 3500);
+    }, true);
+})();
+</script>
+HTML;
+
     $isAuthPage = defined('AUTH_PAGE') && AUTH_PAGE;
 
 
@@ -2945,6 +2984,7 @@ HTML;
         echo $passwordScript;
         echo $skeletonScript;
         echo $requiredIndicatorScript;
+        echo $idempotencyScript;
         echo '</body></html>';
         return;
     }
@@ -2954,6 +2994,7 @@ HTML;
     echo $passwordScript;
     echo $skeletonScript;
     echo $requiredIndicatorScript;
+    echo $idempotencyScript;
     echo '</body></html>';
 }
 

@@ -124,7 +124,9 @@ try {
         "ALTER TABLE equipment_sessions ADD COLUMN trainer_user_id INT UNSIGNED NULL DEFAULT NULL AFTER user_id",
         "ALTER TABLE equipment_sessions ADD COLUMN partner_user_ids TEXT NULL DEFAULT NULL AFTER trainer_user_id",
         "ALTER TABLE membership_plans ADD COLUMN is_popular TINYINT(1) NOT NULL DEFAULT 0",
-        "ALTER TABLE platform_subscription_plans ADD COLUMN is_popular TINYINT(1) NOT NULL DEFAULT 0"
+        "ALTER TABLE platform_subscription_plans ADD COLUMN is_popular TINYINT(1) NOT NULL DEFAULT 0",
+        "CREATE UNIQUE INDEX uq_trainer_comm_payment ON trainer_commissions (payment_id)",
+        "CREATE UNIQUE INDEX uq_att_user_checkin_exact ON attendance (user_id, check_in_time)"
     ];
 
     foreach ($migrations as $sql) {

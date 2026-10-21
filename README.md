@@ -46,6 +46,7 @@ The admin dashboard charts use Chart.js loaded from CDN in `views/layout.php`, w
 - 🔒 **[SECURITY.md](SECURITY.md)**: Production security audit remediations, migration authentication, permit authorization endpoints, TLS enforcement, reverse proxy IP spoofing mitigation, and environment hardening.
 - ⚡ **[OPTIMIZATIONS.md](OPTIMIZATIONS.md)**: Database scaling guide, sargable index-range queries, equipment poll session lock optimization, batch-grouped engagement calculation, and atomic distributed locking with Redis Lua / flock.
 - 🛡️ **[SUBSCRIPTION_GUARDRAILS.md](docs/SUBSCRIPTION_GUARDRAILS.md)**: Anti-hoarding specifications, 7-day renewal window enforcement, advance queue limits, and stale pending checkout session cleanup.
+- 🔁 **[IDEMPOTENCY_GUIDE.md](docs/IDEMPOTENCY_GUIDE.md)**: Full idempotency suite documentation: global form double-submit protection, QR attendance scanner debouncing, payment webhook deduplication, and trainer commission safety.
 - 🏋️ **[MULTI_GYM_PLAN_SCOPING.md](docs/MULTI_GYM_PLAN_SCOPING.md)**: Multi-gym & multi-coach workout and diet plan isolation, gym-scoped SQL archiving, draft separation, and member interactive plan switcher.
 - ⚙️ **[EQUIPMENT_MANAGEMENT.md](docs/EQUIPMENT_MANAGEMENT.md)**: Floor Equipment Hub, QR check-in direct routing, trainer multi-station circuit allocation with Select All, and anti-hogging fair-play rules.
 
