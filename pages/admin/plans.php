@@ -151,7 +151,7 @@ function plans_page(): void
 
                             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; align-items: end;">
                                 <label class="plan-label" style="display: flex; flex-direction: column; gap: 5px;">
-                                    Commission Rate (%)
+                                    Comm. Rate (%)
                                     <input type="number" step="0.01" name="commission_rate" class="form-control plan-input" style="margin-top: 0;" value="<?= h((string)$plan['commission_rate']) ?>" required>
                                 </label>
 

@@ -1598,6 +1598,8 @@
         .map-popup-actions {
             display: flex;
             gap: 8px;
+            position: relative;
+            z-index: 10;
         }
 
         .map-popup-btn {
@@ -1611,6 +1613,9 @@
             text-decoration: none;
             transition: all 0.2s ease;
             border: none;
+            pointer-events: auto;
+            position: relative;
+            z-index: 10;
         }
 
         .map-popup-btn.primary {

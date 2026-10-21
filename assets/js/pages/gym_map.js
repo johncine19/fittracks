@@ -296,7 +296,7 @@
                         <input type="hidden" name="gym_id" value="${gym.gym_id}">
                         <button type="submit" class="map-popup-btn primary" style="width: 100%;">Select Gym</button>
                     </form>
-                    <button type="button" class="map-popup-btn secondary" onclick="openGymModal(${index})">Details</button>
+                    <button type="button" class="map-popup-btn secondary" data-gym-index="${index}">Details</button>
                 </div>
             </div>
         `;
@@ -338,6 +338,21 @@
 
             markersGroup.addLayer(marker);
             gymMarkersMap.set(gym.gym_id, marker);
+
+            // Attach click handler for Details button when popup opens
+            marker.on('popupopen', function (e) {
+                const popupEl = e.popup.getElement();
+                if (!popupEl) return;
+                const detailsBtn = popupEl.querySelector('.map-popup-btn.secondary[data-gym-index]');
+                if (detailsBtn) {
+                    detailsBtn.addEventListener('click', function (ev) {
+                        ev.stopPropagation();
+                        ev.preventDefault();
+                        const gymIdx = parseInt(this.getAttribute('data-gym-index'), 10);
+                        openGymModal(gymIdx);
+                    });
+                }
+            });
         });
     }
 

@@ -748,6 +748,25 @@ const rawChartData = FT_CONFIG.rawChartData || [];
                     return false;
                 }
                 
+                // Pre-calculation input range validation
+                if (height < 100 || height > 250) {
+                    Swal.showValidationMessage('Height must be between 100 and 250 cm.');
+                    return false;
+                }
+                if (neck < 20 || neck > 60) {
+                    Swal.showValidationMessage('Neck circumference must be between 20 and 60 cm.');
+                    return false;
+                }
+                const minWaist = gender === 'male' ? 55 : 50;
+                if (waist < minWaist || waist > 200) {
+                    Swal.showValidationMessage(`Waist circumference must be between ${minWaist} and 200 cm. A realistic adult ${gender} waist is typically ${gender === 'male' ? '70–110' : '60–100'} cm.`);
+                    return false;
+                }
+                if (gender === 'female' && (hip < 50 || hip > 200)) {
+                    Swal.showValidationMessage('Hip circumference must be between 50 and 200 cm.');
+                    return false;
+                }
+                
                 localStorage.setItem('fittracks_bf_settings', JSON.stringify({ gender, height, neck, hip }));
                 
                 if (gender === 'male' && waist <= neck) {
@@ -757,6 +776,12 @@ const rawChartData = FT_CONFIG.rawChartData || [];
                 
                 if (gender === 'female' && (waist + hip) <= neck) {
                     Swal.showValidationMessage('Waist + Hip measurement must be greater than neck measurement.');
+                    return false;
+                }
+
+                // Validate minimum waist-neck difference for realistic results
+                if (gender === 'male' && (waist - neck) < 25) {
+                    Swal.showValidationMessage(`Waist minus neck (${(waist - neck).toFixed(1)} cm) is unusually small. Please double-check your waist (${waist} cm) and neck (${neck} cm) measurements — a typical male waist–neck difference is 40+ cm.`);
                     return false;
                 }
                 
