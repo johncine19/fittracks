@@ -2367,9 +2367,17 @@
 .diet-toast-header {
     display: flex;
     align-items: center;
-    gap: 8px;
-    flex-wrap: nowrap;
+    justify-content: space-between;
+    gap: 6px 10px;
+    flex-wrap: wrap;
     line-height: 1.25;
+}
+
+.diet-toast-headline {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    white-space: nowrap;
 }
 
 .diet-toast-title {
@@ -2422,10 +2430,14 @@
 
 /* Mobile Responsive Optimization for Diet Log Toast */
 @media (max-width: 768px) {
+    body.swal2-toast-shown .swal2-container.diet-log-toast-container,
+    body.swal2-toast-shown .swal2-container:has(.diet-log-toast),
+    body.swal2-toast-shown .swal2-container.swal2-top,
     .swal2-container.diet-log-toast-container,
     .swal2-container:has(.diet-log-toast),
     .swal2-container.swal2-top.diet-log-toast-container {
-        top: calc(env(safe-area-inset-top, 0px) + 12px) !important;
+        inset: calc(env(safe-area-inset-top, 0px) + 14px) 0 auto 0 !important;
+        top: calc(env(safe-area-inset-top, 0px) + 14px) !important;
         left: 0 !important;
         right: 0 !important;
         width: 100% !important;
@@ -2434,26 +2446,38 @@
         box-sizing: border-box !important;
         display: flex !important;
         justify-content: center !important;
+        align-items: flex-start !important;
+        transform: none !important;
         pointer-events: none !important;
+        z-index: 10000 !important;
     }
 
     .swal2-popup.swal2-toast.diet-log-toast,
     .swal2-container.diet-log-toast-container .swal2-popup.swal2-toast,
     .swal2-container .swal2-popup.diet-log-toast {
         width: 100% !important;
-        max-width: 440px !important;
-        min-width: min(300px, calc(100vw - 28px)) !important;
+        max-width: calc(100vw - 28px) !important;
+        min-width: 0 !important;
         margin: 0 auto !important;
-        padding: 11px 15px !important;
+        padding: 10px 14px !important;
         box-sizing: border-box !important;
         pointer-events: auto !important;
+        transform: none !important;
     }
 
     .diet-toast-header {
         display: flex !important;
         align-items: center !important;
-        gap: 6px 8px !important;
-        flex-wrap: nowrap !important;
+        justify-content: space-between !important;
+        gap: 4px 8px !important;
+        flex-wrap: wrap !important;
+    }
+
+    .diet-toast-headline {
+        display: inline-flex !important;
+        align-items: center !important;
+        gap: 6px !important;
+        white-space: nowrap !important;
     }
 
     .diet-toast-title {
@@ -2477,17 +2501,13 @@
         justify-content: space-between !important;
         gap: 10px !important;
         white-space: nowrap !important;
+        font-size: 11px !important;
     }
 
     .diet-toast-link {
+        font-size: 11.5px !important;
         white-space: nowrap !important;
         flex-shrink: 0 !important;
-    }
-}
-
-@media (max-width: 380px) {
-    .diet-toast-header {
-        flex-wrap: wrap !important;
     }
 }
 

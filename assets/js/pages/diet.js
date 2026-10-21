@@ -1416,9 +1416,11 @@ async function quickLogPlannedMeal(mealId, customTotals = null) {
                 width: isMobile ? 'calc(100vw - 28px)' : '420px',
                 html: `<div class="diet-toast-body">
                     <div class="diet-toast-header">
-                        <span class="diet-toast-title">${normType} Log</span>
-                        <strong class="diet-toast-cals">+${cals} kcal</strong>
-                        <span class="diet-toast-macro-breakdown">(${pro}g P • ${carbs}g C • ${fat}g F)</span>
+                        <div class="diet-toast-headline">
+                            <span class="diet-toast-title">${normType} Log</span>
+                            <strong class="diet-toast-cals">+${cals} kcal</strong>
+                        </div>
+                        <span class="diet-toast-macro-breakdown">${pro}g P • ${carbs}g C • ${fat}g F</span>
                     </div>
                     <div class="diet-toast-footer">
                         <span>Logged at ${loggedTime}</span>
@@ -1436,6 +1438,13 @@ async function quickLogPlannedMeal(mealId, customTotals = null) {
                 },
                 didOpen: (toast) => {
                     toast.style.cursor = 'pointer';
+                    const container = toast.closest('.swal2-container');
+                    if (container && window.innerWidth <= 768) {
+                        container.style.transform = 'none';
+                        container.style.left = '0';
+                        container.style.right = '0';
+                        container.style.width = '100%';
+                    }
                     toast.onmouseenter = Swal.stopTimer;
                     toast.onmouseleave = Swal.resumeTimer;
                     toast.addEventListener('click', () => {
