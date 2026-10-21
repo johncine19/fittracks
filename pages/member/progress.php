@@ -1097,8 +1097,19 @@ function progress_page(): void
                     <?php
                     $firstLog = !empty($rows) ? $rows[count($rows) - 1] : null;
                     $totalWeightChange = ($firstLog && $weightCurr > 0 && !empty($firstLog['weight_kg'])) ? round($weightCurr - (float)$firstLog['weight_kg'], 1) : 0.0;
-                    $firstBf = ($firstLog && !empty($firstLog['body_fat_percent'])) ? (float)$firstLog['body_fat_percent'] : null;
-                    $totalBfChange = ($firstBf !== null && $bfCurr !== null) ? round($bfCurr - $firstBf, 1) : null;
+
+                    // Find the earliest log that actually has body_fat_percent data
+                    $firstBf = null;
+                    if (!empty($rows)) {
+                        for ($i = count($rows) - 1; $i >= 0; $i--) {
+                            if (!empty($rows[$i]['body_fat_percent']) && (float)$rows[$i]['body_fat_percent'] > 0) {
+                                $firstBf = (float)$rows[$i]['body_fat_percent'];
+                                break;
+                            }
+                        }
+                    }
+                    $totalBfChange = ($firstBf !== null && $bfCurr !== null && $firstBf !== $bfCurr) ? round($bfCurr - $firstBf, 1) : null;
+
                     $firstBmi = ($firstLog && $heightCm > 0 && !empty($firstLog['weight_kg'])) ? round((float)$firstLog['weight_kg'] / pow($heightCm/100, 2), 1) : null;
                     $totalBmiChange = ($firstBmi !== null && $bmi !== null) ? round($bmi - $firstBmi, 1) : null;
 

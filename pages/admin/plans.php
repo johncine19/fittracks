@@ -1,22 +1,15 @@
 <?php
+
 declare(strict_types=1);
 
 function plans_page(): void
 {
     $user = require_roles(['gym_owner']);
     $pdo = db();
-    
-    $gymId = (int) scalar('SELECT gym_id FROM gyms WHERE owner_user_id = ?', [$user['user_id']]);
-    
-    if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-        try {
-            $pdo->query("SELECT is_popular FROM membership_plans LIMIT 0");
-        } catch (Throwable) {
-            try {
-                $pdo->exec("ALTER TABLE membership_plans ADD COLUMN is_popular TINYINT(1) NOT NULL DEFAULT 0");
-            } catch (Throwable) {}
-        }
 
+    $gymId = (int) scalar('SELECT gym_id FROM gyms WHERE owner_user_id = ?', [$user['user_id']]);
+
+    if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $action = post('action', 'add');
         if ($action === 'delete') {
             $pdo->prepare('DELETE FROM membership_plans WHERE plan_id = ? AND gym_id = ?')->execute([post('id'), $gymId]);
@@ -40,7 +33,7 @@ function plans_page(): void
                 post('id'),
                 $gymId
             ]);
-            
+
             // Recalculate pending commissions for this plan based on new price and rate
             $newRate = (float)post('commission_rate', 5.0);
             $newPrice = $price;
@@ -67,11 +60,11 @@ function plans_page(): void
         }
         redirect('plans');
     }
-    
+
     $plans = $pdo->query('SELECT * FROM membership_plans WHERE gym_id = ' . $gymId . ' ORDER BY is_active DESC, price')->fetchAll();
-    
+
     render_header('Plans', $user);
-    ?>
+?>
     <section class="panel plans-panel">
         <div class="plans-header-row">
             <div class="plans-header-content">
@@ -80,7 +73,10 @@ function plans_page(): void
             </div>
             <div class="plans-header-actions">
                 <button type="button" onclick="addPlan()" class="btn-add-plan">
-                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                        <line x1="12" y1="5" x2="12" y2="19" />
+                        <line x1="5" y1="12" x2="19" y2="12" />
+                    </svg>
                     <span>New Plan</span>
                 </button>
             </div>
@@ -88,17 +84,23 @@ function plans_page(): void
 
         <?php if (!$plans): ?>
             <div class="empty-state" style="padding: 48px 20px; text-align: center;">
-                <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="color:var(--muted); margin-bottom:16px;"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>
+                <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="color:var(--muted); margin-bottom:16px;">
+                    <path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z" />
+                    <line x1="7" y1="7" x2="7.01" y2="7" />
+                </svg>
                 <h3 style="margin: 0 0 8px 0; color: var(--ink);">No membership plans created yet</h3>
                 <p style="color: var(--muted); margin: 0 0 20px 0;">Create your first subscription tier to let members sign up and pay.</p>
                 <button type="button" onclick="addPlan()" class="btn-add-plan" style="margin: 0 auto;">
-                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                        <line x1="12" y1="5" x2="12" y2="19" />
+                        <line x1="5" y1="12" x2="19" y2="12" />
+                    </svg>
                     <span>Create First Plan</span>
                 </button>
             </div>
         <?php else: ?>
             <div class="plans-editor-grid">
-                <?php 
+                <?php
                 $hasCustomPopular = false;
                 foreach ($plans as $p) {
                     if (!empty($p['is_popular'])) {
@@ -106,7 +108,7 @@ function plans_page(): void
                         break;
                     }
                 }
-                foreach ($plans as $index => $plan): 
+                foreach ($plans as $index => $plan):
                     $isPop = $hasCustomPopular ? !empty($plan['is_popular']) : ($index === 1 || $plan['plan_type'] === 'quarterly');
                     $tierLabel = strtoupper($plan['plan_type'] ?: 'CUSTOM') . ' TIER';
                 ?>
@@ -147,7 +149,7 @@ function plans_page(): void
                                 </label>
                             </div>
 
-                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; align-items: start;">
+                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; align-items: end;">
                                 <label class="plan-label" style="display: flex; flex-direction: column; gap: 5px;">
                                     Commission Rate (%)
                                     <input type="number" step="0.01" name="commission_rate" class="form-control plan-input" style="margin-top: 0;" value="<?= h((string)$plan['commission_rate']) ?>" required>
@@ -155,7 +157,7 @@ function plans_page(): void
 
                                 <label class="plan-label" style="display: flex; flex-direction: column; gap: 5px;">
                                     Status
-                                    <label class="popular-checkbox-label" style="padding: 9px 12px; margin: 0; min-height: 42px; box-sizing: border-box;">
+                                    <label class="popular-checkbox-label" style="padding: 0 12px; margin: 0; height: 42px; box-sizing: border-box; display: flex; align-items: center;">
                                         <input type="checkbox" name="is_active" value="1" <?= $plan['is_active'] ? 'checked' : '' ?> class="popular-checkbox">
                                         <span class="popular-checkbox-text">Active Plan</span>
                                     </label>
@@ -178,7 +180,12 @@ function plans_page(): void
                                     Save <?= h($plan['plan_name']) ?> Changes
                                 </button>
                                 <button type="button" onclick="deletePlan(<?= (int)$plan['plan_id'] ?>)" title="Delete Plan" class="plan-delete-btn" style="padding: 12px 14px; background: rgba(239, 68, 68, 0.12); color: #ef4444; border: 1px solid rgba(239, 68, 68, 0.25); border-radius: 8px; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; transition: background 0.2s;">
-                                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                        <polyline points="3 6 5 6 21 6" />
+                                        <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                                        <line x1="10" y1="11" x2="10" y2="17" />
+                                        <line x1="14" y1="11" x2="14" y2="17" />
+                                    </svg>
                                 </button>
                             </div>
                         </form>
@@ -602,36 +609,36 @@ function plans_page(): void
     </style>
 
     <script>
-    function deletePlan(id) {
-        Swal.fire({
-            title: 'Delete Plan?',
-            text: "This action cannot be undone.",
-            icon: 'warning',
-            showCancelButton: true,
-            confirmButtonText: 'Yes, delete',
-            confirmButtonColor: '#ef4444',
-            cancelButtonColor: 'var(--line)',
-            background: 'var(--bg)',
-            color: 'var(--ink)',
-        }).then((result) => {
-            if (result.isConfirmed) {
-                const form = document.createElement('form');
-                form.method = 'POST';
-                form.innerHTML = `
+        function deletePlan(id) {
+            Swal.fire({
+                title: 'Delete Plan?',
+                text: "This action cannot be undone.",
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonText: 'Yes, delete',
+                confirmButtonColor: '#ef4444',
+                cancelButtonColor: 'var(--line)',
+                background: 'var(--bg)',
+                color: 'var(--ink)',
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    const form = document.createElement('form');
+                    form.method = 'POST';
+                    form.innerHTML = `
                     <?= csrf_field() ?>
                     <input type="hidden" name="action" value="delete">
                     <input type="hidden" name="id" value="${id}">
                 `;
-                document.body.appendChild(form);
-                form.submit();
-            }
-        });
-    }
+                    document.body.appendChild(form);
+                    form.submit();
+                }
+            });
+        }
 
-    function addPlan() {
-        Swal.fire({
-            title: 'Add New Plan',
-            html: `
+        function addPlan() {
+            Swal.fire({
+                title: 'Add New Plan',
+                html: `
                 <form id="addPlanForm" method="post" style="text-align: left; display: flex; flex-direction: column; gap: 12px; margin-top: 15px;">
                     <?= csrf_field() ?>
                     
@@ -678,68 +685,68 @@ function plans_page(): void
                     </div>
                 </form>
             `,
-            showCancelButton: true,
-            confirmButtonText: 'Add Plan',
-            confirmButtonColor: 'var(--lime-dark, #84cc16)',
-            cancelButtonColor: 'var(--line)',
-            background: 'var(--bg)',
-            color: 'var(--ink)',
-            preConfirm: () => {
-                const form = document.getElementById('addPlanForm');
-                if (!form.plan_name.value || !form.duration_days.value || !form.price.value) {
-                    Swal.showValidationMessage('Please fill all required fields');
-                    return false;
-                }
-                form.submit();
-            }
-        });
-    }
-
-    // Dynamic UI feedback when checking "Highlight as Most Popular Plan"
-    document.addEventListener('DOMContentLoaded', () => {
-        document.querySelectorAll('.plan-popular-toggle').forEach(checkbox => {
-            checkbox.addEventListener('change', function() {
-                if (this.checked) {
-                    // Uncheck all other cards' popular toggles
-                    document.querySelectorAll('.plan-popular-toggle').forEach(other => {
-                        if (other !== this) {
-                            other.checked = false;
-                            const otherCard = other.closest('.plan-edit-card');
-                            if (otherCard) {
-                                otherCard.classList.remove('popular-card');
-                                const badge = otherCard.querySelector('.popular-badge');
-                                if (badge) badge.style.display = 'none';
-                            }
-                        }
-                    });
-                    const card = this.closest('.plan-edit-card');
-                    if (card) {
-                        card.classList.add('popular-card');
-                        let badge = card.querySelector('.popular-badge');
-                        if (badge) {
-                            badge.style.display = 'inline-flex';
-                        } else {
-                            const header = card.querySelector('.card-header');
-                            if (header) {
-                                const newBadge = document.createElement('span');
-                                newBadge.className = 'popular-badge';
-                                newBadge.innerHTML = '<span class="badge-dot">●</span> MOST POPULAR';
-                                header.appendChild(newBadge);
-                            }
-                        }
+                showCancelButton: true,
+                confirmButtonText: 'Add Plan',
+                confirmButtonColor: 'var(--lime-dark, #84cc16)',
+                cancelButtonColor: 'var(--line)',
+                background: 'var(--bg)',
+                color: 'var(--ink)',
+                preConfirm: () => {
+                    const form = document.getElementById('addPlanForm');
+                    if (!form.plan_name.value || !form.duration_days.value || !form.price.value) {
+                        Swal.showValidationMessage('Please fill all required fields');
+                        return false;
                     }
-                } else {
-                    const card = this.closest('.plan-edit-card');
-                    if (card) {
-                        card.classList.remove('popular-card');
-                        const badge = card.querySelector('.popular-badge');
-                        if (badge) badge.style.display = 'none';
-                    }
+                    form.submit();
                 }
             });
+        }
+
+        // Dynamic UI feedback when checking "Highlight as Most Popular Plan"
+        document.addEventListener('DOMContentLoaded', () => {
+            document.querySelectorAll('.plan-popular-toggle').forEach(checkbox => {
+                checkbox.addEventListener('change', function() {
+                    if (this.checked) {
+                        // Uncheck all other cards' popular toggles
+                        document.querySelectorAll('.plan-popular-toggle').forEach(other => {
+                            if (other !== this) {
+                                other.checked = false;
+                                const otherCard = other.closest('.plan-edit-card');
+                                if (otherCard) {
+                                    otherCard.classList.remove('popular-card');
+                                    const badge = otherCard.querySelector('.popular-badge');
+                                    if (badge) badge.style.display = 'none';
+                                }
+                            }
+                        });
+                        const card = this.closest('.plan-edit-card');
+                        if (card) {
+                            card.classList.add('popular-card');
+                            let badge = card.querySelector('.popular-badge');
+                            if (badge) {
+                                badge.style.display = 'inline-flex';
+                            } else {
+                                const header = card.querySelector('.card-header');
+                                if (header) {
+                                    const newBadge = document.createElement('span');
+                                    newBadge.className = 'popular-badge';
+                                    newBadge.innerHTML = '<span class="badge-dot">●</span> MOST POPULAR';
+                                    header.appendChild(newBadge);
+                                }
+                            }
+                        }
+                    } else {
+                        const card = this.closest('.plan-edit-card');
+                        if (card) {
+                            card.classList.remove('popular-card');
+                            const badge = card.querySelector('.popular-badge');
+                            if (badge) badge.style.display = 'none';
+                        }
+                    }
+                });
+            });
         });
-    });
     </script>
-    <?php
+<?php
     render_footer();
 }
