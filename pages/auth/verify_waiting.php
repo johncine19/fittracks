@@ -113,19 +113,6 @@ function verify_waiting_page(): void
     }
 
     $email = (string) $user['email'];
-    $emailDomain = strtolower(substr(strrchr($email, '@') ?: '', 1));
-    $webmailUrl = '';
-    $webmailLabel = '';
-    if (str_contains($emailDomain, 'gmail')) {
-        $webmailUrl = 'https://mail.google.com/';
-        $webmailLabel = 'Open Gmail';
-    } elseif (str_contains($emailDomain, 'outlook') || str_contains($emailDomain, 'hotmail') || str_contains($emailDomain, 'live')) {
-        $webmailUrl = 'https://outlook.live.com/';
-        $webmailLabel = 'Open Outlook';
-    } elseif (str_contains($emailDomain, 'yahoo')) {
-        $webmailUrl = 'https://mail.yahoo.com/';
-        $webmailLabel = 'Open Yahoo Mail';
-    }
 
     render_header('Verify Your Email', null);
     ?>
@@ -500,17 +487,6 @@ function verify_waiting_page(): void
 
             <!-- Action buttons -->
             <div class="waiting-actions" id="waiting-actions">
-                <?php if ($webmailUrl !== ''): ?>
-                    <a href="<?= h($webmailUrl) ?>" target="_blank" rel="noopener noreferrer" class="btn-action-primary">
-                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                            <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
-                            <polyline points="15 3 21 3 21 9"></polyline>
-                            <line x1="10" y1="14" x2="21" y2="3"></line>
-                        </svg>
-                        <?= h($webmailLabel) ?>
-                    </a>
-                <?php endif; ?>
-
                 <button type="button" id="btn-resend" class="btn-action-secondary" onclick="handleResend()">
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                         <polyline points="23 4 23 10 17 10"></polyline>

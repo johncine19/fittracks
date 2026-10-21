@@ -395,6 +395,7 @@ function classes_page(): void
             border-color: #cbd5e1;
             color: #1e293b;
         }
+        .schedule-mobile-list { display: none; }
 
         @media (max-width: 640px) {
             .classes-banner {
@@ -442,6 +443,49 @@ function classes_page(): void
                 border-radius: 12px !important;
                 gap: 10px !important;
             }
+            .schedule-table-panel { display: none; }
+            .schedule-mobile-list {
+                display: grid;
+                gap: 12px;
+            }
+            .schedule-mobile-card {
+                padding: 16px;
+                border: 1px solid var(--line);
+                border-radius: 12px;
+                background: var(--panel);
+            }
+            .schedule-mobile-card-title {
+                margin: 0 0 14px;
+                font-size: 16px;
+                color: var(--ink);
+            }
+            .schedule-mobile-details {
+                display: grid;
+                grid-template-columns: 1fr 1fr;
+                gap: 12px;
+                padding-top: 12px;
+                border-top: 1px solid var(--line);
+            }
+            .schedule-mobile-detail-label {
+                display: block;
+                margin-bottom: 4px;
+                color: var(--muted);
+                font-size: 10px;
+                font-weight: 700;
+                letter-spacing: .06em;
+                text-transform: uppercase;
+            }
+            .schedule-mobile-detail-value {
+                color: var(--ink);
+                font-size: 13px;
+                line-height: 1.4;
+            }
+            .schedule-mobile-actions {
+                display: flex;
+                gap: 8px;
+                margin-top: 14px;
+            }
+            .schedule-mobile-actions .btn { flex: 1; }
 
             /* Compact Mobile Modals */
             dialog#scheduleModal.modal,
@@ -594,7 +638,7 @@ function classes_page(): void
                     <p>No schedules yet. Create one using the button above.</p>
                 </div>
             <?php else: ?>
-                <div class="panel" style="padding:0; overflow:hidden;">
+                <div class="panel schedule-table-panel" style="padding:0; overflow:hidden;">
                     <div class="table-wrap">
                         <table style="margin:0; width:100%;">
                             <thead>
@@ -622,6 +666,37 @@ function classes_page(): void
                             </tbody>
                         </table>
                     </div>
+                </div>
+                <div class="schedule-mobile-list">
+                    <?php foreach ($schedules as $s): ?>
+                        <article class="schedule-mobile-card">
+                            <h3 class="schedule-mobile-card-title"><?= h($s['class_name']) ?></h3>
+                            <div class="schedule-mobile-details">
+                                <div>
+                                    <span class="schedule-mobile-detail-label">Location</span>
+                                    <div class="schedule-mobile-detail-value"><?= h($s['room_location'] ?: 'â€”') ?></div>
+                                </div>
+                                <div>
+                                    <span class="schedule-mobile-detail-label">Date &amp; time</span>
+                                    <div class="schedule-mobile-detail-value">
+                                        <div><?= h(date('M j, Y', strtotime($s['start_datetime']))) ?></div>
+                                        <div style="color:var(--muted); font-size:12px;"><?= h(date('g:i A', strtotime($s['start_datetime']))) ?> - <?= h(date('g:i A', strtotime($s['end_datetime']))) ?></div>
+                                    </div>
+                                </div>
+                                <div>
+                                    <span class="schedule-mobile-detail-label">Booked</span>
+                                    <div class="schedule-mobile-detail-value"><?= (int) $s['booked'] ?> member<?= (int) $s['booked'] === 1 ? '' : 's' ?></div>
+                                </div>
+                            </div>
+                            <div class="schedule-mobile-actions">
+                                <button onclick="editSchedule(<?= htmlspecialchars(json_encode($s)) ?>)" class="btn btn-secondary" style="padding:8px 10px; font-size:12px;">Edit</button>
+                                <form method="post" style="display:contents;" onsubmit="return confirm('Delete this schedule?');">
+                                    <?= $csrfStr ?><input type="hidden" name="action" value="delete_schedule"><input type="hidden" name="schedule_id" value="<?= $s['schedule_id'] ?>">
+                                    <button type="submit" class="btn btn-danger" style="padding:8px 10px; font-size:12px;">Delete</button>
+                                </form>
+                            </div>
+                        </article>
+                    <?php endforeach; ?>
                 </div>
             <?php endif; ?>
         </div>

@@ -279,6 +279,12 @@
         max-height: calc(100dvh - 32px);
     }
 }
+
+@media (max-width: 768px) {
+    .staff-dashboard-tagline {
+        display: none !important;
+    }
+}
 @media (max-width: 600px) {
     .staff-dashboard-actions {
         display: none !important;

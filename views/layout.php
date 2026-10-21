@@ -2868,10 +2868,24 @@ HTML;
                 star.setAttribute('aria-hidden', 'true');
                 star.textContent = ' *';
                 
-                if (label.contains(input)) {
-                    label.insertBefore(star, input);
-                } else {
-                    label.appendChild(star);
+                try {
+                    if (label.contains(input)) {
+                        var refNode = input;
+                        while (refNode && refNode.parentNode && refNode.parentNode !== label) {
+                            refNode = refNode.parentNode;
+                        }
+                        if (refNode && refNode.parentNode === label) {
+                            label.insertBefore(star, refNode);
+                        } else {
+                            label.appendChild(star);
+                        }
+                    } else {
+                        label.appendChild(star);
+                    }
+                } catch (e) {
+                    try {
+                        label.appendChild(star);
+                    } catch (ignore) {}
                 }
             }
         });

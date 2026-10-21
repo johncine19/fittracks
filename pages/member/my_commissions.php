@@ -40,6 +40,45 @@ function my_commissions_page(): void
 
     render_header('My Commissions', $user);
     ?>
+    <style>
+        .commission-mobile-list { display: none; }
+        @media (max-width: 640px) {
+            .commission-history-table { display: none; }
+            .commission-mobile-list { display: grid; gap: 12px; }
+            .commission-mobile-card {
+                padding: 16px;
+                border: 1px solid var(--line);
+                border-radius: 12px;
+                background: var(--surface);
+            }
+            .commission-mobile-card-head {
+                display: flex;
+                align-items: flex-start;
+                justify-content: space-between;
+                gap: 12px;
+                margin-bottom: 14px;
+            }
+            .commission-mobile-member { margin: 0; color: var(--ink); font-size: 16px; }
+            .commission-mobile-amount { color: var(--lime); font-size: 18px; font-weight: 800; white-space: nowrap; }
+            .commission-mobile-details {
+                display: grid;
+                grid-template-columns: 1fr 1fr;
+                gap: 12px;
+                padding-top: 12px;
+                border-top: 1px solid var(--line);
+            }
+            .commission-mobile-label {
+                display: block;
+                margin-bottom: 4px;
+                color: var(--muted);
+                font-size: 10px;
+                font-weight: 700;
+                letter-spacing: .06em;
+                text-transform: uppercase;
+            }
+            .commission-mobile-value { color: var(--ink); font-size: 13px; line-height: 1.4; overflow-wrap: anywhere; }
+        }
+    </style>
     <section class="panel">
         <div class="page-header">
             <div>
@@ -66,7 +105,7 @@ function my_commissions_page(): void
                 <p>You haven't earned any commissions yet.</p>
             </div>
         <?php else: ?>
-        <div class="table-wrap">
+        <div class="table-wrap commission-history-table">
             <table>
                 <thead>
                     <tr>
@@ -93,6 +132,36 @@ function my_commissions_page(): void
                 <?php endforeach; ?>
                 </tbody>
             </table>
+        </div>
+        <div class="commission-mobile-list">
+            <?php foreach ($commissions as $row):
+                $statusClass = $row['status'] === 'paid' ? 'badge badge-active' : 'badge badge-pending';
+            ?>
+                <article class="commission-mobile-card">
+                    <div class="commission-mobile-card-head">
+                        <h3 class="commission-mobile-member"><?= h($row['member_name']) ?></h3>
+                        <span class="commission-mobile-amount"><?= h(money($row['amount'])) ?></span>
+                    </div>
+                    <div class="commission-mobile-details">
+                        <div>
+                            <span class="commission-mobile-label">Plan</span>
+                            <div class="commission-mobile-value"><?= h($row['plan_name']) ?></div>
+                        </div>
+                        <div>
+                            <span class="commission-mobile-label">Receipt</span>
+                            <div class="commission-mobile-value" style="font-family:monospace;"><?= h($row['receipt_number']) ?></div>
+                        </div>
+                        <div>
+                            <span class="commission-mobile-label">Date earned</span>
+                            <div class="commission-mobile-value"><?= h(date('M j, Y', strtotime($row['created_at']))) ?></div>
+                        </div>
+                        <div>
+                            <span class="commission-mobile-label">Status</span>
+                            <span class="<?= $statusClass ?>"><?= h(ucfirst($row['status'])) ?></span>
+                        </div>
+                    </div>
+                </article>
+            <?php endforeach; ?>
         </div>
         <?php render_pagination($page, $totalPages, '?page=my_commissions'); ?>
         <?php endif; ?>

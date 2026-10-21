@@ -84,8 +84,8 @@ function staff_dashboard(PDO $pdo, array $user): void
     <!-- Staff Welcome Header -->
     <div class="staff-dashboard-banner" style="border-radius: 16px; padding: 24px 28px; margin-bottom: 24px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px;">
         <div>
-            <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 6px;">
-                <span style="background: rgba(245, 158, 11, 0.15); color: #f59e0b; border: 1px solid rgba(245, 158, 11, 0.3); font-size: 11px; font-weight: 800; padding: 3px 9px; border-radius: 999px; text-transform: uppercase; letter-spacing: 0.05em;">
+            <div class="staff-dashboard-tagline" style="display: flex; align-items: center; gap: 10px; margin-bottom: 6px;">
+                <span class="staff-terminal-badge" style="background: color-mix(in srgb, var(--lime) 15%, transparent); color: var(--lime); border: 1px solid color-mix(in srgb, var(--lime) 35%, transparent); font-size: 11px; font-weight: 800; padding: 3px 9px; border-radius: 999px; text-transform: uppercase; letter-spacing: 0.05em;">
                     Front Desk Terminal
                 </span>
                 <span class="staff-dashboard-banner-meta" style="font-size: 13px; font-weight: 600;">
@@ -108,7 +108,7 @@ function staff_dashboard(PDO $pdo, array $user): void
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="2"/></svg>
                 Issue Walk-In Pass
             </a>
-            <button type="button" onclick="openStaffEODModal()" class="btn btn-secondary" style="display: inline-flex; align-items: center; gap: 8px; padding: 10px 16px; border-radius: 10px; font-weight: 700; border-color: rgba(132, 204, 22, 0.4); color: var(--lime); cursor: pointer;">
+            <button type="button" onclick="openStaffEODModal()" class="btn btn-secondary" style="display: inline-flex; align-items: center; gap: 8px; padding: 10px 16px; border-radius: 10px; font-weight: 700; border-color: color-mix(in srgb, var(--lime) 40%, transparent); color: var(--lime); cursor: pointer;">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
                 EOD Settlement Slip
             </button>
@@ -147,48 +147,65 @@ function staff_dashboard(PDO $pdo, array $user): void
     </script>
 
     <!-- Quick Stats Grid -->
-    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; margin-bottom: 24px;">
-        <div class="panel" style="margin: 0; padding: 20px; border-radius: 14px; border: 1px solid var(--line); display: flex; align-items: center; gap: 16px;">
-            <div style="width: 48px; height: 48px; border-radius: 12px; background: rgba(34, 197, 94, 0.15); color: #22c55e; display: flex; align-items: center; justify-content: center; font-size: 22px; flex-shrink: 0;">
+    <style>
+        @media (max-width: 560px) {
+            .staff-terminal-badge {
+                display: inline-flex;
+                white-space: nowrap;
+                padding: 4px 8px !important;
+                font-size: 10px !important;
+                letter-spacing: .03em !important;
+            }
+            .staff-quick-stats { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; gap: 12px !important; }
+            .staff-quick-stat { padding: 14px !important; gap: 10px !important; flex-direction: column !important; align-items: flex-start !important; }
+            .staff-quick-stat-icon { width: 42px !important; height: 42px !important; }
+            .staff-quick-stat-content { min-width: 0; }
+            .staff-quick-stat-label { min-height: 28px; font-size: 11px !important; }
+            .staff-quick-stat-detail { font-size: 10.5px !important; }
+        }
+    </style>
+    <div class="staff-quick-stats" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; margin-bottom: 24px;">
+        <div class="panel staff-quick-stat" style="margin: 0; padding: 20px; border-radius: 14px; border: 1px solid var(--line); display: flex; align-items: center; gap: 16px;">
+            <div class="staff-quick-stat-icon" style="width: 48px; height: 48px; border-radius: 12px; background: color-mix(in srgb, var(--lime) 15%, transparent); color: var(--lime); display: flex; align-items: center; justify-content: center; font-size: 22px; flex-shrink: 0;">
                 <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
             </div>
-            <div>
-                <div style="font-size: 12.5px; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em;">Inside Gym Now</div>
-                <div style="font-size: 28px; font-weight: 800; color: #22c55e; line-height: 1.2;"><?= $activeOnFloor ?></div>
-                <div style="font-size: 11.5px; color: var(--muted);">Live on workout floor</div>
+            <div class="staff-quick-stat-content">
+                <div class="staff-quick-stat-label" style="font-size: 12.5px; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em;">Inside Gym Now</div>
+                <div style="font-size: 28px; font-weight: 800; color: var(--lime); line-height: 1.2;"><?= $activeOnFloor ?></div>
+                <div class="staff-quick-stat-detail" style="font-size: 11.5px; color: var(--muted);">Live on workout floor</div>
             </div>
         </div>
 
-        <div class="panel" style="margin: 0; padding: 20px; border-radius: 14px; border: 1px solid var(--line); display: flex; align-items: center; gap: 16px;">
-            <div style="width: 48px; height: 48px; border-radius: 12px; background: rgba(56, 189, 248, 0.15); color: #38bdf8; display: flex; align-items: center; justify-content: center; font-size: 22px; flex-shrink: 0;">
+        <div class="panel staff-quick-stat" style="margin: 0; padding: 20px; border-radius: 14px; border: 1px solid var(--line); display: flex; align-items: center; gap: 16px;">
+            <div class="staff-quick-stat-icon" style="width: 48px; height: 48px; border-radius: 12px; background: rgba(56, 189, 248, 0.15); color: #38bdf8; display: flex; align-items: center; justify-content: center; font-size: 22px; flex-shrink: 0;">
                 <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 11 12 14 22 4"></polyline><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path></svg>
             </div>
-            <div>
-                <div style="font-size: 12.5px; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em;">Today's Check-ins</div>
+            <div class="staff-quick-stat-content">
+                <div class="staff-quick-stat-label" style="font-size: 12.5px; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em;">Today's Check-ins</div>
                 <div style="font-size: 28px; font-weight: 800; color: var(--ink); line-height: 1.2;"><?= $todayTotalVisits ?></div>
-                <div style="font-size: 11.5px; color: var(--muted);">Total turnstile scans today</div>
+                <div class="staff-quick-stat-detail" style="font-size: 11.5px; color: var(--muted);">Total turnstile scans today</div>
             </div>
         </div>
 
-        <div class="panel" style="margin: 0; padding: 20px; border-radius: 14px; border: 1px solid var(--line); display: flex; align-items: center; gap: 16px;">
-            <div style="width: 48px; height: 48px; border-radius: 12px; background: rgba(168, 85, 247, 0.15); color: #a855f7; display: flex; align-items: center; justify-content: center; font-size: 22px; flex-shrink: 0;">
+        <div class="panel staff-quick-stat" style="margin: 0; padding: 20px; border-radius: 14px; border: 1px solid var(--line); display: flex; align-items: center; gap: 16px;">
+            <div class="staff-quick-stat-icon" style="width: 48px; height: 48px; border-radius: 12px; background: rgba(168, 85, 247, 0.15); color: #a855f7; display: flex; align-items: center; justify-content: center; font-size: 22px; flex-shrink: 0;">
                 <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="2"/></svg>
             </div>
-            <div>
-                <div style="font-size: 12.5px; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em;">Walk-In Passes Sold</div>
+            <div class="staff-quick-stat-content">
+                <div class="staff-quick-stat-label" style="font-size: 12.5px; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em;">Walk-In Passes Sold</div>
                 <div style="font-size: 28px; font-weight: 800; color: #a855f7; line-height: 1.2;"><?= $todayWalkIns ?></div>
-                <div style="font-size: 11.5px; color: var(--muted);">Day passes issued today</div>
+                <div class="staff-quick-stat-detail" style="font-size: 11.5px; color: var(--muted);">Day passes issued today</div>
             </div>
         </div>
 
-        <div class="panel" style="margin: 0; padding: 20px; border-radius: 14px; border: 1px solid var(--line); display: flex; align-items: center; gap: 16px;">
-            <div style="width: 48px; height: 48px; border-radius: 12px; background: rgba(245, 158, 11, 0.15); color: #f59e0b; display: flex; align-items: center; justify-content: center; font-size: 22px; flex-shrink: 0;">
+        <div class="panel staff-quick-stat" style="margin: 0; padding: 20px; border-radius: 14px; border: 1px solid var(--line); display: flex; align-items: center; gap: 16px;">
+            <div class="staff-quick-stat-icon" style="width: 48px; height: 48px; border-radius: 12px; background: rgba(245, 158, 11, 0.15); color: #f59e0b; display: flex; align-items: center; justify-content: center; font-size: 22px; flex-shrink: 0;">
                 <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
             </div>
-            <div>
-                <div style="font-size: 12.5px; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em;">Expiring in 48h</div>
+            <div class="staff-quick-stat-content">
+                <div class="staff-quick-stat-label" style="font-size: 12.5px; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em;">Expiring in 48h</div>
                 <div style="font-size: 28px; font-weight: 800; color: #f59e0b; line-height: 1.2;"><?= $expiringSoon ?></div>
-                <div style="font-size: 11.5px; color: var(--muted);">Members needing renewal</div>
+                <div class="staff-quick-stat-detail" style="font-size: 11.5px; color: var(--muted);">Members needing renewal</div>
             </div>
         </div>
     </div>
@@ -263,7 +280,7 @@ function staff_dashboard(PDO $pdo, array $user): void
                                 <td style="padding: 12px 14px; color: var(--ink); font-weight: 600;">
                                     <?= date('g:i A', strtotime($m['check_in_time'])) ?>
                                 </td>
-                                <td style="padding: 12px 14px; color: #22c55e; font-weight: 700;">
+                                <td style="padding: 12px 14px; color: var(--lime); font-weight: 700;">
                                     <?= h($durationStr) ?>
                                 </td>
                                 <td style="padding: 12px 14px; text-align: right;">
@@ -359,7 +376,7 @@ function staff_dashboard(PDO $pdo, array $user): void
                                         <div style="font-size:16px;font-weight:800;color:var(--ink);">${gymName}</div>
                                         <div style="font-size:12px;color:var(--muted);margin-top:2px;">Daily Settlement &bull; <strong>${d.date_formatted}</strong></div>
                                     </div>
-                                    <span class="eod-reading-badge" style="background:rgba(132,204,22,0.12);color:var(--lime);font-size:11px;font-weight:800;padding:3px 8px;border-radius:6px;border:1px solid rgba(132,204,22,0.3);">
+                                    <span class="eod-reading-badge" style="background:color-mix(in srgb, var(--lime) 12%, transparent);color:var(--lime);font-size:11px;font-weight:800;padding:3px 8px;border-radius:6px;border:1px solid color-mix(in srgb, var(--lime) 30%, transparent);">
                                         Z-READING
                                     </span>
                                 </div>

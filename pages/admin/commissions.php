@@ -48,6 +48,46 @@ function commissions_page(): void
 
     render_header('Trainer Commissions', $user);
     ?>
+    <style>
+        .admin-commission-mobile-list { display: none; }
+        @media (max-width: 640px) {
+            .admin-commission-table { display: none; }
+            .admin-commission-mobile-list { display: grid; gap: 12px; }
+            .admin-commission-card {
+                padding: 16px;
+                border: 1px solid var(--line);
+                border-radius: 12px;
+                background: var(--surface);
+            }
+            .admin-commission-card-head {
+                display: flex;
+                align-items: flex-start;
+                justify-content: space-between;
+                gap: 12px;
+                margin-bottom: 14px;
+            }
+            .admin-commission-trainer { margin: 0; color: var(--ink); font-size: 16px; }
+            .admin-commission-amount { color: var(--lime); font-size: 18px; font-weight: 800; white-space: nowrap; }
+            .admin-commission-details {
+                display: grid;
+                grid-template-columns: 1fr 1fr;
+                gap: 12px;
+                padding-top: 12px;
+                border-top: 1px solid var(--line);
+            }
+            .admin-commission-label {
+                display: block;
+                margin-bottom: 4px;
+                color: var(--muted);
+                font-size: 10px;
+                font-weight: 700;
+                letter-spacing: .06em;
+                text-transform: uppercase;
+            }
+            .admin-commission-value { color: var(--ink); font-size: 13px; line-height: 1.4; overflow-wrap: anywhere; }
+            .admin-commission-action { width: 100%; margin-top: 14px; padding: 8px 10px !important; }
+        }
+    </style>
     <section class="panel">
         <div class="page-header">
             <div>
@@ -62,7 +102,7 @@ function commissions_page(): void
                 <p>No commissions logged yet.</p>
             </div>
         <?php else: ?>
-        <div class="table-wrap">
+        <div class="table-wrap admin-commission-table">
             <table>
                 <thead>
                     <tr>
@@ -99,6 +139,43 @@ function commissions_page(): void
                 <?php endforeach; ?>
                 </tbody>
             </table>
+        </div>
+        <div class="admin-commission-mobile-list">
+            <?php foreach ($commissions as $row):
+                $statusClass = $row['status'] === 'paid' ? 'badge badge-active' : 'badge badge-pending';
+            ?>
+                <article class="admin-commission-card">
+                    <div class="admin-commission-card-head">
+                        <h3 class="admin-commission-trainer"><?= h($row['trainer_name']) ?></h3>
+                        <span class="admin-commission-amount"><?= h(money($row['amount'])) ?></span>
+                    </div>
+                    <div class="admin-commission-details">
+                        <div>
+                            <span class="admin-commission-label">Member</span>
+                            <div class="admin-commission-value"><?= h($row['member_name']) ?></div>
+                        </div>
+                        <div>
+                            <span class="admin-commission-label">Plan</span>
+                            <div class="admin-commission-value"><?= h($row['plan_name']) ?></div>
+                        </div>
+                        <div>
+                            <span class="admin-commission-label">Receipt</span>
+                            <div class="admin-commission-value" style="font-family:monospace;"><?= h($row['receipt_number']) ?></div>
+                        </div>
+                        <div>
+                            <span class="admin-commission-label">Date</span>
+                            <div class="admin-commission-value"><?= h(date('M j, Y', strtotime($row['created_at']))) ?></div>
+                        </div>
+                        <div>
+                            <span class="admin-commission-label">Status</span>
+                            <span class="<?= $statusClass ?>"><?= h(ucfirst($row['status'])) ?></span>
+                        </div>
+                    </div>
+                    <?php if ($row['status'] === 'pending'): ?>
+                        <button class="btn btn-sm admin-commission-action" onclick="markPaid(<?= $row['commission_id'] ?>)" style="background:transparent; color:var(--lime); border:1px solid var(--lime); border-radius:6px; cursor:pointer;">Mark Paid</button>
+                    <?php endif; ?>
+                </article>
+            <?php endforeach; ?>
         </div>
         <?php render_pagination($page, $totalPages, '?page=commissions'); ?>
         <?php endif; ?>

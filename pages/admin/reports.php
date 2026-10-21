@@ -2277,17 +2277,24 @@ function reports_page(): void
                 </div>
             <?php else: ?>
                 <!-- Trainer Counters -->
-                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-bottom: 24px;">
-                    <div style="background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 18px;">
-                        <span style="color: var(--muted); font-size: 12px; font-weight: 600; text-transform: uppercase;">Active Trainers</span>
+                <style>
+                    @media (max-width: 560px) {
+                        .trainer-counters { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; gap: 12px !important; }
+                        .trainer-counter { padding: 16px !important; }
+                        .trainer-counter--wide { grid-column: 1 / -1; }
+                    }
+                </style>
+                <div class="trainer-counters" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-bottom: 24px;">
+                    <div class="trainer-counter" style="background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 18px;">
+                        <span style="display: block; min-height: 28px; color: var(--muted); font-size: 12px; font-weight: 600; text-transform: uppercase;">Active Trainers</span>
                         <div style="font-size: 26px; font-weight: 800; color: var(--ink); margin-top: 4px;"><?= $trainerStats['total_trainers'] ?></div>
                     </div>
-                    <div style="background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 18px;">
-                        <span style="color: var(--muted); font-size: 12px; font-weight: 600; text-transform: uppercase;">Active Trainees Assigned</span>
+                    <div class="trainer-counter" style="background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 18px;">
+                        <span style="display: block; min-height: 28px; color: var(--muted); font-size: 12px; font-weight: 600; text-transform: uppercase;">Active Trainees Assigned</span>
                         <div style="font-size: 26px; font-weight: 800; color: #84cc16; margin-top: 4px;"><?= $trainerStats['total_active_clients'] ?></div>
                     </div>
-                    <div style="background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 18px;">
-                        <span style="color: var(--muted); font-size: 12px; font-weight: 600; text-transform: uppercase;">Total Paid Commissions</span>
+                    <div class="trainer-counter trainer-counter--wide" style="background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 18px;">
+                        <span style="display: block; min-height: 28px; color: var(--muted); font-size: 12px; font-weight: 600; text-transform: uppercase;">Total Paid Commissions</span>
                         <div style="font-size: 26px; font-weight: 800; color: #38bdf8; margin-top: 4px;">₱<?= number_format($trainerStats['total_paid_commissions'], 2) ?></div>
                     </div>
                 </div>
