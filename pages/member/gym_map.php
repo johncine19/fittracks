@@ -46,6 +46,9 @@ function gym_map_page(): void
     ?>
     <link rel="stylesheet" href="<?= h(asset_url('css/pages/gym_selection.css')) ?>">
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script>
+        document.documentElement.setAttribute('data-theme', 'dark');
+    </script>
 
     <div class="panel gym-select">
         <?php if (empty($gymData)): ?>

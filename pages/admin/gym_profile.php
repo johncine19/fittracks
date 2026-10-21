@@ -233,8 +233,29 @@ function gym_profile_page(): void
     <link rel="stylesheet" href="<?= h(asset_url('css/pages/gym_profile.css')) ?>">
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <style>
-    #owner-pin-map .leaflet-tile-pane {
+    /* Gym Owner Facility Pin Map follows Gym Owner's data-theme preference */
+    [data-theme="dark"] #owner-pin-map .leaflet-tile-pane {
         filter: invert(100%) hue-rotate(180deg) brightness(88%) contrast(90%);
+    }
+    [data-theme="light"] #owner-pin-map .leaflet-tile-pane {
+        filter: none !important;
+    }
+    [data-theme="light"] #owner-pin-map {
+        background: #f8fafc !important;
+        border-color: #cbd5e1 !important;
+    }
+    [data-theme="light"] #owner-pin-map .leaflet-bar {
+        border-color: #cbd5e1 !important;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06) !important;
+    }
+    [data-theme="light"] #owner-pin-map .leaflet-bar a {
+        background: #ffffff !important;
+        color: #1e293b !important;
+        border-bottom-color: #f1f5f9 !important;
+    }
+    [data-theme="light"] #owner-pin-map .leaflet-bar a:hover {
+        background: #f8fafc !important;
+        color: var(--lime) !important;
     }
     </style>
 
@@ -1451,7 +1472,7 @@ function gym_profile_page(): void
             } else {
                 const icon = L.divIcon({
                     className: 'gym-marker-wrap',
-                    html: '<div style="background:#c7ff22; width:28px; height:28px; border-radius:50% 50% 50% 0; transform:rotate(-45deg); display:flex; align-items:center; justify-content:center; box-shadow:0 0 12px rgba(199,255,34,0.6); border:2px solid #000; cursor:grab;"><span style="transform:rotate(45deg); font-weight:800; font-size:12px; color:#000;">🏋️</span></div>',
+                    html: '<div style="background:#c7ff22; width:28px; height:28px; border-radius:50% 50% 50% 0; transform:rotate(-45deg); display:flex; align-items:center; justify-content:center; box-shadow:0 0 12px rgba(199,255,34,0.6); border:2px solid #000; cursor:grab;"><span style="width:8px; height:8px; border-radius:50%; background:#000; display:block;"></span></div>',
                     iconSize: [28, 28],
                     iconAnchor: [14, 28]
                 });

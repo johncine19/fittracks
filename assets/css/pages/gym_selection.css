@@ -1,12 +1,16 @@
 @import url('https://fonts.googleapis.com/css2?family=Oswald:wght@500;600;700&family=DM+Sans:wght@400;500;700&display=swap');
 
-        /* Page Background Styling */
+        /* Page Background Styling - Always FitTrack Dark Theme */
         body:has(.gym-select),
         body.auth-body:has(.gym-select),
         body.app-body:has(.gym-select),
+        [data-theme="dark"] body:has(.gym-select),
+        [data-theme="dark"] body.auth-body:has(.gym-select),
+        [data-theme="dark"] body.app-body:has(.gym-select),
         [data-theme="light"] body:has(.gym-select),
         [data-theme="light"] body.auth-body:has(.gym-select),
-        [data-theme="light"] body.app-body:has(.gym-select) {
+        [data-theme="light"] body.app-body:has(.gym-select),
+        html[data-theme="light"] body:has(.gym-select) {
             background-color: #07090d !important;
             background-image: 
                 radial-gradient(ellipse at 50% 15%, rgba(199, 255, 34, 0.12) 0%, transparent 60%),
@@ -21,20 +25,30 @@
         }
 
         .auth-shell:has(.gym-select),
-        .app-frame:has(.gym-select) {
+        .app-frame:has(.gym-select),
+        .app-main:has(.gym-select) {
             background: transparent !important;
         }
 
-        /* Override the site's default boxed .panel treatment & enforce permanent dark tokens */
-        .panel.gym-select {
+        /* Gym Selection & Map Container - Always Dark Mode */
+        .panel.gym-select,
+        [data-theme="light"] .panel.gym-select,
+        html[data-theme="light"] .panel.gym-select,
+        [data-theme="dark"] .panel.gym-select {
             --font-display: 'Oswald', 'Arial Narrow', sans-serif;
             --font-ui: 'DM Sans', var(--font-sans, system-ui), sans-serif;
             --ink: #f8fafc !important;
             --muted: #94a3b8 !important;
             --panel: #0d121a !important;
             --panel-soft: #141b27 !important;
+            --panel-bg: #0d121a !important;
+            --surface: #0d121a !important;
             --line: rgba(255, 255, 255, 0.12) !important;
+            --border: rgba(255, 255, 255, 0.12) !important;
             --lime: #c7ff22 !important;
+            --lime-dark: #a3e635 !important;
+            --accent: #c7ff22 !important;
+            --accent-hover: #a3e635 !important;
             color-scheme: dark !important;
             color: #f8fafc !important;
             max-width: 100% !important;
@@ -49,6 +63,24 @@
             background: transparent !important;
             min-height: 100vh;
             position: relative;
+        }
+
+        /* Topbar & Sidebar on Gym Selection / Gym Map - Dark Mode */
+        [data-theme="light"] body:has(.gym-select) .sidebar,
+        [data-theme="light"] body:has(.gym-select) .topbar,
+        [data-theme="light"] body:has(.gym-select) .app-frame {
+            background-color: #0d121a !important;
+            color: #f8fafc !important;
+            border-color: rgba(255, 255, 255, 0.12) !important;
+        }
+        [data-theme="light"] body:has(.gym-select) .sidebar a,
+        [data-theme="light"] body:has(.gym-select) .topbar a {
+            color: #94a3b8 !important;
+        }
+        [data-theme="light"] body:has(.gym-select) .sidebar a:hover,
+        [data-theme="light"] body:has(.gym-select) .sidebar a.active,
+        [data-theme="light"] body:has(.gym-select) .topbar a:hover {
+            color: #f8fafc !important;
         }
 
         .gym-select, .gym-select input, .gym-select button { font-family: var(--font-ui); }
@@ -91,6 +123,7 @@
             margin: 0 0 12px;
             word-wrap: break-word;
             overflow-wrap: break-word;
+            color: #f8fafc;
         }
         .gym-hero h1 mark {
             background: none;
@@ -331,6 +364,7 @@
 
         .gym-select .skip-link { text-align: center; margin-top: 34px; }
         .gym-select .skip-link a { color: var(--muted); text-decoration: underline; font-size: 0.9rem; }
+        .gym-select .skip-link a:hover { color: #0f172a !important; }
 
         /* ---------------- Modal ---------------- */
         #gymDetailsModal {
@@ -363,8 +397,6 @@
             --panel-soft: #141b27 !important;
             --surface: #131917 !important;
             --surface-elevated: #1a221f !important;
-            --ink: #f8fafc !important;
-            --muted: #94a3b8 !important;
             --line: rgba(255, 255, 255, 0.12) !important;
             --lime: #c7ff22 !important;
             color-scheme: dark !important;
@@ -1289,7 +1321,7 @@
         #gym-map {
             width: 100%;
             height: 540px;
-            background: #090c12;
+            background: #e2e8f0;
             position: relative;
             z-index: 1;
         }
@@ -1345,21 +1377,22 @@
             }
         }
 
-        /* ---------------- Leaflet Overrides (Dark Mode) ---------------- */
+        /* ---------------- Leaflet Overrides (Crisp Light Mode by Default) ---------------- */
         .leaflet-container {
             font-family: var(--font-ui) !important;
-            background: #090c12 !important;
+            background: #e2e8f0 !important;
         }
 
         .leaflet-tile-pane {
-            filter: invert(100%) hue-rotate(180deg) brightness(88%) contrast(90%);
+            filter: none !important;
         }
 
         .leaflet-bar {
-            border: 1px solid rgba(255, 255, 255, 0.15) !important;
+            border: 1px solid #cbd5e1 !important;
             border-radius: 10px !important;
             overflow: hidden !important;
-            box-shadow: 0 4px 14px rgba(0, 0, 0, 0.45) !important;
+            box-shadow: 0 4px 14px rgba(0, 0, 0, 0.08) !important;
+            background: #ffffff !important;
         }
 
         .leaflet-bar a {
@@ -1369,9 +1402,9 @@
             display: flex !important;
             align-items: center !important;
             justify-content: center !important;
-            background: #111722 !important;
-            color: #f8fafc !important;
-            border-bottom: 1px solid rgba(255, 255, 255, 0.1) !important;
+            background: #ffffff !important;
+            color: #1e293b !important;
+            border-bottom: 1px solid #f1f5f9 !important;
             padding: 0 !important;
             text-align: center !important;
             text-decoration: none !important;
@@ -1384,13 +1417,13 @@
         }
 
         .leaflet-bar a:hover {
-            background: #1a2332 !important;
-            color: var(--lime) !important;
+            background: #f8fafc !important;
+            color: #15803d !important;
         }
 
         .leaflet-bar a.is-active {
-            color: var(--lime) !important;
-            background: rgba(199, 255, 34, 0.14) !important;
+            color: #15803d !important;
+            background: rgba(132, 204, 22, 0.18) !important;
         }
 
         .leaflet-bar a svg {
@@ -1419,7 +1452,7 @@
 
         .leaflet-bar a.is-locating svg {
             animation: ft-spin 1s linear infinite;
-            color: var(--lime) !important;
+            color: var(--lime, #65a30d) !important;
         }
 
         @keyframes ft-spin {
@@ -1427,25 +1460,23 @@
         }
 
         .leaflet-control-attribution {
-            background: rgba(10, 14, 20, 0.75) !important;
+            background: rgba(255, 255, 255, 0.88) !important;
             color: #64748b !important;
             font-size: 10px !important;
             backdrop-filter: blur(4px);
         }
 
         .leaflet-control-attribution a {
-            color: #94a3b8 !important;
+            color: #0284c7 !important;
         }
 
-        /* Leaflet Dark Glassmorphism Popup */
+        /* Leaflet Popups */
         .leaflet-popup-content-wrapper {
-            background: rgba(13, 18, 27, 0.96) !important;
-            backdrop-filter: blur(14px) !important;
-            -webkit-backdrop-filter: blur(14px) !important;
-            border: 1px solid rgba(199, 255, 34, 0.35) !important;
+            background: #ffffff !important;
+            border: 1px solid #cbd5e1 !important;
             border-radius: 14px !important;
-            color: #f8fafc !important;
-            box-shadow: 0 16px 36px rgba(0, 0, 0, 0.65) !important;
+            color: #0f172a !important;
+            box-shadow: 0 16px 36px rgba(0, 0, 0, 0.12) !important;
             padding: 0 !important;
             overflow: hidden;
         }
@@ -1455,14 +1486,14 @@
         }
 
         .leaflet-popup-tip {
-            background: rgba(13, 18, 27, 0.96) !important;
-            border: 1px solid rgba(199, 255, 34, 0.35) !important;
+            background: #ffffff !important;
+            border: 1px solid #cbd5e1 !important;
             border-top: none;
             border-left: none;
         }
 
         .leaflet-popup-close-button {
-            color: #94a3b8 !important;
+            color: #64748b !important;
             top: 10px !important;
             right: 12px !important;
             font-size: 18px !important;
@@ -1470,7 +1501,7 @@
         }
 
         .leaflet-popup-close-button:hover {
-            color: var(--lime) !important;
+            color: #15803d !important;
         }
 
         .leaflet-popup-content {
@@ -1496,8 +1527,8 @@
             width: 44px;
             height: 44px;
             border-radius: 10px;
-            background: rgba(255, 255, 255, 0.05);
-            border: 1px solid rgba(255, 255, 255, 0.1);
+            background: #f8fafc !important;
+            border: 1px solid #e2e8f0 !important;
             display: flex;
             align-items: center;
             justify-content: center;
@@ -1505,7 +1536,7 @@
             flex-shrink: 0;
             font-size: 1.2rem;
             font-weight: 700;
-            color: var(--lime);
+            color: #15803d !important;
         }
 
         .map-popup-logo img {
@@ -1518,13 +1549,13 @@
             margin: 0 0 3px;
             font-size: 1rem;
             font-weight: 700;
-            color: #f8fafc;
+            color: #0f172a !important;
         }
 
         .map-popup-meta p.addr {
             margin: 0;
             font-size: 11.5px;
-            color: #94a3b8;
+            color: #64748b !important;
             display: flex;
             align-items: center;
             gap: 4px;
@@ -1547,21 +1578,21 @@
             border-radius: 6px;
             font-size: 11px;
             font-weight: 600;
-            background: rgba(255, 255, 255, 0.06);
-            border: 1px solid rgba(255, 255, 255, 0.08);
-            color: #cbd5e1;
+            background: #f1f5f9 !important;
+            border: 1px solid #e2e8f0 !important;
+            color: #334155 !important;
         }
 
         .map-popup-chip.rating {
-            background: rgba(251, 191, 36, 0.1);
-            border-color: rgba(251, 191, 36, 0.3);
-            color: #fbbf24;
+            background: rgba(245, 158, 11, 0.12) !important;
+            border-color: rgba(245, 158, 11, 0.35) !important;
+            color: #b45309 !important;
         }
 
         .map-popup-chip.dist {
-            background: rgba(199, 255, 34, 0.1);
-            border-color: rgba(199, 255, 34, 0.3);
-            color: var(--lime);
+            background: rgba(132, 204, 22, 0.15) !important;
+            border-color: rgba(132, 204, 22, 0.4) !important;
+            color: #15803d !important;
         }
 
         .map-popup-actions {
@@ -1583,25 +1614,28 @@
         }
 
         .map-popup-btn.primary {
-            background: var(--lime);
-            color: #0b0f17;
-            box-shadow: 0 4px 12px rgba(199, 255, 34, 0.25);
+            background: #84cc16 !important;
+            color: #0b0d0d !important;
+            box-shadow: 0 4px 12px rgba(132, 204, 22, 0.25) !important;
         }
 
         .map-popup-btn.primary:hover {
-            box-shadow: 0 6px 16px rgba(199, 255, 34, 0.4);
+            background: #65a30d !important;
+            color: #ffffff !important;
+            box-shadow: 0 6px 16px rgba(132, 204, 22, 0.4) !important;
             transform: translateY(-1px);
         }
 
         .map-popup-btn.secondary {
-            background: rgba(255, 255, 255, 0.08);
-            color: #f8fafc;
-            border: 1px solid rgba(255, 255, 255, 0.15);
+            background: #ffffff !important;
+            color: #1e293b !important;
+            border: 1px solid #cbd5e1 !important;
         }
 
         .map-popup-btn.secondary:hover {
-            background: rgba(255, 255, 255, 0.14);
-            color: #fff;
+            background: #f8fafc !important;
+            color: #0f172a !important;
+            border-color: #94a3b8 !important;
         }
 
         /* ---------------- Custom Leaflet Markers ---------------- */
@@ -1613,16 +1647,16 @@
             height: 38px;
             border-radius: 50% 50% 50% 0;
             transform: rotate(-45deg);
-            background: #111722;
-            border: 2px solid var(--lime);
-            box-shadow: 0 6px 16px rgba(0, 0, 0, 0.5), 0 0 12px rgba(199, 255, 34, 0.4);
+            background: #ffffff !important;
+            border: 2.5px solid #65a30d !important;
+            box-shadow: 0 4px 14px rgba(0, 0, 0, 0.15) !important;
             transition: transform 0.25s ease, box-shadow 0.25s ease;
             cursor: pointer;
         }
 
         .gym-map-pin:hover {
             transform: rotate(-45deg) scale(1.15);
-            box-shadow: 0 8px 22px rgba(0, 0, 0, 0.6), 0 0 20px rgba(199, 255, 34, 0.65);
+            box-shadow: 0 8px 22px rgba(101, 163, 13, 0.35) !important;
         }
 
         .gym-map-pin .pin-content {
@@ -1633,7 +1667,7 @@
             width: 28px;
             height: 28px;
             border-radius: 50%;
-            color: var(--lime);
+            color: #15803d !important;
             font-weight: 700;
             font-size: 13px;
         }
@@ -1686,4 +1720,6 @@
             0% { transform: translate(-50%, -50%) scale(0.4); opacity: 1; }
             100% { transform: translate(-50%, -50%) scale(1.6); opacity: 0; }
         }
+
+
 
