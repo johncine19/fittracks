@@ -154,6 +154,15 @@ try {
         // ── Active facility resolution (get_user_gym / memberships page) ──
         "CREATE INDEX idx_mem_user_status_end ON memberships (user_id, status, end_date)",
 
+        // ── Ensure Framework & Operational Tables Exist ──
+        "CREATE TABLE IF NOT EXISTS gym_members (id INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY, user_id INT UNSIGNED NOT NULL, gym_id INT UNSIGNED NOT NULL, created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP, UNIQUE KEY uq_gym_user (user_id, gym_id), KEY idx_gym_members_gym (gym_id)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
+        "CREATE TABLE IF NOT EXISTS gym_images (id INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY, gym_id INT UNSIGNED NOT NULL, image_url VARCHAR(255) NOT NULL, created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP, KEY fk_gym_images_gym (gym_id)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
+        "CREATE TABLE IF NOT EXISTS cache (cache_key VARCHAR(255) NOT NULL PRIMARY KEY, cache_value LONGTEXT NOT NULL, expires_at INT UNSIGNED NOT NULL) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
+        "CREATE TABLE IF NOT EXISTS jobs (id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY, job_class VARCHAR(255) NOT NULL, payload TEXT NOT NULL, attempts INT UNSIGNED DEFAULT 0, created_at INT UNSIGNED NOT NULL, available_at INT UNSIGNED NOT NULL, KEY idx_jobs_available_attempts (available_at, attempts, id)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
+        "CREATE TABLE IF NOT EXISTS sessions (session_id VARCHAR(128) NOT NULL PRIMARY KEY, session_data MEDIUMTEXT NOT NULL, expires_at INT UNSIGNED NOT NULL, KEY idx_sessions_expires (expires_at)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
+        "CREATE TABLE IF NOT EXISTS member_badges (id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY, user_id INT UNSIGNED NOT NULL, badge_type VARCHAR(50) NOT NULL, unlocked_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, UNIQUE KEY unique_user_badge (user_id, badge_type)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
+        "CREATE TABLE IF NOT EXISTS daily_macros (id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY, user_id INT UNSIGNED NOT NULL, log_date DATE NOT NULL, calories INT UNSIGNED DEFAULT 0, protein_g INT UNSIGNED DEFAULT 0, carbs_g INT UNSIGNED DEFAULT 0, fat_g INT UNSIGNED DEFAULT 0, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, UNIQUE KEY unique_user_daily_macro (user_id, log_date)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
+
         // ── Scale & High-Concurrency Optimizations ──
         "CREATE INDEX idx_walkin_gym_date ON walk_in_transactions (gym_id, visit_date)",
         "CREATE INDEX idx_walkin_visit_date ON walk_in_transactions (visit_date)",
