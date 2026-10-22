@@ -23,6 +23,9 @@ function food_lookup_page(): void
 
         $params = [];
         $sql = 'SELECT * FROM food_items WHERE is_active = 1 ';
+        if ($user['role'] === 'member') {
+            $sql .= "AND verification_status = 'verified' ";
+        }
         if ($gymId) {
             $sql .= 'AND (gym_id = ? OR gym_id IS NULL) ';
             $params[] = $gymId;
@@ -77,7 +80,7 @@ function food_lookup_page(): void
         exit;
     }
 
-    // Action 2: Import external food from Open Food Facts or CalorieNinjas into gym's library
+    // Action 2: Import external food into gym's library
     if ($action === 'import_external_food') {
         try {
             if (!in_array($user['role'], ['gym_owner', 'trainer', 'platform_admin'])) {
@@ -98,7 +101,7 @@ function food_lookup_page(): void
             $fat = max(0.0, (float)($_POST['fat_g'] ?? 0));
             $servingSize = trim((string)($_POST['serving_size'] ?? '1 serving')) ?: '1 serving';
             $imageUrl = trim((string)($_POST['image_url'] ?? '')) ?: null;
-            $source = trim((string)($_POST['source'] ?? 'openfoodfacts'));
+            $source = trim((string)($_POST['source'] ?? 'custom'));
             $desc = trim((string)($_POST['recipe_desc'] ?? 'Imported from nutrition database.'));
 
             if (empty($name)) {
@@ -278,97 +281,7 @@ function food_lookup_page(): void
         exit;
     }
 
-    if ($action === 'openfoodfacts') {
-        $normalizedOffQuery = strtolower(trim(preg_replace('/\s+/', ' ', $query)));
-        $cacheKeyOff = 'openfoodfacts:' . md5($normalizedOffQuery);
 
-        // 1. Check server-side cache
-        try {
-            $pdo = db();
-            $stmt = $pdo->prepare('SELECT cache_value, expires_at FROM cache WHERE cache_key = ?');
-            $stmt->execute([$cacheKeyOff]);
-            $row = $stmt->fetch(PDO::FETCH_ASSOC);
-            if ($row && time() < (int)$row['expires_at']) {
-                $cachedData = json_decode($row['cache_value'], true);
-                if (!empty($cachedData) && is_array($cachedData) && !empty($cachedData['success'])) {
-                    $cachedData['cached'] = true;
-                    echo json_encode($cachedData);
-                    exit;
-                }
-            }
-        } catch (Throwable $e) {}
-
-        // Query Open Food Facts mirror (fallback safely)
-        $url = 'https://world.openfoodfacts.net/cgi/search.pl?search_terms=' . urlencode($query) . '&search_simple=1&action=process&json=1&page_size=12';
-        $ch = curl_init($url);
-        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-        curl_setopt($ch, CURLOPT_USERAGENT, 'FitTracksApp/1.0 (gym_management_app; contact@fittracks.com)');
-        curl_setopt($ch, CURLOPT_TIMEOUT, 10);
-        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
-        $res = curl_exec($ch);
-        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        curl_close($ch);
-
-        if ($res === false || $httpCode !== 200) {
-            echo json_encode(['success' => false, 'error' => 'Open Food Facts service is currently unreachable.']);
-            exit;
-        }
-
-        $data = json_decode($res, true);
-        $products = [];
-
-        if (isset($data['products']) && is_array($data['products'])) {
-            foreach ($data['products'] as $p) {
-                $name = trim((string) ($p['product_name'] ?? $p['product_name_en'] ?? ''));
-                if (empty($name)) continue;
-
-                $nutr = $p['nutriments'] ?? [];
-                $cals = (float) ($nutr['energy-kcal_100g'] ?? $nutr['energy-kcal'] ?? 0);
-                $pro = (float) ($nutr['proteins_100g'] ?? $nutr['proteins'] ?? 0);
-                $carbs = (float) ($nutr['carbohydrates_100g'] ?? $nutr['carbohydrates'] ?? 0);
-                $fat = (float) ($nutr['fat_100g'] ?? $nutr['fat'] ?? 0);
-
-                // Skip entries that have zero in all macros
-                if ($cals <= 0 && $pro <= 0 && $carbs <= 0 && $fat <= 0) continue;
-
-                $products[] = [
-                    'id' => (string) ($p['_id'] ?? $p['code'] ?? uniqid()),
-                    'name' => $name,
-                    'brand' => trim((string) ($p['brands'] ?? '')),
-                    'serving_size' => trim((string) ($p['serving_size'] ?? '100g')),
-                    'calories_100g' => round($cals),
-                    'protein_100g' => round($pro, 1),
-                    'carbs_100g' => round($carbs, 1),
-                    'fat_100g' => round($fat, 1),
-                    'image' => (string) ($p['image_front_small_url'] ?? $p['image_small_url'] ?? '')
-                ];
-
-                if (count($products) >= 8) break;
-            }
-        }
-
-        if (empty($products)) {
-            echo json_encode(['success' => false, 'error' => 'No branded food products found for "' . htmlspecialchars($query, ENT_QUOTES, 'UTF-8') . '". Try another keyword.']);
-            exit;
-        }
-
-        $resultPayload = [
-            'success' => true,
-            'provider' => 'openfoodfacts',
-            'query' => $query,
-            'products' => $products
-        ];
-
-        // Cache in MySQL cache table for 7 days
-        try {
-            $pdo = db();
-            $stmt = $pdo->prepare('REPLACE INTO cache (cache_key, cache_value, expires_at) VALUES (?, ?, ?)');
-            $stmt->execute([$cacheKeyOff, json_encode($resultPayload), time() + (86400 * 7)]);
-        } catch (Throwable $e) {}
-
-        echo json_encode($resultPayload);
-        exit;
-    }
 
     if ($action === 'decompose_meal') {
         $mealFood = trim((string)($_GET['food'] ?? $_POST['food'] ?? $query));
@@ -388,6 +301,7 @@ function food_lookup_page(): void
             SELECT * FROM food_items 
             WHERE (? IS NULL OR gym_id = ? OR gym_id IS NULL OR gym_id = 0) 
               AND (name = ? OR name LIKE ? OR ? LIKE CONCAT("%", name, "%"))
+              AND (verification_status = "verified")
             ORDER BY (gym_id IS NOT NULL AND gym_id > 0) DESC, (name = ?) DESC LIMIT 1
         ');
         $stmt->execute([$gymId, $gymId, $cleanName, '%' . $cleanName . '%', $cleanName, $cleanName]);
@@ -481,6 +395,6 @@ function food_lookup_page(): void
         exit;
     }
 
-    echo json_encode(['success' => false, 'error' => 'Invalid action. Specify calorieninjas, openfoodfacts, or decompose_meal.']);
+    echo json_encode(['success' => false, 'error' => 'Invalid action. Specify calorieninjas or decompose_meal.']);
     exit;
 }

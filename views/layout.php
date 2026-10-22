@@ -99,6 +99,7 @@ function render_header(string $title, ?array $user = null): void
                 'messages' => 'Messages',
                 'notifications' => 'Notifications',
                 'qr_attendance' => 'My QR',
+                'my_plans' => 'My Plans',
                 'my_workout' => 'Workouts',
                 'diet' => 'Diet Plan',
             ];
@@ -1837,6 +1838,16 @@ function render_header(string $title, ?array $user = null): void
                                         'title' => 'Personalized Workout Plan Active'
                                     ];
                                 }
+                            }
+
+                            // Smart Badge for Member My Plans:
+                            $activeGymPlansCount = (int) scalar('SELECT COUNT(DISTINCT gym_id) FROM training_plans WHERE member_user_id = ? AND status = "active" AND gym_id IS NOT NULL', [$uid]);
+                            if ($activeGymPlansCount > 1) {
+                                $sidebarBadges['my_plans'] = [
+                                    'text' => $activeGymPlansCount . ' Gyms',
+                                    'class' => 'sidebar-nav-badge sidebar-badge-active',
+                                    'title' => 'Active plans across ' . $activeGymPlansCount . ' facilities'
+                                ];
                             }
                         } elseif ($role === 'trainer') {
                             $coachId = ensure_coach_profile($uid);

@@ -395,12 +395,6 @@ function updateLocalFoodDropdown() {
             const chosen = localFoods.find(f => parseInt(f.food_id, 10) === id);
             if (chosen) {
                 selectedLocalFoodId = id;
-                selectedOnlineFood = null;
-                const clearOnlineBtn = document.getElementById('btn_clear_online_food');
-                const onlineBtnText = document.getElementById('online_search_btn_text');
-                if (clearOnlineBtn) clearOnlineBtn.style.display = 'none';
-                if (onlineBtnText) onlineBtnText.textContent = 'Search Online (Open Food Facts)';
-
                 if (triggerLabel) {
                     triggerLabel.textContent = `${chosen.name} (${chosen.calories} kcal)`;
                 }
@@ -415,8 +409,6 @@ function updateLocalFoodDropdown() {
     });
 }
 
-let selectedOnlineFood = null;
-
 function selectFoodItem(item, syncMealType = true) {
     const foodItemsInput = document.getElementById('meal_food_items');
     const pInput = document.getElementById('calc_p');
@@ -424,11 +416,8 @@ function selectFoodItem(item, syncMealType = true) {
     const fInput = document.getElementById('calc_f');
     const calsInput = document.getElementById('calc_cals');
     const imgInput = document.getElementById('meal_image_url');
-    const typeSelect = document.getElementById('meal_type_select');
     const indicator = document.getElementById('autofill_indicator');
     const indicatorText = document.getElementById('autofill_indicator_text');
-    const clearOnlineBtn = document.getElementById('btn_clear_online_food');
-    const onlineBtnText = document.getElementById('online_search_btn_text');
 
     const name = item.name;
     const cals = (item.calories !== undefined && item.calories !== null) ? item.calories : (item.calories_100g || 0);
@@ -450,71 +439,12 @@ function selectFoodItem(item, syncMealType = true) {
         selectMealType(item.meal_type);
     }
 
-    if (item.is_online) {
-        selectedOnlineFood = item;
-        // Reset local dropdown if any was selected
-        selectedLocalFoodId = null;
-        const triggerLabel = document.getElementById('food_trigger_label');
-        const localClearBtn = document.getElementById('food_trigger_clear');
-        const typeName = typeSelect ? typeSelect.value : 'dish';
-        if (triggerLabel) triggerLabel.textContent = `Select a ${typeName} dish...`;
-        if (localClearBtn) localClearBtn.style.display = 'none';
-        document.querySelectorAll('.custom-food-item').forEach(el => el.classList.remove('is-selected'));
-
-        // Show the online clear button ONLY for online food
-        if (clearOnlineBtn) {
-            clearOnlineBtn.style.display = 'inline-flex';
-        }
-        if (onlineBtnText) {
-            onlineBtnText.textContent = `Online: ${name} (${cals} kcal)`;
-        }
-    } else {
-        // Local food selected: ensure online clear button is hidden
-        selectedOnlineFood = null;
-        if (clearOnlineBtn) {
-            clearOnlineBtn.style.display = 'none';
-        }
-        if (onlineBtnText) {
-            onlineBtnText.textContent = 'Search Online (Open Food Facts)';
-        }
-    }
-
     if (indicator) {
         if (indicatorText) {
             indicatorText.textContent = `Selected "${name}" (${cals} kcal · ${pro}g P) auto-filled!`;
         }
         indicator.style.display = 'inline-flex';
         setTimeout(() => { indicator.style.display = 'none'; }, 4000);
-    }
-}
-
-function clearOnlineFoodSelection() {
-    selectedOnlineFood = null;
-    const foodItemsInput = document.getElementById('meal_food_items');
-    const pInput = document.getElementById('calc_p');
-    const cInput = document.getElementById('calc_c');
-    const fInput = document.getElementById('calc_f');
-    const calsInput = document.getElementById('calc_cals');
-    const imgInput = document.getElementById('meal_image_url');
-    const clearBtn = document.getElementById('btn_clear_online_food');
-    const btnText = document.getElementById('online_search_btn_text');
-    const indicator = document.getElementById('autofill_indicator');
-    const indicatorText = document.getElementById('autofill_indicator_text');
-
-    if (foodItemsInput) foodItemsInput.value = '';
-    if (pInput) pInput.value = 0;
-    if (cInput) cInput.value = 0;
-    if (fInput) fInput.value = 0;
-    if (calsInput) calsInput.value = 0;
-    if (imgInput) imgInput.value = '';
-
-    if (clearBtn) clearBtn.style.display = 'none';
-    if (btnText) btnText.textContent = 'Search Online (Open Food Facts)';
-
-    if (indicator && indicatorText) {
-        indicatorText.textContent = 'Online food selection cleared.';
-        indicator.style.display = 'inline-flex';
-        setTimeout(() => { indicator.style.display = 'none'; }, 2000);
     }
 }
 
@@ -789,148 +719,6 @@ function escapeHtml(str) {
         .replace(/'/g, '&#039;');
 }
 
-function openOnlineSearchModal() {
-    const modal = document.getElementById('modal-online-food-search');
-    const input = document.getElementById('modal_online_query');
-    const clearBtn = document.getElementById('modal_online_clear_btn');
-    if (modal) {
-        modal.style.display = 'flex';
-        modal.classList.add('active');
-        setTimeout(() => {
-            if (input) {
-                input.focus();
-                if (clearBtn) {
-                    clearBtn.style.display = input.value.trim().length > 0 ? 'inline-flex' : 'none';
-                }
-                if (input.value.trim().length >= 2) {
-                    executeModalOnlineSearch(input.value.trim());
-                }
-            }
-        }, 100);
-    }
-}
-
-function closeOnlineSearchModal() {
-    const modal = document.getElementById('modal-online-food-search');
-    if (modal) {
-        modal.style.display = 'none';
-        modal.classList.remove('active');
-    }
-}
-
-function executeModalOnlineSearch(query) {
-    const resultsContainer = document.getElementById('modal_online_results');
-    const loader = document.getElementById('modal_online_loader');
-    if (!resultsContainer) return;
-
-    if (!query || query.length < 2) {
-        resultsContainer.innerHTML = `
-            <div style="text-align: center; padding: 36px 14px; color: var(--muted); font-size: 13px;">
-                <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" style="margin: 0 auto 10px; opacity: 0.5; display: block;"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-                Type a food or brand name above to search online.
-            </div>
-        `;
-        return;
-    }
-
-    if (loader) loader.style.display = 'block';
-
-    const url = 'index.php?page=food_lookup&action=openfoodfacts&query=' + encodeURIComponent(query);
-
-    fetch(url)
-        .then(res => res.json())
-        .then(data => {
-            if (loader) loader.style.display = 'none';
-            const items = data.products || [];
-
-            if (items.length === 0) {
-                resultsContainer.innerHTML = `
-                    <div style="text-align: center; padding: 30px 14px; color: var(--muted); font-size: 13px;">
-                        No online products found for "<strong>${escapeHtml(query)}</strong>".
-                    </div>
-                `;
-                return;
-            }
-
-            resultsContainer.innerHTML = items.map((item, idx) => {
-                const name = item.name || 'Unknown Product';
-                const cals = item.calories_100g || 0;
-                const pro = item.protein_100g || 0;
-                const carbs = item.carbs_100g || 0;
-                const fat = item.fat_100g || 0;
-                const img = item.image || item.image_url || '';
-
-                return `
-                    <div class="modal-online-food-item" data-idx="${idx}" style="padding: 10px 12px; border-radius: 8px; border: 1px solid var(--line); background: var(--bg); cursor: pointer; display: flex; align-items: center; gap: 12px; transition: all 0.15s ease;">
-                        ${img ? `<img src="${escapeHtml(img)}" style="width: 42px; height: 42px; border-radius: 6px; object-fit: cover; flex-shrink: 0; background: var(--panel-soft);" onerror="this.style.display='none'">` : `
-                            <div style="width: 42px; height: 42px; border-radius: 6px; background: var(--panel-soft); display: flex; align-items: center; justify-content: center; flex-shrink: 0; color: var(--muted);">
-                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/></svg>
-                            </div>
-                        `}
-                        <div style="flex: 1; min-width: 0;">
-                            <div style="display: flex; justify-content: space-between; align-items: center; gap: 6px;">
-                                <span style="color: var(--ink); font-size: 13.5px; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${escapeHtml(name)}</span>
-                                <span style="font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 4px; background: rgba(56, 189, 248, 0.15); color: #38bdf8; white-space: nowrap;">Open Food Facts</span>
-                            </div>
-                            <div style="display: flex; gap: 8px; font-size: 11.5px; color: var(--diet-muted); margin-top: 3px; align-items: center; flex-wrap: wrap;">
-                                <span style="color: var(--diet-accent); font-weight: 700;">${cals} kcal / 100g</span>
-                                <span style="opacity: 0.5;">&bull;</span>
-                                <span>P: ${pro}g</span>
-                                <span>C: ${carbs}g</span>
-                                <span>F: ${fat}g</span>
-                            </div>
-                        </div>
-                        <button type="button" style="font-size: 11px; font-weight: 700; padding: 4px 12px; height: auto; min-height: 28px; border-radius: 6px; border: 1px solid var(--diet-accent); background: var(--diet-accent); color: #080b0d; flex-shrink: 0; pointer-events: none;">
-                            Select
-                        </button>
-                    </div>
-                `;
-            }).join('');
-
-            resultsContainer.querySelectorAll('.modal-online-food-item').forEach((row, i) => {
-                row.addEventListener('mouseenter', () => {
-                    row.style.borderColor = 'var(--diet-accent)';
-                    row.style.background = 'var(--panel-soft)';
-                });
-                row.addEventListener('mouseleave', () => {
-                    row.style.borderColor = 'var(--diet-border)';
-                    row.style.background = 'var(--bg)';
-                });
-                row.addEventListener('click', () => {
-                    const chosen = items[i];
-                    selectFoodItem({
-                        name: chosen.name,
-                        serving_size: '100g',
-                        calories: chosen.calories_100g || 0,
-                        protein_g: chosen.protein_100g || 0,
-                        carbs_g: chosen.carbs_100g || 0,
-                        fat_g: chosen.fat_100g || 0,
-                        image: chosen.image || chosen.image_url || '',
-                        is_online: true
-                    }, false);
-                    closeOnlineSearchModal();
-                });
-            });
-        })
-        .catch(() => {
-            if (loader) loader.style.display = 'none';
-            resultsContainer.innerHTML = '<div style="text-align: center; padding: 24px; color: var(--danger); font-size: 12.5px;">Network error connecting to Open Food Facts. Please try again.</div>';
-        });
-}
-
-function clearModalOnlineQuery() {
-    const input = document.getElementById('modal_online_query');
-    const clearBtn = document.getElementById('modal_online_clear_btn');
-    if (input) {
-        input.value = '';
-        input.focus();
-    }
-    if (clearBtn) {
-        clearBtn.style.display = 'none';
-    }
-    executeModalOnlineSearch('');
-}
-
 document.addEventListener("DOMContentLoaded", function() {
     const urlParams = new URLSearchParams(window.location.search);
     let initialDay = parseInt(urlParams.get('active_day'), 10);
@@ -947,21 +735,6 @@ document.addEventListener("DOMContentLoaded", function() {
     updateMacros();
     updateLocalFoodDropdown();
 
-    const onlineModalInput = document.getElementById('modal_online_query');
-    const modalClearBtn = document.getElementById('modal_online_clear_btn');
-    if (onlineModalInput) {
-        onlineModalInput.addEventListener('input', function() {
-            clearTimeout(modalSearchDebounce);
-            const val = this.value.trim();
-            if (modalClearBtn) {
-                modalClearBtn.style.display = val.length > 0 ? 'inline-flex' : 'none';
-            }
-            modalSearchDebounce = setTimeout(() => {
-                executeModalOnlineSearch(val);
-            }, 300);
-        });
-    }
-
     document.addEventListener('click', function(e) {
         if (!e.target.closest('.custom-food-dropdown-wrap')) {
             closeAllDropdowns();
@@ -970,7 +743,6 @@ document.addEventListener("DOMContentLoaded", function() {
 
     document.addEventListener('keydown', function(e) {
         if (e.key === 'Escape') {
-            closeOnlineSearchModal();
             closeAllDropdowns();
         }
     });

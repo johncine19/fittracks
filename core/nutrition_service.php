@@ -45,22 +45,49 @@ function get_compatible_dietary_restrictions(string $restriction): array
  * Automatically generates a tailored 7-day dietary plan adhering to the member's dietary restriction,
  * biometric targets (BMR/TDEE), primary goal, and gym food items library.
  */
-function generate_dietary_plan(int $memberUserId, ?int $trainerId = null, bool $forceRegenerate = false): ?int
+function generate_dietary_plan(int $memberUserId, ?int $trainerId = null, bool $forceRegenerate = false, ?int $gymId = null): ?int
 {
     $pdo = db();
 
+    // Resolve gymId if not explicitly passed
+    if ($gymId === null || $gymId <= 0) {
+        if ($trainerId !== null) {
+            $gymId = (int) scalar('SELECT gym_id FROM trainer_profiles WHERE trainer_id = ? LIMIT 1', [$trainerId]);
+        }
+        if (!$gymId && !empty($_SESSION['current_gym_id'])) {
+            $gymId = (int) $_SESSION['current_gym_id'];
+        }
+        if (!$gymId) {
+            $gymId = (int) scalar('SELECT gym_id FROM gym_members WHERE user_id = ? LIMIT 1', [$memberUserId]);
+        }
+    }
+    $scopedGymId = ($gymId > 0) ? $gymId : null;
+
     // 1. Guard: Automated / system calls ($trainerId === null) must never overwrite a trainer-curated diet plan
     if ($trainerId === null) {
-        $hasTrainerDiet = (bool) scalar('SELECT 1 FROM dietary_plans WHERE member_user_id = ? AND trainer_id IS NOT NULL AND status = "active" LIMIT 1', [$memberUserId]);
-        if ($hasTrainerDiet) {
-            $existingPlanId = (int) scalar('SELECT plan_id FROM dietary_plans WHERE member_user_id = ? AND trainer_id IS NOT NULL AND status = "active" ORDER BY plan_id DESC LIMIT 1', [$memberUserId]);
-            return $existingPlanId ?: null;
+        $guardSql = 'SELECT plan_id FROM dietary_plans WHERE member_user_id = ? AND trainer_id IS NOT NULL AND status = "active"';
+        $guardParams = [$memberUserId];
+        if ($scopedGymId !== null) {
+            $guardSql .= ' AND gym_id = ?';
+            $guardParams[] = $scopedGymId;
+        }
+        $guardSql .= ' ORDER BY plan_id DESC LIMIT 1';
+        $existingPlanId = (int) scalar($guardSql, $guardParams);
+        if ($existingPlanId > 0) {
+            return $existingPlanId;
         }
     }
 
-    // 2. If not forcing regeneration, return existing active plan if present
+    // 2. If not forcing regeneration, return existing active plan for this gym if present
     if (!$forceRegenerate) {
-        $existingPlanId = (int) scalar('SELECT plan_id FROM dietary_plans WHERE member_user_id = ? AND status = "active" LIMIT 1', [$memberUserId]);
+        $activeSql = 'SELECT plan_id FROM dietary_plans WHERE member_user_id = ? AND status = "active"';
+        $activeParams = [$memberUserId];
+        if ($scopedGymId !== null) {
+            $activeSql .= ' AND gym_id = ?';
+            $activeParams[] = $scopedGymId;
+        }
+        $activeSql .= ' ORDER BY is_preferred DESC, plan_id DESC LIMIT 1';
+        $existingPlanId = (int) scalar($activeSql, $activeParams);
         if ($existingPlanId > 0) {
             return $existingPlanId;
         }
@@ -129,8 +156,12 @@ function generate_dietary_plan(int $memberUserId, ?int $trainerId = null, bool $
     $c_g = (int) round(($targetCals * $c_pct) / 4);
     $f_g = (int) round(($targetCals * $f_pct) / 9);
 
-    // 7. Archive any existing active plans
-    $pdo->prepare('UPDATE dietary_plans SET status = "completed" WHERE member_user_id = ? AND status = "active"')->execute([$memberUserId]);
+    // 7. Archive any existing active plans FOR THIS GYM ONLY (never overwrite plans from other gyms)
+    if ($scopedGymId !== null) {
+        $pdo->prepare('UPDATE dietary_plans SET status = "completed" WHERE member_user_id = ? AND gym_id = ? AND status = "active"')->execute([$memberUserId, $scopedGymId]);
+    } else {
+        $pdo->prepare('UPDATE dietary_plans SET status = "completed" WHERE member_user_id = ? AND (gym_id IS NULL OR gym_id = 0) AND status = "active"')->execute([$memberUserId]);
+    }
 
     // 8. Title with dietary restriction badge
     $rawRestriction = trim((string)($profile['dietary_restrictions'] ?? 'none'));
@@ -138,12 +169,25 @@ function generate_dietary_plan(int $memberUserId, ?int $trainerId = null, bool $
     $restrictionLabel = ($restriction !== 'none') ? ' (' . ucwords(str_replace('-', ' ', $restriction)) . ')' : '';
     $title = 'Starter Nutrition Plan' . $restrictionLabel;
 
-    $stmtInsert = $pdo->prepare('INSERT INTO dietary_plans (member_user_id, trainer_id, title, goal, status) VALUES (?, ?, ?, ?, "active")');
-    $stmtInsert->execute([$memberUserId, $trainerId, $title, $goal]);
+    // Check if member already has an active preferred plan from another gym
+    $hasPreferred = (bool) scalar('SELECT 1 FROM dietary_plans WHERE member_user_id = ? AND is_preferred = 1 AND status = "active" LIMIT 1', [$memberUserId]);
+    $isPreferred = $hasPreferred ? 0 : 1;
+
+    $stmtInsert = $pdo->prepare('INSERT INTO dietary_plans (member_user_id, trainer_id, gym_id, title, goal, status, is_preferred) VALUES (?, ?, ?, ?, ?, "active", ?)');
+    $stmtInsert->execute([$memberUserId, $trainerId, $scopedGymId, $title, $goal, $isPreferred]);
     $planId = (int) $pdo->lastInsertId();
 
     if ($planId <= 0) {
         return null;
+    }
+
+    if (function_exists('log_plan_change')) {
+        $logUserId = $memberUserId;
+        if ($trainerId !== null) {
+            $tUid = (int) scalar('SELECT user_id FROM trainer_profiles WHERE trainer_id = ? LIMIT 1', [$trainerId]);
+            if ($tUid > 0) $logUserId = $tUid;
+        }
+        log_plan_change('diet', $planId, $scopedGymId, $logUserId, 'created', 'Generated tailored nutrition plan');
     }
 
     // 9. Fetch foods filtered by gym scope and dietary restriction

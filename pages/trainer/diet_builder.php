@@ -86,11 +86,11 @@ function diet_builder_page(): void
             FROM dietary_plans dp 
             LEFT JOIN trainer_profiles tp ON dp.trainer_id = tp.trainer_id 
             WHERE dp.member_user_id = ? 
-              AND (dp.trainer_id = ? OR tp.gym_id = ?) 
+              AND (dp.gym_id = ? OR (dp.gym_id IS NULL AND (dp.trainer_id = ? OR tp.gym_id = ?))) 
               AND dp.status = "draft" 
             ORDER BY dp.plan_id DESC LIMIT 1
         ');
-        $stmt->execute([$memberId, $trainerId, $gymId]);
+        $stmt->execute([$memberId, $gymId, $trainerId, $gymId]);
     } else {
         $stmt = $pdo->prepare('SELECT * FROM dietary_plans WHERE member_user_id = ? AND trainer_id = ? AND status = "draft" ORDER BY plan_id DESC LIMIT 1');
         $stmt->execute([$memberId, $trainerId]);
@@ -105,11 +105,11 @@ function diet_builder_page(): void
                 FROM dietary_plans dp 
                 LEFT JOIN trainer_profiles tp ON dp.trainer_id = tp.trainer_id 
                 WHERE dp.member_user_id = ? 
-                  AND (dp.trainer_id = ? OR tp.gym_id = ?) 
+                  AND (dp.gym_id = ? OR (dp.gym_id IS NULL AND (dp.trainer_id = ? OR tp.gym_id = ?))) 
                   AND dp.status = "active" 
                 ORDER BY dp.plan_id DESC LIMIT 1
             ');
-            $stmtActive->execute([$memberId, $trainerId, $gymId]);
+            $stmtActive->execute([$memberId, $gymId, $trainerId, $gymId]);
         } else {
             $stmtActive = $pdo->prepare('SELECT * FROM dietary_plans WHERE member_user_id = ? AND trainer_id = ? AND status = "active" ORDER BY plan_id DESC LIMIT 1');
             $stmtActive->execute([$memberId, $trainerId]);
@@ -119,8 +119,8 @@ function diet_builder_page(): void
         if ($activePlan) {
             $goal = $activePlan['goal'];
             $title = $activePlan['title'];
-            $stmtInsert = $pdo->prepare('INSERT INTO dietary_plans (member_user_id, trainer_id, title, goal, status) VALUES (?, ?, ?, ?, "draft")');
-            $stmtInsert->execute([$memberId, $trainerId, $title, $goal]);
+            $stmtInsert = $pdo->prepare('INSERT INTO dietary_plans (member_user_id, trainer_id, gym_id, title, goal, status) VALUES (?, ?, ?, ?, ?, "draft")');
+            $stmtInsert->execute([$memberId, $trainerId, $gymId > 0 ? $gymId : null, $title, $goal]);
             $planId = (int) $pdo->lastInsertId();
             
             // Copy meals
@@ -132,13 +132,21 @@ function diet_builder_page(): void
             foreach ($meals as $m) {
                 $stmtInsertMeal->execute([$planId, $m['day_of_week'], $m['meal_type'], $m['food_items'], $m['image_url'] ?? null, $m['calories'], $m['protein_g'], $m['carbs_g'], $m['fat_g']]);
             }
+
+            if (function_exists('log_plan_change')) {
+                log_plan_change('diet', $planId, $gymId > 0 ? $gymId : null, (int)$user['user_id'], 'created', 'Draft diet plan copied from previous plan');
+            }
         } else {
             // Create empty draft
             $goal = $profile['primary_goal'] ?? 'general_health';
             $title = 'Diet Plan for ' . ($member['first_name'] ?? 'Member');
-            $stmt = $pdo->prepare('INSERT INTO dietary_plans (member_user_id, trainer_id, title, goal, status) VALUES (?, ?, ?, ?, "draft")');
-            $stmt->execute([$memberId, $trainerId, $title, $goal]);
+            $stmt = $pdo->prepare('INSERT INTO dietary_plans (member_user_id, trainer_id, gym_id, title, goal, status) VALUES (?, ?, ?, ?, ?, "draft")');
+            $stmt->execute([$memberId, $trainerId, $gymId > 0 ? $gymId : null, $title, $goal]);
             $planId = (int) $pdo->lastInsertId();
+
+            if (function_exists('log_plan_change')) {
+                log_plan_change('diet', $planId, $gymId > 0 ? $gymId : null, (int)$user['user_id'], 'created', 'Draft diet plan initialized');
+            }
         }
     } else {
         $planId = (int) $draft['plan_id'];
@@ -156,15 +164,23 @@ function diet_builder_page(): void
                     SET dp.status = "completed"
                     WHERE dp.member_user_id = ? 
                       AND dp.status = "active" 
-                      AND (dp.trainer_id = ? OR tp.gym_id = ?)
-                ')->execute([$memberId, $trainerId, $gymId]);
+                      AND dp.plan_id <> ?
+                      AND (dp.gym_id = ? OR (dp.gym_id IS NULL AND (dp.trainer_id = ? OR tp.gym_id = ?)))
+                ')->execute([$memberId, $planId, $gymId, $trainerId, $gymId]);
             } else {
                 $pdo->prepare('UPDATE dietary_plans SET status = "completed" WHERE member_user_id = ? AND trainer_id = ? AND status = "active"')
                     ->execute([$memberId, $trainerId]);
             }
-            // Set draft to active and record this trainer/owner as publisher
-            $pdo->prepare('UPDATE dietary_plans SET status = "active", trainer_id = ? WHERE plan_id = ?')->execute([$trainerId, $planId]);
+            // Set draft to active, save gym_id, and record this trainer/owner as publisher
+            $hasOtherPreferred = (bool) scalar('SELECT 1 FROM dietary_plans WHERE member_user_id = ? AND is_preferred = 1 AND status = "active" LIMIT 1', [$memberId]);
+            $isPref = $hasOtherPreferred ? 0 : 1;
+
+            $pdo->prepare('UPDATE dietary_plans SET status = "active", gym_id = COALESCE(gym_id, ?), trainer_id = ?, is_preferred = ? WHERE plan_id = ?')->execute([$gymId > 0 ? $gymId : null, $trainerId, $isPref, $planId]);
             
+            if (function_exists('log_plan_change')) {
+                log_plan_change('diet', $planId, $gymId > 0 ? $gymId : null, (int)$user['user_id'], 'published', 'Diet plan published');
+            }
+
             $editorRoleText = ($user['role'] === 'gym_owner') ? 'gym owner' : (($user['role'] === 'platform_admin') ? 'admin' : 'trainer');
             notify_user($memberId, 'system', 'New Diet Plan!', 'Your ' . $editorRoleText . ' has published an updated dietary plan for you.');
             flash('Diet plan published successfully!', 'success');
@@ -243,6 +259,7 @@ function diet_builder_page(): void
                     SELECT food_id, name, meal_type, serving_size, calories, protein_g, carbs_g, fat_g, image_url, recipe_desc 
                     FROM food_items 
                     WHERE is_active = 1 
+                      AND verification_status = 'verified'
                       AND (gym_id = ? OR gym_id IS NULL OR gym_id = 0)
                       AND dietary_restriction IN ({$inClause})
                     ORDER BY (gym_id IS NOT NULL AND gym_id > 0) DESC, RAND()
@@ -253,6 +270,7 @@ function diet_builder_page(): void
                     SELECT food_id, name, meal_type, serving_size, calories, protein_g, carbs_g, fat_g, image_url, recipe_desc 
                     FROM food_items 
                     WHERE is_active = 1 
+                      AND verification_status = 'verified'
                       AND (gym_id = ? OR gym_id IS NULL OR gym_id = 0)
                     ORDER BY (gym_id IS NOT NULL AND gym_id > 0) DESC, (dietary_restriction = 'none') DESC, RAND()
                 ";
@@ -280,6 +298,7 @@ function diet_builder_page(): void
                             SELECT food_id, name, meal_type, serving_size, calories, protein_g, carbs_g, fat_g, image_url, recipe_desc 
                             FROM food_items 
                             WHERE is_active = 1 
+                              AND verification_status = 'verified'
                               AND meal_type = ? 
                               AND dietary_restriction IN ({$inClause}) 
                             ORDER BY RAND()
@@ -289,11 +308,11 @@ function diet_builder_page(): void
                     }
                     if (empty($foodsByType[$mt])) {
                         if (!in_array($restriction, ['vegetarian', 'vegan', 'halal'])) {
-                            $fallbackStmt = $pdo->prepare("SELECT food_id, name, meal_type, serving_size, calories, protein_g, carbs_g, fat_g, image_url, recipe_desc FROM food_items WHERE is_active = 1 AND meal_type = ? ORDER BY RAND()");
+                            $fallbackStmt = $pdo->prepare("SELECT food_id, name, meal_type, serving_size, calories, protein_g, carbs_g, fat_g, image_url, recipe_desc FROM food_items WHERE is_active = 1 AND verification_status = 'verified' AND meal_type = ? ORDER BY RAND()");
                             $fallbackStmt->execute([$mt]);
                             $foodsByType[$mt] = $fallbackStmt->fetchAll(PDO::FETCH_ASSOC);
                         } else {
-                            $fallbackStmt = $pdo->prepare("SELECT food_id, name, meal_type, serving_size, calories, protein_g, carbs_g, fat_g, image_url, recipe_desc FROM food_items WHERE is_active = 1 AND dietary_restriction IN ('vegetarian', 'vegan') ORDER BY RAND()");
+                            $fallbackStmt = $pdo->prepare("SELECT food_id, name, meal_type, serving_size, calories, protein_g, carbs_g, fat_g, image_url, recipe_desc FROM food_items WHERE is_active = 1 AND verification_status = 'verified' AND dietary_restriction IN ('vegetarian', 'vegan') ORDER BY RAND()");
                             $fallbackStmt->execute();
                             $foodsByType[$mt] = $fallbackStmt->fetchAll(PDO::FETCH_ASSOC);
                         }
@@ -347,6 +366,19 @@ function diet_builder_page(): void
             $carbs = (float) post('carbs_g');
             $fat = (float) post('fat_g');
             $imageUrl = trim((string) post('image_url')) ?: null;
+
+            // Guard: Unverified food items cannot be added to a member's plan
+            if (!empty($foodItems)) {
+                $checkFood = $pdo->prepare("SELECT verification_status FROM food_items WHERE name = ? AND is_active = 1 LIMIT 1");
+                $checkFood->execute([trim($foodItems)]);
+                $fVerif = $checkFood->fetchColumn();
+                if ($fVerif && $fVerif !== 'verified') {
+                    flash("Cannot add meal: '{$foodItems}' is unverified and awaiting platform admin review. Only verified food items can be added to member plans.", 'danger');
+                    $activeDayParam = '&active_day=' . (int)(post('active_day') ?: 1);
+                    header('Location: index.php?page=diet_builder&member_user_id=' . $memberId . $refQuery . $activeDayParam);
+                    exit;
+                }
+            }
             
             $stmt = $pdo->prepare('INSERT INTO dietary_plan_meals (plan_id, day_of_week, meal_type, food_items, image_url, calories, protein_g, carbs_g, fat_g) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)');
             
@@ -469,7 +501,9 @@ function diet_builder_page(): void
         $libraryFoodsStmt = $pdo->prepare("
             SELECT food_id, name, meal_type, serving_size, calories, protein_g, carbs_g, fat_g, image_url, recipe_desc, dietary_restriction, (gym_id IS NOT NULL AND gym_id > 0) as is_gym_custom
             FROM food_items 
-            WHERE is_active = 1 AND (gym_id = ? OR gym_id IS NULL OR gym_id = 0)
+            WHERE is_active = 1 
+              AND verification_status = 'verified'
+              AND (gym_id = ? OR gym_id IS NULL OR gym_id = 0)
             ORDER BY name ASC
         ");
         $libraryFoodsStmt->execute([$gymScopeId]);
@@ -477,7 +511,9 @@ function diet_builder_page(): void
         $libraryFoodsStmt = $pdo->prepare("
             SELECT food_id, name, meal_type, serving_size, calories, protein_g, carbs_g, fat_g, image_url, recipe_desc, dietary_restriction, 0 as is_gym_custom
             FROM food_items 
-            WHERE is_active = 1 AND (gym_id IS NULL OR gym_id = 0)
+            WHERE is_active = 1 
+              AND verification_status = 'verified'
+              AND (gym_id IS NULL OR gym_id = 0)
             ORDER BY name ASC
         ");
         $libraryFoodsStmt->execute();
@@ -659,22 +695,9 @@ function diet_builder_page(): void
                     </div>
                 </div>
 
-                <div>
-                    <div style="display: flex; gap: 8px; align-items: stretch; margin-top: 8px;">
-                        <button type="button" onclick="openOnlineSearchModal()" class="btn-online-search-compact" id="btn_online_search_trigger" style="flex: 1; margin-top: 0;" title="Search millions of products, snacks, and branded foods online">
-                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
-                            <span id="online_search_btn_text">Search Online (Open Food Facts)</span>
-                        </button>
-                        <button type="button" id="btn_clear_online_food" onclick="clearOnlineFoodSelection()" class="btn-clear-food-selection" style="display: none;" title="Clear selected food and reset inputs">
-                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-                            <span>Clear</span>
-                        </button>
-                    </div>
-
-                    <div id="autofill_indicator" style="display: none; font-size: 11.5px; color: var(--diet-accent); margin-top: 6px; font-weight: 700; align-items: center; gap: 5px;">
-                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
-                        <span id="autofill_indicator_text">Details & macros auto-filled!</span>
-                    </div>
+                <div id="autofill_indicator" style="display: none; font-size: 11.5px; color: var(--diet-accent); margin-top: 6px; font-weight: 700; align-items: center; gap: 5px;">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                    <span id="autofill_indicator_text">Details & macros auto-filled!</span>
                 </div>
 
                 <div>
@@ -848,38 +871,6 @@ window.DIET_BUILDER_CONFIG = {
 </script>
 <script src="<?= h(asset_url('js/pages/diet_builder.js')) ?>"></script>
 
-<!-- Online Food Search Modal (Open Food Facts) -->
-<div class="diet-modal-overlay" id="modal-online-food-search" style="display: none;" onclick="if(event.target===this) closeOnlineSearchModal()">
-    <div class="diet-modal-card">
-        <div class="diet-modal-header">
-            <div style="display: flex; align-items: center; gap: 10px;">
-                <div style="width: 32px; height: 32px; border-radius: 8px; background: rgba(56, 189, 248, 0.15); color: #38bdf8; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
-                </div>
-                <div>
-                    <h3 style="margin: 0; font-size: 15.5px; font-weight: 700; color: var(--ink);">Search Online Foods</h3>
-                    <p style="margin: 2px 0 0; font-size: 12px; color: var(--diet-muted);">Search 3M+ groceries, brands & ingredients on Open Food Facts</p>
-                </div>
-            </div>
-            <button type="button" onclick="closeOnlineSearchModal()" title="Close" style="background:none; border:none; color:var(--muted); font-size:22px; cursor:pointer; line-height:1; padding:4px;">&times;</button>
-        </div>
-
-        <div class="diet-modal-body">
-            <div style="position: relative; margin-bottom: 14px;">
-                <input type="text" id="modal_online_query" placeholder="e.g. Greek Yogurt, Quest Bar, Tofu, Almond Milk..." autocomplete="off" style="width: 100%; box-sizing: border-box; padding: 11px 70px 11px 14px; border-radius: 8px; border: 1px solid var(--diet-border); background: var(--bg); color: var(--ink); font-size: 13.5px; outline: none;" onkeydown="if(event.key==='Enter') executeModalOnlineSearch(this.value.trim());">
-                <button type="button" id="modal_online_clear_btn" class="modal-clear-query-btn" onclick="clearModalOnlineQuery()" title="Clear search text">✕</button>
-                <svg id="modal_online_loader" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--diet-accent)" stroke-width="2.5" stroke-linecap="round" style="display: none; position: absolute; right: 14px; top: 12px; animation: spin 1s linear infinite;"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>
-            </div>
-
-            <div id="modal_online_results" style="display: flex; flex-direction: column; gap: 8px; max-height: 380px; overflow-y: auto;">
-                <div style="text-align: center; padding: 36px 14px; color: var(--diet-muted); font-size: 13px;">
-                    <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" style="margin: 0 auto 10px; opacity: 0.5; display: block;"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-                    Type a food or brand name above to search online.
-                </div>
-            </div>
-        </div>
-    </div>
-</div>
 </div> <!-- End of .diet-builder-page -->
 <?php
     render_footer();

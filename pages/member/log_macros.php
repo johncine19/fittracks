@@ -75,6 +75,24 @@ function log_macros_page(): void
         }
     }
 
+    // Guard: Unverified food items cannot be logged by a member
+    if (!empty($foodItems)) {
+        $checkVerif = $pdo->prepare("SELECT verification_status FROM food_items WHERE name = ? AND is_active = 1 LIMIT 1");
+        $checkVerif->execute([trim($foodItems)]);
+        $verifStatus = $checkVerif->fetchColumn();
+        if ($verifStatus && $verifStatus !== 'verified') {
+            $errMsg = "Cannot log food: '{$foodItems}' is an unverified food item awaiting admin verification.";
+            if ($isAjax) {
+                if (ob_get_level()) ob_clean();
+                header('Content-Type: application/json');
+                echo json_encode(['success' => false, 'error' => $errMsg]);
+                exit;
+            }
+            flash($errMsg, 'danger');
+            redirect('diet');
+        }
+    }
+
     // Guard 1: Only Allow Logging for the Current Date
     $todayDayOfWeek = (int) date('N'); // 1 = Monday, 7 = Sunday
     if ($dayNum !== null && $dayNum !== $todayDayOfWeek) {

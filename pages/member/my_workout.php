@@ -29,11 +29,11 @@ function my_workout_page(): void
     // Fetch all active training plans for this member (supports multi-gym / multi-trainer)
     $plansStmt = $pdo->prepare(
         'SELECT p.*, tp.user_id AS t_user_id, u.first_name AS t_first, u.last_name AS t_last,
-                tp.gym_id, g.name AS gym_name
+                COALESCE(p.gym_id, tp.gym_id) AS gym_id, g.name AS gym_name
          FROM training_plans p 
          LEFT JOIN trainer_profiles tp ON p.trainer_id = tp.trainer_id 
          LEFT JOIN users u ON u.user_id = tp.user_id 
-         LEFT JOIN gyms g ON g.gym_id = tp.gym_id
+         LEFT JOIN gyms g ON g.gym_id = COALESCE(p.gym_id, tp.gym_id)
          WHERE p.member_user_id = ? AND p.status = "active" 
          ORDER BY p.plan_id DESC'
     );

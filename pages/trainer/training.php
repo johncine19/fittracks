@@ -11,7 +11,10 @@ function training_page(): void
     $gymId = null;
     if ($user['role'] === 'gym_owner') {
         $gymId = $user['gym_id'] ?? scalar('SELECT gym_id FROM gyms WHERE owner_user_id = ?', [$user['user_id']]) ?? scalar('SELECT gym_id FROM gyms ORDER BY gym_id ASC LIMIT 1');
+    } elseif ($user['role'] === 'trainer') {
+        $gymId = (int) (scalar('SELECT gym_id FROM trainer_profiles WHERE user_id = ? LIMIT 1', [$user['user_id']]) ?: ($_SESSION['current_gym_id'] ?? 0));
     }
+    $resolvedGymId = ($gymId && (int)$gymId > 0) ? (int)$gymId : null;
 
     // ----------------------------------------------------
     // POST ACTIONS (Add, Edit, Delete, Duplicate, Renew)
@@ -29,47 +32,38 @@ function training_page(): void
                 flash('Cannot create plan: Please select a valid active member.', 'error');
                 redirect('training');
             }
-            $pdo->prepare('INSERT INTO training_plans (member_user_id, trainer_id, title, goal, start_date, end_date, status) VALUES (?, ?, ?, ?, NULL, NULL, "draft")')
-                ->execute([$targetMemberId, $coachId, $title ?: 'Workout Plan', post('goal')]);
+            $pdo->prepare('INSERT INTO training_plans (member_user_id, trainer_id, gym_id, title, goal, start_date, end_date, status) VALUES (?, ?, ?, ?, ?, NULL, NULL, "draft")')
+                ->execute([$targetMemberId, $coachId, $resolvedGymId, $title ?: 'Workout Plan', post('goal')]);
+            $newPlanId = (int) $pdo->lastInsertId();
+
+            if (function_exists('log_plan_change')) {
+                log_plan_change('workout', $newPlanId, $resolvedGymId, (int)$user['user_id'], 'created', 'Created draft workout plan');
+            }
             
             // Go straight to workout builder
             header('Location: index.php?page=workout_builder&member_user_id=' . $targetMemberId);
             exit;
         } elseif ($action === 'edit_plan') {
             $plan_id = (int) post('plan_id');
-            $targetMemberId = (int) post('member_user_id', 0);
-            if ($targetMemberId <= 0) {
-                $targetMemberId = (int) scalar('SELECT member_user_id FROM training_plans WHERE plan_id = ?', [$plan_id]);
-            }
-            if ($targetMemberId <= 0 || !scalar('SELECT 1 FROM users WHERE user_id = ?', [$targetMemberId])) {
-                flash('Cannot update plan: Invalid member reference.', 'error');
+            if (!can_manage_plan('workout', $plan_id, $user, $coachId, $resolvedGymId)) {
+                flash('You are not authorized to edit this training plan.', 'error');
                 redirect('training');
             }
-            $pdo->prepare('UPDATE training_plans SET member_user_id=?, title=?, goal=?, start_date=?, end_date=? WHERE plan_id=?')
-                ->execute([$targetMemberId, $title, post('goal'), post('start_date'), post('end_date') ?: null, $plan_id]);
+            // A plan stays bound to its original member; reassignment across members/gyms is not allowed.
+            $pdo->prepare('UPDATE training_plans SET title=?, goal=?, start_date=?, end_date=?, updated_at=NOW() WHERE plan_id=?')
+                ->execute([$title, post('goal'), post('start_date'), post('end_date') ?: null, $plan_id]);
+            log_plan_change('workout', $plan_id, resolve_plan_gym_id('workout', $plan_id), (int)$user['user_id'], 'updated', 'Plan details edited');
             flash('Training plan updated.', 'success');
         } elseif ($action === 'delete_plan') {
             $plan_id = (int) post('plan_id');
             if ($plan_id > 0) {
-                // Determine authorization to delete
-                $canDelete = false;
-                if ($user['role'] === 'platform_admin') {
-                    $canDelete = true;
-                } elseif ($user['role'] === 'gym_owner') {
-                    $planMember = scalar('SELECT member_user_id FROM training_plans WHERE plan_id = ?', [$plan_id]);
-                    $isMemberInGym = $planMember && scalar('SELECT 1 FROM gym_members WHERE user_id = ? AND gym_id = ?', [$planMember, $gymId]);
-                    $isTrainerInGym = scalar('SELECT 1 FROM training_plans tp JOIN trainer_profiles tpr ON tp.trainer_id = tpr.trainer_id JOIN gym_members gm ON tpr.user_id = gm.user_id WHERE tp.plan_id = ? AND gm.gym_id = ?', [$plan_id, $gymId]);
-                    if ($isMemberInGym || $isTrainerInGym || scalar('SELECT 1 FROM training_plans WHERE plan_id = ? AND trainer_id = ?', [$plan_id, $coachId])) {
-                        $canDelete = true;
-                    }
-                } else {
-                    // Trainer can delete their own plans
-                    if (scalar('SELECT 1 FROM training_plans WHERE plan_id = ? AND trainer_id = ?', [$plan_id, $coachId])) {
-                        $canDelete = true;
-                    }
-                }
+                // Gym-scoped authorization: owners may only delete plans belonging to their own gym,
+                // even if the member is also enrolled at another facility.
+                $canDelete = can_manage_plan('workout', $plan_id, $user, $coachId, $resolvedGymId);
 
                 if ($canDelete) {
+                    $deletedGymId = resolve_plan_gym_id('workout', $plan_id);
+                    log_plan_change('workout', $plan_id, $deletedGymId, (int)$user['user_id'], 'deleted', 'Plan permanently deleted');
                     $pdo->beginTransaction();
                     try {
                         $pdo->prepare('DELETE FROM exercise_completions WHERE plan_id = ?')->execute([$plan_id]);
@@ -94,31 +88,47 @@ function training_page(): void
                 flash('Cannot duplicate plan: Please select a valid target member.', 'error');
                 redirect('training');
             }
+            if (!can_manage_plan('workout', $source_plan_id, $user, $coachId, $resolvedGymId)) {
+                flash('You are not authorized to duplicate this training plan.', 'error');
+                redirect('training');
+            }
             
+            // Duplicates are always attributed to the acting staff member's own gym
             $source_plan = $pdo->prepare('SELECT title, goal FROM training_plans WHERE plan_id = ?');
             $source_plan->execute([$source_plan_id]);
             $planData = $source_plan->fetch();
             
             if ($planData) {
                 // Get active membership for target
-                $membership = $pdo->query('SELECT start_date, end_date FROM memberships WHERE user_id = ' . $target_member_id . ' AND status = "active" ORDER BY end_date DESC LIMIT 1')->fetch();
+                $stmtMs = $pdo->prepare('SELECT start_date, end_date FROM memberships WHERE user_id = ? AND status = "active" ORDER BY end_date DESC LIMIT 1');
+                $stmtMs->execute([$target_member_id]);
+                $membership = $stmtMs->fetch();
                 $startDate = $membership ? $membership['start_date'] : date('Y-m-d');
                 $endDate = $membership ? $membership['end_date'] : date('Y-m-d', strtotime('+4 weeks'));
                 
                 $newTitle = $planData['title'] . ' (Copy)';
+                $sourceGymId = $planData['gym_id'] ?? $resolvedGymId;
                 
-                $pdo->prepare('INSERT INTO training_plans (member_user_id, trainer_id, title, goal, start_date, end_date, status) VALUES (?, ?, ?, ?, ?, ?, "draft")')
-                    ->execute([$target_member_id, $coachId, $newTitle, $planData['goal'], $startDate, $endDate]);
-                $newPlanId = $pdo->lastInsertId();
+                $pdo->prepare('INSERT INTO training_plans (member_user_id, trainer_id, gym_id, title, goal, start_date, end_date, status) VALUES (?, ?, ?, ?, ?, ?, ?, "draft")')
+                    ->execute([$target_member_id, $coachId, $sourceGymId, $newTitle, $planData['goal'], $startDate, $endDate]);
+                $newPlanId = (int) $pdo->lastInsertId();
                 
                 $pdo->prepare('INSERT INTO training_plan_exercises (plan_id, exercise_id, day_of_week, sequence_order, sets, reps, target_weight_kg, rest_seconds, notes, tempo, rpe) 
                                SELECT ?, exercise_id, day_of_week, sequence_order, sets, reps, target_weight_kg, rest_seconds, notes, tempo, rpe FROM training_plan_exercises WHERE plan_id = ?')
                     ->execute([$newPlanId, $source_plan_id]);
+
+                if (function_exists('log_plan_change')) {
+                    log_plan_change('workout', $newPlanId, $sourceGymId ? (int)$sourceGymId : null, (int)$user['user_id'], 'created', 'Duplicated from plan #' . $source_plan_id);
+                }
                     
                 flash('Training plan duplicated successfully as a draft.', 'success');
             }
         } elseif ($action === 'renew_plan') {
             $source_plan_id = (int) post('plan_id');
+            if (!can_manage_plan('workout', $source_plan_id, $user, $coachId, $resolvedGymId)) {
+                flash('You are not authorized to renew this training plan.', 'error');
+                redirect('training');
+            }
             
             $source_plan = $pdo->prepare('SELECT * FROM training_plans WHERE plan_id = ?');
             $source_plan->execute([$source_plan_id]);
@@ -136,14 +146,19 @@ function training_page(): void
                     $newStart = date('Y-m-d');
                 }
                 $newEnd = date('Y-m-d', strtotime('+4 weeks', strtotime($newStart)));
+                $sourceGymId = $planData['gym_id'] ?? $resolvedGymId;
                 
-                $pdo->prepare('INSERT INTO training_plans (member_user_id, trainer_id, title, goal, start_date, end_date, status) VALUES (?, ?, ?, ?, ?, ?, "draft")')
-                    ->execute([$renewMemberId, $coachId, $planData['title'] . ' (Phase 2)', $planData['goal'], $newStart, $newEnd]);
-                $newPlanId = $pdo->lastInsertId();
+                $pdo->prepare('INSERT INTO training_plans (member_user_id, trainer_id, gym_id, title, goal, start_date, end_date, status) VALUES (?, ?, ?, ?, ?, ?, ?, "draft")')
+                    ->execute([$renewMemberId, $coachId, $sourceGymId, $planData['title'] . ' (Phase 2)', $planData['goal'], $newStart, $newEnd]);
+                $newPlanId = (int) $pdo->lastInsertId();
                 
                 $pdo->prepare('INSERT INTO training_plan_exercises (plan_id, exercise_id, day_of_week, sequence_order, sets, reps, target_weight_kg, rest_seconds, notes, tempo, rpe) 
                                SELECT ?, exercise_id, day_of_week, sequence_order, sets, reps, target_weight_kg, rest_seconds, notes, tempo, rpe FROM training_plan_exercises WHERE plan_id = ?')
                     ->execute([$newPlanId, $source_plan_id]);
+
+                if (function_exists('log_plan_change')) {
+                    log_plan_change('workout', $newPlanId, $sourceGymId ? (int)$sourceGymId : null, (int)$user['user_id'], 'created', 'Renewed Phase 2 from plan #' . $source_plan_id);
+                }
                     
                 flash('Training plan renewed as a new draft Phase 2.', 'success');
             }
@@ -223,6 +238,18 @@ function training_page(): void
         ');
         $stmtView->execute([$viewPlanId]);
         $viewPlan = $stmtView->fetch();
+
+        // Enforce strict cross-gym privacy: gym owners & trainers only view their own gym's plans
+        if ($viewPlan && $user['role'] === 'gym_owner' && $gymId) {
+            $planGymId = $viewPlan['gym_id'] ?: scalar('SELECT gym_id FROM trainer_profiles WHERE trainer_id = ?', [$viewPlan['trainer_id']]);
+            if ($planGymId && (int)$planGymId !== (int)$gymId) {
+                $viewPlan = null;
+            }
+        } elseif ($viewPlan && $user['role'] === 'trainer') {
+            if ((int)($viewPlan['trainer_id'] ?? 0) !== (int)$coachId) {
+                $viewPlan = null;
+            }
+        }
     }
 
     if ($user['role'] === 'gym_owner' && $gymId) {
@@ -237,8 +264,7 @@ function training_page(): void
             JOIN users m ON m.user_id = p.member_user_id
             LEFT JOIN trainer_profiles tp ON p.trainer_id = tp.trainer_id
             LEFT JOIN users t ON tp.user_id = t.user_id
-            WHERE m.user_id IN (SELECT user_id FROM gym_members WHERE gym_id = ?)
-               OR t.user_id IN (SELECT user_id FROM gym_members WHERE gym_id = ?)
+            WHERE (p.gym_id = ? OR (p.gym_id IS NULL AND tp.gym_id = ?))
             ORDER BY p.created_at DESC
         ', [$gymId, $gymId]);
     } elseif ($user['role'] === 'trainer') {

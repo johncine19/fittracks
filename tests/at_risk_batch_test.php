@@ -133,7 +133,7 @@ function run_at_risk_batch_multi_gym_tests(): void
 
         -- User 5 already received at-risk notification 2 days ago (in cooldown)
         INSERT INTO notifications (user_id, type, title, created_at) VALUES
-        (5, 'system', 'We miss you at the gym!', '2026-10-03 12:00:00');
+        (5, 'system', 'We miss you at the gym!', datetime('now', '-2 days'));
     ");
 
     // Queue interceptor to track pushed jobs

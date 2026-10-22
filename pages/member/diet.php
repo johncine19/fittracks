@@ -13,6 +13,7 @@ function get_swap_meal_catalog(?PDO $pdo = null, ?int $gymId = null): array
                calories, protein_g, carbs_g, fat_g, image_url, recipe_desc 
         FROM food_items 
         WHERE is_active = 1 
+          AND verification_status = 'verified'
           AND (gym_id = ? OR gym_id IS NULL)
         ORDER BY (gym_id IS NOT NULL) DESC, name ASC
     ";
@@ -26,7 +27,9 @@ function get_swap_meal_catalog(?PDO $pdo = null, ?int $gymId = null): array
             SELECT food_id, gym_id, name, meal_type, dietary_restriction, serving_size, 
                    calories, protein_g, carbs_g, fat_g, image_url, recipe_desc 
             FROM food_items 
-            WHERE is_active = 1 AND gym_id IS NULL
+            WHERE is_active = 1 
+              AND verification_status = 'verified'
+              AND gym_id IS NULL
             ORDER BY name ASC
         ");
         $items = $fallbackStmt->fetchAll(PDO::FETCH_ASSOC);
@@ -365,6 +368,17 @@ function diet_page(): void
             exit;
         }
 
+        // Guard: Unverified food items cannot be added to a member's plan
+        $checkFood = $pdo->prepare("SELECT verification_status FROM food_items WHERE name = ? AND is_active = 1 LIMIT 1");
+        $checkFood->execute([$foodItems]);
+        $fVerif = $checkFood->fetchColumn();
+        if ($fVerif && $fVerif !== 'verified') {
+            if (ob_get_level()) ob_clean();
+            header('Content-Type: application/json');
+            echo json_encode(['success' => false, 'error' => 'This food item is unverified and cannot be added to your plan.']);
+            exit;
+        }
+
         $stmtUpdate = $pdo->prepare('UPDATE dietary_plan_meals SET food_items = ?, calories = ?, protein_g = ?, carbs_g = ?, fat_g = ? WHERE meal_id = ?');
         $stmtUpdate->execute([$foodItems, $calories, $protein, $carbs, $fat, $mealId]);
 
@@ -539,21 +553,34 @@ function diet_page(): void
             $c_g = round(($targetCals * $c_pct) / 4);
             $f_g = round(($targetCals * $f_pct) / 9);
             
-            // 5. Create Plan
-            $pdo->prepare('UPDATE dietary_plans SET status = "completed" WHERE member_user_id = ? AND status = "active"')->execute([$userId]);
+            // Resolve gym for current context
+            $gymId = get_user_gym_id($user);
+            $scopedGymId = ($gymId && $gymId > 0) ? (int)$gymId : null;
+
+            // 5. Create Plan - only complete prior active plan for THIS gym (never overwrite other gyms' plans)
+            if ($scopedGymId !== null) {
+                $pdo->prepare('UPDATE dietary_plans SET status = "completed" WHERE member_user_id = ? AND gym_id = ? AND status = "active"')->execute([$userId, $scopedGymId]);
+            } else {
+                $pdo->prepare('UPDATE dietary_plans SET status = "completed" WHERE member_user_id = ? AND (gym_id IS NULL OR gym_id = 0) AND status = "active"')->execute([$userId]);
+            }
             
+            $hasActivePreferred = (bool) scalar('SELECT 1 FROM dietary_plans WHERE member_user_id = ? AND is_preferred = 1 AND status = "active" LIMIT 1', [$userId]);
+            $isPreferred = $hasActivePreferred ? 0 : 1;
+
             $title = 'Auto-Generated Diet Plan';
-            $stmtInsert = $pdo->prepare('INSERT INTO dietary_plans (member_user_id, trainer_id, title, goal, status) VALUES (?, NULL, ?, ?, "active")');
-            $stmtInsert->execute([$userId, $title, $goal]);
+            $stmtInsert = $pdo->prepare('INSERT INTO dietary_plans (member_user_id, trainer_id, gym_id, title, goal, status, is_preferred) VALUES (?, NULL, ?, ?, ?, "active", ?)');
+            $stmtInsert->execute([$userId, $scopedGymId, $title, $goal, $isPreferred]);
             $planId = (int) $pdo->lastInsertId();
+
+            if (function_exists('log_plan_change')) {
+                log_plan_change('diet', $planId, $scopedGymId, $userId, 'created', 'Auto-generated diet plan');
+            }
             
             // 6. Generate Meals from Database
             $restriction = (string) ($profile['dietary_restrictions'] ?? 'none');
             if (empty($restriction)) {
                 $restriction = 'none';
             }
-
-            $gymId = get_user_gym_id($user);
             $compatibleDiets = function_exists('get_compatible_dietary_restrictions')
                 ? get_compatible_dietary_restrictions($restriction)
                 : ($restriction !== 'none' ? [$restriction] : []);
@@ -564,6 +591,7 @@ function diet_page(): void
                     SELECT food_id, name, meal_type, serving_size, calories, protein_g, carbs_g, fat_g, image_url, recipe_desc 
                     FROM food_items 
                     WHERE is_active = 1 
+                      AND verification_status = 'verified'
                       AND (gym_id = ? OR gym_id IS NULL OR gym_id = 0)
                       AND dietary_restriction IN ({$inClause})
                     ORDER BY (gym_id IS NOT NULL AND gym_id > 0) DESC, RAND()
@@ -574,6 +602,7 @@ function diet_page(): void
                     SELECT food_id, name, meal_type, serving_size, calories, protein_g, carbs_g, fat_g, image_url, recipe_desc 
                     FROM food_items 
                     WHERE is_active = 1 
+                      AND verification_status = 'verified'
                       AND (gym_id = ? OR gym_id IS NULL OR gym_id = 0)
                     ORDER BY (gym_id IS NOT NULL AND gym_id > 0) DESC, (dietary_restriction = 'none') DESC, RAND()
                 ";
@@ -601,6 +630,7 @@ function diet_page(): void
                             SELECT food_id, name, meal_type, serving_size, calories, protein_g, carbs_g, fat_g, image_url, recipe_desc 
                             FROM food_items 
                             WHERE is_active = 1 
+                              AND verification_status = 'verified'
                               AND meal_type = ? 
                               AND dietary_restriction IN ({$inClause}) 
                             ORDER BY RAND()
@@ -613,7 +643,9 @@ function diet_page(): void
                             $fallbackStmt = $pdo->prepare("
                                 SELECT food_id, name, meal_type, serving_size, calories, protein_g, carbs_g, fat_g, image_url, recipe_desc 
                                 FROM food_items 
-                                WHERE is_active = 1 AND meal_type = ? 
+                                WHERE is_active = 1 
+                                  AND verification_status = 'verified'
+                                  AND meal_type = ? 
                                 ORDER BY RAND()
                             ");
                             $fallbackStmt->execute([$mt]);
@@ -622,7 +654,9 @@ function diet_page(): void
                             $fallbackStmt = $pdo->prepare("
                                 SELECT food_id, name, meal_type, serving_size, calories, protein_g, carbs_g, fat_g, image_url, recipe_desc 
                                 FROM food_items 
-                                WHERE is_active = 1 AND dietary_restriction IN ('vegetarian', 'vegan') 
+                                WHERE is_active = 1 
+                                  AND verification_status = 'verified'
+                                  AND dietary_restriction IN ('vegetarian', 'vegan') 
                                 ORDER BY RAND()
                             ");
                             $fallbackStmt->execute();
@@ -663,21 +697,44 @@ function diet_page(): void
             flash("Dietary plan generated automatically! Target: {$targetCals}kcal", 'success');
             redirect('diet');
         }
+
+        if (isset($_POST['set_preferred_plan'])) {
+            $prefId = (int)$_POST['set_preferred_plan'];
+            if ($prefId > 0 && function_exists('set_preferred_dietary_plan')) {
+                set_preferred_dietary_plan($userId, $prefId);
+                flash('Preferred nutrition plan updated successfully.', 'success');
+                redirect('diet&plan_id=' . $prefId);
+            }
+        }
     }
     
     // Fetch active diet plans (supports multi-gym / multi-trainer)
     $planStmt = $pdo->prepare('
         SELECT dp.*, u.first_name as t_first, u.last_name as t_last, u.role as t_role,
-               tp.gym_id, g.name as gym_name 
+               COALESCE(dp.gym_id, tp.gym_id) as gym_id, g.name as gym_name 
         FROM dietary_plans dp 
         LEFT JOIN trainer_profiles tp ON tp.trainer_id = dp.trainer_id 
         LEFT JOIN users u ON u.user_id = tp.user_id 
-        LEFT JOIN gyms g ON g.gym_id = tp.gym_id
+        LEFT JOIN gyms g ON g.gym_id = COALESCE(dp.gym_id, tp.gym_id)
         WHERE dp.member_user_id = ? AND dp.status = "active" 
-        ORDER BY dp.plan_id DESC
+        ORDER BY dp.is_preferred DESC, dp.plan_id DESC
     ');
     $planStmt->execute([$userId]);
     $activePlans = $planStmt->fetchAll();
+
+    // Only include plans with a gym owner or trainer; do not include auto-generated plans
+    $coachOrGymPlans = array_values(array_filter($activePlans, function($p) {
+        return !empty($p['trainer_id']) || !empty($p['t_first']) || !empty($p['t_last']);
+    }));
+
+    if (!empty($coachOrGymPlans)) {
+        $activePlans = $coachOrGymPlans;
+        // Mark any orphaned auto-generated plans as completed so they do not linger
+        try {
+            $pdo->prepare('UPDATE dietary_plans SET status = "completed" WHERE member_user_id = ? AND trainer_id IS NULL AND status = "active"')
+                ->execute([$userId]);
+        } catch (Throwable $e) {}
+    }
 
     $selectedPlanId = isset($_GET['plan_id']) ? (int)$_GET['plan_id'] : 0;
     $currentGym = get_user_gym($user);
@@ -692,7 +749,16 @@ function diet_page(): void
             }
         }
     }
-    // If not explicitly selected, prioritize current gym's plan
+    // If not explicitly selected, prioritize marked preferred plan
+    if (!$activePlan) {
+        foreach ($activePlans as $ap) {
+            if (!empty($ap['is_preferred'])) {
+                $activePlan = $ap;
+                break;
+            }
+        }
+    }
+    // Then prioritize current gym's plan
     if (!$activePlan && $currentGymId > 0) {
         foreach ($activePlans as $ap) {
             if ((int)($ap['gym_id'] ?? 0) === $currentGymId) {
@@ -708,7 +774,7 @@ function diet_page(): void
 
     // Auto-generate their tailored dietary plan if they don't have one active yet
     if (!$activePlan) {
-        $autoPlanId = generate_dietary_plan($userId);
+        $autoPlanId = generate_dietary_plan($userId, null, false, $currentGymId > 0 ? $currentGymId : null);
         if ($autoPlanId) {
             $planStmt->execute([$userId]);
             $activePlans = $planStmt->fetchAll();
@@ -752,16 +818,11 @@ function diet_page(): void
     
     $planId = (int) $activePlan['plan_id'];
 
-    if ($activePlan['trainer_id']) {
-        $fullName = trim(($activePlan['t_first'] ?? '') . ' ' . ($activePlan['t_last'] ?? ''));
-        if (($activePlan['t_role'] ?? '') === 'gym_owner') {
-            $trainerName = h($fullName ?: 'Gym Owner') . ' <span style="font-size:11px; opacity:0.8; font-weight:500;">(Gym Owner)</span>';
-        } else {
-            $trainerName = h($fullName ?: 'Trainer');
-        }
-    } else {
-        $trainerName = 'Auto-generated';
-    }
+    $hasCoach = !empty($activePlan['trainer_id']);
+    $coachFullName = trim(($activePlan['t_first'] ?? '') . ' ' . ($activePlan['t_last'] ?? ''));
+    $isGymOwner = (($activePlan['t_role'] ?? '') === 'gym_owner');
+    $coachDisplayName = $coachFullName ?: ($isGymOwner ? 'Gym Owner' : 'Coach');
+    $trainerName = $coachDisplayName;
     
     $mealsRaw = $pdo->query('SELECT * FROM dietary_plan_meals WHERE plan_id = ' . $planId . ' ORDER BY day_of_week ASC, FIELD(meal_type, "Breakfast", "Lunch", "Dinner", "Snack")')->fetchAll();
     
@@ -789,102 +850,6 @@ function diet_page(): void
     }
 ?>
 <link rel="stylesheet" href="<?= h(asset_url('css/pages/diet.css')) ?>">
-<?php if (count($activePlans) > 1): ?>
-    <!-- Multi-Gym / Multi-Coach Diet Plan Switcher -->
-    <div class="plan-switcher-container">
-        <div class="plan-switcher-header">
-            <div class="plan-switcher-title">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M16 3h5v5"/><path d="M4 20L21 3"/><path d="M21 16v5h-5"/><path d="M15 15l6 6"/><path d="M4 4l5 5"/></svg>
-                <span>Active Nutrition Plans (<?= count($activePlans) ?>)</span>
-            </div>
-            <span class="plan-switcher-hint">Switch between diet programs assigned across your gyms</span>
-        </div>
-        <div class="plan-switcher-pills">
-            <?php foreach ($activePlans as $ap): 
-                $isSelected = ((int)$ap['plan_id'] === (int)($activePlan['plan_id'] ?? 0));
-                $gymTitle = !empty($ap['gym_name']) ? $ap['gym_name'] : 'Nutrition Plan';
-                $coachSub = (!empty($ap['t_first']) || !empty($ap['t_last'])) ? ('Coach ' . trim($ap['t_first'] . ' ' . $ap['t_last'])) : 'Auto-generated';
-                $isHomeGym = $currentGymId && ((int)($ap['gym_id'] ?? 0) === $currentGymId);
-            ?>
-                <a href="index.php?page=diet&plan_id=<?= (int)$ap['plan_id'] ?>" 
-                   class="plan-switcher-pill <?= $isSelected ? 'is-active' : '' ?>">
-                    <div class="plan-pill-icon">
-                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2a10 10 0 1 0 10 10H12V2z"/><path d="M12 12L2.1 12.5"/><path d="M12 12l4.5 8"/></svg>
-                    </div>
-                    <div class="plan-pill-body">
-                        <div class="plan-pill-gym">
-                            <?= h($gymTitle) ?>
-                            <?php if ($isHomeGym): ?>
-                                <span class="plan-pill-badge-curr">Selected Gym</span>
-                            <?php endif; ?>
-                        </div>
-                        <div class="plan-pill-coach"><?= h($coachSub) ?></div>
-                    </div>
-                    <?php if ($isSelected): ?>
-                        <span class="plan-pill-active-dot" title="Currently viewing this meal plan">
-                            <span class="plan-dot-pulse"></span>
-                            Viewing
-                        </span>
-                    <?php endif; ?>
-                </a>
-            <?php endforeach; ?>
-        </div>
-    </div>
-<?php endif; ?>
-<!-- Contextual Action Strip (Goal, Assigned By, and Plan Actions) -->
-<div class="diet-action-strip">
-    <div class="diet-strip-meta">
-        <span class="diet-goal-pill">
-            <span style="width: 7px; height: 7px; border-radius: 50%; background: var(--lime); display: inline-block; flex-shrink: 0;"></span>
-            <span style="color: var(--muted); font-weight: 500;">Goal:</span>
-            <strong class="goal-text" style="color: var(--ink); font-weight: 700;"><?= h(ucwords(str_replace('_', ' ', $activePlan['goal']))) ?></strong>
-        </span>
-
-        <?php if ($userDietaryRestriction !== 'none'): ?>
-            <span class="diet-restriction-pill" style="display: inline-flex; align-items: center; gap: 6px; background: rgba(52, 211, 153, 0.12); color: #34d399; border: 1px solid rgba(52, 211, 153, 0.3); padding: 5px 12px; border-radius: 20px; font-size: 13px; font-weight: 600;">
-                <span style="font-size: 13px;">🥗</span>
-                <span style="color: var(--muted); font-weight: 500;">Diet:</span>
-                <strong style="color: #34d399; font-weight: 700; text-transform: capitalize;"><?= h(ucwords(str_replace('-', ' ', $userDietaryRestriction))) ?></strong>
-            </span>
-        <?php else: ?>
-            <span class="diet-restriction-pill" style="display: inline-flex; align-items: center; gap: 6px; background: var(--panel-soft); color: var(--ink); border: 1px solid var(--line); padding: 5px 12px; border-radius: 20px; font-size: 13px; font-weight: 600;">
-                <span style="font-size: 13px;">🥗</span>
-                <span style="color: var(--muted); font-weight: 500;">Diet:</span>
-                <strong style="color: var(--ink); font-weight: 700;">Standard</strong>
-            </span>
-        <?php endif; ?>
-
-        <span class="diet-assigned-pill">
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--muted)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-            <span style="color: var(--muted); font-weight: 500;">Assigned by:</span>
-            <strong class="trainer-text" style="color: var(--ink); font-weight: 600;"><?= $trainerName ?></strong>
-        </span>
-    </div>
-    
-    <?php 
-    $isDietSelfGuided = is_member_self_guided($userId) && empty($activePlan['trainer_id']);
-    if ($isDietSelfGuided): ?>
-        <!-- Generate a new plan overriding the current one -->
-        <form id="regenerate-plan-form" class="diet-action-form" method="post">
-            <?= csrf_field() ?>
-            <input type="hidden" name="action" value="generate_plan">
-            <button type="button" onclick="confirmRegeneratePlan()" class="btn btn-diet-action">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.92-10.26l5.67-5.67"/></svg>
-                <span>Regenerate Plan</span>
-            </button>
-        </form>
-    <?php else: ?>
-        <div class="diet-action-form" title="Your dietary plan is curated by your coach/trainer. Contact your coach for nutritional adjustments.">
-            <button type="button" class="btn btn-diet-action is-disabled" disabled style="opacity: 0.65; cursor: not-allowed; border-color: rgba(255,255,255,0.12); background: rgba(255,255,255,0.03);">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-                <span>Coach Managed</span>
-            </button>
-        </div>
-    <?php endif; ?>
-</div>
-
-
-
 <?php
 // Calculate today's targets
 $todayNum = (int) date('N');
@@ -914,17 +879,8 @@ foreach ($loggedMealsTodayRaw as $lm) {
         'meal_id' => (int) $lm['meal_id']
     ];
 }
-?>
-<script>
-window.DIET_CONFIG = {
-    csrfToken: <?= json_encode(csrf_token()) ?>,
-    loggedMealsToday: <?= json_encode($loggedMealsTodayMap ?? []) ?>,
-    currentDayNum: <?= (int)($todayNum ?? 1) ?>
-};
-window.FT_LOGGED_MEALS_TODAY = window.DIET_CONFIG.loggedMealsToday;
-window.FT_CURRENT_DAY_NUM = window.DIET_CONFIG.currentDayNum;
-</script>
-<?php
+
+$isDietSelfGuided = is_member_self_guided($userId) && empty($activePlan['trainer_id']);
 
 $calcMacroStatus = function(int $logged, int $target, string $type): array {
     if ($target <= 0) {
@@ -985,320 +941,466 @@ $stPro   = $calcMacroStatus($loggedPro, $targetPro, 'pro');
 $stCarbs = $calcMacroStatus($loggedCarbs, $targetCarbs, 'carbs');
 $stFat   = $calcMacroStatus($loggedFat, $targetFat, 'fat');
 ?>
+<script>
+window.DIET_CONFIG = {
+    csrfToken: <?= json_encode(csrf_token()) ?>,
+    loggedMealsToday: <?= json_encode($loggedMealsTodayMap ?? []) ?>,
+    currentDayNum: <?= (int)($todayNum ?? 1) ?>
+};
+window.FT_LOGGED_MEALS_TODAY = window.DIET_CONFIG.loggedMealsToday;
+window.FT_CURRENT_DAY_NUM = window.DIET_CONFIG.currentDayNum;
+</script>
 
-<!-- Top View Switcher Navigation: Tracker vs Meal Plan -->
-<div class="diet-main-nav-wrap">
-    <div class="diet-main-nav">
-        <button type="button" class="diet-nav-pill active" id="btn-view-tracker" onclick="switchDietView('tracker')">
-            <div class="diet-nav-pill-title-row">
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round">
+<!-- Regenerate Plan Form (Hidden, triggered via JS modal) -->
+<?php if ($isDietSelfGuided): ?>
+    <form id="regenerate-plan-form" class="diet-action-form" method="post" style="display:none;">
+        <?= csrf_field() ?>
+        <input type="hidden" name="action" value="generate_plan">
+    </form>
+<?php endif; ?>
+
+<!-- ==================================================== -->
+<!-- UNIFIED BORDERLESS TOP BAR: PLANS + META + TABS      -->
+<!-- ==================================================== -->
+<div class="diet-bento-topbar">
+    <div class="diet-topbar-left">
+        <!-- Active Plan Dropdown / Popover -->
+        <?php if (count($activePlans) > 1): ?>
+            <div class="diet-plan-popover-wrap" id="diet-plan-popover-wrap">
+                <button type="button" 
+                        class="diet-plan-popover-btn" 
+                        id="diet-plan-popover-trigger" 
+                        aria-expanded="false" 
+                        aria-haspopup="true"
+                        onclick="toggleDietPlanPopover(event)">
+                    <span class="diet-plan-pill-icon">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 2a10 10 0 1 0 10 10H12V2z"/><path d="M12 12L2.1 12.5"/><path d="M12 12l4.5 8"/></svg>
+                    </span>
+                    <span class="diet-plan-btn-content">
+                        <span class="diet-plan-btn-prefix">Active Plan:</span>
+                        <strong class="diet-plan-btn-name"><?= h(!empty($activePlan['gym_name']) ? $activePlan['gym_name'] : 'Nutrition Plan') ?></strong>
+                        <span class="diet-plan-btn-coach">
+                            <?= (!empty($activePlan['t_first']) || !empty($activePlan['t_last'])) ? ('• Coach ' . trim($activePlan['t_first'] . ' ' . $activePlan['t_last'])) : '• Auto' ?>
+                        </span>
+                    </span>
+                    <svg class="diet-plan-chevron" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                </button>
+
+                <!-- Floating Popover Menu (Dark-Themed & High Contrast) -->
+                <div class="diet-plan-dropdown-menu" id="diet-plan-dropdown-menu" role="menu">
+                    <div class="diet-dropdown-header">
+                        <span>Switch Nutrition Plan</span>
+                        <span class="diet-dropdown-count"><?= count($activePlans) ?> Active</span>
+                    </div>
+                    <div class="diet-dropdown-items">
+                        <?php foreach ($activePlans as $ap): 
+                            $isSelected = ((int)$ap['plan_id'] === (int)($activePlan['plan_id'] ?? 0));
+                            $gymTitle = !empty($ap['gym_name']) ? $ap['gym_name'] : 'Nutrition Plan';
+                            $coachSub = (!empty($ap['t_first']) || !empty($ap['t_last'])) ? ('Coach ' . trim($ap['t_first'] . ' ' . $ap['t_last'])) : 'Auto-generated';
+                        ?>
+                            <a href="index.php?page=diet&plan_id=<?= (int)$ap['plan_id'] ?>" 
+                               class="diet-dropdown-item <?= $isSelected ? 'is-active-item' : '' ?>"
+                               role="menuitem">
+                                <div class="diet-dropdown-item-icon">
+                                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 2a10 10 0 1 0 10 10H12V2z"/><path d="M12 12L2.1 12.5"/><path d="M12 12l4.5 8"/></svg>
+                                </div>
+                                <div class="diet-dropdown-item-info">
+                                    <div class="diet-item-title"><?= h($gymTitle) ?></div>
+                                    <div class="diet-item-sub"><?= h($coachSub) ?></div>
+                                </div>
+                                <?php if ($isSelected): ?>
+                                    <span class="diet-item-check" title="Currently viewing">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                                    </span>
+                                <?php endif; ?>
+                            </a>
+                        <?php endforeach; ?>
+                    </div>
+                </div>
+            </div>
+        <?php else: ?>
+            <div class="diet-plan-single-pill">
+                <span class="diet-plan-pill-icon">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 2a10 10 0 1 0 10 10H12V2z"/><path d="M12 12L2.1 12.5"/><path d="M12 12l4.5 8"/></svg>
+                </span>
+                <span class="diet-plan-btn-content">
+                    <span class="diet-plan-btn-prefix">Active Plan:</span>
+                    <strong class="diet-plan-btn-name"><?= h(!empty($activePlan['gym_name']) ? $activePlan['gym_name'] : 'Nutrition Plan') ?></strong>
+                    <?php if (!empty($activePlan['t_first']) || !empty($activePlan['t_last'])): ?>
+                        <span class="diet-plan-btn-coach">• Coach <?= h(trim($activePlan['t_first'] . ' ' . $activePlan['t_last'])) ?></span>
+                    <?php endif; ?>
+                </span>
+            </div>
+        <?php endif; ?>
+
+        <!-- Inline Metadata Pills -->
+        <div class="diet-topbar-meta">
+            <span class="diet-meta-chip diet-chip-desktop" title="Primary Fitness Goal">
+                <span class="diet-chip-dot dot-lime"></span>
+                <span><?= h(ucwords(str_replace('_', ' ', $activePlan['goal']))) ?></span>
+            </span>
+
+            <span class="diet-meta-chip diet-chip-desktop <?= $userDietaryRestriction !== 'none' ? 'is-diet-highlight' : '' ?>" title="Dietary Protocol">
+                <span style="font-size: 12px;">🥗</span>
+                <span><?= h(ucwords(str_replace('-', ' ', $userDietaryRestriction === 'none' ? 'Standard' : $userDietaryRestriction))) ?></span>
+            </span>
+
+            <span class="diet-meta-chip diet-chip-desktop" title="Nutritional Guidance">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                <?php if ($hasCoach): ?>
+                    <span>Coach <?= h($coachDisplayName) ?></span>
+                    <?php if ($isGymOwner): ?>
+                        <span class="diet-chip-role-tag">Owner</span>
+                    <?php endif; ?>
+                <?php else: ?>
+                    <span>Auto-generated</span>
+                <?php endif; ?>
+            </span>
+
+            <?php if ($isDietSelfGuided): ?>
+                <button type="button" onclick="confirmRegeneratePlan()" class="diet-meta-btn" title="Regenerate Plan">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.92-10.26l5.67-5.67"/></svg>
+                    <span>Regenerate</span>
+                </button>
+            <?php else: ?>
+                <span class="diet-meta-chip is-locked" title="Managed by Gym Coach">
+                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                    <span>Coach Managed</span>
+                </span>
+            <?php endif; ?>
+
+            <!-- Mobile Info Trigger Button (Sits on same baseline on mobile) -->
+            <button type="button" 
+                    class="diet-meta-info-btn" 
+                    id="btn-diet-plan-info" 
+                    onclick="openDietPlanInfoModal()" 
+                    title="View plan goal, diet protocol &amp; coach guidance" 
+                    aria-label="View plan details">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="12" cy="12" r="10"></circle>
+                    <line x1="12" y1="16" x2="12" y2="12"></line>
+                    <line x1="12" y1="8" x2="12.01" y2="8"></line>
+                </svg>
+                <span>Info</span>
+            </button>
+        </div>
+    </div>
+
+    <!-- Segmented Tracker / Weekly Plan Navigation Tabs -->
+    <div class="diet-topbar-right">
+        <div class="diet-segmented-nav">
+            <button type="button" class="diet-segmented-btn active" id="btn-view-tracker" onclick="switchDietView('tracker')">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3">
                     <line x1="18" y1="20" x2="18" y2="10"></line>
                     <line x1="12" y1="20" x2="12" y2="4"></line>
                     <line x1="6" y1="20" x2="6" y2="14"></line>
                 </svg>
-                <span class="diet-nav-title-full">Today's Macro Tracker</span>
-                <span class="diet-nav-title-short">Macro Tracker</span>
-            </div>
-            <span class="diet-nav-badge tracker-badge"><?= $loggedCals ?> / <?= $targetCals ?> kcal</span>
-        </button>
-        <button type="button" class="diet-nav-pill" id="btn-view-plan" onclick="switchDietView('plan')">
-            <div class="diet-nav-pill-title-row">
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round">
+                <span class="nav-btn-lbl">Today's Tracker</span>
+                <span class="diet-nav-badge tracker-badge"><?= $loggedCals ?> / <?= $targetCals ?> kcal</span>
+            </button>
+            <button type="button" class="diet-segmented-btn" id="btn-view-plan" onclick="switchDietView('plan')">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3">
                     <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
                     <line x1="16" y1="2" x2="16" y2="6"></line>
                     <line x1="8" y1="2" x2="8" y2="6"></line>
                     <line x1="3" y1="10" x2="21" y2="10"></line>
                 </svg>
-                <span class="diet-nav-title-full">Weekly Meal Plan</span>
-                <span class="diet-nav-title-short">Meal Plan</span>
-            </div>
-            <span class="diet-nav-badge plan-badge">7-Day Schedule</span>
-        </button>
+                <span class="nav-btn-lbl">Weekly Plan</span>
+                <span class="diet-nav-badge plan-badge">7-Day</span>
+            </button>
+        </div>
     </div>
 </div>
 
 <!-- ==================================================== -->
-<!-- VIEW 1: TODAY'S MACRO TRACKER                        -->
+<!-- VIEW 1: TODAY'S MACRO TRACKER (BENTO GRID)           -->
 <!-- ==================================================== -->
 <div id="view-macro-tracker" class="diet-view-panel">
-    <div class="macro-tracker-card skeleton-content animate-fade-in">
-    <div class="macro-card-header">
-        <div>
-            <h2 class="macro-card-title">
-                <span>Today's Macro Tracker</span>
-            </h2>
-            <p class="macro-card-subtitle">Track your daily calorie and macronutrient targets.</p>
-        </div>
-        <div>
-            <button type="button" id="btn-auto-calc-cals" class="macro-aux-btn">
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
-                <span>Auto-calc Calories (4P + 4C + 9F)</span>
-            </button>
-        </div>
-    </div>
+    <div class="diet-bento-grid animate-fade-in">
 
-    <!-- 4 Macro Progress Cards Grid -->
-    <div class="macro-stat-cards-grid">
-        <!-- Calories -->
-        <div class="macro-stat-card card-cals">
-            <div class="macro-stat-head">
-                <span class="macro-stat-label label-cals">
-                    <span class="macro-stat-dot dot-cals"></span>
-                    Calories
-                </span>
-                <span id="macro-pct-cals" class="macro-stat-pct" style="color: <?= $stCals['color'] ?>;"><?= $stCals['text'] ?></span>
+        <!-- ================================================ -->
+        <!-- BENTO TILE 1: DAILY STATUS (~40% Left Tile)      -->
+        <!-- ================================================ -->
+        <div class="diet-bento-tile tile-daily-status">
+            <div class="tile-header">
+                <div>
+                    <h3 class="tile-title">Daily Status</h3>
+                    <span class="tile-subtitle">Calories &amp; Macronutrients</span>
+                </div>
+                <div class="tile-header-actions">
+                    <button type="button" id="btn-auto-calc-cals" class="tile-mini-btn" title="Auto-calc calories: 4P + 4C + 9F">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+                        <span>Auto-calc</span>
+                    </button>
+                    <button type="button" id="btn-reset-macros" class="tile-mini-btn btn-danger" title="Reset Today's Logged Macros">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                        <span>Reset</span>
+                    </button>
+                </div>
             </div>
-            <div class="macro-stat-numbers">
-                <span id="macro-logged-cals" class="val-main" style="color: var(--macro-cals);"><?= $loggedCals ?></span>
-                <span class="val-sub">/ <span id="macro-target-cals"><?= $targetCals ?></span> kcal</span>
+
+            <!-- Hero Calorie Metric Card -->
+            <div class="hero-calories-card">
+                <?php $remainingCals = $targetCals - $loggedCals; ?>
+                <div class="hero-cals-top">
+                    <div class="hero-cals-lead">
+                        <span class="macro-stat-dot dot-cals"></span>
+                        <span class="hero-cals-label">Daily Calories</span>
+                    </div>
+                    <span id="macro-pct-cals" class="hero-pct-badge" style="color: <?= $stCals['color'] ?>;">
+                        <?= $stCals['text'] ?>
+                    </span>
+                </div>
+
+                <div class="hero-cals-display-wrap">
+                    <div class="hero-cals-display">
+                        <div class="hero-cals-num-row">
+                            <span id="hero-cals-remaining-val" class="hero-cals-big-num"><?= abs($remainingCals) ?></span>
+                            <span id="hero-cals-remaining-lbl" class="hero-cals-unit-text"><?= $remainingCals >= 0 ? 'kcal remaining' : 'kcal over target' ?></span>
+                        </div>
+                        <div class="hero-cals-sub-row">
+                            <span id="macro-logged-cals" class="hero-val-logged"><?= $loggedCals ?></span>
+                            <span class="hero-val-target">/ <span id="macro-target-cals"><?= $targetCals ?></span> kcal target</span>
+                        </div>
+                    </div>
+
+                    <?php 
+                        $ringRawPct = min(100, max(0, (float)$stCals['pct']));
+                        $ringOffset = round(175.93 * (1 - ($ringRawPct / 100)), 2);
+                    ?>
+                    <div class="hero-ring-wrap" title="<?= $stCals['text'] ?> of daily target">
+                        <svg class="hero-radial-ring" width="70" height="70" viewBox="0 0 70 70">
+                            <circle class="radial-ring-track" cx="35" cy="35" r="28" stroke-width="6" fill="none" />
+                            <circle id="hero-radial-ring-bar" class="radial-ring-fill" cx="35" cy="35" r="28" stroke-width="6" fill="none" 
+                                    stroke-linecap="round"
+                                    style="stroke-dasharray: 175.93; stroke-dashoffset: <?= $ringOffset ?>; stroke: <?= $stCals['color'] ?>;" />
+                        </svg>
+                        <div class="hero-ring-inner">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--macro-cals);">
+                                <path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z"/>
+                            </svg>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="hero-cals-progress-track">
+                    <div id="macro-progress-bar-cals" style="height: 100%; width: <?= $stCals['pct'] ?>%; background: <?= $stCals['barBg'] ?>; transition: width 0.7s ease, background 0.3s ease;"></div>
+                </div>
             </div>
-            <div class="macro-progress-track">
-                <div id="macro-progress-bar-cals" style="height: 100%; width: <?= $stCals['pct'] ?>%; background: <?= $stCals['barBg'] ?>; transition: width 0.7s ease, background 0.3s ease;"></div>
+
+            <!-- Stacked Macronutrient Rows (Protein, Carbs, Fat) -->
+            <div class="bento-macros-stack">
+                <!-- Protein Row -->
+                <div class="bento-macro-row">
+                    <div class="bento-macro-head">
+                        <div class="bento-macro-label">
+                            <span class="macro-stat-dot dot-pro"></span>
+                            <span class="bento-macro-name">Protein</span>
+                        </div>
+                        <div class="bento-macro-stats">
+                            <span class="bento-macro-nums">
+                                <strong id="macro-logged-pro"><?= $loggedPro ?></strong>
+                                <span class="bento-macro-sep">/</span>
+                                <span id="macro-target-pro"><?= $targetPro ?></span>g
+                            </span>
+                            <span id="macro-pct-pro" class="bento-macro-pct" style="color: <?= $stPro['color'] ?>;"><?= $stPro['text'] ?></span>
+                        </div>
+                    </div>
+                    <div class="bento-macro-track">
+                        <div id="macro-progress-bar-pro" style="height: 100%; width: <?= $stPro['pct'] ?>%; background: <?= $stPro['barBg'] ?>; transition: width 0.7s ease, background 0.3s ease;"></div>
+                    </div>
+                </div>
+
+                <!-- Carbs Row -->
+                <div class="bento-macro-row">
+                    <div class="bento-macro-head">
+                        <div class="bento-macro-label">
+                            <span class="macro-stat-dot dot-carbs"></span>
+                            <span class="bento-macro-name">Carbohydrates</span>
+                        </div>
+                        <div class="bento-macro-stats">
+                            <span class="bento-macro-nums">
+                                <strong id="macro-logged-carbs"><?= $loggedCarbs ?></strong>
+                                <span class="bento-macro-sep">/</span>
+                                <span id="macro-target-carbs"><?= $targetCarbs ?></span>g
+                            </span>
+                            <span id="macro-pct-carbs" class="bento-macro-pct" style="color: <?= $stCarbs['color'] ?>;"><?= $stCarbs['text'] ?></span>
+                        </div>
+                    </div>
+                    <div class="bento-macro-track">
+                        <div id="macro-progress-bar-carbs" style="height: 100%; width: <?= $stCarbs['pct'] ?>%; background: <?= $stCarbs['barBg'] ?>; transition: width 0.7s ease, background 0.3s ease;"></div>
+                    </div>
+                </div>
+
+                <!-- Fat Row -->
+                <div class="bento-macro-row">
+                    <div class="bento-macro-head">
+                        <div class="bento-macro-label">
+                            <span class="macro-stat-dot dot-fat"></span>
+                            <span class="bento-macro-name">Dietary Fats</span>
+                        </div>
+                        <div class="bento-macro-stats">
+                            <span class="bento-macro-nums">
+                                <strong id="macro-logged-fat"><?= $loggedFat ?></strong>
+                                <span class="bento-macro-sep">/</span>
+                                <span id="macro-target-fat"><?= $targetFat ?></span>g
+                            </span>
+                            <span id="macro-pct-fat" class="bento-macro-pct" style="color: <?= $stFat['color'] ?>;"><?= $stFat['text'] ?></span>
+                        </div>
+                    </div>
+                    <div class="bento-macro-track">
+                        <div id="macro-progress-bar-fat" style="height: 100%; width: <?= $stFat['pct'] ?>%; background: <?= $stFat['barBg'] ?>; transition: width 0.7s ease, background 0.3s ease;"></div>
+                    </div>
+                </div>
             </div>
         </div>
 
-        <!-- Protein -->
-        <div class="macro-stat-card card-pro">
-            <div class="macro-stat-head">
-                <span class="macro-stat-label label-pro">
-                    <span class="macro-stat-dot dot-pro"></span>
-                    Protein
-                </span>
-                <span id="macro-pct-pro" class="macro-stat-pct" style="color: <?= $stPro['color'] ?>;"><?= $stPro['text'] ?></span>
-            </div>
-            <div class="macro-stat-numbers">
-                <span id="macro-logged-pro" class="val-main" style="color: var(--macro-pro);"><?= $loggedPro ?></span>
-                <span class="val-sub">/ <span id="macro-target-pro"><?= $targetPro ?></span> g</span>
-            </div>
-            <div class="macro-progress-track">
-                <div id="macro-progress-bar-pro" style="height: 100%; width: <?= $stPro['pct'] ?>%; background: <?= $stPro['barBg'] ?>; transition: width 0.7s ease, background 0.3s ease;"></div>
-            </div>
-        </div>
-
-        <!-- Carbs -->
-        <div class="macro-stat-card card-carbs">
-            <div class="macro-stat-head">
-                <span class="macro-stat-label label-carbs">
-                    <span class="macro-stat-dot dot-carbs"></span>
-                    Carbs
-                </span>
-                <span id="macro-pct-carbs" class="macro-stat-pct" style="color: <?= $stCarbs['color'] ?>;"><?= $stCarbs['text'] ?></span>
-            </div>
-            <div class="macro-stat-numbers">
-                <span id="macro-logged-carbs" class="val-main" style="color: var(--macro-carbs);"><?= $loggedCarbs ?></span>
-                <span class="val-sub">/ <span id="macro-target-carbs"><?= $targetCarbs ?></span> g</span>
-            </div>
-            <div class="macro-progress-track">
-                <div id="macro-progress-bar-carbs" style="height: 100%; width: <?= $stCarbs['pct'] ?>%; background: <?= $stCarbs['barBg'] ?>; transition: width 0.7s ease, background 0.3s ease;"></div>
-            </div>
-        </div>
-
-        <!-- Fat -->
-        <div class="macro-stat-card card-fat">
-            <div class="macro-stat-head">
-                <span class="macro-stat-label label-fat">
-                    <span class="macro-stat-dot dot-fat"></span>
-                    Fat
-                </span>
-                <span id="macro-pct-fat" class="macro-stat-pct" style="color: <?= $stFat['color'] ?>;"><?= $stFat['text'] ?></span>
-            </div>
-            <div class="macro-stat-numbers">
-                <span id="macro-logged-fat" class="val-main" style="color: var(--macro-fat);"><?= $loggedFat ?></span>
-                <span class="val-sub">/ <span id="macro-target-fat"><?= $targetFat ?></span> g</span>
-            </div>
-            <div class="macro-progress-track">
-                <div id="macro-progress-bar-fat" style="height: 100%; width: <?= $stFat['pct'] ?>%; background: <?= $stFat['barBg'] ?>; transition: width 0.7s ease, background 0.3s ease;"></div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Macro Log Form Controls -->
-    <div class="macro-controls-bar">
-        <div class="macro-mode-tabs">
-            <button type="button" id="tab-mode-add" class="macro-tab-btn active" onclick="setMacroLogMode('add')">
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
-                <span>Add Meal / Intake</span>
-            </button>
-            <button type="button" id="tab-mode-set" class="macro-tab-btn" onclick="setMacroLogMode('set')">
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg>
-                <span>Edit Total Directly</span>
-            </button>
-        </div>
-        <div class="macro-reset-wrap">
-            <button type="button" id="btn-reset-macros" class="macro-reset-btn">
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
-                <span>Reset Today</span>
-            </button>
-        </div>
-    </div>
-
-    <!-- Smart Meal Assistant (CalorieNinjas & Open Food Facts) -->
-    <div class="smart-meal-box" id="smart-meal-assistant">
-        <div class="smart-meal-header">
-            <div class="smart-meal-title">
-                <div class="smart-title-group">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--macro-pro)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+        <!-- Mobile Trigger Button for Live Macro Logger (Mobile only, hidden on desktop) -->
+        <button type="button" 
+                id="btn-mobile-toggle-logger" 
+                class="mobile-logger-trigger-btn" 
+                onclick="toggleMobileMealLogger()" 
+                aria-expanded="false" 
+                aria-controls="bento-tile-logger">
+            <div class="mobile-logger-trigger-left">
+                <div class="mobile-logger-icon-glow">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
                         <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>
                     </svg>
-                    <span>Smart Meal Assistant</span>
                 </div>
-                <span class="smart-api-badge">
-                    <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
-                    <span>AI + Grocery DB</span>
-                </span>
+                <div class="mobile-logger-title-wrap">
+                    <span class="mobile-logger-main-title">Live Macro Logger</span>
+                    <span class="mobile-logger-sub-title">AI Assistant &amp; Natural Language</span>
+                </div>
             </div>
-            <div class="smart-meal-tabs">
-                <button type="button" class="smart-tab-btn active" id="tab-smart-ninja" onclick="switchSmartTab('ninja')">
-                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
-                    <span>Natural Text</span>
-                </button>
-                <button type="button" class="smart-tab-btn" id="tab-smart-off" onclick="switchSmartTab('off')">
-                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-                    <span>Grocery Search</span>
-                </button>
+            <div class="mobile-logger-trigger-right">
+                <span id="mobile-logger-btn-label" class="mobile-logger-badge-btn">+ Log Food</span>
+                <svg class="mobile-logger-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"></polyline></svg>
             </div>
-        </div>
+        </button>
 
-        <!-- Panel 1: Natural Meal Entry (CalorieNinjas) -->
-        <div class="smart-meal-panel active" id="panel-smart-ninja">
-            <div class="smart-panel-desc">
-                Type your meal naturally with portions to auto-calculate and populate calories & macros:
-            </div>
-            <div class="smart-meal-input-wrap">
-                <input type="text" id="smart-ninja-input" class="smart-meal-textarea" placeholder="e.g., 2 eggs, 1 slice wheat bread, and 1 glass milk..." autocomplete="off">
-                <div class="smart-meal-btn-group">
-                    <button type="button" id="btn-clear-smart-ninja" class="smart-meal-clear-btn" onclick="clearSmartMealAssistant()" title="Clear search and input fields">
-                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
-                        <span>Clear</span>
-                    </button>
-                    <button type="button" id="btn-analyze-ninja" class="smart-meal-action-btn">
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
-                        <span id="btn-analyze-ninja-txt">Analyze & Fill</span>
-                    </button>
+        <!-- ================================================ -->
+        <!-- BENTO TILE 2: LIVE MACRO LOGGER (Right Tile)     -->
+        <!-- ================================================ -->
+        <div class="diet-bento-tile tile-meal-logger" id="bento-tile-logger">
+            <div class="tile-header">
+                <div class="tile-title-group">
+                    <h3 class="tile-title">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--lime)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                            <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>
+                        </svg>
+                        <span>Live Macro Logger</span>
+                    </h3>
+                    <span class="smart-api-badge">
+                        <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+                        <span>AI Assistant</span>
+                    </span>
                 </div>
-            </div>
-            <!-- Quick Suggestion Pills (SVG icons, zero emojis) -->
-            <div class="smart-quick-pills">
-                <span class="quick-pill-label">Quick meals:</span>
-                <button type="button" class="smart-pill" onclick="setQuickMealText('2 boiled eggs and 1 slice whole wheat bread')">
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4"/></svg>
-                    <span>2 Eggs & Toast</span>
-                </button>
-                <button type="button" class="smart-pill" onclick="setQuickMealText('150g grilled chicken breast and 1 cup white rice')">
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 2a5 5 0 0 1 5 5c0 2.5-1.5 4.5-3.5 5.5l1.5 6.5-3-1-3 1 1.5-6.5C8.5 11.5 7 9.5 7 7a5 5 0 0 1 5-5z"/></svg>
-                    <span>150g Chicken & Rice</span>
-                </button>
-                <button type="button" class="smart-pill" onclick="setQuickMealText('1 scoop whey protein and 1 cup milk')">
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M6 2h12v3l-2 15a2 2 0 0 1-2 2H10a2 2 0 0 1-2-2L6 5V2z"/><line x1="6" y1="7" x2="18" y2="7"/></svg>
-                    <span>Whey & Milk</span>
-                </button>
-                <button type="button" class="smart-pill" onclick="setQuickMealText('1 can tuna and 1 medium banana')">
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="12" cy="12" r="10"/><path d="m4.93 4.93 4.24 4.24"/><path d="m14.83 9.17 4.24-4.24"/><path d="m14.83 14.83 4.24 4.24"/><path d="m9.17 14.83-4.24 4.24"/></svg>
-                    <span>Tuna & Banana</span>
-                </button>
+
+                <div class="tile-header-controls">
+                    <!-- Macro Log Mode (Add vs Set) -->
+                    <div class="macro-mode-tabs" title="Choose whether to add to today's totals or directly set them">
+                        <button type="button" id="tab-mode-add" class="macro-tab-btn active" onclick="setMacroLogMode('add')">+ Add</button>
+                        <button type="button" id="tab-mode-set" class="macro-tab-btn" onclick="setMacroLogMode('set')">Direct</button>
+                    </div>
+                </div>
             </div>
 
-            <!-- CalorieNinjas Breakdown Container -->
-            <div id="ninja-breakdown-wrap" style="display: none;" class="smart-breakdown-card">
-                <div class="smart-breakdown-header">
-                    <span class="smart-breakdown-title">Meal Ingredients Breakdown</span>
-                    <span class="smart-breakdown-badge">✓ Applied to inputs below</span>
-                </div>
-                <div id="ninja-breakdown-items" class="smart-breakdown-list"></div>
-                <div class="smart-breakdown-totals-bar">
-                    <div id="ninja-breakdown-totals" class="smart-totals-grid"></div>
-                    <span class="smart-breakdown-hint">Click "+ Add to Log" below to record this meal.</span>
-                </div>
-            </div>
-        </div>
-
-        <!-- Panel 2: Food & Brand Search (Open Food Facts) -->
-        <div class="smart-meal-panel" id="panel-smart-off">
-            <div class="smart-panel-desc">
-                Search 3M+ grocery items, snacks, and products worldwide (Open Food Facts):
-            </div>
-            <div class="off-search-wrap">
-                <div class="smart-meal-input-wrap off-search-main">
-                    <input type="text" id="smart-off-input" class="smart-meal-textarea" placeholder="Search product or brand (e.g., Greek yogurt, Rolled oats)..." autocomplete="off">
+            <!-- Assistant Body -->
+            <div class="meal-logger-body">
+                <div class="smart-meal-input-wrap">
+                    <input type="text" id="smart-ninja-input" class="smart-meal-textarea" placeholder="Type what you ate (e.g., 2 eggs, 1 slice wheat toast, 1 glass milk)..." autocomplete="off">
                     <div class="smart-meal-btn-group">
-                        <button type="button" id="btn-clear-smart-off" class="smart-meal-clear-btn" onclick="clearSmartMealAssistant()" title="Clear search and input fields">
+                        <button type="button" id="btn-clear-smart-ninja" class="smart-meal-clear-btn" onclick="clearSmartMealAssistant()" title="Clear">
                             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
                             <span>Clear</span>
                         </button>
-                        <button type="button" id="btn-search-off" class="smart-meal-action-btn off-search-btn">
-                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-                            <span id="btn-search-off-txt">Search</span>
+                        <button type="button" id="btn-analyze-ninja" class="smart-meal-action-btn">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                            <span id="btn-analyze-ninja-txt">Analyze &amp; Fill</span>
                         </button>
                     </div>
                 </div>
-                <div class="off-portion-pill">
-                    <span class="off-portion-label">Portion:</span>
-                    <button type="button" class="off-stepper-btn" onclick="adjustOffServing(-10)" title="Decrease 10g" aria-label="Decrease portion">
-                        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+
+                <!-- Quick Suggestion Pills -->
+                <div class="smart-quick-pills">
+                    <span class="quick-pill-label">Quick:</span>
+                    <button type="button" class="smart-pill" onclick="setQuickMealText('2 boiled eggs and 1 slice whole wheat bread')">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4"/></svg>
+                        <span>2 Eggs &amp; Toast</span>
                     </button>
-                    <input type="number" id="off-serving-input" value="100" min="5" max="2000" step="5" class="off-serving-input" inputmode="numeric">
-                    <button type="button" class="off-stepper-btn" onclick="adjustOffServing(10)" title="Increase 10g" aria-label="Increase portion">
-                        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+                    <button type="button" class="smart-pill" onclick="setQuickMealText('150g grilled chicken breast and 1 cup white rice')">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 2a5 5 0 0 1 5 5c0 2.5-1.5 4.5-3.5 5.5l1.5 6.5-3-1-3 1 1.5-6.5C8.5 11.5 7 9.5 7 7a5 5 0 0 1 5-5z"/></svg>
+                        <span>150g Chicken &amp; Rice</span>
                     </button>
-                    <span class="off-portion-unit">grams</span>
+                    <button type="button" class="smart-pill" onclick="setQuickMealText('1 scoop whey protein and 1 cup milk')">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M6 2h12v3l-2 15a2 2 0 0 1-2 2H10a2 2 0 0 1-2-2L6 5V2z"/><line x1="6" y1="7" x2="18" y2="7"/></svg>
+                        <span>Whey &amp; Milk</span>
+                    </button>
+                    <button type="button" class="smart-pill" onclick="setQuickMealText('1 can tuna and 1 medium banana')">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="12" cy="12" r="10"/><path d="m4.93 4.93 4.24 4.24"/><path d="m14.83 9.17 4.24-4.24"/><path d="m14.83 14.83 4.24 4.24"/><path d="m9.17 14.83-4.24 4.24"/></svg>
+                        <span>Tuna &amp; Banana</span>
+                    </button>
+                </div>
+
+                <!-- CalorieNinjas Breakdown Container -->
+                <div id="ninja-breakdown-wrap" style="display: none;" class="smart-breakdown-card">
+                    <div class="smart-breakdown-header">
+                        <span class="smart-breakdown-title">Meal Breakdown</span>
+                        <span class="smart-breakdown-badge">✓ Applied to values below</span>
+                    </div>
+                    <div id="ninja-breakdown-items" class="smart-breakdown-list"></div>
+                    <div class="smart-breakdown-totals-bar">
+                        <div id="ninja-breakdown-totals" class="smart-totals-grid"></div>
+                    </div>
                 </div>
             </div>
 
-            <!-- Open Food Facts Results Container -->
-            <div id="off-results-container" style="display: none; margin-top: 10px;">
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
-                    <span style="font-size: 11.5px; color: var(--muted); font-weight: 600;" id="off-results-count">Select a food item to apply:</span>
-                    <button type="button" onclick="document.getElementById('off-results-container').style.display='none'" style="background: transparent; border: none; color: var(--muted); cursor: pointer; font-size: 11px; text-decoration: underline;">Hide results</button>
+            <!-- Compact Live Macro Preview Bar (Inline Inputs + Add Button) -->
+            <form id="macro-log-form" action="index.php?page=log_macros" method="post" class="bento-macro-submit-bar">
+                <?= csrf_field() ?>
+                <input type="hidden" id="macro-input-mode" name="mode" value="add">
+                
+                <div class="bento-live-preview-group">
+                    <span class="bento-preview-label">Live Macros:</span>
+                    
+                    <div class="bento-inline-field field-cals" title="Calories">
+                        <span class="macro-stat-dot dot-cals"></span>
+                        <span id="lbl-text-cals" class="bento-field-tag">Cal</span>
+                        <input id="macro-input-cals" class="bento-field-input" type="number" min="0" name="calories" value="" required placeholder="+0" inputmode="numeric">
+                    </div>
+
+                    <div class="bento-inline-field field-pro" title="Protein (g)">
+                        <span class="macro-stat-dot dot-pro"></span>
+                        <span id="lbl-text-pro" class="bento-field-tag">Pro</span>
+                        <input id="macro-input-pro" class="bento-field-input" type="number" min="0" name="protein_g" value="" placeholder="+0" inputmode="decimal" step="0.1">
+                        <span class="bento-field-unit">g</span>
+                    </div>
+
+                    <div class="bento-inline-field field-carbs" title="Carbs (g)">
+                        <span class="macro-stat-dot dot-carbs"></span>
+                        <span id="lbl-text-carbs" class="bento-field-tag">Carb</span>
+                        <input id="macro-input-carbs" class="bento-field-input" type="number" min="0" name="carbs_g" value="" placeholder="+0" inputmode="decimal" step="0.1">
+                        <span class="bento-field-unit">g</span>
+                    </div>
+
+                    <div class="bento-inline-field field-fat" title="Fat (g)">
+                        <span class="macro-stat-dot dot-fat"></span>
+                        <span id="lbl-text-fat" class="bento-field-tag">Fat</span>
+                        <input id="macro-input-fat" class="bento-field-input" type="number" min="0" name="fat_g" value="" placeholder="+0" inputmode="decimal" step="0.1">
+                        <span class="bento-field-unit">g</span>
+                    </div>
                 </div>
-                <div class="off-search-results" id="off-results-grid"></div>
-            </div>
-        </div>
-    </div>
 
-    <!-- Macro Log Form -->
-    <form id="macro-log-form" action="index.php?page=log_macros" method="post" class="macro-log-form-grid">
-        <?= csrf_field() ?>
-        <input type="hidden" id="macro-input-mode" name="mode" value="add">
-        <div class="macro-form-col">
-            <label id="macro-lbl-cals" class="macro-input-lbl label-cals">
-                <span class="macro-stat-dot dot-cals"></span>
-                <span id="lbl-text-cals">+ Add Calories</span>
-            </label>
-            <input id="macro-input-cals" class="macro-field field-cals" type="number" min="0" name="calories" value="" required placeholder="+0" inputmode="numeric">
+                <button id="macro-save-btn" type="submit" class="bento-macro-save-btn">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                    <span id="btn-save-text">+ Add to Log</span>
+                </button>
+            </form>
         </div>
-        <div class="macro-form-col">
-            <label id="macro-lbl-pro" class="macro-input-lbl label-pro">
-                <span class="macro-stat-dot dot-pro"></span>
-                <span id="lbl-text-pro">+ Add Protein (g)</span>
-            </label>
-            <input id="macro-input-pro" class="macro-field field-pro" type="number" min="0" name="protein_g" value="" placeholder="+0" inputmode="decimal" step="0.1">
-        </div>
-        <div class="macro-form-col">
-            <label id="macro-lbl-carbs" class="macro-input-lbl label-carbs">
-                <span class="macro-stat-dot dot-carbs"></span>
-                <span id="lbl-text-carbs">+ Add Carbs (g)</span>
-            </label>
-            <input id="macro-input-carbs" class="macro-field field-carbs" type="number" min="0" name="carbs_g" value="" placeholder="+0" inputmode="decimal" step="0.1">
-        </div>
-        <div class="macro-form-col">
-            <label id="macro-lbl-fat" class="macro-input-lbl label-fat">
-                <span class="macro-stat-dot dot-fat"></span>
-                <span id="lbl-text-fat">+ Add Fat (g)</span>
-            </label>
-            <input id="macro-input-fat" class="macro-field field-fat" type="number" min="0" name="fat_g" value="" placeholder="+0" inputmode="decimal" step="0.1">
-        </div>
-        <div class="macro-form-col macro-submit-col">
-            <button id="macro-save-btn" type="submit" class="macro-save-btn">
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
-                <span id="btn-save-text">+ Add to Log</span>
-            </button>
-        </div>
-    </form>
-
-
-<script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.min.js"></script>
 
     </div>
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.min.js"></script>
 </div> <!-- Close #view-macro-tracker -->
 
 <!-- ==================================================== -->
@@ -1720,9 +1822,57 @@ $stFat   = $calcMacroStatus($loggedFat, $targetFat, 'fat');
     </div>
 </div>
 
+<!-- MODAL: DIET PLAN INFO (Mobile view for Goal, Diet Protocol & Coach) -->
+<div id="modal-diet-plan-info" class="ft-modal-overlay" style="display:none;" onclick="if(event.target===this)closeDietPlanInfoModal()">
+    <div class="ft-modal-box ft-modal-compact">
+        <div class="ft-modal-header">
+            <div style="display: flex; align-items: center; gap: 10px;">
+                <div class="diet-info-modal-icon">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="12" cy="12" r="10"></circle>
+                        <line x1="12" y1="16" x2="12" y2="12"></line>
+                        <line x1="12" y1="8" x2="12.01" y2="8"></line>
+                    </svg>
+                </div>
+                <div>
+                    <h3 class="ft-modal-title">Diet Plan Overview</h3>
+                    <p class="ft-modal-subtitle">Goal &amp; dietary protocol</p>
+                </div>
+            </div>
+            <button type="button" class="ft-modal-close" onclick="closeDietPlanInfoModal()" aria-label="Close modal">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+            </button>
+        </div>
+        <div class="ft-modal-body" style="padding: 18px 20px;">
+            <div class="diet-plan-info-list">
+                <!-- 1. Primary Fitness Goal -->
+                <div class="diet-plan-info-item">
+                    <div class="diet-plan-info-icon goal-icon">
+                        <span class="diet-chip-dot dot-lime" style="width: 10px; height: 10px;"></span>
+                    </div>
+                    <div class="diet-plan-info-text">
+                        <span class="diet-plan-info-label">Primary Fitness Goal</span>
+                        <strong class="diet-plan-info-val"><?= h(ucwords(str_replace('_', ' ', $activePlan['goal']))) ?></strong>
+                    </div>
+                </div>
 
-
-
+                <!-- 2. Dietary Protocol -->
+                <div class="diet-plan-info-item" style="border-bottom: none; margin-bottom: 0; padding-bottom: 0;">
+                    <div class="diet-plan-info-icon diet-icon">
+                        <span style="font-size: 16px;">🥗</span>
+                    </div>
+                    <div class="diet-plan-info-text">
+                        <span class="diet-plan-info-label">Dietary Protocol</span>
+                        <strong class="diet-plan-info-val"><?= h(ucwords(str_replace('-', ' ', $userDietaryRestriction === 'none' ? 'Standard' : $userDietaryRestriction))) ?></strong>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="ft-modal-footer" style="padding: 12px 20px; justify-content: flex-end;">
+            <button type="button" class="btn-cancel" onclick="closeDietPlanInfoModal()">Got it</button>
+        </div>
+    </div>
+</div>
 
 <script src="<?= h(asset_url('js/pages/diet.js')) ?>"></script>
 

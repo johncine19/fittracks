@@ -126,7 +126,25 @@ try {
         "ALTER TABLE membership_plans ADD COLUMN is_popular TINYINT(1) NOT NULL DEFAULT 0",
         "ALTER TABLE platform_subscription_plans ADD COLUMN is_popular TINYINT(1) NOT NULL DEFAULT 0",
         "CREATE UNIQUE INDEX uq_trainer_comm_payment ON trainer_commissions (payment_id)",
-        "CREATE UNIQUE INDEX uq_att_user_checkin_exact ON attendance (user_id, check_in_time)"
+        "CREATE UNIQUE INDEX uq_att_user_checkin_exact ON attendance (user_id, check_in_time)",
+
+        // ── Multi-Gym Plan Management migrations ──
+        "ALTER TABLE training_plans ADD COLUMN gym_id INT UNSIGNED DEFAULT NULL AFTER trainer_id",
+        "ALTER TABLE training_plans ADD INDEX idx_training_plans_gym (gym_id)",
+        "ALTER TABLE dietary_plans ADD COLUMN gym_id INT UNSIGNED DEFAULT NULL AFTER trainer_id",
+        "ALTER TABLE dietary_plans ADD INDEX idx_dietary_plans_gym (gym_id)",
+        "ALTER TABLE dietary_plans ADD COLUMN is_preferred TINYINT(1) NOT NULL DEFAULT 0",
+
+        // Backfill gym_id from trainer_profiles for existing plans
+        "UPDATE training_plans tp JOIN trainer_profiles tpr ON tp.trainer_id = tpr.trainer_id SET tp.gym_id = tpr.gym_id WHERE tp.gym_id IS NULL AND tpr.gym_id IS NOT NULL",
+        "UPDATE dietary_plans dp JOIN trainer_profiles tpr ON dp.trainer_id = tpr.trainer_id SET dp.gym_id = tpr.gym_id WHERE dp.gym_id IS NULL AND tpr.gym_id IS NOT NULL",
+
+        // Plan change audit trail
+        "CREATE TABLE IF NOT EXISTS plan_change_log (log_id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY, plan_type ENUM('workout','diet') NOT NULL, plan_id INT UNSIGNED NOT NULL, gym_id INT UNSIGNED DEFAULT NULL, changed_by_user_id INT UNSIGNED NOT NULL, action ENUM('created','updated','published','paused','archived','completed','deleted') NOT NULL, details TEXT DEFAULT NULL, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, INDEX idx_plan_log (plan_type, plan_id), INDEX idx_plan_log_gym (gym_id)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
+
+        // Add 'upcoming' and 'paused' statuses to training_plans and dietary_plans
+        "ALTER TABLE training_plans MODIFY COLUMN status ENUM('active','completed','archived','draft','upcoming','paused') NOT NULL DEFAULT 'draft'",
+        "ALTER TABLE dietary_plans MODIFY COLUMN status ENUM('active','completed','cancelled','draft','upcoming','paused') NOT NULL DEFAULT 'draft'"
     ];
 
     foreach ($migrations as $sql) {

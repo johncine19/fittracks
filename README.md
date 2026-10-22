@@ -36,7 +36,7 @@ The admin dashboard charts use Chart.js loaded from CDN in `views/layout.php`, w
 - Nutrition engine using Mifflin-St Jeor BMR, activity factor TDEE, goal-based calorie adjustment, macro targets, and food item suggestions.
 - Optical QR Scanner Terminal (`page=scanner`) with fullscreen Kiosk mode, live occupancy HUD, walk-in fee auto-detection, and 1-tap payment processing.
 - Hierarchical Inactive Member & Churn Automation Engine (`core/engagement_engine.php`, `cron.php`) with Platform Admin defaults and Gym Owner custom threshold/cooldown/toggle settings.
-- Nutrition & Food Lookup APIs (`pages/member/food_lookup.php`): CalorieNinjas NLP search (`CALORIENINJAS_API_KEY`) and Open Food Facts barcode/product search with 1-click gym library import.
+- Nutrition & Food Lookup APIs (`pages/member/food_lookup.php`): CalorieNinjas NLP natural language search (`CALORIENINJAS_API_KEY`) with instant meal decomposition and 1-click gym library import.
 - Real-Time Equipment Queue API & Anti-Abuse Attendance Gate (`pages/shared/equipment_api.php`, `pages/member/equipment.php`, `pages/member/qr_attendance.php`): Strict attendance-gated machine usage and waitlists to eliminate remote phantom bookings, entrance check-in quick-claim selector, "probably-in-use" active workout transparency notes, real-time polling, session countdown timers, waitlist positions, audio chime alerts, and automated session/queue release on gym check-out.
 - Mathematical Member Engagement Engine (`core/engagement_engine.php`): Multi-factor weighted score (attendance, classes, consistency, workouts, progress) classifying members as Highly Engaged, Moderately Engaged, or At-Risk, with Tier-Adaptive Missions that dynamically scale goals based on member fitness tier.
 

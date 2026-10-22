@@ -29,6 +29,87 @@ function confirmRegeneratePlan() {
 
 window.confirmRegeneratePlan = confirmRegeneratePlan;
 
+// Popover Controller for Multi-Gym Plan Switcher
+window.toggleDietPlanPopover = function(e) {
+    if (e) {
+        e.preventDefault();
+        e.stopPropagation();
+    }
+    const wrap = document.getElementById('diet-plan-popover-wrap');
+    const btn = document.getElementById('diet-plan-popover-trigger');
+    if (!wrap) return;
+
+    const isOpen = wrap.classList.toggle('open');
+    if (btn) {
+        btn.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+    }
+};
+
+document.addEventListener('click', function(e) {
+    const wrap = document.getElementById('diet-plan-popover-wrap');
+    if (wrap && wrap.classList.contains('open')) {
+        if (!wrap.contains(e.target)) {
+            wrap.classList.remove('open');
+            const btn = document.getElementById('diet-plan-popover-trigger');
+            if (btn) btn.setAttribute('aria-expanded', 'false');
+        }
+    }
+});
+
+document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') {
+        const wrap = document.getElementById('diet-plan-popover-wrap');
+        if (wrap && wrap.classList.contains('open')) {
+            wrap.classList.remove('open');
+            const btn = document.getElementById('diet-plan-popover-trigger');
+            if (btn) btn.setAttribute('aria-expanded', 'false');
+        }
+        if (typeof closeDietPlanInfoModal === 'function') {
+            closeDietPlanInfoModal();
+        }
+    }
+});
+
+/* ====================================================
+   NUTRITION PORTION & UNIT CONVERSION UTILITIES
+   ==================================================== */
+const PORTION_UNIT_FACTORS = {
+    g: 1,
+    ml: 1,
+    l: 1000,
+    oz: 28.3495,
+    cup: 240,
+    tbsp: 15,
+    tsp: 5,
+    pcs: null, // dynamically uses item.baseServingG (1 piece)
+    serving: null // dynamically uses item.baseServingG
+};
+
+function getPortionUnitFactor(unit, baseServingG) {
+    if (unit === 'serving' || unit === 'pcs' || unit === 'pc') return baseServingG || 100;
+    return PORTION_UNIT_FACTORS[unit] || 1;
+}
+
+function detectSmartFoodUnit(name, portion, baseServingG) {
+    const nameLower = (name || '').toLowerCase();
+    const portionLower = (portion || '').toLowerCase();
+    if (portionLower.includes('ml')) return 'ml';
+    if (portionLower.includes('liter') || portionLower.includes('litre') || portionLower.match(/\b\d+(\.\d+)?\s*l\b/i)) return 'l';
+    if (portionLower.includes('oz') || portionLower.includes('ounce')) return 'oz';
+    if (portionLower.includes('cup')) return 'cup';
+    if (portionLower.includes('tbsp') || portionLower.includes('tablespoon')) return 'tbsp';
+    if (portionLower.includes('tsp') || portionLower.includes('teaspoon')) return 'tsp';
+    if (nameLower.match(/\b(milk|juice|water|tea|coffee|soda|shake|oil|soup|broth|beverage|drink|sauce)\b/)) {
+        return baseServingG >= 1000 ? 'l' : 'ml';
+    }
+    return 'g';
+}
+
+function formatPortionQty(qty) {
+    if (qty >= 10) return Math.round(qty * 10) / 10;
+    return Math.round(qty * 100) / 100;
+}
+
 /* ====================================================
    SECTION 2: Macro Tracker Controller (IIFE)
    ==================================================== */
@@ -86,10 +167,10 @@ window.confirmRegeneratePlan = confirmRegeneratePlan;
             tabAdd?.classList.add('active');
             tabSet?.classList.remove('active');
 
-            if (lblCals)  lblCals.textContent  = '+ Add Calories';
-            if (lblPro)   lblPro.textContent   = '+ Add Protein (g)';
-            if (lblCarbs) lblCarbs.textContent = '+ Add Carbs (g)';
-            if (lblFat)   lblFat.textContent   = '+ Add Fat (g)';
+            if (lblCals)  lblCals.textContent  = 'Cal';
+            if (lblPro)   lblPro.textContent   = 'Pro';
+            if (lblCarbs) lblCarbs.textContent = 'Carb';
+            if (lblFat)   lblFat.textContent   = 'Fat';
 
             if (inCals)  inCals.placeholder  = '+0';
             if (inPro)   inPro.placeholder   = '+0';
@@ -106,10 +187,10 @@ window.confirmRegeneratePlan = confirmRegeneratePlan;
             tabSet?.classList.add('active');
             tabAdd?.classList.remove('active');
 
-            if (lblCals)  lblCals.textContent  = 'Total Calories';
-            if (lblPro)   lblPro.textContent   = 'Total Protein (g)';
-            if (lblCarbs) lblCarbs.textContent = 'Total Carbs (g)';
-            if (lblFat)   lblFat.textContent   = 'Total Fat (g)';
+            if (lblCals)  lblCals.textContent  = 'Cal';
+            if (lblPro)   lblPro.textContent   = 'Pro';
+            if (lblCarbs) lblCarbs.textContent = 'Carb';
+            if (lblFat)   lblFat.textContent   = 'Fat';
 
             if (inCals)  inCals.placeholder  = '0';
             if (inPro)   inPro.placeholder   = '0';
@@ -127,42 +208,14 @@ window.confirmRegeneratePlan = confirmRegeneratePlan;
     };
 
     // -------------------------------------------------------------
-    // Smart Meal Assistant Handlers (CalorieNinjas & Open Food Facts)
+    // Smart Meal Assistant Handlers (CalorieNinjas Natural Language)
     // -------------------------------------------------------------
-    const tabSmartNinja   = document.getElementById('tab-smart-ninja');
-    const tabSmartOff     = document.getElementById('tab-smart-off');
-    const panelSmartNinja = document.getElementById('panel-smart-ninja');
-    const panelSmartOff   = document.getElementById('panel-smart-off');
-
     const ninjaInput      = document.getElementById('smart-ninja-input');
     const ninjaBtn        = document.getElementById('btn-analyze-ninja');
     const ninjaBtnTxt     = document.getElementById('btn-analyze-ninja-txt');
     const ninjaBreakdown  = document.getElementById('ninja-breakdown-wrap');
     const ninjaItemsEl    = document.getElementById('ninja-breakdown-items');
     const ninjaTotalsEl   = document.getElementById('ninja-breakdown-totals');
-
-    const offInput        = document.getElementById('smart-off-input');
-    const offBtn          = document.getElementById('btn-search-off');
-    const offBtnTxt       = document.getElementById('btn-search-off-txt');
-    const offServingInput = document.getElementById('off-serving-input');
-    const offContainer    = document.getElementById('off-results-container');
-    const offGrid         = document.getElementById('off-results-grid');
-
-    window.switchSmartTab = function(tab) {
-        if (tab === 'ninja') {
-            tabSmartNinja?.classList.add('active');
-            tabSmartOff?.classList.remove('active');
-            panelSmartNinja?.classList.add('active');
-            panelSmartOff?.classList.remove('active');
-            ninjaInput?.focus();
-        } else {
-            tabSmartOff?.classList.add('active');
-            tabSmartNinja?.classList.remove('active');
-            panelSmartOff?.classList.add('active');
-            panelSmartNinja?.classList.remove('active');
-            offInput?.focus();
-        }
-    };
 
     // In-memory memoization cache for smart meal queries (seeded with the quick meal presets)
     const clientMealCache = new Map([
@@ -212,58 +265,237 @@ window.confirmRegeneratePlan = confirmRegeneratePlan;
         }]
     ]);
 
-    function renderMealBreakdownAndApply(data, mealLabel = 'Meal') {
-        if (!data || !data.success) return;
+    let currentSmartMealData = null;
 
-        // Render clean, structured breakdown items
-        if (ninjaItemsEl && data.items && data.items.length) {
-            ninjaItemsEl.innerHTML = data.items.map(item => `
-                <div class="smart-breakdown-item">
+    function renderMealBreakdownAndApply(data, mealLabel = 'Meal') {
+        if (!data || !data.success || !data.items || !data.items.length) return;
+
+        currentSmartMealData = {
+            label: mealLabel,
+            items: data.items.map((item, idx) => {
+                const baseServingG = parseFloat(item.serving_size_g) > 0 ? parseFloat(item.serving_size_g) : 100;
+                const baseCals = parseFloat(item.calories) || 0;
+                const basePro = parseFloat(item.protein_g) || 0;
+                const baseCarbs = parseFloat(item.carbs_g) || 0;
+                const baseFat = parseFloat(item.fat_g) || 0;
+
+                const defaultUnit = detectSmartFoodUnit(item.name, item.portion, baseServingG);
+                let initialQty = baseServingG;
+                if (defaultUnit === 'l') initialQty = baseServingG / 1000;
+                else if (defaultUnit === 'oz') initialQty = baseServingG / 28.3495;
+                else if (defaultUnit === 'cup') initialQty = baseServingG / 240;
+                else if (defaultUnit === 'tbsp') initialQty = baseServingG / 15;
+                else if (defaultUnit === 'tsp') initialQty = baseServingG / 5;
+
+                return {
+                    id: idx,
+                    name: item.name,
+                    baseServingG: baseServingG,
+                    calsPerG: baseCals / baseServingG,
+                    proPerG: basePro / baseServingG,
+                    carbsPerG: baseCarbs / baseServingG,
+                    fatPerG: baseFat / baseServingG,
+                    currentUnit: defaultUnit,
+                    currentQty: formatPortionQty(initialQty),
+                    currentCals: baseCals,
+                    currentPro: basePro,
+                    currentCarbs: baseCarbs,
+                    currentFat: baseFat,
+                    isExcluded: false
+                };
+            })
+        };
+
+        renderBreakdownItemsHTML();
+        recalculateBreakdownTotalsAndSync(true);
+        if (ninjaBreakdown) ninjaBreakdown.style.display = 'block';
+    }
+
+    function renderBreakdownItemsHTML() {
+        if (!ninjaItemsEl || !currentSmartMealData) return;
+
+        ninjaItemsEl.innerHTML = currentSmartMealData.items.map(item => {
+            if (item.isExcluded) return '';
+            return `
+                <div class="smart-breakdown-item" data-idx="${item.id}">
                     <div class="breakdown-item-main">
                         <span class="breakdown-item-name">${escapeHtml(item.name)}</span>
-                        <span class="breakdown-item-portion">${item.serving_size_g}g</span>
+                        
+                        <div class="breakdown-portion-ctrl" title="Click to adjust amount or measurement unit">
+                            <input type="number" 
+                                   class="breakdown-qty-input" 
+                                   value="${item.currentQty}" 
+                                   min="0" 
+                                   step="any" 
+                                   data-idx="${item.id}"
+                                   aria-label="Quantity for ${escapeHtml(item.name)}">
+                            <select class="breakdown-unit-select" data-idx="${item.id}" aria-label="Unit for ${escapeHtml(item.name)}">
+                                <option value="g" ${item.currentUnit === 'g' ? 'selected' : ''}>g</option>
+                                <option value="ml" ${item.currentUnit === 'ml' ? 'selected' : ''}>ml</option>
+                                <option value="l" ${item.currentUnit === 'l' ? 'selected' : ''}>L</option>
+                                <option value="oz" ${item.currentUnit === 'oz' ? 'selected' : ''}>oz</option>
+                                <option value="cup" ${item.currentUnit === 'cup' ? 'selected' : ''}>cup</option>
+                                <option value="tbsp" ${item.currentUnit === 'tbsp' ? 'selected' : ''}>tbsp</option>
+                                <option value="tsp" ${item.currentUnit === 'tsp' ? 'selected' : ''}>tsp</option>
+                                <option value="pcs" ${item.currentUnit === 'pcs' ? 'selected' : ''}>pcs</option>
+                                <option value="serving" ${item.currentUnit === 'serving' ? 'selected' : ''}>serving</option>
+                            </select>
+                        </div>
+
+                        <button type="button" class="breakdown-item-del-btn" data-idx="${item.id}" title="Remove this ingredient" onclick="removeBreakdownItem(${item.id})">
+                            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                        </button>
                     </div>
-                    <div class="breakdown-item-macros">
-                        <span><strong class="breakdown-macro-val">${item.calories}</strong> <span class="breakdown-macro-unit">kcal</span></span>
+
+                    <div class="breakdown-item-macros" id="breakdown-item-macros-${item.id}">
+                        <span><strong class="breakdown-macro-val">${Math.round(item.currentCals)}</strong> <span class="breakdown-macro-unit">kcal</span></span>
                         <span class="breakdown-macro-sep">&bull;</span>
-                        <span><strong class="breakdown-macro-val">${item.protein_g}</strong><span class="breakdown-macro-unit">g P</span></span>
+                        <span><strong class="breakdown-macro-val">${Math.round(item.currentPro * 10) / 10}</strong><span class="breakdown-macro-unit">g P</span></span>
                         <span class="breakdown-macro-sep">&bull;</span>
-                        <span><strong class="breakdown-macro-val">${item.carbs_g}</strong><span class="breakdown-macro-unit">g C</span></span>
+                        <span><strong class="breakdown-macro-val">${Math.round(item.currentCarbs * 10) / 10}</strong><span class="breakdown-macro-unit">g C</span></span>
                         <span class="breakdown-macro-sep">&bull;</span>
-                        <span><strong class="breakdown-macro-val">${item.fat_g}</strong><span class="breakdown-macro-unit">g F</span></span>
+                        <span><strong class="breakdown-macro-val">${Math.round(item.currentFat * 10) / 10}</strong><span class="breakdown-macro-unit">g F</span></span>
                     </div>
                 </div>
-            `).join('');
+            `;
+        }).join('');
+    }
+
+    function updateBreakdownRowMacros(idx) {
+        if (!currentSmartMealData || !currentSmartMealData.items[idx]) return;
+        const item = currentSmartMealData.items[idx];
+        const macrosEl = document.getElementById('breakdown-item-macros-' + idx);
+        if (!macrosEl) return;
+
+        macrosEl.innerHTML = `
+            <span><strong class="breakdown-macro-val">${Math.round(item.currentCals)}</strong> <span class="breakdown-macro-unit">kcal</span></span>
+            <span class="breakdown-macro-sep">&bull;</span>
+            <span><strong class="breakdown-macro-val">${Math.round(item.currentPro * 10) / 10}</strong><span class="breakdown-macro-unit">g P</span></span>
+            <span class="breakdown-macro-sep">&bull;</span>
+            <span><strong class="breakdown-macro-val">${Math.round(item.currentCarbs * 10) / 10}</strong><span class="breakdown-macro-unit">g C</span></span>
+            <span class="breakdown-macro-sep">&bull;</span>
+            <span><strong class="breakdown-macro-val">${Math.round(item.currentFat * 10) / 10}</strong><span class="breakdown-macro-unit">g F</span></span>
+        `;
+    }
+
+    function onBreakdownQtyInput(idx, rawVal) {
+        if (!currentSmartMealData || !currentSmartMealData.items[idx]) return;
+        const item = currentSmartMealData.items[idx];
+        if (item.isExcluded) return;
+
+        let qty = parseFloat(rawVal);
+        if (isNaN(qty) || qty < 0) qty = 0;
+        item.currentQty = qty;
+
+        const factor = getPortionUnitFactor(item.currentUnit, item.baseServingG);
+        const effectiveGrams = Math.max(0, qty * factor);
+
+        item.currentCals = item.calsPerG * effectiveGrams;
+        item.currentPro = item.proPerG * effectiveGrams;
+        item.currentCarbs = item.carbsPerG * effectiveGrams;
+        item.currentFat = item.fatPerG * effectiveGrams;
+
+        updateBreakdownRowMacros(idx);
+        recalculateBreakdownTotalsAndSync(false);
+    }
+
+    function onBreakdownUnitChange(idx, newUnit) {
+        if (!currentSmartMealData || !currentSmartMealData.items[idx]) return;
+        const item = currentSmartMealData.items[idx];
+        if (item.isExcluded) return;
+
+        const oldUnit = item.currentUnit;
+        const oldFactor = getPortionUnitFactor(oldUnit, item.baseServingG);
+        const newFactor = getPortionUnitFactor(newUnit, item.baseServingG);
+
+        const currentGrams = item.currentQty * oldFactor;
+        let newQty = currentGrams / newFactor;
+        newQty = formatPortionQty(newQty);
+
+        item.currentUnit = newUnit;
+        item.currentQty = newQty;
+
+        const inputEl = ninjaItemsEl?.querySelector(`.breakdown-qty-input[data-idx="${idx}"]`);
+        if (inputEl) inputEl.value = newQty;
+
+        onBreakdownQtyInput(idx, newQty);
+    }
+
+    window.removeBreakdownItem = function(idx) {
+        if (!currentSmartMealData || !currentSmartMealData.items[idx]) return;
+        currentSmartMealData.items[idx].isExcluded = true;
+
+        const rowEl = ninjaItemsEl?.querySelector(`.smart-breakdown-item[data-idx="${idx}"]`);
+        if (rowEl) {
+            if (typeof rowEl.remove === 'function') {
+                rowEl.remove();
+            } else if (rowEl.parentNode) {
+                rowEl.parentNode.removeChild(rowEl);
+            }
         }
 
-        // Render balanced, cohesive total chips
+        const remaining = currentSmartMealData.items.filter(it => !it.isExcluded);
+        if (remaining.length === 0) {
+            if (ninjaBreakdown) ninjaBreakdown.style.display = 'none';
+            applyMacrosToForm(0, 0, 0, 0, '');
+        } else {
+            recalculateBreakdownTotalsAndSync(false);
+        }
+    };
+
+    function recalculateBreakdownTotalsAndSync(isInitial = false) {
+        if (!currentSmartMealData) return;
+        let totCals = 0, totPro = 0, totCarbs = 0, totFat = 0;
+
+        currentSmartMealData.items.forEach(it => {
+            if (!it.isExcluded) {
+                totCals += (parseFloat(it.currentCals) || 0);
+                totPro += (parseFloat(it.currentPro) || 0);
+                totCarbs += (parseFloat(it.currentCarbs) || 0);
+                totFat += (parseFloat(it.currentFat) || 0);
+            }
+        });
+
+        totCals = Math.round(totCals);
+        totPro = Math.round(totPro * 10) / 10;
+        totCarbs = Math.round(totCarbs * 10) / 10;
+        totFat = Math.round(totFat * 10) / 10;
+
         if (ninjaTotalsEl) {
             ninjaTotalsEl.innerHTML = `
                 <div class="smart-total-chip">
                     <span class="chip-label">Calories</span>
-                    <span class="chip-value">${data.total_calories} kcal</span>
+                    <span class="chip-value">${totCals} kcal</span>
                 </div>
                 <div class="smart-total-chip">
                     <span class="chip-label">Protein</span>
-                    <span class="chip-value">${data.total_protein}g</span>
+                    <span class="chip-value">${totPro}g</span>
                 </div>
                 <div class="smart-total-chip">
                     <span class="chip-label">Carbs</span>
-                    <span class="chip-value">${data.total_carbs}g</span>
+                    <span class="chip-value">${totCarbs}g</span>
                 </div>
                 <div class="smart-total-chip">
                     <span class="chip-label">Fat</span>
-                    <span class="chip-value">${data.total_fat}g</span>
+                    <span class="chip-value">${totFat}g</span>
                 </div>
             `;
         }
 
-        if (ninjaBreakdown) ninjaBreakdown.style.display = 'block';
-
-        applyMacrosToForm(data.total_calories, data.total_protein, data.total_carbs, data.total_fat, mealLabel);
+        if (isInitial) {
+            applyMacrosToForm(totCals, totPro, totCarbs, totFat, currentSmartMealData.label);
+        } else {
+            if (inCals)  inCals.value  = totCals;
+            if (inPro)   inPro.value   = totPro;
+            if (inCarbs) inCarbs.value = totCarbs;
+            if (inFat)   inFat.value   = totFat;
+        }
     }
 
     window.setQuickMealText = function(text) {
+        if (window.innerWidth <= 768 && typeof window.toggleMobileMealLogger === 'function') {
+            window.toggleMobileMealLogger(true);
+        }
         if (!ninjaInput) return;
         ninjaInput.value = text;
         const norm = text.trim().toLowerCase().replace(/\s+/g, ' ');
@@ -281,6 +513,9 @@ window.confirmRegeneratePlan = confirmRegeneratePlan;
     }
 
     function applyMacrosToForm(cals, pro, carbs, fat, foodName = '') {
+        if (window.innerWidth <= 768 && typeof window.toggleMobileMealLogger === 'function') {
+            window.toggleMobileMealLogger(true);
+        }
         if (inCals)  inCals.value  = Math.round(parseFloat(cals) || 0);
         if (inPro)   inPro.value   = Math.round((parseFloat(pro) || 0) * 10) / 10;
         if (inCarbs) inCarbs.value = Math.round((parseFloat(carbs) || 0) * 10) / 10;
@@ -309,19 +544,20 @@ window.confirmRegeneratePlan = confirmRegeneratePlan;
         }
 
         // Scroll to form fields
-        form?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        if (form && typeof form.scrollIntoView === 'function') {
+            form.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }
     }
 
     window.clearSmartMealAssistant = function() {
-        // 1. Clear search inputs
+        currentSmartMealData = null;
+        // 1. Clear search input
         if (ninjaInput) ninjaInput.value = '';
-        if (offInput) offInput.value = '';
 
         // 2. Hide and clear breakdown containers
         if (ninjaBreakdown) ninjaBreakdown.style.display = 'none';
         if (ninjaItemsEl) ninjaItemsEl.innerHTML = '';
         if (ninjaTotalsEl) ninjaTotalsEl.innerHTML = '';
-        if (offContainer) offContainer.style.display = 'none';
 
         // 3. Clear bottom macro inputs
         if (inCals)  inCals.value  = '';
@@ -337,12 +573,8 @@ window.confirmRegeneratePlan = confirmRegeneratePlan;
             }
         });
 
-        // 5. Refocus current search input
-        if (panelSmartOff?.classList.contains('active')) {
-            offInput?.focus();
-        } else {
-            ninjaInput?.focus();
-        }
+        // 5. Refocus input
+        ninjaInput?.focus();
 
         // 6. Toast notification
         if (window.Swal) {
@@ -424,125 +656,22 @@ window.confirmRegeneratePlan = confirmRegeneratePlan;
         });
     }
 
-    let cachedOffProducts = [];
+    // Delegated event listeners for portion & unit controls inside Smart Breakdown items
+    if (ninjaItemsEl) {
+        ninjaItemsEl.addEventListener('input', function(e) {
+            if (!e.target.classList.contains('breakdown-qty-input')) return;
+            const idx = parseInt(e.target.dataset.idx, 10);
+            onBreakdownQtyInput(idx, e.target.value);
+        });
 
-    function renderOffProducts() {
-        if (!offGrid || !cachedOffProducts.length) return;
-        const portion = Math.max(1, parseFloat(offServingInput?.value || 100) || 100);
-        const ratio = portion / 100;
-
-        offGrid.innerHTML = cachedOffProducts.map((p, idx) => {
-            const pCals = Math.round(p.calories_100g * ratio);
-            const pPro = Math.round((p.protein_100g * ratio) * 10) / 10;
-            const pCarbs = Math.round((p.carbs_100g * ratio) * 10) / 10;
-            const pFat = Math.round((p.fat_100g * ratio) * 10) / 10;
-
-            return `
-                <div class="off-food-card" onclick="selectOffFood(${idx})">
-                    <div>
-                        <div style="font-size: 11px; color: var(--muted); text-transform: uppercase; font-weight: 700; letter-spacing: 0.3px;">
-                            ${escapeHtml(p.brand || 'Food Product')}
-                        </div>
-                        <div style="font-size: 12.5px; font-weight: 700; color: var(--ink); margin: 2px 0 6px; line-height: 1.3;">
-                            ${escapeHtml(p.name)}
-                        </div>
-                    </div>
-                    <div>
-                        <div style="display: flex; gap: 5px; flex-wrap: wrap; margin-bottom: 6px; font-size: 11px; font-weight: 700;">
-                            <span style="color: var(--macro-cals); background: color-mix(in srgb, var(--macro-cals) 14%, transparent); padding: 2px 6px; border-radius: 6px;">${pCals} kcal</span>
-                            <span style="color: var(--macro-pro); background: color-mix(in srgb, var(--macro-pro) 14%, transparent); padding: 2px 6px; border-radius: 6px;">${pPro}g P</span>
-                            <span style="color: var(--macro-carbs); background: color-mix(in srgb, var(--macro-carbs) 14%, transparent); padding: 2px 6px; border-radius: 6px;">${pCarbs}g C</span>
-                            <span style="color: var(--macro-fat); background: color-mix(in srgb, var(--macro-fat) 14%, transparent); padding: 2px 6px; border-radius: 6px;">${pFat}g F</span>
-                        </div>
-                        <div style="font-size: 10.5px; color: var(--muted); display: flex; justify-content: space-between; align-items: center;">
-                            <span>For ${portion}g</span>
-                            <span style="color: var(--macro-pro); font-weight: 700;">Apply ➔</span>
-                        </div>
-                    </div>
-                </div>
-            `;
-        }).join('');
-    }
-
-    window.selectOffFood = function(idx) {
-        const p = cachedOffProducts[idx];
-        if (!p) return;
-        const portion = Math.max(1, parseFloat(offServingInput?.value || 100) || 100);
-        const ratio = portion / 100;
-
-        const pCals = Math.round(p.calories_100g * ratio);
-        const pPro = Math.round((p.protein_100g * ratio) * 10) / 10;
-        const pCarbs = Math.round((p.carbs_100g * ratio) * 10) / 10;
-        const pFat = Math.round((p.fat_100g * ratio) * 10) / 10;
-
-        applyMacrosToForm(pCals, pPro, pCarbs, pFat, p.name);
-    };
-
-    window.adjustOffServing = function(delta) {
-        if (!offServingInput) return;
-        let val = parseFloat(offServingInput.value || 100) || 100;
-        val = Math.max(5, Math.min(2000, val + delta));
-        offServingInput.value = val;
-        renderOffProducts();
-    };
-
-    if (offServingInput) {
-        offServingInput.addEventListener('input', renderOffProducts);
-    }
-
-    async function searchOpenFoodFacts() {
-        const query = offInput?.value?.trim();
-        if (!query) {
-            offInput?.focus();
-            return;
-        }
-
-        if (offBtn) offBtn.disabled = true;
-        if (offBtnTxt) offBtnTxt.textContent = 'Searching...';
-
-        try {
-            const res = await fetch('index.php?page=food_lookup&action=openfoodfacts&query=' + encodeURIComponent(query));
-            const data = await res.json();
-
-            if (!data || !data.success || !data.products || !data.products.length) {
-                Swal.fire({
-                    icon: 'info',
-                    title: 'No Results',
-                    text: data?.error || 'No branded foods found for this query.',
-                    background: getComputedStyle(document.documentElement).getPropertyValue('--bg').trim() || '#121721',
-                    color: getComputedStyle(document.documentElement).getPropertyValue('--ink').trim() || '#ffffff'
-                });
-                return;
-            }
-
-            cachedOffProducts = data.products;
-            if (offContainer) offContainer.style.display = 'block';
-            renderOffProducts();
-        } catch (err) {
-            Swal.fire({
-                icon: 'error',
-                title: 'Search Error',
-                text: 'Could not connect to Open Food Facts. Please try again.',
-                background: getComputedStyle(document.documentElement).getPropertyValue('--bg').trim() || '#121721',
-                color: getComputedStyle(document.documentElement).getPropertyValue('--ink').trim() || '#ffffff'
-            });
-        } finally {
-            if (offBtn) offBtn.disabled = false;
-            if (offBtnTxt) offBtnTxt.textContent = 'Search';
-        }
-    }
-
-    if (offBtn) {
-        offBtn.addEventListener('click', searchOpenFoodFacts);
-    }
-    if (offInput) {
-        offInput.addEventListener('keydown', function(e) {
-            if (e.key === 'Enter') {
-                e.preventDefault();
-                searchOpenFoodFacts();
-            }
+        ninjaItemsEl.addEventListener('change', function(e) {
+            if (!e.target.classList.contains('breakdown-unit-select')) return;
+            const idx = parseInt(e.target.dataset.idx, 10);
+            onBreakdownUnitChange(idx, e.target.value);
         });
     }
+
+
 
     // Helper: auto calculate calories from macros: (P * 4) + (C * 4) + (F * 9)
     function calcCaloriesFromMacros() {
@@ -812,6 +941,24 @@ window.confirmRegeneratePlan = confirmRegeneratePlan;
         if (barCals) {
             barCals.style.width = calsProg.width;
             barCals.style.background = calsProg.barBg;
+        }
+
+        // Hero Remaining Number & Radial Ring update
+        const heroRemainingVal = document.getElementById('hero-cals-remaining-val');
+        const heroRemainingLbl = document.getElementById('hero-cals-remaining-lbl');
+        if (heroRemainingVal && targetCals) {
+            const rem = targetCals - newCals;
+            heroRemainingVal.textContent = Math.abs(rem);
+            if (heroRemainingLbl) {
+                heroRemainingLbl.textContent = rem >= 0 ? 'kcal remaining' : 'kcal over target';
+            }
+        }
+        const ringBar = document.getElementById('hero-radial-ring-bar');
+        if (ringBar && targetCals > 0) {
+            const rawPct = Math.min(100, Math.max(0, (newCals / targetCals) * 100));
+            const ringOffset = 175.93 * (1 - (rawPct / 100));
+            ringBar.style.strokeDashoffset = ringOffset;
+            ringBar.style.stroke = calsProg.color;
         }
 
         // Protein update
@@ -1104,18 +1251,6 @@ window.confirmRegeneratePlan = confirmRegeneratePlan;
         });
     });
 
-    if (offServingInput) {
-        offServingInput.addEventListener('keydown', function(e) {
-            if (e.key === '-' || e.key === 'Subtract') {
-                e.preventDefault();
-            }
-        });
-        offServingInput.addEventListener('input', function() {
-            if (this.value !== '' && parseFloat(this.value) < 1) {
-                this.value = '1';
-            }
-        });
-    }
 
     form.addEventListener('submit', function(e) {
         e.preventDefault();
@@ -1192,6 +1327,19 @@ function handleAlreadyLoggedClick(mealType, timeStr) {
         color: getComputedStyle(document.documentElement).getPropertyValue('--ink').trim() || '#ffffff',
         confirmButtonColor: 'var(--lime, #c7ff22)',
         confirmButtonText: 'Understood'
+    });
+}
+
+function handleViewOnlyClick(dayName) {
+    const dName = dayName || 'another day';
+    Swal.fire({
+        icon: 'info',
+        title: `Scheduled for ${dName}`,
+        html: `<p style="margin:0 0 10px 0; font-size:14px; color:var(--ink);">This meal is part of your meal plan for <strong>${dName}</strong>.</p><p style="margin:0; font-size:13px; color:var(--muted);">You can log it when ${dName} arrives, or inspect its ingredients and swap recipes anytime!</p>`,
+        background: getComputedStyle(document.documentElement).getPropertyValue('--bg').trim() || '#121721',
+        color: getComputedStyle(document.documentElement).getPropertyValue('--ink').trim() || '#ffffff',
+        confirmButtonColor: 'var(--lime, #c7ff22)',
+        confirmButtonText: 'Got It'
     });
 }
 
@@ -1592,19 +1740,47 @@ async function inspectPlannedMeal(mealId) {
 
         if (items && items.length > 0) {
             contentEl.style.display = 'block';
-            currentInspectingMeal.items = items;
+            currentInspectingMeal.items = items.map((item, idx) => {
+                const baseServingG = parseFloat(item.serving_size_g) > 0 ? parseFloat(item.serving_size_g) : 100;
+                const baseCals = parseFloat(item.calories) || 0;
+                const basePro = parseFloat(item.protein_g) || 0;
+                const baseCarbs = parseFloat(item.carbs_g) || 0;
+                const baseFat = parseFloat(item.fat_g) || 0;
+
+                const defaultUnit = detectSmartFoodUnit(item.name, item.portion, baseServingG);
+                let initialQty = baseServingG;
+                if (defaultUnit === 'l') initialQty = baseServingG / 1000;
+                else if (defaultUnit === 'oz') initialQty = baseServingG / 28.3495;
+                else if (defaultUnit === 'cup') initialQty = baseServingG / 240;
+                else if (defaultUnit === 'tbsp') initialQty = baseServingG / 15;
+                else if (defaultUnit === 'tsp') initialQty = baseServingG / 5;
+
+                return {
+                    ...item,
+                    baseServingG: baseServingG,
+                    calsPerG: baseCals / baseServingG,
+                    proPerG: basePro / baseServingG,
+                    carbsPerG: baseCarbs / baseServingG,
+                    fatPerG: baseFat / baseServingG,
+                    currentUnit: defaultUnit,
+                    currentQty: formatPortionQty(initialQty),
+                    currentCals: baseCals,
+                    currentPro: basePro,
+                    currentCarbs: baseCarbs,
+                    currentFat: baseFat
+                };
+            });
 
             const INSPECT_INITIAL_LIMIT = 4;
             const hasMore = items.length > INSPECT_INITIAL_LIMIT;
             isInspectIngredientsExpanded = false;
 
-            itemsCont.innerHTML = items.map((item, idx) => {
+            itemsCont.innerHTML = currentInspectingMeal.items.map((item, idx) => {
                 totFiber += (item.fiber_g || 0);
                 totSugar += (item.sugar_g || 0);
                 totSodium += (item.sodium_mg || 0);
                 totPotassium += (item.potassium_mg || 0);
 
-                const portionDisplay = item.portion || (item.serving_size_g ? Math.round(item.serving_size_g) + 'g' : '1 portion');
                 const isExtra = idx >= INSPECT_INITIAL_LIMIT;
                 const extraClass = isExtra ? ' inspect-item-extra' : '';
                 const extraStyle = isExtra ? ' style="display: none;"' : '';
@@ -1615,14 +1791,39 @@ async function inspectPlannedMeal(mealId) {
                             <input type="checkbox" class="inspect-ingredient-check" data-idx="${idx}" checked onchange="recalculateInspectedIngredients()">
                             <div class="inspect-item-left">
                                 <span class="inspect-item-title">${escapeHtml(item.name)}</span>
-                                <span class="inspect-item-portion">${escapeHtml(portionDisplay)}</span>
+                                <div class="inspect-portion-ctrl" onclick="event.stopPropagation();" title="Adjust portion weight or unit">
+                                    <input type="number" 
+                                           class="inspect-qty-input" 
+                                           value="${item.currentQty}" 
+                                           min="0" 
+                                           step="any" 
+                                           data-idx="${idx}"
+                                           onclick="event.stopPropagation();"
+                                           oninput="onInspectQtyInput(${idx}, this.value)"
+                                           aria-label="Quantity for ${escapeHtml(item.name)}">
+                                    <select class="inspect-unit-select" 
+                                            data-idx="${idx}" 
+                                            onclick="event.stopPropagation();"
+                                            onchange="onInspectUnitChange(${idx}, this.value)"
+                                            aria-label="Unit for ${escapeHtml(item.name)}">
+                                        <option value="g" ${item.currentUnit === 'g' ? 'selected' : ''}>g</option>
+                                        <option value="ml" ${item.currentUnit === 'ml' ? 'selected' : ''}>ml</option>
+                                        <option value="l" ${item.currentUnit === 'l' ? 'selected' : ''}>L</option>
+                                        <option value="oz" ${item.currentUnit === 'oz' ? 'selected' : ''}>oz</option>
+                                        <option value="cup" ${item.currentUnit === 'cup' ? 'selected' : ''}>cup</option>
+                                        <option value="tbsp" ${item.currentUnit === 'tbsp' ? 'selected' : ''}>tbsp</option>
+                                        <option value="tsp" ${item.currentUnit === 'tsp' ? 'selected' : ''}>tsp</option>
+                                        <option value="pcs" ${item.currentUnit === 'pcs' ? 'selected' : ''}>pcs</option>
+                                        <option value="serving" ${item.currentUnit === 'serving' ? 'selected' : ''}>serving</option>
+                                    </select>
+                                </div>
                             </div>
                         </div>
-                        <div class="inspect-item-macros">
-                            <span class="inspect-chip chip-cals" title="Calories: ${item.calories} kcal">${item.calories} kcal</span>
-                            <span class="inspect-chip chip-pro" title="Protein: ${item.protein_g}g">${item.protein_g}g P</span>
-                            <span class="inspect-chip chip-carbs" title="Carbohydrates: ${item.carbs_g}g">${item.carbs_g}g C</span>
-                            <span class="inspect-chip chip-fat" title="Fat: ${item.fat_g}g">${item.fat_g}g F</span>
+                        <div class="inspect-item-macros" id="inspect-item-macros-${idx}">
+                            <span class="inspect-chip chip-cals" title="Calories: ${Math.round(item.currentCals)} kcal">${Math.round(item.currentCals)} kcal</span>
+                            <span class="inspect-chip chip-pro" title="Protein: ${Math.round(item.currentPro * 10) / 10}g">${Math.round(item.currentPro * 10) / 10}g P</span>
+                            <span class="inspect-chip chip-carbs" title="Carbohydrates: ${Math.round(item.currentCarbs * 10) / 10}g">${Math.round(item.currentCarbs * 10) / 10}g C</span>
+                            <span class="inspect-chip chip-fat" title="Fat: ${Math.round(item.currentFat * 10) / 10}g">${Math.round(item.currentFat * 10) / 10}g F</span>
                         </div>
                     </label>
                 `;
@@ -1696,6 +1897,54 @@ async function inspectPlannedMeal(mealId) {
     }
 }
 
+function onInspectQtyInput(idx, rawVal) {
+    if (!currentInspectingMeal || !currentInspectingMeal.items || !currentInspectingMeal.items[idx]) return;
+    const it = currentInspectingMeal.items[idx];
+    let qty = parseFloat(rawVal);
+    if (isNaN(qty) || qty < 0) qty = 0;
+    it.currentQty = qty;
+
+    const factor = getPortionUnitFactor(it.currentUnit, it.baseServingG);
+    const effectiveGrams = Math.max(0, qty * factor);
+
+    it.currentCals = it.calsPerG * effectiveGrams;
+    it.currentPro = it.proPerG * effectiveGrams;
+    it.currentCarbs = it.carbsPerG * effectiveGrams;
+    it.currentFat = it.fatPerG * effectiveGrams;
+
+    const macrosEl = document.getElementById('inspect-item-macros-' + idx);
+    if (macrosEl) {
+        macrosEl.innerHTML = `
+            <span class="inspect-chip chip-cals" title="Calories: ${Math.round(it.currentCals)} kcal">${Math.round(it.currentCals)} kcal</span>
+            <span class="inspect-chip chip-pro" title="Protein: ${Math.round(it.currentPro * 10) / 10}g">${Math.round(it.currentPro * 10) / 10}g P</span>
+            <span class="inspect-chip chip-carbs" title="Carbohydrates: ${Math.round(it.currentCarbs * 10) / 10}g">${Math.round(it.currentCarbs * 10) / 10}g C</span>
+            <span class="inspect-chip chip-fat" title="Fat: ${Math.round(it.currentFat * 10) / 10}g">${Math.round(it.currentFat * 10) / 10}g F</span>
+        `;
+    }
+
+    recalculateInspectedIngredients();
+}
+
+function onInspectUnitChange(idx, newUnit) {
+    if (!currentInspectingMeal || !currentInspectingMeal.items || !currentInspectingMeal.items[idx]) return;
+    const it = currentInspectingMeal.items[idx];
+    const oldUnit = it.currentUnit;
+    const oldFactor = getPortionUnitFactor(oldUnit, it.baseServingG);
+    const newFactor = getPortionUnitFactor(newUnit, it.baseServingG);
+
+    const currentGrams = it.currentQty * oldFactor;
+    let newQty = currentGrams / newFactor;
+    newQty = formatPortionQty(newQty);
+
+    it.currentUnit = newUnit;
+    it.currentQty = newQty;
+
+    const inputEl = document.querySelector(`.inspect-qty-input[data-idx="${idx}"]`);
+    if (inputEl) inputEl.value = newQty;
+
+    onInspectQtyInput(idx, newQty);
+}
+
 function recalculateInspectedIngredients() {
     if (!currentInspectingMeal || !currentInspectingMeal.items) return;
     const checks = document.querySelectorAll('.inspect-ingredient-check');
@@ -1709,10 +1958,10 @@ function recalculateInspectedIngredients() {
             const idx = parseInt(chk.dataset.idx, 10);
             const it = currentInspectingMeal.items[idx];
             if (it) {
-                totCals += (parseFloat(it.calories) || 0);
-                totPro += (parseFloat(it.protein_g) || 0);
-                totCarbs += (parseFloat(it.carbs_g) || 0);
-                totFat += (parseFloat(it.fat_g) || 0);
+                totCals += (parseFloat(it.currentCals ?? it.calories) || 0);
+                totPro += (parseFloat(it.currentPro ?? it.protein_g) || 0);
+                totCarbs += (parseFloat(it.currentCarbs ?? it.carbs_g) || 0);
+                totFat += (parseFloat(it.currentFat ?? it.fat_g) || 0);
                 selectedNames.push(it.name);
                 selectedCount++;
             }
@@ -1895,14 +2144,18 @@ function renderSwapRecipes() {
     } else if (activeSwapFilter === 'high-protein') {
         filtered = swapOptionsData.filter(o => o.protein_g >= 30 || (o.tags && o.tags.some(t => t.toLowerCase().includes('protein'))));
     }
+    currentFilteredSwapRecipes = filtered;
 
     if (filtered.length === 0) {
         gridEl.innerHTML = `<div style="padding:30px 10px; text-align:center; color:var(--muted); font-size:13px;">No recipes match the "${activeSwapFilter}" filter. Showing all options.</div>`;
-        setTimeout(() => { filterSwapRecipes('all', document.querySelector('.swap-filter-pill')); }, 1200);
+        setTimeout(() => {
+            const firstPill = document.querySelector('.swap-filter-pill');
+            filterSwapRecipes('all', firstPill);
+        }, 1200);
         return;
     }
 
-    gridEl.innerHTML = filtered.map(opt => {
+    gridEl.innerHTML = filtered.map((opt, idx) => {
         const tagBadges = (opt.tags || []).map(t => {
             const isDietTag = opt.is_diet_match && t.toLowerCase().includes('diet');
             return `<span class="swap-tag ${isDietTag ? 'tag-diet' : ''}">${escapeHtml(t)}</span>`;
@@ -1926,7 +2179,7 @@ function renderSwapRecipes() {
                         <span style="color:var(--muted); font-size:10.5px;">(${opt.grams}g portion)</span>
                     </div>
                 </div>
-                <button type="button" class="btn-select-swap" onclick="confirmSwapRecipe('${escapeHtml(opt.food_items)}', ${opt.calories}, ${opt.protein_g}, ${opt.carbs_g}, ${opt.fat_g})">
+                <button type="button" class="btn-select-swap" onclick="selectSwapOption(${idx})">
                     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M16 3h5v5"/><path d="M4 20L21 3"/><path d="M21 16v5h-5"/><path d="M15 15l6 6"/><path d="M4 4l5 5"/></svg>
                     <span>Swap to This</span>
                 </button>
@@ -1935,10 +2188,20 @@ function renderSwapRecipes() {
     }).join('');
 }
 
+let currentFilteredSwapRecipes = [];
+
+function selectSwapOption(idx) {
+    const opt = (currentFilteredSwapRecipes && currentFilteredSwapRecipes[idx]) || swapOptionsData[idx];
+    if (!opt) return;
+    confirmSwapRecipe(opt.food_items, opt.calories, opt.protein_g, opt.carbs_g, opt.fat_g);
+}
+
 function filterSwapRecipes(filter, btnEl) {
     activeSwapFilter = filter;
-    document.querySelectorAll('.swap-filter-pill').forEach(b => b.classList.remove('active'));
-    if (btnEl) btnEl.classList.add('active');
+    document.querySelectorAll('.swap-filter-pill').forEach(b => {
+        if (b && b.classList) b.classList.remove('active');
+    });
+    if (btnEl && btnEl.classList) btnEl.classList.add('active');
     renderSwapRecipes();
 }
 
@@ -2236,4 +2499,85 @@ document.addEventListener('DOMContentLoaded', function() {
         switchDietView('tracker');
     }
 });
+
+// Explicit global window bindings for inline onclick event handlers
+window.switchDietTab = switchDietTab;
+window.switchDietView = switchDietView;
+window.normalizeMealType = normalizeMealType;
+window.handleAlreadyLoggedClick = handleAlreadyLoggedClick;
+window.handleViewOnlyClick = handleViewOnlyClick;
+window.markMealAsLoggedUI = markMealAsLoggedUI;
+window.resetTodayMealCardsUI = resetTodayMealCardsUI;
+window.quickLogPlannedMeal = quickLogPlannedMeal;
+window.inspectPlannedMeal = inspectPlannedMeal;
+window.recalculateInspectedIngredients = recalculateInspectedIngredients;
+window.toggleAllInspectedIngredients = toggleAllInspectedIngredients;
+window.toggleInspectSeeMore = toggleInspectSeeMore;
+window.closeInspectModal = closeInspectModal;
+window.quickLogFromInspection = quickLogFromInspection;
+window.openSwapMealModal = openSwapMealModal;
+window.renderSwapRecipes = renderSwapRecipes;
+window.selectSwapOption = selectSwapOption;
+window.filterSwapRecipes = filterSwapRecipes;
+window.switchSwapTab = switchSwapTab;
+window.calculateCustomSwap = calculateCustomSwap;
+window.applyCustomSwap = applyCustomSwap;
+window.confirmSwapRecipe = confirmSwapRecipe;
+window.closeSwapModal = closeSwapModal;
+window.removeBreakdownItem = removeBreakdownItem;
+window.onInspectQtyInput = onInspectQtyInput;
+window.onInspectUnitChange = onInspectUnitChange;
+
+function openDietPlanInfoModal() {
+    const modal = document.getElementById('modal-diet-plan-info');
+    if (modal) {
+        modal.style.display = 'flex';
+        document.body.style.overflow = 'hidden';
+    }
+}
+
+function closeDietPlanInfoModal() {
+    const modal = document.getElementById('modal-diet-plan-info');
+    if (modal && modal.style.display !== 'none') {
+        modal.style.display = 'none';
+        document.body.style.overflow = '';
+    }
+}
+
+window.openDietPlanInfoModal = openDietPlanInfoModal;
+window.closeDietPlanInfoModal = closeDietPlanInfoModal;
+
+function toggleMobileMealLogger(forceOpen = null) {
+    const tile = document.getElementById('bento-tile-logger');
+    const btn = document.getElementById('btn-mobile-toggle-logger');
+    const label = document.getElementById('mobile-logger-btn-label');
+    if (!tile || !btn) return;
+
+    const isOpen = tile.classList.contains('is-mobile-open');
+    const shouldOpen = (forceOpen !== null) ? forceOpen : !isOpen;
+
+    if (shouldOpen) {
+        tile.classList.add('is-mobile-open');
+        btn.classList.add('is-active');
+        btn.setAttribute('aria-expanded', 'true');
+        if (label) label.textContent = '✕ Close';
+        setTimeout(() => {
+            const input = document.getElementById('smart-ninja-input');
+            if (input && typeof input.focus === 'function' && window.innerWidth <= 768 && forceOpen === null) {
+                input.focus();
+            }
+            if (tile && typeof tile.scrollIntoView === 'function') {
+                tile.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            }
+        }, 50);
+    } else {
+        tile.classList.remove('is-mobile-open');
+        btn.classList.remove('is-active');
+        btn.setAttribute('aria-expanded', 'false');
+        if (label) label.textContent = '+ Log Food';
+    }
+}
+
+window.toggleMobileMealLogger = toggleMobileMealLogger;
+
 

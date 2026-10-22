@@ -414,16 +414,32 @@ function progress_page(): void
     }
 
     // --- ACTIVE WORKOUT PLAN & EXERCISES ---
-    $planStmt = db()->prepare('
-        SELECT p.*, tp.user_id AS t_user_id, u.first_name AS t_first, u.last_name AS t_last 
-        FROM training_plans p 
-        LEFT JOIN trainer_profiles tp ON p.trainer_id = tp.trainer_id 
-        LEFT JOIN users u ON u.user_id = tp.user_id 
-        WHERE p.member_user_id = ? AND p.status = "active" 
-        ORDER BY p.plan_id DESC LIMIT 1'
-    );
-    $planStmt->execute([$memberId]);
-    $activePlan = $planStmt->fetch() ?: null;
+    $planIdParam = isset($_GET['plan_id']) ? (int)$_GET['plan_id'] : 0;
+    $activePlan = null;
+    if ($planIdParam > 0) {
+        $planStmt = db()->prepare('
+            SELECT p.*, tp.user_id AS t_user_id, u.first_name AS t_first, u.last_name AS t_last 
+            FROM training_plans p 
+            LEFT JOIN trainer_profiles tp ON p.trainer_id = tp.trainer_id 
+            LEFT JOIN users u ON u.user_id = tp.user_id 
+            WHERE p.member_user_id = ? AND p.plan_id = ?
+            LIMIT 1'
+        );
+        $planStmt->execute([$memberId, $planIdParam]);
+        $activePlan = $planStmt->fetch() ?: null;
+    }
+    if (!$activePlan) {
+        $planStmt = db()->prepare('
+            SELECT p.*, tp.user_id AS t_user_id, u.first_name AS t_first, u.last_name AS t_last 
+            FROM training_plans p 
+            LEFT JOIN trainer_profiles tp ON p.trainer_id = tp.trainer_id 
+            LEFT JOIN users u ON u.user_id = tp.user_id 
+            WHERE p.member_user_id = ? AND p.status = "active" 
+            ORDER BY p.plan_id DESC LIMIT 1'
+        );
+        $planStmt->execute([$memberId]);
+        $activePlan = $planStmt->fetch() ?: null;
+    }
 
     $exercisesByDow = [];
     $totalPlanExercises = 0;

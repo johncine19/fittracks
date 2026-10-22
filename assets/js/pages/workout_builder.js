@@ -144,13 +144,9 @@ const defaultEnd = FT_WB_CONFIG.defaultEnd || '';
                     <div class="wb-modal-select-grid">
                         <div>
                             <label style="display:block; color: var(--muted); font-size: 13px; margin-bottom: 4px;">Frequency (Days/Wk)</label>
-                            <select id="swal-gen-days" class="form-control" style="width: 100%;">
-                                <option value="2" ${prefDays === 2 ? 'selected' : ''}>2 Days (Express)</option>
-                                <option value="3" ${prefDays === 3 ? 'selected' : ''}>3 Days (Standard)</option>
-                                <option value="4" ${prefDays === 4 ? 'selected' : ''}>4 Days (Upper/Lower)</option>
-                                <option value="5" ${prefDays === 5 ? 'selected' : ''}>5 Days (Bro Split / PPL)</option>
-                                <option value="6" ${prefDays === 6 ? 'selected' : ''}>6 Days (High Frequency)</option>
-                            </select>
+                            <div class="form-control" style="width:100%; display:flex; align-items:center; min-height:38px; opacity:.8;">${prefDays} day${prefDays === 1 ? '' : 's'} / week</div>
+                            <input type="hidden" id="swal-gen-days" value="${prefDays}">
+                            <small style="display:block; margin-top:5px; color:var(--muted);">Locked to this member's workout frequency.</small>
                         </div>
                         <div>
                             <label style="display:block; color: var(--muted); font-size: 13px; margin-bottom: 4px;">Split Architecture</label>
@@ -340,7 +336,7 @@ const defaultEnd = FT_WB_CONFIG.defaultEnd || '';
                 title: 'No Exercises in Library',
                 icon: 'warning',
                 html: `
-                    <div style="text-align: left; font-size: 14px; line-height: 1.5; color: var(--ink);">
+                    <div style="text-align: center; font-size: 14px; line-height: 1.5; color: var(--ink);">
                         <p>There are currently no exercises in your gym's exercise library.</p>
                         <p style="color: var(--muted); font-size: 13px; margin-top: 8px;">Please add exercises to your gym's library on the <strong>Exercises</strong> page before adding them to a workout routine.</p>
                     </div>
@@ -849,7 +845,13 @@ const defaultEnd = FT_WB_CONFIG.defaultEnd || '';
                                 day_of_week: targetDay,
                                 items: items
                             })
-                        }).then(() => {
+                        }).then(async (response) => {
+                            const result = await response.json().catch(() => ({ success: false }));
+                            if (!result.success) {
+                                await Swal.fire({ icon: 'error', text: result.message || 'Unable to move this workout.', background: 'var(--bg)', color: 'var(--ink)' });
+                                window.location.reload();
+                                return;
+                            }
                             if (evt.from !== evt.to) {
                                 // Reload to update empty states and metrics accurately
                                 window.location.reload();

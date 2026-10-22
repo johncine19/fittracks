@@ -588,7 +588,7 @@ function food_library_page(): void
                 </span>
             </div>
             <p class="food-page-desc">
-                Manage meal templates, customize gym food options, or import branded groceries from online nutrition databases.
+                Manage meal templates, customize gym food options, and oversee verified food items.
             </p>
         </div>
         <div class="food-page-header-actions">
@@ -602,12 +602,8 @@ function food_library_page(): void
     <!-- Navigation Tabs: Library vs Online Search vs Verifications -->
     <div class="food-tabs-bar">
         <a href="index.php?page=food_library&tab=library" class="food-tab-link <?= $activeTab === 'library' ? 'active' : '' ?>">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8h1a4 4 0 0 1 0 8h-1"></path><path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z"></path><line x1="6" y1="1" x2="6" y2="4"></line><line x1="10" y1="1" x2="10" y2="4"></line><line x1="14" y1="1" x2="14" y2="4"></line></svg>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8h1a4 4 0 0 1 0 8h-1"></path><path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z"></path><line x1="6" y1="6" x2="6" y2="4"></line><line x1="10" y1="1" x2="10" y2="4"></line><line x1="14" y1="1" x2="14" y2="4"></line></svg>
             <span>Food Catalog</span>
-        </a>
-        <a href="index.php?page=food_library&tab=online_import" class="food-tab-link <?= $activeTab === 'online_import' ? 'active' : '' ?>">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="2" y1="12" x2="22" y2="12"></line><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path></svg>
-            <span>Online Nutrition Search (Open Food Facts)</span>
         </a>
         <?php if ($user['role'] === 'platform_admin'): ?>
             <a href="index.php?page=food_library&tab=verifications" class="food-tab-link <?= $activeTab === 'verifications' ? 'active' : '' ?>">
@@ -883,29 +879,7 @@ function food_library_page(): void
             </div>
         <?php endif; ?>
 
-    <?php elseif ($activeTab === 'online_import'): ?>
-        <!-- Online Nutrition Search Tab (Open Food Facts) -->
-        <div style="background: var(--surface); padding: 20px; border-radius: 12px; border: 1px solid var(--line); margin-bottom: 20px;">
-            <h3 style="margin: 0 0 6px; font-size: 17px; font-weight: 700; color: var(--ink);">Instant Open Food Facts Search</h3>
-            <p style="margin: 0 0 16px; font-size: 13px; color: var(--muted);">
-                Search millions of global and regional grocery items, protein powders, snacks, and ready-to-eat meals. Click "Import to Gym" to add them to your food catalog.
-            </p>
 
-            <div style="display: flex; gap: 10px; max-width: 600px;">
-                <input type="text" id="off_search_query" placeholder="e.g. Greek Yogurt, Kirkland Peanut Butter, Whey Protein..." onkeydown="if(event.key==='Enter') executeOffSearch();" style="flex: 1; padding: 10px 14px; border-radius: 8px; border: 1px solid var(--line); background: var(--bg); color: var(--ink); font-size: 13.5px;">
-                <button onclick="executeOffSearch()" class="btn" style="background: var(--lime); color: var(--bg); font-weight: 700; padding: 0 18px; border-radius: 8px; border: none; cursor: pointer;">
-                    Search
-                </button>
-            </div>
-            <div id="off_search_status" style="margin-top: 10px; font-size: 12.5px; color: var(--muted);"></div>
-        </div>
-
-        <!-- Open Food Facts Results Container -->
-        <div id="off_results_grid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(310px, 1fr)); gap: 16px;">
-            <div style="grid-column: 1 / -1; text-align: center; padding: 40px 20px; color: var(--muted); font-size: 13.5px;">
-                Type a brand, grocery item, or food name above to search online.
-            </div>
-        </div>
 
     <?php elseif ($activeTab === 'verifications' && $user['role'] === 'platform_admin'): ?>
         <!-- Dedicated Food Verification Review Interface -->

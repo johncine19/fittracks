@@ -171,6 +171,10 @@ function memberships_page(): void
                 }
             }
 
+            if ($mInfo && in_array($status, ['cancelled', 'expired'], true) && function_exists('pause_plans_for_lapsed_memberships')) {
+                pause_plans_for_lapsed_memberships((int) $mInfo['user_id'], (int) ($mInfo['gym_id'] ?? 0));
+            }
+
             audit_log($user['user_id'], 'update_status', 'membership', (string) $membershipId, json_encode(['new_status' => $status]));
             if ($isActivatingPending) {
                 flash('Membership activated successfully. Starting point recorded as today (' . date('M j, Y') . ') with full plan duration.');
@@ -650,6 +654,9 @@ function memberships_page(): void
             db()->prepare("UPDATE memberships SET status = 'cancelled' WHERE membership_id = ?")->execute([$cancelMembershipId]);
             db()->prepare("UPDATE payments SET status = 'cancelled' WHERE membership_id = ? AND status = 'pending'")->execute([$cancelMembershipId]);
             audit_log($user['user_id'], 'cancel', 'membership', (string)$cancelMembershipId, json_encode(['prev_status' => $prevStatus]));
+            if ($prevStatus === 'active' && function_exists('pause_plans_for_lapsed_memberships')) {
+                pause_plans_for_lapsed_memberships((int) $user['user_id'], (int) $user['user_id']);
+            }
 
             $msg = $prevStatus === 'pending'
                 ? 'Your pending request for ' . htmlspecialchars($recordToCancel['plan_name']) . ' has been cancelled. You can now choose and subscribe to any plan.'

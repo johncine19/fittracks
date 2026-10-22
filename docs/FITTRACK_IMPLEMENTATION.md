@@ -155,9 +155,8 @@ FitTracks automatically calculates personalized dietary plans from biometric mem
    - Natural Language Processing (NLP) nutrition lookup (`https://api.calorieninjas.com/v1/nutrition?query=...`).
    - Converts natural phrases (e.g., *"2 eggs and 1 cup brown rice"*) into exact calories, protein, carbs, fat, fiber, sugar, sodium, and potassium.
    - Configured via `.env` key: `CALORIENINJAS_API_KEY`.
-2. **Open Food Facts API (`pages/member/food_lookup.php`)**:
-   - Barcode and packaged product lookup mirror.
-   - Enables members, trainers, and gym owners to search and 1-click import external items directly into their gym's local food library (`action=import_external_food`).
+2. **Gym Food Library & External Import (`pages/member/food_lookup.php`)**:
+   - Enables members, trainers, and gym owners to decompose meals and import food items directly into their gym's local food library (`action=import_external_food`).
 3. **Real-Time Gym Equipment Queue API (`pages/shared/equipment_api.php`)**:
    - Dynamic real-time polling endpoint (`action=poll`) for equipment queue status, session countdown timers, waitlist position tracking, and audio chime notification triggers.
 

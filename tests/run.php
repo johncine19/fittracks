@@ -1,7 +1,7 @@
 <?php
 declare(strict_types=1);
 
-require_once __DIR__ . '/../core/engagement_engine.php';
+require_once __DIR__ . '/../core/bootstrap.php';
 
 $tests = [
     'no activity scores zero' => [
@@ -72,5 +72,15 @@ try {
     exit(1);
 }
 
+// Multi-Gym Workout and Diet Plan Management Tests
+require_once __DIR__ . '/multi_gym_plans_test.php';
+try {
+    run_multi_gym_plans_tests();
+} catch (Throwable $e) {
+    fwrite(STDERR, "FAIL: " . $e->getMessage() . "\n");
+    exit(1);
+}
+
 fwrite(STDOUT, "ALL TEST SUITES PASSED SUCCESSFULLY.\n");
+
 

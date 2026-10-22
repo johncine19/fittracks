@@ -4,6 +4,46 @@ declare(strict_types=1);
 /**
  * Returns parameters for workouts based on member profile.
  */
+function workout_days_for_frequency(int $daysPerWeek): array
+{
+    return match ($daysPerWeek) {
+        1 => [1],
+        2 => [1, 4],
+        3 => [1, 3, 5],
+        4 => [1, 2, 4, 5],
+        5 => [1, 2, 3, 5, 6],
+        6 => [1, 2, 3, 4, 5, 6],
+        7 => [1, 2, 3, 4, 5, 6, 7],
+        default => [1, 3, 5],
+    };
+}
+
+/**
+ * Resolve the gym whose exercise library is available to a member. The member's
+ * gym assignment is authoritative; the supplied fallback is used only when
+ * the member has not yet been linked to a gym.
+ */
+function workout_library_gym_id(PDO $pdo, int $memberUserId, int $fallbackGymId = 0): int
+{
+    $stmt = $pdo->prepare('SELECT gym_id FROM gym_members WHERE user_id = ? LIMIT 1');
+    $stmt->execute([$memberUserId]);
+    $gymId = (int) $stmt->fetchColumn();
+    if ($gymId > 0) return $gymId;
+
+    $stmt = $pdo->prepare(
+        'SELECT mp.gym_id
+         FROM memberships m
+         JOIN membership_plans mp ON m.plan_id = mp.plan_id
+         WHERE m.user_id = ? AND m.status = "active"
+         ORDER BY m.membership_id DESC
+         LIMIT 1'
+    );
+    $stmt->execute([$memberUserId]);
+    $gymId = (int) $stmt->fetchColumn();
+
+    return $gymId > 0 ? $gymId : $fallbackGymId;
+}
+
 function _get_workout_parameters(array $profile, PDO $pdo): array
 {
     $goal = map_detailed_goal_to_basic($profile['primary_goal']);
@@ -37,15 +77,8 @@ function _get_workout_parameters(array $profile, PDO $pdo): array
     }
 
     $weeklyTarget = (int) ($profile['weekly_workout_target'] ?? 0);
-    if ($weeklyTarget >= 2 && $weeklyTarget <= 6) {
-        $days = match($weeklyTarget) {
-            2 => [1, 4],
-            3 => [1, 3, 5],
-            4 => [1, 2, 4, 5],
-            5 => [1, 2, 3, 5, 6],
-            6 => [1, 2, 3, 4, 5, 6],
-            default => [1, 3, 5]
-        };
+    if ($weeklyTarget >= 1 && $weeklyTarget <= 7) {
+        $days = workout_days_for_frequency($weeklyTarget);
     } else {
         $days = match($profile['activity_level'] ?? 'lightly_active') {
             'sedentary' => [1, 3],
@@ -195,16 +228,34 @@ function can_recalculate_workout(int $memberUserId): bool
     return is_member_self_guided($memberUserId);
 }
 
-function generate_workout_plan(int $memberUserId, ?int $coachId = null): int
+function generate_workout_plan(int $memberUserId, ?int $coachId = null, ?int $gymId = null): int
 {
     $pdo = db();
+
+    // Resolve gymId if not explicitly passed
+    if ($gymId === null || $gymId <= 0) {
+        if ($coachId !== null) {
+            $gymId = (int) scalar('SELECT gym_id FROM trainer_profiles WHERE trainer_id = ? LIMIT 1', [$coachId]);
+        }
+        if (!$gymId && !empty($_SESSION['current_gym_id'])) {
+            $gymId = (int) $_SESSION['current_gym_id'];
+        }
+        if (!$gymId) {
+            $gymId = (int) scalar('SELECT gym_id FROM gym_members WHERE user_id = ? LIMIT 1', [$memberUserId]);
+        }
+    }
+    $scopedGymId = ($gymId > 0) ? $gymId : null;
     
     // Guard: Automated/system updates ($coachId === null) MUST NOT overwrite plans for coached members
     if ($coachId === null && !is_member_self_guided($memberUserId)) {
-        $existingPlanId = (int) scalar(
-            'SELECT plan_id FROM training_plans WHERE member_user_id = ? AND status = "active" ORDER BY plan_id DESC LIMIT 1',
-            [$memberUserId]
-        );
+        $guardSql = 'SELECT plan_id FROM training_plans WHERE member_user_id = ? AND status = "active"';
+        $guardParams = [$memberUserId];
+        if ($scopedGymId !== null) {
+            $guardSql .= ' AND gym_id = ?';
+            $guardParams[] = $scopedGymId;
+        }
+        $guardSql .= ' ORDER BY plan_id DESC LIMIT 1';
+        $existingPlanId = (int) scalar($guardSql, $guardParams);
         return $existingPlanId;
     }
     
@@ -223,8 +274,12 @@ function generate_workout_plan(int $memberUserId, ?int $coachId = null): int
 
     $goal = $profile['primary_goal'];
 
-    // Delete any existing system_generated plans to replace them
-    $pdo->prepare('DELETE FROM training_plans WHERE member_user_id = ? AND trainer_id IS NULL')->execute([$memberUserId]);
+    // Delete or archive existing system_generated plans for THIS gym only (never touch other gyms' plans)
+    if ($scopedGymId !== null) {
+        $pdo->prepare('DELETE FROM training_plans WHERE member_user_id = ? AND trainer_id IS NULL AND gym_id = ?')->execute([$memberUserId, $scopedGymId]);
+    } else {
+        $pdo->prepare('DELETE FROM training_plans WHERE member_user_id = ? AND trainer_id IS NULL AND (gym_id IS NULL OR gym_id = 0)')->execute([$memberUserId]);
+    }
 
     // Get member name for title
     $stmt = $pdo->prepare('SELECT first_name FROM users WHERE user_id = ?');
@@ -233,9 +288,13 @@ function generate_workout_plan(int $memberUserId, ?int $coachId = null): int
 
     // Create a new training plan
     $title = 'Workout Plan for ' . $firstName;
-    $stmt = $pdo->prepare('INSERT INTO training_plans (member_user_id, trainer_id, title, goal, start_date, end_date, status) VALUES (?, ?, ?, ?, CURDATE(), DATE_ADD(CURDATE(), INTERVAL 4 WEEK), "active")');
-    $stmt->execute([$memberUserId, $coachId, $title, $goal]);
+    $stmt = $pdo->prepare('INSERT INTO training_plans (member_user_id, trainer_id, gym_id, title, goal, start_date, end_date, status) VALUES (?, ?, ?, ?, ?, CURDATE(), DATE_ADD(CURDATE(), INTERVAL 4 WEEK), "active")');
+    $stmt->execute([$memberUserId, $coachId, $scopedGymId, $title, $goal]);
     $planId = (int) $pdo->lastInsertId();
+
+    if (function_exists('log_plan_change')) {
+        log_plan_change('workout', $planId, $scopedGymId, $coachId ? (int)scalar('SELECT user_id FROM trainer_profiles WHERE trainer_id = ?', [$coachId]) : $memberUserId, 'created', 'Generated tailored workout plan');
+    }
 
     // Generate workout using the helper
     [$exercises, $days, $expLevel, $goal] = _get_workout_parameters($profile, $pdo);
@@ -734,7 +793,7 @@ function apply_workout_template(int $planId, string $templateKey, int $gymId): b
 /**
  * Configurable, intelligent auto-generation routine
  */
-function auto_populate_plan_advanced(int $planId, int $memberUserId, array $options): void
+function auto_populate_plan_advanced(int $planId, int $memberUserId, array $options): bool
 {
     $pdo = db();
     
@@ -748,34 +807,18 @@ function auto_populate_plan_advanced(int $planId, int $memberUserId, array $opti
     $daysCount = (int) ($options['days_count'] ?? 3);
     $splitType = $options['split_type'] ?? 'auto';
 
-    // Member gym
-    $memberGymId = (int) $pdo->query('SELECT gym_id FROM gym_members WHERE user_id = ' . $memberUserId)->fetchColumn();
-    if (!$memberGymId) {
-        $memberGymId = (int) ($pdo->query('
-            SELECT mp.gym_id 
-            FROM memberships m 
-            JOIN membership_plans mp ON m.plan_id = mp.plan_id 
-            WHERE m.user_id = ' . $memberUserId . ' AND m.status = "active" 
-            ORDER BY m.membership_id DESC LIMIT 1
-        ')->fetchColumn() ?: 0);
-    }
-    if (!$memberGymId) {
-        $memberGymId = (int) ($pdo->query('
+    $fallbackGymId = (int) ($pdo->query('
             SELECT tp.gym_id 
             FROM training_plans p 
             JOIN trainer_profiles tp ON p.trainer_id = tp.trainer_id 
             WHERE p.plan_id = ' . (int)$planId)->fetchColumn() ?: 0);
+    $memberGymId = (int) ($options['library_gym_id'] ?? 0);
+    if ($memberGymId <= 0) {
+        $memberGymId = workout_library_gym_id($pdo, $memberUserId, $fallbackGymId);
     }
 
-    // Map days count to days of week
-    $daysMap = match($daysCount) {
-        2 => [1, 4],                 // Mon, Thu
-        3 => [1, 3, 5],              // Mon, Wed, Fri
-        4 => [1, 2, 4, 5],           // Mon, Tue, Thu, Fri
-        5 => [1, 2, 3, 4, 5],        // Mon - Fri
-        6 => [1, 2, 3, 4, 5, 6],     // Mon - Sat
-        default => [1, 3, 5]
-    };
+    // Map the requested frequency to a repeatable weekly schedule.
+    $daysMap = workout_days_for_frequency($daysCount);
 
     // If splitType is auto, pick best split for days count
     if ($splitType === 'auto') {
@@ -788,15 +831,15 @@ function auto_populate_plan_advanced(int $planId, int $memberUserId, array $opti
         }
     }
 
-    // Clear existing exercises
-    $pdo->prepare('DELETE FROM training_plan_exercises WHERE plan_id = ?')->execute([$planId]);
-
     // Fetch exercises available for this gym
     $stmt = $pdo->prepare('SELECT * FROM exercises WHERE gym_id = ? ORDER BY muscle_group, name');
     $stmt->execute([$memberGymId]);
     $allExercises = $stmt->fetchAll();
 
-    if (!$allExercises) return;
+    if (!$allExercises) return false;
+
+    // Only replace the draft after confirming the selected library has exercises.
+    $pdo->prepare('DELETE FROM training_plan_exercises WHERE plan_id = ?')->execute([$planId]);
 
     $insertStmt = $pdo->prepare('
         INSERT INTO training_plan_exercises 
@@ -876,12 +919,14 @@ function auto_populate_plan_advanced(int $planId, int $memberUserId, array $opti
             ]);
         }
     }
+
+    return true;
 }
 
 /**
  * Generates a targeted routine for an individual day
  */
-function auto_populate_day_focused(int $planId, int $memberUserId, int $dayOfWeek, string $focus): void
+function auto_populate_day_focused(int $planId, int $memberUserId, int $dayOfWeek, string $focus, ?int $libraryGymId = null): bool
 {
     $pdo = db();
     
@@ -892,27 +937,14 @@ function auto_populate_day_focused(int $planId, int $memberUserId, int $dayOfWee
     $tier = (int) ($profile['fitness_tier'] ?? 1);
     $expLevel = ($tier >= 5) ? 3 : (($tier >= 3) ? 2 : 1);
 
-    // Member gym
-    $memberGymId = (int) $pdo->query('SELECT gym_id FROM gym_members WHERE user_id = ' . $memberUserId)->fetchColumn();
-    if (!$memberGymId) {
-        $memberGymId = (int) ($pdo->query('
-            SELECT mp.gym_id 
-            FROM memberships m 
-            JOIN membership_plans mp ON m.plan_id = mp.plan_id 
-            WHERE m.user_id = ' . $memberUserId . ' AND m.status = "active" 
-            ORDER BY m.membership_id DESC LIMIT 1
-        ')->fetchColumn() ?: 0);
-    }
-    if (!$memberGymId) {
-        $memberGymId = (int) ($pdo->query('
+    $fallbackGymId = (int) ($pdo->query('
             SELECT tp.gym_id 
             FROM training_plans p 
             JOIN trainer_profiles tp ON p.trainer_id = tp.trainer_id 
             WHERE p.plan_id = ' . (int)$planId)->fetchColumn() ?: 0);
-    }
-
-    // Clear exercises for this day
-    $pdo->prepare('DELETE FROM training_plan_exercises WHERE plan_id = ? AND day_of_week = ?')->execute([$planId, $dayOfWeek]);
+    $memberGymId = $libraryGymId && $libraryGymId > 0
+        ? $libraryGymId
+        : workout_library_gym_id($pdo, $memberUserId, $fallbackGymId);
 
     $targetMuscles = match($focus) {
         'push' => ['chest', 'shoulders', 'arms'],
@@ -930,7 +962,10 @@ function auto_populate_day_focused(int $planId, int $memberUserId, int $dayOfWee
     $stmt->execute($params);
     $exercises = $stmt->fetchAll();
 
-    if (!$exercises) return;
+    if (!$exercises) return false;
+
+    // Keep the existing day intact when the selected library has no matches.
+    $pdo->prepare('DELETE FROM training_plan_exercises WHERE plan_id = ? AND day_of_week = ?')->execute([$planId, $dayOfWeek]);
 
     $byGroup = [];
     foreach ($exercises as $e) {
@@ -974,5 +1009,7 @@ function auto_populate_day_focused(int $planId, int $memberUserId, int $dayOfWee
             $rpe
         ]);
     }
+
+    return true;
 }
 

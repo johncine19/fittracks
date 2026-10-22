@@ -32,8 +32,9 @@
 }
 .plan-switcher-pills {
     display: flex;
-    gap: 10px;
+    gap: 12px;
     flex-wrap: wrap;
+    align-items: center;
 }
 .plan-switcher-pill {
     display: inline-flex;
@@ -42,13 +43,14 @@
     padding: 10px 16px;
     background: var(--panel-soft);
     border: 1px solid var(--line);
-    border-radius: 10px;
+    border-radius: 12px;
     text-decoration: none;
     color: var(--ink);
-    transition: all 0.2s ease;
+    transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
     cursor: pointer;
-    min-width: 220px;
-    flex: 1;
+    flex: 0 1 auto;
+    min-width: 200px;
+    max-width: 340px;
 }
 .plan-switcher-pill:hover {
     border-color: color-mix(in srgb, var(--lime) 50%, transparent);
@@ -127,6 +129,13 @@
     border-radius: 50%;
     background: var(--lime);
     display: inline-block;
+}
+
+@media (max-width: 600px) {
+    .plan-switcher-pill {
+        flex: 1 1 100%;
+        max-width: 100%;
+    }
 }
 
 /* Contextual Action Strip */

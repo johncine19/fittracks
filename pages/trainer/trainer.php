@@ -57,8 +57,8 @@ function trainer_members_page(): void
     }
     $members = query_all('SELECT ca.*, u.first_name, u.last_name, u.email, u.profile_picture, 
         mp.weight_kg, mp.height_cm, mp.primary_goal, mp.target_weight_kg,
-        (SELECT title FROM training_plans WHERE member_user_id = ca.member_user_id AND status = "active" ORDER BY plan_id DESC LIMIT 1) AS active_plan_title,
-        (SELECT plan_id FROM training_plans WHERE member_user_id = ca.member_user_id AND status = "active" ORDER BY plan_id DESC LIMIT 1) AS active_plan_id,
+        (SELECT title FROM training_plans WHERE member_user_id = ca.member_user_id AND trainer_id = ca.trainer_id AND status = "active" ORDER BY plan_id DESC LIMIT 1) AS active_plan_title,
+        (SELECT plan_id FROM training_plans WHERE member_user_id = ca.member_user_id AND trainer_id = ca.trainer_id AND status = "active" ORDER BY plan_id DESC LIMIT 1) AS active_plan_id,
         (SELECT COUNT(*) FROM progress_logs WHERE user_id = ca.member_user_id) AS logs_count
     FROM trainer_assignments ca 
     JOIN users u ON u.user_id = ca.member_user_id 

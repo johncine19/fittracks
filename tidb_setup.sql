@@ -874,6 +874,7 @@ ALTER TABLE `attendance`
   ADD KEY `fk_attendance_staff` (`recorded_by`),
   ADD KEY `idx_attendance_checkin` (`check_in_time`),
   ADD KEY `idx_att_checkout_checkin` (`check_out_time`, `check_in_time`),
+  ADD UNIQUE KEY `uq_att_user_checkin_exact` (`user_id`, `check_in_time`),
   ADD KEY `fk_attend_gym` (`gym_id`);
 
 --
@@ -1025,7 +1026,8 @@ ALTER TABLE `trainer_assignments`
 --
 ALTER TABLE `trainer_commissions`
   ADD KEY `trainer_id` (`trainer_id`),
-  ADD KEY `payment_id` (`payment_id`);
+  ADD KEY `payment_id` (`payment_id`),
+  ADD UNIQUE KEY `uq_trainer_comm_payment` (`payment_id`);
 
 --
 -- Indexes for table `trainer_messages`

@@ -866,6 +866,9 @@ function auto_expire_lapsed_member_subscriptions(?int $targetUserId = null): int
             if ($count > 0 && function_exists('sync_trainer_assignments_with_memberships')) {
                 sync_trainer_assignments_with_memberships($targetUserId);
             }
+            if ($count > 0 && function_exists('pause_plans_for_lapsed_memberships')) {
+                pause_plans_for_lapsed_memberships($targetUserId);
+            }
             return $count;
         }
 
@@ -874,6 +877,9 @@ function auto_expire_lapsed_member_subscriptions(?int $targetUserId = null): int
         $count = (int) $stmt->rowCount();
         if ($count > 0 && function_exists('sync_trainer_assignments_with_memberships')) {
             sync_trainer_assignments_with_memberships(null);
+        }
+        if ($count > 0 && function_exists('pause_plans_for_lapsed_memberships')) {
+            pause_plans_for_lapsed_memberships(null);
         }
         return $count;
     } catch (Throwable $e) {

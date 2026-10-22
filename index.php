@@ -70,7 +70,7 @@ try {
                     flash('Switched active facility to ' . ($gName ?: 'gym') . '.', 'success');
                 }
             }
-            $allowedMemberPages = ['dashboard', 'equipment', 'book_classes', 'trainers', 'gym_equipment', 'memberships', 'my_workout', 'diet', 'dietary_tracker', 'qr_attendance', 'progress', 'classes', 'profile', 'messages', 'gym_selection'];
+            $allowedMemberPages = ['dashboard', 'equipment', 'book_classes', 'trainers', 'gym_equipment', 'memberships', 'my_plans', 'my_workout', 'diet', 'dietary_tracker', 'qr_attendance', 'progress', 'classes', 'profile', 'messages', 'gym_selection'];
             $targetPage = in_array($_GET['page'] ?? '', $allowedMemberPages, true) ? $_GET['page'] : 'dashboard';
             redirect($targetPage);
         }
@@ -212,6 +212,7 @@ try {
         'classes' => ['file' => 'pages/admin/classes.php', 'handler' => 'classes_page'],
         'attendance' => ['file' => 'pages/admin/attendance.php', 'handler' => 'attendance_page'],
         'profile' => ['file' => 'pages/member/profile.php', 'handler' => 'profile_page'],
+        'my_plans' => ['file' => 'pages/member/my_plans.php', 'handler' => 'my_plans_page'],
         'my_workout' => ['file' => 'pages/member/my_workout.php', 'handler' => 'my_workout_page'],
         'diet' => ['file' => 'pages/member/diet.php', 'handler' => 'diet_page'],
         'log_macros' => ['file' => 'pages/member/log_macros.php', 'handler' => 'log_macros_page'],

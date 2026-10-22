@@ -27,7 +27,14 @@ function workout_builder_page(): void
     $profileStmt = $pdo->prepare('SELECT primary_goal, weight_kg, activity_level, weekly_workout_target, preferred_duration_mins FROM member_profiles WHERE user_id = ?');
     $profileStmt->execute([$memberId]);
     $profile = $profileStmt->fetch() ?: [];
-    $prefDays = max(2, min(6, (int)($profile['weekly_workout_target'] ?: 3)));
+    // This target is authoritative for plans created in this builder. A missing
+    // preference retains the application's normal three-day default.
+    $prefDays = max(1, min(7, (int)($profile['weekly_workout_target'] ?: 3)));
+    $getScheduledDaysCount = static function (PDO $pdo, int $planId): int {
+        $stmt = $pdo->prepare('SELECT COUNT(DISTINCT day_of_week) FROM training_plan_exercises WHERE plan_id = ?');
+        $stmt->execute([$planId]);
+        return (int) $stmt->fetchColumn();
+    };
     
     // Fetch active membership to sync dates
     $membershipStmt = $pdo->prepare('SELECT start_date, end_date FROM memberships WHERE user_id = ? AND status = "active" ORDER BY end_date DESC LIMIT 1');
@@ -60,12 +67,16 @@ function workout_builder_page(): void
             $trainerGymId = (int) (scalar('SELECT mp.gym_id FROM memberships m JOIN membership_plans mp ON m.plan_id = mp.plan_id WHERE m.user_id = ? AND m.status = "active" LIMIT 1', [$memberId]) ?? 0);
         }
     }
+    // Scope every builder action to the gym operated by the current trainer or
+    // owner. A member can be linked to multiple gyms, so their gym_members row
+    // is not a safe source for this gym's exercise library.
+    $exerciseLibraryGymId = $trainerGymId;
     
     // AJAX Live Search for Exercises (Hybrid Search server-side query)
     if (isset($_GET['action']) && $_GET['action'] === 'search_exercises') {
         header('Content-Type: application/json; charset=utf-8');
         $q = trim((string)($_GET['q'] ?? ''));
-        if ($trainerGymId <= 0 || $q === '') {
+        if ($exerciseLibraryGymId <= 0 || $q === '') {
             echo json_encode(['results' => []]);
             exit;
         }
@@ -77,7 +88,7 @@ function workout_builder_page(): void
             LIMIT 50
         ');
         $like = '%' . $q . '%';
-        $searchStmt->execute([$trainerGymId, $like, $like, $like]);
+        $searchStmt->execute([$exerciseLibraryGymId, $like, $like, $like]);
         $results = [];
         foreach ($searchStmt->fetchAll() as $row) {
             $results[] = [
@@ -92,22 +103,36 @@ function workout_builder_page(): void
         exit;
     }
     
-    // Check if there is an active draft plan for this member by this trainer
-    $stmt = $pdo->prepare('SELECT * FROM training_plans WHERE member_user_id = ? AND trainer_id = ? AND status = "draft" LIMIT 1');
-    $stmt->execute([$memberId, $trainerId]);
+    // Check if there is an active draft plan for this member by this trainer (scoped to current facility)
+    if ($trainerGymId > 0) {
+        $stmt = $pdo->prepare('SELECT * FROM training_plans WHERE member_user_id = ? AND trainer_id = ? AND (gym_id = ? OR gym_id IS NULL) AND status = "draft" LIMIT 1');
+        $stmt->execute([$memberId, $trainerId, $trainerGymId]);
+    } else {
+        $stmt = $pdo->prepare('SELECT * FROM training_plans WHERE member_user_id = ? AND trainer_id = ? AND status = "draft" LIMIT 1');
+        $stmt->execute([$memberId, $trainerId]);
+    }
     $draft = $stmt->fetch();
     
     if (!$draft) {
         // Create an empty draft
         $goal = $profile['primary_goal'] ?? 'general_health';
         $title = 'Workout Plan for ' . $member['first_name'];
-        $stmt = $pdo->prepare('INSERT INTO training_plans (member_user_id, trainer_id, title, goal, start_date, end_date, status) VALUES (?, ?, ?, ?, ?, ?, "draft")');
-        $stmt->execute([$memberId, $trainerId, $title, $goal, $defaultStart, $defaultEnd]);
+        $stmt = $pdo->prepare('INSERT INTO training_plans (member_user_id, trainer_id, gym_id, title, goal, start_date, end_date, status) VALUES (?, ?, ?, ?, ?, ?, ?, "draft")');
+        $stmt->execute([$memberId, $trainerId, $trainerGymId > 0 ? $trainerGymId : null, $title, $goal, $defaultStart, $defaultEnd]);
         $planId = (int) $pdo->lastInsertId();
+
+        if (function_exists('log_plan_change')) {
+            log_plan_change('workout', $planId, $trainerGymId > 0 ? $trainerGymId : null, (int)$user['user_id'], 'created', 'Draft workout plan initialized');
+        }
         
-        // Copy exercises from the most recent active plan (if one exists)
-        $activePlan = $pdo->prepare('SELECT plan_id FROM training_plans WHERE member_user_id = ? AND trainer_id = ? AND status = "active" ORDER BY plan_id DESC LIMIT 1');
-        $activePlan->execute([$memberId, $trainerId]);
+        // Copy exercises from the most recent active plan for this facility (if one exists)
+        if ($trainerGymId > 0) {
+            $activePlan = $pdo->prepare('SELECT plan_id FROM training_plans WHERE member_user_id = ? AND trainer_id = ? AND (gym_id = ? OR gym_id IS NULL) AND status = "active" ORDER BY plan_id DESC LIMIT 1');
+            $activePlan->execute([$memberId, $trainerId, $trainerGymId]);
+        } else {
+            $activePlan = $pdo->prepare('SELECT plan_id FROM training_plans WHERE member_user_id = ? AND trainer_id = ? AND status = "active" ORDER BY plan_id DESC LIMIT 1');
+            $activePlan->execute([$memberId, $trainerId]);
+        }
         $lastActivePlanId = $activePlan->fetchColumn();
         
         if ($lastActivePlanId) {
@@ -124,6 +149,17 @@ function workout_builder_page(): void
         if (!empty($draft['end_date'])) $defaultEnd = $draft['end_date'];
     }
 
+    // Drafts created before gym scoping was enforced may contain exercises from
+    // another gym. Remove those unavailable exercises before the draft is shown
+    // or modified so this plan can only use the current gym's library.
+    if ($exerciseLibraryGymId > 0) {
+        $pdo->prepare(
+            'DELETE FROM training_plan_exercises
+             WHERE plan_id = ?
+               AND exercise_id NOT IN (SELECT exercise_id FROM exercises WHERE gym_id = ?)'
+        )->execute([$planId, $exerciseLibraryGymId]);
+    }
+
     if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $action = post('action');
         
@@ -131,13 +167,19 @@ function workout_builder_page(): void
         if ($action === 'auto_generate') {
             $options = [
                 'goal' => post('goal') ?: null,
-                'days_count' => (int) post('days_count'),
+                // Do not accept a staff-supplied override: use the member's
+                // recorded workout frequency for every generated plan.
+                'days_count' => $prefDays,
                 'split_type' => post('split_type') ?: 'auto',
                 'experience_level' => post('experience_level') ?: 'intermediate',
             ];
             
-            auto_populate_plan_advanced($planId, $memberId, $options);
-            flash('Plan auto-generated with custom parameters. Review before publishing.', 'success');
+            $options['library_gym_id'] = $exerciseLibraryGymId;
+            if (auto_populate_plan_advanced($planId, $memberId, $options)) {
+                flash('Plan auto-generated with custom parameters. Review before publishing.', 'success');
+            } else {
+                flash("This member's gym exercise library is empty. Add exercises before generating a plan.", 'error');
+            }
             header('Location: index.php?page=workout_builder&member_user_id=' . $memberId);
             exit;
         }
@@ -145,9 +187,24 @@ function workout_builder_page(): void
         // 2. Auto Generate Specific Day
         if ($action === 'auto_generate_day') {
             $dayOfWeek = (int) post('day_of_week');
+            if ($dayOfWeek < 1 || $dayOfWeek > 7) {
+                flash('Please select a valid day of the week.', 'error');
+                redirect('workout_builder&member_user_id=' . $memberId);
+            }
+            $dayAlreadyScheduled = (bool) scalar(
+                'SELECT 1 FROM training_plan_exercises WHERE plan_id = ? AND day_of_week = ? LIMIT 1',
+                [$planId, $dayOfWeek]
+            );
+            if (!$dayAlreadyScheduled && $getScheduledDaysCount($pdo, $planId) >= $prefDays) {
+                flash("This member's plan is limited to {$prefDays} workout day(s) per week.", 'error');
+                redirect('workout_builder&member_user_id=' . $memberId);
+            }
             $focus = post('focus') ?: 'auto';
-            auto_populate_day_focused($planId, $memberId, $dayOfWeek, $focus);
-            flash(workout_day_name($dayOfWeek) . ' routine generated.', 'success');
+            if (auto_populate_day_focused($planId, $memberId, $dayOfWeek, $focus, $exerciseLibraryGymId)) {
+                flash(workout_day_name($dayOfWeek) . ' routine generated.', 'success');
+            } else {
+                flash("This member's gym exercise library has no suitable exercises for that routine.", 'error');
+            }
             header('Location: index.php?page=workout_builder&member_user_id=' . $memberId);
             exit;
         }
@@ -155,11 +212,15 @@ function workout_builder_page(): void
         // 3. Apply Preset Template
         if ($action === 'apply_template') {
             $templateKey = post('template_key') ?: '';
-            $applied = apply_workout_template($planId, $templateKey, (int)$trainerGymId);
+            $template = get_workout_templates()[$templateKey] ?? null;
+            $templateDays = is_array($template['days'] ?? null) ? count($template['days']) : 0;
+            $applied = $templateDays === $prefDays
+                ? apply_workout_template($planId, $templateKey, $exerciseLibraryGymId)
+                : false;
             if ($applied) {
                 flash('Preset template applied successfully!', 'success');
             } else {
-                flash('Unable to apply template.', 'error');
+                flash("Choose a {$prefDays}-day preset to match this member's workout frequency.", 'error');
             }
             header('Location: index.php?page=workout_builder&member_user_id=' . $memberId);
             exit;
@@ -180,6 +241,12 @@ function workout_builder_page(): void
             $startDate = post('start_date') ?: date('Y-m-d');
             $endDate = post('end_date') ?: date('Y-m-d', strtotime('+4 weeks'));
             
+            $scheduledDays = $getScheduledDaysCount($pdo, $planId);
+            if ($scheduledDays !== $prefDays) {
+                flash("This plan has {$scheduledDays} workout day(s), but the member's target is {$prefDays} per week. Adjust the schedule before publishing.", 'error');
+                redirect('workout_builder&member_user_id=' . $memberId);
+            }
+
             // Archive old active plans strictly for this trainer or this trainer's gym facility
             if ($trainerGymId > 0) {
                 $pdo->prepare('
@@ -188,15 +255,19 @@ function workout_builder_page(): void
                     SET tp.status = "archived"
                     WHERE tp.member_user_id = ? 
                       AND tp.status = "active" 
-                      AND (tp.trainer_id = ? OR tp_prof.gym_id = ?)
-                ')->execute([$memberId, $trainerId, $trainerGymId]);
+                      AND (tp.trainer_id = ? OR tp.gym_id = ? OR tp_prof.gym_id = ?)
+                ')->execute([$memberId, $trainerId, $trainerGymId, $trainerGymId]);
             } else {
                 $pdo->prepare('UPDATE training_plans SET status = "archived" WHERE member_user_id = ? AND trainer_id = ? AND status = "active"')
                     ->execute([$memberId, $trainerId]);
             }
-            // Set draft to active with the selected dates
-            $pdo->prepare('UPDATE training_plans SET status = "active", start_date = ?, end_date = ? WHERE plan_id = ?')->execute([$startDate, $endDate, $planId]);
+            // Set draft to active with the selected dates and gym_id
+            $pdo->prepare('UPDATE training_plans SET status = "active", gym_id = COALESCE(gym_id, ?), start_date = ?, end_date = ? WHERE plan_id = ?')->execute([$trainerGymId > 0 ? $trainerGymId : null, $startDate, $endDate, $planId]);
             
+            if (function_exists('log_plan_change')) {
+                log_plan_change('workout', $planId, $trainerGymId > 0 ? $trainerGymId : null, (int)$user['user_id'], 'published', "Published workout plan active from {$startDate} to {$endDate}");
+            }
+
             notify_user($memberId, 'system', 'New Workout Plan Published!', 'Your coach has published an updated training routine for you.');
             flash('Workout plan published successfully!', 'success');
             redirect('training');
@@ -205,6 +276,18 @@ function workout_builder_page(): void
         // 6. Add Exercise
         if ($action === 'add_exercise') {
             $dayOfWeek = (int) post('day_of_week');
+            if ($dayOfWeek < 1 || $dayOfWeek > 7) {
+                flash('Please select a valid day of the week.', 'error');
+                redirect('workout_builder&member_user_id=' . $memberId);
+            }
+            $dayAlreadyScheduled = (bool) scalar(
+                'SELECT 1 FROM training_plan_exercises WHERE plan_id = ? AND day_of_week = ? LIMIT 1',
+                [$planId, $dayOfWeek]
+            );
+            if (!$dayAlreadyScheduled && $getScheduledDaysCount($pdo, $planId) >= $prefDays) {
+                flash("This member's plan is limited to {$prefDays} workout day(s) per week.", 'error');
+                redirect('workout_builder&member_user_id=' . $memberId);
+            }
             $exerciseId = (int) post('exercise_id');
             $sets = max(1, (int) post('sets'));
             $reps = trim((string) post('reps')) ?: '10-12';
@@ -263,14 +346,27 @@ function workout_builder_page(): void
             $orderData = json_decode(file_get_contents('php://input'), true);
             if (isset($orderData['items']) && is_array($orderData['items'])) {
                 $targetDay = (int) ($orderData['day_of_week'] ?? 0);
-                foreach ($orderData['items'] as $index => $planExId) {
-                    if ($targetDay > 0) {
+                if ($targetDay < 1 || $targetDay > 7) {
+                    http_response_code(422);
+                    echo json_encode(['success' => false, 'message' => 'Invalid workout day.']);
+                    exit;
+                }
+                $pdo->beginTransaction();
+                try {
+                    foreach ($orderData['items'] as $index => $planExId) {
                         $pdo->prepare('UPDATE training_plan_exercises SET sequence_order = ?, day_of_week = ? WHERE plan_exercise_id = ? AND plan_id = ?')
                             ->execute([$index + 1, $targetDay, (int) $planExId, $planId]);
-                    } else {
-                        $pdo->prepare('UPDATE training_plan_exercises SET sequence_order = ? WHERE plan_exercise_id = ? AND plan_id = ?')
-                            ->execute([$index + 1, (int) $planExId, $planId]);
                     }
+                    if ($getScheduledDaysCount($pdo, $planId) > $prefDays) {
+                        $pdo->rollBack();
+                        http_response_code(422);
+                        echo json_encode(['success' => false, 'message' => "This member's plan is limited to {$prefDays} workout day(s) per week."]);
+                        exit;
+                    }
+                    $pdo->commit();
+                } catch (Throwable $e) {
+                    if ($pdo->inTransaction()) $pdo->rollBack();
+                    throw $e;
                 }
             }
             echo json_encode(['success' => true]);
@@ -279,9 +375,9 @@ function workout_builder_page(): void
     }
 
     // Fetch exercises for the dropdown - strictly scoped to the gym matching exercises page
-    if ($trainerGymId > 0) {
+    if ($exerciseLibraryGymId > 0) {
         $stmt = $pdo->prepare('SELECT exercise_id, name, muscle_group, category, difficulty_level FROM exercises WHERE gym_id = ? ORDER BY muscle_group, name');
-        $stmt->execute([$trainerGymId]);
+        $stmt->execute([$exerciseLibraryGymId]);
         $allExercises = $stmt->fetchAll();
     } else {
         $allExercises = [];
@@ -303,11 +399,11 @@ function workout_builder_page(): void
     $stmt = $pdo->prepare('
         SELECT tpe.*, e.name as exercise_name, e.muscle_group, e.category, e.difficulty_level 
         FROM training_plan_exercises tpe
-        JOIN exercises e ON tpe.exercise_id = e.exercise_id
+        JOIN exercises e ON tpe.exercise_id = e.exercise_id AND e.gym_id = ?
         WHERE tpe.plan_id = ?
         ORDER BY tpe.day_of_week, tpe.sequence_order
     ');
-    $stmt->execute([$planId]);
+    $stmt->execute([$exerciseLibraryGymId, $planId]);
     $planExercises = $stmt->fetchAll();
 
     // Fetch available templates
@@ -588,6 +684,7 @@ function workout_builder_page(): void
             <?php foreach ($templates as $key => $tmpl): 
                 $tmplTitle = $tmpl['title'] ?? $tmpl['name'] ?? ucfirst(str_replace('_', ' ', (string)$key));
                 $tmplDays = (int)($tmpl['days_per_week'] ?? (isset($tmpl['days']) && is_array($tmpl['days']) ? count($tmpl['days']) : 3));
+                if ($tmplDays !== $prefDays) continue;
                 $tmplDesc = $tmpl['description'] ?? '';
                 $tmplSplit = $tmpl['split_name'] ?? $tmpl['name'] ?? $tmplTitle;
                 $tmplGoal = $tmpl['primary_goal'] ?? $tmpl['goal'] ?? 'general_health';
