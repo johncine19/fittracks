@@ -81,6 +81,9 @@ try {
     exit(1);
 }
 
+// Queue Worker Atomic Locking, Retry Backoff & Poison Purge Tests
+require_once __DIR__ . '/queue_worker_test.php';
+
 fwrite(STDOUT, "ALL TEST SUITES PASSED SUCCESSFULLY.\n");
 
 

@@ -152,7 +152,14 @@ try {
         "ALTER TABLE member_profiles ADD COLUMN trainer_assessment_notes TEXT DEFAULT NULL AFTER preferred_workout_days",
 
         // ── Active facility resolution (get_user_gym / memberships page) ──
-        "CREATE INDEX idx_mem_user_status_end ON memberships (user_id, status, end_date)"
+        "CREATE INDEX idx_mem_user_status_end ON memberships (user_id, status, end_date)",
+
+        // ── Scale & High-Concurrency Optimizations ──
+        "CREATE INDEX idx_walkin_gym_date ON walk_in_transactions (gym_id, visit_date)",
+        "CREATE INDEX idx_walkin_visit_date ON walk_in_transactions (visit_date)",
+        "CREATE INDEX idx_jobs_available_attempts ON jobs (available_at, attempts, id)",
+        "CREATE INDEX idx_sessions_expires ON sessions (expires_at)",
+        "CREATE INDEX idx_att_user_gym_checkout ON attendance (user_id, gym_id, check_out_time, check_in_time)"
     ];
 
     foreach ($migrations as $sql) {

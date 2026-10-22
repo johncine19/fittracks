@@ -79,15 +79,23 @@ class Queue
                     $item = json_decode($raw, true);
                     $jobClass = $item['job_class'] ?? null;
                     $payload = $item['payload'] ?? [];
+                    $attempts = (int)($item['attempts'] ?? 0) + 1;
 
                     try {
                         if ($jobClass && function_exists($jobClass)) {
                             call_user_func_array($jobClass, [$payload]);
                         } else {
-                            error_log("Job handler not found: $jobClass");
+                            throw new Exception("Job class/function '$jobClass' not found.");
                         }
                     } catch (Throwable $e) {
-                        error_log("Failed Redis job: $jobClass - Error: " . $e->getMessage());
+                        error_log("Failed Redis job: $jobClass - Attempt {$attempts}/3 - Error: " . $e->getMessage());
+                        if ($attempts < 3) {
+                            $item['attempts'] = $attempts;
+                            // Push back to redis queue so it is not permanently lost
+                            $redis->rpush(self::REDIS_QUEUE_KEY, [json_encode($item)]);
+                        } else {
+                            error_log("Redis job $jobClass exceeded max attempts (3) and was discarded.");
+                        }
                     }
 
                     $totalProcessed++;
@@ -104,35 +112,63 @@ class Queue
                 break;
             }
 
+            // Phase 1: Atomically claim and lease the next job with a short transaction (<1ms lock)
             $pdo->beginTransaction();
+            try {
+                $stmt = $pdo->prepare('SELECT id, job_class, payload, attempts FROM jobs WHERE available_at <= ? AND attempts < 3 ORDER BY available_at ASC, id ASC LIMIT 1 FOR UPDATE');
+                $stmt->execute([time()]);
+                $job = $stmt->fetch(PDO::FETCH_ASSOC);
 
-            $stmt = $pdo->prepare('SELECT * FROM jobs WHERE available_at <= ? AND attempts < 3 ORDER BY id ASC LIMIT 1 FOR UPDATE');
-            $stmt->execute([time()]);
-            $job = $stmt->fetch(PDO::FETCH_ASSOC);
+                if (!$job) {
+                    $pdo->rollBack();
+                    break;
+                }
 
-            if (!$job) {
-                $pdo->rollBack();
+                $jobId = (int)$job['id'];
+                $attempts = (int)$job['attempts'] + 1;
+                // Lease for 300 seconds so concurrent workers don't pick up the same in-flight job
+                $leaseUntil = time() + 300;
+                $pdo->prepare('UPDATE jobs SET attempts = ?, available_at = ? WHERE id = ?')->execute([$attempts, $leaseUntil, $jobId]);
+                $pdo->commit(); // Lock released immediately!
+            } catch (Throwable $e) {
+                if ($pdo->inTransaction()) {
+                    $pdo->rollBack();
+                }
+                error_log("Queue lease acquisition error: " . $e->getMessage());
                 break;
             }
 
+            // Phase 2: Execute the job outside the database transaction (no worker block)
+            $jobClass = $job['job_class'];
+            $payload = json_decode((string)$job['payload'], true) ?: [];
+
             try {
-                $pdo->prepare('UPDATE jobs SET attempts = attempts + 1 WHERE id = ?')->execute([$job['id']]);
-
-                $jobClass = $job['job_class'];
-                $payload = json_decode($job['payload'], true);
-
-                if (function_exists($jobClass)) {
+                if ($jobClass && function_exists($jobClass)) {
                     call_user_func_array($jobClass, [$payload]);
                 } else {
                     throw new Exception("Job class/function '$jobClass' not found.");
                 }
 
-                $pdo->prepare('DELETE FROM jobs WHERE id = ?')->execute([$job['id']]);
-                $pdo->commit();
+                // Succeeded! Remove from queue
+                $pdo->prepare('DELETE FROM jobs WHERE id = ?')->execute([$jobId]);
                 $totalProcessed++;
             } catch (Throwable $e) {
-                $pdo->rollBack();
-                error_log("Failed DB job ID: {$job['id']} - Error: " . $e->getMessage());
+                error_log("Failed DB job ID: {$jobId} ({$jobClass}) - Attempt {$attempts}/3 - Error: " . $e->getMessage());
+
+                try {
+                    if ($attempts >= 3) {
+                        // Max retries reached: remove poison job so subsequent queue jobs are not blocked
+                        $pdo->prepare('DELETE FROM jobs WHERE id = ?')->execute([$jobId]);
+                        error_log("DB job ID {$jobId} exceeded max attempts (3) and was discarded.");
+                    } else {
+                        // Exponential backoff before next attempt (15s for attempt 1, 60s for attempt 2)
+                        $backoff = 15 * ($attempts ** 2);
+                        $nextAvailable = time() + $backoff;
+                        $pdo->prepare('UPDATE jobs SET available_at = ? WHERE id = ?')->execute([$nextAvailable, $jobId]);
+                    }
+                } catch (Throwable $cleanupError) {
+                    error_log("Error updating failed job state for ID {$jobId}: " . $cleanupError->getMessage());
+                }
             }
         }
 

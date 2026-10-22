@@ -877,7 +877,8 @@ ALTER TABLE `attendance`
   ADD KEY `idx_attendance_checkin` (`check_in_time`),
   ADD KEY `idx_att_checkout_checkin` (`check_out_time`, `check_in_time`),
   ADD UNIQUE KEY `uq_att_user_checkin_exact` (`user_id`, `check_in_time`),
-  ADD KEY `fk_attend_gym` (`gym_id`);
+  ADD KEY `fk_attend_gym` (`gym_id`),
+  ADD KEY `idx_att_user_gym_checkout` (`user_id`, `gym_id`, `check_out_time`, `check_in_time`);
 
 --
 -- Indexes for table `checkout_ratings`
@@ -1310,7 +1311,8 @@ CREATE TABLE IF NOT EXISTS `jobs` (
     `payload` TEXT NOT NULL,
     `attempts` INT UNSIGNED DEFAULT 0,
     `created_at` INT UNSIGNED NOT NULL,
-    `available_at` INT UNSIGNED NOT NULL
+    `available_at` INT UNSIGNED NOT NULL,
+    KEY `idx_jobs_available_attempts` (`available_at`, `attempts`, `id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE IF NOT EXISTS `cache` (

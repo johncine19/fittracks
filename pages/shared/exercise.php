@@ -131,12 +131,18 @@ function save_member_profile(int $userId): void
     }
 }
 
-function member_profile(int $userId): ?array
+function member_profile(int $userId, bool $forceRefresh = false): ?array
 {
+    static $profileCache = [];
+    if (!$forceRefresh && array_key_exists($userId, $profileCache)) {
+        return $profileCache[$userId];
+    }
+
     $stmt = db()->prepare('SELECT * FROM member_profiles WHERE user_id = ?');
     $stmt->execute([$userId]);
     $profile = $stmt->fetch();
     if (!$profile) {
+        $profileCache[$userId] = null;
         return null;
     }
     // Fallback to latest progress_logs measurement if profile column is empty
@@ -153,6 +159,7 @@ function member_profile(int $userId): ?array
             }
         } catch (Throwable) {}
     }
+    $profileCache[$userId] = $profile;
     return $profile;
 }
 

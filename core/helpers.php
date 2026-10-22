@@ -572,67 +572,87 @@ function get_recommendations_by_goal(PDO $pdo, string $detailedGoal): array
     ];
 }
 
-function get_user_gym(array $user): ?array
+function get_user_gym(array $user, bool $forceRefresh = false): ?array
 {
+    static $gymCache = [];
+
     $pdo = db();
     $role = $user['role'] ?? null;
     $userId = (int) ($user['user_id'] ?? 0);
     if (!$userId) return null;
 
+    $currentGymSessionId = (int)($_SESSION['current_gym_id'] ?? 0);
+    $cacheKey = $userId . ':' . $role . ':' . $currentGymSessionId;
+
+    if (!$forceRefresh && array_key_exists($cacheKey, $gymCache)) {
+        return $gymCache[$cacheKey];
+    }
+
+    $resolvedGym = null;
+
     if ($role === 'gym_owner') {
         $gym = $pdo->query("SELECT * FROM gyms WHERE owner_user_id = $userId LIMIT 1")->fetch();
-        return $gym ?: null;
-    }
-    
-    if ($role === 'staff') {
+        $resolvedGym = $gym ?: null;
+    } elseif ($role === 'staff') {
         $gym = $pdo->query("SELECT g.* FROM gyms g JOIN gym_staff gs ON gs.gym_id = g.gym_id WHERE gs.user_id = $userId LIMIT 1")->fetch();
-        return $gym ?: null;
-    }
-
-    if ($role === 'trainer') {
+        $resolvedGym = $gym ?: null;
+    } elseif ($role === 'trainer') {
         if (!empty($_SESSION['current_gym_id'])) {
             $gymId = (int)$_SESSION['current_gym_id'];
             $gym = $pdo->query("SELECT * FROM gyms WHERE gym_id = $gymId LIMIT 1")->fetch();
-            if ($gym) return $gym;
+            if ($gym) $resolvedGym = $gym;
         }
 
-        // Active physical check-in for trainer
-        $gym = $pdo->query("SELECT g.* FROM gyms g JOIN attendance a ON a.gym_id = g.gym_id WHERE a.user_id = $userId AND a.check_out_time IS NULL ORDER BY a.check_in_time DESC LIMIT 1")->fetch();
-        if ($gym) return $gym;
+        if (!$resolvedGym) {
+            // Active physical check-in for trainer
+            $gym = $pdo->query("SELECT g.* FROM gyms g JOIN attendance a ON a.gym_id = g.gym_id WHERE a.user_id = $userId AND a.check_out_time IS NULL ORDER BY a.check_in_time DESC LIMIT 1")->fetch();
+            if ($gym) $resolvedGym = $gym;
+        }
 
-        $gym = $pdo->query("SELECT g.* FROM gyms g JOIN trainer_profiles tp ON tp.gym_id = g.gym_id WHERE tp.user_id = $userId LIMIT 1")->fetch();
-        return $gym ?: null;
-    }
-    
-    if ($role === 'member') {
+        if (!$resolvedGym) {
+            $gym = $pdo->query("SELECT g.* FROM gyms g JOIN trainer_profiles tp ON tp.gym_id = g.gym_id WHERE tp.user_id = $userId LIMIT 1")->fetch();
+            $resolvedGym = $gym ?: null;
+        }
+    } elseif ($role === 'member') {
         if (!empty($_SESSION['current_gym_id'])) {
             $gymId = (int)$_SESSION['current_gym_id'];
             $gym = $pdo->query("SELECT * FROM gyms WHERE gym_id = $gymId LIMIT 1")->fetch();
-            if ($gym) return $gym;
+            if ($gym) $resolvedGym = $gym;
         }
 
-        // 1. Most recent active physical check-in
-        $gym = $pdo->query("SELECT g.* FROM gyms g JOIN attendance a ON a.gym_id = g.gym_id WHERE a.user_id = $userId AND a.check_out_time IS NULL ORDER BY a.check_in_time DESC LIMIT 1")->fetch();
-        if ($gym) return $gym;
+        if (!$resolvedGym) {
+            // 1. Most recent active physical check-in
+            $gym = $pdo->query("SELECT g.* FROM gyms g JOIN attendance a ON a.gym_id = g.gym_id WHERE a.user_id = $userId AND a.check_out_time IS NULL ORDER BY a.check_in_time DESC LIMIT 1")->fetch();
+            if ($gym) $resolvedGym = $gym;
+        }
 
-        // 2. Most recent physical check-in overall
-        $gym = $pdo->query("SELECT g.* FROM gyms g JOIN attendance a ON a.gym_id = g.gym_id WHERE a.user_id = $userId ORDER BY a.check_in_time DESC LIMIT 1")->fetch();
-        if ($gym) return $gym;
+        if (!$resolvedGym) {
+            // 2. Most recent physical check-in overall
+            $gym = $pdo->query("SELECT g.* FROM gyms g JOIN attendance a ON a.gym_id = g.gym_id WHERE a.user_id = $userId ORDER BY a.check_in_time DESC LIMIT 1")->fetch();
+            if ($gym) $resolvedGym = $gym;
+        }
 
-        // 3. Find gym of active membership
-        $gym = $pdo->query("SELECT g.* FROM gyms g JOIN membership_plans mp ON mp.gym_id = g.gym_id JOIN memberships m ON m.plan_id = mp.plan_id WHERE m.user_id = $userId AND m.status = 'active' ORDER BY m.membership_id DESC LIMIT 1")->fetch();
-        if ($gym) return $gym;
+        if (!$resolvedGym) {
+            // 3. Find gym of active membership
+            $gym = $pdo->query("SELECT g.* FROM gyms g JOIN membership_plans mp ON mp.gym_id = g.gym_id JOIN memberships m ON m.plan_id = mp.plan_id WHERE m.user_id = $userId AND m.status = 'active' ORDER BY m.membership_id DESC LIMIT 1")->fetch();
+            if ($gym) $resolvedGym = $gym;
+        }
         
-        // 4. Fallback to any pending membership gym
-        $gym = $pdo->query("SELECT g.* FROM gyms g JOIN membership_plans mp ON mp.gym_id = g.gym_id JOIN memberships m ON m.plan_id = mp.plan_id WHERE m.user_id = $userId AND m.status = 'pending' ORDER BY m.membership_id DESC LIMIT 1")->fetch();
-        if ($gym) return $gym;
+        if (!$resolvedGym) {
+            // 4. Fallback to any pending membership gym
+            $gym = $pdo->query("SELECT g.* FROM gyms g JOIN membership_plans mp ON mp.gym_id = g.gym_id JOIN memberships m ON m.plan_id = mp.plan_id WHERE m.user_id = $userId AND m.status = 'pending' ORDER BY m.membership_id DESC LIMIT 1")->fetch();
+            if ($gym) $resolvedGym = $gym;
+        }
 
-        // 5. Fallback to gym_members direct association
-        $gym = $pdo->query("SELECT g.* FROM gyms g JOIN gym_members gm ON gm.gym_id = g.gym_id WHERE gm.user_id = $userId LIMIT 1")->fetch();
-        if ($gym) return $gym;
+        if (!$resolvedGym) {
+            // 5. Fallback to gym_members direct association
+            $gym = $pdo->query("SELECT g.* FROM gyms g JOIN gym_members gm ON gm.gym_id = g.gym_id WHERE gm.user_id = $userId LIMIT 1")->fetch();
+            $resolvedGym = $gym ?: null;
+        }
     }
-    
-    return null;
+
+    $gymCache[$cacheKey] = $resolvedGym;
+    return $resolvedGym;
 }
 
 /**

@@ -424,7 +424,7 @@ function reports_page(): void
                 FROM walk_in_transactions WHERE gym_id = ' . (int)$selectedGymId . $dateFilterWalkin;
             $attendanceCondition = 'SELECT check_in_time, DATE(check_in_time) AS day, DATE_FORMAT(check_in_time, "%Y-%m") AS month, YEAR(check_in_time) AS year FROM attendance WHERE gym_id = ' . (int)$selectedGymId . $dateFilterAttendance;
             $walkinCondition = 'SELECT DATE(visit_date) AS day, DATE_FORMAT(visit_date, "%Y-%m") AS month, YEAR(visit_date) AS year, amount_paid FROM walk_in_transactions WHERE gym_id = ' . (int)$selectedGymId . $dateFilterWalkin;
-            $members = query_all('SELECT DISTINCT u.user_id, u.first_name, u.last_name, u.email, u.profile_picture,
+            $members = query_all('SELECT DISTINCT u.user_id, u.first_name, u.last_name, u.email, u.profile_picture, u.engagement_score,
                 COALESCE((SELECT g.name FROM gyms g WHERE g.gym_id = ' . (int)$selectedGymId . '), "FitTrack") AS gym_name
                 FROM users u 
                 LEFT JOIN gym_members gm ON gm.user_id = u.user_id 
@@ -443,7 +443,7 @@ function reports_page(): void
                 FROM walk_in_transactions WHERE 1=1' . $dateFilterWalkin;
             $attendanceCondition = 'SELECT check_in_time, DATE(check_in_time) AS day, DATE_FORMAT(check_in_time, "%Y-%m") AS month, YEAR(check_in_time) AS year FROM attendance WHERE 1=1' . $dateFilterAttendance;
             $walkinCondition = 'SELECT DATE(visit_date) AS day, DATE_FORMAT(visit_date, "%Y-%m") AS month, YEAR(visit_date) AS year, amount_paid FROM walk_in_transactions WHERE 1=1' . $dateFilterWalkin;
-            $members = query_all('SELECT DISTINCT u.user_id, u.first_name, u.last_name, u.email, u.profile_picture,
+            $members = query_all('SELECT DISTINCT u.user_id, u.first_name, u.last_name, u.email, u.profile_picture, u.engagement_score,
                 COALESCE((SELECT g.name FROM gym_members gm JOIN gyms g ON g.gym_id = gm.gym_id WHERE gm.user_id = u.user_id LIMIT 1), "Independent") AS gym_name
                 FROM users u WHERE u.role = "member" AND u.status = "active"');
             $activeMembersCount = count($members);
@@ -461,7 +461,7 @@ function reports_page(): void
             FROM walk_in_transactions WHERE gym_id = ' . (int)$gymId . $dateFilterWalkin;
         $attendanceCondition = 'SELECT check_in_time, DATE(check_in_time) AS day, DATE_FORMAT(check_in_time, "%Y-%m") AS month, YEAR(check_in_time) AS year FROM attendance WHERE (gym_id = ' . (int)$gymId . ' OR (gym_id IS NULL AND recorded_by = ' . (int)$user['user_id'] . '))' . $dateFilterAttendance;
         $walkinCondition = 'SELECT DATE(visit_date) AS day, DATE_FORMAT(visit_date, "%Y-%m") AS month, YEAR(visit_date) AS year, amount_paid FROM walk_in_transactions WHERE gym_id = ' . (int)$gymId . $dateFilterWalkin;
-        $members = query_all('SELECT DISTINCT u.user_id, u.first_name, u.last_name, u.email, u.profile_picture,
+        $members = query_all('SELECT DISTINCT u.user_id, u.first_name, u.last_name, u.email, u.profile_picture, u.engagement_score,
             COALESCE((SELECT g.name FROM gyms g WHERE g.gym_id = ' . (int)$gymId . '), "FitTrack") AS gym_name
             FROM users u 
             LEFT JOIN gym_members gm ON gm.user_id = u.user_id 
@@ -697,7 +697,9 @@ function reports_page(): void
     $memberLists = ['Highly Engaged' => [], 'Moderately Engaged' => [], 'At-Risk' => []];
     if (!$isPlatformAdmin) {
         foreach ($members as $m) {
-            $score = get_cached_engagement_score((int) $m['user_id']);
+            $score = isset($m['engagement_score']) && $m['engagement_score'] !== null
+                ? (int) $m['engagement_score']
+                : get_cached_engagement_score((int) $m['user_id']);
             $cat = get_engagement_category($score);
             $categories[$cat]++;
             $m['score'] = $score;

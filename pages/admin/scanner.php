@@ -34,32 +34,49 @@ function scanner_page(): void
         return implode(' ', $parts);
     };
 
-    // Helper: fetch current live stats
-    $getStats = function () use ($pdo, $currentGymId) {
-        $todayParams = [];
-        $todaySql = 'SELECT COUNT(*) FROM attendance WHERE check_in_time >= CURDATE() AND check_in_time < CURDATE() + INTERVAL 1 DAY';
-        if ($currentGymId) {
-            $todaySql .= ' AND gym_id = ?';
-            $todayParams[] = $currentGymId;
-        }
-        $stmt = $pdo->prepare($todaySql);
-        $stmt->execute($todayParams);
-        $todayCheckins = (int) $stmt->fetchColumn();
+    // Helper: fetch current live stats (consolidated into a single indexed query with Redis caching)
+    $getStats = function (bool $fresh = false) use ($pdo, $currentGymId) {
+        $redis = function_exists('redis') ? redis() : null;
+        $cacheKey = 'scanner:stats:' . ($currentGymId ?: 'all');
 
-        $insideParams = [];
-        $insideSql = 'SELECT COUNT(*) FROM attendance WHERE check_in_time >= CURDATE() AND check_in_time < CURDATE() + INTERVAL 1 DAY AND check_out_time IS NULL';
-        if ($currentGymId) {
-            $insideSql .= ' AND gym_id = ?';
-            $insideParams[] = $currentGymId;
+        if (!$fresh && $redis !== null) {
+            try {
+                $cached = $redis->get($cacheKey);
+                if ($cached !== false && $cached !== null) {
+                    $decoded = json_decode((string)$cached, true);
+                    if (is_array($decoded)) {
+                        return $decoded;
+                    }
+                }
+            } catch (Throwable) {}
         }
-        $stmt2 = $pdo->prepare($insideSql);
-        $stmt2->execute($insideParams);
-        $currentlyInside = (int) $stmt2->fetchColumn();
 
-        return [
-            'today_checkins' => $todayCheckins,
-            'currently_inside' => $currentlyInside
+        $params = [];
+        $sql = 'SELECT 
+                    COUNT(*) as today_checkins,
+                    COUNT(CASE WHEN check_out_time IS NULL THEN 1 END) as currently_inside
+                FROM attendance 
+                WHERE check_in_time >= CURDATE() AND check_in_time < CURDATE() + INTERVAL 1 DAY';
+        if ($currentGymId) {
+            $sql .= ' AND gym_id = ?';
+            $params[] = $currentGymId;
+        }
+        $stmt = $pdo->prepare($sql);
+        $stmt->execute($params);
+        $stats = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        $res = [
+            'today_checkins' => (int) ($stats['today_checkins'] ?? 0),
+            'currently_inside' => (int) ($stats['currently_inside'] ?? 0)
         ];
+
+        if ($redis !== null) {
+            try {
+                $redis->set($cacheKey, json_encode($res), 'EX', 5);
+            } catch (Throwable) {}
+        }
+
+        return $res;
     };
 
     // Helper: fetch recent attendance activity list
@@ -353,7 +370,7 @@ function scanner_page(): void
             'synced_count' => count($syncedIds),
             'synced_ids' => $syncedIds,
             'errors' => $errors,
-            'stats' => $getStats(),
+            'stats' => $getStats(true),
             'recent' => $getRecentActivity(15)
         ]);
         exit;
@@ -515,7 +532,7 @@ function scanner_page(): void
                 'duration' => $sessionDuration
             ],
             'time' => date('h:i:s A'),
-            'stats' => $getStats(),
+            'stats' => $getStats(true),
             'recent' => $getRecentActivity(15)
         ]);
         exit;
@@ -739,7 +756,7 @@ function scanner_page(): void
                 'duration' => $sessionDuration
             ],
             'time' => date('h:i:s A'),
-            'stats' => $getStats(),
+            'stats' => $getStats(true),
             'recent' => $getRecentActivity(15)
         ]);
         exit;

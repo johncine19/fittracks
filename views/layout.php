@@ -121,12 +121,11 @@ function render_header(string $title, ?array $user = null): void
         }
     }
     if ($user && ($user['role'] ?? '') === 'member') {
-        maybe_notify_membership_renewal((int) $user['user_id']);
-        maybe_notify_membership_expired((int) $user['user_id']);
-    } elseif ($user && ($user['role'] ?? '') === 'gym_owner') {
-        if (function_exists('process_gym_owner_renewal_reminder_emails')) {
-            process_gym_owner_renewal_reminder_emails();
-            process_gym_owner_plan_expired_emails();
+        $lastNotifCheck = (int)($_SESSION['last_member_notif_renewal_check'] ?? 0);
+        if (time() - $lastNotifCheck > 43200) { // Check at most once every 12 hours per session
+            maybe_notify_membership_renewal((int) $user['user_id']);
+            maybe_notify_membership_expired((int) $user['user_id']);
+            $_SESSION['last_member_notif_renewal_check'] = time();
         }
     }
     ?>

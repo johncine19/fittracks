@@ -1,16 +1,28 @@
 <?php
 declare(strict_types=1);
 
-function current_user(): ?array
+function current_user(bool $forceRefresh = false): ?array
 {
-    if (empty($_SESSION['user_id'])) {
+    static $cachedUser = null;
+    static $cachedUserId = null;
+
+    $sessionUserId = $_SESSION['user_id'] ?? null;
+    if (empty($sessionUserId)) {
+        $cachedUser = null;
+        $cachedUserId = null;
         return null;
     }
 
+    if (!$forceRefresh && $cachedUser !== null && $cachedUserId === $sessionUserId) {
+        return $cachedUser;
+    }
+
     $stmt = db()->prepare('SELECT * FROM users WHERE user_id = ? AND status = "active"');
-    $stmt->execute([$_SESSION['user_id']]);
+    $stmt->execute([$sessionUserId]);
     $user = $stmt->fetch();
-    return $user ?: null;
+    $cachedUser = $user ?: null;
+    $cachedUserId = $sessionUserId;
+    return $cachedUser;
 }
 
 function require_login(): array
@@ -26,10 +38,12 @@ function require_login(): array
 
     $page = $_GET['page'] ?? 'dashboard';
     
-    // Auto-expire member subscriptions on-the-fly if lapsed
+    // Auto-expire member subscriptions on-the-fly if lapsed (throttled to once per session per hour or on plan pages to prevent write-lock churn)
     if ($user['role'] === 'member') {
-        if (function_exists('auto_expire_lapsed_member_subscriptions')) {
+        $lastMemberExpiryCheck = (int)($_SESSION['last_member_expiry_check'] ?? 0);
+        if ((time() - $lastMemberExpiryCheck > 3600 || in_array($page, ['memberships', 'my_plans'], true)) && function_exists('auto_expire_lapsed_member_subscriptions')) {
             auto_expire_lapsed_member_subscriptions((int) $user['user_id']);
+            $_SESSION['last_member_expiry_check'] = time();
         }
     }
 
@@ -45,11 +59,13 @@ function require_login(): array
 
     // Handle Gym Owner onboarding & subscription interception
     if ($user['role'] === 'gym_owner' && !in_array($page, ['gym_onboarding', 'gym_pending', 'gym_rejected', 'gym_subscription', 'logout'], true)) {
-        if (function_exists('auto_expire_lapsed_gym_subscriptions')) {
+        $lastOwnerExpiryCheck = (int)($_SESSION['last_owner_expiry_check'] ?? 0);
+        if ((time() - $lastOwnerExpiryCheck > 3600 || $page === 'gym_subscription') && function_exists('auto_expire_lapsed_gym_subscriptions')) {
             $ownerGymId = (int) scalar('SELECT gym_id FROM gyms WHERE owner_user_id = ?', [(int)$user['user_id']]);
             if ($ownerGymId > 0) {
                 auto_expire_lapsed_gym_subscriptions($ownerGymId);
             }
+            $_SESSION['last_owner_expiry_check'] = time();
         }
         $gym = db()->query('SELECT gym_id, status, subscription_plan, subscription_status, subscription_renewal_date FROM gyms WHERE owner_user_id = ' . (int)$user['user_id'])->fetch();
         
