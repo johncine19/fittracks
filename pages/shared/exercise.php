@@ -29,6 +29,8 @@ function save_member_profile(int $userId): void
             'target_endurance_time_mins'     => 'INT DEFAULT NULL',
             'weekly_workout_target'          => 'TINYINT UNSIGNED DEFAULT NULL',
             'preferred_duration_mins'        => 'SMALLINT UNSIGNED DEFAULT 45',
+            'preferred_workout_days'         => 'VARCHAR(50) DEFAULT NULL',
+            'secondary_focus'                => 'VARCHAR(255) DEFAULT NULL',
             'trainer_assessment_notes'       => 'TEXT DEFAULT NULL',
         ];
         foreach ($neededCols as $col => $def) {
@@ -49,8 +51,8 @@ function save_member_profile(int $userId): void
         target_exercise, current_strength_max_kg, target_strength_max_kg,
         endurance_activity, current_endurance_distance_km, current_endurance_time_mins,
         target_endurance_distance_km, target_endurance_time_mins, weekly_workout_target, preferred_duration_mins,
-        trainer_assessment_notes
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        preferred_workout_days, secondary_focus, trainer_assessment_notes
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ON DUPLICATE KEY UPDATE 
         height_cm = VALUES(height_cm), weight_kg = VALUES(weight_kg), neck_cm = VALUES(neck_cm), waist_cm = VALUES(waist_cm), hip_cm = VALUES(hip_cm),
         chest_cm = VALUES(chest_cm), arm_cm = VALUES(arm_cm),
@@ -60,6 +62,8 @@ function save_member_profile(int $userId): void
         endurance_activity = VALUES(endurance_activity), current_endurance_distance_km = VALUES(current_endurance_distance_km), current_endurance_time_mins = VALUES(current_endurance_time_mins),
         target_endurance_distance_km = VALUES(target_endurance_distance_km), target_endurance_time_mins = VALUES(target_endurance_time_mins),
         weekly_workout_target = VALUES(weekly_workout_target), preferred_duration_mins = VALUES(preferred_duration_mins),
+        preferred_workout_days = COALESCE(VALUES(preferred_workout_days), preferred_workout_days),
+        secondary_focus = IF(VALUES(secondary_focus) = \'none\' OR VALUES(secondary_focus) = \'\', NULL, COALESCE(VALUES(secondary_focus), secondary_focus)),
         trainer_assessment_notes = COALESCE(VALUES(trainer_assessment_notes), trainer_assessment_notes)');
 
     $stmt->execute([
@@ -91,6 +95,8 @@ function save_member_profile(int $userId): void
         post('target_endurance_time_mins') ?: null,
         post('weekly_workout_target') ? (int)post('weekly_workout_target') : null,
         post('preferred_duration_mins') ? (int)post('preferred_duration_mins') : 45,
+        post('preferred_workout_days') !== null ? (trim((string)post('preferred_workout_days')) ?: null) : null,
+        post('secondary_focus') !== null ? (is_array(post('secondary_focus')) ? implode(', ', post('secondary_focus')) : (trim((string)post('secondary_focus')) === '' || strtolower(trim((string)post('secondary_focus'))) === 'none' ? 'none' : trim((string)post('secondary_focus')))) : null,
         post('trainer_assessment_notes') !== null ? (trim((string)post('trainer_assessment_notes')) ?: null) : null,
     ]);
 

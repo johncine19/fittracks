@@ -45,17 +45,12 @@ function setup_profile_page(): void
             'height_cm' => 'required|numeric|min_num:100|max_num:250',
             'weight_kg' => 'required|numeric|min_num:20|max_num:300',
             'age'       => 'required|numeric|min_num:16|max_num:120',
-            'neck_cm'   => 'required|numeric|min_num:20|max_num:100',
-            'waist_cm'  => 'required|numeric|min_num:30|max_num:200',
+            'neck_cm'   => 'numeric|min_num:20|max_num:100',
+            'waist_cm'  => 'numeric|min_num:30|max_num:200',
+            'hip_cm'    => 'numeric|min_num:30|max_num:200',
             'target_weight_kg'        => 'numeric|min_num:20|max_num:300',
             'target_body_fat_percent' => 'numeric|min_num:1|max_num:70',
         ];
-
-        if (post('biological_sex') === 'female') {
-            $rules['hip_cm'] = 'required|numeric|min_num:30|max_num:200';
-        } else {
-            $rules['hip_cm'] = 'numeric|min_num:30|max_num:200';
-        }
 
         $valid = $validator->validate($_POST, $rules);
         
@@ -64,7 +59,29 @@ function setup_profile_page(): void
             redirect('setup_profile');
         }
 
+        // Validate preferred workout days based on weekly target
+        $targetDays = max(2, min(5, (int)($_POST['weekly_workout_target'] ?? 3)));
+        $daysInput = (string)($_POST['preferred_workout_days'] ?? '');
+        $selectedDays = array_values(array_unique(array_filter(array_map('intval', explode(',', $daysInput)), fn($d) => $d >= 1 && $d <= 7)));
+        sort($selectedDays);
+
+        if ($targetDays <= 4 && count($selectedDays) !== $targetDays) {
+            flash("Please choose exactly {$targetDays} training days to match your weekly commitment.", 'danger');
+            redirect('setup_profile');
+        } elseif ($targetDays >= 5 && count($selectedDays) < 5) {
+            flash("Please choose at least 5 training days for a 5+ day weekly commitment.", 'danger');
+            redirect('setup_profile');
+        }
+
+        $_POST['preferred_workout_days'] = implode(',', $selectedDays);
+
         save_member_profile((int) $user['user_id']);
+        if (isset($_GET['edit'])) {
+            $profCheck = member_profile((int) $user['user_id']);
+            if (!empty($profCheck['primary_goal'])) {
+                redirect('setup_review');
+            }
+        }
         redirect('setup_goal');
     }
 
@@ -441,6 +458,91 @@ function setup_profile_page(): void
             font-weight: 700;
             box-shadow: 0 0 0 1px #84cc16;
         }
+        .pref-days-grid {
+            display: grid;
+            grid-template-columns: repeat(7, 1fr);
+            gap: 8px;
+            margin-bottom: 18px;
+        }
+        @media (max-width: 680px) {
+            .pref-days-grid {
+                grid-template-columns: repeat(4, 1fr);
+            }
+        }
+        @media (max-width: 420px) {
+            .pref-days-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+        .pref-day-card {
+            border: 1.5px solid #e2e8f0;
+            background: #ffffff;
+            border-radius: 12px;
+            padding: 12px 6px;
+            min-height: 80px;
+            cursor: pointer;
+            text-align: center;
+            transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            user-select: none;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03);
+        }
+        .pref-day-card:hover {
+            border-color: #84cc16;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(132, 204, 22, 0.15);
+        }
+        .pref-day-card.selected {
+            border-color: #84cc16;
+            background: rgba(132, 204, 22, 0.08);
+            box-shadow: 0 0 0 2px rgba(132, 204, 22, 0.35);
+        }
+        .pref-day-abbr {
+            font-size: 14px;
+            font-weight: 800;
+            color: #0f172a;
+            line-height: 1.2;
+            letter-spacing: 0.02em;
+        }
+        .pref-day-full {
+            font-size: 10.5px;
+            color: #64748b;
+            margin-top: 2px;
+        }
+        .pref-day-pill {
+            margin-top: 8px;
+            font-size: 10px;
+            font-weight: 700;
+            padding: 2px 7px;
+            border-radius: 6px;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+            background: #f1f5f9;
+            color: #64748b;
+            transition: all 0.2s ease;
+        }
+        .pref-day-card.selected .pref-day-abbr {
+            color: #1e3a0f;
+        }
+        .pref-day-card.selected .pref-day-full {
+            color: #4d7c0f;
+        }
+        .pref-day-card.selected .pref-day-pill {
+            background: #84cc16;
+            color: #090b10;
+        }
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            20%, 60% { transform: translateX(-5px); }
+            40%, 80% { transform: translateX(5px); }
+        }
+        .shake-anim {
+            animation: shake 0.4s ease;
+        }
     </style>
 
     <div class="split-login-viewport">
@@ -564,18 +666,22 @@ function setup_profile_page(): void
                         <p class="split-card-subtitle">Establish your physical baseline for <span class="brand-highlight">FitTrack</span></p>
                     </div>
 
+                    <?php
+                    $initStep = max(1, min(5, (int)($_GET['step'] ?? 1)));
+                    $stepTitles = [
+                        1 => 'Step 1 of 5: Core Stats',
+                        2 => 'Step 2 of 5: Measurements',
+                        3 => 'Step 3 of 5: Lifestyle & Diet',
+                        4 => 'Step 4 of 5: Routine & Schedule',
+                        5 => 'Step 5 of 5: Training Days'
+                    ];
+                    ?>
                     <!-- Stepper Header -->
                     <div class="stepper-header-bar">
                         <span class="step-pill-indicator" id="step-badge-text">
                             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
-                            Step 1 of 4: Core Stats
+                            <?= h($stepTitles[$initStep]) ?>
                         </span>
-                        <div class="step-dots-row">
-                            <div class="step-dot active" id="sdot-1"></div>
-                            <div class="step-dot" id="sdot-2"></div>
-                            <div class="step-dot" id="sdot-3"></div>
-                            <div class="step-dot" id="sdot-4"></div>
-                        </div>
                     </div>
 
                     <?php
@@ -591,6 +697,16 @@ function setup_profile_page(): void
                     $curDiet = $profile['dietary_restrictions'] ?? 'none';
                     $curDays = max(2, min(5, (int)($profile['weekly_workout_target'] ?? 3)));
                     $curDuration = (int)($profile['preferred_duration_mins'] ?? 45);
+                    $curPrefDays = (string)($profile['preferred_workout_days'] ?? '');
+                    if ($curPrefDays === '') {
+                        $defaultDaysMap = [
+                            2 => '2,4',
+                            3 => '1,3,5',
+                            4 => '1,2,4,5',
+                            5 => '1,2,3,4,5',
+                        ];
+                        $curPrefDays = $defaultDaysMap[$curDays] ?? '1,3,5';
+                    }
                     ?>
 
                     <?php if (!empty($profile['primary_goal'])): ?>
@@ -601,11 +717,11 @@ function setup_profile_page(): void
                         </div>
                     <?php endif; ?>
 
-                    <form method="post" action="index.php?page=setup_profile" id="profile-form" class="split-card-form" novalidate onsubmit="const btn = document.getElementById('submit-profile-btn'); if (btn) { btn.disabled = true; btn.innerHTML = '<svg class=\'fitness-loader mini\' viewBox=\'0 0 24 24\' fill=\'none\' stroke=\'currentColor\' stroke-width=\'2\' stroke-linecap=\'round\' stroke-linejoin=\'round\' style=\'margin-right:8px;\'><line x1=\'6\' y1=\'12\' x2=\'18\' y2=\'12\'></line><rect x=\'4\' y=\'8\' width=\'2\' height=\'8\' rx=\'1\'></rect><rect x=\'18\' y=\'8\' width=\'2\' height=\'8\' rx=\'1\'></rect><rect x=\'2\' y=\'10\' width=\'2\' height=\'4\' rx=\'1\'></rect><rect x=\'20\' y=\'10\' width=\'2\' height=\'4\' rx=\'1\'></rect></svg> SAVING PROFILE...'; }">
+                    <form method="post" action="index.php?page=setup_profile" id="profile-form" class="split-card-form" novalidate onsubmit="return handleProfileSubmit(event);">
                         <?= csrf_field() ?>
 
                         <!-- STEP 1: Core Stats -->
-                        <div class="profile-step-pane active" id="pane-step-1">
+                        <div class="profile-step-pane <?= $initStep === 1 ? 'active' : '' ?>" id="pane-step-1">
                             <label style="font-size: 13px; font-weight: 700; color: #0f172a; margin-bottom: 8px; display: block;">Biological Sex <span class="req-star">*</span></label>
                             <div class="sex-select-grid">
                                 <label class="sex-card <?= $curSex === 'male' ? 'selected' : '' ?>" id="sex-male-btn">
@@ -673,40 +789,40 @@ function setup_profile_page(): void
                         </div>
 
                         <!-- STEP 2: Body Circumference -->
-                        <div class="profile-step-pane" id="pane-step-2">
+                        <div class="profile-step-pane <?= $initStep === 2 ? 'active' : '' ?>" id="pane-step-2">
                             <div style="background: rgba(132, 204, 22, 0.08); border: 1px solid rgba(132, 204, 22, 0.25); border-radius: 10px; padding: 12px 14px; margin-bottom: 18px; display: flex; align-items: center; gap: 10px; font-size: 13px; color: #334155;">
                                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#65a30d" stroke-width="2" style="flex-shrink:0;">
                                     <circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/>
                                 </svg>
-                                <span>Use a flexible tape measure snug against skin without compressing tissue.</span>
+                                <span>Use a flexible tape measure snug against skin. Don't have a tape measure right now? You can skip this step and enter them later or with a gym coach.</span>
                             </div>
 
                             <div class="split-form-row-2col">
                                 <div class="split-form-group">
-                                    <label>Neck (Narrowest point)</label>
+                                    <label>Neck (Narrowest point) <span style="font-weight: 500; font-size: 11px; color: #94a3b8; margin-left: 4px;">(Optional)</span></label>
                                     <div class="split-input-wrap auth-input-group input-with-unit">
                                         <svg class="split-input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                             <circle cx="12" cy="12" r="8"/>
                                         </svg>
-                                        <input id="field-neck" name="neck_cm" type="number" inputmode="decimal" step="0.1" min="20" max="100" placeholder="e.g. 38" value="<?= h((string)$curNeck) ?>" required>
+                                        <input id="field-neck" name="neck_cm" type="number" inputmode="decimal" step="0.1" min="20" max="100" placeholder="e.g. 38" value="<?= h((string)$curNeck) ?>">
                                         <span class="metric-unit-tag">cm</span>
                                     </div>
                                 </div>
 
                                 <div class="split-form-group">
-                                    <label>Waist (At navel level)</label>
+                                    <label>Waist (At navel level) <span style="font-weight: 500; font-size: 11px; color: #94a3b8; margin-left: 4px;">(Optional)</span></label>
                                     <div class="split-input-wrap auth-input-group input-with-unit">
                                         <svg class="split-input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                             <circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/>
                                         </svg>
-                                        <input id="field-waist" name="waist_cm" type="number" inputmode="decimal" step="0.1" min="30" max="200" placeholder="e.g. 82" value="<?= h((string)$curWaist) ?>" required>
+                                        <input id="field-waist" name="waist_cm" type="number" inputmode="decimal" step="0.1" min="30" max="200" placeholder="e.g. 82" value="<?= h((string)$curWaist) ?>">
                                         <span class="metric-unit-tag">cm</span>
                                     </div>
                                 </div>
                             </div>
 
                             <div class="split-form-group" id="hip-group" style="display: <?= $curSex === 'female' ? 'block' : 'none' ?>;">
-                                <label style="color: var(--lime);">Hip (Widest glute point)</label>
+                                <label style="color: var(--lime);">Hip (Widest glute point) <span style="font-weight: 500; font-size: 11px; color: #94a3b8; margin-left: 4px;">(Optional)</span></label>
                                 <div class="split-input-wrap auth-input-group input-with-unit">
                                     <svg class="split-input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                         <ellipse cx="12" cy="12" rx="10" ry="6"/>
@@ -747,10 +863,17 @@ function setup_profile_page(): void
                                     </svg>
                                 </button>
                             </div>
+
+                            <div style="text-align: center; margin-top: 14px;">
+                                <button type="button" class="btn-skip-measurements" onclick="skipMeasurements()" style="background: none; border: none; color: #64748b; font-size: 13px; font-weight: 600; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; padding: 6px 14px; border-radius: 8px; transition: color 0.15s, background-color 0.15s;" onmouseover="this.style.color='#0f172a'; this.style.backgroundColor='#f1f5f9';" onmouseout="this.style.color='#64748b'; this.style.backgroundColor='transparent';">
+                                    <span>I don't know my sizes &mdash; Skip for now</span>
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><polyline points="9 18 15 12 9 6"/></svg>
+                                </button>
+                            </div>
                         </div>
 
                         <!-- STEP 3: Lifestyle & Diet -->
-                        <div class="profile-step-pane" id="pane-step-3">
+                        <div class="profile-step-pane <?= $initStep === 3 ? 'active' : '' ?>" id="pane-step-3">
                             <label style="font-size: 13px; font-weight: 700; color: #0f172a; margin-bottom: 8px; display: block;">Experience Level</label>
                             <div class="exp-select-grid">
                                 <label class="exp-card <?= $curExp === 1 ? 'selected' : '' ?>" id="exp-1">
@@ -827,7 +950,7 @@ function setup_profile_page(): void
                         </div>
 
                         <!-- STEP 4: Routine & Schedule -->
-                        <div class="profile-step-pane" id="pane-step-4">
+                        <div class="profile-step-pane <?= $initStep === 4 ? 'active' : '' ?>" id="pane-step-4">
                             <div style="background: rgba(132, 204, 22, 0.08); border: 1px solid rgba(132, 204, 22, 0.25); border-radius: 10px; padding: 12px 14px; margin-bottom: 18px; display: flex; align-items: center; gap: 10px; font-size: 13px; color: #334155;">
                                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#65a30d" stroke-width="2" style="flex-shrink:0;">
                                     <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
@@ -870,6 +993,77 @@ function setup_profile_page(): void
                                     <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
                                     Back
                                 </button>
+                                <button type="button" class="split-submit-btn btn-step-next" onclick="goToProfileStep(5)">
+                                    <span>Continue to Days</span>
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                                        <line x1="5" y1="12" x2="19" y2="12"></line>
+                                        <polyline points="12 5 19 12 12 19"></polyline>
+                                    </svg>
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- STEP 5: Training Days -->
+                        <div class="profile-step-pane <?= $initStep === 5 ? 'active' : '' ?>" id="pane-step-5">
+                            <div style="background: rgba(132, 204, 22, 0.08); border: 1px solid rgba(132, 204, 22, 0.25); border-radius: 10px; padding: 12px 14px; margin-bottom: 18px; display: flex; align-items: flex-start; gap: 10px; font-size: 13px; color: #334155;">
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#65a30d" stroke-width="2" style="flex-shrink:0; margin-top:2px;">
+                                    <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>
+                                </svg>
+                                <div>
+                                    <div style="font-weight: 700; color: #1e3a0f; margin-bottom: 2px;">Choose Your Specific Training Days</div>
+                                    <span>Select which specific days of the week you plan to work out from Monday to Sunday. FitTrack locks your recovery days so gym trainers cannot schedule sessions on them.</span>
+                                </div>
+                            </div>
+
+                            <!-- Target and Selection Status Indicator -->
+                            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; padding: 10px 14px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px;">
+                                <div style="display: flex; align-items: center; gap: 8px;">
+                                    <span style="font-size: 12px; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.04em;">Weekly Target:</span>
+                                    <span style="font-size: 13px; font-weight: 800; color: #0f172a;" id="target-days-display"><?= $curDays >= 5 ? '5+ Days' : $curDays . ' Days' ?></span>
+                                </div>
+                                <div id="days-counter-pill" style="font-size: 12px; font-weight: 700; color: #15803d; background: rgba(132, 204, 22, 0.15); border: 1px solid rgba(132, 204, 22, 0.35); padding: 4px 10px; border-radius: 999px;">
+                                    Selected: <span id="selected-days-display">0</span> of <span id="target-days-display-max"><?= $curDays >= 5 ? '5+' : $curDays ?></span>
+                                </div>
+                            </div>
+
+                            <input type="hidden" name="preferred_workout_days" id="input_preferred_workout_days" value="<?= h($curPrefDays) ?>">
+
+                            <!-- Interactive Days Grid -->
+                            <div class="pref-days-grid" id="pref-days-grid">
+                                <?php
+                                $daysConfig = [
+                                    1 => ['abbr' => 'Mon', 'name' => 'Monday'],
+                                    2 => ['abbr' => 'Tue', 'name' => 'Tuesday'],
+                                    3 => ['abbr' => 'Wed', 'name' => 'Wednesday'],
+                                    4 => ['abbr' => 'Thu', 'name' => 'Thursday'],
+                                    5 => ['abbr' => 'Fri', 'name' => 'Friday'],
+                                    6 => ['abbr' => 'Sat', 'name' => 'Saturday'],
+                                    7 => ['abbr' => 'Sun', 'name' => 'Sunday'],
+                                ];
+                                $curPrefArray = array_filter(array_map('intval', explode(',', $curPrefDays)));
+                                foreach ($daysConfig as $dNum => $dInfo):
+                                    $isSelected = in_array($dNum, $curPrefArray, true);
+                                ?>
+                                    <div class="pref-day-card <?= $isSelected ? 'selected' : '' ?>" data-day="<?= $dNum ?>" onclick="toggleDaySelection(<?= $dNum ?>)">
+                                        <div class="pref-day-abbr"><?= $dInfo['abbr'] ?></div>
+                                        <div class="pref-day-full"><?= $dInfo['name'] ?></div>
+                                        <div class="pref-day-pill"><?= $isSelected ? 'Workout' : 'Rest' ?></div>
+                                    </div>
+                                <?php endforeach; ?>
+                            </div>
+
+                            <div style="background: #ffffff; border: 1px dashed #cbd5e1; border-radius: 10px; padding: 10px 14px; margin-bottom: 20px; display: flex; align-items: center; gap: 8px; font-size: 12px; color: #64748b;">
+                                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#65a30d" stroke-width="2.5" style="flex-shrink:0;">
+                                    <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+                                </svg>
+                                <span><strong>Strict schedule protection:</strong> Gym owners and trainers cannot override your schedule or place exercises on your rest days.</span>
+                            </div>
+
+                            <div class="step-nav-actions">
+                                <button type="button" class="btn-step-prev" onclick="goToProfileStep(4)">
+                                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+                                    Back
+                                </button>
                                 <button type="submit" class="split-submit-btn btn-step-next" id="submit-profile-btn">
                                     <span><?= !empty($profile['primary_goal']) ? 'Save & Continue to Goals' : 'Finish & Pick Goal' ?></span>
                                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
@@ -895,9 +1089,154 @@ function setup_profile_page(): void
     </div>
 
     <script>
-    let currentProfileStep = 1;
+    let currentProfileStep = <?= $initStep ?>;
 
-    function goToProfileStep(targetStep) {
+    function getSelectedDays() {
+        const val = document.getElementById('input_preferred_workout_days')?.value || '';
+        if (!val) return [];
+        return val.split(',').map(s => parseInt(s.trim())).filter(n => !isNaN(n) && n >= 1 && n <= 7);
+    }
+
+    function saveSelectedDays(daysArr) {
+        daysArr = Array.from(new Set(daysArr)).sort((a, b) => a - b);
+        const input = document.getElementById('input_preferred_workout_days');
+        if (input) input.value = daysArr.join(',');
+    }
+
+    function updateDayPickerUI() {
+        const target = parseInt(document.getElementById('input_weekly_workout_target')?.value) || 3;
+        const isFivePlus = target >= 5;
+        const selected = getSelectedDays();
+
+        const targetDisplay = document.getElementById('target-days-display');
+        const targetDisplayMax = document.getElementById('target-days-display-max');
+        const selectedDisplay = document.getElementById('selected-days-display');
+        const counterPill = document.getElementById('days-counter-pill');
+
+        if (targetDisplay) targetDisplay.textContent = isFivePlus ? '5+ Days' : target + ' Days';
+        if (targetDisplayMax) targetDisplayMax.textContent = isFivePlus ? '5+' : String(target);
+        if (selectedDisplay) selectedDisplay.textContent = String(selected.length);
+
+        if (counterPill) {
+            const isMet = isFivePlus ? (selected.length >= 5) : (selected.length === target);
+            if (isMet) {
+                counterPill.style.color = '#15803d';
+                counterPill.style.background = 'rgba(132, 204, 22, 0.15)';
+                counterPill.style.borderColor = 'rgba(132, 204, 22, 0.35)';
+            } else {
+                counterPill.style.color = '#b45309';
+                counterPill.style.background = 'rgba(245, 158, 11, 0.12)';
+                counterPill.style.borderColor = 'rgba(245, 158, 11, 0.35)';
+            }
+        }
+
+        document.querySelectorAll('.pref-day-card').forEach(card => {
+            const dayNum = parseInt(card.getAttribute('data-day'));
+            const isSelected = selected.includes(dayNum);
+            if (isSelected) {
+                card.classList.add('selected');
+                const pill = card.querySelector('.pref-day-pill');
+                if (pill) pill.textContent = 'Workout';
+            } else {
+                card.classList.remove('selected');
+                const pill = card.querySelector('.pref-day-pill');
+                if (pill) pill.textContent = 'Rest';
+            }
+        });
+    }
+
+    function syncDaysToTarget() {
+        const target = parseInt(document.getElementById('input_weekly_workout_target')?.value) || 3;
+        const isFivePlus = target >= 5;
+        let selected = getSelectedDays();
+
+        if (!isFivePlus && selected.length > target) {
+            selected = selected.slice(0, target);
+            saveSelectedDays(selected);
+        } else if (selected.length === 0) {
+            const defaults = {
+                2: [2, 4],
+                3: [1, 3, 5],
+                4: [1, 2, 4, 5],
+                5: [1, 2, 3, 4, 5]
+            };
+            saveSelectedDays(defaults[target] || [1, 3, 5]);
+        }
+        updateDayPickerUI();
+    }
+
+    function toggleDaySelection(dayNum) {
+        const target = parseInt(document.getElementById('input_weekly_workout_target')?.value) || 3;
+        const isFivePlus = target >= 5;
+        let selected = getSelectedDays();
+        const idx = selected.indexOf(dayNum);
+
+        if (idx !== -1) {
+            selected.splice(idx, 1);
+        } else {
+            if (!isFivePlus && selected.length >= target) {
+                const counterPill = document.getElementById('days-counter-pill');
+                if (counterPill) {
+                    counterPill.classList.add('shake-anim');
+                    setTimeout(() => counterPill.classList.remove('shake-anim'), 400);
+                }
+                const dayNames = ['', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+                alert(`You committed to ${target} days per week. Please uncheck a day first if you wish to select ${dayNames[dayNum] || 'this day'}.`);
+                return;
+            }
+            selected.push(dayNum);
+            selected.sort((a, b) => a - b);
+        }
+        saveSelectedDays(selected);
+        updateDayPickerUI();
+    }
+
+    function handleProfileSubmit(event) {
+        const target = parseInt(document.getElementById('input_weekly_workout_target')?.value) || 3;
+        const isFivePlus = target >= 5;
+        const selected = getSelectedDays();
+
+        if (!isFivePlus && selected.length !== target) {
+            event.preventDefault();
+            goToProfileStep(5);
+            const counterPill = document.getElementById('days-counter-pill');
+            if (counterPill) {
+                counterPill.classList.add('shake-anim');
+                setTimeout(() => counterPill.classList.remove('shake-anim'), 400);
+            }
+            alert(`Please select exactly ${target} workout days before saving.`);
+            return false;
+        }
+
+        if (isFivePlus && selected.length < 5) {
+            event.preventDefault();
+            goToProfileStep(5);
+            const counterPill = document.getElementById('days-counter-pill');
+            if (counterPill) {
+                counterPill.classList.add('shake-anim');
+                setTimeout(() => counterPill.classList.remove('shake-anim'), 400);
+            }
+            alert(`Please select at least 5 workout days for your 5+ day commitment.`);
+            return false;
+        }
+
+        const btn = document.getElementById('submit-profile-btn');
+        if (btn) {
+            btn.disabled = true;
+            btn.innerHTML = '<svg class="fitness-loader mini" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right:8px;"><line x1="6" y1="12" x2="18" y2="12"></line><rect x="4" y="8" width="2" height="8" rx="1"></rect><rect x="18" y="8" width="2" height="8" rx="1"></rect><rect x="2" y="10" width="2" height="4" rx="1"></rect><rect x="20" y="10" width="2" height="4" rx="1"></rect></svg> SAVING PROFILE...';
+        }
+        return true;
+    }
+
+    function skipMeasurements() {
+        const neck = document.getElementById('field-neck');
+        const waist = document.getElementById('field-waist');
+        const hip = document.getElementById('field-hip');
+        [neck, waist, hip].forEach(el => el?.closest('.split-input-wrap')?.classList.remove('has-error'));
+        goToProfileStep(3, true);
+    }
+
+    function goToProfileStep(targetStep, bypassValidation = false) {
         if (targetStep > currentProfileStep) {
             if (currentProfileStep === 1) {
                 const age = document.getElementById('field-age');
@@ -921,7 +1260,7 @@ function setup_profile_page(): void
                     valid = false;
                 }
                 if (!valid) return;
-            } else if (currentProfileStep === 2) {
+            } else if (currentProfileStep === 2 && !bypassValidation) {
                 const neck = document.getElementById('field-neck');
                 const waist = document.getElementById('field-waist');
                 const hip = document.getElementById('field-hip');
@@ -930,15 +1269,16 @@ function setup_profile_page(): void
                 let valid = true;
                 [neck, waist, hip].forEach(el => el?.closest('.split-input-wrap')?.classList.remove('has-error'));
 
-                if (!neck.value || parseFloat(neck.value) < 20 || parseFloat(neck.value) > 100) {
+                // Validate only if value is provided; allow skipping if left empty
+                if (neck && neck.value && (parseFloat(neck.value) < 20 || parseFloat(neck.value) > 100)) {
                     neck.closest('.split-input-wrap')?.classList.add('has-error');
                     neck.focus();
                     valid = false;
-                } else if (!waist.value || parseFloat(waist.value) < 30 || parseFloat(waist.value) > 200) {
+                } else if (waist && waist.value && (parseFloat(waist.value) < 30 || parseFloat(waist.value) > 200)) {
                     waist.closest('.split-input-wrap')?.classList.add('has-error');
                     waist.focus();
                     valid = false;
-                } else if (isFemale && (!hip.value || parseFloat(hip.value) < 30 || parseFloat(hip.value) > 200)) {
+                } else if (isFemale && hip && hip.value && (parseFloat(hip.value) < 30 || parseFloat(hip.value) > 200)) {
                     hip.closest('.split-input-wrap')?.classList.add('has-error');
                     hip.focus();
                     valid = false;
@@ -953,7 +1293,7 @@ function setup_profile_page(): void
 
         // Update dots and pill
         currentProfileStep = targetStep;
-        for (let i = 1; i <= 4; i++) {
+        for (let i = 1; i <= 5; i++) {
             const dot = document.getElementById(`sdot-${i}`);
             if (dot) {
                 dot.className = 'step-dot' + (i === targetStep ? ' active' : (i < targetStep ? ' done' : ''));
@@ -963,12 +1303,17 @@ function setup_profile_page(): void
         const badge = document.getElementById('step-badge-text');
         if (badge) {
             const titles = {
-                1: 'Step 1 of 4: Core Stats',
-                2: 'Step 2 of 4: Measurements',
-                3: 'Step 3 of 4: Lifestyle & Diet',
-                4: 'Step 4 of 4: Routine & Schedule'
+                1: 'Step 1 of 5: Core Stats',
+                2: 'Step 2 of 5: Measurements',
+                3: 'Step 3 of 5: Lifestyle & Diet',
+                4: 'Step 4 of 5: Routine & Schedule',
+                5: 'Step 5 of 5: Training Days'
             };
             badge.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg> ${titles[targetStep] || ''}`;
+        }
+
+        if (targetStep === 5) {
+            syncDaysToTarget();
         }
 
         updateLiveMetrics();
@@ -1005,6 +1350,7 @@ function setup_profile_page(): void
         }
 
         // Navy Body Fat Formula estimation
+        let bfCalculated = false;
         if (height > 0 && waist > 0 && neck > 0) {
             try {
                 let bf = 0;
@@ -1015,8 +1361,12 @@ function setup_profile_page(): void
                 }
                 if (bf > 3 && bf < 65) {
                     if (bfEl) bfEl.textContent = bf.toFixed(1) + '%';
+                    bfCalculated = true;
                 }
             } catch (e) {}
+        }
+        if (!bfCalculated && bfEl) {
+            bfEl.textContent = '—';
         }
     }
 
@@ -1035,7 +1385,7 @@ function setup_profile_page(): void
 
                 if (radio && radio.value === 'female') {
                     if (hipGroup) hipGroup.style.display = 'block';
-                    if (hipInput) hipInput.required = true;
+                    if (hipInput) hipInput.required = false;
                 } else {
                     if (hipGroup) hipGroup.style.display = 'none';
                     if (hipInput) {
@@ -1112,12 +1462,19 @@ function setup_profile_page(): void
                     container.querySelectorAll('.setup-chip-btn').forEach(b => b.classList.remove('active'));
                     this.classList.add('active');
                     hiddenInput.value = this.getAttribute('data-value');
+                    if (inputId === 'input_weekly_workout_target') {
+                        syncDaysToTarget();
+                    }
                 });
             });
         }
         initProfChips('prof-days-chip-options', 'input_weekly_workout_target');
         initProfChips('prof-duration-chip-options', 'input_preferred_duration_mins');
         updateLiveMetrics();
+        syncDaysToTarget();
+        if (currentProfileStep !== 1) {
+            goToProfileStep(currentProfileStep, true);
+        }
     })();
     </script>
     <?php

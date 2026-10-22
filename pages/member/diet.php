@@ -821,7 +821,7 @@ function diet_page(): void
         }
     }
 
-    $memberProfile = $pdo->query('SELECT dietary_restrictions, primary_goal FROM member_profiles WHERE user_id = ' . $userId)->fetch();
+    $memberProfile = $pdo->query('SELECT dietary_restrictions, primary_goal, secondary_focus FROM member_profiles WHERE user_id = ' . $userId)->fetch();
     $userDietaryRestriction = (string) ($memberProfile['dietary_restrictions'] ?? 'none');
 
     render_header('My Diet Plan', $user);
@@ -1078,6 +1078,13 @@ window.FT_CURRENT_DAY_NUM = window.DIET_CONFIG.currentDayNum;
                 <span class="diet-chip-dot dot-lime"></span>
                 <span><?= h(ucwords(str_replace('_', ' ', $activePlan['goal']))) ?></span>
             </span>
+
+            <?php if (!empty($memberProfile['secondary_focus'])): ?>
+            <span class="diet-meta-chip diet-chip-desktop" title="Secondary Focus">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--lime)" stroke-width="2.2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+                <span><?= h(ucwords(str_replace('_', ' ', $memberProfile['secondary_focus']))) ?></span>
+            </span>
+            <?php endif; ?>
 
             <span class="diet-meta-chip diet-chip-desktop <?= $userDietaryRestriction !== 'none' ? 'is-diet-highlight' : '' ?>" title="Dietary Protocol">
                 <span style="font-size: 12px;">🥗</span>
@@ -1861,7 +1868,20 @@ window.FT_CURRENT_DAY_NUM = window.DIET_CONFIG.currentDayNum;
                     </div>
                 </div>
 
-                <!-- 2. Dietary Protocol -->
+                <!-- 2. Secondary Focus (if set) -->
+                <?php if (!empty($memberProfile['secondary_focus'])): ?>
+                <div class="diet-plan-info-item">
+                    <div class="diet-plan-info-icon" style="background: rgba(132, 204, 22, 0.12); color: var(--lime); display: flex; align-items: center; justify-content: center; width: 34px; height: 34px; border-radius: 9px; flex-shrink: 0;">
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+                    </div>
+                    <div class="diet-plan-info-text">
+                        <span class="diet-plan-info-label">Secondary Focus</span>
+                        <strong class="diet-plan-info-val"><?= h(ucwords(str_replace('_', ' ', $memberProfile['secondary_focus']))) ?></strong>
+                    </div>
+                </div>
+                <?php endif; ?>
+
+                <!-- 3. Dietary Protocol -->
                 <div class="diet-plan-info-item" style="border-bottom: none; margin-bottom: 0; padding-bottom: 0;">
                     <div class="diet-plan-info-icon diet-icon">
                         <span style="font-size: 16px;">🥗</span>

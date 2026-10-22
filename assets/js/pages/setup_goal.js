@@ -68,6 +68,7 @@
                             stage2Pill.innerHTML = `<span>${escapeHtml(catTitle)}</span>`;
                         }
                     }
+                    syncCategoryTabs(currentCategory);
                     filterGoals();
                 } else if (stageNum === 3) {
                     if (stage1) stage1.classList.remove('active');
@@ -83,6 +84,35 @@
                         stepperBar3.style.boxShadow = '0 0 8px rgba(132, 204, 22, 0.4)';
                     }
                 }
+            };
+
+            function syncCategoryTabs(catKey) {
+                document.querySelectorAll('.stage2-cat-tab').forEach(t => {
+                    if (t.getAttribute('data-cat') === catKey) {
+                        t.style.background = '#84cc16';
+                        t.style.borderColor = '#84cc16';
+                        t.style.color = '#090b10';
+                    } else {
+                        t.style.background = '#ffffff';
+                        t.style.borderColor = '#e2e8f0';
+                        t.style.color = '#475569';
+                    }
+                });
+            }
+
+            window.filterCategoryTab = function(catKey, btn) {
+                currentCategory = catKey;
+                syncCategoryTabs(catKey);
+                if (stage2Pill) {
+                    if (catKey === 'all') {
+                        stage2Pill.innerHTML = `<span>All Goals</span>`;
+                    } else {
+                        const card = document.querySelector(`.focus-category-card[data-category="${catKey}"]`);
+                        const catTitle = card ? card.querySelector('.focus-category-title')?.textContent : catKey;
+                        stage2Pill.innerHTML = `<span>${escapeHtml(catTitle)}</span>`;
+                    }
+                }
+                filterGoals();
             };
 
             window.selectCategory = function(catKey) {
@@ -216,50 +246,129 @@
                 }
             };
 
-            // Goal Card Click Handler
+            // Multi-Goal (Primary + Secondary) Selection Controller
+            const primaryInput = document.getElementById('input_primary_goal');
+            const secondaryInput = document.getElementById('input_secondary_focus');
+            const counterBadge = document.getElementById('goals-counter-badge');
+
+            let primaryGoal = primaryInput ? primaryInput.value.trim() : '';
+            let secondaryGoal = secondaryInput ? secondaryInput.value.trim() : '';
+
+            // Clean legacy names if any
+            const legacyGoalMap = {
+                'losing_weight': 'Losing excess body fat',
+                'reducing_body_fat': 'Losing excess body fat',
+                'increasing_strength': 'Increasing maximum strength',
+                'building_muscle': 'Gaining lean body mass',
+                'improving_endurance': 'Enhancing physical endurance',
+                'casual': 'Casual / Flexible Lifestyle',
+                'general_fitness': 'Casual / Flexible Lifestyle'
+            };
+            if (legacyGoalMap[primaryGoal]) primaryGoal = legacyGoalMap[primaryGoal];
+            if (legacyGoalMap[secondaryGoal]) secondaryGoal = legacyGoalMap[secondaryGoal];
+
+            function renderGoalSelections() {
+                if (primaryInput) primaryInput.value = primaryGoal;
+                if (secondaryInput) secondaryInput.value = secondaryGoal;
+
+                goalCards.forEach(c => {
+                    const g = c.getAttribute('data-goal') || c.querySelector('.goal-title')?.textContent?.trim();
+                    const numEl = c.querySelector('.goal-rank-num');
+
+                    c.classList.remove('selected', 'selected-primary', 'selected-secondary');
+
+                    if (g === primaryGoal) {
+                        c.classList.add('selected', 'selected-primary');
+                        c.setAttribute('aria-pressed', 'true');
+                        if (numEl) numEl.textContent = '1';
+                    } else if (g === secondaryGoal) {
+                        c.classList.add('selected', 'selected-secondary');
+                        c.setAttribute('aria-pressed', 'true');
+                        if (numEl) numEl.textContent = '2';
+                    } else {
+                        c.setAttribute('aria-pressed', 'false');
+                        if (numEl) numEl.textContent = '';
+                    }
+                });
+
+                const count = (primaryGoal ? 1 : 0) + (secondaryGoal ? 1 : 0);
+                if (counterBadge) {
+                    counterBadge.textContent = `${count} of 2 selected`;
+                    counterBadge.classList.toggle('has-selection', count > 0);
+                }
+
+                if (selectedDisplay) {
+                    if (primaryGoal && secondaryGoal) {
+                        selectedDisplay.innerHTML = `<span style="font-weight: 700; color: #84cc16;">1. ${escapeHtml(primaryGoal)} (Primary)</span> <span style="margin: 0 4px; color: #94a3b8;">&bull;</span> <span style="font-weight: 700; color: #22c55e;">2. ${escapeHtml(secondaryGoal)} (Secondary)</span>`;
+                    } else if (primaryGoal) {
+                        selectedDisplay.innerHTML = `<span style="font-weight: 700; color: #84cc16;">${escapeHtml(primaryGoal)} (Primary)</span> <span style="font-size: 11px; color: #64748b; font-weight: normal; margin-left: 6px;">&bull; Optional: tap another goal to add as secondary focus</span>`;
+                    } else {
+                        selectedDisplay.textContent = 'None chosen yet (Pick a primary goal to continue)';
+                    }
+                }
+
+                const hasGoal = Boolean(primaryGoal);
+                if (toTargetsBtn) {
+                    toTargetsBtn.disabled = !hasGoal;
+                    toTargetsBtn.style.opacity = hasGoal ? '1' : '0.6';
+                    toTargetsBtn.style.cursor = hasGoal ? 'pointer' : 'not-allowed';
+                }
+                if (skipTargetsBtn) {
+                    skipTargetsBtn.disabled = !hasGoal;
+                    skipTargetsBtn.style.cursor = hasGoal ? 'pointer' : 'not-allowed';
+                }
+            }
+
+            window.handleGoalCardClick = function(card) {
+                const goalName = card.getAttribute('data-goal') || card.querySelector('.goal-title')?.textContent?.trim();
+                if (!goalName) return;
+
+                if (goalName === primaryGoal) {
+                    // Deselect primary
+                    if (secondaryGoal) {
+                        primaryGoal = secondaryGoal;
+                        secondaryGoal = '';
+                    } else {
+                        primaryGoal = '';
+                    }
+                } else if (goalName === secondaryGoal) {
+                    // Deselect secondary
+                    secondaryGoal = '';
+                } else {
+                    // Not currently selected
+                    if (!primaryGoal) {
+                        primaryGoal = goalName;
+                    } else if (!secondaryGoal) {
+                        secondaryGoal = goalName;
+                    } else {
+                        // User already selected 2, replace secondary with this new choice
+                        secondaryGoal = goalName;
+                    }
+                }
+
+                renderGoalSelections();
+            };
+
+            // Card Click & Keyboard Event Listeners
             goalCards.forEach(card => {
                 card.addEventListener('click', function(e) {
-                    const radio = this.querySelector('input[type="radio"]');
-                    if (radio && e.target !== radio) {
-                        radio.checked = true;
-                    }
-                    goalCards.forEach(c => c.classList.remove('selected'));
-                    this.classList.add('selected');
+                    e.preventDefault();
+                    window.handleGoalCardClick(this);
+                });
 
-                    const goalTitle = this.querySelector('.goal-title')?.textContent || 'Selected';
-                    if (selectedDisplay) selectedDisplay.textContent = goalTitle;
-
-                    if (toTargetsBtn) {
-                        toTargetsBtn.disabled = false;
-                        toTargetsBtn.style.opacity = '1';
-                        toTargetsBtn.style.cursor = 'pointer';
-                    }
-                    if (skipTargetsBtn) {
-                        skipTargetsBtn.disabled = false;
-                        skipTargetsBtn.style.cursor = 'pointer';
+                card.addEventListener('keydown', function(e) {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        window.handleGoalCardClick(this);
                     }
                 });
             });
 
-            // Initialize selection if a goal is pre-checked (e.g. edit mode)
-            const prechecked = document.querySelector('input[name="primary_goal"]:checked');
-            if (prechecked) {
-                const card = prechecked.closest('.goal-card');
-                if (card) {
-                    card.classList.add('selected');
-                    const goalTitle = card.querySelector('.goal-title')?.textContent || prechecked.value;
-                    if (selectedDisplay) selectedDisplay.textContent = goalTitle;
-                    if (toTargetsBtn) {
-                        toTargetsBtn.disabled = false;
-                        toTargetsBtn.style.opacity = '1';
-                        toTargetsBtn.style.cursor = 'pointer';
-                    }
-                    if (skipTargetsBtn) {
-                        skipTargetsBtn.disabled = false;
-                        skipTargetsBtn.style.cursor = 'pointer';
-                    }
-                }
-            }
+            // Initial render of goal selections
+            renderGoalSelections();
+
+            // Run initial filter
+            filterGoals();
 
             // Quick Search Listener
             if (searchInput) {
@@ -281,17 +390,19 @@
                 let visibleCount = 0;
                 goalCards.forEach(card => {
                     const cardCat = card.getAttribute('data-category');
-                    const title = card.getAttribute('data-title');
-                    const desc = card.getAttribute('data-desc');
+                    const title = (card.getAttribute('data-title') || '').toLowerCase();
+                    const desc = (card.getAttribute('data-desc') || '').toLowerCase();
 
                     const matchesCat = (currentCategory === 'all' || cardCat === currentCategory);
                     const matchesSearch = (!searchQuery || title.includes(searchQuery) || desc.includes(searchQuery));
 
                     if (matchesCat && matchesSearch) {
-                        card.style.display = 'flex';
+                        card.style.removeProperty('display');
+                        card.classList.remove('hidden');
                         visibleCount++;
                     } else {
-                        card.style.display = 'none';
+                        card.style.setProperty('display', 'none', 'important');
+                        card.classList.add('hidden');
                     }
                 });
 

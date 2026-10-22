@@ -33,6 +33,15 @@ function setup_goal_page(): void
             redirect(isset($_GET['edit']) ? 'setup_goal&edit=1' : 'setup_goal');
         }
 
+        $secondaryFocusRaw = post('secondary_focus');
+        $secondaryFocus = null;
+        if (is_array($secondaryFocusRaw)) {
+            $cleanFocus = array_slice(array_filter(array_map('trim', $secondaryFocusRaw)), 0, 2);
+            $secondaryFocus = !empty($cleanFocus) ? implode(', ', $cleanFocus) : null;
+        } elseif (is_string($secondaryFocusRaw) && trim($secondaryFocusRaw) !== '') {
+            $secondaryFocus = trim($secondaryFocusRaw);
+        }
+
         $weeklyTarget = max(1, min(7, (int) (post('weekly_workout_target') ?: ($profile['weekly_workout_target'] ?? 3))));
         $durationMins = max(15, min(180, (int) (post('preferred_duration_mins') ?: ($profile['preferred_duration_mins'] ?? 45))));
 
@@ -46,10 +55,11 @@ function setup_goal_page(): void
         $targetEnduranceDist = (post('target_endurance_distance_km') !== null && post('target_endurance_distance_km') !== '') ? abs((float) post('target_endurance_distance_km')) : null;
         $targetEnduranceTime = (post('target_endurance_time_mins') !== null && post('target_endurance_time_mins') !== '') ? abs((int) post('target_endurance_time_mins')) : null;
 
-        // Save primary goal, schedule preferences, and optional targets
+        // Save primary goal, secondary focus, schedule preferences, and optional targets
         $pdo = db();
         $pdo->prepare('UPDATE member_profiles SET 
             primary_goal = ?, 
+            secondary_focus = ?,
             weekly_workout_target = ?, 
             preferred_duration_mins = ?,
             target_weight_kg = ?,
@@ -62,7 +72,7 @@ function setup_goal_page(): void
             target_endurance_time_mins = ?
             WHERE user_id = ?')
             ->execute([
-                $goal, $weeklyTarget, $durationMins,
+                $goal, $secondaryFocus, $weeklyTarget, $durationMins,
                 $targetWeight, $targetBf, $targetWaist,
                 $targetExercise, $targetStrengthMax,
                 $enduranceActivity, $targetEnduranceDist, $targetEnduranceTime,
@@ -71,6 +81,7 @@ function setup_goal_page(): void
 
         // Re-fetch profile with goal, schedule & targets
         $profile['primary_goal'] = $goal;
+        $profile['secondary_focus'] = $secondaryFocus;
         $profile['weekly_workout_target'] = $weeklyTarget;
         $profile['preferred_duration_mins'] = $durationMins;
         $profile['target_weight_kg'] = $targetWeight;
@@ -111,12 +122,16 @@ function setup_goal_page(): void
             'Reaching body recomposition' => 'Losing fat and building muscle at the exact same time.'
         ],
         'Casual Lifestyle & Wellness Goals' => [
-            'Casual / Flexible Lifestyle' => 'Balanced nutrition, sustainable energy, and moderate exercise without extreme dieting.'
+            'Casual / Flexible Lifestyle' => 'Balanced nutrition, sustainable energy, and moderate exercise without extreme dieting.',
+            'Active Health & Longevity' => 'Low-impact movement, cardiovascular health, mobility, and functional everyday stamina.',
+            'Stress Relief & Functional Movement' => 'Releasing tension, improving posture, and staying active with stress-reducing physical habits.'
         ]
     ];
 
     $goalIcons = [
         'Casual / Flexible Lifestyle' => '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8h1a4 4 0 0 1 0 8h-1"/><path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z"/><line x1="6" y1="2" x2="6" y2="4"/><line x1="10" y1="2" x2="10" y2="4"/><line x1="14" y1="2" x2="14" y2="4"/></svg>',
+        'Active Health & Longevity' => '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>',
+        'Stress Relief & Functional Movement' => '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><line x1="9" y1="9" x2="9.01" y2="9"/><line x1="15" y1="9" x2="15.01" y2="9"/></svg>',
         'Building a visible six-pack' => '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="2"></rect><line x1="12" y1="4" x2="12" y2="20"></line><line x1="4" y1="10" x2="20" y2="10"></line><line x1="4" y1="15" x2="20" y2="15"></line></svg>',
         'Growing larger biceps and arms' => '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 5v14M18 5v14M6 12h12M3 8v8M21 8v8"/></svg>',
         'Developing a wide chest' => '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>',
@@ -135,7 +150,7 @@ function setup_goal_page(): void
         'Casual Lifestyle & Wellness Goals' => [
             'name' => 'Casual & Lifestyle',
             'desc' => 'Sustainable wellness, flexible nutrition, and active living.',
-            'count' => 1,
+            'count' => 3,
             'icon' => '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8h1a4 4 0 0 1 0 8h-1"/><path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z"/><line x1="6" y1="2" x2="6" y2="4"/><line x1="10" y1="2" x2="10" y2="4"/><line x1="14" y1="2" x2="14" y2="4"/></svg>'
         ],
         'Aesthetic & Muscle Building Goals' => [
@@ -293,11 +308,6 @@ function setup_goal_page(): void
                             </svg>
                             <span id="stepper-step-text">Step 2: Focus Track (1 of 3)</span>
                         </span>
-                        <div style="display: flex; gap: 6px;">
-                            <div id="stepper-bar-1" style="width: 28px; height: 5px; border-radius: 3px; background: #84cc16; box-shadow: 0 0 8px rgba(132, 204, 22, 0.4);"></div>
-                            <div id="stepper-bar-2" style="width: 28px; height: 5px; border-radius: 3px; background: #e2e8f0; transition: all 0.3s ease;"></div>
-                            <div id="stepper-bar-3" style="width: 28px; height: 5px; border-radius: 3px; background: #e2e8f0; transition: all 0.3s ease;"></div>
-                        </div>
                     </div>
 
                     <form method="post" action="index.php?page=setup_goal<?= isset($_GET['edit']) ? '&edit=1' : '' ?>" id="goal-form" class="split-card-form" novalidate onsubmit="const btn = document.getElementById('submit-goal-btn'); if (btn) { setTimeout(() => { btn.disabled = true; }, 10); btn.innerHTML = '<svg class=\'fitness-loader mini\' viewBox=\'0 0 24 24\' fill=\'none\' stroke=\'currentColor\' stroke-width=\'2\' stroke-linecap=\'round\' stroke-linejoin=\'round\' style=\'margin-right:8px;\'><line x1=\'6\' y1=\'12\' x2=\'18\' y2=\'12\'></line><rect x=\'4\' y=\'8\' width=\'2\' height=\'8\' rx=\'1\'></rect><rect x=\'18\' y=\'8\' width=\'2\' height=\'8\' rx=\'1\'></rect><rect x=\'2\' y=\'10\' width=\'2\' height=\'4\' rx=\'1\'></rect><rect x=\'20\' y=\'10\' width=\'2\' height=\'4\' rx=\'1\'></rect></svg> GENERATING PLAN...'; }">
@@ -314,18 +324,10 @@ function setup_goal_page(): void
                         <!-- STAGE 1: Pick Focus Area Track -->
                         <div class="goal-stage-pane active" id="goal-stage-1">
                             <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px;">
-                                <div style="display: flex; gap: 8px; align-items: center;">
-                                    <?php if (isset($_GET['edit'])): ?>
-                                        <a href="index.php?page=setup_review" class="stage2-back-btn" style="text-decoration: none;">
-                                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"></polyline></svg>
-                                            <span>Back to Review</span>
-                                        </a>
-                                    <?php endif; ?>
-                                    <a href="index.php?page=setup_profile&edit=1" class="stage2-back-btn" style="text-decoration: none;">
-                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"></polyline></svg>
-                                        <span>Profile Setup</span>
-                                    </a>
-                                </div>
+                                <a href="index.php?page=setup_profile&amp;edit=1" class="stage2-back-btn" style="text-decoration: none;">
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"></polyline></svg>
+                                    <span>Profile Setup</span>
+                                </a>
                                 <span style="font-size: 11.5px; color: #64748b; font-weight: 600;">Measurements &amp; Routine</span>
                             </div>
 
@@ -363,65 +365,99 @@ function setup_goal_page(): void
                                     </div>
                                 <?php endforeach; ?>
                             </div>
+
+                            <?php if (isset($_GET['edit'])): ?>
+                                <div style="margin-top: 14px;">
+                                    <a href="index.php?page=setup_review" class="stage2-back-btn" style="text-decoration: none; display: flex; align-items: center; justify-content: center; gap: 6px; width: 100%; box-sizing: border-box; padding: 10px 14px; font-size: 13px; font-weight: 600; color: #475569; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; transition: all 0.2s ease;">
+                                        <span>Back to Review</span>
+                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"></polyline></svg>
+                                    </a>
+                                </div>
+                            <?php endif; ?>
                         </div>
 
                         <!-- STAGE 2: Pick Specific Goal & Confirm -->
                         <div class="goal-stage-pane" id="goal-stage-2">
                             <div class="stage2-nav-bar">
-                                <div style="display: flex; gap: 8px; align-items: center;">
-                                    <button type="button" class="stage2-back-btn" onclick="goToStage(1)">
-                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"></polyline></svg>
-                                        <span>All Tracks</span>
+                                <button type="button" class="stage2-back-btn" onclick="goToStage(1)">
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"></polyline></svg>
+                                    <span>All Tracks</span>
+                                </button>
+                            </div>
+
+                            <div class="goals-selection-header">
+                                <div>
+                                    <span class="goals-selection-title">Select 1 or 2 goals</span>
+                                    <span class="goals-selection-hint">(primary focus + optional 2nd goal)</span>
+                                </div>
+                                <span id="goals-counter-badge" class="goals-counter-pill">0 of 2 selected</span>
+                            </div>
+
+                            <!-- Stage 2 Quick Category Tabs -->
+                            <div class="stage2-category-tabs" id="stage2-category-tabs" style="display: flex; gap: 6px; overflow-x: auto; padding-bottom: 6px; margin-bottom: 12px; scrollbar-width: none;">
+                                <button type="button" class="stage2-cat-tab" data-cat="all" onclick="filterCategoryTab('all', this)" style="border: 1px solid #e2e8f0; background: #ffffff; padding: 4px 10px; border-radius: 999px; font-size: 11px; font-weight: 700; color: #475569; cursor: pointer; white-space: nowrap; transition: all 0.2s ease;">
+                                    All Goals (<?= $totalGoals ?>)
+                                </button>
+                                <?php foreach ($categoryMeta as $catKey => $cMeta): ?>
+                                    <button type="button" class="stage2-cat-tab" data-cat="<?= htmlspecialchars($catKey, ENT_QUOTES) ?>" onclick="filterCategoryTab('<?= htmlspecialchars($catKey, ENT_QUOTES) ?>', this)" style="border: 1px solid #e2e8f0; background: #ffffff; padding: 4px 10px; border-radius: 999px; font-size: 11px; font-weight: 700; color: #475569; cursor: pointer; white-space: nowrap; transition: all 0.2s ease;">
+                                        <?= htmlspecialchars($cMeta['name']) ?>
                                     </button>
-                                    <?php if (isset($_GET['edit'])): ?>
-                                        <a href="index.php?page=setup_review" class="stage2-back-btn" style="text-decoration: none;" title="Return to review">
-                                            <span>Back to Review</span>
-                                        </a>
-                                    <?php endif; ?>
-                                    <a href="index.php?page=setup_profile&edit=1" class="stage2-back-btn" style="text-decoration: none;" title="Edit body measurements and routine">
-                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"></polyline></svg>
-                                        <span>Profile Setup</span>
-                                    </a>
-                                </div>
-                                <div class="stage2-active-pill" id="stage2-category-pill">
-                                    <span>Muscle &amp; Aesthetics</span>
-                                </div>
+                                <?php endforeach; ?>
                             </div>
 
                             <!-- Interactive Goal Cards Grid (Compact, only 3-5 cards shown) -->
                             <div class="goals-grid" id="goals-grid">
+                                <?php
+                                $currentProfileGoal = (string)($profile['primary_goal'] ?? '');
+                                $legacyMap = [
+                                    'losing_weight'       => 'Losing excess body fat',
+                                    'reducing_body_fat'   => 'Losing excess body fat',
+                                    'increasing_strength' => 'Increasing maximum strength',
+                                    'building_muscle'     => 'Gaining lean body mass',
+                                    'improving_endurance' => 'Enhancing physical endurance',
+                                    'casual'              => 'Casual / Flexible Lifestyle',
+                                    'general_fitness'     => 'Casual / Flexible Lifestyle'
+                                ];
+                                $targetGoalName = $legacyMap[$currentProfileGoal] ?? $currentProfileGoal;
+                                $curSecondaryGoal = (string)($profile['secondary_focus'] ?? '');
+                                $curSecondaryGoal = $legacyMap[$curSecondaryGoal] ?? $curSecondaryGoal;
+                                ?>
                                 <?php foreach ($goals as $catName => $catGoals): ?>
                                     <?php foreach ($catGoals as $gName => $gDesc): ?>
                                         <?php
                                         $icon = $goalIcons[$gName] ?? '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/></svg>';
-                                        $currentProfileGoal = (string)($profile['primary_goal'] ?? '');
-                                        $legacyMap = [
-                                            'losing_weight'       => 'Losing excess body fat',
-                                            'reducing_body_fat'   => 'Losing excess body fat',
-                                            'increasing_strength' => 'Increasing maximum strength',
-                                            'building_muscle'     => 'Gaining lean body mass',
-                                            'improving_endurance' => 'Enhancing physical endurance',
-                                            'casual'              => 'Casual / Flexible Lifestyle',
-                                            'general_fitness'     => 'Casual / Flexible Lifestyle'
-                                        ];
-                                        $targetGoalName = $legacyMap[$currentProfileGoal] ?? $currentProfileGoal;
-                                        $isCurrentGoal = ($currentProfileGoal === $gName || $targetGoalName === $gName);
+                                        $isPrimary = ($targetGoalName === $gName);
+                                        $isSecondary = ($curSecondaryGoal === $gName && !$isPrimary);
+                                        $cardClasses = [];
+                                        if ($isPrimary) $cardClasses[] = 'selected selected-primary';
+                                        elseif ($isSecondary) $cardClasses[] = 'selected selected-secondary';
                                         ?>
-                                        <label class="goal-card <?= $isCurrentGoal ? 'selected' : '' ?>" data-category="<?= htmlspecialchars($catName, ENT_QUOTES) ?>" data-title="<?= strtolower(htmlspecialchars($gName, ENT_QUOTES)) ?>" data-desc="<?= strtolower(htmlspecialchars($gDesc, ENT_QUOTES)) ?>">
-                                            <input type="radio" name="primary_goal" value="<?= htmlspecialchars($gName, ENT_QUOTES) ?>" <?= $isCurrentGoal ? 'checked' : '' ?> required>
+                                        <div class="goal-card <?= implode(' ', $cardClasses) ?>" 
+                                             data-category="<?= htmlspecialchars($catName, ENT_QUOTES) ?>" 
+                                             data-title="<?= strtolower(htmlspecialchars($gName, ENT_QUOTES)) ?>" 
+                                             data-desc="<?= strtolower(htmlspecialchars($gDesc, ENT_QUOTES)) ?>"
+                                             data-goal="<?= htmlspecialchars($gName, ENT_QUOTES) ?>"
+                                             tabindex="0"
+                                             role="button"
+                                             aria-pressed="<?= ($isPrimary || $isSecondary) ? 'true' : 'false' ?>">
                                             <div class="goal-icon-box">
                                                 <?= $icon ?>
                                             </div>
                                             <div class="goal-content">
-                                                <div class="goal-title"><?= htmlspecialchars($gName) ?></div>
+                                                <div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
+                                                    <span class="goal-title"><?= htmlspecialchars($gName) ?></span>
+                                                    <span class="goal-rank-badge primary-badge">PRIMARY</span>
+                                                    <span class="goal-rank-badge secondary-badge">SECONDARY</span>
+                                                </div>
                                                 <div class="goal-desc"><?= htmlspecialchars($gDesc) ?></div>
                                             </div>
                                             <div class="goal-check-indicator">
+                                                <span class="goal-rank-num"><?= $isPrimary ? '1' : ($isSecondary ? '2' : '') ?></span>
                                                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
                                                     <polyline points="20 6 9 17 4 12" />
                                                 </svg>
                                             </div>
-                                        </label>
+                                        </div>
                                     <?php endforeach; ?>
                                 <?php endforeach; ?>
 
@@ -429,6 +465,10 @@ function setup_goal_page(): void
                                     No goals match your search. Try another keyword or clear the search.
                                 </div>
                             </div>
+
+                            <!-- Hidden inputs storing the primary and optional secondary selected goals -->
+                            <input type="hidden" name="primary_goal" id="input_primary_goal" value="<?= h($targetGoalName) ?>" required>
+                            <input type="hidden" name="secondary_focus" id="input_secondary_focus" value="<?= h($curSecondaryGoal) ?>">
 
                             <!-- Pre-calibrated schedule reminder from profile setup -->
                             <div class="schedule-preset-badge">
@@ -469,9 +509,6 @@ function setup_goal_page(): void
                                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"></polyline></svg>
                                     <span>Back to Goal Selection</span>
                                 </button>
-                                <div class="stage2-active-pill">
-                                    <span>Optional Supporting Targets</span>
-                                </div>
                             </div>
 
                             <div class="stage-prompt" style="margin-bottom: 12px;">

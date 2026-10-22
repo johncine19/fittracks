@@ -67,6 +67,7 @@ function my_workout_page(): void
         $plan = $activePlans[0];
     }
 
+    $memberProfile = member_profile($userId);
     $isSelfGuided = is_member_self_guided($userId);
     $hasTrainerPlan = !empty($plan['trainer_id']);
 
@@ -351,6 +352,14 @@ function my_workout_page(): void
                         <span style="width: 7px; height: 7px; border-radius: 50%; background: var(--lime); display: inline-block; flex-shrink: 0;"></span>
                         <span style="color: var(--muted); font-weight: 500;">Goal:</span>
                         <strong class="goal-text" style="color: var(--ink); font-weight: 700;"><?= h(ucwords(str_replace('_', ' ', $plan['goal']))) ?></strong>
+                    </span>
+                <?php endif; ?>
+
+                <?php if (!empty($memberProfile['secondary_focus'])): ?>
+                    <span class="workout-goal-pill" title="Secondary Focus Target" style="border-color: rgba(132, 204, 22, 0.28); background: color-mix(in srgb, var(--lime) 7%, var(--panel-soft));">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--lime)" stroke-width="2.2" style="flex-shrink: 0;"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+                        <span style="color: var(--muted); font-weight: 500;">Focus:</span>
+                        <strong class="goal-text" style="color: var(--ink); font-weight: 700;"><?= h(ucwords(str_replace('_', ' ', $memberProfile['secondary_focus']))) ?></strong>
                     </span>
                 <?php endif; ?>
 

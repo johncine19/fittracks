@@ -1,6 +1,8 @@
-.split-login-frame.goal-mode {
-            max-width: 1180px;
-        }
+@media (min-width: 769px) {
+    .split-login-frame.goal-mode {
+        max-width: 1180px;
+    }
+}
 
         .split-login-card.onboarding-card {
             --panel: #ffffff;
@@ -162,7 +164,20 @@
         .goal-card input[type="radio"] {
             position: absolute;
             opacity: 0;
+            width: 0;
+            height: 0;
+            margin: 0;
             pointer-events: none;
+        }
+
+        .goal-card .req-star,
+        .goal-card .label-title {
+            display: none !important;
+        }
+
+        .goal-card.hidden,
+        .goal-card[style*="display: none"] {
+            display: none !important;
         }
 
         .goal-icon-box {
@@ -831,22 +846,361 @@
             line-height: 1.35;
         }
 
+        /* Multi-Goal Selection Header & Rank Badges */
+        .goals-selection-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 10px;
+            gap: 8px;
+        }
+
+        .goals-selection-title {
+            font-size: 13px;
+            font-weight: 800;
+            color: #0f172a;
+        }
+
+        .goals-selection-hint {
+            font-size: 11px;
+            color: #64748b;
+            font-weight: 500;
+            margin-left: 4px;
+        }
+
+        .goals-counter-pill {
+            font-size: 11px;
+            font-weight: 700;
+            color: #475569;
+            background: #f1f5f9;
+            border: 1px solid #e2e8f0;
+            padding: 3px 9px;
+            border-radius: 999px;
+            white-space: nowrap;
+            transition: all 0.2s ease;
+        }
+
+        .goals-counter-pill.has-selection {
+            background: rgba(132, 204, 22, 0.12);
+            border-color: #84cc16;
+            color: #3f6212;
+        }
+
+        .goal-rank-badge {
+            font-size: 9px;
+            font-weight: 800;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            padding: 2px 6px;
+            border-radius: 4px;
+            line-height: 1;
+            display: none;
+        }
+
+        .goal-card.selected-primary .goal-rank-badge.primary-badge {
+            display: inline-block;
+            background: #84cc16;
+            color: #090b10;
+        }
+
+        .goal-card.selected-secondary .goal-rank-badge.secondary-badge {
+            display: inline-block;
+            background: #dcfce7;
+            color: #166534;
+            border: 1px solid #bbf7d0;
+        }
+
+        .goal-card.selected-primary {
+            border-color: #84cc16;
+            background: rgba(132, 204, 22, 0.08);
+            box-shadow: 0 0 0 2px rgba(132, 204, 22, 0.35);
+        }
+
+        .goal-card.selected-secondary {
+            border-color: #22c55e;
+            background: rgba(34, 197, 94, 0.06);
+            box-shadow: 0 0 0 1.5px rgba(34, 197, 94, 0.28);
+        }
+
+        .goal-card .goal-rank-num {
+            font-size: 11px;
+            font-weight: 800;
+            display: none;
+        }
+
+        .goal-card.selected-primary .goal-rank-num,
+        .goal-card.selected-secondary .goal-rank-num {
+            display: block;
+        }
+
+        .goal-card.selected-primary .goal-check-indicator {
+            border-color: #84cc16;
+            background: #84cc16;
+            color: #090b10;
+        }
+
+        .goal-card.selected-secondary .goal-check-indicator {
+            border-color: #22c55e;
+            background: #22c55e;
+            color: #ffffff;
+        }
+
+        .goal-card.selected-primary .goal-check-indicator svg,
+        .goal-card.selected-secondary .goal-check-indicator svg {
+            display: none;
+        }
+
+        /* Mobile Responsiveness (<= 768px) */
         @media (max-width: 768px) {
-            .goals-grid {
-                grid-template-columns: 1fr;
+            .split-login-viewport {
+                padding: 16px 12px !important;
+                overflow-x: hidden !important;
+                width: 100% !important;
+                max-width: 100vw !important;
+                box-sizing: border-box !important;
             }
 
-            .focus-category-desc {
-                display: none;
+            .split-login-frame.goal-mode {
+                max-width: 100% !important;
+                width: 100% !important;
+                min-width: 0 !important;
+                margin: 0 auto !important;
+                grid-template-columns: minmax(0, 1fr) !important;
+                box-sizing: border-box !important;
+                overflow: hidden !important;
+            }
+
+            .split-login-card-pane {
+                width: 100% !important;
+                max-width: 100% !important;
+                min-width: 0 !important;
+                padding: 0 !important;
+                box-sizing: border-box !important;
+            }
+
+            .split-login-card.onboarding-card {
+                padding: 22px 14px !important;
+                border-radius: 18px !important;
+                width: 100% !important;
+                max-width: 100% !important;
+                min-width: 0 !important;
+                box-sizing: border-box !important;
+                overflow: hidden !important;
+            }
+
+            .split-card-header {
+                margin-bottom: 14px !important;
+                text-align: center !important;
+                width: 100% !important;
+                min-width: 0 !important;
+            }
+
+            .split-card-title {
+                font-size: 1.45rem !important;
+                line-height: 1.25 !important;
+                word-break: break-word !important;
+            }
+
+            .split-card-subtitle {
+                font-size: 12px !important;
+                line-height: 1.4 !important;
+                word-break: break-word !important;
+            }
+
+            .split-card-form,
+            .goal-stage-pane {
+                width: 100% !important;
+                max-width: 100% !important;
+                min-width: 0 !important;
+                box-sizing: border-box !important;
+            }
+
+            /* Stage 1 */
+            .focus-category-list {
+                width: 100% !important;
+                min-width: 0 !important;
             }
 
             .focus-category-card {
-                padding: 12px 14px;
+                padding: 12px 14px !important;
+                width: 100% !important;
+                min-width: 0 !important;
+                box-sizing: border-box !important;
+            }
+
+            .focus-category-info {
+                min-width: 0 !important;
+                flex: 1 1 auto;
+            }
+
+            .focus-category-title {
+                font-size: 13px !important;
+                word-break: break-word;
+            }
+
+            .focus-category-desc {
+                display: -webkit-box !important;
+                -webkit-line-clamp: 2;
+                -webkit-box-orient: vertical;
+                overflow: hidden;
+                font-size: 11px !important;
+            }
+
+            /* Stage 2 Nav Bar */
+            .stage2-nav-bar {
+                display: flex !important;
+                flex-wrap: wrap !important;
+                align-items: center !important;
+                justify-content: space-between !important;
+                gap: 8px !important;
+                width: 100% !important;
+                min-width: 0 !important;
+                margin-bottom: 12px !important;
+            }
+
+            .stage2-nav-bar > div:first-child,
+            .stage2-nav-left {
+                display: flex !important;
+                flex-wrap: wrap !important;
+                gap: 6px !important;
+                align-items: center !important;
+                min-width: 0 !important;
+                flex: 1 1 auto;
+            }
+
+            .stage2-back-btn {
+                padding: 5px 10px !important;
+                font-size: 11.5px !important;
+                white-space: nowrap !important;
+            }
+
+            .stage2-active-pill {
+                font-size: 11px !important;
+                padding: 3px 10px !important;
+                white-space: nowrap !important;
+                margin-left: auto;
+            }
+
+            /* Stage 2 Category Tabs */
+            .stage2-category-tabs {
+                width: 100% !important;
+                max-width: 100% !important;
+                min-width: 0 !important;
+                display: flex !important;
+                gap: 6px !important;
+                overflow-x: auto !important;
+                -webkit-overflow-scrolling: touch !important;
+                padding-bottom: 6px !important;
+                margin-bottom: 12px !important;
+                box-sizing: border-box !important;
+                scrollbar-width: none;
+            }
+
+            .stage2-category-tabs::-webkit-scrollbar {
+                display: none;
+            }
+
+            .stage2-cat-tab {
+                flex-shrink: 0 !important;
+                font-size: 11px !important;
+                padding: 5px 11px !important;
+                white-space: nowrap !important;
+            }
+
+            /* Goal Cards Grid */
+            .goals-grid {
+                grid-template-columns: 1fr !important;
+                width: 100% !important;
+                max-width: 100% !important;
+                min-width: 0 !important;
+                padding-right: 0 !important;
+                max-height: 400px !important;
+                overflow-y: auto !important;
+                gap: 10px !important;
+                box-sizing: border-box !important;
+            }
+
+            .goal-card {
+                padding: 11px 12px !important;
+                width: 100% !important;
+                max-width: 100% !important;
+                min-width: 0 !important;
+                box-sizing: border-box !important;
+                gap: 10px !important;
+                align-items: flex-start !important;
+            }
+
+            .goal-card.hidden,
+            .goal-card[style*="display: none"] {
+                display: none !important;
+            }
+
+            .goal-card .req-star,
+            .goal-card .label-title {
+                display: none !important;
+            }
+
+            .goal-icon-box {
+                width: 34px !important;
+                height: 34px !important;
+                flex-shrink: 0 !important;
+            }
+
+            .goal-icon-box svg {
+                width: 18px !important;
+                height: 18px !important;
+            }
+
+            .goal-content {
+                min-width: 0 !important;
+                flex: 1 1 auto !important;
+                overflow: hidden;
+            }
+
+            .goal-title {
+                font-size: 12.5px !important;
+                line-height: 1.25 !important;
+                word-break: break-word !important;
+                margin-bottom: 3px !important;
+            }
+
+            .goal-desc {
+                font-size: 10.5px !important;
+                line-height: 1.35 !important;
+                word-break: break-word !important;
+            }
+
+            .goal-check-indicator {
+                width: 20px !important;
+                height: 20px !important;
+                flex-shrink: 0 !important;
+                margin-top: 2px !important;
+            }
+
+
+
+            /* Badges & Callouts */
+            .schedule-preset-badge,
+            .goal-selected-callout {
+                width: 100% !important;
+                max-width: 100% !important;
+                min-width: 0 !important;
+                box-sizing: border-box !important;
+                font-size: 11.5px !important;
+                padding: 9px 11px !important;
+                word-break: break-word !important;
+            }
+
+            /* Target Modal */
+            dialog.target-modal[open] {
+                width: min(94vw, 400px) !important;
+                max-width: 94vw !important;
             }
         }
 
         @media (max-width: 580px) {
             .target-cards-grid {
-                grid-template-columns: 1fr;
+                grid-template-columns: 1fr !important;
             }
         }
+

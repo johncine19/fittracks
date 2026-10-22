@@ -81,6 +81,13 @@
             }
         }
 
+        if (urlParams.get('open') === 'physical' || window.location.hash === '#edit-physical') {
+            const physModal = document.getElementById('physicalProfileModal');
+            if (physModal && typeof physModal.showModal === 'function') {
+                setTimeout(() => physModal.showModal(), 150);
+            }
+        }
+
         // ── Video BG Toggle ──
         const toggleVideoBg = document.getElementById('toggleVideoBg');
         if (toggleVideoBg) {

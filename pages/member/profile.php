@@ -485,6 +485,19 @@ function profile_page(): void
                                 <span class="settings-stat-value"><?= h(ucwords(str_replace('_', ' ', $profile['primary_goal'] ?? '—'))) ?></span>
                             </div>
                         </div>
+                        <div class="settings-stat-card settings-stat-card-wide">
+                            <div class="settings-stat-icon">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <circle cx="12" cy="12" r="10" />
+                                    <circle cx="12" cy="12" r="6" />
+                                    <circle cx="12" cy="12" r="2" />
+                                </svg>
+                            </div>
+                            <div class="settings-stat-body">
+                                <span class="settings-stat-label">Secondary Focus</span>
+                                <span class="settings-stat-value"><?= !empty($profile['secondary_focus']) ? h(ucwords(str_replace('_', ' ', $profile['secondary_focus']))) : '—' ?></span>
+                            </div>
+                        </div>
                         <div class="settings-stat-card">
                             <div class="settings-stat-icon">
                                 <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">

@@ -144,7 +144,12 @@ try {
 
         // Add 'upcoming' and 'paused' statuses to training_plans and dietary_plans
         "ALTER TABLE training_plans MODIFY COLUMN status ENUM('active','completed','archived','draft','upcoming','paused') NOT NULL DEFAULT 'draft'",
-        "ALTER TABLE dietary_plans MODIFY COLUMN status ENUM('active','completed','cancelled','draft','upcoming','paused') NOT NULL DEFAULT 'draft'"
+        "ALTER TABLE dietary_plans MODIFY COLUMN status ENUM('active','completed','cancelled','draft','upcoming','paused') NOT NULL DEFAULT 'draft'",
+
+        // ── Member Onboarding, Schedule Enforcement & Secondary Focus migrations ──
+        "ALTER TABLE member_profiles ADD COLUMN preferred_workout_days VARCHAR(50) DEFAULT NULL AFTER preferred_duration_mins",
+        "ALTER TABLE member_profiles ADD COLUMN secondary_focus VARCHAR(255) DEFAULT NULL AFTER primary_goal",
+        "ALTER TABLE member_profiles ADD COLUMN trainer_assessment_notes TEXT DEFAULT NULL AFTER preferred_workout_days"
     ];
 
     foreach ($migrations as $sql) {

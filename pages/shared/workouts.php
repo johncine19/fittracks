@@ -44,6 +44,105 @@ function workout_library_gym_id(PDO $pdo, int $memberUserId, int $fallbackGymId 
     return $gymId > 0 ? $gymId : $fallbackGymId;
 }
 
+function _get_secondary_focus_targets(?string $secFocus): array
+{
+    $targetMuscles = [];
+    $targetCategories = [];
+    $targetNames = [];
+
+    $secFocus = trim((string)$secFocus);
+    if ($secFocus !== '') {
+        $secList = array_map('trim', explode(',', strtolower($secFocus)));
+        foreach ($secList as $sec) {
+            if (str_contains($sec, 'abs') || str_contains($sec, 'core')) {
+                $targetMuscles[] = 'abdominals';
+                $targetMuscles[] = 'obliques';
+                $targetCategories[] = 'core';
+            }
+            if (str_contains($sec, 'arm') || str_contains($sec, 'bicep') || str_contains($sec, 'tricep')) {
+                $targetMuscles[] = 'arms';
+            }
+            if (str_contains($sec, 'chest') || str_contains($sec, 'upper')) {
+                $targetMuscles[] = 'chest';
+                $targetMuscles[] = 'shoulders';
+            }
+            if (str_contains($sec, 'back') || str_contains($sec, 'lat')) {
+                $targetMuscles[] = 'back';
+            }
+            if (str_contains($sec, 'glute') || str_contains($sec, 'leg') || str_contains($sec, 'lower')) {
+                $targetMuscles[] = 'legs';
+                $targetMuscles[] = 'posterior chain';
+            }
+            if (str_contains($sec, 'cardio') || str_contains($sec, 'stamina')) {
+                $targetCategories[] = 'cardio';
+            }
+            if (str_contains($sec, 'mobility') || str_contains($sec, 'flexibility')) {
+                $targetCategories[] = 'core';
+                $targetMuscles[] = 'full body';
+            }
+            if (str_contains($sec, 'strength') || str_contains($sec, 'benchmarks')) {
+                $targetCategories[] = 'strength';
+                $targetNames = array_merge($targetNames, ['squat', 'bench', 'deadlift', 'overhead press']);
+            }
+        }
+    }
+
+    return [array_values(array_unique($targetMuscles)), array_values(array_unique($targetCategories)), array_values(array_unique($targetNames))];
+}
+
+function _select_daily_exercises(array $dayExercises, array $profile, string $goal, int $targetCount): array
+{
+    $secFocus = trim((string)($profile['secondary_focus'] ?? ''));
+    if ($secFocus !== '') {
+        [$targetMuscles, $targetCategories] = _get_secondary_focus_targets($secFocus);
+        $assigned = [];
+        $secExercises = [];
+        $generalExercises = [];
+        
+        foreach ($dayExercises as $dx) {
+            $dmg = strtolower($dx['muscle_group'] ?? '');
+            $dcat = strtolower($dx['category'] ?? '');
+            if (in_array($dmg, $targetMuscles, true) || in_array($dcat, $targetCategories, true)) {
+                $secExercises[] = $dx;
+            } else {
+                $generalExercises[] = $dx;
+            }
+        }
+
+        $secByGroup = [];
+        foreach ($secExercises as $sx) {
+            $grpKey = $sx['muscle_group'] ?? 'general';
+            $secByGroup[$grpKey][] = $sx;
+        }
+
+        $maxPerGroup = count($secByGroup) > 1 ? 1 : 2;
+        foreach ($secByGroup as $grp => $grpExs) {
+            shuffle($grpExs);
+            $pickCount = min(count($grpExs), $maxPerGroup);
+            for ($i = 0; $i < $pickCount; $i++) {
+                if (count($assigned) < $targetCount) {
+                    $assigned[] = $grpExs[$i];
+                }
+            }
+        }
+
+        shuffle($generalExercises);
+        foreach ($generalExercises as $gx) {
+            if (count($assigned) >= $targetCount) break;
+            if (!in_array($gx['exercise_id'], array_column($assigned, 'exercise_id'))) {
+                $assigned[] = $gx;
+            }
+        }
+
+        if (!empty($assigned)) {
+            return $assigned;
+        }
+    }
+
+    $numExercises = min(count($dayExercises), $targetCount);
+    return array_slice($dayExercises, 0, $numExercises);
+}
+
 function _get_workout_parameters(array $profile, PDO $pdo): array
 {
     $goal = map_detailed_goal_to_basic($profile['primary_goal']);
@@ -68,25 +167,73 @@ function _get_workout_parameters(array $profile, PDO $pdo): array
         $exercises = $stmt->fetchAll();
     }
 
-    if ($goal === 'muscle_gain') {
-        usort($exercises, fn($a, $b) => ($a['category'] === 'strength' ? 0 : 1) <=> ($b['category'] === 'strength' ? 0 : 1));
-    } elseif ($goal === 'fat_loss') {
-        usort($exercises, fn($a, $b) => ($a['category'] === 'cardio' ? 0 : 1) <=> ($b['category'] === 'cardio' ? 0 : 1));
+    // Secondary focus & primary goal prioritization
+    [$targetMuscles, $targetCategories, $targetNames] = _get_secondary_focus_targets($profile['secondary_focus'] ?? null);
+
+    if (!empty($targetMuscles) || !empty($targetCategories) || !empty($targetNames)) {
+        usort($exercises, function($a, $b) use ($goal, $targetMuscles, $targetCategories, $targetNames) {
+            $scoreA = 0;
+            $scoreB = 0;
+            $mga = strtolower($a['muscle_group'] ?? '');
+            $mgb = strtolower($b['muscle_group'] ?? '');
+            $cata = strtolower($a['category'] ?? '');
+            $catb = strtolower($b['category'] ?? '');
+            $namea = strtolower($a['name'] ?? '');
+            $nameb = strtolower($b['name'] ?? '');
+
+            if (in_array($mga, $targetMuscles, true)) $scoreA += 10;
+            if (in_array($mgb, $targetMuscles, true)) $scoreB += 10;
+
+            if (in_array($cata, $targetCategories, true)) $scoreA += 6;
+            if (in_array($catb, $targetCategories, true)) $scoreB += 6;
+
+            foreach ($targetNames as $tn) {
+                if (str_contains($namea, $tn)) $scoreA += 8;
+                if (str_contains($nameb, $tn)) $scoreB += 8;
+            }
+
+            if ($goal === 'muscle_gain' && $cata === 'strength') $scoreA += 2;
+            if ($goal === 'muscle_gain' && $catb === 'strength') $scoreB += 2;
+            if ($goal === 'fat_loss' && $cata === 'cardio') $scoreA += 2;
+            if ($goal === 'fat_loss' && $catb === 'cardio') $scoreB += 2;
+
+            return $scoreB <=> $scoreA;
+        });
     } else {
-        shuffle($exercises);
+        if ($goal === 'muscle_gain') {
+            usort($exercises, fn($a, $b) => ($a['category'] === 'strength' ? 0 : 1) <=> ($b['category'] === 'strength' ? 0 : 1));
+        } elseif ($goal === 'fat_loss') {
+            usort($exercises, fn($a, $b) => ($a['category'] === 'cardio' ? 0 : 1) <=> ($b['category'] === 'cardio' ? 0 : 1));
+        } else {
+            shuffle($exercises);
+        }
     }
 
-    $weeklyTarget = (int) ($profile['weekly_workout_target'] ?? 0);
-    if ($weeklyTarget >= 1 && $weeklyTarget <= 7) {
-        $days = workout_days_for_frequency($weeklyTarget);
-    } else {
-        $days = match($profile['activity_level'] ?? 'lightly_active') {
-            'sedentary' => [1, 3],
-            'lightly_active' => [1, 3, 5],
-            'moderately_active' => [1, 2, 4, 5],
-            'very_active', 'extra_active' => [1, 2, 3, 5, 6],
-            default => [1, 3, 5]
-        };
+    // Member's specific selected training days take absolute precedence
+    $preferredDaysRaw = trim((string)($profile['preferred_workout_days'] ?? ''));
+    $days = [];
+    if ($preferredDaysRaw !== '') {
+        $parsedDays = array_map('intval', explode(',', $preferredDaysRaw));
+        $parsedDays = array_values(array_filter($parsedDays, fn($d) => $d >= 1 && $d <= 7));
+        sort($parsedDays);
+        if (!empty($parsedDays)) {
+            $days = $parsedDays;
+        }
+    }
+
+    if (empty($days)) {
+        $weeklyTarget = (int) ($profile['weekly_workout_target'] ?? 0);
+        if ($weeklyTarget >= 1 && $weeklyTarget <= 7) {
+            $days = workout_days_for_frequency($weeklyTarget);
+        } else {
+            $days = match($profile['activity_level'] ?? 'lightly_active') {
+                'sedentary' => [1, 3],
+                'lightly_active' => [1, 3, 5],
+                'moderately_active' => [1, 2, 4, 5],
+                'very_active', 'extra_active' => [1, 2, 3, 5, 6],
+                default => [1, 3, 5]
+            };
+        }
     }
 
     return [$exercises, $days, $expLevel, $goal];
@@ -306,7 +453,7 @@ function generate_workout_plan(int $memberUserId, ?int $coachId = null, ?int $gy
     // Assign exercises per training day
     foreach ($days as $dayOfWeek) {
         $dayExercises = $exercises;
-        if ($goal !== 'muscle_gain' && $goal !== 'fat_loss') {
+        if ($goal !== 'muscle_gain' && $goal !== 'fat_loss' && empty($profile['secondary_focus'])) {
             shuffle($dayExercises);
         }
 
@@ -316,8 +463,7 @@ function generate_workout_plan(int $memberUserId, ?int $coachId = null, ?int $gy
             $prefDuration >= 65 => rand(5, 6),
             default => rand(4, 5)
         };
-        $numExercises = min(count($dayExercises), $targetCount);
-        $assigned = array_slice($dayExercises, 0, $numExercises);
+        $assigned = _select_daily_exercises($dayExercises, $profile, $goal, $targetCount);
         
         $order = 1;
         foreach ($assigned as $ex) {
@@ -350,7 +496,7 @@ function auto_populate_plan(int $planId, int $memberUserId): void
 
     foreach ($days as $dayOfWeek) {
         $dayExercises = $exercises;
-        if ($goal !== 'muscle_gain' && $goal !== 'fat_loss') {
+        if ($goal !== 'muscle_gain' && $goal !== 'fat_loss' && empty($profile['secondary_focus'])) {
             shuffle($dayExercises);
         }
 
@@ -360,8 +506,7 @@ function auto_populate_plan(int $planId, int $memberUserId): void
             $prefDuration >= 65 => rand(5, 6),
             default => rand(4, 5)
         };
-        $numExercises = min(count($dayExercises), $targetCount);
-        $assigned = array_slice($dayExercises, 0, $numExercises);
+        $assigned = _select_daily_exercises($dayExercises, $profile, $goal, $targetCount);
         
         $order = 1;
         foreach ($assigned as $ex) {
@@ -392,12 +537,12 @@ function auto_populate_day(int $planId, int $memberUserId, int $dayOfWeek): void
     if (!$exercises) return;
 
     $dayExercises = $exercises;
-    if ($goal !== 'muscle_gain' && $goal !== 'fat_loss') {
+    if ($goal !== 'muscle_gain' && $goal !== 'fat_loss' && empty($profile['secondary_focus'])) {
         shuffle($dayExercises);
     }
 
-    $numExercises = min(count($dayExercises), rand(3, 5));
-    $assigned = array_slice($dayExercises, 0, $numExercises);
+    $targetCount = rand(3, 5);
+    $assigned = _select_daily_exercises($dayExercises, $profile, $goal, $targetCount);
     
     $order = 1;
     foreach ($assigned as $ex) {
@@ -817,8 +962,20 @@ function auto_populate_plan_advanced(int $planId, int $memberUserId, array $opti
         $memberGymId = workout_library_gym_id($pdo, $memberUserId, $fallbackGymId);
     }
 
-    // Map the requested frequency to a repeatable weekly schedule.
-    $daysMap = workout_days_for_frequency($daysCount);
+    // Prioritize member's chosen training days over hardcoded presets
+    $preferredDaysRaw = trim((string)($profile['preferred_workout_days'] ?? ''));
+    $daysMap = [];
+    if ($preferredDaysRaw !== '') {
+        $parsedDays = array_map('intval', explode(',', $preferredDaysRaw));
+        $parsedDays = array_values(array_filter($parsedDays, fn($d) => $d >= 1 && $d <= 7));
+        sort($parsedDays);
+        if (!empty($parsedDays)) {
+            $daysMap = $parsedDays;
+        }
+    }
+    if (empty($daysMap)) {
+        $daysMap = workout_days_for_frequency($daysCount);
+    }
 
     // If splitType is auto, pick best split for days count
     if ($splitType === 'auto') {

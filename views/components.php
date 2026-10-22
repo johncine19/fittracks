@@ -115,6 +115,7 @@ function render_member_form(string $context, ?array $user = null, ?array $profil
             font-size: 12px;
             font-weight: 600;
             color: var(--muted);
+            height: 100%;
         }
         .pm-field > label {
             display: inline-flex;
@@ -126,6 +127,12 @@ function render_member_form(string $context, ?array $user = null, ?array $profil
             white-space: normal;
             line-height: 1.25;
             margin-bottom: 2px;
+        }
+        .pm-field > .custom-select-wrapper,
+        .pm-field > input,
+        .pm-field > select,
+        .pm-field > .pm-read-only-badge {
+            margin-top: auto;
         }
         .pm-req {
             color: var(--lime);
@@ -585,6 +592,18 @@ function render_member_form(string $context, ?array $user = null, ?array $profil
                 gap: 3px;
                 font-size: 11px;
                 min-width: 0;
+                height: 100%;
+            }
+            .pm-field > label {
+                font-size: 11px;
+                line-height: 1.2;
+                min-height: 14px;
+            }
+            .pm-field > .custom-select-wrapper,
+            .pm-field > input,
+            .pm-field > select,
+            .pm-field > .pm-read-only-badge {
+                margin-top: auto;
             }
             .pm-field input,
             .custom-select-trigger,
@@ -918,7 +937,7 @@ function render_member_form(string $context, ?array $user = null, ?array $profil
                 </button>
                 <button type="button" class="pm-tab-btn" id="tabBtn_<?= h($context) ?>_goal" onclick="switchProfileTab_<?= h($context) ?>('goal')">
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>
-                    <span class="tab-title">Primary Goal</span>
+                    <span class="tab-title">Goals &amp; Focus</span>
                 </button>
                 <button type="button" class="pm-tab-btn" id="tabBtn_<?= h($context) ?>_targets" onclick="switchProfileTab_<?= h($context) ?>('targets')">
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15"/></svg>
@@ -1141,6 +1160,56 @@ function render_member_form(string $context, ?array $user = null, ?array $profil
                 'desc'  => ''
             ];
         }
+
+        $secondaryGoalGroups = [
+            'None / General Focus' => [
+                'items' => [
+                    '' => ['label' => 'None / No Secondary Focus', 'desc' => 'Concentrate strictly on your primary fitness goal']
+                ]
+            ],
+            'Aesthetic & Muscle Building' => [
+                'items' => [
+                    'Building a visible six-pack'    => ['label' => 'Building a visible six-pack', 'desc' => 'Abdominal hypertrophy, core definition & waist reduction'],
+                    'Growing larger biceps and arms' => ['label' => 'Growing larger biceps and arms', 'desc' => 'Bicep peak & tricep circumference tracking'],
+                    'Developing a wide chest'        => ['label' => 'Developing a wide chest', 'desc' => 'Pectoral hypertrophy & upper chest expansion'],
+                    'Sculpting a V-tapered back'     => ['label' => 'Sculpting a V-tapered back', 'desc' => 'Lat width, upper back thickness & small waistline'],
+                    'Shaping the lower body'         => ['label' => 'Shaping the lower body', 'desc' => 'Glutes, quadriceps & hamstring development'],
+                ]
+            ],
+            'Athletic & Performance' => [
+                'items' => [
+                    'Increasing maximum strength'    => ['label' => 'Increasing Maximum Strength', 'desc' => 'Lifting heavier weights in core movements'],
+                    'Boosting explosive power'       => ['label' => 'Boosting Explosive Power', 'desc' => 'Higher vertical jumps and faster sprint speeds'],
+                    'Enhancing physical endurance'   => ['label' => 'Enhancing Physical Endurance', 'desc' => 'Staying active longer without feeling out of breath'],
+                    'Improving body flexibility'     => ['label' => 'Improving Body Flexibility', 'desc' => 'Extending range of motion in joints and posture'],
+                ]
+            ],
+            'Body Composition & Wellness' => [
+                'items' => [
+                    'Losing excess body fat'              => ['label' => 'Losing Excess Body Fat', 'desc' => 'Burning calories to lean out and reveal muscle definition'],
+                    'Gaining lean body mass'              => ['label' => 'Gaining Lean Body Mass', 'desc' => 'Putting on healthy weight strictly through clean muscle tissue'],
+                    'Reaching body recomposition'         => ['label' => 'Reaching Body Recomposition', 'desc' => 'Losing fat and building muscle at the same time'],
+                    'Casual / Flexible Lifestyle'         => ['label' => 'Casual / Flexible Lifestyle', 'desc' => 'Balanced nutrition, sustainable energy & moderate exercise'],
+                    'Active Health & Longevity'           => ['label' => 'Active Health & Longevity', 'desc' => 'Cardiovascular health, mobility & functional stamina'],
+                    'Stress Relief & Functional Movement' => ['label' => 'Stress Relief & Functional Movement', 'desc' => 'Releasing tension, improving posture & stress-reducing habits'],
+                ]
+            ]
+        ];
+
+        $currentSecGoalVal = trim((string)($profile['secondary_focus'] ?? ''));
+        $currentSecGoalItem = null;
+        foreach ($secondaryGoalGroups as $group) {
+            if (isset($group['items'][$currentSecGoalVal])) {
+                $currentSecGoalItem = $group['items'][$currentSecGoalVal];
+                break;
+            }
+        }
+        if (!$currentSecGoalItem) {
+            $currentSecGoalItem = [
+                'label' => !empty($currentSecGoalVal) ? ucwords(str_replace('_', ' ', $currentSecGoalVal)) : 'None / No Secondary Focus',
+                'desc'  => ''
+            ];
+        }
         ?>
         <div class="pm-pane" id="tabPane_<?= h($context) ?>_goal">
             <!-- 1. Primary Goal Dropdown -->
@@ -1214,6 +1283,83 @@ function render_member_form(string $context, ?array $user = null, ?array $profil
                             <?php endforeach; ?>
                             <div class="custom-goal-empty" id="primaryGoalEmpty_<?= h($context) ?>">
                                 No matching goals found
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 2. Secondary Focus Dropdown -->
+            <div class="pm-field full-span" style="margin-top: 14px;">
+                <label id="secondaryGoalLabel_<?= h($context) ?>" for="secondaryGoalTrigger_<?= h($context) ?>" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 3px;">
+                    <span>Secondary Focus <span class="muted" style="font-weight: 400; font-size: 11px;">(Optional)</span></span>
+                    <span class="muted" style="font-weight: 400; font-size: 11px;">Target a specific muscle or athletic milestone</span>
+                </label>
+
+                <div class="custom-select-wrapper custom-goal-dropdown" id="customSecGoalDropdown_<?= h($context) ?>">
+                    <!-- Underlying select keeps form submit 100% intact -->
+                    <select name="secondary_focus" id="secondaryGoalSelect_<?= h($context) ?>" class="custom-select-native custom-goal-native-select">
+                        <?php foreach ($secondaryGoalGroups as $groupName => $group): ?>
+                            <optgroup label="<?= h($groupName) ?>">
+                                <?php foreach ($group['items'] as $val => $item): ?>
+                                    <option value="<?= h($val) ?>" <?= selected($val, $currentSecGoalVal) ?>><?= h($item['label']) ?></option>
+                                <?php endforeach; ?>
+                            </optgroup>
+                        <?php endforeach; ?>
+                    </select>
+
+                    <!-- Custom dropdown trigger -->
+                    <button type="button" class="custom-select-trigger custom-goal-trigger" id="secondaryGoalTrigger_<?= h($context) ?>" onclick="toggleCustomDropdown('customSecGoalDropdown_<?= h($context) ?>', event)" aria-haspopup="listbox" aria-expanded="false">
+                        <span class="custom-select-trigger-content custom-goal-trigger-content">
+                            <span class="custom-select-trigger-icon custom-goal-trigger-icon" id="secondaryGoalTriggerIcon_<?= h($context) ?>">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+                            </span>
+                            <span class="custom-select-trigger-text custom-goal-trigger-text" id="secondaryGoalTriggerText_<?= h($context) ?>"><?= h($currentSecGoalItem['label']) ?></span>
+                        </span>
+                        <svg class="custom-select-chevron custom-goal-chevron" id="secondaryGoalChevron_<?= h($context) ?>" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                            <polyline points="6 9 12 15 18 9"></polyline>
+                        </svg>
+                    </button>
+
+                    <!-- Custom dropdown popup menu -->
+                    <div class="custom-select-menu custom-goal-menu" id="secondaryGoalMenu_<?= h($context) ?>" role="listbox">
+                        <!-- Quick search filter -->
+                        <div class="custom-goal-search-box">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                                <circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                            </svg>
+                            <input type="text" id="secondaryGoalSearch_<?= h($context) ?>" placeholder="Type to filter secondary focus..." oninput="filterSecGoalList_<?= h($context) ?>(this.value)" autocomplete="off">
+                            <button type="button" class="custom-goal-clear-btn" id="secondaryGoalClear_<?= h($context) ?>" onclick="clearSecGoalSearch_<?= h($context) ?>()" style="display: none;"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+                        </div>
+
+                        <!-- Options List -->
+                        <div class="custom-select-list custom-goal-list" id="secondaryGoalOptionsList_<?= h($context) ?>">
+                            <?php foreach ($secondaryGoalGroups as $groupName => $group): ?>
+                                <div class="custom-goal-group" data-group-name="<?= h(strtolower($groupName)) ?>">
+                                    <div class="custom-goal-group-title">
+                                        <?= h($groupName) ?>
+                                    </div>
+                                    <?php foreach ($group['items'] as $val => $item): 
+                                        $isSelected = ($val === $currentSecGoalVal);
+                                    ?>
+                                        <div class="custom-select-item custom-goal-item <?= $isSelected ? 'selected' : '' ?>"
+                                             data-value="<?= h($val) ?>"
+                                             data-label="<?= h($item['label']) ?>"
+                                             data-search="<?= h(strtolower($item['label'] . ' ' . $item['desc'] . ' ' . $groupName)) ?>"
+                                             role="option"
+                                             aria-selected="<?= $isSelected ? 'true' : 'false' ?>"
+                                             onclick="selectCustomOption('customSecGoalDropdown_<?= h($context) ?>', 'secondaryGoalSelect_<?= h($context) ?>', '<?= h(addslashes($val)) ?>', '<?= h(addslashes($item['label'])) ?>')">
+                                            <div class="custom-select-item-details custom-goal-item-details">
+                                                <span class="custom-select-item-title custom-goal-item-title"><?= h($item['label']) ?></span>
+                                                <span class="custom-select-item-desc custom-goal-item-desc"><?= h($item['desc']) ?></span>
+                                            </div>
+                                            <span class="custom-select-check custom-goal-check"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span>
+                                        </div>
+                                    <?php endforeach; ?>
+                                </div>
+                            <?php endforeach; ?>
+                            <div class="custom-goal-empty" id="secondaryGoalEmpty_<?= h($context) ?>">
+                                No matching secondary goals found
                             </div>
                         </div>
                     </div>
@@ -1587,7 +1733,7 @@ function render_member_form(string $context, ?array $user = null, ?array $profil
                             <?php if ($isTrainerAssessment): ?>
                                 <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" style="color: #f59e0b;"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
                             <?php endif; ?>
-                            Dietary Restrictions / Allergies
+                            Dietary Restrictions
                         </span>
                     </label>
                     <?php if ($isTrainerAssessment): ?>
@@ -2258,7 +2404,11 @@ function render_member_form(string $context, ?array $user = null, ?array $profil
             const searchInput = dd.querySelector('input[type="text"]');
             if (searchInput) {
                 searchInput.value = '';
-                filterGoalList_<?= h($context) ?>('');
+                if (searchInput.id && searchInput.id.startsWith('secondaryGoalSearch')) {
+                    filterSecGoalList_<?= h($context) ?>('');
+                } else {
+                    filterGoalList_<?= h($context) ?>('');
+                }
                 setTimeout(() => searchInput.focus(), 60);
             }
 
@@ -2331,6 +2481,43 @@ function render_member_form(string $context, ?array $user = null, ?array $profil
         if (searchInput) {
             searchInput.value = '';
             filterGoalList_<?= h($context) ?>('');
+            searchInput.focus();
+        }
+    }
+
+    function filterSecGoalList_<?= h($context) ?>(query) {
+        query = (query || '').toLowerCase().trim();
+        const list = document.getElementById('secondaryGoalOptionsList_<?= h($context) ?>');
+        if (!list) return;
+
+        const clearBtn = document.getElementById('secondaryGoalClear_<?= h($context) ?>');
+        if (clearBtn) clearBtn.style.display = query ? 'flex' : 'none';
+
+        const groups = list.querySelectorAll('.custom-goal-group');
+        let totalVisible = 0;
+
+        groups.forEach(group => {
+            const items = group.querySelectorAll('.custom-select-item, .custom-goal-item');
+            let groupVisible = 0;
+            items.forEach(item => {
+                const searchTxt = item.dataset.search || '';
+                const matches = !query || searchTxt.includes(query);
+                item.style.display = matches ? 'flex' : 'none';
+                if (matches) groupVisible++;
+            });
+            group.style.display = groupVisible > 0 ? 'block' : 'none';
+            totalVisible += groupVisible;
+        });
+
+        const emptyEl = document.getElementById('secondaryGoalEmpty_<?= h($context) ?>');
+        if (emptyEl) emptyEl.style.display = totalVisible === 0 ? 'block' : 'none';
+    }
+
+    function clearSecGoalSearch_<?= h($context) ?>() {
+        const searchInput = document.getElementById('secondaryGoalSearch_<?= h($context) ?>');
+        if (searchInput) {
+            searchInput.value = '';
+            filterSecGoalList_<?= h($context) ?>('');
             searchInput.focus();
         }
     }

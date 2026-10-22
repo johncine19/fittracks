@@ -2918,7 +2918,7 @@ HTML;
         var reqInputs = scope.querySelectorAll('input[required], select[required], textarea[required], [aria-required="true"]');
         
         reqInputs.forEach(function(input) {
-            if (input.type === 'hidden' || input.type === 'submit' || input.type === 'button') {
+            if (input.type === 'hidden' || input.type === 'submit' || input.type === 'button' || input.type === 'radio' || input.type === 'checkbox') {
                 return;
             }
             

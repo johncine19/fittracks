@@ -407,7 +407,49 @@ function member_dashboard(PDO $pdo, array $user): void
     echo '</div></div></div></div></div>';
     
     render_announcement_carousel(get_active_announcements('members'));
+
+    // Incomplete circumference measurements reminder
+    $memberProfileData = member_profile((int) $user['user_id']);
+    $missingCircumference = ($memberProfileData && (empty($memberProfileData['waist_cm']) || empty($memberProfileData['neck_cm'])));
     ?>
+
+    <?php if ($missingCircumference): ?>
+    <!-- Incomplete Body Measurements Reminder Banner -->
+    <div class="member-measurements-banner" id="member-measurements-reminder">
+        <div class="tour-banner-content">
+            <div class="tour-banner-icon icon-measurements-warn">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="12" cy="12" r="10"></circle>
+                    <line x1="12" y1="8" x2="12" y2="12"></line>
+                    <line x1="12" y1="16" x2="12.01" y2="16"></line>
+                </svg>
+            </div>
+            <div class="tour-banner-text">
+                <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 2px; flex-wrap: wrap;">
+                    <h3 style="margin: 0; font-size: 14px; font-weight: 700;">Complete Your Body Measurements</h3>
+                    <span class="badge-pending-meas">Action Recommended</span>
+                </div>
+                <p class="meas-banner-desc">
+                    <span class="meas-desc-desktop">You skipped your neck &amp; waist sizes during signup. Enter them anytime (or ask a coach to measure you) to unlock precision Body Fat % tracking!</span>
+                    <span class="meas-desc-mobile">Enter neck &amp; waist sizes anytime to unlock precision Body Fat % tracking!</span>
+                </p>
+            </div>
+        </div>
+        <div class="tour-banner-actions">
+            <a href="index.php?page=profile&open=physical" class="btn-start-tour btn-update-meas">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M21.3 15.3a2.4 2.4 0 0 1 0 3.4l-2.6 2.6a2.4 2.4 0 0 1-3.4 0L2.7 8.7a2.41 2.41 0 0 1 0-3.4l2.6-2.6a2.41 2.41 0 0 1 3.4 0Z"/><line x1="14.5" y1="12.5" x2="16.5" y2="10.5"/><line x1="11.5" y1="9.5" x2="13.5" y2="7.5"/></svg>
+                <span>Enter Sizes</span>
+            </a>
+            <button type="button" class="btn-dismiss-tour" onclick="document.getElementById('member-measurements-reminder').style.display='none'; sessionStorage.setItem('dismiss_measurements_reminder', '1');" title="Dismiss for this session">&times;</button>
+        </div>
+    </div>
+    <script>
+        if (sessionStorage.getItem('dismiss_measurements_reminder') === '1') {
+            const mRem = document.getElementById('member-measurements-reminder');
+            if (mRem) mRem.style.display = 'none';
+        }
+    </script>
+    <?php endif; ?>
 
     <!-- Welcome Guided Tour Banner for Members -->
     <div class="gym-tour-welcome-banner member-tour-welcome-banner" id="member-tour-welcome-banner" style="margin-bottom: 20px;">

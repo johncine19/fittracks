@@ -1,4 +1,5 @@
 <?php
+
 declare(strict_types=1);
 
 function setup_review_page(): void
@@ -59,8 +60,25 @@ function setup_review_page(): void
 
                 $restLabel = (string) ($profile['dietary_restrictions'] ?? 'none');
                 $restText = ($restLabel !== '' && $restLabel !== 'none') ? " (Tailored for " . ucwords(str_replace('-', ' ', $restLabel)) . " preferences)" : "";
-                $msgBody = "Based on your goal to **" . $currentGoal . "**, your personalized workout and nutrition plans are now active!\n\n**Workout Structure:**\n$workoutStruct\n\n**Diet & Macros$restText:**\n$dietStruct";
+                $secText = !empty($profile['secondary_focus']) ? "\n\n**Secondary Focus Areas:**\n" . $profile['secondary_focus'] : '';
+                $msgBody = "Based on your goal to **" . $currentGoal . "**, your personalized workout and nutrition plans are now active!\n\n**Workout Structure:**\n$workoutStruct\n\n**Diet & Macros$restText:**\n$dietStruct" . $secText;
                 notify_user((int) $user['user_id'], 'system', 'Your Starter Plan is Ready!', $msgBody);
+            }
+
+            // If the member skipped circumference measurements, notify them so they remember to measure later
+            if (empty($profile['waist_cm']) || empty($profile['neck_cm'])) {
+                try {
+                    $alreadySent = scalar('SELECT 1 FROM notifications WHERE user_id = ? AND title LIKE "%Body Measurements%" LIMIT 1', [$user['user_id']]);
+                    if (!$alreadySent) {
+                        notify_user(
+                            (int) $user['user_id'],
+                            'system',
+                            '📏 Complete Your Body Measurements',
+                            'You skipped circumference measurements during signup. Add your neck & waist in your profile (or have a gym trainer measure you) to unlock Navy Body Fat % tracking.'
+                        );
+                    }
+                } catch (Throwable) {
+                }
             }
 
             flash('Setup complete! Your personalized fitness journey is ready.', 'success');
@@ -113,7 +131,8 @@ function setup_review_page(): void
                 // Deduplicate older starter plan notifications before sending updated one
                 try {
                     db()->prepare('DELETE FROM notifications WHERE user_id = ? AND (title LIKE "Starter plan%" OR title LIKE "Your Starter Plan%")')->execute([$user['user_id']]);
-                } catch (Throwable) {}
+                } catch (Throwable) {
+                }
                 notify_user((int) $user['user_id'], 'system', 'Starter plan updated', 'Your personalized workout and nutrition plans were updated to reflect your new goal: ' . $newGoal);
                 flash('Setup details and workout/diet plans updated!', 'success');
             } else {
@@ -217,7 +236,7 @@ function setup_review_page(): void
             min-height: 100dvh;
             width: 100%;
             background: #090d14;
-            background-image: 
+            background-image:
                 radial-gradient(ellipse at 50% 0%, rgba(132, 204, 22, 0.12) 0%, transparent 60%),
                 linear-gradient(180deg, rgba(9, 13, 20, 0.88) 0%, rgba(7, 10, 15, 0.96) 100%),
                 url('assets/images/loginback.png?v=3');
@@ -248,8 +267,15 @@ function setup_review_page(): void
         }
 
         @keyframes reviewFadeUp {
-            from { opacity: 0; transform: translateY(10px); }
-            to { opacity: 1; transform: translateY(0); }
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
         }
 
         /* Top Header & Stepper */
@@ -420,25 +446,28 @@ function setup_review_page(): void
         .review-edit-btn {
             display: inline-flex;
             align-items: center;
-            gap: 5px;
-            background: #f8fafc;
-            border: 1px solid #e2e8f0;
-            color: #334155;
-            border-radius: 8px;
-            padding: 6px 12px;
-            font-size: 12px;
-            font-weight: 600;
+            gap: 4px;
+            background: transparent;
+            border: 1px solid transparent;
+            color: #65a30d;
+            border-radius: 6px;
+            padding: 3px 6px;
+            font-size: 11.5px;
+            line-height: 1.2;
+            font-weight: 700;
+            font-family: inherit;
             cursor: pointer;
-            transition: all 0.18s ease;
+            transition: all 0.15s ease;
             text-decoration: none;
             white-space: nowrap;
+            vertical-align: middle;
+            flex-shrink: 0;
         }
 
         .review-edit-btn:hover {
-            background: #84cc16;
-            color: #090b10;
-            border-color: #84cc16;
-            box-shadow: 0 2px 6px rgba(132, 204, 22, 0.25);
+            background: rgba(132, 204, 22, 0.12);
+            color: #3f6212;
+            border-color: rgba(132, 204, 22, 0.25);
         }
 
         /* Card 1: Goal Specifics */
@@ -447,10 +476,6 @@ function setup_review_page(): void
             border: 1.5px solid rgba(132, 204, 22, 0.35);
             border-radius: 12px;
             padding: 14px 16px;
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            gap: 12px;
             margin-bottom: 14px;
         }
 
@@ -461,14 +486,19 @@ function setup_review_page(): void
             line-height: 1.25;
         }
 
-        .review-goal-tag {
-            background: #84cc16;
-            color: #090b10;
-            font-size: 11px;
-            font-weight: 700;
-            padding: 4px 10px;
-            border-radius: 999px;
-            white-space: nowrap;
+        .review-goal-meta {
+            font-size: 12px;
+            color: #64748b;
+            margin-top: 4px;
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 6px;
+            line-height: 1.4;
+        }
+
+        .review-goal-meta-sep {
+            color: #94a3b8;
         }
 
         .review-plan-preview {
@@ -613,6 +643,7 @@ function setup_review_page(): void
         #reviewEditModal:not([open]) {
             display: none !important;
         }
+
         #reviewEditModal[open] {
             display: flex !important;
             flex-direction: column;
@@ -628,6 +659,7 @@ function setup_review_page(): void
             color: var(--ink);
             box-shadow: 0 24px 48px rgba(0, 0, 0, 0.6);
         }
+
         #reviewEditModal .modal-header {
             flex-shrink: 0;
             padding: 16px 20px;
@@ -636,12 +668,14 @@ function setup_review_page(): void
             align-items: center;
             justify-content: space-between;
         }
+
         #reviewEditModal .modal-header h3 {
             margin: 0;
             font-size: 17px;
             font-weight: 700;
             color: var(--ink);
         }
+
         #reviewEditModal .modal-close {
             background: transparent;
             border: none;
@@ -653,10 +687,12 @@ function setup_review_page(): void
             align-items: center;
             justify-content: center;
         }
+
         #reviewEditModal .modal-close:hover {
             color: var(--ink);
             background: var(--panel-soft);
         }
+
         #reviewEditModal .modal-body {
             flex: 1 1 auto !important;
             min-height: 0 !important;
@@ -667,6 +703,7 @@ function setup_review_page(): void
             padding: 0 20px !important;
             display: block !important;
         }
+
         #reviewEditModal .pm-footer {
             position: sticky;
             bottom: 0;
@@ -685,6 +722,7 @@ function setup_review_page(): void
             .review-horizontal-grid {
                 grid-template-columns: repeat(2, 1fr);
             }
+
             .review-section-card.card-goal {
                 grid-column: span 2;
             }
@@ -694,40 +732,50 @@ function setup_review_page(): void
             .review-viewport {
                 padding: 16px 12px 32px;
             }
+
             .review-container {
                 padding: 20px 16px;
                 border-radius: 18px;
                 gap: 18px;
             }
+
             .review-header-bar {
                 flex-direction: column;
                 align-items: flex-start;
                 gap: 12px;
             }
+
             .review-stepper {
                 width: 100%;
                 justify-content: space-between;
             }
+
             .review-title-text h1 {
                 font-size: 21px;
             }
+
             .review-title-text p {
                 font-size: 13px;
             }
+
             .review-horizontal-grid {
                 grid-template-columns: 1fr;
                 gap: 14px;
             }
+
             .review-section-card.card-goal {
                 grid-column: span 1;
             }
+
             .review-grid-stats {
                 grid-template-columns: repeat(2, 1fr);
             }
+
             .review-actions-bar {
                 flex-direction: column-reverse;
                 gap: 10px;
             }
+
             .btn-confirm-all,
             .btn-back-setup {
                 width: 100%;
@@ -740,27 +788,29 @@ function setup_review_page(): void
             .review-section-card {
                 padding: 16px 14px;
             }
+
             .review-section-header {
-                flex-direction: column;
+                flex-direction: row;
                 align-items: flex-start;
-                gap: 10px;
-            }
-            .review-edit-actions {
-                width: 100%;
-                justify-content: flex-end;
-            }
-            .review-goal-callout {
-                flex-direction: column;
-                align-items: flex-start;
+                justify-content: space-between;
                 gap: 8px;
             }
+
+            .review-edit-actions {
+                width: auto;
+                justify-content: flex-end;
+                flex-shrink: 0;
+            }
+
             .review-goal-name {
                 font-size: 15px;
             }
+
             .review-grid-stats {
                 grid-template-columns: repeat(2, 1fr);
                 gap: 8px;
             }
+
             .review-stat-box {
                 padding: 8px 10px;
             }
@@ -793,11 +843,6 @@ function setup_review_page(): void
                         </svg>
                         <span>Step 3 of 3: Summary &amp; Review</span>
                     </span>
-                    <div class="review-stepper-bars">
-                        <div class="review-stepper-bar"></div>
-                        <div class="review-stepper-bar"></div>
-                        <div class="review-stepper-bar"></div>
-                    </div>
                 </div>
             </div>
 
@@ -821,22 +866,37 @@ function setup_review_page(): void
                             </div>
                             <div class="review-edit-actions">
                                 <a href="index.php?page=setup_goal&edit=1" class="review-edit-btn" title="Browse all categories in full-screen view">
-                                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+                                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <rect x="3" y="3" width="7" height="7" />
+                                        <rect x="14" y="3" width="7" height="7" />
+                                        <rect x="14" y="14" width="7" height="7" />
+                                        <rect x="3" y="14" width="7" height="7" />
+                                    </svg>
                                     Browse
                                 </a>
                                 <button type="button" class="review-edit-btn" onclick="openReviewEdit('goal')">
-                                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
+                                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <path d="M12 20h9" />
+                                        <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" />
+                                    </svg>
                                     Edit
                                 </button>
                             </div>
                         </div>
 
                         <div class="review-goal-callout">
-                            <div>
-                                <div class="review-goal-name"><?= h(str_contains($goal, '_') ? ucwords(str_replace('_', ' ', $goal)) : $goal) ?></div>
-                                <span style="font-size: 12px; color: #64748b;">Classification: <strong><?= h(ucwords(str_replace('_', ' ', $basicGoal))) ?></strong></span>
+                            <div class="review-goal-name"><?= h(str_contains($goal, '_') ? ucwords(str_replace('_', ' ', $goal)) : $goal) ?></div>
+                            <div class="review-goal-meta">
+                                <span>Classification: <strong><?= h(ucwords(str_replace('_', ' ', $basicGoal))) ?></strong></span>
+                                <?php
+                                $secFocusStr = trim((string)($profile['secondary_focus'] ?? ''));
+                                $secFocusArr = array_filter(array_map('trim', explode(',', $secFocusStr)));
+                                ?>
+                                <?php if (!empty($secFocusArr)): ?>
+                                    <span class="review-goal-meta-sep">&bull;</span>
+                                    <span>Secondary Focus: <strong style="color: #166534;"><?= h(implode(', ', $secFocusArr)) ?></strong></span>
+                                <?php endif; ?>
                             </div>
-                            <span class="review-goal-tag">Active Goal</span>
                         </div>
 
                         <div class="review-plan-preview">
@@ -859,7 +919,10 @@ function setup_review_page(): void
                     </div>
 
                     <div class="review-highlight-summary" style="margin-top: 14px;">
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#65a30d" stroke-width="2.5" style="vertical-align: -2px; margin-right: 4px;"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#65a30d" stroke-width="2.5" style="vertical-align: -2px; margin-right: 4px;">
+                            <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
+                            <polyline points="22 4 12 14.01 9 11.01" />
+                        </svg>
                         <span>Starter training program is automatically configured to this path.</span>
                     </div>
                 </div>
@@ -874,7 +937,10 @@ function setup_review_page(): void
                             </div>
                             <div class="review-edit-actions">
                                 <button type="button" class="review-edit-btn" onclick="openReviewEdit('body')">
-                                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
+                                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <path d="M12 20h9" />
+                                        <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" />
+                                    </svg>
                                     Edit
                                 </button>
                             </div>
@@ -945,19 +1011,22 @@ function setup_review_page(): void
                         <?php endif; ?>
                     </div>
 
-                    <?php 
-                        $hasTargets = !empty($profile['target_weight_kg']) || 
-                                      !empty($profile['target_body_fat_percent']) || 
-                                      !empty($profile['target_waist_cm']) || 
-                                      (!empty($profile['target_strength_max_kg']) && !empty($profile['target_exercise'])) || 
-                                      (!empty($profile['endurance_activity']) && (!empty($profile['target_endurance_distance_km']) || !empty($profile['target_endurance_time_mins'])));
+                    <?php
+                    $hasTargets = !empty($profile['target_weight_kg']) ||
+                        !empty($profile['target_body_fat_percent']) ||
+                        !empty($profile['target_waist_cm']) ||
+                        (!empty($profile['target_strength_max_kg']) && !empty($profile['target_exercise'])) ||
+                        (!empty($profile['endurance_activity']) && (!empty($profile['target_endurance_distance_km']) || !empty($profile['target_endurance_time_mins'])));
                     ?>
                     <?php if ($hasTargets): ?>
                         <div style="margin-top: 14px; padding-top: 12px; border-top: 1px dashed #e2e8f0;">
                             <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
                                 <span style="font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; color: #64748b;">Supporting Targets</span>
                                 <button type="button" class="review-edit-btn" onclick="openReviewEdit('targets')" style="font-size: 11px; padding: 2px 8px; height: auto;">
-                                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
+                                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <path d="M12 20h9" />
+                                        <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" />
+                                    </svg>
                                     Edit Targets
                                 </button>
                             </div>
@@ -1010,10 +1079,10 @@ function setup_review_page(): void
                                 <p class="review-section-desc">Training frequency, duration &amp; habit baseline</p>
                             </div>
                             <div class="review-edit-actions">
-                                <button type="button" class="review-edit-btn" onclick="openReviewEdit('lifestyle')">
-                                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
+                                <a href="index.php?page=setup_profile&amp;edit=1&amp;step=5" class="review-edit-btn" title="Edit schedule and training days">
+                                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 20h9" /><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" /></svg>
                                     Edit
-                                </button>
+                                </a>
                             </div>
                         </div>
 
@@ -1038,11 +1107,49 @@ function setup_review_page(): void
                                 <span class="review-stat-label">Dietary Preference</span>
                                 <span class="review-stat-value" style="font-size: 13.5px;"><?= h(ucwords(str_replace('-', ' ', $dietRest))) ?></span>
                             </div>
+                            <div class="review-stat-box" style="grid-column: span 2; padding: 10px 12px;">
+                                <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 7px;">
+                                    <span class="review-stat-label">Enforced Training Days</span>
+                                    <a href="index.php?page=setup_profile&amp;edit=1&amp;step=5" style="font-size: 11px; font-weight: 700; color: #65a30d; text-decoration: none; display: inline-flex; align-items: center; gap: 4px; white-space: nowrap;">
+                                        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+                                            <path d="M12 20h9" />
+                                            <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" />
+                                        </svg>
+                                        Edit
+                                    </a>
+                                </div>
+                                <div style="display: flex; flex-wrap: wrap; gap: 5px;">
+                                    <?php
+                                    $dayMap = [1 => 'Mon', 2 => 'Tue', 3 => 'Wed', 4 => 'Thu', 5 => 'Fri', 6 => 'Sat', 7 => 'Sun'];
+                                    $chosenDays = array_filter(array_map('intval', explode(',', (string)($profile['preferred_workout_days'] ?? ''))));
+                                    if (empty($chosenDays)) {
+                                        $chosenDays = workout_days_for_frequency($daysPerWeek);
+                                    }
+                                    foreach ($dayMap as $dNum => $dShort):
+                                        $isWorkout = in_array($dNum, $chosenDays, true);
+                                    ?>
+                                        <span style="font-size: 11px; font-weight: 700; padding: 4px 9px; border-radius: 6px; border: 1px solid <?= $isWorkout ? 'rgba(132, 204, 22, 0.45)' : '#e2e8f0' ?>; background: <?= $isWorkout ? 'rgba(132, 204, 22, 0.12)' : '#f8fafc' ?>; color: <?= $isWorkout ? '#1e3a0f' : '#94a3b8' ?>; display: inline-flex; align-items: center; gap: 4px;">
+                                            <?php if ($isWorkout): ?>
+                                                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#65a30d" stroke-width="3">
+                                                    <polyline points="20 6 9 17 4 12" />
+                                                </svg>
+                                            <?php endif; ?>
+                                            <?= $dShort ?>
+                                        </span>
+                                    <?php endforeach; ?>
+                                </div>
+                            </div>
                         </div>
                     </div>
 
                     <div class="review-highlight-summary" style="margin-top: 14px;">
                         <strong><?= $daysPerWeek ?> training days</strong> &bull; <strong><?= 7 - $daysPerWeek ?> recovery days</strong> per week (~<?= round(($daysPerWeek * $durationMins) / 60, 1) ?> hrs weekly volume).
+                        <div style="margin-top: 6px; font-size: 11.5px; color: #475569; display: flex; align-items: center; gap: 6px;">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#65a30d" stroke-width="2.5" style="flex-shrink:0;">
+                                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+                            </svg>
+                            <span>Gym trainers and owners strictly adhere to these days and cannot schedule workouts on your recovery days.</span>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -1050,7 +1157,9 @@ function setup_review_page(): void
             <!-- Bottom Action Confirmation -->
             <div class="review-actions-bar">
                 <a href="index.php?page=setup_goal&edit=1" class="btn-back-setup">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                        <polyline points="15 18 9 12 15 6" />
+                    </svg>
                     <span>Back to Goals</span>
                 </a>
 
@@ -1074,7 +1183,10 @@ function setup_review_page(): void
         <div class="modal-header">
             <h3>Edit Profile & Goals</h3>
             <button class="modal-close" onclick="this.closest('dialog').close()" aria-label="Close">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <line x1="18" y1="6" x2="6" y2="18" />
+                    <line x1="6" y1="6" x2="18" y2="18" />
+                </svg>
             </button>
         </div>
         <div class="modal-body">
@@ -1083,15 +1195,15 @@ function setup_review_page(): void
     </dialog>
 
     <script>
-    function openReviewEdit(tabName) {
-        const dialog = document.getElementById('reviewEditModal');
-        if (dialog) {
-            dialog.showModal();
-            if (typeof switchProfileTab_setup_review === 'function' && tabName) {
-                switchProfileTab_setup_review(tabName);
+        function openReviewEdit(tabName) {
+            const dialog = document.getElementById('reviewEditModal');
+            if (dialog) {
+                dialog.showModal();
+                if (typeof switchProfileTab_setup_review === 'function' && tabName) {
+                    switchProfileTab_setup_review(tabName);
+                }
             }
         }
-    }
     </script>
 <?php
     render_footer();

@@ -24,12 +24,18 @@ function workout_builder_page(): void
         redirect('training');
     }
     
-    $profileStmt = $pdo->prepare('SELECT primary_goal, weight_kg, activity_level, weekly_workout_target, preferred_duration_mins FROM member_profiles WHERE user_id = ?');
+    $profileStmt = $pdo->prepare('SELECT primary_goal, weight_kg, activity_level, weekly_workout_target, preferred_duration_mins, preferred_workout_days FROM member_profiles WHERE user_id = ?');
     $profileStmt->execute([$memberId]);
     $profile = $profileStmt->fetch() ?: [];
-    // This target is authoritative for plans created in this builder. A missing
-    // preference retains the application's normal three-day default.
-    $prefDays = max(1, min(7, (int)($profile['weekly_workout_target'] ?: 3)));
+
+    // Specific training days chosen by the member take precedence and cannot be overridden by staff
+    $prefWorkoutDays = [];
+    if (!empty($profile['preferred_workout_days'])) {
+        $prefWorkoutDays = array_values(array_filter(array_map('intval', explode(',', (string)$profile['preferred_workout_days'])), fn($d) => $d >= 1 && $d <= 7));
+        sort($prefWorkoutDays);
+    }
+    // This target is authoritative for plans created in this builder.
+    $prefDays = !empty($prefWorkoutDays) ? count($prefWorkoutDays) : max(1, min(7, (int)($profile['weekly_workout_target'] ?: 3)));
     $getScheduledDaysCount = static function (PDO $pdo, int $planId): int {
         $stmt = $pdo->prepare('SELECT COUNT(DISTINCT day_of_week) FROM training_plan_exercises WHERE plan_id = ?');
         $stmt->execute([$planId]);
@@ -191,6 +197,11 @@ function workout_builder_page(): void
                 flash('Please select a valid day of the week.', 'error');
                 redirect('workout_builder&member_user_id=' . $memberId);
             }
+            if (!empty($prefWorkoutDays) && !in_array($dayOfWeek, $prefWorkoutDays, true)) {
+                $allowedNames = implode(', ', array_map('workout_day_name', $prefWorkoutDays));
+                flash("Member's committed training schedule is strictly limited to {$allowedNames}. You cannot schedule workouts on their rest days.", 'error');
+                redirect('workout_builder&member_user_id=' . $memberId);
+            }
             $dayAlreadyScheduled = (bool) scalar(
                 'SELECT 1 FROM training_plan_exercises WHERE plan_id = ? AND day_of_week = ? LIMIT 1',
                 [$planId, $dayOfWeek]
@@ -280,6 +291,11 @@ function workout_builder_page(): void
                 flash('Please select a valid day of the week.', 'error');
                 redirect('workout_builder&member_user_id=' . $memberId);
             }
+            if (!empty($prefWorkoutDays) && !in_array($dayOfWeek, $prefWorkoutDays, true)) {
+                $allowedNames = implode(', ', array_map('workout_day_name', $prefWorkoutDays));
+                flash("Member's committed training schedule is strictly limited to {$allowedNames}. You cannot schedule workouts on their rest days.", 'error');
+                redirect('workout_builder&member_user_id=' . $memberId);
+            }
             $dayAlreadyScheduled = (bool) scalar(
                 'SELECT 1 FROM training_plan_exercises WHERE plan_id = ? AND day_of_week = ? LIMIT 1',
                 [$planId, $dayOfWeek]
@@ -349,6 +365,12 @@ function workout_builder_page(): void
                 if ($targetDay < 1 || $targetDay > 7) {
                     http_response_code(422);
                     echo json_encode(['success' => false, 'message' => 'Invalid workout day.']);
+                    exit;
+                }
+                if (!empty($prefWorkoutDays) && !in_array($targetDay, $prefWorkoutDays, true)) {
+                    $allowedNames = implode(', ', array_map('workout_day_name', $prefWorkoutDays));
+                    http_response_code(422);
+                    echo json_encode(['success' => false, 'message' => "Member's committed training schedule is strictly limited to {$allowedNames}. You cannot move exercises to their rest days."]);
                     exit;
                 }
                 $pdo->beginTransaction();
@@ -445,6 +467,12 @@ function workout_builder_page(): void
                     <?php if (!empty($profile['weekly_workout_target'])): ?>
                         <span class="builder-meta-chip">Target: <strong style="color: var(--lime);"><?= (int)$profile['weekly_workout_target'] ?>d/wk</strong> &bull; <strong>~<?= (int)($profile['preferred_duration_mins'] ?? 45) ?>m</strong></span>
                     <?php endif; ?>
+                    <?php if (!empty($prefWorkoutDays)): ?>
+                        <span class="builder-meta-chip" style="border-color: rgba(132, 204, 22, 0.4); background: rgba(132, 204, 22, 0.08); color: var(--lime);">
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="vertical-align: -1px; margin-right: 3px;"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+                            Committed Days: <strong><?= h(implode(', ', array_map(fn($d) => substr(workout_day_name($d), 0, 3), $prefWorkoutDays))) ?></strong> (Enforced)
+                        </span>
+                    <?php endif; ?>
                     <span class="builder-meta-chip">Membership: <strong style="color: <?= $hasMembership ? '#2df0a5' : 'var(--orange)' ?>;"><?= $hasMembership ? 'Active' : 'Trial' ?></strong></span>
                 </div>
             </div>
@@ -512,9 +540,10 @@ function workout_builder_page(): void
             <?php foreach ($days as $dNum => $dName): 
                 $dayList = array_filter($planExercises, fn($x) => (int)$x['day_of_week'] === $dNum);
                 $dCnt = count($dayList);
+                $isCommittedDay = empty($prefWorkoutDays) || in_array($dNum, $prefWorkoutDays, true);
             ?>
-                <button type="button" class="builder-tab-btn" data-day="<?= $dNum ?>" onclick="selectDayTab('<?= $dNum ?>')">
-                    <span><?= substr($dName, 0, 3) ?></span>
+                <button type="button" class="builder-tab-btn" data-day="<?= $dNum ?>" onclick="selectDayTab('<?= $dNum ?>')" style="<?= !$isCommittedDay ? 'opacity: 0.6;' : '' ?>" title="<?= !$isCommittedDay ? 'Rest Day (Member Unavailable)' : 'Training Day' ?>">
+                    <span><?= substr($dName, 0, 3) ?><?= !$isCommittedDay ? ' <small style="font-size:9px; opacity:0.7;">(Rest)</small>' : '' ?></span>
                     <span class="builder-tab-count" style="<?= $dCnt === 0 ? 'opacity: 0.55;' : '' ?>"><?= $dCnt ?></span>
                 </button>
             <?php endforeach; ?>
@@ -538,6 +567,7 @@ function workout_builder_page(): void
             $dayExs = array_values(array_filter($planExercises, fn($ex) => (int)$ex['day_of_week'] === $dayNum));
             $exCount = count($dayExs);
             $setCount = array_sum(array_column($dayExs, 'sets'));
+            $isCommittedDay = empty($prefWorkoutDays) || in_array($dayNum, $prefWorkoutDays, true);
             
             // Calculate total day duration
             $totalDurationSecs = 0;
@@ -550,30 +580,37 @@ function workout_builder_page(): void
             }
             $muscles = array_unique($muscles);
             $estMinutes = $exCount > 0 ? max(15, (int)round($totalDurationSecs / 60)) : 0;
-            $focusBadge = 'Rest Day';
+            $focusBadge = $isCommittedDay ? 'Rest Day' : 'Rest Day (Member Unavailable)';
             if ($exCount > 0) {
                 $focusBadge = !empty($muscles) ? implode(' • ', array_slice($muscles, 0, 2)) : 'Training Day';
             }
         ?>
-            <div class="builder-day-card" data-day="<?= $dayNum ?>">
+            <div class="builder-day-card <?= !$isCommittedDay ? 'builder-day-card-rest' : '' ?>" data-day="<?= $dayNum ?>" style="<?= !$isCommittedDay ? 'border-style: dashed; opacity: 0.85;' : '' ?>">
                 <div class="builder-day-header">
                     <div class="builder-day-title-row">
                         <h3 class="builder-day-name">
                             <span><?= $dayName ?></span>
+                            <?php if (!$isCommittedDay): ?>
+                                <span class="builder-badge" style="background: rgba(148, 163, 184, 0.15); color: var(--muted); font-size: 10px; font-weight: 700; text-transform: uppercase;">Member Rest</span>
+                            <?php endif; ?>
                         </h3>
                         <div class="builder-day-actions">
-                            <button type="button" onclick="openAddExerciseModal(<?= $dayNum ?>, '<?= $dayName ?>')" class="builder-micro-btn" title="Add exercise to <?= $dayName ?>">
-                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-                                Add
-                            </button>
-                            <button type="button" onclick="openDayAutoGenModal(<?= $dayNum ?>, '<?= $dayName ?>')" class="builder-micro-btn" title="Auto-generate <?= $dayName ?> with target focus">
-                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3Z"/></svg>
-                                Auto
-                            </button>
-                            <?php if ($exCount > 0): ?>
-                                <button type="button" onclick="confirmClearDay(<?= $dayNum ?>, '<?= $dayName ?>')" class="builder-micro-btn builder-micro-btn-clear" title="Clear all exercises on <?= $dayName ?>">
-                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                            <?php if ($isCommittedDay): ?>
+                                <button type="button" onclick="openAddExerciseModal(<?= $dayNum ?>, '<?= $dayName ?>')" class="builder-micro-btn" title="Add exercise to <?= $dayName ?>">
+                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                                    Add
                                 </button>
+                                <button type="button" onclick="openDayAutoGenModal(<?= $dayNum ?>, '<?= $dayName ?>')" class="builder-micro-btn" title="Auto-generate <?= $dayName ?> with target focus">
+                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3Z"/></svg>
+                                    Auto
+                                </button>
+                                <?php if ($exCount > 0): ?>
+                                    <button type="button" onclick="confirmClearDay(<?= $dayNum ?>, '<?= $dayName ?>')" class="builder-micro-btn builder-micro-btn-clear" title="Clear all exercises on <?= $dayName ?>">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                                    </button>
+                                <?php endif; ?>
+                            <?php else: ?>
+                                <span style="font-size: 11px; color: var(--muted); font-weight: 500; font-style: italic;">Committed Rest Day</span>
                             <?php endif; ?>
                         </div>
                     </div>
@@ -582,15 +619,19 @@ function workout_builder_page(): void
                         <?php if ($exCount > 0): ?>
                             <span><?= $exCount ?> ex • <?= $setCount ?> sets • ~<?= $estMinutes ?>m</span>
                         <?php else: ?>
-                            <span>No workouts</span>
+                            <span><?= $isCommittedDay ? 'No workouts scheduled' : 'Rest day (Adhered)' ?></span>
                         <?php endif; ?>
                     </div>
                 </div>
                 
-                <div class="builder-sortable-list sortable-list" data-day="<?= $dayNum ?>">
+                <div class="builder-sortable-list <?= $isCommittedDay ? 'sortable-list' : 'locked-rest-list' ?>" data-day="<?= $dayNum ?>">
                     <?php if ($exCount === 0): ?>
                         <div class="builder-empty-day">
-                            Rest day. Click <strong>+ Add</strong> or <strong>Auto</strong> to schedule exercises.
+                            <?php if ($isCommittedDay): ?>
+                                Rest day. Click <strong>+ Add</strong> or <strong>Auto</strong> to schedule exercises.
+                            <?php else: ?>
+                                Scheduled rest day according to member preference. Exercises cannot be scheduled on this day.
+                            <?php endif; ?>
                         </div>
                     <?php else: ?>
                         <?php foreach ($dayExs as $ex): 

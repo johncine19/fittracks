@@ -5881,9 +5881,10 @@ dialog.modal .swal2-container .swal2-popup {
     .split-login-frame.profile-mode,
     .split-login-frame.goal-mode,
     .split-login-frame.pending-mode {
-        grid-template-columns: 1fr !important;
+        grid-template-columns: minmax(0, 1fr) !important;
         max-width: 440px !important;
         width: 100% !important;
+        min-width: 0 !important;
         background: transparent !important;
         border: none !important;
         box-shadow: none !important;
@@ -6525,6 +6526,160 @@ dialog.modal .swal2-container .swal2-popup {
     .upgrade-required-btn-secondary,
     .upgrade-required-btn-primary {
         width: 100%;
+    }
+}
+
+/* Incomplete Body Measurements Reminder Banner */
+.member-measurements-banner {
+    position: relative;
+    background: linear-gradient(135deg, rgba(234, 179, 8, 0.08), rgba(20, 20, 15, 0.96));
+    border: 1px solid rgba(234, 179, 8, 0.28);
+    border-radius: 14px;
+    padding: 14px 20px;
+    margin-bottom: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+    overflow: hidden;
+}
+
+[data-theme="light"] .member-measurements-banner {
+    background: linear-gradient(135deg, #fefce8, #fffbeb);
+    border-color: #fde047;
+    box-shadow: 0 4px 16px rgba(234, 179, 8, 0.08);
+}
+
+.member-measurements-banner .icon-measurements-warn {
+    width: 38px;
+    height: 38px;
+    border-radius: 10px;
+    background: rgba(234, 179, 8, 0.14);
+    border: 1px solid rgba(234, 179, 8, 0.35);
+    color: #eab308;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+[data-theme="light"] .member-measurements-banner .icon-measurements-warn {
+    background: #fef08a;
+    border-color: #facc15;
+    color: #a16207;
+}
+
+.member-measurements-banner .badge-pending-meas {
+    font-size: 11px;
+    font-weight: 700;
+    padding: 2px 8px;
+    border-radius: 999px;
+    background: rgba(234, 179, 8, 0.16);
+    color: #facc15;
+    border: 1px solid rgba(234, 179, 8, 0.32);
+    letter-spacing: 0.3px;
+    text-transform: uppercase;
+}
+
+[data-theme="light"] .member-measurements-banner .badge-pending-meas {
+    background: #fef08a;
+    color: #854d0e;
+    border-color: #facc15;
+}
+
+.member-measurements-banner .btn-update-meas {
+    background: #eab308 !important;
+    color: #0f172a !important;
+    font-weight: 700 !important;
+    border: none !important;
+    text-decoration: none !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    gap: 6px !important;
+    box-shadow: 0 2px 10px rgba(234, 179, 8, 0.35);
+    transition: transform 0.15s ease, background-color 0.15s ease;
+}
+
+.member-measurements-banner .btn-update-meas:hover {
+    background: #ca8a04 !important;
+    transform: translateY(-1px);
+}
+
+.meas-desc-mobile {
+    display: none;
+}
+
+@media (max-width: 640px) {
+    .meas-desc-desktop {
+        display: none !important;
+    }
+    .meas-desc-mobile {
+        display: inline !important;
+    }
+    .member-measurements-banner {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 8px;
+        padding: 11px 12px 10px 12px;
+        padding-right: 32px;
+        border-radius: 12px;
+        margin-bottom: 14px;
+    }
+    .member-measurements-banner .tour-banner-content {
+        align-items: flex-start;
+        gap: 10px;
+    }
+    .member-measurements-banner .icon-measurements-warn {
+        width: 30px;
+        height: 30px;
+        border-radius: 8px;
+        margin-top: 1px;
+    }
+    .member-measurements-banner .icon-measurements-warn svg {
+        width: 17px;
+        height: 17px;
+    }
+    .member-measurements-banner .tour-banner-text h3 {
+        font-size: 13px !important;
+        line-height: 1.25;
+    }
+    .member-measurements-banner .badge-pending-meas {
+        font-size: 9.5px;
+        padding: 1.5px 6px;
+        letter-spacing: 0.2px;
+    }
+    .member-measurements-banner .tour-banner-text p {
+        font-size: 11px;
+        line-height: 1.35;
+        margin: 2px 0 0 0;
+    }
+    .member-measurements-banner .tour-banner-actions {
+        display: flex;
+        align-items: center;
+        width: auto !important;
+        margin-left: 40px;
+        margin-top: 2px;
+    }
+    .member-measurements-banner .btn-dismiss-tour {
+        position: absolute;
+        top: 8px;
+        right: 8px;
+        padding: 2px 6px;
+        font-size: 18px;
+        line-height: 1;
+        color: #94a3b8;
+    }
+    .member-measurements-banner .btn-update-meas {
+        padding: 4px 11px !important;
+        font-size: 11px !important;
+        height: 27px !important;
+        border-radius: 999px !important;
+        gap: 5px !important;
+    }
+    .member-measurements-banner .btn-update-meas svg {
+        width: 12px;
+        height: 12px;
     }
 }
 
