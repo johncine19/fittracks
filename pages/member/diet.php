@@ -1354,7 +1354,8 @@ window.FT_CURRENT_DAY_NUM = window.DIET_CONFIG.currentDayNum;
                             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
                             <span>Clear</span>
                         </button>
-                        <button type="button" id="btn-scan-meal-photo" class="smart-meal-scan-btn" onclick="triggerMealPhotoScan()" title="Scan Nutrition Label, Menu, or Recipe">
+                        <!-- Photo scan button (hidden for now) -->
+                        <button type="button" id="btn-scan-meal-photo" class="smart-meal-scan-btn" onclick="triggerMealPhotoScan()" title="Scan Nutrition Label, Menu, or Recipe" style="display:none;">
                             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
                             <span id="btn-scan-meal-photo-txt">Scan Label / Menu</span>
                         </button>
@@ -1366,8 +1367,8 @@ window.FT_CURRENT_DAY_NUM = window.DIET_CONFIG.currentDayNum;
                     </div>
                 </div>
 
-                <!-- Guidance tip for photo scanning -->
-                <div class="smart-photo-guide-chip">
+                <!-- Guidance tip for photo scanning (hidden for now) -->
+                <div class="smart-photo-guide-chip" style="display:none;">
                     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
                     <span><strong>Photo Scan:</strong> Reads <strong>printed text</strong> (nutrition labels, menus, receipts, or recipe cards). <em>Does not analyze actual food on a plate.</em></span>
                 </div>
