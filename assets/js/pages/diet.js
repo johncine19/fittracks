@@ -8,6 +8,15 @@ const FT_CSRF_TOKEN = (window.DIET_CONFIG && window.DIET_CONFIG.csrfToken)
     : (document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '');
 window.FT_CSRF_TOKEN = FT_CSRF_TOKEN;
 
+function getLiveCsrfToken() {
+    return document.querySelector('meta[name="csrf-token"]')?.getAttribute('content')
+        || (window.DIET_CONFIG && window.DIET_CONFIG.csrfToken)
+        || window.FT_CSRF_TOKEN
+        || (document.querySelector('input[name="csrf_token"]')?.value)
+        || '';
+}
+window.getLiveCsrfToken = getLiveCsrfToken;
+
 function confirmRegeneratePlan() {
     Swal.fire({
         title: 'Regenerate Diet Plan?',
@@ -655,6 +664,136 @@ function formatPortionQty(qty) {
             }
         });
     }
+
+    // -------------------------------------------------------------
+    // Image-to-Text Nutrition Scanner (Labels, Menus, Recipes)
+    // -------------------------------------------------------------
+    const scanBtn = document.getElementById('btn-scan-meal-photo');
+    const scanBtnTxt = document.getElementById('btn-scan-meal-photo-txt');
+    const photoFileInput = document.getElementById('meal-photo-file-input');
+
+    window.triggerMealPhotoScan = function() {
+        if (!photoFileInput) return;
+        photoFileInput.value = '';
+        photoFileInput.click();
+    };
+
+    window.handleMealPhotoSelected = async function(event) {
+        const file = event?.target?.files?.[0];
+        if (!file) return;
+
+        // Size limit: 8MB
+        if (file.size > 8 * 1024 * 1024) {
+            Swal.fire({
+                icon: 'warning',
+                title: 'File Too Large',
+                text: 'Please choose an image under 8MB.',
+                confirmButtonColor: '#10b981',
+                background: getComputedStyle(document.documentElement).getPropertyValue('--bg').trim() || '#121721',
+                color: getComputedStyle(document.documentElement).getPropertyValue('--ink').trim() || '#ffffff'
+            });
+            return;
+        }
+
+        if (scanBtn) scanBtn.disabled = true;
+        if (scanBtnTxt) scanBtnTxt.textContent = 'Scanning...';
+
+        if (window.Swal) {
+            Swal.fire({
+                title: 'Reading Meal Text...',
+                html: '<div style="font-size:13.5px; color:var(--muted); margin-top:4px;">Scanning for nutrition facts, menus, or recipe text...</div>',
+                allowOutsideClick: false,
+                didOpen: () => {
+                    Swal.showLoading();
+                },
+                background: getComputedStyle(document.documentElement).getPropertyValue('--bg').trim() || '#121721',
+                color: getComputedStyle(document.documentElement).getPropertyValue('--ink').trim() || '#ffffff'
+            });
+        }
+
+        try {
+            const formData = new FormData();
+            formData.append('image', file);
+
+            const res = await fetch('index.php?page=food_lookup&action=scan_image_nutrition', {
+                method: 'POST',
+                body: formData
+            });
+
+            const data = await res.json();
+            if (window.Swal) Swal.close();
+
+            if (!data || !data.success) {
+                if (data && data.empty_text) {
+                    Swal.fire({
+                        icon: 'info',
+                        title: 'No Readable Meal Text Found',
+                        html: `
+                            <div style="text-align: left; font-size: 13.5px; line-height: 1.55;">
+                                <p style="margin-bottom: 10px;">We could not detect any readable food names or nutrition facts in this photo.</p>
+                                <div style="background: rgba(255,255,255,0.06); padding: 12px 14px; border-radius: 9px; border-left: 3px solid #10b981;">
+                                    <strong style="color: #10b981;">What this scanner works on:</strong>
+                                    <ul style="margin: 6px 0 0 18px; padding: 0;">
+                                        <li>Nutrition facts labels on food packaging</li>
+                                        <li>Printed restaurant menus or receipts</li>
+                                        <li>Written meal logs or recipe cards</li>
+                                    </ul>
+                                </div>
+                                <p style="margin-top: 10px; color: var(--muted, #8792ad); font-size: 12px;">
+                                    <em>Note: It does not recognize or estimate food directly from a plate without text.</em>
+                                </p>
+                            </div>
+                        `,
+                        confirmButtonText: 'Got It',
+                        confirmButtonColor: '#10b981',
+                        background: getComputedStyle(document.documentElement).getPropertyValue('--bg').trim() || '#121721',
+                        color: getComputedStyle(document.documentElement).getPropertyValue('--ink').trim() || '#ffffff'
+                    });
+                } else {
+                    Swal.fire({
+                        icon: 'warning',
+                        title: 'Scan Error',
+                        text: data?.error || 'Could not analyze this image. Please try again.',
+                        confirmButtonColor: '#10b981',
+                        background: getComputedStyle(document.documentElement).getPropertyValue('--bg').trim() || '#121721',
+                        color: getComputedStyle(document.documentElement).getPropertyValue('--ink').trim() || '#ffffff'
+                    });
+                }
+                return;
+            }
+
+            // Extract success: populate search input & smart breakdown
+            const scannedSummary = data.query || 'Scanned Nutrition Label';
+            if (ninjaInput) ninjaInput.value = scannedSummary;
+
+            renderMealBreakdownAndApply(data, scannedSummary);
+
+            if (window.Swal) {
+                Swal.fire({
+                    toast: true,
+                    position: 'top-end',
+                    showConfirmButton: false,
+                    timer: 2800,
+                    icon: 'success',
+                    title: `Extracted ${data.items.length} items (${data.total_calories} kcal)`
+                });
+            }
+        } catch (err) {
+            if (window.Swal) Swal.close();
+            Swal.fire({
+                icon: 'error',
+                title: 'Scan Failed',
+                text: 'Network error analyzing image. Please try again.',
+                confirmButtonColor: '#10b981',
+                background: getComputedStyle(document.documentElement).getPropertyValue('--bg').trim() || '#121721',
+                color: getComputedStyle(document.documentElement).getPropertyValue('--ink').trim() || '#ffffff'
+            });
+        } finally {
+            if (scanBtn) scanBtn.disabled = false;
+            if (scanBtnTxt) scanBtnTxt.textContent = 'Scan Label / Menu';
+            if (photoFileInput) photoFileInput.value = '';
+        }
+    };
 
     // Delegated event listeners for portion & unit controls inside Smart Breakdown items
     if (ninjaItemsEl) {
@@ -2095,12 +2234,6 @@ async function openSwapMealModal(mealId) {
     currentFood.textContent = currentSwappingMeal.food;
     currentMacros.textContent = `${currentSwappingMeal.cals} kcal • ${currentSwappingMeal.pro}g Protein • ${currentSwappingMeal.carbs}g Carbs • ${currentSwappingMeal.fat}g Fat`;
 
-    // Reset tabs
-    switchSwapTab('curated');
-    document.getElementById('swap-custom-input').value = '';
-    document.getElementById('swap-custom-result').style.display = 'none';
-    calculatedCustomMealData = null;
-
     gridEl.innerHTML = '';
     loadingEl.style.display = 'block';
     modal.style.display = 'flex';
@@ -2125,12 +2258,12 @@ async function openSwapMealModal(mealId) {
 
             renderSwapRecipes();
         } else {
-            gridEl.innerHTML = `<div style="padding:24px; text-align:center; color:var(--muted);">No alternative recipes found. You can enter a custom meal below.</div>`;
+            gridEl.innerHTML = `<div style="padding:24px; text-align:center; color:var(--muted);">No alternative recipes found for this meal type.</div>`;
         }
     } catch (err) {
         console.error("Swap options fetch error:", err);
         loadingEl.style.display = 'none';
-        gridEl.innerHTML = `<div style="padding:24px; text-align:center; color:var(--muted);">Could not load alternatives. Please check your connection or use Custom Meal Search.</div>`;
+        gridEl.innerHTML = `<div style="padding:24px; text-align:center; color:var(--muted);">Could not load alternatives. Please check your connection.</div>`;
     }
 }
 
@@ -2179,7 +2312,7 @@ function renderSwapRecipes() {
                         <span style="color:var(--muted); font-size:10.5px;">(${opt.grams}g portion)</span>
                     </div>
                 </div>
-                <button type="button" class="btn-select-swap" onclick="selectSwapOption(${idx})">
+                <button type="button" class="btn-select-swap" onclick="selectSwapOption(${idx}, this)">
                     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M16 3h5v5"/><path d="M4 20L21 3"/><path d="M21 16v5h-5"/><path d="M15 15l6 6"/><path d="M4 4l5 5"/></svg>
                     <span>Swap to This</span>
                 </button>
@@ -2190,10 +2323,10 @@ function renderSwapRecipes() {
 
 let currentFilteredSwapRecipes = [];
 
-function selectSwapOption(idx) {
+function selectSwapOption(idx, btnEl = null) {
     const opt = (currentFilteredSwapRecipes && currentFilteredSwapRecipes[idx]) || swapOptionsData[idx];
     if (!opt) return;
-    confirmSwapRecipe(opt.food_items, opt.calories, opt.protein_g, opt.carbs_g, opt.fat_g);
+    confirmSwapRecipe(opt.food_items, opt.calories, opt.protein_g, opt.carbs_g, opt.fat_g, btnEl, opt.food_id || opt.id);
 }
 
 function filterSwapRecipes(filter, btnEl) {
@@ -2205,144 +2338,58 @@ function filterSwapRecipes(filter, btnEl) {
     renderSwapRecipes();
 }
 
-function switchSwapTab(tab) {
-    const tabCurated = document.getElementById('tab-swap-curated');
-    const tabCustom  = document.getElementById('tab-swap-custom');
-    const panelCurated = document.getElementById('swap-panel-curated');
-    const panelCustom  = document.getElementById('swap-panel-custom');
-
-    if (tab === 'custom') {
-        tabCustom.classList.add('active');
-        tabCurated.classList.remove('active');
-        panelCustom.style.display = 'block';
-        panelCurated.style.display = 'none';
-    } else {
-        tabCurated.classList.add('active');
-        tabCustom.classList.remove('active');
-        panelCurated.style.display = 'block';
-        panelCustom.style.display = 'none';
-    }
-}
-
-// Custom Search calculation via CalorieNinjas
-async function calculateCustomSwap() {
-    const input = document.getElementById('swap-custom-input');
-    const query = input ? input.value.trim() : '';
-    if (!query) {
-        Swal.fire({
-            icon: 'warning',
-            title: 'Enter Meal Description',
-            text: 'Please enter a food item or ingredients (e.g., 200g chicken breast, 1 cup brown rice).',
-            background: getComputedStyle(document.documentElement).getPropertyValue('--bg').trim() || '#121721',
-            color: getComputedStyle(document.documentElement).getPropertyValue('--ink').trim() || '#ffffff',
-            confirmButtonColor: 'var(--lime, #c7ff22)',
-        });
-        return;
-    }
-
-    const btn = document.getElementById('btn-calc-custom-swap');
-    const btnText = document.getElementById('btn-calc-custom-text');
-    const loadingEl = document.getElementById('swap-custom-loading');
-    const resultCard = document.getElementById('swap-custom-result');
-
-    btn.disabled = true;
-    btnText.textContent = 'Calculating...';
-    loadingEl.style.display = 'block';
-    resultCard.style.display = 'none';
-
-    try {
-        const res = await fetch('index.php?page=food_lookup&action=calorieninjas&query=' + encodeURIComponent(query));
-        const data = await res.json();
-        loadingEl.style.display = 'none';
-        btn.disabled = false;
-        btnText.textContent = 'Calculate';
-
-        if (data && data.success) {
-            calculatedCustomMealData = {
-                food_items: query,
-                calories: Math.round(data.total_calories || 0),
-                protein_g: parseFloat(data.total_protein || 0),
-                carbs_g: parseFloat(data.total_carbs || 0),
-                fat_g: parseFloat(data.total_fat || 0)
-            };
-
-            document.getElementById('swap-custom-name').textContent = query;
-            document.getElementById('swap-custom-cals').textContent = `${calculatedCustomMealData.calories} kcal`;
-            document.getElementById('swap-custom-macros-row').innerHTML = `
-                <span><strong>${calculatedCustomMealData.protein_g}g</strong> Protein</span>
-                <span>•</span>
-                <span><strong>${calculatedCustomMealData.carbs_g}g</strong> Carbs</span>
-                <span>•</span>
-                <span><strong>${calculatedCustomMealData.fat_g}g</strong> Fat</span>
-            `;
-            resultCard.style.display = 'block';
-        } else {
-            Swal.fire({
-                icon: 'warning',
-                title: 'No Nutrition Data',
-                text: data.error || 'Could not find nutrition values for this query. Try adding portions like "150g" or "1 cup".',
-                background: getComputedStyle(document.documentElement).getPropertyValue('--bg').trim() || '#121721',
-                color: getComputedStyle(document.documentElement).getPropertyValue('--ink').trim() || '#ffffff',
-                confirmButtonColor: 'var(--lime, #c7ff22)',
-            });
-        }
-    } catch (err) {
-        console.error("Custom swap calc error:", err);
-        loadingEl.style.display = 'none';
-        btn.disabled = false;
-        btnText.textContent = 'Calculate';
-        Swal.fire({
-            icon: 'error',
-            title: 'Connection Error',
-            text: 'Could not connect to nutrition engine. Please check your network.',
-            background: getComputedStyle(document.documentElement).getPropertyValue('--bg').trim() || '#121721',
-            color: getComputedStyle(document.documentElement).getPropertyValue('--ink').trim() || '#ffffff',
-            confirmButtonColor: 'var(--lime, #c7ff22)',
-        });
-    }
-}
-
-function applyCustomSwap() {
-    if (!calculatedCustomMealData) return;
-    confirmSwapRecipe(
-        calculatedCustomMealData.food_items,
-        calculatedCustomMealData.calories,
-        calculatedCustomMealData.protein_g,
-        calculatedCustomMealData.carbs_g,
-        calculatedCustomMealData.fat_g
-    );
-}
-
 // Send swap action to backend
-async function confirmSwapRecipe(foodItems, cals, pro, carbs, fat) {
+async function confirmSwapRecipe(foodItems, cals, pro, carbs, fat, triggerBtn = null, foodId = null) {
     if (!currentSwappingMeal) return;
 
     const mealId = currentSwappingMeal.mealId;
     const dayNum = currentSwappingMeal.dayNum;
     const mealType = currentSwappingMeal.type;
 
+    // Loading feedback on trigger button
+    const allSwapBtns = document.querySelectorAll('.btn-select-swap');
+    allSwapBtns.forEach(b => { if (b) b.disabled = true; });
+
+    let origBtnHtml = '';
+    if (triggerBtn) {
+        origBtnHtml = triggerBtn.innerHTML;
+        triggerBtn.innerHTML = `<span style="display:inline-block;animation:spin 0.8s linear infinite;margin-right:6px;">⟳</span><span>Swapping...</span>`;
+    }
+
     try {
+        const token = getLiveCsrfToken();
         const body = new URLSearchParams({
             action: 'swap_meal',
             meal_id: mealId.toString(),
+            food_id: (foodId || '').toString(),
             food_items: foodItems,
             calories: cals.toString(),
             protein_g: pro.toString(),
             carbs_g: carbs.toString(),
             fat_g: fat.toString(),
-            csrf_token: FT_CSRF_TOKEN
+            csrf_token: token
         });
 
-        const res = await fetch('index.php?page=diet', {
+        const res = await fetch('index.php?page=diet&action=swap_meal', {
             method: 'POST',
             headers: {
+                'Accept': 'application/json',
                 'X-Requested-With': 'XMLHttpRequest',
+                'X-CSRF-TOKEN': token,
                 'Content-Type': 'application/x-www-form-urlencoded'
             },
             body: body.toString()
         });
 
-        const data = await res.json();
+        const text = await res.text();
+        let data;
+        try {
+            data = JSON.parse(text);
+        } catch (parseErr) {
+            console.error("Non-JSON response received from server:", text);
+            throw new Error(`Server returned an invalid response (${res.status || 'Error'}). Please refresh the page.`);
+        }
+
         if (data && data.success) {
             closeSwapModal();
 
@@ -2448,7 +2495,7 @@ async function confirmSwapRecipe(foodItems, cals, pro, carbs, fat) {
                 color: getComputedStyle(document.documentElement).getPropertyValue('--ink').trim() || '#ffffff',
             });
         } else {
-            throw new Error(data.error || 'Could not swap meal.');
+            throw new Error(data.error || data.message || 'Could not swap meal.');
         }
     } catch (err) {
         console.error("Swap meal error:", err);
@@ -2460,6 +2507,11 @@ async function confirmSwapRecipe(foodItems, cals, pro, carbs, fat) {
             color: getComputedStyle(document.documentElement).getPropertyValue('--ink').trim() || '#ffffff',
             confirmButtonColor: 'var(--lime, #c7ff22)',
         });
+    } finally {
+        allSwapBtns.forEach(b => { if (b) b.disabled = false; });
+        if (triggerBtn && origBtnHtml) {
+            triggerBtn.innerHTML = origBtnHtml;
+        }
     }
 }
 

@@ -336,93 +336,132 @@ function diet_page(): void
     // ----------------------------------------------------
     // AJAX: Swap Planned Meal
     // ----------------------------------------------------
-    if ($action === 'swap_meal' && $_SERVER['REQUEST_METHOD'] === 'POST') {
-        $mealId = (int) post('meal_id');
-        $foodItems = trim((string) post('food_items'));
-        $calories = max(0, (int) post('calories'));
-        $protein = max(0, (float) post('protein_g'));
-        $carbs = max(0, (float) post('carbs_g'));
-        $fat = max(0, (float) post('fat_g'));
+    if ($action === 'swap_meal') {
+        try {
+            if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+                if (ob_get_level()) ob_clean();
+                header('Content-Type: application/json; charset=utf-8');
+                echo json_encode(['success' => false, 'error' => 'Invalid request method.']);
+                exit;
+            }
 
-        // Check ownership: ensure this meal belongs to an active plan for $userId
-        $stmtCheck = $pdo->prepare(
-            'SELECT dpm.meal_id, dpm.plan_id, dpm.day_of_week, dpm.meal_type, dpm.image_url 
-             FROM dietary_plan_meals dpm
-             JOIN dietary_plans dp ON dp.plan_id = dpm.plan_id
-             WHERE dpm.meal_id = ? AND dp.member_user_id = ?'
-        );
-        $stmtCheck->execute([$mealId, $userId]);
-        $mealRow = $stmtCheck->fetch();
+            $mealId = (int) post('meal_id');
+            $foodId = (int) post('food_id');
+            $foodItems = trim((string) post('food_items'));
+            $calories = max(0, (int) post('calories'));
+            $protein = max(0, (float) post('protein_g'));
+            $carbs = max(0, (float) post('carbs_g'));
+            $fat = max(0, (float) post('fat_g'));
 
-        if (!$mealRow) {
+            if ($mealId <= 0) {
+                if (ob_get_level()) ob_clean();
+                header('Content-Type: application/json; charset=utf-8');
+                echo json_encode(['success' => false, 'error' => 'Invalid meal identifier.']);
+                exit;
+            }
+
+            // Check ownership: ensure this meal belongs to an active plan for $userId
+            $stmtCheck = $pdo->prepare(
+                'SELECT dpm.meal_id, dpm.plan_id, dpm.day_of_week, dpm.meal_type, dpm.image_url 
+                 FROM dietary_plan_meals dpm
+                 JOIN dietary_plans dp ON dp.plan_id = dpm.plan_id
+                 WHERE dpm.meal_id = ? AND dp.member_user_id = ?'
+            );
+            $stmtCheck->execute([$mealId, $userId]);
+            $mealRow = $stmtCheck->fetch(PDO::FETCH_ASSOC);
+
+            if (!$mealRow) {
+                if (ob_get_level()) ob_clean();
+                header('Content-Type: application/json; charset=utf-8');
+                echo json_encode(['success' => false, 'error' => 'Meal not found or unauthorized.']);
+                exit;
+            }
+
+            if (empty($foodItems)) {
+                if (ob_get_level()) ob_clean();
+                header('Content-Type: application/json; charset=utf-8');
+                echo json_encode(['success' => false, 'error' => 'Meal description cannot be empty.']);
+                exit;
+            }
+
+            // Guard: Unverified food items cannot be added to a member's plan
+            if ($foodId > 0) {
+                $checkFood = $pdo->prepare("SELECT verification_status FROM food_items WHERE food_id = ? AND is_active = 1 LIMIT 1");
+                $checkFood->execute([$foodId]);
+                $fVerif = $checkFood->fetchColumn();
+                if ($fVerif && $fVerif !== 'verified') {
+                    if (ob_get_level()) ob_clean();
+                    header('Content-Type: application/json; charset=utf-8');
+                    echo json_encode(['success' => false, 'error' => 'This food item is unverified and cannot be added to your plan.']);
+                    exit;
+                }
+            } else {
+                $checkFood = $pdo->prepare("SELECT verification_status FROM food_items WHERE name = ? AND is_active = 1 LIMIT 1");
+                $checkFood->execute([$foodItems]);
+                $fVerif = $checkFood->fetchColumn();
+                if ($fVerif && $fVerif !== 'verified') {
+                    if (ob_get_level()) ob_clean();
+                    header('Content-Type: application/json; charset=utf-8');
+                    echo json_encode(['success' => false, 'error' => 'This food item is unverified and cannot be added to your plan.']);
+                    exit;
+                }
+            }
+
+            $stmtUpdate = $pdo->prepare('UPDATE dietary_plan_meals SET food_items = ?, calories = ?, protein_g = ?, carbs_g = ?, fat_g = ? WHERE meal_id = ?');
+            $stmtUpdate->execute([$foodItems, $calories, $protein, $carbs, $fat, $mealId]);
+
+            // Recalculate day totals
+            $dayNum = (int) $mealRow['day_of_week'];
+            $planId = (int) $mealRow['plan_id'];
+            $stmtTotals = $pdo->prepare("SELECT SUM(calories) as cals, SUM(protein_g) as pro, SUM(carbs_g) as carbs, SUM(fat_g) as fat FROM dietary_plan_meals WHERE plan_id = ? AND day_of_week = ?");
+            $stmtTotals->execute([$planId, $dayNum]);
+            $dayTotals = $stmtTotals->fetch(PDO::FETCH_ASSOC);
+
+            $isToday = ($dayNum === (int) date('N'));
+            $todayTargets = null;
+            if ($isToday) {
+                $todayTargets = [
+                    'target_cals' => (int) ($dayTotals['cals'] ?? 0),
+                    'target_pro' => (float) ($dayTotals['pro'] ?? 0),
+                    'target_carbs' => (float) ($dayTotals['carbs'] ?? 0),
+                    'target_fat' => (float) ($dayTotals['fat'] ?? 0),
+                ];
+            }
+
+            $resolvedUrl = get_meal_photo_url($mealRow['image_url'], $foodItems, $mealRow['meal_type']);
+
             if (ob_get_level()) ob_clean();
-            header('Content-Type: application/json');
-            echo json_encode(['success' => false, 'error' => 'Meal not found or unauthorized.']);
+            header('Content-Type: application/json; charset=utf-8');
+            echo json_encode([
+                'success' => true,
+                'meal_id' => $mealId,
+                'day_of_week' => $dayNum,
+                'meal_type' => $mealRow['meal_type'],
+                'food_items' => $foodItems,
+                'calories' => $calories,
+                'protein_g' => $protein,
+                'carbs_g' => $carbs,
+                'fat_g' => $fat,
+                'is_today' => $isToday,
+                'today_targets' => $todayTargets,
+                'resolved_url' => $resolvedUrl,
+                'day_totals' => [
+                    'calories' => (int) ($dayTotals['cals'] ?? 0),
+                    'protein_g' => (float) ($dayTotals['pro'] ?? 0),
+                    'carbs_g' => (float) ($dayTotals['carbs'] ?? 0),
+                    'fat_g' => (float) ($dayTotals['fat'] ?? 0),
+                ]
+            ]);
+            exit;
+        } catch (Throwable $e) {
+            if (ob_get_level()) ob_clean();
+            header('Content-Type: application/json; charset=utf-8');
+            echo json_encode([
+                'success' => false,
+                'error' => 'Database error during meal swap: ' . $e->getMessage()
+            ]);
             exit;
         }
-
-        if (empty($foodItems)) {
-            if (ob_get_level()) ob_clean();
-            header('Content-Type: application/json');
-            echo json_encode(['success' => false, 'error' => 'Meal description cannot be empty.']);
-            exit;
-        }
-
-        // Guard: Unverified food items cannot be added to a member's plan
-        $checkFood = $pdo->prepare("SELECT verification_status FROM food_items WHERE name = ? AND is_active = 1 LIMIT 1");
-        $checkFood->execute([$foodItems]);
-        $fVerif = $checkFood->fetchColumn();
-        if ($fVerif && $fVerif !== 'verified') {
-            if (ob_get_level()) ob_clean();
-            header('Content-Type: application/json');
-            echo json_encode(['success' => false, 'error' => 'This food item is unverified and cannot be added to your plan.']);
-            exit;
-        }
-
-        $stmtUpdate = $pdo->prepare('UPDATE dietary_plan_meals SET food_items = ?, calories = ?, protein_g = ?, carbs_g = ?, fat_g = ? WHERE meal_id = ?');
-        $stmtUpdate->execute([$foodItems, $calories, $protein, $carbs, $fat, $mealId]);
-
-        // Recalculate day totals
-        $dayNum = (int) $mealRow['day_of_week'];
-        $planId = (int) $mealRow['plan_id'];
-        $dayTotals = $pdo->query("SELECT SUM(calories) as cals, SUM(protein_g) as pro, SUM(carbs_g) as carbs, SUM(fat_g) as fat FROM dietary_plan_meals WHERE plan_id = {$planId} AND day_of_week = {$dayNum}")->fetch();
-
-        $isToday = ($dayNum === (int) date('N'));
-        $todayTargets = null;
-        if ($isToday) {
-            $todayTargets = [
-                'target_cals' => (int) ($dayTotals['cals'] ?? 0),
-                'target_pro' => (float) ($dayTotals['pro'] ?? 0),
-                'target_carbs' => (float) ($dayTotals['carbs'] ?? 0),
-                'target_fat' => (float) ($dayTotals['fat'] ?? 0),
-            ];
-        }
-
-        $resolvedUrl = get_meal_photo_url($mealRow['image_url'], $foodItems, $mealRow['meal_type']);
-
-        if (ob_get_level()) ob_clean();
-        header('Content-Type: application/json');
-        echo json_encode([
-            'success' => true,
-            'meal_id' => $mealId,
-            'day_of_week' => $dayNum,
-            'meal_type' => $mealRow['meal_type'],
-            'food_items' => $foodItems,
-            'calories' => $calories,
-            'protein_g' => $protein,
-            'carbs_g' => $carbs,
-            'fat_g' => $fat,
-            'is_today' => $isToday,
-            'today_targets' => $todayTargets,
-            'resolved_url' => $resolvedUrl,
-            'day_totals' => [
-                'calories' => (int) ($dayTotals['cals'] ?? 0),
-                'protein_g' => (float) ($dayTotals['pro'] ?? 0),
-                'carbs_g' => (float) ($dayTotals['carbs'] ?? 0),
-                'fat_g' => (float) ($dayTotals['fat'] ?? 0),
-            ]
-        ]);
-        exit;
     }
 
     // ----------------------------------------------------
@@ -1315,11 +1354,22 @@ window.FT_CURRENT_DAY_NUM = window.DIET_CONFIG.currentDayNum;
                             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
                             <span>Clear</span>
                         </button>
+                        <button type="button" id="btn-scan-meal-photo" class="smart-meal-scan-btn" onclick="triggerMealPhotoScan()" title="Scan Nutrition Label, Menu, or Recipe">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+                            <span id="btn-scan-meal-photo-txt">Scan Label / Menu</span>
+                        </button>
+                        <input type="file" id="meal-photo-file-input" accept="image/*" style="display:none;" onchange="handleMealPhotoSelected(event)">
                         <button type="button" id="btn-analyze-ninja" class="smart-meal-action-btn">
                             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
                             <span id="btn-analyze-ninja-txt">Analyze &amp; Fill</span>
                         </button>
                     </div>
+                </div>
+
+                <!-- Guidance tip for photo scanning -->
+                <div class="smart-photo-guide-chip">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+                    <span><strong>Photo Scan:</strong> Reads <strong>printed text</strong> (nutrition labels, menus, receipts, or recipe cards). <em>Does not analyze actual food on a plate.</em></span>
                 </div>
 
                 <!-- Quick Suggestion Pills -->
@@ -1753,67 +1803,21 @@ window.FT_CURRENT_DAY_NUM = window.DIET_CONFIG.currentDayNum;
                 <div class="swap-current-macros" id="swap-current-macros"></div>
             </div>
 
-            <!-- Tab Controls: Curated Options vs Custom Search -->
-            <div class="swap-tabs-bar">
-                <button type="button" id="tab-swap-curated" class="swap-tab-btn active" onclick="switchSwapTab('curated')">
-                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
-                    <span>Healthy Recipes</span>
-                </button>
-                <button type="button" id="tab-swap-custom" class="swap-tab-btn" onclick="switchSwapTab('custom')">
-                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-                    <span>Custom Meal Search</span>
-                </button>
+            <!-- Filter Pills -->
+            <div class="swap-filters-row">
+                <button type="button" class="swap-filter-pill active" onclick="filterSwapRecipes('all', this)">All Alternatives</button>
+                <button type="button" class="swap-filter-pill" onclick="filterSwapRecipes('diet', this)" id="pill-filter-diet">Matched to My Diet</button>
+                <button type="button" class="swap-filter-pill" onclick="filterSwapRecipes('high-protein', this)">High Protein</button>
             </div>
 
-            <!-- Curated Recipes Panel -->
-            <div id="swap-panel-curated" class="swap-panel">
-                <!-- Filter Pills -->
-                <div class="swap-filters-row">
-                    <button type="button" class="swap-filter-pill active" onclick="filterSwapRecipes('all', this)">All Alternatives</button>
-                    <button type="button" class="swap-filter-pill" onclick="filterSwapRecipes('diet', this)" id="pill-filter-diet">Matched to My Diet</button>
-                    <button type="button" class="swap-filter-pill" onclick="filterSwapRecipes('high-protein', this)">High Protein</button>
-                </div>
-
-                <!-- Loading spinner -->
-                <div id="swap-loading" style="display:none; padding:35px 20px; text-align:center;">
-                    <div class="ft-spinner"></div>
-                    <p style="margin-top:14px; color:var(--muted); font-size:13px;">Finding balanced recipe alternatives...</p>
-                </div>
-
-                <!-- Recipe Grid -->
-                <div id="swap-recipes-grid" class="swap-recipes-grid"></div>
+            <!-- Loading spinner -->
+            <div id="swap-loading" style="display:none; padding:35px 20px; text-align:center;">
+                <div class="ft-spinner"></div>
+                <p style="margin-top:14px; color:var(--muted); font-size:13px;">Finding balanced recipe alternatives...</p>
             </div>
 
-            <!-- Custom Search Panel -->
-            <div id="swap-panel-custom" class="swap-panel" style="display:none;">
-                <p style="margin:0 0 12px 0; font-size:13px; color:var(--muted); line-height:1.5;">
-                    Type your custom meal or ingredients. Our nutrition engine calculates exact calories and macros on the fly:
-                </p>
-                <div class="swap-custom-input-row">
-                    <input type="text" id="swap-custom-input" class="swap-custom-field" placeholder="e.g. 200g grilled salmon, 1 cup quinoa, steamed broccoli" autocomplete="off" onkeydown="if(event.key==='Enter'){event.preventDefault();calculateCustomSwap();}">
-                    <button type="button" id="btn-calc-custom-swap" class="btn-calc-custom" onclick="calculateCustomSwap()">
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
-                        <span id="btn-calc-custom-text">Calculate</span>
-                    </button>
-                </div>
-
-                <div id="swap-custom-loading" style="display:none; padding:20px; text-align:center;">
-                    <div class="ft-spinner" style="width:20px; height:20px;"></div>
-                    <span style="font-size:12px; color:var(--muted); display:inline-block; margin-top:8px;">Calculating nutrition breakdown...</span>
-                </div>
-
-                <div id="swap-custom-result" style="display:none; margin-top:14px;" class="swap-custom-card">
-                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; flex-wrap:wrap; gap:6px;">
-                        <strong style="color:var(--ink); font-size:13.5px;" id="swap-custom-name">Custom Meal</strong>
-                        <span id="swap-custom-cals" style="color:var(--lime); font-weight:800; font-size:14px;">0 kcal</span>
-                    </div>
-                    <div id="swap-custom-macros-row" style="display:flex; gap:10px; font-size:12px; color:var(--muted); margin-bottom:14px; background:var(--bg); padding:8px 12px; border-radius:6px; border:1px solid var(--line);"></div>
-                    <button type="button" id="btn-apply-custom-swap" class="btn-primary-action" style="width:100%; justify-content:center;" onclick="applyCustomSwap()">
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
-                        <span>Confirm & Swap to this Meal</span>
-                    </button>
-                </div>
-            </div>
+            <!-- Recipe Grid -->
+            <div id="swap-recipes-grid" class="swap-recipes-grid"></div>
         </div>
 
         <div class="ft-modal-footer">

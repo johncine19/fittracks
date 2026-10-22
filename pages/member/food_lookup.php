@@ -281,6 +281,140 @@ function food_lookup_page(): void
         exit;
     }
 
+    // Action 3: Scan nutrition from photo of nutrition label, menu, or recipe
+    if ($action === 'scan_image_nutrition') {
+        if (!isset($_FILES['image']) && !isset($_FILES['media'])) {
+            echo json_encode(['success' => false, 'error' => 'No image file was received.']);
+            exit;
+        }
+
+        $file = $_FILES['image'] ?? $_FILES['media'];
+        if (!empty($file['error']) || empty($file['tmp_name']) || !file_exists($file['tmp_name'])) {
+            echo json_encode(['success' => false, 'error' => 'Image upload failed. Please try again.']);
+            exit;
+        }
+
+        if ($file['size'] > 8 * 1024 * 1024) {
+            echo json_encode(['success' => false, 'error' => 'Image is too large. Maximum size is 8MB.']);
+            exit;
+        }
+
+        // Validate MIME type
+        $finfo = finfo_open(FILEINFO_MIME_TYPE);
+        $mime = finfo_file($finfo, $file['tmp_name']);
+        finfo_close($finfo);
+
+        $allowedMimes = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
+        if (!in_array($mime, $allowedMimes, true)) {
+            echo json_encode(['success' => false, 'error' => 'Invalid image format. Please upload a JPG, PNG, or WEBP image.']);
+            exit;
+        }
+
+        // Rate limiting
+        if (!isset($_SESSION['cn_img_timestamps']) || !is_array($_SESSION['cn_img_timestamps'])) {
+            $_SESSION['cn_img_timestamps'] = [];
+        }
+        $now = time();
+        $window = 300; // 5 mins
+        $_SESSION['cn_img_timestamps'] = array_values(array_filter(
+            $_SESSION['cn_img_timestamps'],
+            fn($ts) => ($now - (int)$ts) < $window
+        ));
+
+        if (count($_SESSION['cn_img_timestamps']) >= 15) {
+            http_response_code(429);
+            echo json_encode([
+                'success' => false,
+                'error' => 'Rate limit reached: You have scanned 15 images in the last 5 minutes. Please wait a few moments.'
+            ]);
+            exit;
+        }
+
+        $apiKey = trim((string) ($_ENV['CALORIENINJAS_API_KEY'] ?? ''));
+        if (empty($apiKey)) {
+            echo json_encode(['success' => false, 'error' => 'CalorieNinjas API key is not configured in .env.']);
+            exit;
+        }
+
+        $cFile = new CURLFile($file['tmp_name'], $mime, $file['name'] ?? 'meal.jpg');
+        $ch = curl_init('https://api.calorieninjas.com/v1/imagetextnutrition');
+        curl_setopt($ch, CURLOPT_HTTPHEADER, ['X-Api-Key: ' . $apiKey]);
+        curl_setopt($ch, CURLOPT_POST, true);
+        curl_setopt($ch, CURLOPT_POSTFIELDS, ['media' => $cFile]);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_TIMEOUT, 20);
+        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+        $res = curl_exec($ch);
+        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        curl_close($ch);
+
+        $_SESSION['cn_img_timestamps'][] = $now;
+
+        if ($res === false || $httpCode !== 200) {
+            echo json_encode(['success' => false, 'error' => 'Image analysis service error (HTTP ' . $httpCode . ').']);
+            exit;
+        }
+
+        $data = json_decode($res, true);
+        if (!isset($data['items']) || empty($data['items'])) {
+            echo json_encode([
+                'success' => false,
+                'empty_text' => true,
+                'error' => 'No readable food names or nutrition facts were detected in this image.'
+            ]);
+            exit;
+        }
+
+        $totCals = 0.0;
+        $totPro = 0.0;
+        $totCarbs = 0.0;
+        $totFat = 0.0;
+        $cleanItems = [];
+        $names = [];
+
+        foreach ($data['items'] as $item) {
+            $cals = (float) ($item['calories'] ?? 0);
+            $pro = (float) ($item['protein_g'] ?? 0);
+            $carbs = (float) ($item['carbohydrates_total_g'] ?? 0);
+            $fat = (float) ($item['fat_total_g'] ?? 0);
+
+            $totCals += $cals;
+            $totPro += $pro;
+            $totCarbs += $carbs;
+            $totFat += $fat;
+
+            $itemName = ucwords((string) ($item['name'] ?? 'Food item'));
+            $names[] = $itemName;
+
+            $cleanItems[] = [
+                'name' => $itemName,
+                'serving_size_g' => (float) ($item['serving_size_g'] ?? 0),
+                'calories' => round($cals),
+                'protein_g' => round($pro, 1),
+                'carbs_g' => round($carbs, 1),
+                'fat_g' => round($fat, 1),
+                'fiber_g' => round((float) ($item['fiber_g'] ?? 0), 1),
+                'sugar_g' => round((float) ($item['sugar_g'] ?? 0), 1),
+                'sodium_mg' => round((float) ($item['sodium_mg'] ?? 0)),
+                'potassium_mg' => round((float) ($item['potassium_mg'] ?? 0)),
+            ];
+        }
+
+        $summaryText = implode(', ', array_unique($names));
+
+        echo json_encode([
+            'success' => true,
+            'provider' => 'calorieninjas_ocr',
+            'query' => $summaryText,
+            'total_calories' => round($totCals),
+            'total_protein' => round($totPro, 1),
+            'total_carbs' => round($totCarbs, 1),
+            'total_fat' => round($totFat, 1),
+            'items' => $cleanItems,
+        ]);
+        exit;
+    }
+
 
 
     if ($action === 'decompose_meal') {

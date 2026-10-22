@@ -741,6 +741,25 @@ if (!function_exists('setup_error')) {
         http_response_code(500);
         $isDev = in_array(strtolower($_ENV['APP_ENV'] ?? 'production'), ['development', 'dev', 'local'], true) 
                  || (isset($_SERVER['REMOTE_ADDR']) && in_array($_SERVER['REMOTE_ADDR'], ['127.0.0.1', '::1'], true));
+
+        $isAjax = (!empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest')
+            || (isset($_SERVER['HTTP_ACCEPT']) && str_contains($_SERVER['HTTP_ACCEPT'], 'application/json'))
+            || (isset($_SERVER['CONTENT_TYPE']) && str_contains($_SERVER['CONTENT_TYPE'], 'application/json'))
+            || (!empty($_GET['action']))
+            || (!empty($_POST['action']))
+            || (!empty($_GET['page']) && (str_ends_with((string)$_GET['page'], '_api') || in_array($_GET['page'], ['food_lookup', 'equipment_api', 'notification_action'])));
+
+        if ($isAjax) {
+            if (ob_get_level()) ob_clean();
+            header('Content-Type: application/json; charset=utf-8');
+            echo json_encode([
+                'success' => false,
+                'error' => $isDev ? $e->getMessage() : 'An unexpected error occurred while processing your request.',
+                'message' => $isDev ? $e->getMessage() : 'An unexpected error occurred while processing your request.'
+            ]);
+            exit;
+        }
+
         $cssFile = __DIR__ . '/../assets/app.css';
         $v = file_exists($cssFile) ? filemtime($cssFile) : time();
         ?>
