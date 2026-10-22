@@ -149,7 +149,10 @@ try {
         // ── Member Onboarding, Schedule Enforcement & Secondary Focus migrations ──
         "ALTER TABLE member_profiles ADD COLUMN preferred_workout_days VARCHAR(50) DEFAULT NULL AFTER preferred_duration_mins",
         "ALTER TABLE member_profiles ADD COLUMN secondary_focus VARCHAR(255) DEFAULT NULL AFTER primary_goal",
-        "ALTER TABLE member_profiles ADD COLUMN trainer_assessment_notes TEXT DEFAULT NULL AFTER preferred_workout_days"
+        "ALTER TABLE member_profiles ADD COLUMN trainer_assessment_notes TEXT DEFAULT NULL AFTER preferred_workout_days",
+
+        // ── Active facility resolution (get_user_gym / memberships page) ──
+        "CREATE INDEX idx_mem_user_status_end ON memberships (user_id, status, end_date)"
     ];
 
     foreach ($migrations as $sql) {

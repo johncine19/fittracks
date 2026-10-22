@@ -679,8 +679,18 @@ function memberships_page(): void
     } elseif ($user['role'] === 'member') {
         $where = 'WHERE m.user_id = ' . (int) $user['user_id'];
         $memberGymId = !empty($_SESSION['current_gym_id']) ? (int)$_SESSION['current_gym_id'] : 0;
+        if (!$memberGymId && function_exists('get_user_gym')) {
+            // Use the same resolution as the header facility switcher so the
+            // plans shown always match the facility displayed in the header.
+            $resolvedGym = get_user_gym($user);
+            $memberGymId = (int) ($resolvedGym['gym_id'] ?? 0);
+        }
         if (!$memberGymId) {
             $memberGymId = (int) scalar('SELECT gym_id FROM gym_members WHERE user_id = ? ORDER BY created_at DESC LIMIT 1', [$user['user_id']]);
+        }
+        if ($memberGymId > 0) {
+            // Pin the active facility so every page/header agrees from now on.
+            $_SESSION['current_gym_id'] = $memberGymId;
         }
         if (!$memberGymId) {
             $memberGymId = (int) scalar('SELECT mp.gym_id FROM memberships m JOIN membership_plans mp ON mp.plan_id = m.plan_id WHERE m.user_id = ? AND m.status = "active" AND m.end_date >= CURDATE() ORDER BY m.membership_id DESC LIMIT 1', [$user['user_id']]);
