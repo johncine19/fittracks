@@ -2,6 +2,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/Queue.php';
+require_once __DIR__ . '/Cache.php';
 require_once __DIR__ . '/helpers.php';
 
 /**
@@ -657,41 +658,42 @@ function get_engagement_category(int $score): string
 
 function get_inactive_members(int $limit = 5, ?int $gymId = null): array
 {
-    $pdo = db();
-    
-    $gymJoin = '';
-    $gymWhere = '';
-    if ($gymId !== null) {
-        $gymJoin = 'LEFT JOIN gym_members gm ON gm.user_id = u.user_id 
-                    LEFT JOIN memberships m ON m.user_id = u.user_id AND m.status = "active" 
-                    LEFT JOIN membership_plans mp ON mp.plan_id = m.plan_id';
-        $gymWhere = 'AND (gm.gym_id = ' . (int)$gymId . ' OR mp.gym_id = ' . (int)$gymId . ')';
-    }
-
-    $users = query_all(
-        'SELECT u.user_id, u.first_name, u.last_name, u.email, u.profile_picture, u.created_at, u.engagement_score,
-                MAX(a.check_in_time) as last_checkin, 
-                COALESCE(DATEDIFF(CURDATE(), MAX(a.check_in_time)), DATEDIFF(CURDATE(), u.created_at)) as days_inactive
-         FROM users u
-         LEFT JOIN attendance a ON u.user_id = a.user_id
-         ' . $gymJoin . '
-         WHERE u.role = "member" AND u.status = "active" ' . $gymWhere . '
-         GROUP BY u.user_id'
-    );
-
-    $atRisk = [];
-    foreach ($users as $u) {
-        if ((int)$u['days_inactive'] < 1) {
-            continue; // Skip members who checked in today (0 days inactive)
+    $cacheKey = 'inactive_members_' . ($gymId ?? 'all') . '_' . $limit;
+    return Cache::remember($cacheKey, 300, function () use ($limit, $gymId) {
+        $gymJoin = '';
+        $gymWhere = '';
+        if ($gymId !== null) {
+            $gymJoin = 'LEFT JOIN gym_members gm ON gm.user_id = u.user_id 
+                        LEFT JOIN memberships m ON m.user_id = u.user_id AND m.status = "active" 
+                        LEFT JOIN membership_plans mp ON mp.plan_id = m.plan_id';
+            $gymWhere = 'AND (gm.gym_id = ' . (int)$gymId . ' OR mp.gym_id = ' . (int)$gymId . ')';
         }
-        $score = (int) ($u['engagement_score'] ?? 0);
-        if (get_engagement_category($score) === 'At-Risk') {
-            $atRisk[] = $u;
-        }
-    }
 
-    usort($atRisk, fn($a, $b) => ($b['days_inactive'] ?? 9999) <=> ($a['days_inactive'] ?? 9999));
-    return array_slice($atRisk, 0, $limit);
+        $users = query_all(
+            'SELECT u.user_id, u.first_name, u.last_name, u.email, u.profile_picture, u.created_at, u.engagement_score,
+                    MAX(a.check_in_time) as last_checkin, 
+                    COALESCE(DATEDIFF(CURDATE(), MAX(a.check_in_time)), DATEDIFF(CURDATE(), u.created_at)) as days_inactive
+             FROM users u
+             LEFT JOIN attendance a ON u.user_id = a.user_id
+             ' . $gymJoin . '
+             WHERE u.role = "member" AND u.status = "active" ' . $gymWhere . '
+             GROUP BY u.user_id'
+        );
+
+        $atRisk = [];
+        foreach ($users as $u) {
+            if ((int)$u['days_inactive'] < 1) {
+                continue; // Skip members who checked in today (0 days inactive)
+            }
+            $score = (int) ($u['engagement_score'] ?? 0);
+            if (get_engagement_category($score) === 'At-Risk') {
+                $atRisk[] = $u;
+            }
+        }
+
+        usort($atRisk, fn($a, $b) => ($b['days_inactive'] ?? 9999) <=> ($a['days_inactive'] ?? 9999));
+        return array_slice($atRisk, 0, $limit);
+    });
 }
 
 const AT_RISK_NOTIFICATION_TITLE = 'We miss you at the gym!';

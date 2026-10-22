@@ -137,9 +137,13 @@ function scanner_page(): void
 
         $searchSql = '
             SELECT u.user_id, u.first_name, u.last_name, u.role, u.email, u.phone, u.profile_picture,
-                   (SELECT attendance_id FROM attendance WHERE user_id = u.user_id AND check_out_time IS NULL AND check_in_time >= CURDATE() AND check_in_time < CURDATE() + INTERVAL 1 DAY ORDER BY check_in_time DESC LIMIT 1) as active_attendance_id,
-                   (SELECT check_in_time FROM attendance WHERE user_id = u.user_id AND check_out_time IS NULL AND check_in_time >= CURDATE() AND check_in_time < CURDATE() + INTERVAL 1 DAY ORDER BY check_in_time DESC LIMIT 1) as active_check_in_time
+                   a.attendance_id as active_attendance_id,
+                   a.check_in_time as active_check_in_time
             FROM users u
+            LEFT JOIN attendance a ON a.user_id = u.user_id 
+                AND a.check_out_time IS NULL 
+                AND a.check_in_time >= CURDATE() 
+                AND a.check_in_time < CURDATE() + INTERVAL 1 DAY
             WHERE u.status = "active" AND u.role IN ("member", "trainer")
         ';
         $params = [];
@@ -199,9 +203,13 @@ function scanner_page(): void
 
         $rosterSql = '
             SELECT u.user_id, u.first_name, u.last_name, u.role, u.email, u.phone, u.qr_token, u.profile_picture,
-                   (SELECT attendance_id FROM attendance WHERE user_id = u.user_id AND check_out_time IS NULL AND check_in_time >= CURDATE() AND check_in_time < CURDATE() + INTERVAL 1 DAY ORDER BY check_in_time DESC LIMIT 1) as active_attendance_id,
-                   (SELECT check_in_time FROM attendance WHERE user_id = u.user_id AND check_out_time IS NULL AND check_in_time >= CURDATE() AND check_in_time < CURDATE() + INTERVAL 1 DAY ORDER BY check_in_time DESC LIMIT 1) as active_check_in_time
+                   a.attendance_id as active_attendance_id,
+                   a.check_in_time as active_check_in_time
             FROM users u
+            LEFT JOIN attendance a ON a.user_id = u.user_id 
+                AND a.check_out_time IS NULL 
+                AND a.check_in_time >= CURDATE() 
+                AND a.check_in_time < CURDATE() + INTERVAL 1 DAY
             WHERE u.status = "active" AND u.role IN ("member", "trainer")
         ';
         $params = [];

@@ -73,6 +73,8 @@ function get_dashboard_attendance_activity_data(array $user, array $params = [])
     }
 
     // Attendance Roster Query for the selected date range
+    $startTs = $startDate . ' 00:00:00';
+    $nextDayTs = date('Y-m-d 00:00:00', strtotime($endDate . ' +1 day'));
     $rosterStmt = $pdo->prepare("
         SELECT 
             a.attendance_id,
@@ -91,13 +93,13 @@ function get_dashboard_attendance_activity_data(array $user, array $params = [])
         JOIN users u ON u.user_id = a.user_id
         LEFT JOIN gyms g ON g.gym_id = a.gym_id
         WHERE (
-            (DATE(a.check_in_time) BETWEEN :start_date AND :end_date)
-            OR (a.check_out_time IS NOT NULL AND DATE(a.check_out_time) BETWEEN :start_date AND :end_date)
+            (a.check_in_time >= :start_ts AND a.check_in_time < :next_day_ts)
+            OR (a.check_out_time IS NOT NULL AND a.check_out_time >= :start_ts AND a.check_out_time < :next_day_ts)
         )
           AND (:gym_id = 0 OR a.gym_id = :gym_id)
         ORDER BY a.check_in_time DESC
     ");
-    $rosterStmt->execute(['start_date' => $startDate, 'end_date' => $endDate, 'gym_id' => $gymId]);
+    $rosterStmt->execute(['start_ts' => $startTs, 'next_day_ts' => $nextDayTs, 'gym_id' => $gymId]);
     $rawRoster = $rosterStmt->fetchAll(PDO::FETCH_ASSOC);
 
     $nowTs = time();

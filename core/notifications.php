@@ -166,10 +166,19 @@ function notify_admins_email(string $subject, string $body): void
 
 function unread_notification_count(int $userId): int
 {
+    static $memo = [];
+    if (isset($memo[$userId])) {
+        return $memo[$userId];
+    }
     try {
-        $userRole = scalar('SELECT role FROM users WHERE user_id = ?', [$userId]);
+        $currentUser = function_exists('current_user') ? current_user() : null;
+        $userRole = ($currentUser && (int)($currentUser['user_id'] ?? 0) === $userId)
+            ? ($currentUser['role'] ?? '')
+            : scalar('SELECT role FROM users WHERE user_id = ?', [$userId]);
         $filter = ($userRole === 'platform_admin') ? " AND title NOT LIKE 'New Announcement:%'" : "";
-        return (int) scalar("SELECT COUNT(*) FROM notifications WHERE user_id = ? AND is_read = 0{$filter}", [$userId]);
+        $count = (int) scalar("SELECT COUNT(*) FROM notifications WHERE user_id = ? AND is_read = 0{$filter}", [$userId]);
+        $memo[$userId] = $count;
+        return $count;
     } catch (Throwable) {
         return 0;
     }

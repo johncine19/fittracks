@@ -12,21 +12,32 @@ function render_header(string $title, ?array $user = null): void
     }
     $memberAffiliatedGyms = [];
     if ($role === 'member' && !empty($user['user_id'])) {
-        $memberAffiliatedGyms = query_all('
-            SELECT DISTINCT g.gym_id, g.name,
-                   (SELECT mp.plan_name 
-                    FROM memberships m 
-                    JOIN membership_plans mp ON mp.plan_id = m.plan_id 
-                    WHERE m.user_id = ? AND mp.gym_id = g.gym_id AND m.status = "active" AND m.end_date >= CURDATE() 
-                    ORDER BY m.end_date DESC LIMIT 1) as plan_name
-            FROM gyms g
-            WHERE g.gym_id IN (
-                SELECT gym_id FROM gym_members WHERE user_id = ?
-                UNION
-                SELECT mp.gym_id FROM memberships m JOIN membership_plans mp ON mp.plan_id = m.plan_id WHERE m.user_id = ? AND m.status = "active"
-            )
-            ORDER BY g.name ASC
-        ', [(int)$user['user_id'], (int)$user['user_id'], (int)$user['user_id']]);
+        $uid = (int)$user['user_id'];
+        $cacheKey = 'member_gyms_' . $uid;
+        $now = time();
+        if (isset($_SESSION[$cacheKey]) && ($_SESSION[$cacheKey]['expires'] ?? 0) > $now) {
+            $memberAffiliatedGyms = $_SESSION[$cacheKey]['data'];
+        } else {
+            $memberAffiliatedGyms = query_all('
+                SELECT DISTINCT g.gym_id, g.name,
+                       (SELECT mp.plan_name 
+                        FROM memberships m 
+                        JOIN membership_plans mp ON mp.plan_id = m.plan_id 
+                        WHERE m.user_id = ? AND mp.gym_id = g.gym_id AND m.status = "active" AND m.end_date >= CURDATE() 
+                        ORDER BY m.end_date DESC LIMIT 1) as plan_name
+                FROM gyms g
+                WHERE g.gym_id IN (
+                    SELECT gym_id FROM gym_members WHERE user_id = ?
+                    UNION
+                    SELECT mp.gym_id FROM memberships m JOIN membership_plans mp ON mp.plan_id = m.plan_id WHERE m.user_id = ? AND m.status = "active"
+                )
+                ORDER BY g.name ASC
+            ', [$uid, $uid, $uid]);
+            $_SESSION[$cacheKey] = [
+                'expires' => $now + 60,
+                'data' => $memberAffiliatedGyms
+            ];
+        }
     }
     $nav = [];
     if ($user) {
@@ -91,9 +102,12 @@ function render_header(string $title, ?array $user = null): void
             ];
         }
         if ($role === 'member') {
-            $isGymMember = db()->prepare('SELECT 1 FROM gym_members WHERE user_id = ?');
-            $isGymMember->execute([$user['user_id']]);
-            $hasGym = (bool) $isGymMember->fetchColumn();
+            $hasGym = !empty($memberAffiliatedGyms);
+            if (!$hasGym) {
+                $isGymMember = db()->prepare('SELECT 1 FROM gym_members WHERE user_id = ? LIMIT 1');
+                $isGymMember->execute([$user['user_id']]);
+                $hasGym = (bool) $isGymMember->fetchColumn();
+            }
 
             $nav += [
                 'messages' => 'Messages',
@@ -1787,167 +1801,196 @@ function render_header(string $title, ?array $user = null): void
                 <div class="role-badge"><?= h(ucfirst($user['role'])) ?></div>
                 <?php 
                     $unreadNotifsCount = $user ? unread_notification_count((int) $user['user_id']) : 0;
-                    $unreadMsgsCount   = $user ? (int) scalar('SELECT COUNT(*) FROM trainer_messages WHERE recipient_id = ? AND is_read = 0', [(int)$user['user_id']]) : 0;
-
                     $sidebarBadges = [];
+                    $unreadMsgsCount = 0;
+
                     if ($user) {
                         $uid = (int) $user['user_id'];
-                        if ($role === 'member') {
-                            $activeGymId = (int)($gym['gym_id'] ?? 0);
-                            $assignmentStatus = scalar('
-                                SELECT ca.status 
-                                FROM trainer_assignments ca 
-                                JOIN trainer_profiles tp ON tp.trainer_id = ca.trainer_id 
-                                WHERE ca.member_user_id = ? ' . ($activeGymId > 0 ? ' AND tp.gym_id = ?' : '') . ' 
-                                  AND ca.status IN ("active", "pending_trainer", "pending_admin") 
-                                ORDER BY CASE WHEN ca.status = "active" THEN 1 ELSE 2 END 
-                                LIMIT 1', 
-                                $activeGymId > 0 ? [$uid, $activeGymId] : [$uid]
-                            );
-                            if ($assignmentStatus === 'active') {
-                                $sidebarBadges['trainers'] = [
-                                    'text' => 'Active',
-                                    'class' => 'sidebar-nav-badge sidebar-badge-active',
-                                    'title' => 'Assigned Personal Trainer Active'
-                                ];
-                            } elseif ($assignmentStatus === 'pending_trainer' || $assignmentStatus === 'pending_admin') {
-                                $sidebarBadges['trainers'] = [
-                                    'text' => 'Pending',
-                                    'class' => 'sidebar-nav-badge sidebar-badge-pending',
-                                    'title' => 'Trainer Request Pending'
-                                ];
-                            }
+                        $sidebarCacheKey = 'sidebar_badges_' . $uid . '_' . (int)($gym['gym_id'] ?? 0);
+                        $now = time();
+                        if (isset($_SESSION[$sidebarCacheKey]) && ($_SESSION[$sidebarCacheKey]['expires'] ?? 0) > $now) {
+                            $sidebarBadges = $_SESSION[$sidebarCacheKey]['badges'];
+                            $unreadMsgsCount = (int)($_SESSION[$sidebarCacheKey]['unread_msgs'] ?? 0);
+                        } else {
+                            $unreadMsgsCount = (int) scalar('SELECT COUNT(*) FROM trainer_messages WHERE recipient_id = ? AND is_read = 0', [$uid]);
 
-                            // Smart Badge for Member Diet Plan:
-                            // "New" when newly published/unopened, transitioning to "Active" once viewed.
-                            $hasActiveDiet = (bool) scalar('SELECT 1 FROM dietary_plans WHERE member_user_id = ? AND status = "active" LIMIT 1', [$uid]);
-                            if ($hasActiveDiet) {
-                                $hasUnreadDietNotif = ($page !== 'diet') && (bool) scalar('SELECT 1 FROM notifications WHERE user_id = ? AND is_read = 0 AND (title LIKE "%Diet Plan%" OR message LIKE "%dietary plan%") LIMIT 1', [$uid]);
-                                if ($hasUnreadDietNotif) {
-                                    $sidebarBadges['diet'] = [
-                                        'text' => 'New',
-                                        'class' => 'sidebar-nav-badge sidebar-badge-new',
-                                        'title' => 'New Diet Plan published for you!'
-                                    ];
-                                } else {
-                                    $sidebarBadges['diet'] = [
+                            if ($role === 'member') {
+                                $activeGymId = (int)($gym['gym_id'] ?? 0);
+                                $assignmentStatus = scalar('
+                                    SELECT ca.status 
+                                    FROM trainer_assignments ca 
+                                    JOIN trainer_profiles tp ON tp.trainer_id = ca.trainer_id 
+                                    WHERE ca.member_user_id = ? ' . ($activeGymId > 0 ? ' AND tp.gym_id = ?' : '') . ' 
+                                      AND ca.status IN ("active", "pending_trainer", "pending_admin") 
+                                    ORDER BY CASE WHEN ca.status = "active" THEN 1 ELSE 2 END 
+                                    LIMIT 1', 
+                                    $activeGymId > 0 ? [$uid, $activeGymId] : [$uid]
+                                );
+                                if ($assignmentStatus === 'active') {
+                                    $sidebarBadges['trainers'] = [
                                         'text' => 'Active',
                                         'class' => 'sidebar-nav-badge sidebar-badge-active',
-                                        'title' => 'Personalized Diet Plan Active'
+                                        'title' => 'Assigned Personal Trainer Active'
+                                    ];
+                                } elseif ($assignmentStatus === 'pending_trainer' || $assignmentStatus === 'pending_admin') {
+                                    $sidebarBadges['trainers'] = [
+                                        'text' => 'Pending',
+                                        'class' => 'sidebar-nav-badge sidebar-badge-pending',
+                                        'title' => 'Trainer Request Pending'
                                     ];
                                 }
-                            }
 
-                            // Smart Badge for Member Workout Plan:
-                            // "New" when newly published/unopened, transitioning to "Active" once viewed.
-                            $hasActiveWorkout = (bool) scalar('SELECT 1 FROM training_plans WHERE member_user_id = ? AND status = "active" LIMIT 1', [$uid]);
-                            if ($hasActiveWorkout) {
-                                $hasUnreadWorkoutNotif = ($page !== 'my_workout') && (bool) scalar('SELECT 1 FROM notifications WHERE user_id = ? AND is_read = 0 AND (title LIKE "%Workout Plan%" OR message LIKE "%training routine%") LIMIT 1', [$uid]);
-                                if ($hasUnreadWorkoutNotif) {
-                                    $sidebarBadges['my_workout'] = [
-                                        'text' => 'New',
-                                        'class' => 'sidebar-nav-badge sidebar-badge-new',
-                                        'title' => 'New Workout Plan published for you!'
-                                    ];
-                                } else {
-                                    $sidebarBadges['my_workout'] = [
-                                        'text' => 'Active',
-                                        'class' => 'sidebar-nav-badge sidebar-badge-active',
-                                        'title' => 'Personalized Workout Plan Active'
-                                    ];
-                                }
-                            }
-
-                            // Smart Badge for Member My Plans:
-                            $activeGymPlansCount = (int) scalar('SELECT COUNT(DISTINCT gym_id) FROM training_plans WHERE member_user_id = ? AND status = "active" AND gym_id IS NOT NULL', [$uid]);
-                            if ($activeGymPlansCount > 1) {
-                                $sidebarBadges['my_plans'] = [
-                                    'text' => $activeGymPlansCount . ' Gyms',
-                                    'class' => 'sidebar-nav-badge sidebar-badge-active',
-                                    'title' => 'Active plans across ' . $activeGymPlansCount . ' facilities'
-                                ];
-                            }
-                        } elseif ($role === 'trainer') {
-                            $coachId = ensure_coach_profile($uid);
-                            if ($coachId) {
-                                $pendingClients = (int) scalar('SELECT COUNT(*) FROM trainer_assignments WHERE trainer_id = ? AND status = "pending_trainer"', [$coachId]);
-                                if ($pendingClients > 0) {
-                                    $sidebarBadges['trainer_members'] = [
-                                        'text' => $pendingClients > 99 ? '99+' : (string) $pendingClients,
-                                        'class' => 'sidebar-nav-badge sidebar-badge-alert',
-                                        'title' => $pendingClients . ' pending client request' . ($pendingClients > 1 ? 's' : '')
-                                    ];
-                                } else {
-                                    $activeClients = (int) scalar('SELECT COUNT(*) FROM trainer_assignments WHERE trainer_id = ? AND status = "active"', [$coachId]);
-                                    if ($activeClients > 0) {
-                                        $sidebarBadges['trainer_members'] = [
-                                            'text' => $activeClients > 99 ? '99+' : (string) $activeClients,
-                                            'class' => 'sidebar-nav-badge',
-                                            'title' => $activeClients . ' active client' . ($activeClients > 1 ? 's' : '')
+                                // Smart Badge for Member Diet Plan
+                                $hasActiveDiet = (bool) scalar('SELECT 1 FROM dietary_plans WHERE member_user_id = ? AND status = "active" LIMIT 1', [$uid]);
+                                if ($hasActiveDiet) {
+                                    $hasUnreadDietNotif = (bool) scalar('SELECT 1 FROM notifications WHERE user_id = ? AND is_read = 0 AND (title LIKE "%Diet Plan%" OR message LIKE "%dietary plan%") LIMIT 1', [$uid]);
+                                    if ($hasUnreadDietNotif) {
+                                        $sidebarBadges['diet'] = [
+                                            'text' => 'New',
+                                            'class' => 'sidebar-nav-badge sidebar-badge-new',
+                                            'title' => 'New Diet Plan published for you!'
+                                        ];
+                                    } else {
+                                        $sidebarBadges['diet'] = [
+                                            'text' => 'Active',
+                                            'class' => 'sidebar-nav-badge sidebar-badge-active',
+                                            'title' => 'Personalized Diet Plan Active'
                                         ];
                                     }
                                 }
-                            }
-                        } elseif ($role === 'gym_owner' && $gym) {
-                            $gymId = (int)$gym['gym_id'];
 
-                            $pendingGymTrainers = (int) scalar('SELECT COUNT(*) FROM trainer_assignments ta JOIN trainer_profiles tp ON tp.trainer_id = ta.trainer_id WHERE tp.gym_id = ? AND ta.status = "pending_admin"', [$gymId]);
-                            if ($pendingGymTrainers > 0) {
-                                $sidebarBadges['trainer_assignments'] = [
-                                    'text' => (string) $pendingGymTrainers,
-                                    'class' => 'sidebar-nav-badge sidebar-badge-alert',
-                                    'title' => $pendingGymTrainers . ' pending trainer assignment requests'
-                                ];
-                            }
+                                // Smart Badge for Member Workout Plan
+                                $hasActiveWorkout = (bool) scalar('SELECT 1 FROM training_plans WHERE member_user_id = ? AND status = "active" LIMIT 1', [$uid]);
+                                if ($hasActiveWorkout) {
+                                    $hasUnreadWorkoutNotif = (bool) scalar('SELECT 1 FROM notifications WHERE user_id = ? AND is_read = 0 AND (title LIKE "%Workout Plan%" OR message LIKE "%training routine%") LIMIT 1', [$uid]);
+                                    if ($hasUnreadWorkoutNotif) {
+                                        $sidebarBadges['my_workout'] = [
+                                            'text' => 'New',
+                                            'class' => 'sidebar-nav-badge sidebar-badge-new',
+                                            'title' => 'New Workout Plan published for you!'
+                                        ];
+                                    } else {
+                                        $sidebarBadges['my_workout'] = [
+                                            'text' => 'Active',
+                                            'class' => 'sidebar-nav-badge sidebar-badge-active',
+                                            'title' => 'Personalized Workout Plan Active'
+                                        ];
+                                    }
+                                }
 
-                            // Memberships number badge for Gym Owner
-                            $pendingGymMemberships = (int) scalar('
-                                SELECT COUNT(DISTINCT m.membership_id) 
-                                FROM memberships m 
-                                JOIN membership_plans mp ON mp.plan_id = m.plan_id 
-                                LEFT JOIN payments p ON p.membership_id = m.membership_id 
-                                WHERE mp.gym_id = ? AND (m.status = "pending" OR p.status = "pending")
-                            ', [$gymId]);
-
-                            $activeGymMemberships = (int) scalar('
-                                SELECT COUNT(*) 
-                                FROM memberships m 
-                                JOIN membership_plans mp ON mp.plan_id = m.plan_id 
-                                WHERE mp.gym_id = ? AND m.status = "active" AND m.end_date >= CURDATE()
-                            ', [$gymId]);
-
-                            if ($pendingGymMemberships > 0) {
-                                $sidebarBadges['memberships'] = [
-                                    'text' => $pendingGymMemberships > 99 ? '99+' : (string) $pendingGymMemberships,
-                                    'class' => 'sidebar-nav-badge sidebar-badge-alert',
-                                    'title' => $pendingGymMemberships . ' pending membership' . ($pendingGymMemberships > 1 ? 's' : '') . ($activeGymMemberships > 0 ? ' (' . $activeGymMemberships . ' active)' : '')
-                                ];
-                            } elseif ($activeGymMemberships > 0) {
-                                $sidebarBadges['memberships'] = [
-                                    'text' => $activeGymMemberships > 99 ? '99+' : (string) $activeGymMemberships,
-                                    'class' => 'sidebar-nav-badge',
-                                    'title' => $activeGymMemberships . ' active membership' . ($activeGymMemberships > 1 ? 's' : '')
-                                ];
-                            }
-                        } elseif ($role === 'platform_admin') {
-                            $pendingGyms = (int) scalar('SELECT COUNT(*) FROM gyms WHERE status = "pending"');
-                            if ($pendingGyms > 0) {
-                                $sidebarBadges['gym_applications'] = [
-                                    'text' => (string) $pendingGyms,
-                                    'class' => 'sidebar-nav-badge sidebar-badge-alert',
-                                    'title' => $pendingGyms . ' pending gym applications'
-                                ];
-                            }
-                            try {
-                                $pendingFoods = (int) scalar("SELECT COUNT(*) FROM food_items WHERE verification_status = 'unverified' AND source = 'custom'");
-                                if ($pendingFoods > 0) {
-                                    $sidebarBadges['food_library'] = [
-                                        'text' => (string) $pendingFoods,
-                                        'class' => 'sidebar-nav-badge sidebar-badge-alert',
-                                        'title' => $pendingFoods . ' unverified custom foods awaiting review'
+                                // Smart Badge for Member My Plans:
+                                $activeGymPlansCount = (int) scalar('SELECT COUNT(DISTINCT gym_id) FROM training_plans WHERE member_user_id = ? AND status = "active" AND gym_id IS NOT NULL', [$uid]);
+                                if ($activeGymPlansCount > 1) {
+                                    $sidebarBadges['my_plans'] = [
+                                        'text' => $activeGymPlansCount . ' Gyms',
+                                        'class' => 'sidebar-nav-badge sidebar-badge-active',
+                                        'title' => 'Active plans across ' . $activeGymPlansCount . ' facilities'
                                     ];
                                 }
-                            } catch (Throwable) {}
+                            } elseif ($role === 'trainer') {
+                                $coachId = ensure_coach_profile($uid);
+                                if ($coachId) {
+                                    $pendingClients = (int) scalar('SELECT COUNT(*) FROM trainer_assignments WHERE trainer_id = ? AND status = "pending_trainer"', [$coachId]);
+                                    if ($pendingClients > 0) {
+                                        $sidebarBadges['trainer_members'] = [
+                                            'text' => $pendingClients > 99 ? '99+' : (string) $pendingClients,
+                                            'class' => 'sidebar-nav-badge sidebar-badge-alert',
+                                            'title' => $pendingClients . ' pending client request' . ($pendingClients > 1 ? 's' : '')
+                                        ];
+                                    } else {
+                                        $activeClients = (int) scalar('SELECT COUNT(*) FROM trainer_assignments WHERE trainer_id = ? AND status = "active"', [$coachId]);
+                                        if ($activeClients > 0) {
+                                            $sidebarBadges['trainer_members'] = [
+                                                'text' => $activeClients > 99 ? '99+' : (string) $activeClients,
+                                                'class' => 'sidebar-nav-badge',
+                                                'title' => $activeClients . ' active client' . ($activeClients > 1 ? 's' : '')
+                                            ];
+                                        }
+                                    }
+                                }
+                            } elseif ($role === 'gym_owner' && $gym) {
+                                $gymId = (int)$gym['gym_id'];
+
+                                $pendingGymTrainers = (int) scalar('SELECT COUNT(*) FROM trainer_assignments ta JOIN trainer_profiles tp ON tp.trainer_id = ta.trainer_id WHERE tp.gym_id = ? AND ta.status = "pending_admin"', [$gymId]);
+                                if ($pendingGymTrainers > 0) {
+                                    $sidebarBadges['trainer_assignments'] = [
+                                        'text' => (string) $pendingGymTrainers,
+                                        'class' => 'sidebar-nav-badge sidebar-badge-alert',
+                                        'title' => $pendingGymTrainers . ' pending trainer assignment requests'
+                                    ];
+                                }
+
+                                // Memberships number badge for Gym Owner
+                                $pendingGymMemberships = (int) scalar('
+                                    SELECT COUNT(DISTINCT m.membership_id) 
+                                    FROM memberships m 
+                                    JOIN membership_plans mp ON mp.plan_id = m.plan_id 
+                                    LEFT JOIN payments p ON p.membership_id = m.membership_id 
+                                    WHERE mp.gym_id = ? AND (m.status = "pending" OR p.status = "pending")
+                                ', [$gymId]);
+
+                                $activeGymMemberships = (int) scalar('
+                                    SELECT COUNT(*) 
+                                    FROM memberships m 
+                                    JOIN membership_plans mp ON mp.plan_id = m.plan_id 
+                                    WHERE mp.gym_id = ? AND m.status = "active" AND m.end_date >= CURDATE()
+                                ', [$gymId]);
+
+                                if ($pendingGymMemberships > 0) {
+                                    $sidebarBadges['memberships'] = [
+                                        'text' => $pendingGymMemberships > 99 ? '99+' : (string) $pendingGymMemberships,
+                                        'class' => 'sidebar-nav-badge sidebar-badge-alert',
+                                        'title' => $pendingGymMemberships . ' pending membership' . ($pendingGymMemberships > 1 ? 's' : '') . ($activeGymMemberships > 0 ? ' (' . $activeGymMemberships . ' active)' : '')
+                                    ];
+                                } elseif ($activeGymMemberships > 0) {
+                                    $sidebarBadges['memberships'] = [
+                                        'text' => $activeGymMemberships > 99 ? '99+' : (string) $activeGymMemberships,
+                                        'class' => 'sidebar-nav-badge',
+                                        'title' => $activeGymMemberships . ' active membership' . ($activeGymMemberships > 1 ? 's' : '')
+                                    ];
+                                }
+                            } elseif ($role === 'platform_admin') {
+                                $pendingGyms = (int) scalar('SELECT COUNT(*) FROM gyms WHERE status = "pending"');
+                                if ($pendingGyms > 0) {
+                                    $sidebarBadges['gym_applications'] = [
+                                        'text' => (string) $pendingGyms,
+                                        'class' => 'sidebar-nav-badge sidebar-badge-alert',
+                                        'title' => $pendingGyms . ' pending gym applications'
+                                    ];
+                                }
+                                try {
+                                    $pendingFoods = (int) scalar("SELECT COUNT(*) FROM food_items WHERE verification_status = 'unverified' AND source = 'custom'");
+                                    if ($pendingFoods > 0) {
+                                        $sidebarBadges['food_library'] = [
+                                            'text' => (string) $pendingFoods,
+                                            'class' => 'sidebar-nav-badge sidebar-badge-alert',
+                                            'title' => $pendingFoods . ' unverified custom foods awaiting review'
+                                        ];
+                                    }
+                                } catch (Throwable) {}
+                            }
+
+                            $_SESSION[$sidebarCacheKey] = [
+                                'expires' => $now + 45,
+                                'badges' => $sidebarBadges,
+                                'unread_msgs' => $unreadMsgsCount
+                            ];
+                        }
+
+                        // Contextual page overrides so viewed plan badges reflect viewed state
+                        if ($page === 'diet' && isset($sidebarBadges['diet']) && $sidebarBadges['diet']['text'] === 'New') {
+                            $sidebarBadges['diet'] = [
+                                'text' => 'Active',
+                                'class' => 'sidebar-nav-badge sidebar-badge-active',
+                                'title' => 'Personalized Diet Plan Active'
+                            ];
+                        }
+                        if ($page === 'my_workout' && isset($sidebarBadges['my_workout']) && $sidebarBadges['my_workout']['text'] === 'New') {
+                            $sidebarBadges['my_workout'] = [
+                                'text' => 'Active',
+                                'class' => 'sidebar-nav-badge sidebar-badge-active',
+                                'title' => 'Personalized Workout Plan Active'
+                            ];
                         }
                     }
                 ?>

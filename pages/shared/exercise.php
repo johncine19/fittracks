@@ -10,41 +10,6 @@ function save_member_profile(int $userId): void
 {
     $pdo = db();
 
-    // Ensure new target measurement columns exist (self-healing for seamless live operation)
-    static $columnsChecked = false;
-    if (!$columnsChecked) {
-        $neededCols = [
-            'chest_cm'                       => 'DECIMAL(5,2) DEFAULT NULL',
-            'arm_cm'                         => 'DECIMAL(5,2) DEFAULT NULL',
-            'target_arm_cm'                  => 'DECIMAL(5,2) DEFAULT NULL',
-            'target_chest_cm'                => 'DECIMAL(5,2) DEFAULT NULL',
-            'target_waist_cm'                => 'DECIMAL(5,2) DEFAULT NULL',
-            'target_exercise'                => 'VARCHAR(100) DEFAULT NULL',
-            'current_strength_max_kg'        => 'DECIMAL(5,2) DEFAULT NULL',
-            'target_strength_max_kg'         => 'DECIMAL(5,2) DEFAULT NULL',
-            'endurance_activity'             => 'VARCHAR(50) DEFAULT NULL',
-            'current_endurance_distance_km'  => 'DECIMAL(5,2) DEFAULT NULL',
-            'current_endurance_time_mins'    => 'INT DEFAULT NULL',
-            'target_endurance_distance_km'   => 'DECIMAL(5,2) DEFAULT NULL',
-            'target_endurance_time_mins'     => 'INT DEFAULT NULL',
-            'weekly_workout_target'          => 'TINYINT UNSIGNED DEFAULT NULL',
-            'preferred_duration_mins'        => 'SMALLINT UNSIGNED DEFAULT 45',
-            'preferred_workout_days'         => 'VARCHAR(50) DEFAULT NULL',
-            'secondary_focus'                => 'VARCHAR(255) DEFAULT NULL',
-            'trainer_assessment_notes'       => 'TEXT DEFAULT NULL',
-        ];
-        foreach ($neededCols as $col => $def) {
-            try {
-                $pdo->query("SELECT {$col} FROM member_profiles LIMIT 1");
-            } catch (Throwable) {
-                try {
-                    $pdo->exec("ALTER TABLE member_profiles ADD COLUMN {$col} {$def}");
-                } catch (Throwable) {}
-            }
-        }
-        $columnsChecked = true;
-    }
-
     $stmt = $pdo->prepare('INSERT INTO member_profiles (
         user_id, height_cm, weight_kg, neck_cm, waist_cm, hip_cm, chest_cm, arm_cm, age, biological_sex, activity_level, primary_goal, dietary_restrictions,
         target_weight_kg, target_body_fat_percent, target_arm_cm, target_chest_cm, target_waist_cm,
@@ -66,7 +31,7 @@ function save_member_profile(int $userId): void
         secondary_focus = IF(VALUES(secondary_focus) = \'none\' OR VALUES(secondary_focus) = \'\', NULL, COALESCE(VALUES(secondary_focus), secondary_focus)),
         trainer_assessment_notes = COALESCE(VALUES(trainer_assessment_notes), trainer_assessment_notes)');
 
-    $stmt->execute([
+    $profileParams = [
         $userId,
         post('height_cm') ?: 0.0,
         post('weight_kg') ?: 0.0,
@@ -98,7 +63,42 @@ function save_member_profile(int $userId): void
         post('preferred_workout_days') !== null ? (trim((string)post('preferred_workout_days')) ?: null) : null,
         post('secondary_focus') !== null ? (is_array(post('secondary_focus')) ? implode(', ', post('secondary_focus')) : (trim((string)post('secondary_focus')) === '' || strtolower(trim((string)post('secondary_focus'))) === 'none' ? 'none' : trim((string)post('secondary_focus')))) : null,
         post('trainer_assessment_notes') !== null ? (trim((string)post('trainer_assessment_notes')) ?: null) : null,
-    ]);
+    ];
+
+    try {
+        $stmt->execute($profileParams);
+    } catch (Throwable $e) {
+        if (str_contains(strtolower($e->getMessage()), 'unknown column')) {
+            $neededCols = [
+                'chest_cm'                       => 'DECIMAL(5,2) DEFAULT NULL',
+                'arm_cm'                         => 'DECIMAL(5,2) DEFAULT NULL',
+                'target_arm_cm'                  => 'DECIMAL(5,2) DEFAULT NULL',
+                'target_chest_cm'                => 'DECIMAL(5,2) DEFAULT NULL',
+                'target_waist_cm'                => 'DECIMAL(5,2) DEFAULT NULL',
+                'target_exercise'                => 'VARCHAR(100) DEFAULT NULL',
+                'current_strength_max_kg'        => 'DECIMAL(5,2) DEFAULT NULL',
+                'target_strength_max_kg'         => 'DECIMAL(5,2) DEFAULT NULL',
+                'endurance_activity'             => 'VARCHAR(50) DEFAULT NULL',
+                'current_endurance_distance_km'  => 'DECIMAL(5,2) DEFAULT NULL',
+                'current_endurance_time_mins'    => 'INT DEFAULT NULL',
+                'target_endurance_distance_km'   => 'DECIMAL(5,2) DEFAULT NULL',
+                'target_endurance_time_mins'     => 'INT DEFAULT NULL',
+                'weekly_workout_target'          => 'TINYINT UNSIGNED DEFAULT NULL',
+                'preferred_duration_mins'        => 'SMALLINT UNSIGNED DEFAULT 45',
+                'preferred_workout_days'         => 'VARCHAR(50) DEFAULT NULL',
+                'secondary_focus'                => 'VARCHAR(255) DEFAULT NULL',
+                'trainer_assessment_notes'       => 'TEXT DEFAULT NULL',
+            ];
+            foreach ($neededCols as $col => $def) {
+                try {
+                    $pdo->exec("ALTER TABLE member_profiles ADD COLUMN {$col} {$def}");
+                } catch (Throwable) {}
+            }
+            $stmt->execute($profileParams);
+        } else {
+            throw $e;
+        }
+    }
 
     // Keep progress_logs synchronized with physical profile so progress page and profile page match
     $today = date('Y-m-d');
