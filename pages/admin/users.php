@@ -901,37 +901,37 @@ function users_page(): void
                 <form id="createUserForm" method="post" class="form grid-form" style="align-items: start;">
                     <?= csrf_field() ?>
                     <input type="hidden" name="action" value="create">
-                    <label>First name
+                    <label><span class="label-title">First name <span class="req-star">*</span></span>
                         <input name="first_name" value="<?= h($oldUser['first_name'] ?? '') ?>" placeholder="John" required autocapitalize="words" style="text-transform: capitalize;" onblur="this.value = this.value.trim().replace(/\b\w/g, l => l.toUpperCase())">
                     </label>
-                    <label>Last name
+                    <label><span class="label-title">Last name <span class="req-star">*</span></span>
                         <input name="last_name" value="<?= h($oldUser['last_name'] ?? '') ?>" placeholder="Doe" required autocapitalize="words" style="text-transform: capitalize;" onblur="this.value = this.value.trim().replace(/\b\w/g, l => l.toUpperCase())">
                     </label>
-                    <label>Email
+                    <label><span class="label-title">Email <span class="req-star">*</span></span>
                         <input name="email" type="email" value="<?= h($oldUser['email'] ?? '') ?>" placeholder="john@example.com" required style="text-transform: lowercase;" oninput="this.value = this.value.toLowerCase()" onblur="this.value = this.value.trim().toLowerCase()">
                     </label>
-                    <label>Mobile Number *
+                    <label><span class="label-title">Mobile Number <span class="req-star">*</span></span>
                         <input name="phone" type="tel" pattern="[0-9]{11}" maxlength="11" title="Please enter exactly 11 digits" placeholder="09123456789" value="<?= h($oldUser['phone'] ?? '') ?>" required oninput="this.value=this.value.replace(/[^0-9]/g,'').slice(0,11)">
                     </label>
-                    <label>Password
+                    <label><span class="label-title">Password <span class="req-star">*</span></span>
                         <input name="password" id="new_user_password" type="password" minlength="8" placeholder="Min. 8 characters" required autocomplete="new-password">
                         <small id="new_user_pass_hint" style="display:block; font-size:12px; margin-top:4px; color:var(--muted); font-weight:400;">
                             Must be at least 8 characters with a letter and a number.
                         </small>
                     </label>
-                    <label>Role
+                    <label><span class="label-title">Role <span class="req-star">*</span></span>
                         <div id="roleComboboxWrap"></div>
                     </label>
                     <div id="trainer_fields" style="display: <?= ($oldUser['role'] ?? '') === 'trainer' ? 'grid' : 'none' ?>; grid-column: 1 / -1; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px;">
-                        <label>Specialization
+                        <label><span class="label-title">Specialization <span class="req-star" id="specReqStar" style="display: <?= ($oldUser['role'] ?? '') === 'trainer' ? 'inline' : 'none' ?>;">*</span></span>
                             <input name="specialization" id="new_user_spec" value="<?= h($oldUser['specialization'] ?? '') ?>" placeholder="e.g. Strength & Conditioning">
                         </label>
-                        <label>Bio
+                        <label><span class="label-title">Bio</span>
                             <input name="bio" value="<?= h($oldUser['bio'] ?? '') ?>" placeholder="Short bio">
                         </label>
                     </div>
                     <div id="staff_fields" style="display: <?= ($oldUser['role'] ?? '') === 'staff' ? 'block' : 'none' ?>; grid-column: 1 / -1;">
-                        <label>Staff Permission Level
+                        <label><span class="label-title">Staff Permission Level</span>
                             <div id="staffRoleComboboxWrap"></div>
                         </label>
                     </div>

@@ -91,7 +91,7 @@ function announcements_page(): void
                     <?= csrf_field() ?>
                     <input type="hidden" name="action" value="create">
                     
-                    <label style="grid-column: 1 / -1;">Target Audience
+                    <label style="grid-column: 1 / -1;"><span class="label-title">Target Audience <span class="req-star">*</span></span>
                         <select name="target_audience" required>
                             <option value="all">All Users</option>
                             <option value="gym_owners">Gym Owners Only</option>
@@ -100,11 +100,11 @@ function announcements_page(): void
                         </select>
                     </label>
 
-                    <label style="grid-column: 1 / -1;">Title
+                    <label style="grid-column: 1 / -1;"><span class="label-title">Title <span class="req-star">*</span></span>
                         <input type="text" name="title" required placeholder="Announcement Title">
                     </label>
                     
-                    <label style="grid-column: 1 / -1;">Message Content
+                    <label style="grid-column: 1 / -1;"><span class="label-title">Message Content <span class="req-star">*</span></span>
                         <textarea name="content" required rows="5" placeholder="Write your announcement here..."></textarea>
                     </label>
 

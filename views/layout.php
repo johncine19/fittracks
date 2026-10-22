@@ -226,14 +226,24 @@ function render_header(string $title, ?array $user = null): void
 
                 const origFire = window.Swal.fire;
                 window.Swal.fire = function(...args) {
+                    let openDialog = null;
+                    try {
+                        const openDialogs = document.querySelectorAll('dialog[open]');
+                        if (openDialogs.length > 0) openDialog = openDialogs[openDialogs.length - 1];
+                    } catch(e) {}
+
                     if (args.length === 1 && typeof args[0] === 'object') {
                         args[0] = injectToastIcon(args[0]);
+                        if (!args[0].target && openDialog) {
+                            args[0].target = openDialog;
+                        }
                     } else if (args.length >= 3 && typeof args[2] === 'string') {
                         const icon = args[2];
                         const svg = icon === 'success' ? checkmarkSvg : (icon === 'error' ? crossSvg : (icon === 'warning' ? warnSvg : (icon === 'info' ? infoSvg : null)));
-                        if (svg) {
-                            return origFire.call(this, { title: args[0], html: args[1], icon: icon, iconHtml: svg });
-                        }
+                        const opts = { title: args[0], html: args[1], icon: icon };
+                        if (svg) opts.iconHtml = svg;
+                        if (openDialog) opts.target = openDialog;
+                        return origFire.call(this, opts);
                     }
                     return origFire.apply(this, args);
                 };
@@ -243,8 +253,17 @@ function render_header(string $title, ?array $user = null): void
                     const subClass = origMixin.call(this, mixinOpts);
                     const origSubFire = subClass.fire;
                     subClass.fire = function(...args) {
+                        let openDialog = null;
+                        try {
+                            const openDialogs = document.querySelectorAll('dialog[open]');
+                            if (openDialogs.length > 0) openDialog = openDialogs[openDialogs.length - 1];
+                        } catch(e) {}
+
                         if (args.length === 1 && typeof args[0] === 'object') {
                             args[0] = injectToastIcon(args[0]);
+                            if (!args[0].target && openDialog) {
+                                args[0].target = openDialog;
+                            }
                         }
                         return origSubFire.apply(this, args);
                     };
@@ -2843,6 +2862,57 @@ HTML;
     $requiredIndicatorScript = <<<HTML
 <script>
 (function() {
+    function normalizeLabelInline(label, input) {
+        if (!label) return null;
+
+        // If label wraps the input/control:
+        if (input && label.contains(input)) {
+            // Find existing title container if present
+            var existingTitle = label.querySelector('.label-title, .label-text, .eu-label, .form-label-title');
+            if (existingTitle && existingTitle.parentNode === label) {
+                return existingTitle;
+            }
+
+            // Find direct child of label that contains input
+            var refNode = input;
+            while (refNode && refNode.parentNode && refNode.parentNode !== label) {
+                refNode = refNode.parentNode;
+            }
+
+            if (refNode && refNode.parentNode === label) {
+                var beforeNodes = [];
+                for (var i = 0; i < label.childNodes.length; i++) {
+                    var c = label.childNodes[i];
+                    if (c === refNode) break;
+                    beforeNodes.push(c);
+                }
+
+                // If there are nodes before refNode (like text and/or direct .req-star)
+                if (beforeNodes.length > 0) {
+                    var titleSpan = document.createElement('span');
+                    titleSpan.className = 'label-title';
+                    for (var j = 0; j < beforeNodes.length; j++) {
+                        titleSpan.appendChild(beforeNodes[j]);
+                    }
+                    label.insertBefore(titleSpan, refNode);
+                    return titleSpan;
+                }
+            }
+        } else {
+            // Label does not wrap input
+            var existingTitle2 = label.querySelector('.label-title, .label-text, .eu-label, .form-label-title');
+            if (existingTitle2) return existingTitle2;
+
+            // Make sure standalone label doesn't split children into grid rows
+            if (!label.querySelector('input, select, textarea, button, .form-control, .fit-dropdown-wrap, .split-input-wrap, .fit-input-wrap, .pwd-toggle-wrap')) {
+                label.style.display = 'inline-flex';
+                label.style.alignItems = 'baseline';
+                label.style.gap = '3px';
+            }
+        }
+        return null;
+    }
+
     function injectRequiredAsterisks(root) {
         var scope = (root && root.querySelectorAll) ? root : document;
         var reqInputs = scope.querySelectorAll('input[required], select[required], textarea[required], [aria-required="true"]');
@@ -2862,13 +2932,16 @@ HTML;
                 label = input.closest('label');
             }
             if (!label && input.parentElement) {
-                var group = input.closest('.form-group, .split-form-group, .form-row, .setup-pref-group, .input-group, div');
+                var group = input.closest('.form-group, .split-form-group, .form-row, .setup-pref-group, .input-group, .fit-input-group, div');
                 if (group) {
                     label = group.querySelector('label');
                 }
             }
             
             if (label) {
+                // Ensure label wrapping input has its title nodes wrapped in .label-title
+                var titleSpan = normalizeLabelInline(label, input);
+
                 // Skip if already contains .req-star or text asterisk
                 if (label.querySelector('.req-star') || label.textContent.indexOf('*') !== -1) {
                     return;
@@ -2880,13 +2953,18 @@ HTML;
                 star.textContent = ' *';
                 
                 try {
-                    if (label.contains(input)) {
+                    if (titleSpan) {
+                        titleSpan.appendChild(star);
+                    } else if (label.contains(input)) {
                         var refNode = input;
                         while (refNode && refNode.parentNode && refNode.parentNode !== label) {
                             refNode = refNode.parentNode;
                         }
                         if (refNode && refNode.parentNode === label) {
-                            label.insertBefore(star, refNode);
+                            var span = document.createElement('span');
+                            span.className = 'label-title';
+                            span.appendChild(star);
+                            label.insertBefore(span, refNode);
                         } else {
                             label.appendChild(star);
                         }
@@ -2922,7 +3000,18 @@ HTML;
                 }
             } else if (m.type === 'attributes' && m.attributeName === 'required') {
                 if (m.target && m.target.nodeType === 1) {
-                    injectRequiredAsterisks(m.target.parentElement || document);
+                    if (!m.target.required) {
+                        var lbl = m.target.closest('label');
+                        if (!lbl && m.target.id) {
+                            try { lbl = document.querySelector('label[for="' + CSS.escape(m.target.id) + '"]'); } catch(e) {}
+                        }
+                        if (lbl) {
+                            var s = lbl.querySelector('.req-star');
+                            if (s && !s.id) s.remove();
+                        }
+                    } else {
+                        injectRequiredAsterisks(m.target.parentElement || document);
+                    }
                 }
             }
         }

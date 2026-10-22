@@ -425,10 +425,10 @@ function exercises_page(): void
                 <input type="hidden" name="action" id="exFormAction" value="create">
                 <input type="hidden" name="exercise_id" id="exFormId" value="">
                 
-                <label>Name * <input type="text" name="name" id="exName" class="form-control" placeholder="e.g. Barbell Squat" required></label>
+                <label><span class="label-title">Name <span class="req-star">*</span></span> <input type="text" name="name" id="exName" class="form-control" placeholder="e.g. Barbell Squat" required></label>
                 
                 <?php if ($user['role'] === 'platform_admin'): ?>
-                <label>Assign to Gym *
+                <label><span class="label-title">Assign to Gym <span class="req-star">*</span></span>
                     <select name="gym_id" id="exGymId" class="form-control" required>
                         <option value="">-- Select a Gym --</option>
                         <?php foreach ($gyms as $g): ?>

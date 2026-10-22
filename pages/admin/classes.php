@@ -714,7 +714,7 @@ function classes_page(): void
             <form method="post" class="classes-modal-form">
                 <?= csrf_field() ?>
                 <input type="hidden" name="action" value="class">
-                <label>Class Name <input type="text" name="class_name" class="form-control" placeholder="e.g. HIIT Training" required></label>
+                <label><span class="label-title">Class Name <span class="req-star">*</span></span> <input type="text" name="class_name" class="form-control" placeholder="e.g. HIIT Training" required></label>
                 <label>Description <textarea name="description" class="form-control" placeholder="Short description" rows="2"></textarea></label>
                 <?php if ($user['role'] !== 'trainer'): ?>
                 <label>Instructor
@@ -726,7 +726,7 @@ function classes_page(): void
                     </select>
                 </label>
                 <?php endif; ?>
-                <label>Capacity <input type="number" name="capacity" class="form-control" min="1" placeholder="e.g. 20" required></label>
+                <label><span class="label-title">Capacity <span class="req-star">*</span></span> <input type="number" name="capacity" class="form-control" min="1" placeholder="e.g. 20" required></label>
                 <button type="submit" class="btn btn-primary classes-modal-submit">Save Class</button>
             </form>
         </div>
@@ -743,7 +743,7 @@ function classes_page(): void
             <form method="post" class="classes-modal-form">
                 <?= csrf_field() ?>
                 <input type="hidden" name="action" value="schedule">
-                <label>Class Type
+                <label><span class="label-title">Class Type <span class="req-star">*</span></span>
                     <select name="class_id" class="form-control schedule-class-select" required>
                         <option value="">-- Select Class --</option>
                         <?php foreach ($classes as $class): ?>
@@ -753,8 +753,8 @@ function classes_page(): void
                 </label>
                 <label>Room / Location <input type="text" name="room_location" class="form-control" placeholder="e.g. Studio A"></label>
                 <div class="schedule-datetime-grid">
-                    <label>Start Date/Time <input type="datetime-local" lang="en-US" name="start_datetime" class="form-control" required></label>
-                    <label>End Date/Time <input type="datetime-local" lang="en-US" name="end_datetime" class="form-control" required></label>
+                    <label><span class="label-title">Start Date/Time <span class="req-star">*</span></span> <input type="datetime-local" lang="en-US" name="start_datetime" class="form-control" required></label>
+                    <label><span class="label-title">End Date/Time <span class="req-star">*</span></span> <input type="datetime-local" lang="en-US" name="end_datetime" class="form-control" required></label>
                 </div>
                 <button type="submit" class="btn btn-primary classes-modal-submit">Save Schedule</button>
             </form>

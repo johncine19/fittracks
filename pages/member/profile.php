@@ -859,8 +859,8 @@ function profile_page(): void
                             <form method="post" class="form grid-form platform-settings-form">
                                 <?= csrf_field() ?>
                                 <input type="hidden" name="update_platform_settings" value="1">
-                                <label>Platform Name<input type="text" name="platform_name" value="<?= h($sysSettings['platform_name']['setting_value'] ?? 'FITTRACKS') ?>" required></label>
-                                <label>Support Contact Email<input type="email" name="contact_email" value="<?= h($sysSettings['contact_email']['setting_value'] ?? 'support@fittracks.com') ?>" required></label>
+                                <label><span class="label-title">Platform Name <span class="req-star">*</span></span><input type="text" name="platform_name" value="<?= h($sysSettings['platform_name']['setting_value'] ?? 'FITTRACKS') ?>" required></label>
+                                <label><span class="label-title">Support Contact Email <span class="req-star">*</span></span><input type="email" name="contact_email" value="<?= h($sysSettings['contact_email']['setting_value'] ?? 'support@fittracks.com') ?>" required></label>
                                 <label class="platform-settings-full">New account registration
                                     <select name="registration_enabled">
                                         <option value="1" <?= ($sysSettings['registration_enabled']['setting_value'] ?? '1') === '1' ? 'selected' : '' ?>>Open - new gyms and members can register</option>
@@ -886,11 +886,11 @@ function profile_page(): void
                             <form method="post" class="form grid-form platform-settings-form">
                                 <?= csrf_field() ?>
                                 <input type="hidden" name="update_platform_settings" value="1">
-                                <label>Inactivity threshold (days)
+                                <label><span class="label-title">Inactivity threshold (days) <span class="req-star">*</span></span>
                                     <input type="number" min="1" max="90" name="at_risk_inactivity_days" value="<?= h($sysSettings['at_risk_inactivity_days']['setting_value'] ?? '3') ?>" required>
                                     <span class="platform-settings-help">Days without a check-in before a member is flagged as inactive.</span>
                                 </label>
-                                <label>Reminder cooldown (days)
+                                <label><span class="label-title">Reminder cooldown (days) <span class="req-star">*</span></span>
                                     <input type="number" min="1" max="180" name="at_risk_notification_cooldown" value="<?= h($sysSettings['at_risk_notification_cooldown']['setting_value'] ?? '14') ?>" required>
                                     <span class="platform-settings-help">Minimum wait before sending another reminder to the same member.</span>
                                 </label>
@@ -1588,10 +1588,10 @@ function profile_page(): void
                             <input type="file" name="profile_picture" accept="image/*">
                         </label>
                     </div>
-                    <label>First name <span class="req-star">*</span> <input name="first_name" required value="<?= h($user['first_name']) ?>" autocapitalize="words" style="text-transform: capitalize;" onblur="this.value = this.value.trim().replace(/\b\w/g, l => l.toUpperCase())"></label>
-                    <label>Last name <span class="req-star">*</span> <input name="last_name" required value="<?= h($user['last_name']) ?>" autocapitalize="words" style="text-transform: capitalize;" onblur="this.value = this.value.trim().replace(/\b\w/g, l => l.toUpperCase())"></label>
-                    <label>Email <span class="req-star">*</span> <input type="email" name="email" required value="<?= h($user['email']) ?>" style="text-transform: lowercase;" oninput="this.value = this.value.toLowerCase()" onblur="this.value = this.value.trim().toLowerCase()"></label>
-                    <label>Mobile Number <span class="req-star">*</span> <input name="phone" type="tel" pattern="[0-9]{11}" maxlength="11" required title="Please enter exactly 11 digits" placeholder="09123456789" value="<?= h($user['phone'] ?? '') ?>" oninput="this.value=this.value.replace(/[^0-9]/g,'').slice(0,11)"></label>
+                    <label><span class="label-title">First name <span class="req-star">*</span></span> <input name="first_name" required value="<?= h($user['first_name']) ?>" autocapitalize="words" style="text-transform: capitalize;" onblur="this.value = this.value.trim().replace(/\b\w/g, l => l.toUpperCase())"></label>
+                    <label><span class="label-title">Last name <span class="req-star">*</span></span> <input name="last_name" required value="<?= h($user['last_name']) ?>" autocapitalize="words" style="text-transform: capitalize;" onblur="this.value = this.value.trim().replace(/\b\w/g, l => l.toUpperCase())"></label>
+                    <label><span class="label-title">Email <span class="req-star">*</span></span> <input type="email" name="email" required value="<?= h($user['email']) ?>" style="text-transform: lowercase;" oninput="this.value = this.value.toLowerCase()" onblur="this.value = this.value.trim().toLowerCase()"></label>
+                    <label><span class="label-title">Mobile Number <span class="req-star">*</span></span> <input name="phone" type="tel" pattern="[0-9]{11}" maxlength="11" required title="Please enter exactly 11 digits" placeholder="09123456789" value="<?= h($user['phone'] ?? '') ?>" oninput="this.value=this.value.replace(/[^0-9]/g,'').slice(0,11)"></label>
                     <label style="grid-column:1/-1">New password
                         <input type="password" name="password" placeholder="Leave blank to keep current">
                         <small class="muted" style="font-weight:400;">Min. 8 characters, with a letter and a number.</small>

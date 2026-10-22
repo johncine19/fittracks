@@ -14,14 +14,17 @@ function toggleTrainerFields(role) {
     const tf = document.getElementById('trainer_fields');
     const sf = document.getElementById('staff_fields');
     const spec = document.getElementById('new_user_spec');
+    const star = document.getElementById('specReqStar');
     if (tf) {
         if (role === 'trainer') {
             tf.style.display = 'grid';
             tf.style.gridTemplateColumns = 'repeat(2, minmax(0, 1fr))';
             if (spec) spec.required = true;
+            if (star) star.style.display = 'inline';
         } else {
             tf.style.display = 'none';
             if (spec) spec.required = false;
+            if (star) star.style.display = 'none';
         }
     }
     if (sf) {
@@ -39,14 +42,17 @@ if (FT_USERS_CONFIG.hasOldUser) {
         const tf = document.getElementById('eu_trainer_fields');
         const sf = document.getElementById('eu_staff_fields');
         const spec = document.getElementById('eu_spec');
+        const star = document.getElementById('eu_spec_star');
         if (tf) {
             if (role === 'trainer') {
                 tf.style.setProperty('display', 'grid', 'important');
                 tf.style.gridTemplateColumns = 'repeat(2, minmax(0, 1fr))';
                 if (spec) spec.required = true;
+                if (star) star.style.display = 'inline';
             } else {
                 tf.style.setProperty('display', 'none', 'important');
                 if (spec) spec.required = false;
+                if (star) star.style.display = 'none';
             }
         }
         if (sf) {
@@ -192,27 +198,27 @@ if (FT_USERS_CONFIG.hasOldUser) {
                     <input type="hidden" name="admin_password" id="eu_admin_pass">
 
                     <label class="eu-field">
-                        <span class="eu-label">First name *</span>
+                        <span class="eu-label">First name <span class="req-star">*</span></span>
                         <input name="first_name" id="eu_fn" class="form-control" required autocapitalize="words" style="text-transform: capitalize;" onblur="this.value = this.value.trim().replace(/\\b\\w/g, l => l.toUpperCase())">
                     </label>
 
                     <label class="eu-field">
-                        <span class="eu-label">Last name *</span>
+                        <span class="eu-label">Last name <span class="req-star">*</span></span>
                         <input name="last_name" id="eu_ln" class="form-control" required autocapitalize="words" style="text-transform: capitalize;" onblur="this.value = this.value.trim().replace(/\\b\\w/g, l => l.toUpperCase())">
                     </label>
 
                     <label class="eu-field eu-field-email">
-                        <span class="eu-label">Email *</span>
+                        <span class="eu-label">Email <span class="req-star">*</span></span>
                         <input type="email" name="email" id="eu_email" class="form-control" required style="text-transform: lowercase;" oninput="this.value = this.value.toLowerCase()" onblur="this.value = this.value.trim().toLowerCase()">
                     </label>
 
                     <label class="eu-field eu-field-phone">
-                        <span class="eu-label">Mobile Number *</span>
+                        <span class="eu-label">Mobile Number <span class="req-star">*</span></span>
                         <input type="tel" name="phone" id="eu_phone" class="form-control" pattern="[0-9]{11}" maxlength="11" title="Please enter exactly 11 digits" placeholder="09123456789" required oninput="this.value=this.value.replace(/[^0-9]/g,'').slice(0,11)">
                     </label>
 
                     <div class="eu-field eu-field-role">
-                        <span class="eu-label">Role *</span>
+                        <span class="eu-label">Role <span class="req-star">*</span></span>
                         <div id="eu_role_wrap"></div>
                     </div>
 
@@ -228,7 +234,7 @@ if (FT_USERS_CONFIG.hasOldUser) {
 
                     <div id="eu_trainer_fields" class="eu-trainer-fields" style="display: none;">
                         <label class="eu-field eu-field-full">
-                            <span class="eu-label">Specialization</span>
+                            <span class="eu-label">Specialization <span class="req-star" id="eu_spec_star" style="display:none;">*</span></span>
                             <input name="specialization" id="eu_spec" class="form-control" placeholder="e.g. Strength & Conditioning">
                         </label>
                         <label class="eu-field eu-field-full">
@@ -1016,17 +1022,57 @@ if (FT_USERS_CONFIG.hasOldUser) {
         });
     }
 
+    function showCreateUserError(msg) {
+        if (!createUserForm) return;
+        let errBanner = document.getElementById('createUserErrorBanner');
+        if (!errBanner) {
+            errBanner = document.createElement('div');
+            errBanner.id = 'createUserErrorBanner';
+            errBanner.style.cssText = 'grid-column: 1 / -1; display: flex; align-items: center; gap: 8px; background: rgba(239, 68, 68, 0.12); border: 1px solid rgba(239, 68, 68, 0.35); color: #ef4444; border-radius: 8px; padding: 10px 12px; font-size: 12.5px; font-weight: 600; margin-bottom: 2px;';
+            const firstLabel = createUserForm.querySelector('label');
+            if (firstLabel) {
+                createUserForm.insertBefore(errBanner, firstLabel);
+            } else {
+                createUserForm.prepend(errBanner);
+            }
+        }
+        errBanner.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg><span>' + (msg || 'Unable to create user.') + '</span>';
+        errBanner.style.display = 'flex';
+
+        if (msg && msg.toLowerCase().includes('email')) {
+            const emailInput = createUserForm.querySelector('input[name="email"]');
+            if (emailInput) {
+                emailInput.style.borderColor = '#ef4444';
+                emailInput.style.boxShadow = '0 0 0 2px rgba(239, 68, 68, 0.2)';
+                emailInput.focus();
+            }
+        }
+    }
+
     if (createUserForm) {
+        createUserForm.addEventListener('input', function(e) {
+            const errBanner = document.getElementById('createUserErrorBanner');
+            if (errBanner) {
+                errBanner.style.display = 'none';
+            }
+            if (e.target && e.target.style) {
+                e.target.style.borderColor = '';
+                e.target.style.boxShadow = '';
+            }
+        });
+
         createUserForm.addEventListener('submit', async function(e) {
             e.preventDefault();
 
             const pass = createUserPass ? createUserPass.value : '';
             if (pass.length < 8 || !/[a-zA-Z]/.test(pass) || !/[0-9]/.test(pass)) {
+                showCreateUserError('Password must be at least 8 characters, with a letter and a number.');
                 Swal.fire({
                     icon: 'warning',
                     title: 'Password Requirement',
                     text: 'Password must be at least 8 characters, with a letter and a number, and not be a common password.',
-                    confirmButtonColor: 'var(--lime-dark)'
+                    confirmButtonColor: 'var(--lime-dark)',
+                    target: document.getElementById('createUserModal') || document.body
                 });
                 createUserPass?.focus();
                 return;
@@ -1054,12 +1100,18 @@ if (FT_USERS_CONFIG.hasOldUser) {
                 const data = await response.json();
 
                 if (!data.success) {
-                    // KEEP MODAL OPEN, ALL CREDENTIALS INTACT!
+                    if (data.csrf_token) {
+                        const csrfInput = createUserForm.querySelector('input[name="csrf_token"]');
+                        if (csrfInput) csrfInput.value = data.csrf_token;
+                        CURRENT_CSRF_TOKEN = data.csrf_token;
+                    }
+                    showCreateUserError(data.message || 'An error occurred.');
                     Swal.fire({
                         icon: 'error',
                         title: 'Unable to Create User',
                         text: data.message || 'An error occurred.',
-                        confirmButtonColor: 'var(--lime-dark)'
+                        confirmButtonColor: 'var(--lime-dark)',
+                        target: document.getElementById('createUserModal') || document.body
                     });
                     if (submitBtn) {
                         submitBtn.disabled = false;
@@ -1081,7 +1133,18 @@ if (FT_USERS_CONFIG.hasOldUser) {
 
             } catch (err) {
                 console.error('Create user fetch error:', err);
-                createUserForm.submit();
+                if (submitBtn) {
+                    submitBtn.disabled = false;
+                    submitBtn.innerHTML = origBtnText;
+                }
+                showCreateUserError('An unexpected network or server error occurred. Please try again.');
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Error',
+                    text: 'An unexpected network error occurred. Please check your connection and try again.',
+                    confirmButtonColor: 'var(--lime-dark)',
+                    target: document.getElementById('createUserModal') || document.body
+                });
             }
         });
     }

@@ -1205,6 +1205,12 @@ html[data-theme="light"] .btn-card-action {
             color: var(--muted) !important;
             margin: 0 !important;
         }
+        #createUserModal label .label-title {
+            display: inline-flex !important;
+            align-items: baseline !important;
+            gap: 2px !important;
+            line-height: 1.2 !important;
+        }
         #createUserModal input,
         #createUserModal select {
             height: 33px !important;

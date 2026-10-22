@@ -5375,13 +5375,56 @@ body.auth-body .auth-shell {
     transform: translateY(-1px);
 }
 
-/* Document Requirement Badges */
+/* Inline required asterisk & label title containers */
+.label-title,
+.label-text,
+.eu-label,
+.form-label-title {
+    display: inline-flex !important;
+    align-items: baseline !important;
+    gap: 3px !important;
+    color: inherit;
+    font-size: inherit;
+    font-weight: inherit;
+    line-height: 1.3;
+    max-width: 100%;
+}
+
 .req-star {
-    display: inline;
+    display: inline !important;
     color: #ef4444 !important;
-    font-weight: 700;
-    margin-left: 2px;
-    line-height: 1;
+    font-weight: 700 !important;
+    margin-left: 2px !important;
+    line-height: 1 !important;
+    white-space: nowrap !important;
+    vertical-align: baseline !important;
+}
+
+/* Any standalone label that only contains text and/or badges (does not wrap inputs) stays inline-flex */
+label:not(:has(input, select, textarea, button, .form-control, .fit-dropdown-wrap, .split-input-wrap, .fit-input-wrap, .pwd-toggle-wrap)) {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 3px;
+}
+
+/* SweetAlert inside HTML5 native dialog top-layer */
+dialog .swal2-container,
+dialog.modal .swal2-container {
+    position: fixed !important;
+    inset: 0 !important;
+    top: 0 !important;
+    left: 0 !important;
+    width: 100vw !important;
+    height: 100vh !important;
+    z-index: 1000000 !important;
+    display: grid !important;
+    place-items: center !important;
+}
+
+dialog .swal2-container .swal2-popup,
+dialog.modal .swal2-container .swal2-popup {
+    z-index: 1000001 !important;
+    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.75) !important;
 }
 
 .opt-label {

@@ -46,15 +46,15 @@ function settings_page(): void
             
             <h3 style="grid-column: 1 / -1; margin-top: 10px; font-size: 1.1rem; color: var(--ink); border-bottom: 1px solid var(--line); padding-bottom: 8px;">General Platform</h3>
 
-            <label>Platform Name
+            <label><span class="label-title">Platform Name <span class="req-star">*</span></span>
                 <input type="text" name="platform_name" value="<?= h($settings['platform_name'] ?? 'FITTRACKS') ?>" required>
             </label>
 
-            <label>Contact Email (For Support)
+            <label><span class="label-title">Contact Email (For Support) <span class="req-star">*</span></span>
                 <input type="email" name="contact_email" value="<?= h($settings['contact_email'] ?? 'support@fittracks.com') ?>" required>
             </label>
 
-            <label style="grid-column: 1 / -1;">Registration Enabled
+            <label style="grid-column: 1 / -1;"><span class="label-title">Registration Enabled</span>
                 <select name="registration_enabled">
                     <option value="1" <?= ($settings['registration_enabled'] ?? '1') === '1' ? 'selected' : '' ?>>Enabled (Allow new gyms and members to register)</option>
                     <option value="0" <?= ($settings['registration_enabled'] ?? '1') === '0' ? 'selected' : '' ?>>Disabled</option>
@@ -65,14 +65,14 @@ function settings_page(): void
                 <span>🔔 Inactive Member Notifications</span>
             </h3>
 
-            <label>Inactivity Threshold (Days)
+            <label><span class="label-title">Inactivity Threshold (Days) <span class="req-star">*</span></span>
                 <input type="number" min="1" max="90" name="at_risk_inactivity_days" value="<?= h($settings['at_risk_inactivity_days'] ?? '3') ?>" required>
                 <span class="muted" style="font-size: 12px; display: block; margin-top: 4px;">
                     Days of absence/no check-ins before a member is flagged as inactive and eligible for an automated reminder.
                 </span>
             </label>
 
-            <label>Re-send Cooldown (Days)
+            <label><span class="label-title">Re-send Cooldown (Days) <span class="req-star">*</span></span>
                 <input type="number" min="1" max="180" name="at_risk_notification_cooldown" value="<?= h($settings['at_risk_notification_cooldown'] ?? '14') ?>" required>
                 <span class="muted" style="font-size: 12px; display: block; margin-top: 4px;">
                     Minimum days to wait before sending another "We miss you!" reminder to the same member.
