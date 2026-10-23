@@ -14,6 +14,7 @@ function db(): PDO
     $options = [
         PDO::ATTR_ERRMODE            => PDO::ERRMODE_EXCEPTION,
         PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+        PDO::MYSQL_ATTR_INIT_COMMAND => "SET NAMES utf8mb4",
     ];
     if ($useSSL) {
         // TiDB Cloud Serverless requires SSL — use system CA bundle
@@ -24,6 +25,12 @@ function db(): PDO
         $options[PDO::MYSQL_ATTR_SSL_VERIFY_SERVER_CERT] = false;
     }
     $pdo = new PDO($dsn, DB_USER, DB_PASS, $options);
+    try {
+        $dbCollation = (string) $pdo->query('SELECT @@collation_database')->fetchColumn();
+        if ($dbCollation !== '' && str_starts_with($dbCollation, 'utf8mb4_')) {
+            $pdo->exec("SET collation_connection = " . $dbCollation);
+        }
+    } catch (Throwable) {}
     try {
         $pdo->exec("SET time_zone = '+08:00'");
     } catch (Throwable) {}

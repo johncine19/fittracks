@@ -1330,7 +1330,7 @@ CREATE TABLE IF NOT EXISTS `member_badges` (
     `unlocked_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (`user_id`) REFERENCES `users`(`user_id`) ON DELETE CASCADE,
     UNIQUE KEY `unique_user_badge` (`user_id`, `badge_type`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 CREATE TABLE IF NOT EXISTS `daily_macros` (
     `id` INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
@@ -1344,7 +1344,7 @@ CREATE TABLE IF NOT EXISTS `daily_macros` (
     `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     FOREIGN KEY (`user_id`) REFERENCES `users`(`user_id`) ON DELETE CASCADE,
     UNIQUE KEY `unique_user_date` (`user_id`, `log_date`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 -- ==========================================================
 -- MEAL LOGS
@@ -1363,7 +1363,7 @@ CREATE TABLE IF NOT EXISTS `member_meal_logs` (
     `logged_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     UNIQUE KEY `uq_user_meal_date` (`user_id`, `meal_type`, `log_date`),
     INDEX `idx_user_date` (`user_id`, `log_date`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 -- ==========================================================
 -- EQUIPMENT MANAGEMENT & REAL-TIME QUEUE SYSTEM
@@ -1389,7 +1389,7 @@ CREATE TABLE IF NOT EXISTS `gym_equipment` (
     `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     UNIQUE KEY `uq_gym_equip_unit` (`gym_id`, `name`, `unit_number`),
     INDEX `idx_gym_status` (`gym_id`, `status`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 CREATE TABLE IF NOT EXISTS `equipment_sessions` (
     `session_id` INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
@@ -1402,7 +1402,7 @@ CREATE TABLE IF NOT EXISTS `equipment_sessions` (
     `session_status` ENUM('active', 'completed', 'cancelled') NOT NULL DEFAULT 'active',
     INDEX `idx_gym_equipment` (`gym_id`, `equipment_id`),
     INDEX `idx_user_status` (`user_id`, `session_status`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 CREATE TABLE IF NOT EXISTS `equipment_queues` (
     `queue_id` INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
@@ -1418,7 +1418,7 @@ CREATE TABLE IF NOT EXISTS `equipment_queues` (
     INDEX `idx_user_active_queue` (`user_id`, `equipment_id`, `queue_status`),
     INDEX `idx_equip_queue_pos` (`equipment_id`, `queue_status`, `queue_position`),
     INDEX `idx_equip_queue_gym_status` (`gym_id`, `queue_status`, `equipment_id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 CREATE TABLE IF NOT EXISTS `equipment_maintenance_logs` (
     `log_id` INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
@@ -1430,4 +1430,4 @@ CREATE TABLE IF NOT EXISTS `equipment_maintenance_logs` (
     `expected_return_date` DATE DEFAULT NULL,
     `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     INDEX `idx_equip_logs` (`equipment_id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
