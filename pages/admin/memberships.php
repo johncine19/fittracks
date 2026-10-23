@@ -1198,7 +1198,7 @@ function memberships_page(): void
                 <div class="membership-plans-hero-wrap">
                     <div class="membership-hero-header">
                         <div class="membership-brand-pill">
-                            <div class="membership-brand-logo">FT</div>
+                            <img src="assets/images/favicon.png" alt="FitTrack" style="width:26px;height:26px;object-fit:contain;border-radius:6px;flex-shrink:0;">
                             <span class="membership-brand-title"><?= h($gymName ?: 'FitTrack') ?></span>
                         </div>
                         <h1 class="membership-hero-title">Choose Your Subscription Plan</h1>

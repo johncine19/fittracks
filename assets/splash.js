@@ -210,7 +210,7 @@ window.showSplashLoader = function(customTitle) {
             <div class="ft-splash-content">
                 <div class="ft-splash-logo-wrap">
                     <div class="ft-splash-ring"></div>
-                    <div class="ft-splash-logo">FT</div>
+                    <div class="ft-splash-logo"><img src="assets/images/favicon.png" alt="FitTrack" style="width:100%;height:100%;object-fit:contain;border-radius:inherit;display:block;"></div>
                 </div>
                 <div class="ft-splash-brand-title">${customTitle ? customTitle : 'Fit<span>Track</span>'}</div>
                 <div class="ft-splash-bar-track">

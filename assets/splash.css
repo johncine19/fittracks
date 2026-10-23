@@ -117,7 +117,7 @@ html.ft-no-splash #ft-splash-screen {
     width: 52px;
     height: 52px;
     border-radius: 14px;
-    background: linear-gradient(135deg, #27f246 0%, #1ea72d 100%);
+    background: transparent;
     color: #0a0a09;
     font-family: 'Inter', system-ui, -apple-system, sans-serif;
     font-weight: 900;
@@ -126,6 +126,8 @@ html.ft-no-splash #ft-splash-screen {
     display: flex;
     align-items: center;
     justify-content: center;
+    overflow: hidden;
+    padding: 0;
     box-shadow: 0 0 35px rgba(39, 242, 70, 0.45);
     animation: ft-logo-pulse 2s ease-in-out infinite alternate;
 }

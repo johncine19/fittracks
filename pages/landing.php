@@ -233,11 +233,11 @@ function landing_page(): void
         <link rel="canonical" href="https://fitworks.tech/">
 
         <!-- Favicon & Mobile Touch Icons for Google Search & Browsers -->
-        <link rel="icon" type="image/x-icon" href="assets/images/favicon.ico">
-        <link rel="icon" type="image/png" sizes="48x48" href="assets/images/favicon-48x48.png">
-        <link rel="icon" type="image/png" sizes="192x192" href="assets/images/favicon.png">
-        <link rel="icon" type="image/svg+xml" href="assets/images/fittracks-icon.svg">
-        <link rel="apple-touch-icon" href="assets/images/favicon.png">
+        <link rel="icon" type="image/x-icon" href="assets/images/favicon.ico?v=2">
+        <link rel="icon" type="image/png" sizes="48x48" href="assets/images/favicon-48x48.png?v=2">
+        <link rel="icon" type="image/png" sizes="192x192" href="assets/images/favicon.png?v=2">
+        <link rel="icon" type="image/svg+xml" href="assets/images/fittracks-icon.svg?v=2">
+        <link rel="apple-touch-icon" href="assets/images/favicon.png?v=2">
 
         <!-- Web App Manifest & Mobile PWA Configuration -->
         <link rel="manifest" href="manifest.json">
@@ -318,7 +318,7 @@ function landing_page(): void
             <div class="ft-splash-content">
                 <div class="ft-splash-logo-wrap">
                     <div class="ft-splash-ring"></div>
-                    <div class="ft-splash-logo">FT</div>
+                    <div class="ft-splash-logo"><img src="assets/images/favicon.png" alt="FitTrack" style="width:100%;height:100%;object-fit:contain;border-radius:inherit;display:block;"></div>
                 </div>
                 <div class="ft-splash-brand-title">Fit<span>Track</span></div>
                 <div class="ft-splash-bar-track">
@@ -333,7 +333,7 @@ function landing_page(): void
         <nav class="saas-nav" id="mainNav">
             <div class="container nav-container">
                 <a href="#" class="brand-logo-wrap">
-                    <div class="brand-f-logo">F</div>
+                    <div class="brand-f-logo"><img src="assets/images/favicon.png" alt="FitTrack" style="width:100%;height:100%;object-fit:contain;border-radius:inherit;display:block;"></div>
                     <div class="brand-text-block">
                         <div class="brand-logotype">
                             <span class="brand-fit">FIT</span><span class="brand-track">TRACK</span>
@@ -2310,7 +2310,7 @@ function landing_page(): void
                 <div class="footer-grid">
                     <div class="footer-brand-col">
                         <a href="#" class="brand-logo-wrap">
-                            <div class="brand-f-logo">F</div>
+                            <div class="brand-f-logo"><img src="assets/images/favicon.png" alt="FitTrack" style="width:100%;height:100%;object-fit:contain;border-radius:inherit;display:block;"></div>
                             <div class="brand-text-block">
                                 <div class="brand-logotype">
                                     <span class="brand-fit">FIT</span><span class="brand-track">TRACK</span>

@@ -283,11 +283,13 @@ video {
 .brand-f-logo {
     width: 38px;
     height: 38px;
-    background: linear-gradient(135deg, #84cc16 0%, #65a30d 100%);
+    background: transparent;
     border-radius: 9px;
     display: flex;
     align-items: center;
     justify-content: center;
+    overflow: hidden;
+    padding: 0;
     color: #081202;
     font-weight: 900;
     font-size: 1.4rem;

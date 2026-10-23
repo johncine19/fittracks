@@ -152,7 +152,11 @@ function render_header(string $title, ?array $user = null): void
         <title><?= h($title) ?> - <?= h($gym['name'] ?? 'FitTrack') ?></title>
         <link rel="manifest" href="manifest.json">
         <meta name="theme-color" content="#22c55e">
-        <link rel="icon" type="image/svg+xml" href="assets/images/fittracks-icon.svg">
+        <link rel="icon" type="image/x-icon" href="assets/images/favicon.ico?v=2">
+        <link rel="icon" type="image/png" sizes="48x48" href="assets/images/favicon-48x48.png?v=2">
+        <link rel="icon" type="image/png" sizes="192x192" href="assets/images/favicon.png?v=2">
+        <link rel="apple-touch-icon" sizes="180x180" href="assets/images/favicon.png?v=2">
+        <link rel="icon" type="image/svg+xml" href="assets/images/fittracks-icon.svg?v=2">
         <link rel="stylesheet" href="assets/app.css?v=<?= filemtime(__DIR__ . '/../assets/app.css') ?>">
         <link rel="stylesheet" href="assets/dropdown.css?v=<?= file_exists(__DIR__ . '/../assets/dropdown.css') ? filemtime(__DIR__ . '/../assets/dropdown.css') : 1 ?>">
         <?php if ($gym && !empty($gym['brand_color']) && gym_has_feature('custom_branding', $gym)): 
@@ -299,7 +303,7 @@ function render_header(string $title, ?array $user = null): void
         <div class="ft-splash-content">
             <div class="ft-splash-logo-wrap">
                 <div class="ft-splash-ring"></div>
-                <div class="ft-splash-logo">FT</div>
+                <div class="ft-splash-logo"><img src="assets/images/favicon.png" alt="FitTrack" style="width:100%;height:100%;object-fit:contain;border-radius:inherit;display:block;"></div>
             </div>
             <div class="ft-splash-brand-title">Fit<span>Track</span></div>
             <div class="ft-splash-bar-track">
@@ -1793,7 +1797,7 @@ function render_header(string $title, ?array $user = null): void
                         <span class="brand-mark"><?= h($gymInitials) ?></span>
                         <span style="font-weight: 700; font-size: 1rem; line-height: 1.2; letter-spacing: -0.2px; white-space: normal;"><?= h($gym['name']) ?></span>
                     <?php else: ?>
-                        <span class="brand-mark">FT</span>
+                        <img src="assets/images/favicon.png" alt="FitTrack" style="width: 32px; height: 32px; object-fit: contain; border-radius: 7px; flex-shrink: 0;">
                         <span>FitTrack</span>
                     <?php endif; ?>
                 </a>
