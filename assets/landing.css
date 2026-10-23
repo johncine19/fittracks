@@ -443,7 +443,10 @@ video {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    padding: 0.42rem 0.95rem;
+    height: 38px;
+    min-height: 38px;
+    box-sizing: border-box;
+    padding: 0 1rem;
     font-size: 0.85rem;
     font-weight: 700;
     color: var(--text-bright);
@@ -451,7 +454,7 @@ video {
     border: 1px solid rgba(255, 255, 255, 0.2);
     border-radius: 8px;
     text-decoration: none;
-    line-height: 1.2;
+    line-height: 1;
     transition: all var(--transition-fast);
     white-space: nowrap;
 }
@@ -465,13 +468,17 @@ video {
 
 .mobile-toggle {
     display: none;
+    width: 38px;
+    height: 38px;
+    min-width: 38px;
+    min-height: 38px;
+    box-sizing: border-box;
     background: rgba(255, 255, 255, 0.05);
     border: 1px solid rgba(255, 255, 255, 0.2);
     border-radius: 8px;
     color: var(--text-main);
-    font-size: 1.6rem;
     cursor: pointer;
-    padding: 0.42rem 0.55rem;
+    padding: 0;
     align-items: center;
     justify-content: center;
     transition: all var(--transition-fast);
@@ -479,8 +486,13 @@ video {
 
 .mobile-toggle:hover,
 .mobile-toggle:active {
-    background: rgba(255, 255, 255, 0.1);
-    border-color: rgba(255, 255, 255, 0.35);
+    background: rgba(132, 204, 22, 0.12);
+    border-color: var(--accent);
+}
+
+.mobile-toggle:hover .mobile-toggle-icon,
+.mobile-toggle:active .mobile-toggle-icon {
+    stroke: var(--accent);
 }
 
 /* Mobile Drawer - Streamlined, sleek SaaS dropdown */
@@ -3174,9 +3186,11 @@ video {
 }
 
 .mobile-toggle-icon {
-    width: 26px;
-    height: 26px;
+    width: 20px;
+    height: 20px;
     stroke: var(--text-bright);
+    display: block;
+    transition: stroke var(--transition-fast);
 }
 
 .quote-svg {
