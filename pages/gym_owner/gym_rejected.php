@@ -116,11 +116,7 @@ function gym_rejected_page(): void
                     <!-- Top Brand Header -->
                     <div class="showcase-brand">
                         <div class="showcase-brand-icon">
-                            <svg viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg" style="width: 100%; height: 100%;">
-                                <path d="M6 8 L32 8 L29 14 L15 14 L13 18 L26 18 L23 24 L10 24 L5 34 L1 34 L6 8 Z" fill="#84cc16" />
-                                <polygon points="12,5 36,5 34,9 10,9" fill="#a3e635" opacity="0.8" />
-                                <polygon points="2,32 10,32 8,36 0,36" fill="#65a30d" />
-                            </svg>
+                            <img src="assets/images/favicon.png" alt="FitTrack" style="width: 100%; height: 100%; object-fit: contain; border-radius: 9px; display: block;">
                         </div>
                         <div class="showcase-brand-text">
                             <div class="showcase-brand-name">FIT<span>TRACK</span></div>
