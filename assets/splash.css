@@ -50,6 +50,16 @@ html.ft-no-splash #ft-splash-screen {
     opacity: 1;
     width: 80%;
 }
+#ft-top-progress-bar.ft-progress-complete {
+    opacity: 1;
+    width: 100%;
+    transition: width 0.2s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.25s ease;
+}
+#ft-top-progress-bar.ft-progress-fade {
+    opacity: 0;
+    width: 100%;
+    transition: opacity 0.3s ease;
+}
 
 #ft-splash-screen.ft-splash-hidden {
     opacity: 0;

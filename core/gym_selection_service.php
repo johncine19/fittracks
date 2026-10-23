@@ -6,11 +6,55 @@ declare(strict_types=1);
  * Each result is grouped by gym_id so the existing selection-page template can
  * continue to consume one complete gym record at a time.
  */
+if (!function_exists('is_gym_paused')) {
+    function is_gym_paused(int $gymId): bool
+    {
+        if ($gymId <= 0) {
+            return false;
+        }
+        try {
+            $val = scalar('SELECT setting_value FROM system_settings WHERE setting_key = ?', ['gym_paused_' . $gymId]);
+            return (string) $val === '1';
+        } catch (Throwable) {
+            return false;
+        }
+    }
+}
+
+if (!function_exists('get_gym_pause_notice')) {
+    function get_gym_pause_notice(int $gymId): string
+    {
+        if ($gymId <= 0) {
+            return '';
+        }
+        try {
+            $val = (string) scalar('SELECT setting_value FROM system_settings WHERE setting_key = ?', ['gym_pause_notice_' . $gymId]);
+            if (trim($val) !== '') {
+                return trim($val);
+            }
+        } catch (Throwable) {
+            // fallback
+        }
+        return 'Our public listings and new sign-ups are temporarily paused for maintenance/holiday mode. Your active member access remains normal. See you at your workout!';
+    }
+}
+
 function load_gym_selection_data(array $gyms): array
 {
+    $pausedMap = [];
+    try {
+        $pausedRows = query_all("SELECT setting_key FROM system_settings WHERE setting_key LIKE 'gym_paused_%' AND setting_value = '1'");
+        foreach ($pausedRows as $r) {
+            $id = (int) str_replace('gym_paused_', '', (string) ($r['setting_key'] ?? ''));
+            if ($id > 0) {
+                $pausedMap[$id] = true;
+            }
+        }
+    } catch (Throwable) {}
+
     $eligibleGyms = array_values(array_filter(
         $gyms,
-        static fn(array $gym): bool => gym_subscription_tier($gym) !== 'none'
+        static fn(array $gym): bool => gym_subscription_tier($gym) !== 'none' && empty($pausedMap[(int) ($gym['gym_id'] ?? 0)])
     ));
 
     if ($eligibleGyms === []) {

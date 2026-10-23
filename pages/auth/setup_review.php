@@ -63,6 +63,13 @@ function setup_review_page(): void
                 $secText = !empty($profile['secondary_focus']) ? "\n\n**Secondary Focus Areas:**\n" . $profile['secondary_focus'] : '';
                 $msgBody = "Based on your goal to **" . $currentGoal . "**, your personalized workout and nutrition plans are now active!\n\n**Workout Structure:**\n$workoutStruct\n\n**Diet & Macros$restText:**\n$dietStruct" . $secText;
                 notify_user((int) $user['user_id'], 'system', 'Your Starter Plan is Ready!', $msgBody);
+
+                // Ensure new member starts with a fresh inbox free of pre-onboarding gym broadcast notices
+                try {
+                    $pdo->prepare('DELETE FROM notifications WHERE user_id = ? AND reference_id IS NOT NULL AND title LIKE "Gym Notice:%"')
+                        ->execute([$user['user_id']]);
+                } catch (Throwable) {
+                }
             }
 
             // If the member skipped circumference measurements, notify them so they remember to measure later

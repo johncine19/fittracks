@@ -101,6 +101,32 @@ HTML;
         queue_email($email, $firstName, 'Password Reset OTP - FITTRACKS', self::layout($content));
     }
 
+    public static function sendAccountDeletionOtp(string $email, string $firstName, string $token, bool $immediate = true): bool
+    {
+        $content = <<<HTML
+        <p>Hi <strong>{$firstName}</strong>,</p>
+        <p>We received a request to permanently delete your FITTRACKS account. To verify that you initiated this action, please enter the 6-digit verification code below:</p>
+        <div class="code-block" style="border-color: rgba(239, 68, 68, 0.45); color: #f87171;">{$token}</div>
+        <p>This verification code will expire in <strong>10 minutes</strong>.</p>
+        <p style="font-size: 14px; color: #f87171; margin-top: 24px;"><strong>Security Warning:</strong> If you did not request to delete your account, someone may have access to your session. Please change your password immediately and do not share this code with anyone.</p>
+HTML;
+
+        $subject = 'Account Deletion Verification Code - FITTRACKS';
+        $htmlBody = self::layout($content);
+
+        if ($immediate && function_exists('send_email_job')) {
+            return send_email_job([
+                'to' => $email,
+                'name' => $firstName,
+                'subject' => $subject,
+                'body' => $htmlBody,
+            ]);
+        }
+
+        queue_email($email, $firstName, $subject, $htmlBody);
+        return true;
+    }
+
     public static function sendAccountCreated(string $email, string $name, string $plainPassword): void
     {
         $loginUrl = app_base_url() . '?page=login';

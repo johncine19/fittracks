@@ -13,7 +13,7 @@ function gym_selection_page(): void
         $gymId = (int) ($_POST['gym_id'] ?? 0);
         if ($gymId > 0) {
             $targetGym = db()->query("SELECT * FROM gyms WHERE gym_id = " . $gymId)->fetch(PDO::FETCH_ASSOC);
-            if (!$targetGym || gym_subscription_tier($targetGym) === 'none' || !gym_can_add_member($gymId, $targetGym)) {
+            if (!$targetGym || is_gym_paused($gymId) || gym_subscription_tier($targetGym) === 'none' || !gym_can_add_member($gymId, $targetGym)) {
                 $limit = gym_member_limit($targetGym);
                 $current = gym_active_member_count($gymId);
                 if ($limit > 0 && $current >= $limit) {

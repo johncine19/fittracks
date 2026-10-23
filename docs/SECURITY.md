@@ -15,6 +15,7 @@ This document records the security posture, vulnerability audit findings, remedi
 | **Client IP Spoofing via Forwarded Headers** | **Low to Medium** | **Resolved** | `core/bootstrap.php`, `.env.example` | Restricted `CF-Connecting-IP` and `X-Forwarded-For` header trust to explicitly configured `TRUSTED_PROXIES` IP addresses and CIDR subnets. |
 | **Unencrypted Direct Messages (Data-at-Rest)** | **High** | **Resolved** | `core/encryption.php`, `core/bootstrap.php`, `pages/shared/messages.php`, `pages/member/progress.php`, `pages/trainer/training.php` | Implemented authenticated field-level encryption (AES-256-GCM) with random 12-byte IVs and 16-byte integrity tags (`enc:v1:` prefix). Seamlessly protects sensitive health/trainer communications in the database with backward compatibility. |
 | **Cross-Tenant & IDOR Data Exposure (Row-Level Authorization)** | **High** | **Enforced** | `pages/member/progress.php`, `pages/member/my_workout.php`, `pages/admin/walk_ins.php`, `pages/admin/attendance.php` | Enforces strict row-level authorization and tenant scoping across all database queries. Members can only view their own biometric and progress data; gym staff and owners are strictly bound to their tenant `gym_id`. |
+| **Application-Layer DoS & Resource Exhaustion (DDoS Guardrails)** | **High** | **Resolved** | `core/rate_limiter.php`, `core/SessionDbHandler.php`, `core/SessionRedisHandler.php`, `core/file_handler.php`, `pages/landing.php`, `pages/auth/*`, `index.php`, `deploy/cloudflare-worker.js` | Enforced multi-layered DDoS guardrails: per-IP rate limiting across authentication and public forms, short 15-min anonymous session TTLs, inline worker thread isolation, query caching on high-frequency landing routes, decompression bomb limits, and Cloudflare Worker reload-loop mitigation. |
 
 ---
 
@@ -200,6 +201,41 @@ This document records the security posture, vulnerability audit findings, remedi
      A gym owner or staff member cannot view or query transactions, visits, or metrics belonging to another facility.
   4. **Database Storage Encryption (TDE):**  
      The underlying database volumes in **TiDB Cloud** and cloud container environments are encrypted at rest using enterprise AES-256 Transparent Data Encryption, protecting raw disk data against physical storage theft.
+
+---
+
+### 2.7 Application-Layer DDoS & Availability Guardrails
+
+* **Threat Context:**  
+  Public cloud instances (e.g. Render, TiDB Cloud Serverless, Redis) can easily be degraded or knocked offline by modest Layer-7 HTTP floods, unthrottled CPU-heavy cryptographic operations (bcrypt), database connection pool starvation, and infinite browser reload storms.
+
+* **Guardrails Implemented:**
+  1. **Dual-Bucket Rate Limiting (Per-Account & Per-IP):**  
+     * Previously, login rate limits only hashed `IP + email`. Attackers rotating thousands of fake emails could bypass rate limiting, exhaust server CPU on `password_verify()` (bcrypt), and enumerate users.
+     * Now, strict global per-IP limits run concurrently:
+       - `pages/auth/login.php`: Max 5 attempts per email + Max 15 total failed attempts per IP per 5 minutes (`RateLimiter::tooManyAttempts('login_ip', 15, 300)`). A constant-time dummy bcrypt check prevents timing-based email enumeration.
+       - `pages/auth/register.php` & `pages/auth/gym_register.php`: Max 5 account creations per 10 minutes per IP (`register_ip`, `gym_register_ip`).
+       - `pages/auth/forgot_password.php`: Max 3 attempts per email + Max 10 attempts per 10 minutes per IP (`forgot_ip`).
+       - `pages/auth/google_auth.php`: Local JWT structure validation prior to making outbound cURL calls, plus IP rate limit of max 10 failed authentications per 5 minutes.
+       - `pages/landing.php`: Demo request form throttled to max 3 submissions per 10 minutes per IP.
+  2. **Session Storage Flooding Defense (Redis & MySQL):**  
+     * Previously, bot floods without cookies forced a new 24-hour (`86400s`) session row/key on every single GET request via `session_start()` and `csrf_token()`.
+     * Now, `SessionDbHandler` and `SessionRedisHandler`:
+       - Skip persisting empty sessions.
+       - Skip redundant database writes if session data hasn't changed and has sufficient remaining TTL.
+       - Assign a short **15-minute TTL** (`900s`) to anonymous/unauthenticated visitor sessions, while retaining the full **24-hour TTL** for logged-in users.
+  3. **Worker Thread Starvation Protection (`index.php`):**  
+     * In environments running `php:8.2-apache` (without FastCGI process decoupling), running background queue jobs during shutdown tied up Apache worker slots.
+     * The inline queue worker shutdown handler now:
+       - Skips execution on unauthenticated requests.
+       - Explicitly calls `session_write_close()` before executing tasks.
+       - Uses an atomic Redis lock (`lock:inline_queue_worker`) so at most **one** web worker processes inline queue jobs at any time, bounded to a 1-job / 3-second limit.
+  4. **Landing Page Database Query Caching:**  
+     * High-traffic endpoints (`/`) wrap expensive live counts (`stat_gyms`, `stat_members`, `stat_trainers`), platform ratings, and reviews in `Cache::remember(..., 300)` (5 minutes), allowing the database to serve zero queries during traffic surges.
+  5. **Decompression Bomb ("Pixel Flood") Defense (`core/file_handler.php`):**  
+     * Image uploads inspect pixel dimensions prior to calling GD's `imagecreatefrom*()`. Images exceeding `6000x6000px` or `25,000,000` total pixels are rejected, preventing crafted 100KB images from exploding into gigabytes of uncompressed RAM and causing Out-Of-Memory worker crashes.
+  6. **Cloudflare Worker "Reload Storm" Mitigation (`deploy/cloudflare-worker.js`):**  
+     * Increased `WAKE_TIMEOUT_MS` from `2500ms` to `12000ms` (12 seconds) so temporary backend latency does not trigger premature request cancellations and reload loops across active user browsers.
 
 ---
 

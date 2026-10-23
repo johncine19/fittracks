@@ -66,23 +66,135 @@
         setTimeout(dismissSplash, maxTimeoutMs);
     }
 
-    // Subtle top progress bar on internal navigation
-    document.addEventListener('click', (e) => {
-        const link = e.target.closest('a');
-        if (!link) return;
-        const href = link.getAttribute('href');
-        if (!href || href.startsWith('#') || href.startsWith('javascript:') || link.target === '_blank') return;
-        if (link.hasAttribute('download')) return;
+    // Global Top Progress Bar Helpers
+    let progressTimer = null;
+    let progressFailsafeTimer = null;
 
+    function getOrCreateProgressBar() {
         let bar = document.getElementById('ft-top-progress-bar');
         if (!bar) {
             bar = document.createElement('div');
             bar.id = 'ft-top-progress-bar';
             document.body.appendChild(bar);
         }
+        return bar;
+    }
+
+    window.startTopProgress = function() {
+        if (progressTimer) {
+            clearTimeout(progressTimer);
+            progressTimer = null;
+        }
+        if (progressFailsafeTimer) {
+            clearTimeout(progressFailsafeTimer);
+            progressFailsafeTimer = null;
+        }
+
+        const bar = getOrCreateProgressBar();
+        bar.className = '';
+        void bar.offsetWidth; // Force reflow to re-trigger transition
+        bar.className = 'ft-progress-active';
+
+        // Auto-dismiss failsafe if page does not navigate away within 6 seconds
+        progressFailsafeTimer = setTimeout(() => {
+            window.finishTopProgress();
+        }, 6000);
+    };
+
+    window.finishTopProgress = function() {
+        if (progressTimer) {
+            clearTimeout(progressTimer);
+            progressTimer = null;
+        }
+        if (progressFailsafeTimer) {
+            clearTimeout(progressFailsafeTimer);
+            progressFailsafeTimer = null;
+        }
+
+        const bar = document.getElementById('ft-top-progress-bar');
+        if (!bar || !bar.classList.contains('ft-progress-active')) return;
+
+        bar.className = 'ft-progress-complete';
         setTimeout(() => {
-            if (bar) bar.className = 'ft-progress-active';
-        }, 80);
+            bar.className = 'ft-progress-fade';
+            setTimeout(() => {
+                bar.className = '';
+            }, 300);
+        }, 200);
+    };
+
+    window.hideTopProgress = function() {
+        if (progressTimer) {
+            clearTimeout(progressTimer);
+            progressTimer = null;
+        }
+        if (progressFailsafeTimer) {
+            clearTimeout(progressFailsafeTimer);
+            progressFailsafeTimer = null;
+        }
+
+        const bar = document.getElementById('ft-top-progress-bar');
+        if (bar) {
+            bar.className = '';
+        }
+    };
+
+    window.addEventListener('pageshow', () => {
+        window.hideTopProgress();
+    });
+
+    // Subtle top progress bar on genuine internal page navigation
+    document.addEventListener('click', (e) => {
+        // Only primary mouse button clicks without modifier keys
+        if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+
+        // Skip if already defaultPrevented
+        if (e.defaultPrevented) return;
+
+        const link = e.target.closest('a');
+        if (!link) return;
+
+        // Ignore new-window / download links
+        if (link.target && link.target !== '_self') return;
+        if (link.hasAttribute('download')) return;
+
+        // Ignore tabs, pills, modals, accordions, or explicit opt-outs
+        if (
+            link.hasAttribute('data-tab') ||
+            link.getAttribute('role') === 'tab' ||
+            link.classList.contains('users-nav-pill') ||
+            link.classList.contains('nav-tab') ||
+            link.classList.contains('tab-btn') ||
+            link.classList.contains('settings-tab') ||
+            link.hasAttribute('data-bs-toggle') ||
+            link.hasAttribute('data-toggle') ||
+            link.hasAttribute('data-modal') ||
+            link.hasAttribute('data-no-progress') ||
+            link.closest('#userPagination') ||
+            link.closest('.users-nav-pills')
+        ) {
+            return;
+        }
+
+        const href = link.getAttribute('href');
+        if (
+            !href ||
+            href === '#' ||
+            href.startsWith('#') ||
+            href.startsWith('javascript:') ||
+            href.startsWith('mailto:') ||
+            href.startsWith('tel:')
+        ) {
+            return;
+        }
+
+        // Schedule progress bar display after small debounce so rapid clicks or prevented clicks don't flash
+        if (progressTimer) clearTimeout(progressTimer);
+        progressTimer = setTimeout(() => {
+            // Re-verify that the click wasn't prevented by another listener that executed synchronously
+            if (e.defaultPrevented) return;
+            window.startTopProgress();
+        }, 120);
     });
 })();
 

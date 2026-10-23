@@ -1041,45 +1041,63 @@
         min-height: 100vh;
         min-height: 100svh;
         height: auto;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
     }
 
     .hx-hero::after {
-        height: 60px;
+        height: 80px;
     }
 
     .hx-body {
-        align-items: flex-start;
-        padding: 96px 0 32px;
-        flex: none;
+        align-items: center;
+        justify-content: center;
+        padding: clamp(84px, 12vh, 120px) 0 clamp(48px, 8vh, 80px);
+        flex: 1 0 auto;
     }
 
     .hx-grid {
         grid-template-columns: minmax(0, 1fr);
+        justify-items: center;
         gap: 1.5rem;
     }
 
-    .hx-hud {
+    .hx-copy {
+        max-width: 44rem;
+        margin-left: auto;
+        margin-right: auto;
         display: flex;
-        flex-wrap: wrap;
-        align-items: flex-end;
-        gap: 1rem;
-        height: auto;
-        perspective: none;
-        transform: none;
+        flex-direction: column;
+        align-items: center;
+        text-align: center;
     }
 
-    .hx-float {
-        position: relative;
-        inset: auto;
+    .hx-title {
+        text-align: center;
     }
 
-    .hx-float-rev {
-        display: none;
+    .hx-sub {
+        text-align: center;
+        margin-left: auto;
+        margin-right: auto;
+    }
+
+    .hx-ctas {
+        justify-content: center;
+    }
+
+    .hx-cues {
+        justify-content: center;
+    }
+
+    .hx-hud {
+        display: none !important;
     }
 
     .hx-shade {
         background:
-            linear-gradient(180deg, rgba(5, 7, 10, 0.86) 0%, rgba(5, 7, 10, 0.55) 45%, rgba(5, 7, 10, 0.8) 100%),
+            linear-gradient(180deg, rgba(5, 7, 10, 0.88) 0%, rgba(5, 7, 10, 0.6) 45%, rgba(5, 7, 10, 0.85) 100%),
             radial-gradient(130% 100% at 50% 40%, rgba(0, 0, 0, 0) 50%, rgba(0, 0, 0, 0.5) 100%);
     }
 
@@ -1115,7 +1133,7 @@
         height: auto;
         display: flex;
         flex-direction: column;
-        justify-content: flex-start;
+        justify-content: center;
     }
 
     .hx-hero::after {
@@ -1126,9 +1144,9 @@
         flex: 1 0 auto;
         display: flex;
         flex-direction: column;
-        justify-content: flex-start;
+        justify-content: center;
         align-items: center;
-        padding: clamp(74px, 12vh, 92px) 0 clamp(32px, 6vh, 48px);
+        padding: clamp(64px, 8vh, 88px) 0 clamp(32px, 5vh, 44px);
     }
 
     .hx-copy {
@@ -1140,10 +1158,7 @@
         flex-direction: column;
         align-items: center;
         text-align: center;
-    }
-
-    .hx-copy {
-        padding-top: clamp(8rem, 25svh, 13rem);
+        padding-top: 0;
     }
 
     .hx-bottom {
@@ -1175,7 +1190,7 @@
     .hx-ctas {
         width: 100%;
         max-width: 360px;
-        margin-top: clamp(3rem, 9svh, 5rem);
+        margin-top: 1.5rem;
         flex-direction: column;
         align-items: stretch;
         gap: 0.75rem;

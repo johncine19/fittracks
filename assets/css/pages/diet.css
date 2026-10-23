@@ -876,6 +876,9 @@
 }
 
 .diet-meta-chip {
+    height: 28px;
+    min-height: 28px;
+    box-sizing: border-box;
     display: inline-flex;
     align-items: center;
     gap: 6px;
@@ -908,11 +911,19 @@
 }
 
 .diet-meta-chip.is-locked {
-    background: color-mix(in srgb, var(--ink) 4%, transparent);
+    background: var(--panel-soft);
+    border-color: var(--line);
+    color: var(--ink);
+}
+.diet-meta-chip.is-locked svg {
     color: var(--muted);
 }
 
 .diet-meta-btn {
+    height: 28px !important;
+    min-height: 28px !important;
+    max-height: 28px !important;
+    box-sizing: border-box !important;
     display: inline-flex;
     align-items: center;
     gap: 5px;
@@ -933,6 +944,11 @@
 }
 
 .diet-meta-info-btn {
+    height: 28px !important;
+    min-height: 28px !important;
+    max-height: 28px !important;
+    padding: 4px 11px !important;
+    font-size: 12px !important;
     display: none;
     align-items: center;
     gap: 5px;
@@ -2928,6 +2944,12 @@
     transform: translateY(0);
     background: color-mix(in srgb, #38bdf8 20%, var(--surface)) !important;
 }
+.btn-swap-meal:disabled {
+    opacity: 0.45 !important;
+    cursor: not-allowed !important;
+    color: var(--muted) !important;
+    pointer-events: auto;
+}
 [data-theme="light"] .btn-swap-meal:hover:not(:disabled) {
     background: color-mix(in srgb, #0284c7 12%, #ffffff) !important;
     color: #0284c7 !important;
@@ -4035,6 +4057,11 @@
         display: none !important;
     }
     .diet-meta-info-btn {
+    height: 28px !important;
+    min-height: 28px !important;
+    max-height: 28px !important;
+    padding: 4px 11px !important;
+    font-size: 12px !important;
         display: inline-flex !important;
     }
     .diet-topbar-meta {
@@ -4046,6 +4073,18 @@
     .diet-topbar-meta .diet-meta-chip.is-locked,
     .diet-topbar-meta .diet-meta-btn,
     .diet-topbar-meta .diet-meta-info-btn {
+        height: 28px !important;
+        min-height: 28px !important;
+        max-height: 28px !important;
+        padding: 0 11px !important;
+        font-size: 12px !important;
+        line-height: 1 !important;
+        box-sizing: border-box !important;
+    height: 28px !important;
+    min-height: 28px !important;
+    max-height: 28px !important;
+    padding: 4px 11px !important;
+    font-size: 12px !important;
         margin: 0 !important;
         vertical-align: middle;
     }

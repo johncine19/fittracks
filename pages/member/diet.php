@@ -377,6 +377,12 @@ function diet_page(): void
                 exit;
             }
 
+            if ((int) $mealRow['day_of_week'] < (int) date('N')) {
+                if (ob_get_level()) ob_clean();
+                header('Content-Type: application/json; charset=utf-8');
+                echo json_encode(['success' => false, 'error' => 'Cannot swap meals for past days.']);
+                exit;
+            }
             if (empty($foodItems)) {
                 if (ob_get_level()) ob_clean();
                 header('Content-Type: application/json; charset=utf-8');
@@ -1018,9 +1024,6 @@ window.FT_CURRENT_DAY_NUM = window.DIET_CONFIG.currentDayNum;
                     <span class="diet-plan-btn-content">
                         <span class="diet-plan-btn-prefix">Active Plan:</span>
                         <strong class="diet-plan-btn-name"><?= h(!empty($activePlan['gym_name']) ? $activePlan['gym_name'] : 'Nutrition Plan') ?></strong>
-                        <span class="diet-plan-btn-coach">
-                            <?= (!empty($activePlan['t_first']) || !empty($activePlan['t_last'])) ? ('• Coach ' . trim($activePlan['t_first'] . ' ' . $activePlan['t_last'])) : '• Auto' ?>
-                        </span>
                     </span>
                     <svg class="diet-plan-chevron" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"></polyline></svg>
                 </button>
@@ -1065,9 +1068,6 @@ window.FT_CURRENT_DAY_NUM = window.DIET_CONFIG.currentDayNum;
                 <span class="diet-plan-btn-content">
                     <span class="diet-plan-btn-prefix">Active Plan:</span>
                     <strong class="diet-plan-btn-name"><?= h(!empty($activePlan['gym_name']) ? $activePlan['gym_name'] : 'Nutrition Plan') ?></strong>
-                    <?php if (!empty($activePlan['t_first']) || !empty($activePlan['t_last'])): ?>
-                        <span class="diet-plan-btn-coach">• Coach <?= h(trim($activePlan['t_first'] . ' ' . $activePlan['t_last'])) ?></span>
-                    <?php endif; ?>
                 </span>
             </div>
         <?php endif; ?>
@@ -1091,28 +1091,25 @@ window.FT_CURRENT_DAY_NUM = window.DIET_CONFIG.currentDayNum;
                 <span><?= h(ucwords(str_replace('-', ' ', $userDietaryRestriction === 'none' ? 'Standard' : $userDietaryRestriction))) ?></span>
             </span>
 
-            <span class="diet-meta-chip diet-chip-desktop" title="Nutritional Guidance">
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-                <?php if ($hasCoach): ?>
+            <?php if ($hasCoach): ?>
+                <span class="diet-meta-chip diet-chip-desktop is-locked" title="Plan managed by your coach. Contact <?= h($coachDisplayName) ?> to make adjustments.">
+                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
                     <span>Coach <?= h($coachDisplayName) ?></span>
                     <?php if ($isGymOwner): ?>
                         <span class="diet-chip-role-tag">Owner</span>
                     <?php endif; ?>
-                <?php else: ?>
-                    <span>Auto-generated</span>
-                <?php endif; ?>
-            </span>
-
-            <?php if ($isDietSelfGuided): ?>
-                <button type="button" onclick="confirmRegeneratePlan()" class="diet-meta-btn" title="Regenerate Plan">
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.92-10.26l5.67-5.67"/></svg>
-                    <span>Regenerate</span>
-                </button>
-            <?php else: ?>
-                <span class="diet-meta-chip is-locked" title="Managed by Gym Coach">
-                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-                    <span>Coach Managed</span>
                 </span>
+            <?php else: ?>
+                <span class="diet-meta-chip diet-chip-desktop" title="Nutritional Guidance: Self-Guided">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+                    <span>Self-Guided</span>
+                </span>
+                <?php if ($isDietSelfGuided): ?>
+                    <button type="button" onclick="confirmRegeneratePlan()" class="diet-meta-btn" title="Regenerate Plan">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.92-10.26l5.67-5.67"/></svg>
+                        <span>Regenerate Plan</span>
+                    </button>
+                <?php endif; ?>
             <?php endif; ?>
 
             <!-- Mobile Info Trigger Button (Sits on same baseline on mobile) -->
@@ -1636,7 +1633,7 @@ window.FT_CURRENT_DAY_NUM = window.DIET_CONFIG.currentDayNum;
                                             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
                                             <span>Ingredients</span>
                                         </button>
-                                        <button type="button" class="meal-action-btn btn-swap-meal" onclick="openSwapMealModal(<?= $meal['meal_id'] ?>)" title="Swap with alternative healthy recipes">
+                                        <button type="button" class="meal-action-btn btn-swap-meal" <?= ($dayNum < $todayNum) ? 'disabled style="opacity: 0.45; cursor: not-allowed; color: var(--muted);" title="Cannot swap meals on past days (' . h($dayName) . ')"' : 'onclick="openSwapMealModal(' . (int) $meal['meal_id'] . ')" title="Swap with alternative healthy recipes"' ?>>
                                             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 3h5v5"/><path d="M4 20L21 3"/><path d="M21 16v5h-5"/><path d="M15 15l6 6"/><path d="M4 4l5 5"/></svg>
                                             <span>Swap</span>
                                         </button>

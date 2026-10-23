@@ -873,6 +873,39 @@ function get_user_gym_id(array $user): ?int
     return null;
 }
 
+if (!function_exists('is_gym_paused')) {
+    function is_gym_paused(int $gymId): bool
+    {
+        if ($gymId <= 0) {
+            return false;
+        }
+        try {
+            $val = scalar('SELECT setting_value FROM system_settings WHERE setting_key = ?', ['gym_paused_' . $gymId]);
+            return (string) $val === '1';
+        } catch (Throwable) {
+            return false;
+        }
+    }
+}
+
+if (!function_exists('get_gym_pause_notice')) {
+    function get_gym_pause_notice(int $gymId): string
+    {
+        if ($gymId <= 0) {
+            return '';
+        }
+        try {
+            $val = (string) scalar('SELECT setting_value FROM system_settings WHERE setting_key = ?', ['gym_pause_notice_' . $gymId]);
+            if (trim($val) !== '') {
+                return trim($val);
+            }
+        } catch (Throwable) {
+            // fallback
+        }
+        return 'Our public listings and new sign-ups are temporarily paused for maintenance/holiday mode. Your active member access remains normal. See you at your workout!';
+    }
+}
+
 function format_equipment_duration(int $seconds): string
 {
     if ($seconds <= 0) return '00:00';

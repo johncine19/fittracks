@@ -155,21 +155,24 @@ function handle_gym_register(): void
         .gym-owner-register-mode .showcase-hero-copy { margin: auto 0 24px; }
         .gym-owner-register-mode .showcase-desc { color: rgba(255, 255, 255, .78); }
         .gym-owner-register-mode .showcase-features { display: flex; flex-direction: column; gap: 14px; }
-        .gym-owner-register-back {
+        .gym-owner-back-website-wrap {
+            margin-top: 16px;
+            text-align: center;
+        }
+        .gym-owner-back-website-link {
             display: inline-flex;
             align-items: center;
-            gap: 8px;
-            padding: 9px 13px;
-            border: 1px solid rgba(255, 255, 255, .2);
-            border-radius: 999px;
-            background: rgba(15, 23, 42, .48);
-            color: #f8fafc;
-            font-size: 12px;
+            gap: 6px;
+            color: #64748b;
+            font-size: 13px;
+            font-weight: 500;
             text-decoration: none;
-            white-space: nowrap;
-            backdrop-filter: blur(12px);
+            transition: color .18s ease;
         }
-        .gym-owner-register-back:hover { border-color: rgba(163, 230, 53, .65); color: #bef264; }
+        .gym-owner-back-website-link:hover {
+            color: #1e293b;
+            text-decoration: underline;
+        }
         .gym-owner-register-mode .split-login-card-pane { display: flex; align-items: center; justify-content: center; padding: clamp(28px, 4vw, 64px); background: #f8f9fa; }
         .gym-owner-register-mode .split-login-card { width: 100%; max-width: 600px; padding: clamp(24px, 3vw, 40px); border: 1px solid rgba(33, 30, 41, .06); border-radius: 16px; background: #fff; box-shadow: 0 10px 30px rgba(0, 0, 0, .08); color: #211e29; }
         .gym-owner-register-mode .split-card-header { margin-bottom: 22px; text-align: left; }
@@ -285,7 +288,6 @@ function handle_gym_register(): void
             .gym-owner-register-mode .showcase-brand-icon { width: 36px; height: 36px; }
             .gym-owner-register-mode .showcase-brand-name { font-size: 21px; }
             .gym-owner-register-mode .showcase-brand-tagline { font-size: 9px; }
-            .gym-owner-register-mode .gym-owner-register-back { margin-left: auto; padding: 6px 9px; font-size: 10px; }
             .gym-owner-register-mode .split-login-card-pane { display: block; width: 100%; min-width: 0; padding: 10px 8px !important; border-radius: 0 0 14px 14px; background: #f8f9fa !important; box-sizing: border-box !important; }
             .gym-owner-register-mode .split-login-card { width: 100%; min-width: 0; padding: 18px 16px !important; border: 1px solid rgba(33, 30, 41, .06) !important; border-radius: 14px !important; background: #fff !important; box-shadow: 0 8px 24px rgba(0, 0, 0, .07) !important; box-sizing: border-box !important; }
             .gym-owner-register-mode .split-card-header { text-align: left; }
@@ -335,9 +337,6 @@ function handle_gym_register(): void
                             <div class="showcase-brand-name">FIT<span>TRACK</span></div>
                             <div class="showcase-brand-tagline">Manage. Engage. Grow.</div>
                         </div>
-                        <a class="gym-owner-register-back" href="index.php" aria-label="Back to FitTrack website">
-                            Back to website <span aria-hidden="true">&#8594;</span>
-                        </a>
                     </div>
 
                     <!-- Middle Headline & Copy -->
@@ -626,6 +625,12 @@ function handle_gym_register(): void
                             </div>
                         </div>
                     <?php endif; ?>
+
+                    <div class="gym-owner-back-website-wrap">
+                        <a href="index.php" class="gym-owner-back-website-link">
+                            <span aria-hidden="true">&larr;</span> Back to website
+                        </a>
+                    </div>
                 </div>
             </div>
         </div>

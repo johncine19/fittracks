@@ -319,6 +319,173 @@ function profile_page(): void
                         </div>
                     </div>
                 </div>
+
+                <div class="danger-zone-wrapper" <?= in_array($user['role'] ?? '', ['member', 'gym_owner'], true) ? '' : 'style="display:none;"' ?>>
+                    <div class="danger-zone-header">
+                        <div class="danger-zone-badge">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z" />
+                                <line x1="12" y1="9" x2="12" y2="13" />
+                                <line x1="12" y1="17" x2="12.01" y2="17" />
+                            </svg>
+                            Danger Zone
+                        </div>
+                        <p class="danger-zone-sub">Sensitive operational controls and irreversible account actions.</p>
+                    </div>
+
+                    <?php if ($is_member): ?>
+                        <?php
+                        $uid = (int) $user['user_id'];
+                        $memberGymsList = query_all('
+                            SELECT DISTINCT g.gym_id, g.name,
+                                   (SELECT mp.plan_name
+                                    FROM memberships m
+                                    JOIN membership_plans mp ON mp.plan_id = m.plan_id
+                                    WHERE m.user_id = ? AND mp.gym_id = g.gym_id AND m.status = "active" AND m.end_date >= CURDATE()
+                                    ORDER BY m.end_date DESC LIMIT 1) AS active_plan_name,
+                                   (SELECT mp.plan_name
+                                    FROM memberships m
+                                    JOIN membership_plans mp ON mp.plan_id = m.plan_id
+                                    WHERE m.user_id = ? AND mp.gym_id = g.gym_id AND m.status = "pending"
+                                    ORDER BY m.membership_id DESC LIMIT 1) AS pending_plan_name
+                            FROM gyms g
+                            WHERE g.gym_id IN (
+                                SELECT gym_id FROM gym_members WHERE user_id = ?
+                                UNION
+                                SELECT mp.gym_id FROM memberships m JOIN membership_plans mp ON mp.plan_id = m.plan_id WHERE m.user_id = ? AND m.status IN ("active", "pending")
+                            )
+                            ORDER BY g.name ASC
+                        ', [$uid, $uid, $uid, $uid]);
+                        ?>
+                        <?php if (!empty($memberGymsList)): ?>
+                            <div class="danger-zone-card" style="margin-bottom: 12px; flex-direction: column; align-items: stretch; gap: 14px;">
+                                <div class="danger-zone-info">
+                                    <h3 class="danger-zone-title">Leave / Unlink From Gym Facilities (<?= count($memberGymsList) ?>)</h3>
+                                    <p class="danger-zone-desc">
+                                        Cleanly unlink from any gym facility where you no longer have an active or pending membership so its staff and trainers can no longer see you in their roster.
+                                    </p>
+                                </div>
+                                <div class="danger-facility-list">
+                                    <?php foreach ($memberGymsList as $mg):
+                                        $mgId = (int) $mg['gym_id'];
+                                        $mgName = (string) $mg['name'];
+                                        $hasActive = !empty($mg['active_plan_name']);
+                                        $hasPending = !$hasActive && !empty($mg['pending_plan_name']);
+                                        $canLeaveThisGym = !$hasActive && !$hasPending;
+                                        $isCurrentActiveFacility = ($homeGymId === $mgId);
+                                    ?>
+                                        <div class="danger-facility-row">
+                                            <div class="danger-facility-meta">
+                                                <strong class="danger-facility-name"><?= h($mgName) ?></strong>
+                                                <?php if ($isCurrentActiveFacility): ?>
+                                                    <span class="danger-pill danger-pill-selected">Selected Facility</span>
+                                                <?php endif; ?>
+                                                <?php if ($hasActive): ?>
+                                                    <span class="danger-pill danger-pill-locked">
+                                                        Locked &bull; Active (<?= h((string) $mg['active_plan_name']) ?>)
+                                                    </span>
+                                                <?php elseif ($hasPending): ?>
+                                                    <span class="danger-pill danger-pill-pending">
+                                                        Locked &bull; Pending (<?= h((string) $mg['pending_plan_name']) ?>)
+                                                    </span>
+                                                <?php else: ?>
+                                                    <span class="danger-pill danger-pill-neutral">
+                                                        No Active Plan
+                                                    </span>
+                                                <?php endif; ?>
+                                            </div>
+                                            <div>
+                                                <button
+                                                    type="button"
+                                                    class="btn-danger-zone btn-danger-zone-sm"
+                                                    <?= $canLeaveThisGym ? 'onclick="openLeaveGymModal(' . $mgId . ', ' . h((string) json_encode($mgName)) . ')"' : 'disabled title="Cannot leave ' . h($mgName) . ' while a membership is active or pending"' ?>
+                                                >
+                                                    Leave <?= h($mgName) ?>
+                                                </button>
+                                            </div>
+                                        </div>
+                                    <?php endforeach; ?>
+                                </div>
+                            </div>
+                        <?php endif; ?>
+
+                        <div class="danger-zone-card" style="margin-bottom: 12px;">
+                            <div class="danger-zone-info">
+                                <h3 class="danger-zone-title">Reset / Clear Health &amp; Workout History</h3>
+                                <p class="danger-zone-desc">
+                                    Wipe all logged workout sessions, daily macro/meal logs, and body progress history so you can start fresh while keeping your account and gym membership intact.
+                                </p>
+                            </div>
+                            <div class="danger-zone-action">
+                                <button type="button" class="btn-danger-zone" onclick="document.getElementById('resetHealthModal').showModal()">
+                                    Reset Health Data
+                                </button>
+                            </div>
+                        </div>
+                    <?php elseif (($user['role'] ?? '') === 'gym_owner' && $ownerGymId): ?>
+                        <?php
+                        $isGymPaused = is_gym_paused($ownerGymId);
+                        $currentPauseNotice = get_gym_pause_notice($ownerGymId);
+                        ?>
+                        <div class="danger-zone-card" style="margin-bottom: 12px;">
+                            <div class="danger-zone-info">
+                                <h3 class="danger-zone-title">
+                                    Temporarily Pause / Close Gym (Maintenance / Holiday Mode)
+                                    <span style="display:inline-block; margin-left:8px; padding:2px 8px; border-radius:999px; font-size:11px; font-weight:700; <?= $isGymPaused ? 'background:rgba(245,158,11,0.18); color:#fbbf24; border:1px solid rgba(245,158,11,0.35);' : 'background:rgba(16,185,129,0.15); color:#6ee7b7; border:1px solid rgba(16,185,129,0.35);' ?>">
+                                        <?= $isGymPaused ? 'Paused (Hidden)' : 'Live in Directory' ?>
+                                    </span>
+                                </h3>
+                                <p class="danger-zone-desc">
+                                    Hide <strong><?= h($ownerGym['name'] ?? 'your gym') ?></strong> from the public "Browse Gyms / Gym Map" directory while renovating or closed temporarily so new members don't apply or pay while closed. Existing members retain access.
+                                </p>
+                                <?php if ($isGymPaused): ?>
+                                    <div style="margin-top: 10px; font-size: 12px; color: #fbbf24; background: rgba(245,158,11,0.1); border-left: 3px solid #fbbf24; padding: 8px 12px; border-radius: 6px;">
+                                        <strong>Active Notice to Members:</strong> <?= h($currentPauseNotice) ?>
+                                    </div>
+                                <?php endif; ?>
+                            </div>
+                            <div class="danger-zone-action">
+                                <?php if ($isGymPaused): ?>
+                                    <form method="post" style="margin:0;">
+                                        <?= csrf_field() ?>
+                                        <input type="hidden" name="action" value="toggle_gym_pause">
+                                        <button type="submit" class="btn-danger-zone">
+                                            Resume Public Listing
+                                        </button>
+                                    </form>
+                                <?php else: ?>
+                                    <button type="button" class="btn-danger-zone" onclick="document.getElementById('pauseGymModal').showModal()">
+                                        Pause Gym Listing
+                                    </button>
+                                <?php endif; ?>
+                            </div>
+                        </div>
+                    <?php endif; ?>
+
+                    <div class="danger-zone-card">
+                        <div class="danger-zone-info">
+                            <h3 class="danger-zone-title">Deactivate &amp; Delete <?= ($user['role'] ?? '') === 'gym_owner' ? 'Gym Facility / Owner' : 'Member' ?> Account</h3>
+                            <p class="danger-zone-desc">
+                                <?php if (($user['role'] ?? '') === 'gym_owner'): ?>
+                                    Permanently deactivate your gym facility listing, archive membership plans, and anonymize your owner account while preserving historical accounting receipts. Automatically blocked if your gym still has active paid member subscriptions. Requires password + rate-limited 6-digit email verification code.
+                                <?php else: ?>
+                                    Revoke active sessions, unlink Google sign-in, clear personal biometric data, and anonymize your account while keeping historical payment receipts intact for gym accounting. Blocked while an active paid membership is running. Requires password + rate-limited 6-digit email verification code.
+                                <?php endif; ?>
+                            </p>
+                        </div>
+                        <div class="danger-zone-action">
+                            <button type="button" class="btn-danger-zone" onclick="openDeleteAccountModal()">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <polyline points="3 6 5 6 21 6" />
+                                    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                                    <line x1="10" y1="11" x2="10" y2="17" />
+                                    <line x1="14" y1="11" x2="14" y2="17" />
+                                </svg>
+                                Delete Account
+                            </button>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
 
@@ -1631,6 +1798,270 @@ function profile_page(): void
                 </div>
                 <div class="modal-body">
                     <?php render_member_form('profile', $user, $profile); ?>
+                </div>
+            </dialog>
+        <?php endif; ?>
+
+        <?php if ($is_member): ?>
+            <!-- Leave Gym Facility Confirmation Modal -->
+            <dialog id="leaveGymModal" class="modal" onclick="if (event.target === this) this.close();">
+                <div class="modal-header danger-modal-header">
+                    <h3 id="leaveGymModalTitle">Leave Gym Facility?</h3>
+                    <button class="modal-close" onclick="this.closest('dialog').close()" aria-label="Close">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <line x1="18" y1="6" x2="6" y2="18" />
+                            <line x1="6" y1="6" x2="18" y2="18" />
+                        </svg>
+                    </button>
+                </div>
+                <div class="modal-body danger-modal-body">
+                    <p class="danger-step-desc">
+                        You will be unlinked from <strong id="leaveGymModalName"><?= h($homeGymName) ?></strong> and removed from their active member and trainer rosters. Your personal workout and progress history will remain on your FITTRACKS account.
+                    </p>
+                    <form method="post">
+                        <?= csrf_field() ?>
+                        <input type="hidden" name="action" value="leave_gym_facility">
+                        <input type="hidden" name="leave_gym_id" id="leaveGymIdInput" value="<?= (int) $homeGymId ?>">
+                        <div class="account-modal-actions">
+                            <button type="button" onclick="this.closest('dialog').close()">Cancel</button>
+                            <button type="submit" class="btn-danger-solid">
+                                <span class="btn-text-full">Confirm &amp; Leave Gym</span>
+                                <span class="btn-text-short">Leave Gym</span>
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </dialog>
+
+            <!-- Reset Health Data Modal -->
+            <dialog id="resetHealthModal" class="modal" onclick="if (event.target === this) this.close();">
+                <div class="modal-header danger-modal-header">
+                    <h3>Reset Health &amp; Workout History</h3>
+                    <button class="modal-close" onclick="this.closest('dialog').close()" aria-label="Close">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <line x1="18" y1="6" x2="6" y2="18" />
+                            <line x1="6" y1="6" x2="18" y2="18" />
+                        </svg>
+                    </button>
+                </div>
+                <div class="modal-body danger-modal-body">
+                    <div class="danger-warning-box">
+                        <strong>This will permanently erase:</strong>
+                        <ul class="danger-impact-list">
+                            <li>All logged workout sessions and exercise completion history</li>
+                            <li>All daily meal and macro intake logs</li>
+                            <li>All body weight and measurement progress logs</li>
+                        </ul>
+                    </div>
+                    <form method="post" style="margin-top: 8px;">
+                        <?= csrf_field() ?>
+                        <input type="hidden" name="action" value="reset_health_data">
+                        <?php if (!empty($user['password_hash'])): ?>
+                            <div class="danger-field-group">
+                                <label>Current Password <span class="req-star">*</span></label>
+                                <input type="password" name="current_password" required placeholder="Enter your current password">
+                            </div>
+                        <?php endif; ?>
+                        <div class="danger-field-group">
+                            <label>Type <code>RESET</code> to confirm <span class="req-star">*</span></label>
+                            <input type="text" name="confirm_reset_text" required placeholder="Type RESET in capital letters" autocomplete="off">
+                        </div>
+                        <div class="account-modal-actions">
+                            <button type="button" onclick="this.closest('dialog').close()">Cancel</button>
+                            <button type="submit" class="btn-danger-solid">
+                                <span class="btn-text-full">Wipe Health Data</span>
+                                <span class="btn-text-short">Reset Data</span>
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </dialog>
+        <?php endif; ?>
+
+        <?php if (in_array($user['role'] ?? '', ['member', 'gym_owner'], true)): ?>
+            <!-- Delete Account Verification Modal (Danger Zone) -->
+            <dialog id="deleteAccountModal" class="modal" onclick="if (event.target === this) this.close();">
+                <div class="modal-header danger-modal-header">
+                    <div style="display:flex; align-items:center; gap:10px;">
+                        <span class="danger-modal-icon">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z" />
+                                <line x1="12" y1="9" x2="12" y2="13" />
+                                <line x1="12" y1="17" x2="12.01" y2="17" />
+                            </svg>
+                        </span>
+                        <h3>Delete Account Permanently</h3>
+                    </div>
+                    <button class="modal-close" onclick="this.closest('dialog').close()" aria-label="Close">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <line x1="18" y1="6" x2="6" y2="18" />
+                            <line x1="6" y1="6" x2="18" y2="18" />
+                        </svg>
+                    </button>
+                </div>
+                <div class="modal-body danger-modal-body">
+                    <div id="deleteAccountAlert" class="danger-modal-alert" style="display:none;"></div>
+
+                    <!-- Step 1: Password Check & Request Email OTP -->
+                    <div id="deleteAccountStep1">
+                        <div class="danger-warning-box">
+                            <strong>Warning: This action is permanent and irreversible.</strong>
+                            <?php if (($user['role'] ?? '') === 'gym_owner'): ?>
+                                <ul class="danger-impact-list">
+                                    <li>Your gym facility listing and membership plans will be deactivated immediately.</li>
+                                    <li><strong>Financial Guardrail:</strong> Deletion is automatically blocked if your gym still has active paid member subscriptions.</li>
+                                    <li>Your personal login credentials will be permanently deactivated and anonymized while keeping historical revenue receipts intact.</li>
+                                </ul>
+                            <?php else: ?>
+                                <ul class="danger-impact-list">
+                                    <li><strong>Active Membership Guardrail:</strong> Deletion is blocked while you have an active paid gym membership.</li>
+                                    <li>Your physical profile, body measurements, workout progress logs, and meal logs will be permanently erased.</li>
+                                    <li>Your account will be deactivated and anonymized while keeping historical payment receipts intact for gym accounting.</li>
+                                </ul>
+                            <?php endif; ?>
+                        </div>
+
+                        <?php if (!empty($user['password_hash'])): ?>
+                            <div class="danger-field-group" style="margin-top: 12px;">
+                                <label for="deleteCurrentPasswordInput">Confirm Current Password <span class="req-star">*</span></label>
+                                <input
+                                    type="password"
+                                    id="deleteCurrentPasswordInput"
+                                    placeholder="Enter your current password"
+                                    autocomplete="current-password"
+                                    required
+                                >
+                            </div>
+                        <?php endif; ?>
+
+                        <p class="danger-step-desc">
+                            To verify that you are the one deleting this account, we will send a rate-limited <strong>6-digit verification code</strong> to <strong><?= h($user['email']) ?></strong>.
+                        </p>
+                        <div class="account-modal-actions">
+                            <button type="button" onclick="document.getElementById('deleteAccountModal').close()">Cancel</button>
+                            <button type="button" id="btnSendDeleteOtp" class="btn-danger-solid" onclick="requestDeleteAccountOtp()">
+                                <span class="btn-text-full">Send Verification Code</span>
+                                <span class="btn-text-short">Send Code</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Step 2: Verify OTP & Confirm DELETE -->
+                    <form id="deleteAccountStep2" method="post" onsubmit="submitDeleteAccountConfirm(event)" style="display:none;">
+                        <?= csrf_field() ?>
+                        <input type="hidden" name="action" value="confirm_delete_account">
+                        <input type="hidden" name="ajax" value="1">
+
+                        <p class="danger-step-desc" id="deleteOtpSentNotice">
+                            Enter the 6-digit verification code sent to <strong><?= h($user['email']) ?></strong> (expires in 10 minutes).
+                        </p>
+
+                        <div class="danger-field-group">
+                            <label for="deleteOtpInput">6-Digit Email Verification Code <span class="req-star">*</span></label>
+                            <input
+                                type="text"
+                                id="deleteOtpInput"
+                                name="otp_code"
+                                inputmode="numeric"
+                                pattern="[0-9]{6}"
+                                maxlength="6"
+                                placeholder="000000"
+                                autocomplete="one-time-code"
+                                required
+                                class="danger-otp-input"
+                                oninput="this.value = this.value.replace(/[^0-9]/g, '').slice(0, 6)"
+                            >
+                        </div>
+
+                        <div class="danger-field-group">
+                            <label for="deleteConfirmTextInput">Type <code>DELETE</code> to confirm <span class="req-star">*</span></label>
+                            <input
+                                type="text"
+                                id="deleteConfirmTextInput"
+                                name="confirm_text"
+                                placeholder="Type DELETE in capital letters"
+                                autocomplete="off"
+                                required
+                                class="danger-confirm-input"
+                            >
+                        </div>
+
+                        <div class="danger-resend-row">
+                            <span class="muted" style="font-size:12px;">Didn't receive the email?</span>
+                            <button type="button" id="btnResendDeleteOtp" class="btn-link-danger" onclick="requestDeleteAccountOtp()" disabled>
+                                Resend Code
+                            </button>
+                        </div>
+
+                        <div class="account-modal-actions">
+                            <button type="button" onclick="document.getElementById('deleteAccountModal').close()">Cancel</button>
+                            <button type="submit" id="btnConfirmDeleteAccount" class="btn-danger-solid">
+                                <span class="btn-text-full">Verify &amp; Permanently Delete</span>
+                                <span class="btn-text-short">Confirm Delete</span>
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </dialog>
+        <?php endif; ?>
+
+        <?php if (($user['role'] ?? '') === 'gym_owner' && $ownerGymId): ?>
+            <dialog id="pauseGymModal" class="modal" onclick="if (event.target === this) this.close();" style="width: min(92vw, 500px); max-width: calc(100vw - 24px); box-sizing: border-box; margin: auto; border-radius: 14px; overflow-x: hidden;">
+                <div class="modal-header danger-modal-header" style="display:flex; align-items:flex-start; justify-content:space-between; gap:12px; padding:16px 18px;">
+                    <div style="display:flex; align-items:flex-start; gap:10px; min-width:0; flex:1;">
+                        <span class="danger-modal-icon" style="background: rgba(245,158,11,0.18); color: #fbbf24; border-color: rgba(245,158,11,0.35); flex-shrink: 0;">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                                <circle cx="12" cy="12" r="10"></circle>
+                                <line x1="12" y1="8" x2="12" y2="12"></line>
+                                <line x1="12" y1="16" x2="12.01" y2="16"></line>
+                            </svg>
+                        </span>
+                        <div style="min-width:0; flex:1;">
+                            <h3 style="margin:0; font-size:15.5px; font-weight:700; color:var(--ink); line-height:1.3; word-break:break-word;">Pause Gym Listing</h3>
+                            <p style="margin:2px 0 0; font-size:11.5px; color:var(--muted); line-height:1.3;">Maintenance &amp; Holiday Mode</p>
+                        </div>
+                    </div>
+                    <button type="button" class="modal-close" onclick="this.closest('dialog').close()" aria-label="Close" style="flex-shrink:0;">&times;</button>
+                </div>
+                <div class="modal-body danger-modal-body" style="padding:16px 18px; box-sizing:border-box; max-width:100%; overflow-x:hidden;">
+                    <form method="post" style="margin:0; width:100%; max-width:100%; box-sizing:border-box;">
+                        <?= csrf_field() ?>
+                        <input type="hidden" name="action" value="toggle_gym_pause">
+
+                        <p style="margin:0 0 12px; font-size:12.5px; line-height:1.45; color:var(--ink);">
+                            <strong><?= h($ownerGym['name'] ?? 'Your gym') ?></strong> will be hidden from the public directory. Your active members will receive an in-app notification and see an alert banner on their dashboard.
+                        </p>
+
+                        <div style="margin-bottom: 12px; width:100%; max-width:100%; box-sizing:border-box;">
+                            <label for="pausePresetSelect" style="display:block; font-size:11.5px; font-weight:700; margin-bottom:5px; color:var(--ink); text-transform:uppercase; letter-spacing:0.04em;">
+                                Quick Message Presets
+                            </label>
+                            <div style="position:relative; width:100%; max-width:100%; box-sizing:border-box;">
+                                <select id="pausePresetSelect" class="pause-preset-select" onchange="document.getElementById('pauseNoticeInput').value = this.value;" style="width:100%; max-width:100%; min-width:0; box-sizing:border-box; padding:10px 38px 10px 12px; font-size:13px; border-radius:9px; border:1px solid var(--line, rgba(255,255,255,0.15)); background-color:#1a1e26 !important; color:#f3f4f6 !important; color-scheme:dark !important; cursor:pointer; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; appearance:none; -webkit-appearance:none; background-image:url(&quot;data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23fbbf24' stroke-width='2.2'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E&quot;); background-repeat:no-repeat; background-position:right 12px center;">
+                                    <option style="background-color:#1a1e26 !important; color:#f3f4f6 !important;" value="Our public listings and new sign-ups are temporarily paused for maintenance/holiday mode. Your active member access remains normal. See you at your workout!">Standard: Directory Paused (Member Access Normal)</option>
+                                    <option style="background-color:#1a1e26 !important; color:#f3f4f6 !important;" value="We are temporarily closed for facility maintenance and upgrades. Public listings are paused. Active memberships will resume automatically upon reopening.">Facility Upgrade: Temporarily Closed</option>
+                                    <option style="background-color:#1a1e26 !important; color:#f3f4f6 !important;" value="We are taking a brief holiday break. Public sign-ups are paused during this period. Have a great holiday!">Holiday Break: Closed for Holiday</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div style="margin-bottom: 14px; width:100%; max-width:100%; box-sizing:border-box;">
+                            <label for="pauseNoticeInput" style="display:block; font-size:11.5px; font-weight:700; margin-bottom:5px; color:var(--ink); text-transform:uppercase; letter-spacing:0.04em;">
+                                Member In-App Notice Message (Stored in Database)
+                            </label>
+                            <textarea id="pauseNoticeInput" name="pause_notice" rows="3" maxlength="255" class="pause-notice-textarea" style="width:100%; max-width:100%; min-width:0; box-sizing:border-box; border-radius:9px; border:1px solid var(--line, rgba(255,255,255,0.15)); background-color:#1a1e26; color:#f3f4f6; padding:10px 12px; font-size:13px; line-height:1.45; resize:vertical;"><?= h(get_gym_pause_notice($ownerGymId)) ?></textarea>
+                            <div style="font-size:11px; color:var(--muted); margin-top:4px;">
+                                Up to 255 characters. Displayed on member dashboards &amp; in-app notification bell.
+                            </div>
+                        </div>
+
+                        <div class="account-modal-actions" style="margin-top:14px;">
+                            <button type="button" onclick="this.closest('dialog').close()">Cancel</button>
+                            <button type="submit" class="btn-danger-zone">
+                                Confirm &amp; Pause Gym
+                            </button>
+                        </div>
+                    </form>
                 </div>
             </dialog>
         <?php endif; ?>

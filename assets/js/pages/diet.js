@@ -2207,6 +2207,10 @@ function quickLogFromInspection() {
 // FEATURE 2: SWAP MEAL WITH ALTERNATIVE HEALTHY RECIPES
 // ----------------------------------------------------
 async function openSwapMealModal(mealId) {
+    const preCheckCard = document.getElementById('meal-card-' + mealId);
+    if (preCheckCard && window.FT_CURRENT_DAY_NUM && parseInt(preCheckCard.dataset.day || '0', 10) < parseInt(window.FT_CURRENT_DAY_NUM, 10)) {
+        return;
+    }
     const card = document.getElementById('meal-card-' + mealId);
     if (!card) return;
 
@@ -2487,9 +2491,8 @@ async function confirmSwapRecipe(foodItems, cals, pro, carbs, fat, triggerBtn = 
                 position: 'top-end',
                 icon: 'success',
                 title: `${mealType} Swapped!`,
-                html: `New meal: <strong>${escapeHtml(foodItems)}</strong> (${cals} kcal)`,
                 showConfirmButton: false,
-                timer: 3500,
+                timer: 2200,
                 timerProgressBar: true,
                 background: getComputedStyle(document.documentElement).getPropertyValue('--bg').trim() || '#121721',
                 color: getComputedStyle(document.documentElement).getPropertyValue('--ink').trim() || '#ffffff',
@@ -2571,9 +2574,9 @@ window.openSwapMealModal = openSwapMealModal;
 window.renderSwapRecipes = renderSwapRecipes;
 window.selectSwapOption = selectSwapOption;
 window.filterSwapRecipes = filterSwapRecipes;
-window.switchSwapTab = switchSwapTab;
-window.calculateCustomSwap = calculateCustomSwap;
-window.applyCustomSwap = applyCustomSwap;
+
+
+
 window.confirmSwapRecipe = confirmSwapRecipe;
 window.closeSwapModal = closeSwapModal;
 window.removeBreakdownItem = removeBreakdownItem;

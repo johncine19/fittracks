@@ -281,33 +281,81 @@
             box-sizing: border-box;
         }
         .terminal-top-bar {
-            padding: 14px 12px;
-            gap: 12px;
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) auto;
+            grid-template-areas:
+                "title clock"
+                "actions actions";
+            align-items: start;
+            padding: 14px 14px;
+            gap: 12px 14px;
             margin-bottom: 16px;
             border-radius: 14px;
             width: 100%;
             max-width: 100%;
             box-sizing: border-box;
         }
+        .terminal-title-group {
+            grid-area: title;
+            min-width: 0;
+            display: flex;
+            flex-direction: column;
+            gap: 3px;
+        }
         .terminal-title-group h1 {
-            font-size: 1.25rem;
+            font-size: clamp(1.05rem, 3.8vw, 1.25rem);
+            display: flex;
+            align-items: center;
             flex-wrap: wrap;
             gap: 8px;
+            margin: 0;
+            line-height: 1.25;
         }
         .terminal-hud-pill {
-            font-size: 0.7rem;
-            padding: 3px 8px;
+            font-size: 0.68rem;
+            padding: 2.5px 8px;
+            border-radius: 999px;
+            white-space: nowrap;
+            letter-spacing: 0.04em;
         }
         .terminal-title-group p {
-            font-size: 0.78rem;
+            font-size: 0.76rem;
+            line-height: 1.35;
+            color: var(--muted);
+            margin: 0;
+        }
+        .terminal-clock-box {
+            grid-area: clock;
+            display: flex;
+            flex-direction: column;
+            align-items: flex-end;
+            justify-content: flex-start;
+            text-align: right;
+            justify-self: end;
+            padding-top: 1px;
+            min-width: max-content;
+        }
+        .terminal-clock-box > div {
+            text-align: right;
         }
         .terminal-digital-time {
-            font-size: 1.1rem;
+            font-size: 1.12rem;
+            font-weight: 800;
+            color: var(--ink);
+            line-height: 1.15;
+            letter-spacing: 0.02em;
+            text-align: right;
         }
         .terminal-digital-date {
-            font-size: 0.75rem;
+            font-size: 0.72rem;
+            color: var(--muted);
+            line-height: 1.25;
+            white-space: nowrap;
+            text-align: right;
+            margin-top: 2px;
         }
         .terminal-header-actions {
+            grid-area: actions;
             display: flex;
             flex-wrap: wrap;
             gap: 8px;
@@ -395,40 +443,47 @@
         }
         .terminal-stats-row {
             grid-template-columns: repeat(2, minmax(0, 1fr));
-            gap: 8px;
+            gap: 10px;
             width: 100%;
             max-width: 100%;
             box-sizing: border-box;
         }
-        .term-stat-box {
-            padding: 10px 8px;
-            gap: 8px;
-            border-radius: 12px;
+        .terminal-stats-row .term-stat-box {
+            padding: 12px 14px;
+            border-radius: 14px;
             min-width: 0;
             width: 100%;
             box-sizing: border-box;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: flex-start;
+            gap: 2px;
         }
-        .term-stat-box > div {
+        .terminal-stats-row .term-stat-box > div {
             min-width: 0;
-            flex: 1;
-            overflow: hidden;
+            width: 100%;
         }
-        .term-stat-icon {
-            width: 34px;
-            height: 34px;
-            font-size: 0.95rem;
-            border-radius: 10px;
-            flex-shrink: 0;
+        .terminal-stats-row .term-stat-icon {
+            display: none !important;
         }
-        .term-stat-num {
-            font-size: 1.25rem;
+        .terminal-stats-row .term-stat-num {
+            font-size: 1.45rem;
+            font-weight: 800;
+            line-height: 1.1;
+            color: var(--ink);
+            font-variant-numeric: tabular-nums;
         }
-        .term-stat-label {
-            font-size: 0.65rem;
-            line-height: 1.2;
-            word-break: break-word;
-            overflow: hidden;
-            text-overflow: ellipsis;
+        .terminal-stats-row .term-stat-label {
+            font-size: 0.72rem;
+            line-height: 1.25;
+            color: var(--muted);
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.03em;
+            word-break: normal;
+            overflow-wrap: normal;
+            white-space: normal;
         }
         .verification-card {
             padding: 16px 14px;
@@ -488,9 +543,30 @@
     @media (max-width: 480px) {
         .terminal-top-bar {
             padding: 12px 10px;
+            gap: 10px 10px;
         }
         .terminal-title-group h1 {
-            font-size: 1.15rem;
+            font-size: clamp(0.96rem, 3.4vw, 1.12rem);
+            gap: 6px;
+        }
+        .terminal-hud-pill {
+            font-size: 0.64rem;
+            padding: 2px 6px;
+            gap: 4px;
+        }
+        .terminal-hud-pill .pulse-dot {
+            width: 6px;
+            height: 6px;
+        }
+        .terminal-title-group p {
+            font-size: 0.72rem;
+            line-height: 1.3;
+        }
+        .terminal-digital-time {
+            font-size: 1rem;
+        }
+        .terminal-digital-date {
+            font-size: 0.68rem;
         }
         .terminal-header-actions {
             gap: 6px;
@@ -506,38 +582,40 @@
         }
         .terminal-stats-row {
             grid-template-columns: repeat(2, minmax(0, 1fr));
-            gap: 6px;
+            gap: 8px;
             width: 100%;
             max-width: 100%;
         }
-        .term-stat-box {
-            padding: 8px 6px;
-            gap: 6px;
+        .terminal-stats-row .term-stat-box {
+            padding: 10px 12px;
+            border-radius: 12px;
+            gap: 2px;
             min-width: 0;
             width: 100%;
             box-sizing: border-box;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: flex-start;
         }
-        .term-stat-box > div {
+        .terminal-stats-row .term-stat-box > div {
             min-width: 0;
-            flex: 1;
-            overflow: hidden;
+            width: 100%;
         }
-        .term-stat-icon {
-            width: 28px;
-            height: 28px;
-            font-size: 0.85rem;
-            border-radius: 8px;
-            flex-shrink: 0;
+        .terminal-stats-row .term-stat-icon {
+            display: none !important;
         }
-        .term-stat-num {
-            font-size: 1.15rem;
+        .terminal-stats-row .term-stat-num {
+            font-size: 1.35rem;
+            line-height: 1.1;
         }
-        .term-stat-label {
-            font-size: 0.58rem;
-            letter-spacing: 0;
-            word-break: break-word;
-            overflow: hidden;
-            text-overflow: ellipsis;
+        .terminal-stats-row .term-stat-label {
+            font-size: 0.66rem;
+            letter-spacing: 0.02em;
+            line-height: 1.25;
+            word-break: normal;
+            overflow-wrap: normal;
+            white-space: normal;
         }
         .manual-modal-overlay {
             padding: 10px;
@@ -605,6 +683,37 @@
             padding: 2px 6px;
             white-space: nowrap;
             flex-shrink: 0;
+        }
+    }
+
+    @media (max-width: 360px) {
+        .terminal-stats-row {
+            gap: 6px;
+        }
+        .terminal-stats-row .term-stat-box {
+            padding: 8px 8px;
+            border-radius: 10px;
+            gap: 2px;
+            flex-direction: column;
+            align-items: flex-start;
+        }
+        .terminal-stats-row .term-stat-box > div {
+            min-width: 0;
+            width: 100%;
+        }
+        .terminal-stats-row .term-stat-icon {
+            display: none !important;
+        }
+        .terminal-stats-row .term-stat-num {
+            font-size: 1.2rem;
+            line-height: 1.1;
+        }
+        .terminal-stats-row .term-stat-label {
+            font-size: 0.6rem;
+            line-height: 1.25;
+            word-break: normal;
+            overflow-wrap: normal;
+            white-space: normal;
         }
     }
 
@@ -992,6 +1101,11 @@
         justify-content: center;
         font-size: 1.25rem;
         flex-shrink: 0;
+    }
+    .term-stat-icon svg {
+        display: block;
+        width: 22px;
+        height: 22px;
     }
     .term-stat-icon.green {
         background: color-mix(in srgb, var(--lime) 15%, transparent);

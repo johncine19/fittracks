@@ -275,6 +275,9 @@ function member_dashboard(PDO $pdo, array $user): void
 
     // Check geofence status for member's affiliated gym
     $userGym = get_user_gym($user);
+    $dashboardGymId = !empty($userGym['gym_id']) ? (int) $userGym['gym_id'] : 0;
+    $isGymPaused = $dashboardGymId > 0 && is_gym_paused($dashboardGymId);
+    $gymPauseNotice = $isGymPaused ? get_gym_pause_notice($dashboardGymId) : '';
     $userIsCheckedIn = (int) scalar('SELECT COUNT(*) FROM attendance WHERE user_id = ? AND check_out_time IS NULL', [(int)$user['user_id']]) > 0;
     require_once __DIR__ . '/../../core/attendance_geofence_service.php';
     $graceStatus = null;
@@ -365,6 +368,37 @@ function member_dashboard(PDO $pdo, array $user): void
                 </div>
             </div>
         <?php endif; ?>
+    <?php endif; ?>
+
+    <?php if (!empty($isGymPaused)): ?>
+        <div class="member-gym-pause-banner animate-fade-in">
+            <div class="gym-pause-banner-header">
+                <div class="gym-pause-banner-lead">
+                    <div class="gym-pause-banner-icon">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                            <circle cx="12" cy="12" r="10"></circle>
+                            <line x1="12" y1="8" x2="12" y2="12"></line>
+                            <line x1="12" y1="16" x2="12.01" y2="16"></line>
+                        </svg>
+                    </div>
+                    <div class="gym-pause-banner-titles">
+                        <span class="gym-pause-banner-title">
+                            <?= h($userGym['name'] ?? 'Gym') ?> Notice
+                        </span>
+                        <span class="gym-pause-banner-badge">
+                            Maintenance / Holiday Mode
+                        </span>
+                    </div>
+                </div>
+                <div class="gym-pause-banner-status">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                    <span>Member Access Active</span>
+                </div>
+            </div>
+            <p class="gym-pause-banner-desc">
+                <?= h($gymPauseNotice) ?>
+            </p>
+        </div>
     <?php endif; ?>
 
     <?php

@@ -876,6 +876,10 @@ if (FT_USERS_CONFIG.hasOldUser) {
         if (isTabLoading) return;
         isTabLoading = true;
 
+        if (typeof window.hideTopProgress === 'function') {
+            window.hideTopProgress();
+        }
+
         CURRENT_TAB = targetTab;
 
         // Update active class on tab pills
@@ -922,6 +926,9 @@ if (FT_USERS_CONFIG.hasOldUser) {
         .then(res => res.json())
         .then(data => {
             isTabLoading = false;
+            if (typeof window.hideTopProgress === 'function') {
+                window.hideTopProgress();
+            }
             if (userTableBody) userTableBody.style.opacity = '1';
             if (userMobileCards) userMobileCards.style.opacity = '1';
             if (userSearchStatus) userSearchStatus.style.display = 'none';
@@ -982,6 +989,9 @@ if (FT_USERS_CONFIG.hasOldUser) {
         })
         .catch(err => {
             isTabLoading = false;
+            if (typeof window.hideTopProgress === 'function') {
+                window.hideTopProgress();
+            }
             if (userTableBody) userTableBody.style.opacity = '1';
             if (userMobileCards) userMobileCards.style.opacity = '1';
             if (userSearchStatus) {
@@ -999,6 +1009,9 @@ if (FT_USERS_CONFIG.hasOldUser) {
         if (pill) {
             if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
             e.preventDefault();
+            if (typeof window.hideTopProgress === 'function') {
+                window.hideTopProgress();
+            }
             const targetTab = pill.getAttribute('data-tab') || 'all';
             if (targetTab === CURRENT_TAB && !userSearchInput?.value.trim()) {
                 return;
@@ -1011,10 +1024,13 @@ if (FT_USERS_CONFIG.hasOldUser) {
         const pageLink = e.target.closest('#userPagination a');
         if (pageLink) {
             if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+            e.preventDefault();
+            if (typeof window.hideTopProgress === 'function') {
+                window.hideTopProgress();
+            }
             const href = pageLink.getAttribute('href') || '';
             const match = href.match(/[?&]p=(\d+)/);
             if (match) {
-                e.preventDefault();
                 const pageNum = parseInt(match[1], 10);
                 loadTabUsers(CURRENT_TAB, pageNum, true);
                 window.scrollTo({ top: 0, behavior: 'smooth' });
