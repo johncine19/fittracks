@@ -26,11 +26,18 @@ function db(): PDO
     }
     $pdo = new PDO($dsn, DB_USER, DB_PASS, $options);
     try {
-        $dbCollation = (string) $pdo->query('SELECT @@collation_database')->fetchColumn();
-        if ($dbCollation !== '' && str_starts_with($dbCollation, 'utf8mb4_')) {
-            $pdo->exec("SET collation_connection = " . $dbCollation);
+        // Enforce utf8mb4_0900_ai_ci across TiDB Cloud and MySQL 8.0.
+        // Overrides PHP mysqlnd's utf8mb4_general_ci default and prevents TiDB's utf8mb4_bin database default from breaking auth/queries.
+        $pdo->exec("SET NAMES utf8mb4 COLLATE utf8mb4_0900_ai_ci");
+    } catch (Throwable) {
+        try {
+            $pdo->exec("SET NAMES utf8mb4 COLLATE utf8mb4_unicode_ci");
+        } catch (Throwable) {
+            try {
+                $pdo->exec("SET NAMES utf8mb4");
+            } catch (Throwable) {}
         }
-    } catch (Throwable) {}
+    }
     try {
         $pdo->exec("SET time_zone = '+08:00'");
     } catch (Throwable) {}
