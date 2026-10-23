@@ -303,7 +303,7 @@ function render_header(string $title, ?array $user = null): void
         <div class="ft-splash-content">
             <div class="ft-splash-logo-wrap">
                 <div class="ft-splash-ring"></div>
-                <div class="ft-splash-logo"><img src="assets/images/favicon.png" alt="FitTrack" style="width:100%;height:100%;object-fit:contain;border-radius:inherit;display:block;"></div>
+                <div class="ft-splash-logo"><img src="assets/images/favicon.png?v=2" alt="FitTrack" style="width:100%;height:100%;object-fit:contain;border-radius:inherit;display:block;"></div>
             </div>
             <div class="ft-splash-brand-title">Fit<span>Track</span></div>
             <div class="ft-splash-bar-track">
@@ -1797,7 +1797,7 @@ function render_header(string $title, ?array $user = null): void
                         <span class="brand-mark"><?= h($gymInitials) ?></span>
                         <span style="font-weight: 700; font-size: 1rem; line-height: 1.2; letter-spacing: -0.2px; white-space: normal;"><?= h($gym['name']) ?></span>
                     <?php else: ?>
-                        <img src="assets/images/favicon.png" alt="FitTrack" style="width: 32px; height: 32px; object-fit: contain; border-radius: 7px; flex-shrink: 0;">
+                        <img src="assets/images/favicon.png?v=2" alt="FitTrack" style="width: 32px; height: 32px; object-fit: contain; border-radius: 7px; flex-shrink: 0;">
                         <span>FitTrack</span>
                     <?php endif; ?>
                 </a>

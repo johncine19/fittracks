@@ -225,7 +225,7 @@ function setup_goal_page(): void
                     <!-- Top Brand Header -->
                     <div class="showcase-brand">
                         <div class="showcase-brand-icon">
-                            <img src="assets/images/favicon.png" alt="FitTrack" style="width: 100%; height: 100%; object-fit: contain; border-radius: 9px; display: block;">
+                            <img src="assets/images/favicon.png?v=2" alt="FitTrack" style="width: 100%; height: 100%; object-fit: contain; border-radius: 9px; display: block;">
                         </div>
                         <div class="showcase-brand-text">
                             <div class="showcase-brand-name">FIT<span>TRACK</span></div>

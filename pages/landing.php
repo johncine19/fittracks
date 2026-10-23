@@ -318,7 +318,7 @@ function landing_page(): void
             <div class="ft-splash-content">
                 <div class="ft-splash-logo-wrap">
                     <div class="ft-splash-ring"></div>
-                    <div class="ft-splash-logo"><img src="assets/images/favicon.png" alt="FitTrack" style="width:100%;height:100%;object-fit:contain;border-radius:inherit;display:block;"></div>
+                    <div class="ft-splash-logo"><img src="assets/images/favicon.png?v=2" alt="FitTrack" style="width:100%;height:100%;object-fit:contain;border-radius:inherit;display:block;"></div>
                 </div>
                 <div class="ft-splash-brand-title">Fit<span>Track</span></div>
                 <div class="ft-splash-bar-track">
@@ -333,7 +333,7 @@ function landing_page(): void
         <nav class="saas-nav" id="mainNav">
             <div class="container nav-container">
                 <a href="#" class="brand-logo-wrap">
-                    <div class="brand-f-logo"><img src="assets/images/favicon.png" alt="FitTrack" style="width:100%;height:100%;object-fit:contain;border-radius:inherit;display:block;"></div>
+                    <div class="brand-f-logo"><img src="assets/images/favicon.png?v=2" alt="FitTrack" style="width:100%;height:100%;object-fit:contain;border-radius:inherit;display:block;"></div>
                     <div class="brand-text-block">
                         <div class="brand-logotype">
                             <span class="brand-fit">FIT</span><span class="brand-track">TRACK</span>
@@ -2310,7 +2310,7 @@ function landing_page(): void
                 <div class="footer-grid">
                     <div class="footer-brand-col">
                         <a href="#" class="brand-logo-wrap">
-                            <div class="brand-f-logo"><img src="assets/images/favicon.png" alt="FitTrack" style="width:100%;height:100%;object-fit:contain;border-radius:inherit;display:block;"></div>
+                            <div class="brand-f-logo"><img src="assets/images/favicon.png?v=2" alt="FitTrack" style="width:100%;height:100%;object-fit:contain;border-radius:inherit;display:block;"></div>
                             <div class="brand-text-block">
                                 <div class="brand-logotype">
                                     <span class="brand-fit">FIT</span><span class="brand-track">TRACK</span>

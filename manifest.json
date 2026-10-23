@@ -10,19 +10,19 @@
   "theme_color": "#22c55e",
   "icons": [
     {
-      "src": "assets/images/favicon.png",
+      "src": "assets/images/favicon.png?v=2",
       "sizes": "192x192",
       "type": "image/png",
       "purpose": "any maskable"
     },
     {
-      "src": "assets/images/logo-512x512.png",
+      "src": "assets/images/logo-512x512.png?v=2",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any maskable"
     },
     {
-      "src": "assets/images/fittracks-icon.svg",
+      "src": "assets/images/fittracks-icon.svg?v=2",
       "sizes": "192x192 512x512",
       "type": "image/svg+xml",
       "purpose": "any maskable"

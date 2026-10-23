@@ -1074,7 +1074,7 @@ function gym_onboarding_page(): void
             <div class="onboarding-brand-header">
                 <a href="index.php" class="onboarding-brand-link">
                     <div class="onboarding-brand-icon">
-                        <img src="assets/images/favicon.png" alt="FitTrack" style="width: 38px; height: 38px; object-fit: contain; border-radius: 9px; display: block;">
+                        <img src="assets/images/favicon.png?v=2" alt="FitTrack" style="width: 38px; height: 38px; object-fit: contain; border-radius: 9px; display: block;">
                     </div>
                     <div class="onboarding-brand-text">
                         <span class="onboarding-brand-name">FIT<span>TRACK</span></span>

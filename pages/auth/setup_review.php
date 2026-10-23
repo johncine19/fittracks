@@ -830,7 +830,7 @@ function setup_review_page(): void
             <div class="review-header-bar">
                 <div class="review-brand">
                     <div class="review-brand-icon">
-                        <img src="assets/images/favicon.png" alt="FitTrack" style="width: 100%; height: 100%; object-fit: contain; border-radius: 9px; display: block;">
+                        <img src="assets/images/favicon.png?v=2" alt="FitTrack" style="width: 100%; height: 100%; object-fit: contain; border-radius: 9px; display: block;">
                     </div>
                     <div class="review-brand-text">
                         <div class="review-brand-name">FIT<span>TRACK</span></div>

@@ -132,7 +132,7 @@ function view_gym_page(): void
     <header class="gym-standalone-navbar">
         <div class="gym-nav-left">
             <a href="index.php" class="gym-nav-brand">
-                <img src="assets/images/favicon.png" alt="FitTrack" style="width:28px;height:28px;object-fit:contain;border-radius:6px;flex-shrink:0;">
+                <img src="assets/images/favicon.png?v=2" alt="FitTrack" style="width:28px;height:28px;object-fit:contain;border-radius:6px;flex-shrink:0;">
                 <span class="gym-nav-brand-text">Fit<span style="color:var(--lime,#84cc16);">Track</span></span>
             </a>
             <span class="gym-nav-divider">/</span>

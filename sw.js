@@ -3,7 +3,7 @@
  * Enables scanner and attendance recording during network brownouts & outages.
  */
 
-const CACHE_NAME = 'fittracks-terminal-v1';
+const CACHE_NAME = 'fittracks-terminal-v2';
 
 const STATIC_ASSETS = [
     './manifest.json',
