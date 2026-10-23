@@ -51,13 +51,17 @@ function app_base_url(): string
         $scheme = 'https';
     }
 
-    // 2. Active Web Request Host (e.g., fitworks.tech or localhost)
+    // 2. Active Web Request Host (validated to prevent Host header poisoning)
     if (php_sapi_name() !== 'cli' && !empty($_SERVER['HTTP_HOST'])) {
-        $host = $_SERVER['HTTP_HOST'];
-        $scriptPath = str_replace('\\', '/', $_SERVER['SCRIPT_NAME'] ?? '');
-        $dir = dirname($scriptPath);
-        $base = ($dir === '/' || $dir === '\\' || $dir === '.') ? '' : rtrim($dir, '/');
-        return $scheme . '://' . $host . $base . '/index.php';
+        $host = strtolower(trim((string) $_SERVER['HTTP_HOST']));
+        // Strip port for validation and reject untrusted characters
+        $hostOnly = preg_replace('/:\d+$/', '', $host);
+        if (preg_match('/^[a-z0-9.-]+$/', (string) $hostOnly) && (in_array($hostOnly, ['localhost', '127.0.0.1', 'fitworks.tech', 'www.fitworks.tech'], true) || str_ends_with((string) $hostOnly, '.onrender.com'))) {
+            $scriptPath = str_replace('\\', '/', $_SERVER['SCRIPT_NAME'] ?? '');
+            $dir = dirname($scriptPath);
+            $base = ($dir === '/' || $dir === '\\' || $dir === '.') ? '' : rtrim($dir, '/');
+            return $scheme . '://' . $host . $base . '/index.php';
+        }
     }
 
     // 3. Fallback to Render external URL if running without HTTP_HOST (e.g. background worker)

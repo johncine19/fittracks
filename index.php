@@ -24,7 +24,6 @@ try {
 
             if ($rating >= 1 && $rating <= 5) {
                 try {
-                    db()->exec("CREATE TABLE IF NOT EXISTS checkout_ratings (rating_id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY, attendance_id INT UNSIGNED NOT NULL, user_id INT UNSIGNED NOT NULL, rating TINYINT UNSIGNED NOT NULL, comment TEXT DEFAULT NULL, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, UNIQUE KEY uq_attendance (attendance_id))");
                     db()->prepare('INSERT INTO checkout_ratings (attendance_id, user_id, rating, comment) VALUES (?, ?, ?, ?) ON DUPLICATE KEY UPDATE rating = VALUES(rating), comment = VALUES(comment)')->execute([$attendanceId, $user['user_id'], $rating, $comment ?: null]);
                 } catch (Throwable) {}
 
@@ -299,18 +298,28 @@ try {
     } else {
         http_response_code(500);
         error_log('Fatal App Error: ' . $e->getMessage() . "\n" . $e->getTraceAsString());
+        $isDev = in_array(strtolower($_ENV['APP_ENV'] ?? 'production'), ['development', 'dev', 'local'], true);
         echo '<!doctype html><html><body style="font-family:sans-serif;padding:40px;background:#090b10;color:#fff;">';
         echo '<h1>Service Temporarily Unavailable</h1>';
-        echo '<p style="color:#ef4444;"><strong>Error:</strong> ' . htmlspecialchars($e->getMessage(), ENT_QUOTES, 'UTF-8') . '</p>';
+        if ($isDev) {
+            echo '<p style="color:#ef4444;"><strong>Error:</strong> ' . htmlspecialchars($e->getMessage(), ENT_QUOTES, 'UTF-8') . '</p>';
+        } else {
+            echo '<p>An unexpected error occurred. Please try again shortly.</p>';
+        }
         echo '</body></html>';
     }
 }
 
-// Poor man's cron: process a few queue jobs at the end of every request.
+// Poor man's cron: process a queue job at the end of authenticated requests with a non-blocking mutex.
 // Can be disabled when running dedicated horizontal worker instances (php worker.php).
 register_shutdown_function(function() {
     $inlineEnabled = strtolower((string)app_env('ENABLE_INLINE_QUEUE_WORKER', 'true'));
     if ($inlineEnabled === 'false' || $inlineEnabled === '0') {
+        return;
+    }
+
+    // Never run inline queue worker on unauthenticated requests (prevents DDoS worker thread starvation)
+    if (empty($_SESSION['user_id']) && empty($_SESSION['pending_verify_uid']) && empty($_SESSION['reset_email'])) {
         return;
     }
 
@@ -320,12 +329,32 @@ register_shutdown_function(function() {
         return;
     }
 
+    if (session_status() === PHP_SESSION_ACTIVE) {
+        session_write_close();
+    }
+
     if (function_exists('fastcgi_finish_request')) {
         fastcgi_finish_request();
     }
+
+    // Ensure at most one web worker runs inline queue jobs at any given time
+    $redis = function_exists('redis') ? redis() : null;
+    if ($redis !== null) {
+        try {
+            $acquired = $redis->set('lock:inline_queue_worker', '1', 'EX', 10, 'NX');
+            if (!$acquired) {
+                return;
+            }
+        } catch (Throwable) {}
+    }
+
     try {
-        Queue::work(3); // Process up to 3 jobs per request to avoid blocking for too long
+        Queue::work(1, 3); // Process at most 1 job with a 3-second budget
     } catch (Throwable $e) {
         error_log("Background Queue Error: " . $e->getMessage());
+    } finally {
+        if ($redis !== null) {
+            try { $redis->del(['lock:inline_queue_worker']); } catch (Throwable) {}
+        }
     }
 });

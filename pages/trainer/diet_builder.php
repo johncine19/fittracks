@@ -344,7 +344,7 @@ function diet_builder_page(): void
                         $mImg = null;
                     }
                     
-                    $stmt->execute([$planId, $d, $mType, $mFood, $mImg, $mCals, $mP, $mC, $mF]);
+                    $stmt->execute([$planId, $d, $mType, $mFood, $mImg, (int) round((float) $mCals), (int) round((float) $mP), (int) round((float) $mC), (int) round((float) $mF)]);
                 }
             }
             
@@ -389,7 +389,7 @@ function diet_builder_page(): void
                 $dInt = (int) $d;
                 if ($dInt >= 1 && $dInt <= 7) {
                     if ($addedDaysCount === 0) $firstDay = $dInt;
-                    $stmt->execute([$planId, $dInt, $mealType, $foodItems, $imageUrl, $calories, $protein, $carbs, $fat]);
+                    $stmt->execute([$planId, $dInt, $mealType, $foodItems, $imageUrl, (int) round((float) $calories), (int) round((float) $protein), (int) round((float) $carbs), (int) round((float) $fat)]);
                     $addedDaysCount++;
                 }
             }

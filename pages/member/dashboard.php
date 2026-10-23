@@ -454,7 +454,13 @@ function member_dashboard(PDO $pdo, array $user): void
     <?php endif; ?>
 
     <!-- Welcome Guided Tour Banner for Members -->
-    <div class="gym-tour-welcome-banner member-tour-welcome-banner" id="member-tour-welcome-banner" style="margin-bottom: 20px;">
+    <script>
+        if (localStorage.getItem('fittrack_member_tour_completed') === '1') {
+            document.write('<style>#member-tour-welcome-banner, #sk-member-tour-banner { display: none !important; }</style>');
+        }
+    </script>
+    <?php render_skeleton_tour_banner('sk-member-tour-banner'); ?>
+    <div class="gym-tour-welcome-banner member-tour-welcome-banner skeleton-content sk-display-flex" id="member-tour-welcome-banner" style="margin-bottom: 20px;">
         <div class="tour-banner-content">
             <div class="tour-banner-icon">
                 <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">

@@ -15,6 +15,8 @@ This document details the database performance optimizations, query index enhanc
 8. [High-Concurrency Scalability & Redundant Query Elimination](#8-high-concurrency-scalability--redundant-query-elimination)
 9. [Layout Sidebar Caching & Scanner Roster Optimization](#9-layout-sidebar-caching--scanner-roster-optimization)
 10. [TiDB Cloud Migration Self-Healing Architecture](#10-tidb-cloud-migration-self-healing-architecture)
+11. [Direct Membership Plan Allocation & Transaction Isolation](#11-direct-membership-plan-allocation--transaction-isolation)
+12. [Zero-FOUC Guided Tour Skeleton & UI Layout Stability](#12-zero-fouc-guided-tour-skeleton--ui-layout-stability)
 
 ---
 
@@ -367,5 +369,76 @@ CREATE TABLE IF NOT EXISTS member_badges (...);
 CREATE TABLE IF NOT EXISTS daily_macros (...);
 ```
 `migrate.php` can now be run repeatedly on any TiDB or MySQL environment with 100% idempotency and zero errors.
+
+---
+
+## 11. Direct Membership Plan Allocation & Transaction Isolation
+
+### The Problem
+When gym owners or platform administrators onboard members directly from the front-desk administration dashboard (`pages/admin/users.php`), members previously had no plan attached or had to be manually configured across separate disjoint screens.
+A naive implementation would execute multiple independent queries across HTTP endpoints:
+1. Creating user in `users`.
+2. Assigning gym membership in `gym_members`.
+3. Inserting row into `memberships`.
+4. Generating financial receipt in `payments`.
+5. Triggering trainer commission logic.
+6. Dispatching verification and welcome emails.
+
+If any step failed halfway (e.g. payment constraint error or network timeout), orphaned records would be left behind. Furthermore, executing outbound network requests (e.g. SMTP emails) while holding an active database transaction keeps row locks open, starving concurrent users and workers.
+
+### The Solution: Pre-Fetched Active Plans & Atomic Isolation
+1. **Single-Pass Active Plan Pre-fetching**: On initial modal load, active gym plans are preloaded in a single indexed query:
+   ```sql
+   SELECT plan_id, plan_name, duration_days, price, plan_type 
+   FROM membership_plans 
+   WHERE gym_id = ? AND is_active = 1 
+   ORDER BY price ASC
+   ```
+   This eliminates modal AJAX round-trips and guarantees zero N+1 query overhead.
+2. **Atomic All-or-Nothing Transaction**:
+   The entire record creation pipeline is wrapped in `db()->beginTransaction()` and `db()->commit()`:
+   - User creation (`users`)
+   - Affiliation linking (`gym_members`)
+   - Plan duration calculation & activation (`memberships` with status `'active'` or `'pending'`)
+   - Immediate receipt & payment generation (`payments` with status `'paid'` or `'pending'`)
+   - Instant trainer commission processing (`process_trainer_commission`)
+   If any exception is caught, `db()->rollBack()` is invoked immediately, guaranteeing database integrity.
+3. **Out-of-Transaction Email Dispatch**:
+   Credential emails (`Emails::sendAccountCreated`) are queued **after** `db()->commit()`. Network and SMTP transmission latency never hold database row locks on `users` or `memberships`.
+4. **Instant Front-Desk Payment Reconciliation**:
+   Allows gym staff to mark memberships as `paid_cash` (desk cash payment), `paid_online`, or `complimentary`. Real-time revenue dashboards and cash register audits reflect the transaction immediately with no manual reconciliation required.
+5. **Platform Admin Scope Isolation (Gym Owner & Member Provisioning)**:
+   - Strictly separates multi-tenant B2B platform licensing from B2C gym operations: Platform Admins can only onboard **Gym Owners** (with facility creation & platform subscription tier) or create **Members** (who can subsequently select and join whichever gym facility they are comfortable with).
+   - Staff and Trainer creation is completely removed from the Platform Admin view and strictly restricted to individual Gym Owners who hire and manage their facility personnel.
+   - For Platform Admin, unindexed global scans across all facilities' membership plans are eliminated entirely; active platform subscription tiers are retrieved via `get_platform_subscription_plans()`.
+   - Creating a `gym_owner` atomically provisions the `users` record, creates the `gyms` facility (with approved status, billing cycle, renewal date, and subscription tier), and automatically records a `gym_subscription_payments` receipt if marked paid in cash/direct transfer at the platform office.
+6. **Mobile View Dropdown Overflow & Responsive Form Stacking**:
+   - Replaced inline 2-column styles on nested fieldsets with responsive classes (`.gym-owner-sub-grid` and `.member-plan-sub-grid`). Below `640px`, fields stack into full-width 1-column layouts (`grid-template-columns: 1fr !important`), eliminating cramped ~137px columns.
+   - Concise select `<option>` labels: Removed verbose descriptive marketing strings that previously forced browser native popups to >480px width, causing horizontal viewport spill on mobile screens.
+   - Resolved ellipsis truncation on `Annual (2 Months Free)` and `Payment / Activation Status`, ensuring clean readability across all mobile screen sizes.
+
+---
+
+## 12. Zero-FOUC Guided Tour Skeleton & UI Layout Stability
+
+### The Problem
+The Guided Tour Welcome Banner (`.gym-tour-welcome-banner`) displayed at the top of the gym owner and member dashboards popped in abruptly after page load or flickered when users had already dismissed it in `localStorage` (Flash of Unstyled / Dismissed Content - FOUC). This caused noticeable Cumulative Layout Shift (CLS), pushing dashboard widgets down and degrading user experience.
+
+### The Solution
+1. **Synchronous Pre-Render LocalStorage Guard**:
+   Inline JavaScript evaluates `localStorage.getItem('gym_tour_dismissed')` synchronously before the DOM paints:
+   ```html
+   <script>
+       if (localStorage.getItem('gym_tour_dismissed') === 'true') {
+           document.currentScript.parentElement.style.display = 'none';
+       }
+   </script>
+   ```
+   If already dismissed, the banner container is hidden before the first paint frame, eliminating the dismiss flicker.
+2. **Semantic Skeleton Matching**:
+   Implemented `render_skeleton_tour_banner()` in `views/components.php`. The skeleton placeholder matches the exact flexbox geometry, rounded icon shape, title/subtitle heights, and action button dimensions of the live card.
+3. **CSS Shimmer & Mobile Responsive Stacking**:
+   In `assets/gym-owner-tour.css`, responsive media queries stack the skeleton vertically below `640px` matching `.gym-tour-welcome-banner`'s responsive breakpoint. The skeleton smoothly cross-fades to the loaded content using `.skeleton-content.sk-display-flex` with zero layout jump.
+
 
 

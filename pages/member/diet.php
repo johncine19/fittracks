@@ -348,10 +348,10 @@ function diet_page(): void
             $mealId = (int) post('meal_id');
             $foodId = (int) post('food_id');
             $foodItems = trim((string) post('food_items'));
-            $calories = max(0, (int) post('calories'));
-            $protein = max(0, (float) post('protein_g'));
-            $carbs = max(0, (float) post('carbs_g'));
-            $fat = max(0, (float) post('fat_g'));
+            $calories = max(0, (int) round((float) post('calories')));
+            $protein = max(0, (int) round((float) post('protein_g')));
+            $carbs = max(0, (int) round((float) post('carbs_g')));
+            $fat = max(0, (int) round((float) post('fat_g')));
 
             if ($mealId <= 0) {
                 if (ob_get_level()) ob_clean();
@@ -729,7 +729,7 @@ function diet_page(): void
                         $mImg = null;
                     }
 
-                    $stmt->execute([$planId, $d, $mType, $mFood, $mImg, $mCals, $mP, $mC, $mF]);
+                    $stmt->execute([$planId, $d, $mType, $mFood, $mImg, (int) round((float) $mCals), (int) round((float) $mP), (int) round((float) $mC), (int) round((float) $mF)]);
                 }
             }
             

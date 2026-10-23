@@ -1,14 +1,25 @@
 <?php
-if (php_sapi_name() !== 'cli') {
-    if (empty($_GET['key']) || $_GET['key'] !== 'fittracks_secret_cron_2026') {
-        http_response_code(403);
-        die('Forbidden');
-    }
-}
 require __DIR__ . '/core/bootstrap.php';
 
 if (php_sapi_name() !== 'cli') {
+    $expectedKey = (string) (app_env('CRON_SECRET') ?: 'fittracks_secret_cron_2026');
+    $providedKey = (string) ($_GET['key'] ?? '');
+    if ($expectedKey === '' || $providedKey === '' || !hash_equals($expectedKey, $providedKey)) {
+        http_response_code(403);
+        die('Forbidden');
+    }
     header('Content-Type: text/plain; charset=utf-8');
+}
+
+// Prevent overlapping cron executions from exhausting database/worker resources
+$redisLock = function_exists('redis') ? redis() : null;
+if ($redisLock !== null) {
+    try {
+        if (!$redisLock->set('lock:cron_execution', '1', 'EX', 60, 'NX')) {
+            echo "Cron execution already in progress. Exiting.\n";
+            exit;
+        }
+    } catch (Throwable) {}
 }
 
 echo "Starting Fittracks Background Tasks...\n";

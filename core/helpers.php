@@ -687,7 +687,7 @@ function render_announcement_carousel(array $announcements): void
     
     $carouselId = 'carousel_' . uniqid();
     ?>
-    <button onclick="document.getElementById('announcementModal_<?= $carouselId ?>').showModal()" class="animate-fade-in" style="margin-bottom: 24px; display: flex; align-items: center; gap: 8px; background: var(--panel-soft); border: 1px solid var(--line); padding: 12px 20px; border-radius: 12px; color: var(--ink); cursor: pointer; transition: all 0.2s;" onmouseover="this.style.background='var(--line)'" onmouseout="this.style.background='var(--panel-soft)'">
+    <button onclick="document.getElementById('announcementModal_<?= $carouselId ?>').showModal()" class="skeleton-content sk-display-flex animate-fade-in" style="margin-bottom: 24px; display: flex; align-items: center; gap: 8px; background: var(--panel-soft); border: 1px solid var(--line); padding: 12px 20px; border-radius: 12px; color: var(--ink); cursor: pointer; transition: all 0.2s;" onmouseover="this.style.background='var(--line)'" onmouseout="this.style.background='var(--panel-soft)'">
         <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--lime)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
         <span style="font-weight: bold;">View Announcements (<?= count($announcements) ?>)</span>
     </button>

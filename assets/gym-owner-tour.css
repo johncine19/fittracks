@@ -553,13 +553,15 @@
 }
 
 @media (max-width: 768px) {
-    .gym-tour-welcome-banner {
-        flex-direction: column;
-        align-items: flex-start;
+    .gym-tour-welcome-banner,
+    .sk-tour-banner-skeleton {
+        flex-direction: column !important;
+        align-items: flex-start !important;
     }
-    .tour-banner-actions {
-        width: 100%;
-        justify-content: space-between;
+    .tour-banner-actions,
+    .sk-tour-banner-skeleton > div:last-child {
+        width: 100% !important;
+        justify-content: space-between !important;
     }
 }
 

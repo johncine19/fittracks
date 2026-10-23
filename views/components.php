@@ -4786,3 +4786,26 @@ function render_skeleton_banner(): void
     echo '<div class="sk sk-rect banner" style="margin-bottom:24px"></div>';
     echo '</div>';
 }
+
+/**
+ * Renders a skeleton banner matching the guided tour welcome card (.gym-tour-welcome-banner)
+ */
+function render_skeleton_tour_banner(string $id = 'sk-tour-banner'): void
+{
+    echo '<div class="skeleton-wrapper" id="' . h($id) . '">';
+    echo '<div class="sk-card sk-tour-banner-skeleton" style="margin-bottom:20px;padding:14px 20px;border-radius:14px;display:flex;align-items:center;justify-content:space-between;gap:16px;">';
+    echo '  <div style="display:flex;align-items:center;gap:12px;flex:1;min-width:0;">';
+    echo '    <div class="sk" style="width:36px;height:36px;border-radius:10px;flex-shrink:0;"></div>';
+    echo '    <div style="flex:1;min-width:0;">';
+    echo '      <div class="sk sk-title" style="width:min(280px,75%);height:16px;margin:0 0 6px 0;"></div>';
+    echo '      <div class="sk sk-text" style="width:min(520px,95%);height:12px;margin:0;"></div>';
+    echo '    </div>';
+    echo '  </div>';
+    echo '  <div style="display:flex;align-items:center;gap:10px;flex-shrink:0;">';
+    echo '    <div class="sk" style="width:130px;height:36px;border-radius:20px;"></div>';
+    echo '    <div class="sk" style="width:20px;height:20px;border-radius:4px;"></div>';
+    echo '  </div>';
+    echo '</div>';
+    echo '</div>';
+}
+

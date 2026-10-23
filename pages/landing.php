@@ -75,6 +75,13 @@ function landing_page(): void
     if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['demo_request'])) {
         try {
             verify_csrf();
+            if (RateLimiter::tooManyAttempts('demo_request_ip', 3, 600)) {
+                header('Content-Type: application/json');
+                http_response_code(429);
+                echo json_encode(['success' => false, 'errors' => ['Too many demo requests submitted. Please wait a few minutes and try again.']]);
+                exit;
+            }
+            RateLimiter::hit('demo_request_ip', 600);
             $full_name = trim((string) ($_POST['full_name'] ?? ''));
             $email = trim((string) ($_POST['work_email'] ?? ''));
             $phone = trim((string) ($_POST['phone'] ?? ''));
@@ -137,6 +144,15 @@ function landing_page(): void
                         <p><strong>Role:</strong> {$role}</p>
                         <p><strong>Approx Members:</strong> {$members}</p>
                         <p><strong>Message:</strong> {$message}</p>";
+                    $safeName = htmlspecialchars($full_name, ENT_QUOTES, 'UTF-8');
+                    $safeEmail = htmlspecialchars($email, ENT_QUOTES, 'UTF-8');
+                    $safePhone = htmlspecialchars($phone, ENT_QUOTES, 'UTF-8');
+                    $safeGym = htmlspecialchars($gym_name, ENT_QUOTES, 'UTF-8');
+                    $safeRole = htmlspecialchars($role, ENT_QUOTES, 'UTF-8');
+                    $safeMembers = htmlspecialchars($members, ENT_QUOTES, 'UTF-8');
+                    $safeMsg = nl2br(htmlspecialchars($message, ENT_QUOTES, 'UTF-8'));
+                    $subject = "New FitTrack Demo Request from {$full_name}";
+                    $body = "<h2>New FitTrack Demo Request</h2><p><strong>Name:</strong> {$safeName}</p><p><strong>Email:</strong> {$safeEmail}</p><p><strong>Phone:</strong> {$safePhone}</p><p><strong>Gym Name:</strong> {$safeGym}</p><p><strong>Role:</strong> {$safeRole}</p><p><strong>Approx Members:</strong> {$safeMembers}</p><p><strong>Message:</strong> {$safeMsg}</p>";
                     Queue::push('send_email', ['to' => $adminEmail, 'subject' => $subject, 'body' => $body]);
                 } catch (\Throwable $e) {
                     error_log("Demo request email failed: " . $e->getMessage());
@@ -164,15 +180,15 @@ function landing_page(): void
     $stat_members = 0;
     $stat_trainers = 0;
     try {
-        $stat_gyms = (int) scalar("SELECT COUNT(*) FROM gyms WHERE status = 'approved'");
-        $stat_members = (int) scalar('SELECT COUNT(*) FROM users WHERE role = "member" AND status = "active"');
-        $stat_trainers = (int) scalar('SELECT COUNT(*) FROM users WHERE role = "trainer" AND status = "active"');
+        $stat_gyms = (int) Cache::remember('landing:stat_gyms', 300, fn() => (int) scalar("SELECT COUNT(*) FROM gyms WHERE status = 'approved'"));
+        $stat_members = (int) Cache::remember('landing:stat_members', 300, fn() => (int) scalar('SELECT COUNT(*) FROM users WHERE role = "member" AND status = "active"'));
+        $stat_trainers = (int) Cache::remember('landing:stat_trainers', 300, fn() => (int) scalar('SELECT COUNT(*) FROM users WHERE role = "trainer" AND status = "active"'));
     } catch (\Throwable $e) {
     }
 
     // ── Platform Ratings & Owner Reviews ───────────────────────────
-    $platformStats   = get_platform_rating_stats();
-    $platformReviews = get_platform_reviews(12);
+    $platformStats   = Cache::remember('landing:platform_rating_stats', 300, fn() => get_platform_rating_stats());
+    $platformReviews = Cache::remember('landing:platform_reviews_12', 300, fn() => get_platform_reviews(12));
 
 
     // ── Platform Subscription Plans ──────────────────────────────────

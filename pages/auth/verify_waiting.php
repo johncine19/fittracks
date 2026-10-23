@@ -56,6 +56,7 @@ function verify_waiting_page(): void
             echo json_encode(['success' => true, 'verified' => true, 'redirect' => $targetUrl]);
             exit;
         }
+        session_write_close();
         echo json_encode(['success' => true, 'verified' => false]);
         exit;
     }

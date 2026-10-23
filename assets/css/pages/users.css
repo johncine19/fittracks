@@ -1134,12 +1134,27 @@ html[data-theme="light"] .btn-card-action {
 }
 
     /* ── Create User Modal: Compact 2-by-2 Layout & Mobile Tuning ── */
-    #createUserModal.modal {
-        max-width: 520px;
-        overflow: visible !important;
+    #createUserModal.modal:not([open]) {
+        display: none !important;
+    }
+    #createUserModal.modal[open] {
+        max-width: 550px;
+        max-height: 90vh;
+        max-height: 90dvh;
+        display: flex !important;
+        flex-direction: column !important;
+        overflow: hidden !important;
+        border-radius: 12px;
+    }
+    #createUserModal .modal-header {
+        flex-shrink: 0;
     }
     #createUserModal .modal-body {
-        overflow: visible !important;
+        overflow-y: auto !important;
+        overflow-x: hidden !important;
+        flex: 1 1 auto;
+        -webkit-overflow-scrolling: touch;
+        padding-bottom: 20px !important;
     }
     #createUserModal .grid-form {
         display: grid !important;
@@ -1147,10 +1162,53 @@ html[data-theme="light"] .btn-card-action {
         align-items: start !important;
         gap: 12px 14px;
     }
+    #createUserModal select {
+        width: 100%;
+        max-width: 100%;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
     #createUserModal #trainer_fields {
         grid-column: 1 / -1;
         grid-template-columns: repeat(2, minmax(0, 1fr));
         gap: 12px 14px;
+    }
+    #createUserModal .user-modal-subcard {
+        background: var(--surface-soft, rgba(255,255,255,0.03));
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        padding: 14px 16px;
+        margin-top: 4px;
+    }
+    #createUserModal .gym-owner-sub-grid,
+    #createUserModal .member-plan-sub-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 12px;
+    }
+    #createUserModal .user-subcard-badge {
+        font-size: 11px;
+        background: color-mix(in srgb, var(--lime) 15%, transparent);
+        color: var(--lime);
+        padding: 2px 8px;
+        border-radius: 999px;
+        font-weight: 600;
+        white-space: nowrap;
+        display: inline-block;
+    }
+
+    #createUserModal #createUserSubmitBtn {
+        grid-column: 1 / -1;
+        width: 100%;
+        margin-top: 14px;
+        margin-bottom: 4px;
+        height: 42px;
+        font-size: 14px;
+        font-weight: 700;
+        border-radius: 8px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
     }
 
     #createUserModal .fit-dropdown-wrap {
@@ -1167,15 +1225,24 @@ html[data-theme="light"] .btn-card-action {
     }
 
     @media (max-width: 640px) {
-        #createUserModal.modal {
+        #createUserModal.modal:not([open]) {
+            display: none !important;
+        }
+        #createUserModal.modal[open] {
             width: 95% !important;
-            max-width: 400px !important;
-            border-radius: 10px !important;
+            max-width: 420px !important;
+            max-height: 92vh !important;
+            max-height: 92dvh !important;
+            border-radius: 12px !important;
             margin: auto !important;
             box-shadow: 0 10px 30px rgba(0, 0, 0, 0.45) !important;
+            display: flex !important;
+            flex-direction: column !important;
+            overflow: hidden !important;
         }
         #createUserModal .modal-header {
             padding: 10px 14px !important;
+            flex-shrink: 0 !important;
         }
         #createUserModal .modal-header h3 {
             font-size: 15px !important;
@@ -1189,7 +1256,11 @@ html[data-theme="light"] .btn-card-action {
             height: 16px !important;
         }
         #createUserModal .modal-body {
-            padding: 10px 12px 14px !important;
+            padding: 10px 14px 18px !important;
+            overflow-y: auto !important;
+            overflow-x: hidden !important;
+            flex: 1 1 auto !important;
+            -webkit-overflow-scrolling: touch;
         }
         #createUserModal .grid-form {
             grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
@@ -1197,6 +1268,23 @@ html[data-theme="light"] .btn-card-action {
         }
         #createUserModal #trainer_fields {
             gap: 7px 10px !important;
+        }
+        #createUserModal .user-modal-subcard {
+            padding: 10px 12px !important;
+            border-radius: 9px !important;
+            margin-top: 2px !important;
+        }
+        #createUserModal .user-subcard-badge {
+            display: none !important;
+        }
+        #createUserModal .gym-owner-sub-grid,
+        #createUserModal .member-plan-sub-grid {
+            grid-template-columns: 1fr !important;
+            gap: 8px !important;
+        }
+        #createUserModal .gym-owner-sub-grid label,
+        #createUserModal .member-plan-sub-grid label {
+            grid-column: 1 / -1 !important;
         }
         #createUserModal label {
             font-size: 11px !important;
@@ -1210,6 +1298,7 @@ html[data-theme="light"] .btn-card-action {
             align-items: baseline !important;
             gap: 2px !important;
             line-height: 1.2 !important;
+            white-space: normal !important;
         }
         #createUserModal input,
         #createUserModal select {
@@ -1238,12 +1327,17 @@ html[data-theme="light"] .btn-card-action {
         }
         #createUserModal #createUserSubmitBtn {
             grid-column: 1 / -1 !important;
-            margin-top: 5px !important;
-            padding: 6px 12px !important;
-            font-size: 12.5px !important;
-            height: 35px !important;
+            width: 100% !important;
+            margin-top: 12px !important;
+            margin-bottom: 4px !important;
+            padding: 8px 14px !important;
+            font-size: 13px !important;
+            height: 38px !important;
             font-weight: 700 !important;
-            border-radius: 6px !important;
+            border-radius: 8px !important;
+            display: flex !important;
+            align-items: center !important;
+            justify-content: center !important;
         }
         #createUserModal .fit-dropdown-trigger {
             height: 33px !important;

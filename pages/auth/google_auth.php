@@ -15,7 +15,19 @@ function handle_google_auth(?string $requiredRole = null): void
         redirect($entryPage);
     }
 
+    if (RateLimiter::tooManyAttempts('google_auth_ip', 10, 300)) {
+        flash('Too many authentication attempts. Please wait a few minutes before trying again.', 'danger');
+        redirect($entryPage);
+    }
+
     $idToken = trim((string) $_POST['credential']);
+    // Reject malformed JWT tokens locally before making an external network request
+    if (strlen($idToken) < 50 || strlen($idToken) > 4096 || substr_count($idToken, '.') !== 2) {
+        RateLimiter::hit('google_auth_ip', 300);
+        flash('Invalid Google authentication token format.', 'danger');
+        redirect($entryPage);
+    }
+
     $expectedClientId = (string) app_env('GOOGLE_CLIENT_ID', '');
 
     if (empty($expectedClientId)) {
@@ -30,7 +42,8 @@ function handle_google_auth(?string $requiredRole = null): void
     curl_setopt_array($ch, [
         CURLOPT_URL => $verifyUrl,
         CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_TIMEOUT => 10,
+        CURLOPT_CONNECTTIMEOUT => 3,
+        CURLOPT_TIMEOUT => 5,
         CURLOPT_SSL_VERIFYPEER => true,
         CURLOPT_HTTPHEADER => ['Accept: application/json'],
     ]);
@@ -41,6 +54,7 @@ function handle_google_auth(?string $requiredRole = null): void
     curl_close($ch);
 
     if ($response === false || $httpCode !== 200) {
+        RateLimiter::hit('google_auth_ip', 300);
         error_log('Google Auth verification failed. HTTP: ' . $httpCode . ' Error: ' . $curlError . ' Response: ' . (string) $response);
         flash('Failed to verify Google account credentials. Please try again.', 'danger');
         redirect($entryPage);

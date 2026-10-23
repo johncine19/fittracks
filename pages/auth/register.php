@@ -5,6 +5,11 @@ function handle_register(): void
 {
     if (!defined('AUTH_PAGE')) define('AUTH_PAGE', true);
     if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+        if (RateLimiter::tooManyAttempts('register_ip', 5, 600)) {
+            flash('Too many registration attempts from your network. Please wait a few minutes and try again.', 'danger');
+            redirect('register');
+        }
+        RateLimiter::hit('register_ip', 600);
         $validator = new Validator();
         $rules = [
             'first_name'       => 'required|min:1|max:100',

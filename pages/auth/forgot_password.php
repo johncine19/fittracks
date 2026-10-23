@@ -8,13 +8,14 @@ function handle_forgot_password(): void
 {
     if (!defined('AUTH_PAGE')) define('AUTH_PAGE', true);
     if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-        $email = trim((string) post('email'));
+        $email = strtolower(trim((string) post('email')));
 
-        if (RateLimiter::tooManyAttempts('forgot:' . $email, 3, 600)) {
-            flash('Too many reset requests for this email. Please wait a few minutes and try again.', 'danger');
+        if (RateLimiter::tooManyAttempts('forgot:' . $email, 3, 600) || RateLimiter::tooManyAttempts('forgot_ip', 10, 600)) {
+            flash('Too many reset requests. Please wait a few minutes and try again.', 'danger');
             redirect('forgot_password');
         }
         RateLimiter::hit('forgot:' . $email, 600);
+        RateLimiter::hit('forgot_ip', 600);
 
         $stmt = db()->prepare('SELECT * FROM users WHERE email = ?');
         $stmt->execute([$email]);

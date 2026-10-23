@@ -310,6 +310,11 @@ final class FileUpload
             return move_uploaded_file($tmpPath, $destPath);
         }
 
+        $imgW = (int) ($imageInfo[0] ?? 0);
+        $imgH = (int) ($imageInfo[1] ?? 0);
+        if ($imgW <= 0 || $imgH <= 0 || $imgW > 6000 || $imgH > 6000 || ($imgW * $imgH) > 25000000) {
+            return false;
+        }
         $mime = $imageInfo['mime'];
         $src = match ($mime) {
             'image/jpeg' => @imagecreatefromjpeg($tmpPath),

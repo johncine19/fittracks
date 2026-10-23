@@ -8,8 +8,8 @@ function handle_login(): void
     if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $email = (string) post('email');
 
-        if (RateLimiter::tooManyAttempts($email, 5, 300)) {
-            $secondsLeft = RateLimiter::secondsRemaining($email, 300);
+        if (RateLimiter::tooManyAttempts($email, 5, 300) || RateLimiter::tooManyAttempts('login_ip', 15, 300)) {
+            $secondsLeft = max(RateLimiter::secondsRemaining($email, 300), RateLimiter::secondsRemaining('login_ip', 300));
             $wait = (int) ceil($secondsLeft / 60);
             flash("Too many login attempts. Please try again in about $wait minute(s).", 'danger');
             render_header('Sign in');
@@ -183,9 +183,13 @@ function handle_login(): void
         $stmt = db()->prepare('SELECT * FROM users WHERE email = ?');
         $stmt->execute([$email]);
         $user = $stmt->fetch();
-        if ($user && password_verify((string) post('password'), $user['password_hash'])) {
+        $passwordInput = (string) post('password');
+        $dummyHash = '$2y$10$usesomesillystringfore7hnbRJHxXVLeakoG8K30oukPsA.ztMG';
+        $passwordValid = $user ? password_verify($passwordInput, (string) $user['password_hash']) : (password_verify($passwordInput, $dummyHash) && false);
+        if ($user && $passwordValid) {
             if ($user['status'] === 'suspended' || $user['status'] === 'inactive') {
                 RateLimiter::hit($email, 300);
+        RateLimiter::hit('login_ip', 300);
                 flash('Your account has been suspended. Please contact support.', 'danger');
                 redirect('login');
             }
@@ -230,6 +234,7 @@ function handle_login(): void
             redirect($target);
         }
         RateLimiter::hit($email, 300);
+        RateLimiter::hit('login_ip', 300);
         flash('Invalid email or password.', 'danger');
     }
 

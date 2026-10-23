@@ -362,6 +362,9 @@ function messages_page(): void
 
     // ── AJAX: Poll for new messages ──────────────────────────────────────
     if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && post('action') === 'poll_messages' && $isAjax) {
+        if (session_status() === PHP_SESSION_ACTIVE) {
+            session_write_close();
+        }
         if (ob_get_level()) ob_clean();
         header('Content-Type: application/json');
         $recipientId = (int) post('recipient_id');

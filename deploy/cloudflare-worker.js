@@ -5,7 +5,7 @@
 
 const BACKEND_HOST = 'fittracks-p3ue.onrender.com';
 const BACKEND_ORIGIN = `https://${BACKEND_HOST}`;
-const WAKE_TIMEOUT_MS = 2500; // If Render doesn't reply in 2.5s, it is sleeping -> show loading screen
+const WAKE_TIMEOUT_MS = 12000; // Wait up to 12s before assuming cold start to prevent reload storms under load
 
 export default {
   async fetch(request, env, ctx) {

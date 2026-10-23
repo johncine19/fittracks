@@ -20,7 +20,9 @@ function scanner_page(): void
     }
 
     $pdo = db();
-    auto_checkout_past_attendance();
+    if (empty($_GET['action']) && empty($_POST['action'])) {
+        auto_checkout_past_attendance();
+    }
 
     // Helper: format duration in human readable string
     $formatDuration = function (?string $checkInTime, ?string $checkOutTime): string {

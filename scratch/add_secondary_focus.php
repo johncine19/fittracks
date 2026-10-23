@@ -1,4 +1,5 @@
 <?php
+if (php_sapi_name() !== 'cli') { http_response_code(403); exit('CLI only.'); }
 require_once __DIR__ . '/../core/bootstrap.php';
 $pdo = db();
 try {

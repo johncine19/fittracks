@@ -126,6 +126,9 @@ final class RateLimiter
         if ($dbData !== null) {
             $dbData['count']++;
             if (self::writeDb($rawKey, $dbData, $windowSeconds)) {
+                if (random_int(1, 50) === 1) {
+                    try { db()->prepare('DELETE FROM cache WHERE expires_at < ? LIMIT 200')->execute([time()]); } catch (Throwable) {}
+                }
                 return;
             }
         }
@@ -134,6 +137,22 @@ final class RateLimiter
         $bucket = self::readDisk($rawKey, $windowSeconds);
         $bucket['count']++;
         file_put_contents(self::file($rawKey), json_encode($bucket), LOCK_EX);
+        if (random_int(1, 50) === 1) {
+            self::gcDisk();
+        }
+    }
+
+    private static function gcDisk(): void
+    {
+        $now = time();
+        $files = @glob(self::dir() . '/*.json') ?: [];
+        $checked = 0;
+        foreach ($files as $file) {
+            if (++$checked > 100) break;
+            if (@filemtime($file) < ($now - 3600)) {
+                @unlink($file);
+            }
+        }
     }
 
     public static function clear(string $identifier): void

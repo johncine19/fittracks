@@ -18,6 +18,14 @@ function users_page(): void
         $gymId = (int) scalar('SELECT gym_id FROM gyms WHERE owner_user_id = ?', [$user['user_id']]);
     }
 
+    $availablePlans = [];
+    $platformPlans = [];
+    if ($gymId) {
+        $availablePlans = query_all('SELECT plan_id, plan_name, duration_days, price, plan_type FROM membership_plans WHERE gym_id = ? AND is_active = 1 ORDER BY price ASC', [$gymId]);
+    } elseif ($isAdmin) {
+        $platformPlans = get_platform_subscription_plans();
+    }
+
     $canManageUser = function(int $targetUserId) use ($isAdmin, $isStaff, $gymId): bool {
         if ($isStaff) return false;
         $targetRole = scalar('SELECT role FROM users WHERE user_id = ?', [$targetUserId]);
@@ -61,7 +69,15 @@ function users_page(): void
 
         if (post('action') === 'create') {
             $roleToCreate = post('role');
-            if (!$isAdmin && !in_array($roleToCreate, ['trainer', 'member', 'staff'])) {
+            if ($isAdmin && in_array($roleToCreate, ['staff', 'trainer'], true)) {
+                $sendCreateResponse(false, 'Platform administrators can only onboard Gym Owners or Members. Staff and Trainers must be added directly by their respective gym owner.');
+                return;
+            }
+            if ($isAdmin && !in_array($roleToCreate, ['gym_owner', 'member'], true)) {
+                $sendCreateResponse(false, 'Invalid role selection for platform administrator.');
+                return;
+            }
+            if (!$isAdmin && !in_array($roleToCreate, ['trainer', 'member', 'staff'], true)) {
                 $sendCreateResponse(false, 'You do not have permission to create this role.');
                 return;
             }
@@ -130,29 +146,201 @@ function users_page(): void
                 $staffRole = 'trainer';
             }
 
-            $stmt = db()->prepare('INSERT INTO users (role, first_name, last_name, email, password_hash, phone, status, email_verified_at, staff_role) VALUES (?, ?, ?, ?, ?, ?, "active", NOW(), ?)');
-            $stmt->execute([$roleToCreate, $firstName, $lastName, $email, password_hash($plainPassword, PASSWORD_DEFAULT), $phone ?: null, $staffRole]);
-            $newUserId = (int) db()->lastInsertId();
-            if ($roleToCreate === 'trainer') {
-                $trainerGymId = $isAdmin ? null : $gymId;
-                db()->prepare('INSERT INTO trainer_profiles (user_id, specialization, bio, gym_id) VALUES (?, ?, ?, ?)')->execute([$newUserId, post('specialization'), post('bio'), $trainerGymId]);
-            } elseif ($roleToCreate === 'staff') {
-                $staffGymId = $isAdmin ? (int)(post('gym_id') ?: 0) : $gymId;
-                $staffTitle = ($staffRole === 'manager') ? 'Operations Manager' : 'Front Desk Staff';
-                db()->prepare('INSERT INTO gym_staff (gym_id, user_id, staff_title) VALUES (?, ?, ?)')->execute([$staffGymId, $newUserId, $staffTitle]);
-            } elseif ($roleToCreate === 'member' && !$isAdmin) {
-                db()->prepare('INSERT IGNORE INTO gym_members (gym_id, user_id) VALUES (?, ?)')->execute([$gymId, $newUserId]);
+            if ($roleToCreate === 'gym_owner' && $isAdmin) {
+                $gymName = trim((string) post('gym_name'));
+                if ($gymName === '') {
+                    $sendCreateResponse(false, 'Gym Facility Name is required when creating a gym owner.');
+                    return;
+                }
             }
-            audit_log($user['user_id'], 'create', 'user', (string) $newUserId, json_encode(['role' => $roleToCreate, 'email' => $email, 'name' => $firstName . ' ' . $lastName]));
 
-            // Send credentials email via background queue
+            db()->beginTransaction();
+            try {
+                $stmt = db()->prepare('INSERT INTO users (role, first_name, last_name, email, password_hash, phone, status, email_verified_at, staff_role) VALUES (?, ?, ?, ?, ?, ?, "active", NOW(), ?)');
+                $stmt->execute([$roleToCreate, $firstName, $lastName, $email, password_hash($plainPassword, PASSWORD_DEFAULT), $phone ?: null, $staffRole]);
+                $newUserId = (int) db()->lastInsertId();
+
+                $planAssigned = null;
+                $subPlanName = null;
+                $createdGymName = null;
+                if ($roleToCreate === 'gym_owner' && $isAdmin) {
+                    $createdGymName = trim((string) post('gym_name'));
+                    $gymAddress = trim((string) post('gym_address')) ?: 'Primary Facility';
+                    $platPlanKey = trim((string) post('platform_plan'));
+                    $billingCycle = (post('platform_billing_cycle') === 'yearly') ? 'yearly' : 'monthly';
+                    $subPaymentStatus = (string) post('platform_payment_status');
+
+                    $subPlanName = null;
+                    $subStatus = 'inactive';
+                    $renewalDate = null;
+                    $amount = 0.0;
+
+                    $platPlans = get_platform_subscription_plans();
+                    if ($platPlanKey === 'free_trial' || $subPaymentStatus === 'trialing') {
+                        $subPlanName = 'Free Trial';
+                        $subStatus = 'trialing';
+                        $renewalDate = date('Y-m-d', strtotime('+14 days'));
+                        $amount = 0.0;
+                    } elseif (isset($platPlans[$platPlanKey])) {
+                        $pInfo = $platPlans[$platPlanKey];
+                        $subPlanName = $pInfo['name'];
+                        $amount = ($billingCycle === 'yearly') ? (float)($pInfo['annual_price'] ?? ($pInfo['price'] * 10)) : (float)$pInfo['price'];
+                        if (in_array($subPaymentStatus, ['active_cash', 'active_online'], true)) {
+                            $subStatus = 'active';
+                            $renewalDate = date('Y-m-d', strtotime($billingCycle === 'yearly' ? '+1 year' : '+1 month'));
+                        } else {
+                            $subStatus = 'inactive';
+                            $renewalDate = null;
+                        }
+                    }
+
+                    $gStmt = db()->prepare('INSERT INTO gyms (owner_user_id, name, address, contact_info, status, subscription_plan, subscription_status, subscription_renewal_date, subscription_billing_cycle) VALUES (?, ?, ?, ?, "approved", ?, ?, ?, ?)');
+                    $gStmt->execute([
+                        $newUserId,
+                        $createdGymName,
+                        $gymAddress,
+                        $phone ?: null,
+                        $subPlanName,
+                        $subStatus,
+                        $renewalDate,
+                        $billingCycle
+                    ]);
+                    $newGymId = (int) db()->lastInsertId();
+
+                    // If active and paid, record in gym_subscription_payments
+                    if ($subStatus === 'active' && $amount > 0 && in_array($subPaymentStatus, ['active_cash', 'active_online'], true)) {
+                        $receiptNumber = 'SUB-ADM-' . date('Ymd') . '-' . strtoupper(substr(bin2hex(random_bytes(3)), 0, 5));
+                        $method = ($subPaymentStatus === 'active_cash') ? 'cash' : 'bank_transfer';
+                        $startDate = date('Y-m-d');
+                        $endDate = $renewalDate ?: date('Y-m-d', strtotime($billingCycle === 'yearly' ? '+1 year' : '+1 month'));
+
+                        db()->prepare('
+                            INSERT INTO gym_subscription_payments 
+                            (gym_id, owner_user_id, plan_name, amount, billing_cycle, payment_method, status, receipt_number, payment_date, start_date, end_date)
+                            VALUES (?, ?, ?, ?, ?, ?, "paid", ?, NOW(), ?, ?)
+                        ')->execute([
+                            $newGymId,
+                            $newUserId,
+                            $subPlanName,
+                            $amount,
+                            $billingCycle,
+                            $method,
+                            $receiptNumber,
+                            $startDate,
+                            $endDate
+                        ]);
+                    }
+
+                    notify_user(
+                        $newUserId,
+                        'system',
+                        'Welcome to FitTracks!',
+                        "Welcome to FitTracks! Your gym '{$createdGymName}' has been provisioned with the " . ($subPlanName ? "{$subPlanName} Plan ({$subStatus})" : "No Plan") . "."
+                    );
+                } elseif ($roleToCreate === 'trainer') {
+                    $trainerGymId = $isAdmin ? null : $gymId;
+                    db()->prepare('INSERT INTO trainer_profiles (user_id, specialization, bio, gym_id) VALUES (?, ?, ?, ?)')->execute([$newUserId, post('specialization'), post('bio'), $trainerGymId]);
+                } elseif ($roleToCreate === 'staff') {
+                    $staffGymId = $isAdmin ? (int)(post('gym_id') ?: 0) : $gymId;
+                    $staffTitle = ($staffRole === 'manager') ? 'Operations Manager' : 'Front Desk Staff';
+                    db()->prepare('INSERT INTO gym_staff (gym_id, user_id, staff_title) VALUES (?, ?, ?)')->execute([$staffGymId, $newUserId, $staffTitle]);
+                } elseif ($roleToCreate === 'member') {
+                    $targetGymId = $gymId ?: (int)(post('gym_id') ?: 0);
+                    if ($targetGymId > 0) {
+                        db()->prepare('INSERT IGNORE INTO gym_members (gym_id, user_id) VALUES (?, ?)')->execute([$targetGymId, $newUserId]);
+                    }
+
+                    // Directly allocate membership plan if chosen by gym owner / admin
+                    $selectedPlanId = (int) post('membership_plan_id');
+                    if ($selectedPlanId > 0) {
+                        $planStmt = db()->prepare('SELECT plan_id, plan_name, duration_days, price, gym_id FROM membership_plans WHERE plan_id = ? AND is_active = 1');
+                        $planStmt->execute([$selectedPlanId]);
+                        $planAssigned = $planStmt->fetch(PDO::FETCH_ASSOC);
+
+                        if ($planAssigned && ($isAdmin || (int)$planAssigned['gym_id'] === $gymId || $planAssigned['gym_id'] === null)) {
+                            // Ensure member is linked to the plan's gym facility
+                            $planGymId = (int)($planAssigned['gym_id'] ?? $targetGymId);
+                            if ($planGymId > 0 && $planGymId !== $targetGymId) {
+                                db()->prepare('INSERT IGNORE INTO gym_members (gym_id, user_id) VALUES (?, ?)')->execute([$planGymId, $newUserId]);
+                            }
+
+                            $duration = (int)($planAssigned['duration_days'] ?? 30);
+                            $startDateStr = trim((string) post('membership_start_date'));
+                            if (!strtotime($startDateStr)) {
+                                $startDateStr = date('Y-m-d');
+                            }
+                            $start = new DateTime($startDateStr);
+                            $end = (clone $start)->modify('+' . $duration . ' days')->format('Y-m-d');
+
+                            $payOption = (string) post('membership_payment_status');
+                            $isPaid = in_array($payOption, ['paid_cash', 'paid_online', 'complimentary'], true);
+                            $membershipStatus = $isPaid ? 'active' : 'pending';
+
+                            $amount = (float) $planAssigned['price'];
+                            $method = 'cash';
+                            if ($payOption === 'paid_online') {
+                                $method = 'online';
+                            } elseif ($payOption === 'complimentary') {
+                                $method = 'complimentary';
+                                $amount = 0.0;
+                            }
+
+                            $mStmt = db()->prepare('INSERT INTO memberships (user_id, plan_id, start_date, end_date, status) VALUES (?, ?, ?, ?, ?)');
+                            $mStmt->execute([$newUserId, $selectedPlanId, $start->format('Y-m-d'), $end, $membershipStatus]);
+                            $membershipId = (int) db()->lastInsertId();
+
+                            $receiptPrefix = ($payOption === 'complimentary') ? 'COMP-' : ($isPaid ? 'RCPT-' : 'PEND-');
+                            $receipt = $receiptPrefix . date('Ymd') . '-' . random_int(1000, 9999);
+                            $paymentStatus = $isPaid ? 'paid' : 'pending';
+
+                            $pStmt = db()->prepare('INSERT INTO payments (membership_id, amount, payment_date, payment_method, status, receipt_number, processed_by) VALUES (?, ?, ?, ?, ?, ?, ?)');
+                            $pStmt->execute([$membershipId, $amount, $start->format('Y-m-d'), $method, $paymentStatus, $receipt, $user['user_id']]);
+                            $paymentId = (int) db()->lastInsertId();
+
+                            if ($paymentStatus === 'paid' && $amount > 0 && function_exists('process_trainer_commission')) {
+                                process_trainer_commission($paymentId, $amount);
+                            }
+
+                            $facilityGymId = $planGymId ?: $gymId;
+                            $gymName = $facilityGymId ? (scalar('SELECT name FROM gyms WHERE gym_id = ?', [$facilityGymId]) ?: 'our gym') : 'our gym';
+                            if ($membershipStatus === 'active') {
+                                notify_user($newUserId, 'system', 'Membership Active', "Welcome to {$gymName}! Your {$planAssigned['plan_name']} membership is active until " . date('M j, Y', strtotime($end)) . '.');
+                            } else {
+                                notify_user($newUserId, 'system', 'Membership Pending', "Your {$planAssigned['plan_name']} membership at {$gymName} has been created and is pending payment confirmation.");
+                            }
+                        }
+                    }
+                }
+
+                audit_log($user['user_id'], 'create', 'user', (string) $newUserId, json_encode([
+                    'role' => $roleToCreate,
+                    'email' => $email,
+                    'name' => $firstName . ' ' . $lastName,
+                    'plan' => $planAssigned ? $planAssigned['plan_name'] : ($subPlanName ?? null),
+                    'gym' => $createdGymName ?? null
+                ]));
+
+                db()->commit();
+            } catch (Throwable $e) {
+                if (db()->inTransaction()) {
+                    db()->rollBack();
+                }
+                $sendCreateResponse(false, 'Failed to create user: ' . $e->getMessage());
+                return;
+            }
+
+            // Send credentials email via background queue (out-of-transaction)
             Emails::sendAccountCreated(
                 $email,
                 $firstName . ' ' . $lastName,
                 $plainPassword
             );
 
-            $sendCreateResponse(true, 'User created successfully. Login credentials have been emailed to ' . $email . '.', 'success');
+            $successMsg = $planAssigned
+                ? 'Member account created and ' . $planAssigned['plan_name'] . ' membership activated successfully. Login credentials emailed to ' . $email . '.'
+                : 'User created successfully. Login credentials have been emailed to ' . $email . '.';
+
+            $sendCreateResponse(true, $successMsg, 'success');
             return;
 
         } elseif (post('action') === 'status') {
@@ -922,6 +1110,7 @@ function users_page(): void
                     <label><span class="label-title">Role <span class="req-star">*</span></span>
                         <div id="roleComboboxWrap"></div>
                     </label>
+                    <?php if (!$isAdmin): ?>
                     <div id="trainer_fields" style="display: <?= ($oldUser['role'] ?? '') === 'trainer' ? 'grid' : 'none' ?>; grid-column: 1 / -1; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px;">
                         <label><span class="label-title">Specialization <span class="req-star" id="specReqStar" style="display: <?= ($oldUser['role'] ?? '') === 'trainer' ? 'inline' : 'none' ?>;">*</span></span>
                             <input name="specialization" id="new_user_spec" value="<?= h($oldUser['specialization'] ?? '') ?>" placeholder="e.g. Strength & Conditioning">
@@ -930,12 +1119,120 @@ function users_page(): void
                             <input name="bio" value="<?= h($oldUser['bio'] ?? '') ?>" placeholder="Short bio">
                         </label>
                     </div>
+                    <?php endif; ?>
+                    <?php if (!$isAdmin): ?>
                     <div id="staff_fields" style="display: <?= ($oldUser['role'] ?? '') === 'staff' ? 'block' : 'none' ?>; grid-column: 1 / -1;">
                         <label><span class="label-title">Staff Permission Level</span>
                             <div id="staffRoleComboboxWrap"></div>
                         </label>
                     </div>
-                    <button id="createUserSubmitBtn" style="grid-column: 1 / -1; margin-top: 10px;">Create user</button>
+                    <?php endif; ?>
+                    <?php if ($isAdmin): ?>
+                    <div id="gym_owner_fields" style="display: <?= ($oldUser['role'] ?? 'gym_owner') === 'gym_owner' ? 'block' : 'none' ?>; grid-column: 1 / -1;">
+                        <div class="user-modal-subcard">
+                            <div class="user-subcard-header" style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px;">
+                                <span style="font-size: 13.5px; font-weight: 700; color: var(--ink);">Gym Facility & Platform Subscription</span>
+                                <span class="user-subcard-badge">Platform Tier</span>
+                            </div>
+
+                            <div class="gym-owner-sub-grid">
+                                <label style="margin: 0;">
+                                    <span class="label-title">Gym Facility Name <span class="req-star">*</span></span>
+                                    <input name="gym_name" id="new_user_gym_name" value="<?= h($oldUser['gym_name'] ?? '') ?>" placeholder="e.g. Iron Titan Fitness" <?= ($oldUser['role'] ?? 'gym_owner') === 'gym_owner' ? 'required' : '' ?>>
+                                </label>
+
+                                <label style="margin: 0;">
+                                    <span class="label-title">Facility Address</span>
+                                    <input name="gym_address" id="new_user_gym_address" value="<?= h($oldUser['gym_address'] ?? '') ?>" placeholder="e.g. 123 Main St, City">
+                                </label>
+
+                                <label style="margin: 0; grid-column: 1 / -1;">
+                                    <span class="label-title">Platform Subscription Plan</span>
+                                    <select name="platform_plan" id="new_user_platform_plan" class="form-control" style="width: 100%;" onchange="togglePlatformPlanDetails(this.value)">
+                                        <option value="free_trial" <?= selected($oldUser['platform_plan'] ?? 'free_trial', 'free_trial') ?>>Free Trial (14 Days) — ₱0.00</option>
+                                        <?php foreach ($platformPlans as $k => $p): ?>
+                                            <option value="<?= h($k) ?>" data-price="<?= (float)$p['price'] ?>" data-annual="<?= (float)($p['annual_price'] ?? ($p['price'] * 10)) ?>" <?= selected($oldUser['platform_plan'] ?? '', $k) ?>>
+                                                <?= h($p['name']) ?> — <?= money((float)$p['price']) ?>/mo
+                                            </option>
+                                        <?php endforeach; ?>
+                                        <option value="none" <?= selected($oldUser['platform_plan'] ?? '', 'none') ?>>No Subscription (Inactive)</option>
+                                    </select>
+                                </label>
+
+                                <div id="platform_plan_details" style="display: contents;">
+                                    <label style="margin: 0;">
+                                        <span class="label-title">Billing Cycle</span>
+                                        <select name="platform_billing_cycle" id="new_user_platform_cycle" class="form-control" style="width: 100%;">
+                                            <option value="monthly" <?= selected($oldUser['platform_billing_cycle'] ?? 'monthly', 'monthly') ?>>Monthly Billing</option>
+                                            <option value="yearly" <?= selected($oldUser['platform_billing_cycle'] ?? '', 'yearly') ?>>Annual (2 Months Free)</option>
+                                        </select>
+                                    </label>
+
+                                    <label style="margin: 0;">
+                                        <span class="label-title">Payment / Activation Status</span>
+                                        <select name="platform_payment_status" id="new_user_platform_status" class="form-control" style="width: 100%;">
+                                            <option value="trialing" <?= selected($oldUser['platform_payment_status'] ?? 'trialing', 'trialing') ?>>Free Trial (14 Days)</option>
+                                            <option value="active_cash" <?= selected($oldUser['platform_payment_status'] ?? '', 'active_cash') ?>>Paid Cash (Active)</option>
+                                            <option value="active_online" <?= selected($oldUser['platform_payment_status'] ?? '', 'active_online') ?>>Paid Online (Active)</option>
+                                            <option value="inactive" <?= selected($oldUser['platform_payment_status'] ?? '', 'inactive') ?>>Pending Payment</option>
+                                        </select>
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <?php endif; ?>
+
+                    <?php if (!$isAdmin): ?>
+                    <div id="member_fields" style="display: <?= ($oldUser['role'] ?? '') === 'member' ? 'block' : 'none' ?>; grid-column: 1 / -1;">
+                        <div class="user-modal-subcard">
+                            <div class="user-subcard-header" style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px;">
+                                <div style="display: flex; align-items: center; gap: 8px;">
+                                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--lime)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                                        <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+                                        <line x1="16" y1="2" x2="16" y2="6"></line>
+                                        <line x1="8" y1="2" x2="8" y2="6"></line>
+                                        <line x1="3" y1="10" x2="21" y2="10"></line>
+                                    </svg>
+                                    <span style="font-size: 13.5px; font-weight: 700; color: var(--ink);">Membership Plan Allocation</span>
+                                </div>
+                                <span class="user-subcard-badge">Optional</span>
+                            </div>
+
+                            <div class="member-plan-sub-grid">
+                                <label style="margin: 0; grid-column: 1 / -1;">
+                                    <span class="label-title">Choose Membership Plan</span>
+                                    <select name="membership_plan_id" id="new_user_plan_id" class="form-control" style="width: 100%;" onchange="toggleMemberPaymentFields(this.value)">
+                                        <option value="">No Plan (Account Only / Walk-in)</option>
+                                        <?php foreach ($availablePlans as $p): ?>
+                                            <option value="<?= (int)$p['plan_id'] ?>" data-price="<?= (float)$p['price'] ?>" data-duration="<?= (int)$p['duration_days'] ?>" <?= selected((string)($oldUser['membership_plan_id'] ?? ''), (string)$p['plan_id']) ?>>
+                                                <?= h($p['plan_name']) ?> — <?= money((float)$p['price']) ?> (<?= (int)$p['duration_days'] ?> days)
+                                            </option>
+                                        <?php endforeach; ?>
+                                    </select>
+                                </label>
+
+                                <div id="member_plan_details" style="display: <?= !empty($oldUser['membership_plan_id']) ? 'contents' : 'none' ?>;">
+                                    <label style="margin: 0;">
+                                        <span class="label-title">Start Date</span>
+                                        <input type="date" name="membership_start_date" id="new_user_start_date" value="<?= h($oldUser['membership_start_date'] ?? date('Y-m-d')) ?>">
+                                    </label>
+
+                                    <label style="margin: 0;">
+                                        <span class="label-title">Payment / Activation Status</span>
+                                        <select name="membership_payment_status" id="new_user_payment_status" class="form-control" style="width: 100%;">
+                                            <option value="paid_cash">Paid Cash (Active)</option>
+                                            <option value="paid_online">Paid Online (Active)</option>
+                                            <option value="complimentary">Complimentary (₱0.00)</option>
+                                            <option value="pending">Pending Payment</option>
+                                        </select>
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <?php endif; ?>
+                    <button id="createUserSubmitBtn" class="btn btn-lime" style="grid-column: 1 / -1; margin-top: 10px;">Create user</button>
                 </form>
             </div>
         </dialog>

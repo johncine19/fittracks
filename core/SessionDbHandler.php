@@ -4,6 +4,8 @@ declare(strict_types=1);
 class SessionDbHandler implements SessionHandlerInterface
 {
     private PDO $pdo;
+    private string $lastReadHash = '';
+    private bool $existedOnRead = false;
 
     public function __construct(PDO $pdo)
     {
@@ -22,19 +24,39 @@ class SessionDbHandler implements SessionHandlerInterface
 
     public function read(string $id): string|false
     {
-        $stmt = $this->pdo->prepare('SELECT session_data FROM sessions WHERE session_id = ? AND expires_at > ?');
+        $stmt = $this->pdo->prepare('SELECT session_data, expires_at FROM sessions WHERE session_id = ? AND expires_at > ?');
         $stmt->execute([$id, time()]);
         
-        $data = $stmt->fetchColumn();
-        return $data !== false ? (string)$data : '';
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+        if ($row !== false) {
+            $data = (string) $row['session_data'];
+            $this->lastReadHash = hash('xxh3', $data);
+            $this->existedOnRead = ((int) $row['expires_at'] - time()) > 600;
+            return $data;
+        }
+        $this->lastReadHash = '';
+        $this->existedOnRead = false;
+        return '';
     }
 
     public function write(string $id, string $data): bool
     {
-        // Ensure session lifetime is at least 24 hours (86400 seconds)
-        $lifetime = (int) ini_get('session.gc_maxlifetime');
-        if ($lifetime < 86400) {
-            $lifetime = 86400;
+        if ($data === '') {
+            return true;
+        }
+
+        if ($this->existedOnRead && hash('xxh3', $data) === $this->lastReadHash) {
+            return true;
+        }
+
+        $isAuthenticated = str_contains($data, '"user_id"')
+            || str_contains($data, 'pending_verify_')
+            || str_contains($data, 'reset_email');
+
+        if ($isAuthenticated) {
+            $lifetime = max(86400, (int) ini_get('session.gc_maxlifetime'));
+        } else {
+            $lifetime = 900; // 15 minutes for unauthenticated sessions
         }
         
         $expiresAt = time() + $lifetime;

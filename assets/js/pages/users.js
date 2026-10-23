@@ -13,10 +13,13 @@ const initialRole = FT_USERS_CONFIG.initialRole || (IS_ADMIN ? 'gym_owner' : 'tr
 function toggleTrainerFields(role) {
     const tf = document.getElementById('trainer_fields');
     const sf = document.getElementById('staff_fields');
+    const mf = document.getElementById('member_fields');
+    const gf = document.getElementById('gym_owner_fields');
+    const gn = document.getElementById('new_user_gym_name');
     const spec = document.getElementById('new_user_spec');
     const star = document.getElementById('specReqStar');
     if (tf) {
-        if (role === 'trainer') {
+        if (!IS_ADMIN && role === 'trainer') {
             tf.style.display = 'grid';
             tf.style.gridTemplateColumns = 'repeat(2, minmax(0, 1fr))';
             if (spec) spec.required = true;
@@ -28,9 +31,44 @@ function toggleTrainerFields(role) {
         }
     }
     if (sf) {
-        sf.style.display = (role === 'staff') ? 'block' : 'none';
+        sf.style.display = (!IS_ADMIN && role === 'staff') ? 'block' : 'none';
+    }
+    if (mf) {
+        mf.style.display = (!IS_ADMIN && role === 'member') ? 'block' : 'none';
+    }
+    if (gf) {
+        gf.style.display = (IS_ADMIN && role === 'gym_owner') ? 'block' : 'none';
+        if (gn) gn.required = (IS_ADMIN && role === 'gym_owner');
     }
 }
+
+window.togglePlatformPlanDetails = function(planKey) {
+    const det = document.getElementById('platform_plan_details');
+    const statusSelect = document.getElementById('new_user_platform_status');
+    const cycleSelect = document.getElementById('new_user_platform_cycle');
+    if (!det) return;
+
+    if (planKey === 'none') {
+        det.style.display = 'none';
+        if (statusSelect) statusSelect.value = 'inactive';
+    } else if (planKey === 'free_trial') {
+        det.style.display = 'contents';
+        if (statusSelect) statusSelect.value = 'trialing';
+        if (cycleSelect) cycleSelect.value = 'monthly';
+    } else {
+        det.style.display = 'contents';
+        if (statusSelect && statusSelect.value === 'trialing') {
+            statusSelect.value = 'active_cash';
+        }
+    }
+};
+
+window.toggleMemberPaymentFields = function(planId) {
+    const det = document.getElementById('member_plan_details');
+    if (det) {
+        det.style.display = (planId && String(planId).trim() !== '') ? 'contents' : 'none';
+    }
+};
 
 if (FT_USERS_CONFIG.hasOldUser) {
     document.addEventListener('DOMContentLoaded', function() {
@@ -264,11 +302,13 @@ if (FT_USERS_CONFIG.hasOldUser) {
                 if (IS_ADMIN) {
                     editRoleItems.push({ id: 'gym_owner', label: 'Gym Owner' });
                 }
-                editRoleItems.push(
-                    { id: 'staff', label: 'Front Desk / Staff' },
-                    { id: 'trainer', label: 'Trainer' },
-                    { id: 'member', label: 'Member' }
-                );
+                if (!IS_ADMIN || u.role === 'staff') {
+                    editRoleItems.push({ id: 'staff', label: 'Front Desk / Staff' });
+                }
+                if (!IS_ADMIN || u.role === 'trainer') {
+                    editRoleItems.push({ id: 'trainer', label: 'Trainer' });
+                }
+                editRoleItems.push({ id: 'member', label: 'Member' });
 
                 const editStaffRoleItems = [
                     { id: 'front_desk', label: 'Front Desk / Cashier (Financials Masked)' },
@@ -1152,25 +1192,17 @@ if (FT_USERS_CONFIG.hasOldUser) {
     // ── Global Custom Role Dropdown Initialization ─────────────────────────
     const roleItems = [];
     if (IS_ADMIN) {
-        roleItems.push({
-            id: 'gym_owner',
-            label: 'Gym Owner'
-        });
+        roleItems.push(
+            { id: 'gym_owner', label: 'Gym Owner' },
+            { id: 'member', label: 'Member' }
+        );
+    } else {
+        roleItems.push(
+            { id: 'staff', label: 'Front Desk / Staff' },
+            { id: 'trainer', label: 'Trainer' },
+            { id: 'member', label: 'Member' }
+        );
     }
-    roleItems.push(
-        {
-            id: 'staff',
-            label: 'Front Desk / Staff'
-        },
-        {
-            id: 'trainer',
-            label: 'Trainer'
-        },
-        {
-            id: 'member',
-            label: 'Member'
-        }
-    );
 
     if (typeof FitDropdown !== 'undefined') {
         window.createUserRoleDropdown = new FitDropdown({
@@ -1186,7 +1218,7 @@ if (FT_USERS_CONFIG.hasOldUser) {
                 toggleTrainerFields((item && typeof item === 'object') ? item.id : item);
             }
         });
-        if (document.getElementById('staffRoleComboboxWrap')) {
+        if (!IS_ADMIN && document.getElementById('staffRoleComboboxWrap')) {
             window.createUserStaffRoleDropdown = new FitDropdown({
                 container: '#staffRoleComboboxWrap',
                 name: 'staff_role',

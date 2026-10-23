@@ -1,6 +1,7 @@
 <?php
 declare(strict_types=1);
 
+if (php_sapi_name() !== 'cli') { http_response_code(403); exit('CLI only.'); }
 require_once __DIR__ . '/../core/bootstrap.php';
 require_once __DIR__ . '/../pages/shared/exercise.php';
 require_once __DIR__ . '/../pages/shared/workouts.php';

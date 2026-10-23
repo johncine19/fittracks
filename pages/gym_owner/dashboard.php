@@ -123,7 +123,13 @@ function admin_dashboard(PDO $pdo, array $user): void
     ];
 ?>
     <?php if (!$isPlatformAdmin): ?>
-    <div class="gym-tour-welcome-banner" id="gym-tour-welcome-banner">
+    <script>
+        if (localStorage.getItem('fittrack_gym_owner_tour_completed') === '1') {
+            document.write('<style>#gym-tour-welcome-banner, #sk-tour-banner { display: none !important; }</style>');
+        }
+    </script>
+    <?php render_skeleton_tour_banner('sk-tour-banner'); ?>
+    <div class="gym-tour-welcome-banner skeleton-content sk-display-flex" id="gym-tour-welcome-banner">
         <div class="tour-banner-content">
             <div class="tour-banner-icon">
                 <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">

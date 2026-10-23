@@ -204,18 +204,21 @@ function food_lookup_page(): void
             exit;
         }
 
+        // Record timestamp and release session lock BEFORE external network call
+        $_SESSION['cn_req_timestamps'][] = $now;
+        if (session_status() === PHP_SESSION_ACTIVE) {
+            session_write_close();
+        }
+
         $url = 'https://api.calorieninjas.com/v1/nutrition?query=' . urlencode($query);
         $ch = curl_init($url);
         curl_setopt($ch, CURLOPT_HTTPHEADER, ['X-Api-Key: ' . $apiKey]);
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
         curl_setopt($ch, CURLOPT_TIMEOUT, 10);
-        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, true);
         $res = curl_exec($ch);
         $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
         curl_close($ch);
-
-        // Record timestamp for external network call
-        $_SESSION['cn_req_timestamps'][] = $now;
 
         if ($res === false || $httpCode !== 200) {
             echo json_encode(['success' => false, 'error' => 'CalorieNinjas service error (HTTP ' . $httpCode . ').']);
@@ -336,6 +339,12 @@ function food_lookup_page(): void
             exit;
         }
 
+        // Record timestamp and release session lock BEFORE external network call
+        $_SESSION['cn_img_timestamps'][] = $now;
+        if (session_status() === PHP_SESSION_ACTIVE) {
+            session_write_close();
+        }
+
         $cFile = new CURLFile($file['tmp_name'], $mime, $file['name'] ?? 'meal.jpg');
         $ch = curl_init('https://api.calorieninjas.com/v1/imagetextnutrition');
         curl_setopt($ch, CURLOPT_HTTPHEADER, ['X-Api-Key: ' . $apiKey]);
@@ -343,12 +352,10 @@ function food_lookup_page(): void
         curl_setopt($ch, CURLOPT_POSTFIELDS, ['media' => $cFile]);
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
         curl_setopt($ch, CURLOPT_TIMEOUT, 20);
-        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, true);
         $res = curl_exec($ch);
         $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
         curl_close($ch);
-
-        $_SESSION['cn_img_timestamps'][] = $now;
 
         if ($res === false || $httpCode !== 200) {
             echo json_encode(['success' => false, 'error' => 'Image analysis service error (HTTP ' . $httpCode . ').']);

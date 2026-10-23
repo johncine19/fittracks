@@ -12,8 +12,8 @@ Options -Indexes
     </IfModule>
 </FilesMatch>
 
-# Protect sensitive database files, logs, and lock files
-<FilesMatch "\.(sql|log|lock)$">
+# Protect sensitive database files, logs, composer, and lock files
+<FilesMatch "(^composer\.(json|lock)|^Dockerfile|\.(sql|log|lock|md))$">
     <IfModule mod_authz_core.c>
         Require all denied
     </IfModule>
@@ -23,11 +23,16 @@ Options -Indexes
     </IfModule>
 </FilesMatch>
 
-# Route missing files and directories to FitTracks 404 handler
+# Route missing files and directories to FitTracks 404 handler, and block internal directories
 <IfModule mod_rewrite.c>
     RewriteEngine On
+
+    # Block direct HTTP access to internal application, test, scratch, and storage directories
+    RewriteRule ^(core|config|database|storage|scratch|tests|deploy|docs|views|vendor)(/|$) - [F,L,NC]
+
     RewriteCond %{REQUEST_FILENAME} !-f
     RewriteCond %{REQUEST_FILENAME} !-d
     RewriteRule ^ index.php?page=404 [L,QSA]
 </IfModule>
+
 
