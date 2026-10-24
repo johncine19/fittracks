@@ -196,7 +196,7 @@ function memberships_page(): void
             $gymId = $gym ? (int) $gym['gym_id'] : 0;
 
             $payment = db()->query("
-                SELECT pay.*, m.user_id, m.plan_id, m.membership_id, p.gym_id, p.plan_name, p.duration_days, p.price, u.email, u.first_name, u.last_name
+                SELECT pay.*, m.user_id, m.plan_id, m.membership_id, m.start_date, m.end_date, p.gym_id, p.plan_name, p.duration_days, p.price, u.email, u.first_name, u.last_name
                 FROM payments pay
                 JOIN memberships m ON m.membership_id = pay.membership_id
                 JOIN membership_plans p ON p.plan_id = m.plan_id
@@ -222,15 +222,19 @@ function memberships_page(): void
             // Clear any duplicate pending payments for this membership
             db()->prepare('UPDATE payments SET status = "paid" WHERE membership_id = ? AND status = "pending"')->execute([$membershipId]);
 
-            // 2. Activate membership starting from payment date
-            $start = new DateTime($paymentDate);
+            // 2. Activate membership
+            // If the membership already has a future queued start date (from a renewal), preserve it; otherwise start from payment date
+            $isQueuedFuture = (!empty($payment['start_date']) && strtotime((string)$payment['start_date']) > strtotime((string)$paymentDate));
+            $start = $isQueuedFuture ? new DateTime($payment['start_date']) : new DateTime($paymentDate);
             $end = (clone $start)->modify('+' . $duration . ' days')->format('Y-m-d');
 
-            // Cancel other active memberships for this member at this gym
-            if ($gymId) {
-                db()->prepare("UPDATE memberships m JOIN membership_plans mp ON mp.plan_id = m.plan_id SET m.status = 'cancelled' WHERE m.user_id = ? AND m.membership_id != ? AND mp.gym_id = ? AND m.status = 'active'")->execute([$memberUserId, $membershipId, $gymId]);
-            } else {
-                db()->prepare("UPDATE memberships SET status = 'cancelled' WHERE user_id = ? AND membership_id != ? AND status = 'active'")->execute([$memberUserId, $membershipId]);
+            // Only cancel other active memberships if this plan is effective immediately (not a future queued cycle)
+            if ($start->format('Y-m-d') <= date('Y-m-d')) {
+                if ($gymId) {
+                    db()->prepare("UPDATE memberships m JOIN membership_plans mp ON mp.plan_id = m.plan_id SET m.status = 'cancelled' WHERE m.user_id = ? AND m.membership_id != ? AND mp.gym_id = ? AND m.status = 'active'")->execute([$memberUserId, $membershipId, $gymId]);
+                } else {
+                    db()->prepare("UPDATE memberships SET status = 'cancelled' WHERE user_id = ? AND membership_id != ? AND status = 'active'")->execute([$memberUserId, $membershipId]);
+                }
             }
 
             db()->prepare('UPDATE memberships SET status = "active", start_date = ?, end_date = ? WHERE membership_id = ?')
@@ -300,6 +304,13 @@ function memberships_page(): void
                         ? db()->query("SELECT m.* FROM memberships m JOIN membership_plans mp ON mp.plan_id = m.plan_id WHERE m.user_id = $memberUserId AND mp.gym_id = $gymId AND m.status = 'active' ORDER BY m.end_date DESC LIMIT 1")->fetch()
                         : db()->query("SELECT m.* FROM memberships m WHERE m.user_id = $memberUserId AND m.status = 'active' ORDER BY m.end_date DESC LIMIT 1")->fetch();
                     if ($currentActive) {
+                        // Guardrail: Disallow queuing more than 1 advance renewal cycle
+                        $alreadyQueued = (int) scalar("SELECT COUNT(*) FROM memberships m JOIN membership_plans mp ON mp.plan_id = m.plan_id WHERE m.user_id = ? AND mp.gym_id = ? AND m.status = 'active' AND m.start_date > CURDATE()", [$memberUserId, $gymId]);
+                        if ($alreadyQueued > 0) {
+                            flash('This member already has an advance renewal queued through ' . date('M j, Y', strtotime($currentActive['end_date'])) . '. Further cycles cannot be queued until the current cycle ends.', 'warning');
+                            redirect('memberships&view=payments');
+                        }
+
                         if ((int)$currentActive['plan_id'] === $planId) {
                             // Queue renewal from previous end date
                             $start = new DateTime($currentActive['end_date']);
@@ -349,14 +360,17 @@ function memberships_page(): void
                 $mRow = db()->query("SELECT m.*, p.duration_days, p.gym_id FROM memberships m JOIN membership_plans p ON p.plan_id = m.plan_id WHERE m.membership_id = $membershipId")->fetch();
                 if ($mRow && $mRow['status'] === 'pending') {
                     $dur = (int)($mRow['duration_days'] ?? 30);
-                    $mStart = new DateTime($paymentDate);
+                    $isQueuedFuture = (!empty($mRow['start_date']) && strtotime((string)$mRow['start_date']) > strtotime((string)$paymentDate));
+                    $mStart = $isQueuedFuture ? new DateTime($mRow['start_date']) : new DateTime($paymentDate);
                     $mEnd = (clone $mStart)->modify('+' . $dur . ' days')->format('Y-m-d');
 
                     $mGymId = (int) ($mRow['gym_id'] ?? 0);
-                    if ($mGymId > 0) {
-                        db()->prepare("UPDATE memberships m JOIN membership_plans mp ON mp.plan_id = m.plan_id SET m.status = 'cancelled' WHERE m.user_id = ? AND m.membership_id != ? AND mp.gym_id = ? AND m.status = 'active'")->execute([$mRow['user_id'], $membershipId, $mGymId]);
-                    } else {
-                        db()->prepare("UPDATE memberships SET status = 'cancelled' WHERE user_id = ? AND membership_id != ? AND status = 'active'")->execute([$mRow['user_id'], $membershipId]);
+                    if ($mStart->format('Y-m-d') <= date('Y-m-d')) {
+                        if ($mGymId > 0) {
+                            db()->prepare("UPDATE memberships m JOIN membership_plans mp ON mp.plan_id = m.plan_id SET m.status = 'cancelled' WHERE m.user_id = ? AND m.membership_id != ? AND mp.gym_id = ? AND m.status = 'active'")->execute([$mRow['user_id'], $membershipId, $mGymId]);
+                        } else {
+                            db()->prepare("UPDATE memberships SET status = 'cancelled' WHERE user_id = ? AND membership_id != ? AND status = 'active'")->execute([$mRow['user_id'], $membershipId]);
+                        }
                     }
 
                     db()->prepare('UPDATE memberships SET status = "active", start_date = ?, end_date = ? WHERE membership_id = ?')
@@ -420,6 +434,12 @@ function memberships_page(): void
             ? db()->query("SELECT m.*, p.price as old_price FROM memberships m JOIN membership_plans p ON p.plan_id = m.plan_id WHERE m.user_id = $memberUserId AND p.gym_id = $planGymId AND m.status = 'active' ORDER BY m.end_date DESC LIMIT 1")->fetch()
             : db()->query("SELECT m.*, p.price as old_price FROM memberships m JOIN membership_plans p ON p.plan_id = m.plan_id WHERE m.user_id = $memberUserId AND m.status = 'active' ORDER BY m.end_date DESC LIMIT 1")->fetch();
         if ($currentActive) {
+            $alreadyQueued = (int) scalar("SELECT COUNT(*) FROM memberships m JOIN membership_plans mp ON mp.plan_id = m.plan_id WHERE m.user_id = ? AND mp.gym_id = ? AND m.status = 'active' AND m.start_date > CURDATE()", [$memberUserId, $planGymId]);
+            if ($alreadyQueued > 0) {
+                flash('This member already has an advance renewal queued through ' . date('M j, Y', strtotime($currentActive['end_date'])) . '. Further cycles cannot be queued until the current cycle finishes.', 'warning');
+                redirect('memberships');
+            }
+
             if ((int)$currentActive['plan_id'] === $planId) {
                 // Renewal: Queue it
                 $start = new DateTime($currentActive['end_date']);
@@ -868,6 +888,35 @@ function memberships_page(): void
             'end_date' => !empty($m['end_date']) ? date('M j, Y', strtotime($m['end_date'])) : ''
         ];
     }, $allMembershipsForGym ?: []);
+
+    // Build map of members who currently hold an active membership at this gym
+    $activeMembersByUser = [];
+    if (!empty($gymId)) {
+        $activeQuery = db()->query("
+            SELECT m.user_id, m.membership_id, m.plan_id, m.start_date, m.end_date, mp.plan_name, mp.price
+            FROM memberships m
+            JOIN membership_plans mp ON mp.plan_id = m.plan_id
+            WHERE mp.gym_id = " . (int)$gymId . "
+              AND m.status = 'active'
+              AND (m.end_date IS NULL OR m.end_date >= CURDATE())
+            ORDER BY m.end_date DESC
+        ")->fetchAll();
+        foreach ($activeQuery as $aq) {
+            $uid = (int)$aq['user_id'];
+            if (!isset($activeMembersByUser[$uid])) {
+                $daysLeft = !empty($aq['end_date']) ? (int)ceil((strtotime($aq['end_date']) - strtotime('today')) / 86400) : 0;
+                $activeMembersByUser[$uid] = [
+                    'membership_id' => (int)$aq['membership_id'],
+                    'plan_id' => (int)$aq['plan_id'],
+                    'plan_name' => (string)$aq['plan_name'],
+                    'start_date' => $aq['start_date'],
+                    'end_date' => $aq['end_date'],
+                    'formatted_end_date' => !empty($aq['end_date']) ? date('M j, Y', strtotime($aq['end_date'])) : '',
+                    'days_left' => $daysLeft
+                ];
+            }
+        }
+    }
 
     $expiring = [];
     if ($user['role'] !== 'member') {
@@ -1720,6 +1769,8 @@ function memberships_page(): void
                                         $isExpired = ($row['status'] === 'expired' || ($row['status'] === 'active' && !empty($row['end_date']) && strtotime($row['end_date']) < strtotime('today')));
                                         $rowStatus = $isExpired ? 'expired' : $row['status'];
                                         $statusClass = 'badge badge-' . $rowStatus;
+                                        $hasActivePlan = isset($activeMembersByUser[(int)$row['user_id']]);
+                                        $activePlanInfo = $hasActivePlan ? $activeMembersByUser[(int)$row['user_id']] : null;
                                     ?>
                                         <tr>
                                             <td>
@@ -1732,9 +1783,16 @@ function memberships_page(): void
                                             <td><?= h(money($row['price'])) ?></td>
                                             <td><?= h(date('M j, Y', strtotime($row['start_date']))) ?></td>
                                             <td><?= h(date('M j, Y', strtotime($row['end_date']))) ?></td>
-                                            <td><span class="<?= $statusClass ?>"><?= h($rowStatus) ?></span></td>
                                             <td>
-                                                <?php if ($rowStatus === 'expired'): ?>
+                                                <span class="<?= $statusClass ?>"><?= h($rowStatus) ?></span>
+                                                <?php if ($rowStatus === 'expired' && $hasActivePlan): ?>
+                                                    <div style="font-size: 11px; color: var(--lime); font-weight: 600; margin-top: 3px;" title="Member currently has an active <?= h($activePlanInfo['plan_name'] ?? '') ?> plan through <?= h($activePlanInfo['formatted_end_date'] ?? '') ?>">
+                                                        Active plan exists
+                                                    </div>
+                                                <?php endif; ?>
+                                            </td>
+                                            <td>
+                                                <?php if ($rowStatus === 'expired' && !$hasActivePlan): ?>
                                                     <button type="button" onclick="renewMembership(<?= (int)$row['user_id'] ?>, <?= (int)$row['plan_id'] ?>, '<?= h(addslashes($row['member'])) ?>', '<?= h(addslashes($row['plan_name'])) ?>', '<?= h(addslashes($row['email'] ?? '')) ?>')" class="btn" style="padding:4px 9px;font-size:12px;font-weight:700;background:var(--lime);color:var(--bg);border:none;display:inline-flex;align-items:center;gap:4px;" title="Renew Membership">
                                                         <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
                                                             <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/>
@@ -1742,7 +1800,7 @@ function memberships_page(): void
                                                         Renew
                                                     </button>
                                                 <?php else: ?>
-                                                    <button onclick="editStatus(<?= $row['membership_id'] ?>, '<?= h($rowStatus) ?>')" class="btn btn-secondary" style="padding:4px 8px;font-size:12px;" title="Edit Status">Update</button>
+                                                    <button onclick="editStatus(<?= (int)$row['membership_id'] ?>, '<?= h($rowStatus) ?>')" class="btn btn-secondary" style="padding:4px 8px;font-size:12px;" title="Edit Status">Update</button>
                                                 <?php endif; ?>
                                             </td>
                                         </tr>
@@ -1757,6 +1815,8 @@ function memberships_page(): void
                                 $isExpired = ($row['status'] === 'expired' || ($row['status'] === 'active' && !empty($row['end_date']) && strtotime($row['end_date']) < strtotime('today')));
                                 $rowStatus = $isExpired ? 'expired' : $row['status'];
                                 $statusClass = 'badge badge-' . $rowStatus;
+                                $hasActivePlan = isset($activeMembersByUser[(int)$row['user_id']]);
+                                $activePlanInfo = $hasActivePlan ? $activeMembersByUser[(int)$row['user_id']] : null;
                             ?>
                                 <div class="membership-card-item">
                                     <div class="membership-card-header">
@@ -1767,7 +1827,14 @@ function memberships_page(): void
                                                 <div style="font-size: 12px; color: var(--muted);"><?= h($row['plan_name']) ?></div>
                                             </div>
                                         </div>
-                                        <span class="<?= $statusClass ?>"><?= h($rowStatus) ?></span>
+                                        <div style="text-align: right;">
+                                            <span class="<?= $statusClass ?>"><?= h($rowStatus) ?></span>
+                                            <?php if ($rowStatus === 'expired' && $hasActivePlan): ?>
+                                                <div style="font-size: 10.5px; color: var(--lime); font-weight: 600; margin-top: 3px;" title="Member currently has an active <?= h($activePlanInfo['plan_name'] ?? '') ?> plan through <?= h($activePlanInfo['formatted_end_date'] ?? '') ?>">
+                                                    Active plan exists
+                                                </div>
+                                            <?php endif; ?>
+                                        </div>
                                     </div>
                                     <div class="membership-card-details">
                                         <div class="membership-card-detail-item">
@@ -1780,7 +1847,7 @@ function memberships_page(): void
                                         </div>
                                     </div>
                                     <div class="membership-card-actions">
-                                        <?php if ($rowStatus === 'expired'): ?>
+                                        <?php if ($rowStatus === 'expired' && !$hasActivePlan): ?>
                                             <button type="button" onclick="renewMembership(<?= (int)$row['user_id'] ?>, <?= (int)$row['plan_id'] ?>, '<?= h(addslashes($row['member'])) ?>', '<?= h(addslashes($row['plan_name'])) ?>', '<?= h(addslashes($row['email'] ?? '')) ?>')" class="btn" style="width: 100%; padding: 8px 12px; font-size: 13px; font-weight: 700; display: flex; align-items: center; justify-content: center; gap: 6px; background: var(--lime); color: var(--bg); border: none;">
                                                 <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
                                                     <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/>
@@ -1788,7 +1855,7 @@ function memberships_page(): void
                                                 Renew Plan
                                             </button>
                                         <?php else: ?>
-                                            <button type="button" onclick="editStatus(<?= $row['membership_id'] ?>, '<?= h($rowStatus) ?>')" class="btn btn-secondary" style="width: 100%; padding: 8px 12px; font-size: 13px; font-weight: 600; display: flex; align-items: center; justify-content: center; gap: 6px;">
+                                            <button type="button" onclick="editStatus(<?= (int)$row['membership_id'] ?>, '<?= h($rowStatus) ?>')" class="btn btn-secondary" style="width: 100%; padding: 8px 12px; font-size: 13px; font-weight: 600; display: flex; align-items: center; justify-content: center; gap: 6px;">
                                                 <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                                                     <path d="M12 20h9" />
                                                     <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" />
@@ -2043,6 +2110,7 @@ function memberships_page(): void
     window.MEMBERSHIPS_CONFIG = {
         csrfToken: <?= json_encode(csrf_token()) ?>,
         today: <?= json_encode(date("Y-m-d")) ?>,
+        activeMembersByUser: <?= json_encode($activeMembersByUser ?? [], JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP) ?>,
         initialMembers: <?= json_encode($initialMembersData ?? [], JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP) ?>,
         plans: <?= json_encode($plansData ?? [], JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP) ?>,
         memberships: <?= json_encode($membershipsData ?? [], JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP) ?>,

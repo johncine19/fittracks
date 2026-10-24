@@ -651,19 +651,29 @@ function getCsrfToken() {
                 let statusDrop = null;
                 let searchTimer = null;
 
-                const renewalNoticeHtml = isRenewal ? `
+                const activeMembers = window.MEMBERSHIPS_CONFIG?.activeMembersByUser || {};
+                const activeForUser = preselectUserId ? activeMembers[preselectUserId] : null;
+
+                const renewalNoticeHtml = activeForUser ? `
+                    <div style="font-size: 11.5px; color: #f59e0b; line-height: 1.45; padding: 9px 12px; background: rgba(245, 158, 11, 0.1); border-radius: 8px; border: 1px solid rgba(245, 158, 11, 0.3); display: flex; gap: 8px; align-items: flex-start;">
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="2.3" style="flex-shrink:0; margin-top:1px;"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+                        <div>
+                            <strong style="color: #f59e0b;">Active Plan Notice:</strong> Member currently has an active <strong>${escapeHtml(activeForUser.plan_name)}</strong> plan valid until <strong>${activeForUser.formatted_end_date}</strong> (<strong>${activeForUser.days_left} days remaining</strong>). Recording this renewal will queue an advance cycle starting on ${activeForUser.formatted_end_date}.
+                        </div>
+                    </div>
+                ` : (isRenewal ? `
                     <div style="font-size: 11.5px; color: var(--muted); line-height: 1.45; padding: 9px 12px; background: color-mix(in srgb, var(--lime) 8%, transparent); border-radius: 8px; border: 1px solid color-mix(in srgb, var(--lime) 25%, transparent); display: flex; gap: 8px; align-items: flex-start;">
                         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--lime)" stroke-width="2.5" style="flex-shrink:0; margin-top:1px;"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
                         <div>
-                            <strong style="color: var(--lime);">Renewing Plan:</strong> Recording this payment will start a fresh subscription cycle for <strong>${preselectMemberName || 'the member'}</strong> starting today.
+                            <strong style="color: var(--lime);">Renewing Plan:</strong> Recording this payment will start a fresh subscription cycle for <strong>${escapeHtml(preselectMemberName || 'the member')}</strong> starting today.
                         </div>
                     </div>
-                ` : '';
+                ` : '');
 
                 const memberInitials = (preselectMemberName || 'M').split(' ').map(s=>s[0]).join('').slice(0,2).toUpperCase();
 
                 Swal.fire({
-                    title: isRenewal ? 'Renew Membership' : 'Record Payment',
+                    title: isRenewal ? (activeForUser ? 'Queue Advance Renewal' : 'Renew Membership') : 'Record Payment',
                     width: '480px',
                     html: `
                         <form id="recordPaymentForm" method="post" action="index.php?page=memberships&view=payments" style="text-align: left; display: flex; flex-direction: column; gap: 14px; margin-top: 15px; min-height: 380px; position: relative;">
@@ -674,6 +684,7 @@ function getCsrfToken() {
                             <input type="hidden" name="plan_id" id="modalPaymentPlanId" value="${preselectPlanId || ''}">
                             
                             ${renewalNoticeHtml}
+                            <div id="activeMemberNoticeSlot"></div>
 
                             <!-- 1. Member Selector / Display -->
                             ${isRenewal ? `
@@ -684,10 +695,14 @@ function getCsrfToken() {
                                             ${memberInitials}
                                         </div>
                                         <div style="min-width:0; flex:1;">
-                                            <div style="font-weight:600; color:var(--ink); font-size:13.5px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${preselectMemberName || 'Member'}</div>
-                                            ${preselectMemberEmail ? `<div style="font-size:12px; color:var(--muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${preselectMemberEmail}</div>` : ''}
+                                            <div style="font-weight:600; color:var(--ink); font-size:13.5px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${escapeHtml(preselectMemberName || 'Member')}</div>
+                                            ${preselectMemberEmail ? `<div style="font-size:12px; color:var(--muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${escapeHtml(preselectMemberEmail)}</div>` : ''}
                                         </div>
-                                        <span style="font-size:10.5px; padding:2px 7px; border-radius:6px; background:rgba(239,68,68,0.12); color:#ef4444; border:1px solid rgba(239,68,68,0.25); font-weight:700; text-transform:uppercase; letter-spacing:0.3px; flex-shrink:0;">Expired</span>
+                                        ${activeForUser ? `
+                                            <span style="font-size:10.5px; padding:2px 7px; border-radius:6px; background:rgba(34,197,94,0.12); color:var(--lime); border:1px solid rgba(34,197,94,0.25); font-weight:700; text-transform:uppercase; letter-spacing:0.3px; flex-shrink:0;">Active</span>
+                                        ` : `
+                                            <span style="font-size:10.5px; padding:2px 7px; border-radius:6px; background:rgba(239,68,68,0.12); color:#ef4444; border:1px solid rgba(239,68,68,0.25); font-weight:700; text-transform:uppercase; letter-spacing:0.3px; flex-shrink:0;">Expired</span>
+                                        `}
                                     </div>
                                 </div>
                             ` : `
@@ -853,12 +868,27 @@ function getCsrfToken() {
                                     }, 200);
                                 },
                                 onChange: (selectedMember) => {
+                                    const slot = document.getElementById('activeMemberNoticeSlot');
                                     if (selectedMember) {
                                         userIdInput.value = selectedMember.id;
                                         const newItems = buildItemOptions(selectedMember.id);
                                         itemDrop.setItems(newItems);
                                         if (newItems.length > 0) {
-                                            itemDrop.select(newItems[0].id, true);
+                                             itemDrop.select(newItems[0].id, true);
+                                        }
+                                        const activeInfo = activeMembers[selectedMember.id];
+                                        if (activeInfo && slot) {
+                                            const safePlan = typeof escapeHtml === 'function' ? escapeHtml(activeInfo.plan_name) : activeInfo.plan_name;
+                                            slot.innerHTML = `
+                                                <div style="font-size: 11.5px; color: #f59e0b; line-height: 1.45; padding: 9px 12px; background: rgba(245, 158, 11, 0.1); border-radius: 8px; border: 1px solid rgba(245, 158, 11, 0.3); display: flex; gap: 8px; align-items: flex-start;">
+                                                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="2.3" style="flex-shrink:0; margin-top:1px;"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+                                                    <div>
+                                                        <strong style="color: #f59e0b;">Active Plan Notice:</strong> Member currently has an active <strong>${safePlan}</strong> plan with <strong>${activeInfo.days_left} days remaining</strong> (expires ${activeInfo.formatted_end_date}). Recording a new plan will queue or supersede their subscription.
+                                                    </div>
+                                                </div>
+                                            `;
+                                        } else if (slot) {
+                                            slot.innerHTML = '';
                                         }
                                     } else {
                                         userIdInput.value = '';
@@ -867,6 +897,7 @@ function getCsrfToken() {
                                         itemDrop.setItems([]);
                                         itemDrop.select(null);
                                         amountInput.value = '';
+                                        if (slot) slot.innerHTML = '';
                                     }
                                 }
                             });
@@ -932,6 +963,33 @@ function getCsrfToken() {
             window.recordPayment = recordPayment;
 
             function renewMembership(userId, planId, memberName, planName, memberEmail = '') {
+                const activeMembers = window.MEMBERSHIPS_CONFIG?.activeMembersByUser || {};
+                const active = activeMembers[userId];
+                const safeName = typeof escapeHtml === 'function' ? escapeHtml(memberName) : memberName;
+                const safePlan = typeof escapeHtml === 'function' ? escapeHtml(active?.plan_name || planName) : (active?.plan_name || planName);
+
+                if (active) {
+                    Swal.fire({
+                        icon: 'info',
+                        title: 'Member Already Active',
+                        html: `
+                            <div style="text-align: left; font-size: 13.5px; line-height: 1.5; color: var(--ink);">
+                                <p style="margin-bottom: 8px;"><strong>${safeName}</strong> already has an active <strong>${safePlan}</strong> membership valid through <strong>${active.formatted_end_date}</strong> (<strong>${active.days_left} days remaining</strong>).</p>
+                                <p style="margin: 0; color: var(--muted); font-size: 13px;">Do you still want to record an advance renewal starting on <strong>${active.formatted_end_date}</strong>?</p>
+                            </div>
+                        `,
+                        showCancelButton: true,
+                        confirmButtonText: 'Proceed to Queue',
+                        confirmButtonColor: 'var(--lime-dark)',
+                        cancelButtonText: 'Cancel',
+                        cancelButtonColor: 'var(--line)'
+                    }).then((result) => {
+                        if (result.isConfirmed) {
+                            recordPayment(userId, planId, memberName, planName, memberEmail);
+                        }
+                    });
+                    return;
+                }
                 recordPayment(userId, planId, memberName, planName, memberEmail);
             }
             window.renewMembership = renewMembership;
