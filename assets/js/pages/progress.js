@@ -762,9 +762,15 @@ const rawChartData = FT_CONFIG.rawChartData || [];
                     Swal.showValidationMessage(`Waist circumference must be between ${minWaist} and 200 cm. A realistic adult ${gender} waist is typically ${gender === 'male' ? '70–110' : '60–100'} cm.`);
                     return false;
                 }
-                if (gender === 'female' && (hip < 50 || hip > 200)) {
-                    Swal.showValidationMessage('Hip circumference must be between 50 and 200 cm.');
-                    return false;
+                if (gender === 'female') {
+                    if (hip < 60 || hip > 200) {
+                        Swal.showValidationMessage('Hip circumference must be between 60 and 200 cm. Measure around the widest part of your hips/buttocks (typically 80–115 cm).');
+                        return false;
+                    }
+                    if (hip <= waist) {
+                        Swal.showValidationMessage(`Hip circumference (${hip} cm) cannot be smaller than or equal to waist (${waist} cm). Please measure around the widest part of your hips/buttocks.`);
+                        return false;
+                    }
                 }
                 
                 localStorage.setItem('fittracks_bf_settings', JSON.stringify({ gender, height, neck, hip }));
@@ -794,7 +800,11 @@ const rawChartData = FT_CONFIG.rawChartData || [];
                 
                 if (isNaN(bodyFat) || bodyFat < 2 || bodyFat > 60) {
                     if (bodyFat < 2) {
-                        Swal.showValidationMessage(`Calculated body fat is ${bodyFat.toFixed(1)}% (below 2%). A waist of ${waist} cm is too small compared to neck (${neck} cm) for this formula. Please check your waist circumference.`);
+                        if (gender === 'female') {
+                            Swal.showValidationMessage(`Calculated body fat is ${bodyFat.toFixed(1)}% (below 2%). Your combined waist (${waist} cm) and hips (${hip} cm) are too small compared to neck (${neck} cm). Please verify your hip measurement around the widest part of your buttocks.`);
+                        } else {
+                            Swal.showValidationMessage(`Calculated body fat is ${bodyFat.toFixed(1)}% (below 2%). A waist of ${waist} cm is too small compared to neck (${neck} cm) for this formula. Please check your waist circumference.`);
+                        }
                     } else if (bodyFat > 60) {
                         Swal.showValidationMessage(`Calculated body fat is ${bodyFat.toFixed(1)}% (above 60%). Please verify your measurements.`);
                     } else {
