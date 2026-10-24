@@ -29,6 +29,8 @@ function gym_profile_page(): void
     }
 
     $canCustomBrand = gym_has_feature('custom_branding', $gym);
+    $canEodSummary = gym_has_feature('eod_summary', $gym);
+    $canStaffPermissions = gym_has_feature('staff_permissions', $gym);
 
     if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && !isset($_POST['delete_gallery_image'])) {
         $name = trim((string) post('name'));
@@ -76,11 +78,21 @@ function gym_profile_page(): void
             if ($brandColor !== '' && !preg_match('/^#[0-9A-Fa-f]{6}$/', $brandColor)) {
                 $brandColor = null;
             }
-            $staffHideFinancials = isset($_POST['staff_hide_financials']) ? 1 : 0;
-            $eodEmailSummary = isset($_POST['eod_email_summary']) ? 1 : 0;
             $publicDescription = trim((string) post('public_description'));
             $publicDescription = mb_substr($publicDescription, 0, 1000);
+        } else {
+            $brandColor = $gym['brand_color'] ?? null;
+            $publicDescription = $gym['public_description'] ?? null;
+        }
 
+        if ($canStaffPermissions) {
+            $staffHideFinancials = isset($_POST['staff_hide_financials']) ? 1 : 0;
+        } else {
+            $staffHideFinancials = (int)($gym['staff_hide_financials'] ?? 0);
+        }
+
+        if ($canEodSummary) {
+            $eodEmailSummary = isset($_POST['eod_email_summary']) ? 1 : 0;
             if (isset($_POST['eod_gate_time'])) {
                 $postedGateTime = trim((string)post('eod_gate_time'));
                 if (preg_match('/^([01]?[0-9]|2[0-3]):[0-5][0-9]$/', $postedGateTime)) {
@@ -98,10 +110,7 @@ function gym_profile_page(): void
                 }
             }
         } else {
-            $brandColor = $gym['brand_color'] ?? null;
-            $staffHideFinancials = (int)($gym['staff_hide_financials'] ?? 0);
             $eodEmailSummary = (int)($gym['eod_email_summary'] ?? 1);
-            $publicDescription = $gym['public_description'] ?? null;
         }
 
         // Business Permit
@@ -634,7 +643,7 @@ function gym_profile_page(): void
                                         <div class="overview-doc-name">Accent Color Theme</div>
                                         <div class="overview-doc-status">
                                             <?php if (!$canCustomBrand): ?>
-                                                <span style="color: var(--muted);">Unlocked on Business Tier — personalize theme highlights</span>
+                                                <span style="color: var(--muted);">Unlocked on Starter Tier — personalize theme highlights</span>
                                             <?php else: ?>
                                                 <span style="color: var(--teal, #10b981); font-weight: 600;">Theme: <code id="hex-label"><?= h($gym['brand_color'] ?? '#84cc16') ?></code></span>
                                             <?php endif; ?>
@@ -644,7 +653,7 @@ function gym_profile_page(): void
                                 <div class="overview-doc-right">
                                     <?php if (!$canCustomBrand): ?>
                                         <a href="index.php?page=gym_subscription" class="tier-pill" style="text-decoration: none; font-size: 11px; padding: 4px 10px;">
-                                            Business Plan
+                                            Starter Plan
                                         </a>
                                     <?php else: ?>
                                         <div style="display: flex; align-items: center; gap: 8px;">
@@ -672,7 +681,7 @@ function gym_profile_page(): void
                                     <span class="field-hint">Add a cover photo and a short introduction to help members recognize your gym.</span>
                                 </div>
                                 <?php if (!$canCustomBrand): ?>
-                                    <a href="index.php?page=gym_subscription" class="tier-pill public-branding-upgrade">Available on Business</a>
+                                    <a href="index.php?page=gym_subscription" class="tier-pill public-branding-upgrade">Available on Starter</a>
                                 <?php else: ?>
                                     <div class="public-branding-fields">
                                         <div class="public-cover-column">
@@ -706,7 +715,7 @@ function gym_profile_page(): void
                                     <div class="overview-doc-info">
                                         <div class="overview-doc-name">Midnight Daily Settlement Email</div>
                                         <div class="overview-doc-status">
-                                            <?php if (!$canCustomBrand): ?>
+                                            <?php if (!$canEodSummary): ?>
                                                 <span style="color: var(--muted);">Unlocked on Business Tier — automatic revenue &amp; check-in digest to owner</span>
                                             <?php else: ?>
                                                 <span style="color: var(--muted);">Dispatches daily gross revenue, walk-ins, and expiring members summary</span>
@@ -715,7 +724,7 @@ function gym_profile_page(): void
                                     </div>
                                 </div>
                                 <div class="overview-doc-right">
-                                    <?php if (!$canCustomBrand): ?>
+                                    <?php if (!$canEodSummary): ?>
                                         <a href="index.php?page=gym_subscription" class="tier-pill" style="text-decoration: none; font-size: 11px; padding: 4px 10px;">
                                             Business Plan
                                         </a>
@@ -737,7 +746,7 @@ function gym_profile_page(): void
                                     <div class="overview-doc-info">
                                         <div class="overview-doc-name">Staff Financial Privacy Mode</div>
                                         <div class="overview-doc-status">
-                                            <?php if (!$canCustomBrand): ?>
+                                            <?php if (!$canStaffPermissions): ?>
                                                 <span style="color: var(--muted);">Unlocked on Business Tier — hide net revenues &amp; financial reports from staff</span>
                                             <?php else: ?>
                                                 <span style="color: var(--muted);">Masks financial totals from Front Desk Cashiers while allowing check-ins</span>
@@ -746,7 +755,7 @@ function gym_profile_page(): void
                                     </div>
                                 </div>
                                 <div class="overview-doc-right">
-                                    <?php if (!$canCustomBrand): ?>
+                                    <?php if (!$canStaffPermissions): ?>
                                         <a href="index.php?page=gym_subscription" class="tier-pill" style="text-decoration: none; font-size: 11px; padding: 4px 10px;">
                                             Business Plan
                                         </a>
@@ -768,7 +777,7 @@ function gym_profile_page(): void
                                     <div class="overview-doc-info">
                                         <div class="overview-doc-name">EOD Settlement Gate Opening</div>
                                         <div class="overview-doc-status">
-                                            <?php if (!$canCustomBrand): ?>
+                                            <?php if (!$canEodSummary): ?>
                                                 <span style="color: var(--muted);">Unlocked on Business Tier — customize the daily hour when Z-Reading settlement emails unlock</span>
                                             <?php else: ?>
                                                 <span style="color: var(--muted);">Daily cutoff hour when EOD settlement email unlocks for staff &amp; owners (Default: 5:00 PM)</span>
@@ -783,7 +792,7 @@ function gym_profile_page(): void
                                     </div>
                                 </div>
                                 <div class="overview-doc-right">
-                                    <?php if (!$canCustomBrand): ?>
+                                    <?php if (!$canEodSummary): ?>
                                         <a href="index.php?page=gym_subscription" class="tier-pill" style="text-decoration: none; font-size: 11px; padding: 4px 10px;">
                                             Business Plan
                                         </a>

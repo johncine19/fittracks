@@ -30,6 +30,7 @@ function get_platform_subscription_plans(): array
                     'Walk-in Management & Daily Pass',
                     'Dynamic QR Check-in & Scanner',
                     'Membership Plans & GCash / Online Pay',
+                    'Accent Color Theme & Public Gym Page',
                     'Food & Nutrition Library',
                     'Basic Expiration Reminders (7-Day Notice)',
                     'Basic Financial Reports & CSV Export',
@@ -453,6 +454,7 @@ function gym_has_feature(string $feature, array|int|null $gym = null): bool
         'basic_activity' => 'starter',
         'basic_classes' => 'starter',
         'food_library' => 'starter',
+        'custom_branding' => 'starter',
 
         // Professional & Above (Staff, Coaching, Growth, Advanced Automation)
         'trainers' => 'professional',
@@ -470,8 +472,7 @@ function gym_has_feature(string $feature, array|int|null $gym = null): bool
         'advanced_reports' => 'professional',
         'staff_activity' => 'professional',
 
-        // Business only (Multi-Branch, Full Compliance, Custom Branding, EOD, Staff Privacy)
-        'custom_branding' => 'business',
+        // Business only (Multi-Branch, Full Compliance, EOD, Staff Privacy)
         'staff_permissions' => 'business',
         'eod_summary' => 'business',
         'audit_logs' => 'professional',
@@ -505,7 +506,7 @@ function require_gym_feature(string $feature): void
             'classes' => 'Class Scheduling & Booking',
             'reports' => 'Financial & Attendance Reports',
             'advanced_reports' => 'Financial & Attendance Reports',
-            'custom_branding' => 'Custom App Brand Theme',
+            'custom_branding' => 'Accent Color & Public Gym Page',
             'audit_logs' => 'Security Audit Logs',
             'workouts' => 'Workout Builder & Plans',
             'users' => 'Staff & User Management',
@@ -515,7 +516,7 @@ function require_gym_feature(string $feature): void
         $tier = gym_subscription_tier($gym);
         $planName = $tier === 'free' ? 'Free Tier' : ($tier !== 'none' ? ucfirst($tier) : 'Inactive');
         
-        $neededTier = in_array($feature, ['custom_branding', 'multi_branch', 'full_audit_logs', 'staff_permissions'], true)
+        $neededTier = in_array($feature, ['multi_branch', 'full_audit_logs', 'staff_permissions', 'eod_summary'], true)
             ? 'Business'
             : (in_array($feature, ['trainers', 'trainer_assignments', 'commissions', 'classes', 'renewal_reminders', 'engagement_tracking', 'workouts', 'exercises', 'training', 'admin_workouts', 'advanced_reports', 'audit_logs', 'staff_activity'], true)
                 ? 'Professional'

@@ -171,7 +171,8 @@ try {
         "CREATE INDEX idx_att_user_gym_checkout ON attendance (user_id, gym_id, check_out_time, check_in_time)",
         "CREATE INDEX idx_meal_logs_user_date_time ON member_meal_logs (user_id, log_date, logged_at)",
         "ALTER TABLE daily_macros MODIFY COLUMN protein_g DECIMAL(6,1) DEFAULT 0, MODIFY COLUMN carbs_g DECIMAL(6,1) DEFAULT 0, MODIFY COLUMN fat_g DECIMAL(6,1) DEFAULT 0",
-        "ALTER TABLE member_meal_logs MODIFY COLUMN protein_g DECIMAL(6,1) NOT NULL DEFAULT 0, MODIFY COLUMN carbs_g DECIMAL(6,1) NOT NULL DEFAULT 0, MODIFY COLUMN fat_g DECIMAL(6,1) NOT NULL DEFAULT 0"
+        "ALTER TABLE member_meal_logs MODIFY COLUMN protein_g DECIMAL(6,1) NOT NULL DEFAULT 0, MODIFY COLUMN carbs_g DECIMAL(6,1) NOT NULL DEFAULT 0, MODIFY COLUMN fat_g DECIMAL(6,1) NOT NULL DEFAULT 0",
+        "UPDATE platform_subscription_plans SET features = 'Up to 100 Active Users\r\nWalk-in Management & Daily Pass\r\nDynamic QR Check-in & Scanner\r\nMembership Plans & GCash / Online Pay\r\nAccent Color Theme & Public Gym Page\r\nBasic Expiration Reminders (7-Day Notice)\r\nBasic Financial Reports & CSV Export\r\nBasic Activity History\r\nFood & Nutrition Library' WHERE plan_key = 'starter'"
     ];
 
     foreach ($migrations as $sql) {
