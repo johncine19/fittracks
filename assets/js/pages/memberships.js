@@ -364,6 +364,16 @@ function getCsrfToken() {
                 let statusOptions = [];
                 let defaultVal = 'active';
 
+                if (normStatus === 'expired') {
+                    Swal.fire({
+                        icon: 'info',
+                        title: 'Past Record',
+                        text: 'This membership has already completed its term and cannot be edited. To grant new access for this member, please click Renew or Record Payment.',
+                        confirmButtonColor: 'var(--lime-dark)'
+                    });
+                    return;
+                }
+
                 if (normStatus === 'pending') {
                     // Progressive step: from Pending, gym owner can select Active or Cancelled
                     statusOptions = [
@@ -372,13 +382,19 @@ function getCsrfToken() {
                     ];
                     defaultVal = 'active';
                 } else if (normStatus === 'active') {
-                    // Progressive step: from Active, gym owner can progress to Expired
+                    // Progressive step: from Active, gym owner can cancel or expire
                     statusOptions = [
+                        { id: 'cancelled', label: 'Cancelled', dotClass: 'status-dot-cancelled' },
                         { id: 'expired', label: 'Expired', dotClass: 'status-dot-expired' }
                     ];
-                    defaultVal = 'expired';
+                    defaultVal = 'cancelled';
+                } else if (normStatus === 'cancelled') {
+                    // For cancelled records whose validity period is still valid: allow restoring to Active
+                    statusOptions = [
+                        { id: 'active', label: 'Restore to Active', dotClass: 'status-dot-active' }
+                    ];
+                    defaultVal = 'active';
                 } else {
-                    // Fallback for expired or cancelled records
                     statusOptions = [
                         { id: 'active', label: 'Active', dotClass: 'status-dot-active' }
                     ];
@@ -387,6 +403,7 @@ function getCsrfToken() {
 
                 const isPending = (normStatus === 'pending');
                 const isActive = (normStatus === 'active');
+                const isCancelled = (normStatus === 'cancelled');
                 let noticeHtml = '';
                 if (isPending) {
                     noticeHtml = `
@@ -402,14 +419,23 @@ function getCsrfToken() {
                     <div style="font-size: 11.5px; color: var(--muted); line-height: 1.45; padding: 9px 12px; background: rgba(148,163,184,0.08); border-radius: 8px; border: 1px solid var(--line); display: flex; gap: 8px; align-items: flex-start;">
                         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--muted)" stroke-width="2.2" style="flex-shrink:0; margin-top:1px;"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
                         <div>
-                            Progressing this active membership to <strong>Expired</strong> will conclude the member's current active cycle.
+                            You can mark this active membership as <strong>Cancelled</strong> or progress it to <strong>Expired</strong> to conclude the member's current cycle.
+                        </div>
+                    </div>
+                    `;
+                } else if (isCancelled) {
+                    noticeHtml = `
+                    <div style="font-size: 11.5px; color: var(--muted); line-height: 1.45; padding: 9px 12px; background: color-mix(in srgb, var(--lime) 8%, transparent); border-radius: 8px; border: 1px solid color-mix(in srgb, var(--lime) 25%, transparent); display: flex; gap: 8px; align-items: flex-start;">
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--lime)" stroke-width="2.5" style="flex-shrink:0; margin-top:1px;"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                        <div>
+                            <strong style="color: var(--lime);">Restore Membership:</strong> Restores this subscription back to <strong>Active</strong> status for the remainder of its term.
                         </div>
                     </div>
                     `;
                 }
 
                 Swal.fire({
-                    title: 'Update Status',
+                    title: isCancelled ? 'Restore Membership' : 'Update Status',
                     width: '420px',
                     html: `
                     <form id="editStatusForm" method="post" action="index.php?page=memberships" style="text-align:left;display:flex;flex-direction:column;gap:12px;margin-top:15px;min-height:120px;position:relative;">
@@ -421,7 +447,7 @@ function getCsrfToken() {
                     </form>
                     `,
                     showCancelButton: true,
-                    confirmButtonText: 'Save',
+                    confirmButtonText: isCancelled ? 'Restore Plan' : 'Save',
                     confirmButtonColor: 'var(--lime)',
                     cancelButtonColor: 'var(--line)',
                     background: 'var(--bg)',

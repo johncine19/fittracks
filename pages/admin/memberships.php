@@ -113,7 +113,19 @@ function memberships_page(): void
             // Fetch current membership details before updating
             $mInfo = db()->query('SELECT m.*, p.plan_name, p.duration_days, p.gym_id, u.email, u.first_name, u.last_name FROM memberships m JOIN membership_plans p ON p.plan_id = m.plan_id JOIN users u ON u.user_id = m.user_id WHERE m.membership_id = ' . $membershipId)->fetch();
 
-            $isActivatingPending = ($mInfo && $status === 'active' && $mInfo['status'] === 'pending');
+            if (!$mInfo) {
+                flash('Membership not found.', 'danger');
+                redirect('memberships');
+            }
+
+            $isActivatingPending = ($status === 'active' && $mInfo['status'] === 'pending');
+            $isEndDatePast = (!empty($mInfo['end_date']) && strtotime((string)$mInfo['end_date']) < strtotime('today'));
+
+            // Guardrail: Cannot set a past-dated expired membership to Active without new payment/dates
+            if ($status === 'active' && $isEndDatePast && !$isActivatingPending) {
+                flash('Cannot mark this membership as Active because its end date (' . date('M j, Y', strtotime($mInfo['end_date'])) . ') is already in the past. To grant new membership access, please click Renew or Record Payment.', 'danger');
+                redirect('memberships');
+            }
 
             if ($isActivatingPending) {
                 // When activating a pending membership, reset start_date to today so the member gets their full duration
@@ -147,7 +159,7 @@ function memberships_page(): void
                     process_trainer_commission((int)$ppRow['payment_id'], (float)$ppRow['amount']);
                 }
 
-                if ($mInfo) {
+                if ($mInfo && !$isEndDatePast) {
                     // Cancel older active plans for this member at THIS gym only (supports concurrent plans at different gyms)
                     $mGymId = (int) ($mInfo['gym_id'] ?? 0);
                     if ($mGymId > 0) {
@@ -1792,13 +1804,24 @@ function memberships_page(): void
                                                 <?php endif; ?>
                                             </td>
                                             <td>
-                                                <?php if ($rowStatus === 'expired' && !$hasActivePlan): ?>
-                                                    <button type="button" onclick="renewMembership(<?= (int)$row['user_id'] ?>, <?= (int)$row['plan_id'] ?>, '<?= h(addslashes($row['member'])) ?>', '<?= h(addslashes($row['plan_name'])) ?>', '<?= h(addslashes($row['email'] ?? '')) ?>')" class="btn" style="padding:4px 9px;font-size:12px;font-weight:700;background:var(--lime);color:var(--bg);border:none;display:inline-flex;align-items:center;gap:4px;" title="Renew Membership">
-                                                        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                                                            <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/>
-                                                        </svg>
-                                                        Renew
-                                                    </button>
+                                                <?php if ($rowStatus === 'expired'): ?>
+                                                    <?php if (!$hasActivePlan): ?>
+                                                        <button type="button" onclick="renewMembership(<?= (int)$row['user_id'] ?>, <?= (int)$row['plan_id'] ?>, '<?= h(addslashes($row['member'])) ?>', '<?= h(addslashes($row['plan_name'])) ?>', '<?= h(addslashes($row['email'] ?? '')) ?>')" class="btn" style="padding:4px 9px;font-size:12px;font-weight:700;background:var(--lime);color:var(--bg);border:none;display:inline-flex;align-items:center;gap:4px;" title="Renew Membership">
+                                                            <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                                                                <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/>
+                                                            </svg>
+                                                            Renew
+                                                        </button>
+                                                    <?php else: ?>
+                                                        <span style="color: var(--muted); font-size: 13px; font-weight: 500;" title="Member currently has an active plan">—</span>
+                                                    <?php endif; ?>
+                                                <?php elseif ($rowStatus === 'cancelled'): ?>
+                                                    <?php $isRowEndDatePast = (!empty($row['end_date']) && strtotime($row['end_date']) < strtotime('today')); ?>
+                                                    <?php if (!$isRowEndDatePast): ?>
+                                                        <button onclick="editStatus(<?= (int)$row['membership_id'] ?>, 'cancelled')" class="btn btn-secondary" style="padding:4px 8px;font-size:12px;" title="Restore Membership to Active">Restore</button>
+                                                    <?php else: ?>
+                                                        <span style="color: var(--muted); font-size: 13px; font-weight: 500;" title="Cancelled plan has already lapsed">—</span>
+                                                    <?php endif; ?>
                                                 <?php else: ?>
                                                     <button onclick="editStatus(<?= (int)$row['membership_id'] ?>, '<?= h($rowStatus) ?>')" class="btn btn-secondary" style="padding:4px 8px;font-size:12px;" title="Edit Status">Update</button>
                                                 <?php endif; ?>
@@ -1847,13 +1870,26 @@ function memberships_page(): void
                                         </div>
                                     </div>
                                     <div class="membership-card-actions">
-                                        <?php if ($rowStatus === 'expired' && !$hasActivePlan): ?>
-                                            <button type="button" onclick="renewMembership(<?= (int)$row['user_id'] ?>, <?= (int)$row['plan_id'] ?>, '<?= h(addslashes($row['member'])) ?>', '<?= h(addslashes($row['plan_name'])) ?>', '<?= h(addslashes($row['email'] ?? '')) ?>')" class="btn" style="width: 100%; padding: 8px 12px; font-size: 13px; font-weight: 700; display: flex; align-items: center; justify-content: center; gap: 6px; background: var(--lime); color: var(--bg); border: none;">
-                                                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                                                    <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/>
-                                                </svg>
-                                                Renew Plan
-                                            </button>
+                                        <?php if ($rowStatus === 'expired'): ?>
+                                            <?php if (!$hasActivePlan): ?>
+                                                <button type="button" onclick="renewMembership(<?= (int)$row['user_id'] ?>, <?= (int)$row['plan_id'] ?>, '<?= h(addslashes($row['member'])) ?>', '<?= h(addslashes($row['plan_name'])) ?>', '<?= h(addslashes($row['email'] ?? '')) ?>')" class="btn" style="width: 100%; padding: 8px 12px; font-size: 13px; font-weight: 700; display: flex; align-items: center; justify-content: center; gap: 6px; background: var(--lime); color: var(--bg); border: none;">
+                                                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                                                        <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/>
+                                                    </svg>
+                                                    Renew Plan
+                                                </button>
+                                            <?php else: ?>
+                                                <div style="text-align: center; color: var(--muted); font-size: 12px; padding: 4px 0;">Archived Plan</div>
+                                            <?php endif; ?>
+                                        <?php elseif ($rowStatus === 'cancelled'): ?>
+                                            <?php $isRowEndDatePast = (!empty($row['end_date']) && strtotime($row['end_date']) < strtotime('today')); ?>
+                                            <?php if (!$isRowEndDatePast): ?>
+                                                <button type="button" onclick="editStatus(<?= (int)$row['membership_id'] ?>, 'cancelled')" class="btn btn-secondary" style="width: 100%; padding: 8px 12px; font-size: 13px; font-weight: 600; display: flex; align-items: center; justify-content: center; gap: 6px;">
+                                                    Restore Membership
+                                                </button>
+                                            <?php else: ?>
+                                                <div style="text-align: center; color: var(--muted); font-size: 12px; padding: 4px 0;">Archived Plan</div>
+                                            <?php endif; ?>
                                         <?php else: ?>
                                             <button type="button" onclick="editStatus(<?= (int)$row['membership_id'] ?>, '<?= h($rowStatus) ?>')" class="btn btn-secondary" style="width: 100%; padding: 8px 12px; font-size: 13px; font-weight: 600; display: flex; align-items: center; justify-content: center; gap: 6px;">
                                                 <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
