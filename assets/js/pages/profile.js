@@ -270,7 +270,7 @@
         }
 
         if (urlParams.get('open') === 'physical' || window.location.hash === '#edit-physical') {
-            const physModal = document.getElementById('physicalProfileModal');
+            const physTab = document.querySelector('.settings-tab[data-tab="physical"]'); if (physTab) physTab.click(); const physModal = document.getElementById('physicalProfileModal');
             if (physModal && typeof physModal.showModal === 'function') {
                 setTimeout(() => physModal.showModal(), 150);
             }

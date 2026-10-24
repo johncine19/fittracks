@@ -20,7 +20,9 @@ function setup_profile_page(): void
     }
 
     $profile = member_profile((int) $user['user_id']);
-    if ($profile !== null && !isset($_GET['edit'])) {
+    $isEditMode = isset($_GET['edit']) || isset($_POST['is_edit_mode']) || $profile !== null;
+
+    if ($_SERVER['REQUEST_METHOD'] !== 'POST' && $profile !== null && !isset($_GET['edit'])) {
         if (!empty($profile['primary_goal'])) {
             redirect('setup_review');
         } else {
@@ -29,6 +31,8 @@ function setup_profile_page(): void
     }
 
     if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+        $errorRedirectBase = $isEditMode ? 'setup_profile&edit=1' : 'setup_profile';
+
         // Sanitize numeric inputs so negative values cannot be submitted
         $numericFields = ['height_cm', 'weight_kg', 'age', 'neck_cm', 'waist_cm', 'hip_cm', 'target_weight_kg', 'target_body_fat_percent'];
         foreach ($numericFields as $field) {
@@ -40,14 +44,17 @@ function setup_profile_page(): void
             }
         }
 
+        // Preserve draft in session in case validation redirects back
+        $_SESSION['setup_profile_draft'] = $_POST;
+
         $validator = new Validator();
         $rules = [
             'height_cm' => 'required|numeric|min_num:100|max_num:250',
             'weight_kg' => 'required|numeric|min_num:20|max_num:300',
             'age'       => 'required|numeric|min_num:16|max_num:120',
             'neck_cm'   => 'numeric|min_num:20|max_num:100',
-            'waist_cm'  => 'numeric|min_num:30|max_num:200',
-            'hip_cm'    => 'numeric|min_num:30|max_num:200',
+            'waist_cm'  => 'numeric|min_num:45|max_num:200',
+            'hip_cm'    => 'numeric|min_num:60|max_num:220',
             'target_weight_kg'        => 'numeric|min_num:20|max_num:300',
             'target_body_fat_percent' => 'numeric|min_num:1|max_num:70',
         ];
@@ -56,7 +63,25 @@ function setup_profile_page(): void
         
         if (!$valid) {
             flash($validator->firstError() ?? 'Invalid measurements provided. Please check the fields.', 'danger');
-            redirect('setup_profile');
+            redirect($errorRedirectBase . '&step=2');
+        }
+
+        $sex = (string)($_POST['biological_sex'] ?? 'male');
+        $waist = !empty($_POST['waist_cm']) ? (float)$_POST['waist_cm'] : null;
+        $hip = !empty($_POST['hip_cm']) ? (float)$_POST['hip_cm'] : null;
+        $neck = !empty($_POST['neck_cm']) ? (float)$_POST['neck_cm'] : null;
+
+        if ($sex === 'female' && $waist !== null && $hip !== null && $hip <= $waist) {
+            flash('For female measurements, hip circumference must be greater than waist circumference (measured around the widest part of the hips/buttocks, typically 80–115 cm).', 'danger');
+            redirect($errorRedirectBase . '&step=2');
+        }
+        if ($sex === 'male' && $waist !== null && $neck !== null && $waist <= $neck) {
+            flash('Waist circumference must be greater than neck circumference.', 'danger');
+            redirect($errorRedirectBase . '&step=2');
+        }
+        if ($sex === 'female' && $waist !== null && $hip !== null && $neck !== null && ($waist + $hip) <= $neck) {
+            flash('Combined waist and hip circumference must be greater than neck circumference.', 'danger');
+            redirect($errorRedirectBase . '&step=2');
         }
 
         // Validate preferred workout days based on weekly target
@@ -67,22 +92,27 @@ function setup_profile_page(): void
 
         if ($targetDays <= 4 && count($selectedDays) !== $targetDays) {
             flash("Please choose exactly {$targetDays} training days to match your weekly commitment.", 'danger');
-            redirect('setup_profile');
+            redirect($errorRedirectBase . '&step=5');
         } elseif ($targetDays >= 5 && count($selectedDays) < 5) {
             flash("Please choose at least 5 training days for a 5+ day weekly commitment.", 'danger');
-            redirect('setup_profile');
+            redirect($errorRedirectBase . '&step=5');
         }
 
         $_POST['preferred_workout_days'] = implode(',', $selectedDays);
 
+        unset($_SESSION['setup_profile_draft']);
         save_member_profile((int) $user['user_id']);
-        if (isset($_GET['edit'])) {
-            $profCheck = member_profile((int) $user['user_id']);
-            if (!empty($profCheck['primary_goal'])) {
-                redirect('setup_review');
-            }
+        $profCheck = member_profile((int) $user['user_id'], true);
+        if ($isEditMode && !empty($profCheck['primary_goal'])) {
+            redirect('setup_review');
         }
         redirect('setup_goal');
+    }
+
+    if (!empty($_SESSION['setup_profile_draft']) && is_array($_SESSION['setup_profile_draft'])) {
+        $draft = $_SESSION['setup_profile_draft'];
+        unset($_SESSION['setup_profile_draft']);
+        $profile = array_merge($profile ?? [], $draft);
     }
 
     render_header('Complete your profile', null);
@@ -118,6 +148,17 @@ function setup_profile_page(): void
         .split-login-frame.profile-mode .split-input-wrap input[type="number"]:focus {
             border-color: #84cc16;
             box-shadow: 0 0 0 3px rgba(132, 204, 22, 0.18);
+        }
+        .split-login-frame.profile-mode .split-input-wrap.has-error input[type="number"],
+        .split-login-frame.profile-mode .split-input-wrap.has-error input {
+            border-color: #ef4444 !important;
+            box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.22) !important;
+            animation: inputShakeError 0.3s ease-in-out;
+        }
+        @keyframes inputShakeError {
+            0%, 100% { transform: translateX(0); }
+            20%, 60% { transform: translateX(-4px); }
+            40%, 80% { transform: translateX(4px); }
         }
         .sex-select-grid {
             display: grid;
@@ -713,8 +754,11 @@ function setup_profile_page(): void
                         </div>
                     <?php endif; ?>
 
-                    <form method="post" action="index.php?page=setup_profile" id="profile-form" class="split-card-form" novalidate onsubmit="return handleProfileSubmit(event);">
+                    <form method="post" action="index.php?page=setup_profile<?= $isEditMode ? '&edit=1' : '' ?>" id="profile-form" class="split-card-form" novalidate onsubmit="return handleProfileSubmit(event);">
                         <?= csrf_field() ?>
+                        <?php if ($isEditMode): ?>
+                            <input type="hidden" name="is_edit_mode" value="1">
+                        <?php endif; ?>
 
                         <!-- STEP 1: Core Stats -->
                         <div class="profile-step-pane <?= $initStep === 1 ? 'active' : '' ?>" id="pane-step-1">
@@ -811,7 +855,7 @@ function setup_profile_page(): void
                                         <svg class="split-input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                             <circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/>
                                         </svg>
-                                        <input id="field-waist" name="waist_cm" type="number" inputmode="decimal" step="0.1" min="30" max="200" placeholder="e.g. 82" value="<?= h((string)$curWaist) ?>">
+                                        <input id="field-waist" name="waist_cm" type="number" inputmode="decimal" step="0.1" min="45" max="200" placeholder="e.g. 82" value="<?= h((string)$curWaist) ?>">
                                         <span class="metric-unit-tag">cm</span>
                                     </div>
                                 </div>
@@ -823,7 +867,7 @@ function setup_profile_page(): void
                                     <svg class="split-input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                         <ellipse cx="12" cy="12" rx="10" ry="6"/>
                                     </svg>
-                                    <input id="field-hip" name="hip_cm" type="number" inputmode="decimal" step="0.1" min="30" max="200" placeholder="e.g. 96" value="<?= h((string)$curHip) ?>">
+                                    <input id="field-hip" name="hip_cm" type="number" inputmode="decimal" step="0.1" min="60" max="220" placeholder="e.g. 96" value="<?= h((string)$curHip) ?>">
                                     <span class="metric-unit-tag">cm</span>
                                 </div>
                             </div>
@@ -1188,6 +1232,12 @@ function setup_profile_page(): void
     }
 
     function handleProfileSubmit(event) {
+        if (currentProfileStep < 5) {
+            if (event) event.preventDefault();
+            goToProfileStep(currentProfileStep + 1);
+            return false;
+        }
+
         const target = parseInt(document.getElementById('input_weekly_workout_target')?.value) || 3;
         const isFivePlus = target >= 5;
         const selected = getSelectedDays();
@@ -1228,58 +1278,100 @@ function setup_profile_page(): void
         const neck = document.getElementById('field-neck');
         const waist = document.getElementById('field-waist');
         const hip = document.getElementById('field-hip');
-        [neck, waist, hip].forEach(el => el?.closest('.split-input-wrap')?.classList.remove('has-error'));
+        [neck, waist, hip].forEach(el => {
+            if (el) {
+                el.value = '';
+                el.closest('.split-input-wrap')?.classList.remove('has-error');
+            }
+        });
+        updateLiveMetrics();
         goToProfileStep(3, true);
     }
 
     function goToProfileStep(targetStep, bypassValidation = false) {
+        const showStepError = (el, msg) => {
+            if (el) {
+                const wrap = el.closest('.split-input-wrap');
+                if (wrap) {
+                    wrap.classList.add('has-error');
+                }
+                el.focus();
+            }
+            if (typeof Swal !== 'undefined') {
+                Swal.fire({
+                    icon: 'warning',
+                    title: 'Check Measurement',
+                    text: msg,
+                    confirmButtonText: 'Got it',
+                    confirmButtonColor: '#84cc16'
+                });
+            } else {
+                alert(msg);
+            }
+            return false;
+        };
+
         if (targetStep > currentProfileStep) {
             if (currentProfileStep === 1) {
                 const age = document.getElementById('field-age');
                 const height = document.getElementById('field-height');
                 const weight = document.getElementById('field-weight');
 
-                let valid = true;
-                [age, height, weight].forEach(el => el.closest('.split-input-wrap')?.classList.remove('has-error'));
+                [age, height, weight].forEach(el => el?.closest('.split-input-wrap')?.classList.remove('has-error'));
 
-                if (!age.value || parseFloat(age.value) < 16 || parseFloat(age.value) > 120) {
-                    age.closest('.split-input-wrap')?.classList.add('has-error');
-                    age.focus();
-                    valid = false;
-                } else if (!height.value || parseFloat(height.value) < 100 || parseFloat(height.value) > 250) {
-                    height.closest('.split-input-wrap')?.classList.add('has-error');
-                    height.focus();
-                    valid = false;
-                } else if (!weight.value || parseFloat(weight.value) < 20 || parseFloat(weight.value) > 300) {
-                    weight.closest('.split-input-wrap')?.classList.add('has-error');
-                    weight.focus();
-                    valid = false;
+                if (!age?.value || parseFloat(age.value) < 16 || parseFloat(age.value) > 120) {
+                    return showStepError(age, 'Please enter a valid age between 16 and 120.');
                 }
-                if (!valid) return;
+                if (!height?.value || parseFloat(height.value) < 100 || parseFloat(height.value) > 250) {
+                    return showStepError(height, 'Please enter a valid height between 100 and 250 cm.');
+                }
+                if (!weight?.value || parseFloat(weight.value) < 20 || parseFloat(weight.value) > 300) {
+                    return showStepError(weight, 'Please enter a valid weight between 20 and 300 kg.');
+                }
             } else if (currentProfileStep === 2 && !bypassValidation) {
                 const neck = document.getElementById('field-neck');
                 const waist = document.getElementById('field-waist');
                 const hip = document.getElementById('field-hip');
                 const isFemale = document.querySelector('input[name="biological_sex"]:checked')?.value === 'female';
 
-                let valid = true;
                 [neck, waist, hip].forEach(el => el?.closest('.split-input-wrap')?.classList.remove('has-error'));
+
+                const hasNeck = !!(neck && neck.value.trim() !== '');
+                const hasWaist = !!(waist && waist.value.trim() !== '');
+                const hasHip = !!(isFemale && hip && hip.value.trim() !== '');
+                const hasAnyMeasurement = hasNeck || hasWaist || hasHip;
+
+                if (hasAnyMeasurement) {
+                    if (!hasNeck) {
+                        return showStepError(neck, 'Please enter your neck circumference as well to calculate Body Fat %, or click "Skip for now" below.');
+                    }
+                    if (!hasWaist) {
+                        return showStepError(waist, 'Please enter your waist circumference as well to calculate Body Fat %, or click "Skip for now" below.');
+                    }
+                    if (isFemale && !hasHip) {
+                        return showStepError(hip, 'For female Body Fat % calculation, please also enter your hip circumference (or click "Skip for now" below).');
+                    }
+                }
 
                 // Validate only if value is provided; allow skipping if left empty
                 if (neck && neck.value && (parseFloat(neck.value) < 20 || parseFloat(neck.value) > 100)) {
-                    neck.closest('.split-input-wrap')?.classList.add('has-error');
-                    neck.focus();
-                    valid = false;
-                } else if (waist && waist.value && (parseFloat(waist.value) < 30 || parseFloat(waist.value) > 200)) {
-                    waist.closest('.split-input-wrap')?.classList.add('has-error');
-                    waist.focus();
-                    valid = false;
-                } else if (isFemale && hip && hip.value && (parseFloat(hip.value) < 30 || parseFloat(hip.value) > 200)) {
-                    hip.closest('.split-input-wrap')?.classList.add('has-error');
-                    hip.focus();
-                    valid = false;
+                    return showStepError(neck, 'Neck circumference must be between 20 and 100 cm.');
                 }
-                if (!valid) return;
+                if (waist && waist.value && (parseFloat(waist.value) < 45 || parseFloat(waist.value) > 200)) {
+                    return showStepError(waist, 'Waist circumference must be between 45 and 200 cm (a realistic adult waist is typically 60–100 cm).');
+                }
+                if (isFemale && hip && hip.value && (parseFloat(hip.value) < 60 || parseFloat(hip.value) > 220)) {
+                    return showStepError(hip, 'Hip circumference must be between 60 and 220 cm (measured around the widest part of your hips/buttocks).');
+                }
+                if (isFemale && hip && hip.value && waist && waist.value && parseFloat(hip.value) <= parseFloat(waist.value)) {
+                    return showStepError(hip, 'For female measurements, hip circumference (measured around the widest part of your hips/buttocks) must be greater than your waist circumference.');
+                }
+                if (!isFemale && waist && waist.value && neck && neck.value && parseFloat(waist.value) <= parseFloat(neck.value)) {
+                    return showStepError(waist, 'Waist circumference must be greater than neck circumference.');
+                }
+                if (isFemale && waist && waist.value && hip && hip.value && neck && neck.value && (parseFloat(waist.value) + parseFloat(hip.value)) <= parseFloat(neck.value)) {
+                    return showStepError(waist, 'Combined waist and hip circumference must be greater than neck circumference.');
+                }
             }
         }
 
@@ -1466,6 +1558,18 @@ function setup_profile_page(): void
         }
         initProfChips('prof-days-chip-options', 'input_weekly_workout_target');
         initProfChips('prof-duration-chip-options', 'input_preferred_duration_mins');
+
+        // Prevent Enter key on steps 1–4 from prematurely submitting the form
+        const profForm = document.getElementById('profile-form');
+        if (profForm) {
+            profForm.addEventListener('keydown', function(e) {
+                if (e.key === 'Enter' && currentProfileStep < 5) {
+                    e.preventDefault();
+                    goToProfileStep(currentProfileStep + 1);
+                }
+            });
+        }
+
         updateLiveMetrics();
         syncDaysToTarget();
         if (currentProfileStep !== 1) {

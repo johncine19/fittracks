@@ -1863,22 +1863,43 @@ function render_header(string $title, ?array $user = null): void
                                     }
                                 }
 
-                                // Smart Badge for Member Workout Plan
-                                $hasActiveWorkout = (bool) scalar('SELECT 1 FROM training_plans WHERE member_user_id = ? AND status = "active" LIMIT 1', [$uid]);
-                                if ($hasActiveWorkout) {
-                                    $hasUnreadWorkoutNotif = (bool) scalar('SELECT 1 FROM notifications WHERE user_id = ? AND is_read = 0 AND (title LIKE "%Workout Plan%" OR message LIKE "%training routine%") LIMIT 1', [$uid]);
-                                    if ($hasUnreadWorkoutNotif) {
+                                // Smart Badge for Member Workout Plan (Context-Aware)
+                                $activePlans = query_all('SELECT plan_id, start_date FROM training_plans WHERE member_user_id = ? AND status = "active"', [$uid]);
+                                if (!empty($activePlans)) {
+                                    $planIds = array_column($activePlans, 'plan_id');
+                                    $inClause = implode(',', array_map('intval', $planIds));
+                                    $totalExCount = (int) scalar("SELECT COUNT(*) FROM training_plan_exercises WHERE plan_id IN ($inClause)");
+
+                                    if ($totalExCount === 0) {
                                         $sidebarBadges['my_workout'] = [
-                                            'text' => 'New',
-                                            'class' => 'sidebar-nav-badge sidebar-badge-new',
-                                            'title' => 'New Workout Plan published for you!'
+                                            'text' => 'Setup',
+                                            'class' => 'sidebar-nav-badge sidebar-badge-pending',
+                                            'title' => 'Routine needs exercises configured'
                                         ];
                                     } else {
-                                        $sidebarBadges['my_workout'] = [
-                                            'text' => 'Active',
-                                            'class' => 'sidebar-nav-badge sidebar-badge-active',
-                                            'title' => 'Personalized Workout Plan Active'
-                                        ];
+                                        $hasUnreadWorkoutNotif = (bool) scalar('SELECT 1 FROM notifications WHERE user_id = ? AND is_read = 0 AND (title LIKE "%Workout Plan%" OR message LIKE "%training routine%") LIMIT 1', [$uid]);
+                                        if ($hasUnreadWorkoutNotif) {
+                                            $sidebarBadges['my_workout'] = [
+                                                'text' => 'New',
+                                                'class' => 'sidebar-nav-badge sidebar-badge-new',
+                                                'title' => 'New Workout Plan published for you!'
+                                            ];
+                                        } else {
+                                            // Check if today has pending exercises scheduled across active plans
+                                            $todayDow = (int) date('N'); // 1 = Monday ... 7 = Sunday
+                                            $todayDate = date('Y-m-d');
+                                            $todayExCount = (int) scalar("SELECT COUNT(*) FROM training_plan_exercises WHERE plan_id IN ($inClause) AND day_of_week = ?", [$todayDow]);
+                                            if ($todayExCount > 0) {
+                                                $completedTodayCount = (int) scalar("SELECT COUNT(DISTINCT exercise_id) FROM exercise_completions WHERE user_id = ? AND plan_id IN ($inClause) AND completed_date = ?", [$uid, $todayDate]);
+                                                if ($completedTodayCount < $todayExCount) {
+                                                    $sidebarBadges['my_workout'] = [
+                                                        'text' => 'Today',
+                                                        'class' => 'sidebar-nav-badge sidebar-badge-active',
+                                                        'title' => ($todayExCount - $completedTodayCount) . ' workout exercise' . (($todayExCount - $completedTodayCount) > 1 ? 's' : '') . ' scheduled for today'
+                                                    ];
+                                                }
+                                            }
+                                        }
                                     }
                                 }
 
@@ -1990,11 +2011,26 @@ function render_header(string $title, ?array $user = null): void
                             ];
                         }
                         if ($page === 'my_workout' && isset($sidebarBadges['my_workout']) && $sidebarBadges['my_workout']['text'] === 'New') {
-                            $sidebarBadges['my_workout'] = [
-                                'text' => 'Active',
-                                'class' => 'sidebar-nav-badge sidebar-badge-active',
-                                'title' => 'Personalized Workout Plan Active'
-                            ];
+                            $todayDow = (int) date('N');
+                            $todayDate = date('Y-m-d');
+                            $hasPendingToday = (bool) scalar("
+                                SELECT 1 
+                                FROM training_plans tp 
+                                JOIN training_plan_exercises tpe ON tpe.plan_id = tp.plan_id 
+                                LEFT JOIN exercise_completions ec ON ec.exercise_id = tpe.exercise_id AND ec.user_id = tp.member_user_id AND ec.completed_date = ?
+                                WHERE tp.member_user_id = ? AND tp.status = 'active' AND tpe.day_of_week = ? AND ec.completion_id IS NULL
+                                LIMIT 1
+                            ", [$todayDate, $uid, $todayDow]);
+
+                            if ($hasPendingToday) {
+                                $sidebarBadges['my_workout'] = [
+                                    'text' => 'Today',
+                                    'class' => 'sidebar-nav-badge sidebar-badge-active',
+                                    'title' => 'Scheduled workout waiting for today'
+                                ];
+                            } else {
+                                unset($sidebarBadges['my_workout']);
+                            }
                         }
                     }
                 ?>

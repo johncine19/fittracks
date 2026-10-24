@@ -24,6 +24,13 @@ function my_workout_page(): void
         $pdo->prepare('UPDATE notifications SET is_read = 1 WHERE user_id = ? AND is_read = 0 AND (title LIKE "%Workout Plan%" OR message LIKE "%training routine%")')->execute([$userId]);
     } catch (Throwable) {}
 
+    // Invalidate cached sidebar badges for this member so the nav reflects current workout state instantly
+    foreach ($_SESSION as $k => $v) {
+        if (str_starts_with((string)$k, 'sidebar_badges_' . $userId)) {
+            unset($_SESSION[$k]);
+        }
+    }
+
     render_header('My Workout', $user);
 
     // Fetch all active training plans for this member (supports multi-gym / multi-trainer)
@@ -388,7 +395,27 @@ function my_workout_page(): void
             <?php endif; ?>
         </div>
 
-        <?php if ($plan): ?>
+        <?php if ($plan && empty($planExercises)): ?>
+            <!-- Safeguard when plan exists but has 0 exercises configured -->
+            <div class="panel" style="text-align: center; padding: 48px 24px; border-radius: 14px; border: 1px dashed var(--line); background: var(--panel);">
+                <div style="width: 56px; height: 56px; margin: 0 auto 16px; border-radius: 50%; background: color-mix(in srgb, var(--lime) 14%, transparent); display: flex; align-items: center; justify-content: center;">
+                    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="var(--lime)" stroke-width="2.2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+                </div>
+                <h3 style="margin: 0 0 8px; font-size: 20px; font-weight: 700; color: var(--ink);">Workout Routine Needs Exercises</h3>
+                <p style="margin: 0 auto 20px; max-width: 500px; color: var(--muted); font-size: 14px; line-height: 1.5;">Your personalized routine has been created, but exercises have not been assigned yet. Generate your exercise schedule based on your fitness goals.</p>
+                <?php if ($isSelfGuided): ?>
+                    <form method="post" style="display:inline-block; margin:0;">
+                        <?= csrf_field() ?>
+                        <button type="submit" class="btn" style="background: var(--lime); color: var(--lime-btn-text, #080b0d); font-weight: 700; padding: 12px 24px; border-radius: 10px; border:none; display:inline-flex; align-items:center; gap:8px; cursor: pointer;">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+                            Generate Exercise Schedule
+                        </button>
+                    </form>
+                <?php else: ?>
+                    <p style="color: var(--muted); font-size: 13px;">Please consult your coach (<strong><?= $trainerName ?></strong>) to populate your training split.</p>
+                <?php endif; ?>
+            </div>
+        <?php elseif ($plan): ?>
             <!-- Above-the-fold 2-column Dashboard Grid -->
             <div class="workout-dashboard-grid">
                 

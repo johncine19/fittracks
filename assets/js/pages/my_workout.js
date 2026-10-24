@@ -113,14 +113,76 @@ let selectedDate = FT_WORKOUT_CONFIG.initialSelectedDate || '';
                     // Exercises list HTML
                     let exercisesHtml = '';
                     if (!day.hasWorkout) {
+                        // Look for next scheduled workout day in the calendar data
+                        let nextWorkoutDay = null;
+                        const allDates = Object.keys(CALENDAR_DATA).sort();
+                        const currentIndex = allDates.indexOf(day.date);
+                        if (currentIndex !== -1) {
+                            for (let i = currentIndex + 1; i < allDates.length; i++) {
+                                const candidate = CALENDAR_DATA[allDates[i]];
+                                if (candidate && candidate.hasWorkout) {
+                                    nextWorkoutDay = candidate;
+                                    break;
+                                }
+                            }
+                        }
+
+                        // Check if any day in the month has workouts at all
+                        const hasAnyWorkout = allDates.some(dt => CALENDAR_DATA[dt] && CALENDAR_DATA[dt].hasWorkout);
+
+                        let nextWorkoutHtml = '';
+                        if (nextWorkoutDay) {
+                            const exTags = (nextWorkoutDay.exercises || []).slice(0, 4).map(ex => `<span class="nwp-tag">${escapeHtml(ex.name)}</span>`).join('');
+                            const moreTag = (nextWorkoutDay.exercises && nextWorkoutDay.exercises.length > 4) ? `<span class="nwp-tag-more">+${nextWorkoutDay.exercises.length - 4} more</span>` : '';
+
+                            nextWorkoutHtml = `
+                                <div class="next-workout-preview-card">
+                                    <div class="nwp-header">
+                                        <div class="nwp-pill">
+                                            <span class="nwp-dot"></span>
+                                            <span>Next Scheduled Workout</span>
+                                        </div>
+                                        <span class="nwp-date">${escapeHtml(nextWorkoutDay.formattedDate)}</span>
+                                    </div>
+                                    <div class="nwp-body">
+                                        <div class="nwp-title-row">
+                                            <h4 class="nwp-focus-title">${escapeHtml(nextWorkoutDay.focusTitle)}</h4>
+                                            <span class="nwp-meta-badge">${nextWorkoutDay.scheduledCount} Exercises &bull; ~${nextWorkoutDay.estDurationMinutes} mins</span>
+                                        </div>
+                                        <div class="nwp-exercise-tags">
+                                            ${exTags}
+                                            ${moreTag}
+                                        </div>
+                                    </div>
+                                    <div class="nwp-footer">
+                                        <button type="button" class="btn-preview-next-workout" onclick="selectDate('${nextWorkoutDay.date}')">
+                                            <span>Preview ${escapeHtml(nextWorkoutDay.dayName)}'s Workout</span>
+                                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg>
+                                        </button>
+                                    </div>
+                                </div>
+                            `;
+                        } else if (!hasAnyWorkout) {
+                            nextWorkoutHtml = `
+                                <div class="callout-empty-routine">
+                                    <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="var(--orange, #f59e0b)" stroke-width="2" style="margin-bottom: 8px;">
+                                        <circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line>
+                                    </svg>
+                                    <h4 style="margin: 0 0 6px; font-size: 15px; color: var(--ink);">No Exercises in this Routine</h4>
+                                    <p style="margin: 0; font-size: 13px; color: var(--muted); max-width: 320px;">Your routine does not have exercises scheduled yet. Use the 'Regenerate Plan' button at the top to build your routine.</p>
+                                </div>
+                            `;
+                        }
+
                         exercisesHtml = `
                             <div class="callout-rest">
-                                <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="var(--lime)" stroke-width="1.75" style="margin-bottom: 12px; opacity: 0.85;">
+                                <svg width="38" height="38" viewBox="0 0 24 24" fill="none" stroke="var(--lime)" stroke-width="1.75" style="margin-bottom: 10px; opacity: 0.9;">
                                     <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/>
                                 </svg>
                                 <h4 style="font-size: 16px; color: var(--ink); margin: 0 0 6px 0;">Rest &amp; Recovery Day</h4>
-                                <p style="margin: 0; font-size: 13px; max-width: 320px; margin: 0 auto;">Your muscles rebuild and recover on rest days. Stay hydrated and prioritize good sleep!</p>
+                                <p style="margin: 0; font-size: 13px; max-width: 340px; margin: 0 auto; line-height: 1.45;">Your muscles rebuild and recover on rest days. Stay hydrated, eat clean, and prioritize good sleep!</p>
                             </div>
+                            ${nextWorkoutHtml}
                         `;
                     } else {
                         exercisesHtml = '<div class="exercise-list-container">';

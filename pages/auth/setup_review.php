@@ -73,15 +73,17 @@ function setup_review_page(): void
             }
 
             // If the member skipped circumference measurements, notify them so they remember to measure later
-            if (empty($profile['waist_cm']) || empty($profile['neck_cm'])) {
+            $isFemaleConfirm = (($profile['biological_sex'] ?? 'male') === 'female');
+            if (empty($profile['waist_cm']) || empty($profile['neck_cm']) || ($isFemaleConfirm && empty($profile['hip_cm']))) {
                 try {
                     $alreadySent = scalar('SELECT 1 FROM notifications WHERE user_id = ? AND title LIKE "%Body Measurements%" LIMIT 1', [$user['user_id']]);
                     if (!$alreadySent) {
+                        $measRequiredText = $isFemaleConfirm ? 'neck, waist & hip' : 'neck & waist';
                         notify_user(
                             (int) $user['user_id'],
                             'system',
                             '📏 Complete Your Body Measurements',
-                            'You skipped circumference measurements during signup. Add your neck & waist in your profile (or have a gym trainer measure you) to unlock Navy Body Fat % tracking.'
+                            'You skipped circumference measurements during signup. Add your ' . $measRequiredText . ' in your profile (or have a gym trainer measure you) to unlock Navy Body Fat % tracking.'
                         );
                     }
                 } catch (Throwable) {
@@ -115,14 +117,32 @@ function setup_review_page(): void
                 'weight_kg'               => 'numeric|min_num:20|max_num:300',
                 'age'                     => 'numeric|min_num:16|max_num:120',
                 'neck_cm'                 => 'numeric|min_num:20|max_num:100',
-                'waist_cm'                => 'numeric|min_num:30|max_num:200',
-                'hip_cm'                  => 'numeric|min_num:30|max_num:200',
+                'waist_cm'                => 'numeric|min_num:45|max_num:200',
+                'hip_cm'                  => 'numeric|min_num:60|max_num:220',
                 'weekly_workout_target'   => 'numeric|min_num:1|max_num:7',
                 'preferred_duration_mins' => 'numeric|min_num:15|max_num:180',
             ]);
 
             if (!$valid) {
                 flash($validator->firstError() ?? 'Invalid values provided. Please check the fields.', 'danger');
+                redirect('setup_review');
+            }
+
+            $sex = (string)($_POST['biological_sex'] ?? ($profile['biological_sex'] ?? 'male'));
+            $waist = !empty($_POST['waist_cm']) ? (float)$_POST['waist_cm'] : null;
+            $hip = !empty($_POST['hip_cm']) ? (float)$_POST['hip_cm'] : null;
+            $neck = !empty($_POST['neck_cm']) ? (float)$_POST['neck_cm'] : null;
+
+            if ($sex === 'female' && $waist !== null && $hip !== null && $hip <= $waist) {
+                flash('For female measurements, hip circumference must be greater than waist circumference (measured around the widest part of the hips/buttocks, typically 80–115 cm).', 'danger');
+                redirect('setup_review');
+            }
+            if ($sex === 'male' && $waist !== null && $neck !== null && $waist <= $neck) {
+                flash('Waist circumference must be greater than neck circumference.', 'danger');
+                redirect('setup_review');
+            }
+            if ($sex === 'female' && $waist !== null && $hip !== null && $neck !== null && ($waist + $hip) <= $neck) {
+                flash('Combined waist and hip circumference must be greater than neck circumference.', 'danger');
                 redirect('setup_review');
             }
 

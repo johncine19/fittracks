@@ -446,7 +446,7 @@ function member_dashboard(PDO $pdo, array $user): void
 
     // Incomplete circumference measurements reminder
     $memberProfileData = member_profile((int) $user['user_id']);
-    $missingCircumference = ($memberProfileData && (empty($memberProfileData['waist_cm']) || empty($memberProfileData['neck_cm'])));
+    $missingCircumference = ($memberProfileData && (empty($memberProfileData['waist_cm']) || empty($memberProfileData['neck_cm']) || ((($memberProfileData['biological_sex'] ?? 'male') === 'female') && empty($memberProfileData['hip_cm']))));
     ?>
 
     <?php if ($missingCircumference): ?>

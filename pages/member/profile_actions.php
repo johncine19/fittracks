@@ -90,15 +90,15 @@ function handle_profile_post_actions(array $user, ?array $profile, bool $is_memb
                 'weight_kg'                     => 'numeric|min_num:20|max_num:300',
                 'age'                           => 'numeric|min_num:16|max_num:120',
                 'neck_cm'                       => 'numeric|min_num:20|max_num:100',
-                'waist_cm'                      => 'numeric|min_num:30|max_num:200',
-                'hip_cm'                        => 'numeric|min_num:30|max_num:200',
+                'waist_cm'                      => 'numeric|min_num:45|max_num:200',
+                'hip_cm'                        => 'numeric|min_num:60|max_num:220',
                 'chest_cm'                      => 'numeric|min_num:30|max_num:200',
                 'arm_cm'                        => 'numeric|min_num:10|max_num:100',
                 'target_weight_kg'              => 'numeric|min_num:20|max_num:300',
                 'target_body_fat_percent'       => 'numeric|min_num:1|max_num:70',
                 'target_arm_cm'                 => 'numeric|min_num:15|max_num:70',
                 'target_chest_cm'               => 'numeric|min_num:40|max_num:180',
-                'target_waist_cm'               => 'numeric|min_num:30|max_num:200',
+                'target_waist_cm'               => 'numeric|min_num:45|max_num:200',
                 'current_strength_max_kg'       => 'numeric|min_num:0|max_num:500',
                 'target_strength_max_kg'        => 'numeric|min_num:1|max_num:500',
                 'current_endurance_distance_km' => 'numeric|min_num:0.1|max_num:200',
@@ -109,6 +109,24 @@ function handle_profile_post_actions(array $user, ?array $profile, bool $is_memb
                 'preferred_duration_mins'       => 'numeric|min_num:15|max_num:180',
             ]);
             
+            $sex = (string)($_POST['biological_sex'] ?? ($profile['biological_sex'] ?? 'male'));
+            $waistVal = !empty($_POST['waist_cm']) ? (float)$_POST['waist_cm'] : null;
+            $hipVal = !empty($_POST['hip_cm']) ? (float)$_POST['hip_cm'] : null;
+            $neckVal = !empty($_POST['neck_cm']) ? (float)$_POST['neck_cm'] : null;
+
+            if ($valid && $sex === 'female' && $waistVal !== null && $hipVal !== null && $hipVal <= $waistVal) {
+                $valid = false;
+                $validator_error = 'For female measurements, hip circumference must be greater than waist circumference (measured around the widest part of the hips/buttocks).';
+            }
+            if ($valid && $sex === 'male' && $waistVal !== null && $neckVal !== null && $waistVal <= $neckVal) {
+                $valid = false;
+                $validator_error = 'Waist circumference must be greater than neck circumference.';
+            }
+            if ($valid && $sex === 'female' && $waistVal !== null && $hipVal !== null && $neckVal !== null && ($waistVal + $hipVal) <= $neckVal) {
+                $valid = false;
+                $validator_error = 'Combined waist and hip circumference must be greater than neck circumference.';
+            }
+
             $newGoal = (string) post('primary_goal');
             $currStrength = (float) post('current_strength_max_kg');
             $targStrength = (float) post('target_strength_max_kg');

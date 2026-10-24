@@ -156,13 +156,13 @@ function _get_workout_parameters(array $profile, PDO $pdo): array
     // Fetch member's gym_id
     $memberGymId = (int) $pdo->query('SELECT gym_id FROM gym_members WHERE user_id = ' . (int)($profile['user_id'] ?? 0))->fetchColumn();
 
-    // Filter exercises by difficulty_level <= experience_level AND gym_id
-    $stmt = $pdo->prepare('SELECT * FROM exercises WHERE difficulty_level <= ? AND gym_id = ?');
+    // Filter exercises by difficulty_level <= experience_level AND gym_id (including universal catalog gym_id = 0)
+    $stmt = $pdo->prepare('SELECT * FROM exercises WHERE difficulty_level <= ? AND (gym_id = ? OR gym_id = 0 OR gym_id IS NULL)');
     $stmt->execute([$expLevel, $memberGymId]);
     $exercises = $stmt->fetchAll();
     
     if (!$exercises) {
-        $stmt = $pdo->prepare('SELECT * FROM exercises WHERE gym_id = ?');
+        $stmt = $pdo->prepare('SELECT * FROM exercises WHERE (gym_id = ? OR gym_id = 0 OR gym_id IS NULL)');
         $stmt->execute([$memberGymId]);
         $exercises = $stmt->fetchAll();
     }

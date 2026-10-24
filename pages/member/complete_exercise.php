@@ -19,6 +19,13 @@ function complete_exercise_action(): void
 
             $tierInfo = check_and_upgrade_tier($userId, $planId);
 
+            // Invalidate sidebar badges cache so nav status updates immediately
+            foreach ($_SESSION as $k => $v) {
+                if (str_starts_with((string)$k, 'sidebar_badges_' . $userId)) {
+                    unset($_SESSION[$k]);
+                }
+            }
+
             header('Content-Type: application/json');
             echo json_encode(['success' => true, 'tier_upgraded' => $tierInfo]);
             exit;

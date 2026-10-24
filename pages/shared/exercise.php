@@ -9,6 +9,33 @@ declare(strict_types=1);
 function save_member_profile(int $userId): void
 {
     $pdo = db();
+    $existing = member_profile($userId, true) ?? [];
+
+    $resolveField = static function (string $key, mixed $default = null) use ($existing): mixed {
+        if (array_key_exists($key, $_POST)) {
+            $val = $_POST[$key];
+            if (is_string($val)) {
+                $val = trim($val);
+            }
+            return ($val !== '' && $val !== null) ? $val : $default;
+        }
+        return array_key_exists($key, $existing) && $existing[$key] !== null && $existing[$key] !== ''
+            ? $existing[$key]
+            : $default;
+    };
+
+    $sexVal = (string) $resolveField('biological_sex', 'male');
+    $heightVal = (float) ($resolveField('height_cm', 0.0) ?: 0.0);
+    $weightVal = (float) ($resolveField('weight_kg', 0.0) ?: 0.0);
+    $neckVal = $resolveField('neck_cm', null);
+    $waistVal = $resolveField('waist_cm', null);
+    $hipVal = $sexVal === 'female' ? $resolveField('hip_cm', null) : null;
+    $chestVal = $resolveField('chest_cm', null);
+    $armVal = $resolveField('arm_cm', null);
+    $ageVal = (int) ($resolveField('age', 0) ?: 0);
+    $activityVal = (string) $resolveField('activity_level', 'sedentary');
+    $goalVal = (string) $resolveField('primary_goal', '');
+    $dietVal = (string) $resolveField('dietary_restrictions', 'none');
 
     $stmt = $pdo->prepare('INSERT INTO member_profiles (
         user_id, height_cm, weight_kg, neck_cm, waist_cm, hip_cm, chest_cm, arm_cm, age, biological_sex, activity_level, primary_goal, dietary_restrictions,
@@ -31,38 +58,41 @@ function save_member_profile(int $userId): void
         secondary_focus = IF(VALUES(secondary_focus) = \'none\' OR VALUES(secondary_focus) = \'\', NULL, COALESCE(VALUES(secondary_focus), secondary_focus)),
         trainer_assessment_notes = COALESCE(VALUES(trainer_assessment_notes), trainer_assessment_notes)');
 
+    $weeklyTargetRaw = $resolveField('weekly_workout_target', null);
+    $durationRaw = $resolveField('preferred_duration_mins', 45);
+
     $profileParams = [
         $userId,
-        post('height_cm') ?: 0.0,
-        post('weight_kg') ?: 0.0,
-        post('neck_cm') ?: null,
-        post('waist_cm') ?: null,
-        post('biological_sex') === 'female' ? (post('hip_cm') ?: null) : null,
-        post('chest_cm') ?: null,
-        post('arm_cm') ?: null,
-        (int) (post('age') ?: 0),
-        post('biological_sex') ?: 'male',
-        post('activity_level') ?: 'sedentary',
-        post('primary_goal') ?: '',
-        post('dietary_restrictions') ?: 'none',
-        post('target_weight_kg') ?: null,
-        post('target_body_fat_percent') ?: null,
-        post('target_arm_cm') ?: null,
-        post('target_chest_cm') ?: null,
-        post('target_waist_cm') ?: null,
-        post('target_exercise') ?: null,
-        post('current_strength_max_kg') ?: null,
-        post('target_strength_max_kg') ?: null,
-        post('endurance_activity') ?: null,
-        post('current_endurance_distance_km') ?: null,
-        post('current_endurance_time_mins') ?: null,
-        post('target_endurance_distance_km') ?: null,
-        post('target_endurance_time_mins') ?: null,
-        post('weekly_workout_target') ? (int)post('weekly_workout_target') : null,
-        post('preferred_duration_mins') ? (int)post('preferred_duration_mins') : 45,
-        post('preferred_workout_days') !== null ? (trim((string)post('preferred_workout_days')) ?: null) : null,
-        post('secondary_focus') !== null ? (is_array(post('secondary_focus')) ? implode(', ', post('secondary_focus')) : (trim((string)post('secondary_focus')) === '' || strtolower(trim((string)post('secondary_focus'))) === 'none' ? 'none' : trim((string)post('secondary_focus')))) : null,
-        post('trainer_assessment_notes') !== null ? (trim((string)post('trainer_assessment_notes')) ?: null) : null,
+        $heightVal,
+        $weightVal,
+        $neckVal !== null ? (float) $neckVal : null,
+        $waistVal !== null ? (float) $waistVal : null,
+        $hipVal !== null ? (float) $hipVal : null,
+        $chestVal !== null ? (float) $chestVal : null,
+        $armVal !== null ? (float) $armVal : null,
+        $ageVal,
+        $sexVal,
+        $activityVal,
+        $goalVal,
+        $dietVal,
+        $resolveField('target_weight_kg', null),
+        $resolveField('target_body_fat_percent', null),
+        $resolveField('target_arm_cm', null),
+        $resolveField('target_chest_cm', null),
+        $resolveField('target_waist_cm', null),
+        $resolveField('target_exercise', null),
+        $resolveField('current_strength_max_kg', null),
+        $resolveField('target_strength_max_kg', null),
+        $resolveField('endurance_activity', null),
+        $resolveField('current_endurance_distance_km', null),
+        $resolveField('current_endurance_time_mins', null),
+        $resolveField('target_endurance_distance_km', null),
+        $resolveField('target_endurance_time_mins', null),
+        $weeklyTargetRaw !== null ? (int) $weeklyTargetRaw : null,
+        $durationRaw !== null ? (int) $durationRaw : 45,
+        post('preferred_workout_days') !== null ? (trim((string)post('preferred_workout_days')) ?: null) : ($existing['preferred_workout_days'] ?? null),
+        post('secondary_focus') !== null ? (is_array(post('secondary_focus')) ? implode(', ', post('secondary_focus')) : (trim((string)post('secondary_focus')) === '' || strtolower(trim((string)post('secondary_focus'))) === 'none' ? 'none' : trim((string)post('secondary_focus')))) : ($existing['secondary_focus'] ?? null),
+        post('trainer_assessment_notes') !== null ? (trim((string)post('trainer_assessment_notes')) ?: null) : ($existing['trainer_assessment_notes'] ?? null),
     ];
 
     try {
@@ -102,22 +132,47 @@ function save_member_profile(int $userId): void
 
     // Keep progress_logs synchronized with physical profile so progress page and profile page match
     $today = date('Y-m-d');
-    $w = (float)(post('weight_kg') ?: 0);
-    $waist = post('waist_cm') ? (float)post('waist_cm') : null;
-    $neck = post('neck_cm') ? (float)post('neck_cm') : null;
-    $hips = (post('biological_sex') === 'female' && post('hip_cm')) ? (float)post('hip_cm') : null;
-    $chest = post('chest_cm') ? (float)post('chest_cm') : null;
-    $arm = post('arm_cm') ? (float)post('arm_cm') : null;
+    $w = $weightVal;
+    $waist = $waistVal !== null ? (float) $waistVal : null;
+    $neck = $neckVal !== null ? (float) $neckVal : null;
+    $hips = ($sexVal === 'female' && $hipVal !== null) ? (float) $hipVal : null;
+    $chest = $chestVal !== null ? (float) $chestVal : null;
+    $arm = $armVal !== null ? (float) $armVal : null;
+
+    // Calculate Navy Body Fat % if required measurements are available
+    $bodyFatPercent = null;
+    if ($heightVal > 0 && $neck !== null && $neck > 0 && $waist !== null && $waist > 0) {
+        if ($sexVal !== 'female' && $waist > $neck) {
+            $bfCalc = 495 / (1.0324 - 0.19077 * log10($waist - $neck) + 0.15456 * log10($heightVal)) - 450;
+            if ($bfCalc >= 3 && $bfCalc <= 65) {
+                $bodyFatPercent = round($bfCalc, 1);
+            }
+        } elseif ($sexVal === 'female' && $hips !== null && $hips > 0 && ($waist + $hips) > $neck) {
+            $bfCalc = 495 / (1.29579 - 0.35004 * log10($waist + $hips - $neck) + 0.22100 * log10($heightVal)) - 450;
+            if ($bfCalc >= 3 && $bfCalc <= 65) {
+                $bodyFatPercent = round($bfCalc, 1);
+            }
+        }
+    }
 
     if ($w > 0) {
         $existingLogId = scalar('SELECT log_id FROM progress_logs WHERE user_id = ? AND log_date = ?', [$userId, $today]);
         if ($existingLogId) {
-            $pdo->prepare('UPDATE progress_logs SET weight_kg = ?, waist_cm = COALESCE(?, waist_cm), hips_cm = COALESCE(?, hips_cm), chest_cm = COALESCE(?, chest_cm), arm_cm = COALESCE(?, arm_cm) WHERE log_id = ?')
-                ->execute([$w, $waist, $hips, $chest, $arm, $existingLogId]);
+            $pdo->prepare('UPDATE progress_logs SET weight_kg = ?, body_fat_percent = COALESCE(?, body_fat_percent), waist_cm = COALESCE(?, waist_cm), hips_cm = COALESCE(?, hips_cm), chest_cm = COALESCE(?, chest_cm), arm_cm = COALESCE(?, arm_cm) WHERE log_id = ?')
+                ->execute([$w, $bodyFatPercent, $waist, $hips, $chest, $arm, $existingLogId]);
         } else {
-            $pdo->prepare('INSERT INTO progress_logs (user_id, log_date, weight_kg, waist_cm, hips_cm, chest_cm, arm_cm, recorded_by, notes) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)')
-                ->execute([$userId, $today, $w, $waist, $hips, $chest, $arm, $userId, 'Updated via physical profile']);
+            $pdo->prepare('INSERT INTO progress_logs (user_id, log_date, weight_kg, body_fat_percent, waist_cm, hips_cm, chest_cm, arm_cm, recorded_by, notes) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
+                ->execute([$userId, $today, $w, $bodyFatPercent, $waist, $hips, $chest, $arm, $userId, 'Updated via physical profile']);
         }
+    }
+
+    // If measurements required for Body Fat % are now completed, clean up any pending reminder notification
+    $hasAllBfMeasurements = ($neck !== null && $neck > 0 && $waist !== null && $waist > 0 && ($sexVal !== 'female' || ($hips !== null && $hips > 0)));
+    if ($hasAllBfMeasurements) {
+        try {
+            $pdo->prepare('DELETE FROM notifications WHERE user_id = ? AND title LIKE "%Complete Your Body Measurements%"')
+                ->execute([$userId]);
+        } catch (Throwable) {}
     }
 
     // Update fitness_tier based on selected experience_level
@@ -129,6 +184,9 @@ function save_member_profile(int $userId): void
         $pdo->prepare('UPDATE member_profiles SET fitness_tier = ? WHERE user_id = ?')
             ->execute([$tier, $userId]);
     }
+
+    // Refresh static profile cache so callers in the same request see updated data
+    member_profile($userId, true);
 }
 
 function member_profile(int $userId, bool $forceRefresh = false): ?array
