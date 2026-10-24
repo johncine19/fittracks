@@ -1816,12 +1816,7 @@ function memberships_page(): void
                                                         <span style="color: var(--muted); font-size: 13px; font-weight: 500;" title="Member currently has an active plan">—</span>
                                                     <?php endif; ?>
                                                 <?php elseif ($rowStatus === 'cancelled'): ?>
-                                                    <?php $isRowEndDatePast = (!empty($row['end_date']) && strtotime($row['end_date']) < strtotime('today')); ?>
-                                                    <?php if (!$isRowEndDatePast): ?>
-                                                        <button onclick="editStatus(<?= (int)$row['membership_id'] ?>, 'cancelled')" class="btn btn-secondary" style="padding:4px 8px;font-size:12px;" title="Restore Membership to Active">Restore</button>
-                                                    <?php else: ?>
-                                                        <span style="color: var(--muted); font-size: 13px; font-weight: 500;" title="Cancelled plan has already lapsed">—</span>
-                                                    <?php endif; ?>
+                                                    <span style="color: var(--muted); font-size: 13px; font-weight: 500;" title="Cancelled membership">—</span>
                                                 <?php else: ?>
                                                     <button onclick="editStatus(<?= (int)$row['membership_id'] ?>, '<?= h($rowStatus) ?>')" class="btn btn-secondary" style="padding:4px 8px;font-size:12px;" title="Edit Status">Update</button>
                                                 <?php endif; ?>
@@ -1882,14 +1877,7 @@ function memberships_page(): void
                                                 <div style="text-align: center; color: var(--muted); font-size: 12px; padding: 4px 0;">Archived Plan</div>
                                             <?php endif; ?>
                                         <?php elseif ($rowStatus === 'cancelled'): ?>
-                                            <?php $isRowEndDatePast = (!empty($row['end_date']) && strtotime($row['end_date']) < strtotime('today')); ?>
-                                            <?php if (!$isRowEndDatePast): ?>
-                                                <button type="button" onclick="editStatus(<?= (int)$row['membership_id'] ?>, 'cancelled')" class="btn btn-secondary" style="width: 100%; padding: 8px 12px; font-size: 13px; font-weight: 600; display: flex; align-items: center; justify-content: center; gap: 6px;">
-                                                    Restore Membership
-                                                </button>
-                                            <?php else: ?>
-                                                <div style="text-align: center; color: var(--muted); font-size: 12px; padding: 4px 0;">Archived Plan</div>
-                                            <?php endif; ?>
+                                            <div style="text-align: center; color: var(--muted); font-size: 12px; padding: 4px 0;">Cancelled Plan</div>
                                         <?php else: ?>
                                             <button type="button" onclick="editStatus(<?= (int)$row['membership_id'] ?>, '<?= h($rowStatus) ?>')" class="btn btn-secondary" style="width: 100%; padding: 8px 12px; font-size: 13px; font-weight: 600; display: flex; align-items: center; justify-content: center; gap: 6px;">
                                                 <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
